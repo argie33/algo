@@ -39,7 +39,7 @@ import psycopg2
 from botocore.exceptions import BotoCoreError, ClientError
 
 from loaders.config import get_loader_max_fail_rate
-from loaders.loader_registry import all_tables, normalize_loader_name
+from loaders.loader_registry import all_tables, normalize_loader_name, table_to_loader_shorthand
 from loaders.loader_timeout_config import get_loader_timeouts
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
@@ -1064,15 +1064,35 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
         results = _check_and_refresh_local(run_date=run_date, pipeline_context=pipeline_context, dry_run=dry_run)
 
         # SESSION 104 CRITICAL FIX: Add stall detection monitoring for LOCAL_MODE loaders
-        # SESSION 106 ENHANCED: Now catches loaders stuck at ANY point, not just <5min old
         # _check_and_refresh_local() runs loaders and returns immediately, bypassing monitor_loader_retry()
         # which contains stall detection. Without this post-execution check, loaders stuck at 0% for 26+ hours
-        # are never detected as stalled. Check for incomplete RUNNING loaders (0% for ANY duration) and mark them.
+        # are never detected as stalled. Check for incomplete RUNNING loaders and mark genuinely-stalled ones.
+        #
+        # BUG FOUND 2026-08-16 (live-reproduced): SESSION 106 changed this from "time since last
+        # DB update > 5min" to "time since execution_started > 120s" for EVERY loader alike. Per
+        # scripts/local_loader_scheduler.py's own confirmed finding, only 2 of ~40 OptimalLoader
+        # subclasses call update_progress() mid-run - every other loader (price_daily,
+        # earnings_calendar, etc, configured for 30-1440min real timeouts) sits at
+        # completion_pct=0 for its ENTIRE run. Because this query is also unscoped (matches ANY
+        # table RUNNING at 0%, not just ones this call retried) and this function runs repeatedly
+        # across the day's pipeline stages, a still-legitimately-running slow loader from one
+        # invocation gets killed by the NEXT invocation's post-loop check the moment 2 minutes
+        # elapse. Live-confirmed: price_daily (execution_started 14:13:15, 1440min configured
+        # timeout) and earnings_calendar (execution_started 14:45:37) were BOTH marked FAILED
+        # with this exact message at the same instant (14:50:57) - the signature of one blanket
+        # sweep, not real per-loader stall detection. Fixed two ways, matching patterns already
+        # proven elsewhere in this codebase:
+        #   1. Liveness check: before declaring a stall, check whether the primary table's own
+        #      updated_at moved since execution_started (same fix already applied to
+        #      dashboard/freshness_enhancements.py's row-count staleness check for the identical
+        #      upsert-table blind spot).
+        #   2. Real threshold: derive the stall threshold from this table's own configured loader
+        #      timeout (same 20%-of-timeout-clamped-15-30min formula local_loader_scheduler.py's
+        #      _monitor_loader_progress already uses) instead of one flat 120s for every loader -
+        #      catches the case where nothing has been written yet at all (e.g. still mid-fetch,
+        #      nothing to upsert), which the updated_at check alone can't see.
         try:
             with DatabaseContext("read") as cur:
-                # SESSION 106 CRITICAL FIX: Detect RUNNING loaders at 0% regardless of last_updated age
-                # Changed from "last_updated < 5min ago" to "execution_started exists" (has been running)
-                # This catches loaders stuck at 0% for 5min, 30min, or even if somehow not updated since start
                 cur.execute("""
                     SELECT table_name, completion_pct, execution_started, last_updated
                     FROM data_loader_status
@@ -1081,32 +1101,80 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                 """)
                 stalled_loaders = cur.fetchall()
 
+                loader_timeouts = get_loader_timeouts()
                 for table_name, _completion_pct, execution_started, _last_updated in stalled_loaders:
                     stalled_duration = (
                         (datetime.now(timezone.utc) - execution_started.replace(tzinfo=timezone.utc)).total_seconds()
                         if execution_started
                         else 0
                     )
-                    # SESSION 106 FIX: Only fail if stuck for >2 minutes (allow brief startup time)
-                    # Loaders may take 1-2 min to initialize before first completion update
-                    if stalled_duration > 120:
-                        logger.critical(
-                            f"[PHASE 1 FAILSAFE LOCAL] Loader stalled post-execution: {table_name} at 0% for {int(stalled_duration)}s. "
-                            f"Marking FAILED to prevent Monday cascade."
-                        )
-                        try:
-                            LoaderStatusManager(table_name).mark_failed(
-                                f"[PHASE 1 FAILSAFE LOCAL] Loader stalled at 0% completion for {int(stalled_duration)}s (started {execution_started}). "
-                                f"Subprocess likely hung or deadlocked."
-                            )
-                        except Exception as e:
-                            logger.error(f"[PHASE 1 FAILSAFE LOCAL] Could not mark {table_name} FAILED: {e}")
 
-                        # Mark as still failing in results so Phase 1 can halt if critical
-                        if table_name not in results.get("still_failing", []):
-                            results["still_failing"].append(table_name)
-                            if is_critical(table_name):
-                                results["halt_required"] = True
+                    # Derive this table's real stall threshold from its configured loader
+                    # timeout (15-30min clamp). Fall back to the old 120s only if the table
+                    # can't be mapped to a registered loader at all.
+                    loader_key = table_to_loader_shorthand(table_name)
+                    timeout_sec = loader_timeouts.get(loader_key) if loader_key else None
+                    stall_threshold = min(1800, max(900, int(timeout_sec / 5))) if timeout_sec else 120
+
+                    if stalled_duration <= stall_threshold:
+                        continue
+
+                    # Liveness check: even past the threshold, don't kill a loader that's
+                    # actively writing - check whether its own table was touched since it started.
+                    actually_alive = False
+                    try:
+                        cur.execute(
+                            "SELECT 1 FROM information_schema.columns "
+                            "WHERE table_name = %s AND column_name = 'updated_at'",
+                            (table_name,),
+                        )
+                        if cur.fetchone():
+                            cur.execute(f"SELECT MAX(updated_at) FROM {table_name}")
+                            max_updated_row = cur.fetchone()
+                            max_updated = max_updated_row[0] if max_updated_row else None
+                            if max_updated is not None and execution_started is not None:
+                                started_cmp = (
+                                    execution_started.replace(tzinfo=timezone.utc)
+                                    if execution_started.tzinfo is None
+                                    else execution_started
+                                )
+                                updated_cmp = (
+                                    max_updated.replace(tzinfo=timezone.utc)
+                                    if max_updated.tzinfo is None
+                                    else max_updated
+                                )
+                                if updated_cmp >= started_cmp:
+                                    actually_alive = True
+                    except Exception as liveness_err:
+                        logger.debug(
+                            f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} liveness via updated_at: {liveness_err}"
+                        )
+
+                    if actually_alive:
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} at 0%% completion_pct for {int(stalled_duration)}s "
+                            f"(> {stall_threshold}s threshold) but its own table was written to during this run - "
+                            f"not a real stall, leaving RUNNING."
+                        )
+                        continue
+
+                    logger.critical(
+                        f"[PHASE 1 FAILSAFE LOCAL] Loader stalled post-execution: {table_name} at 0% for "
+                        f"{int(stalled_duration)}s (>{stall_threshold}s threshold). Marking FAILED to prevent Monday cascade."
+                    )
+                    try:
+                        LoaderStatusManager(table_name).mark_failed(
+                            f"[PHASE 1 FAILSAFE LOCAL] Loader stalled at 0% completion for {int(stalled_duration)}s "
+                            f"(started {execution_started}, threshold {stall_threshold}s). Subprocess likely hung or deadlocked."
+                        )
+                    except Exception as e:
+                        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Could not mark {table_name} FAILED: {e}")
+
+                    # Mark as still failing in results so Phase 1 can halt if critical
+                    if table_name not in results.get("still_failing", []):
+                        results["still_failing"].append(table_name)
+                        if is_critical(table_name):
+                            results["halt_required"] = True
         except Exception as e:
             logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check for stalled loaders post-execution: {e}")
 
