@@ -157,7 +157,31 @@ def _find_todays_run(run_type: str, run_date) -> dict | None:
         return None
 
 
+def _fix_windows_console_encoding() -> None:
+    """Reconfigure stdout/stderr as UTF-8 on Windows, matching monitor_data_staleness.py's guard.
+
+    Must only be called from main() (i.e. only when this script runs directly) - doing
+    this at module import time would permanently replace pytest's own capture streams
+    for the rest of the test process. Confirmed live 2026-08-14: a bare `except Exception`
+    around the loader-freshness pre-check was silently swallowing UnicodeEncodeError from
+    cp1252-default Windows consoles printing non-ASCII output, masking the real freshness
+    check entirely ("Note: Could not check loader freshness (UnicodeEncodeError).
+    Proceeding with orchestrator.") - a claimed fix for this in memory was never actually
+    applied to this file.
+    """
+    if sys.platform.startswith("win"):
+        import io
+
+        try:
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        except (AttributeError, TypeError, OSError):
+            pass
+
+
 def main() -> None:
+    _fix_windows_console_encoding()
+
     parser = argparse.ArgumentParser(
         description="Run orchestrator locally (development mode)",
     )
