@@ -22,11 +22,27 @@ def _run_once_with_no_data():
         call_count[0] += 1
         return 0.0 if call_count[0] <= 2 else 100.0
 
+    # BUG FOUND 2026-08-16 (CI-only hang, ~13min then job cancelled - never reproduced
+    # locally): run_once() starts a REAL background thread (preload_thread) that calls the
+    # mocked load_all() and then sets state.result = {} (falsy but NOT None). The main loop's
+    # only exit condition when no 'q' is pressed is `elapsed_loop > 30 and state.result is
+    # None` - fake_monotonic trips that after just 2 calls, essentially instantly, so on a
+    # fast/lightly-loaded machine the main loop always wins the race against real OS thread
+    # scheduling and reaches the timeout branch first. On a slower/busier CI runner, the real
+    # thread can occasionally get scheduled first and set state.result to {} before the 2nd
+    # monotonic() call - once that happens, state.result is never None again, the timeout
+    # condition can never fire, _keypress is mocked to always return "" (never 'q'), and
+    # time.sleep is mocked to a no-op - the `while True` loop then spins forever with no exit
+    # condition at all. This test exercises the "no data arrived" path specifically, so the
+    # real preload thread completing at all is the bug, not a race to win - patch
+    # threading.Thread itself so preload_data() (and the render warmup thread) never actually
+    # run, making state.result deterministically stay None regardless of machine speed.
     with (
         patch("dashboard.dashboard.load_all", side_effect=dict),
         patch("dashboard.dashboard.time.monotonic", side_effect=fake_monotonic),
         patch("dashboard.dashboard.time.sleep", return_value=None),
         patch("dashboard.dashboard._keypress", return_value=""),
+        patch("dashboard.dashboard.threading.Thread"),
         patch("dashboard.dashboard.Live"),
         patch.object(dashboard, "CONSOLE") as mock_console,
     ):
