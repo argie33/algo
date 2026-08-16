@@ -3,13 +3,11 @@ import { Star, Activity, DollarSign, TrendingUp, Users, Shield, Inbox } from "lu
 import {
   formatNumber,
   formatPercentageChange,
-  formatCurrency,
 } from "../utils/formatters";
 import { api } from "../services/api";
 
 const num = (v, dp = 1) => formatNumber(v, dp);
 const pct = (v, dp = 2) => formatPercentageChange(v, dp);
-const money = (v) => formatCurrency(v);
 
 const scoreClass = (v) => {
   if (v == null || isNaN(Number(v))) return "badge";
@@ -306,11 +304,9 @@ function InputRow({ row }) {
   );
 }
 
-// ─── factor inputs card — scored fields always shown, unscored "tracked"
-// fields collapsed by default (still real, DB-verified populated data - just
-// not visually competing with the fields that actually move the score) ────
+// ─── factor inputs card — every remaining field is a real weighted score
+// input (20260816 second pass removed all unweighted reference-only fields) ─
 function InputsCard({ title, stock, schema, inputsKey = null }) {
-  const [showTracked, setShowTracked] = useState(false);
   const inputsObj = inputsKey ? stock?.[inputsKey] : stock;
 
   // DIAGNOSTIC: Log if inputsObj is missing (helps debug "No data" issues)
@@ -327,8 +323,6 @@ function InputsCard({ title, stock, schema, inputsKey = null }) {
     }
     return { ...s, value, reason };
   });
-  const used = rows.filter((r) => r.used);
-  const tracked = rows.filter((r) => !r.used);
 
   return (
     <div className="card">
@@ -343,36 +337,9 @@ function InputsCard({ title, stock, schema, inputsKey = null }) {
       <div className="card-body" style={{ padding: 0 }}>
         <table className="data-table">
           <tbody>
-            {used.length > 0 && (
-              <tr>
-                <td
-                  colSpan={2}
-                  className="t-2xs muted"
-                  style={{ background: "var(--surface-2)", fontWeight: "var(--w-semibold)" }}
-                >
-                  Used in Score
-                </td>
-              </tr>
-            )}
-            {used.map((r) => (
+            {rows.map((r) => (
               <InputRow key={r.key} row={r} />
             ))}
-            {tracked.length > 0 && (
-              <tr>
-                <td
-                  colSpan={2}
-                  className="t-2xs muted"
-                  style={{ background: "var(--surface-2)", fontWeight: "var(--w-semibold)", cursor: "pointer" }}
-                  onClick={() => setShowTracked((v) => !v)}
-                >
-                  {showTracked ? "▾" : "▸"} Tracked (Not Scored) — {tracked.length}
-                </td>
-              </tr>
-            )}
-            {showTracked &&
-              tracked.map((r) => (
-                <InputRow key={r.key} row={r} />
-              ))}
           </tbody>
         </table>
       </div>
@@ -545,31 +512,14 @@ const QUALITY_SCHEMA = [
   // work on the Stability tab; showing them here was unweighted decoration duplicating
   // that tab, so they were removed from Quality (20260816 field audit).
   { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v, 1), used: true, weight: '~17%' },
-  { key: 'earnings_surprise_avg',          label: 'Earnings Surprise (4Q)',   fmt: v => pct(v, 2) },
-  { key: 'eps_growth_stability',           label: 'EPS Growth Stability',     fmt: v => num(v, 2) },
-  { key: 'earnings_beat_rate',             label: 'Earnings Beat Rate',       fmt: v => pct(v, 1) },
-  { key: 'consecutive_positive_quarters',  label: 'Consecutive +Q',           fmt: v => num(v, 0) },
-  // Removed 20260816: estimate_revision_direction/revision_activity_30d/
-  // estimate_momentum_60d/estimate_momentum_90d/revision_trend_score - all marked
-  // collected:false (live-DB audit 2026-08-10 found only 3/5701 rows populated
-  // system-wide, genuinely unbuilt analyst-estimates pipeline). They rendered a
-  // permanent "No data" row for virtually every stock; re-add once that pipeline
-  // ships real data.
-  // roic_pct (was here, ±3 adj weight) and payout_ratio (just below) removed 20260816:
-  // DB-population audit found 2.5% and 0.8% non-null system-wide respectively (4,924-symbol
-  // universe) - not collected:false/dead like the 5 analyst-estimate fields above, but close
-  // enough in practice to render "No data" for nearly every stock. Both still feed
-  // quality_score when present (roic_pct in _enhance_quality_score's ±10 adjustment); this
-  // only removes the display row, not the scoring usage. Re-add once SEC backfill coverage
-  // (see MEMORY.md company_info_sec/financial-statements entries) raises this materially.
-  { key: 'free_cashflow',                  label: 'Free Cash Flow',           fmt: money },
-  { key: 'operating_cashflow',             label: 'Operating Cash Flow',      fmt: money },
-  { key: 'total_debt',                     label: 'Total Debt',               fmt: money },
-  { key: 'total_cash',                     label: 'Total Cash',               fmt: money },
-  // earnings_growth_4q_avg's canonical home is here (Quality) - the Growth tab's copy
-  // was removed as a duplicate (20260816 field audit); unweighted in both, feeds
-  // neither quality_score nor growth_score.
-  { key: 'earnings_growth_4q_avg',         label: 'Earnings Growth 4Q Avg',   fmt: v => pct(v, 2) },
+  // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
+  // tab (earnings_surprise_avg, eps_growth_stability, earnings_beat_rate,
+  // consecutive_positive_quarters, free_cashflow, operating_cashflow, total_debt,
+  // total_cash, earnings_growth_4q_avg) per user request - none of them feed
+  // quality_score, they were reference-only. See MEMORY.md
+  // scoresdashboard_too_many_inputs_history_and_collapse_fix_20260816 for why the field
+  // count grew in the first place (real weighted inputs restored, not scope creep) and
+  // why these specific ones were safe to cut anyway (no scoring impact).
 ];
 
 // FIXED 2026-08-04: momentum_score (load_stock_scores.py::_score_momentum) weights were
@@ -587,18 +537,18 @@ const MOMENTUM_SCHEMA = [
   { key: 'momentum_12_3', label: 'Momentum (12M)', fmt: v => pct(v, 2), used: true, weight: '9%' },
   { key: 'rsi', label: 'RSI (14)', fmt: v => num(v, 1), used: true, weight: '15%' },
   { key: 'macd', label: 'MACD Line', fmt: v => num(v, 3), used: true, weight: '10%' },
-  { key: 'price_vs_52w_high', label: 'Price vs 52W High', fmt: v => pct(v, 2) },
   { key: 'price_vs_sma_50', label: 'Price vs 50-SMA', fmt: v => pct(v, 2), used: true, weight: '8% avg' },
   { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2), used: true, weight: '8% avg' },
-  { key: 'current_price', label: 'Current Price', fmt: v => `$${num(v, 2)}` },
+  // price_vs_52w_high/current_price cut 20260816 (second pass) - unweighted reference
+  // fields, don't feed momentum_score.
 ];
 
 // FIXED 2026-08-04: value_score (load_stock_scores.py::_score_value) weight badges were
 // stale here vs. the code's actual constants (P/E 45% not 20%, P/B 20% not 15%, FCF
 // Yield 12% not 20%), and dividend_yield (8% weight, a real input since migration 1146)
 // was displayed as a plain unweighted number despite being scored.
+// market_cap cut 20260816 (second pass) - unweighted reference field, doesn't feed value_score.
 const VALUE_SCHEMA = [
-  { key: 'market_cap', label: 'Market Cap', fmt: money },
   { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '45%' },
   { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_pb', label: 'P/B', fmt: v => num(v, 2), used: true, weight: '20%' },
@@ -624,19 +574,11 @@ const GROWTH_SCHEMA = [
   { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
   { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2), used: true, weight: '3%' },
   { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2), used: true, weight: '6%' },
-  // FIXED 2026-08-04: previously flagged collected:false ("quality_metrics.quarterly_growth_momentum
-  // is 0/5682 populated, no computation path exists") - that was true only of
-  // load_value_quality_growth_metrics.py. load_enhanced_quality_growth_metrics.py (wired into the
-  // metrics pipeline as of 548dc99f5) computes this from quarterly_income_statement and writes it
-  // into growth_metrics.quarterly_growth_momentum - live-verified real non-NULL value for AAPL.
-  // Per-symbol "No data" now means a genuine per-stock gap (e.g. <4 quarters of history), not a
-  // system-wide dead field.
-  { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp` },
   { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '4%' },
   { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2), used: true, weight: '5%' },
-  // earnings_growth_4q_avg removed 20260816 - duplicate of the Quality tab's copy,
-  // unweighted in both (feeds neither growth_score nor quality_score).
+  // quarterly_growth_momentum (unweighted reference) and earnings_growth_4q_avg
+  // (duplicate of the Quality tab's copy) cut 20260816 - neither feeds growth_score.
 ];
 
 // FIXED 2026-08-04: positioning_score (load_stock_scores.py::_score_positioning) weight
@@ -648,16 +590,15 @@ const POSITIONING_SCHEMA = [
   { key: 'institutional_ownership_pct', label: 'Institutional Own %', fmt: v => pct(v, 1), used: true, weight: '55%' },
   { key: 'insider_ownership_pct',       label: 'Insider Own %',       fmt: v => pct(v, 1), used: true, weight: '20%' },
   { key: 'short_interest_pct',          label: 'Short Interest %',    fmt: v => pct(v, 2), used: true, weight: '25%' },
-  { key: 'top_10_institutions_pct',     label: 'Top 10 Institutions %', fmt: v => pct(v, 1) },
-  { key: 'institutional_holders_count', label: 'Institutional Holders', fmt: v => num(v, 0) },
   // short_percent_of_float removed 20260816: loaders/load_positioning_metrics.py computes
   // it as short_shares / shares_outstanding, the same FINRA short_shares numerator and
   // (per that loader's own comment) "same denominator" short_interest_pct already uses -
   // a near-duplicate restatement of the field above it, not an independent signal.
   { key: 'short_interest_trend',        label: 'Short Interest Trend', fmt: v => v == null ? '—' : v.charAt(0).toUpperCase() + v.slice(1), used: true, weight: '10%' },
-  { key: 'shares_short_prior_month',    label: 'Shares Short (Prior Month)', fmt: v => num(v, 0) },
-  { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },
   { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1), used: true, weight: '15%' },
+  // top_10_institutions_pct/institutional_holders_count/shares_short_prior_month/
+  // short_ratio cut 20260816 (second pass) - unweighted reference fields, don't feed
+  // positioning_score.
 ];
 
 // FIXED 2026-08-04: volatility weight badges were stale vs. _score_stability's actual
@@ -693,7 +634,7 @@ const STABILITY_SCHEMA = [
   { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2), used: true, weight: '10%' },
   { key: 'revenue_concentration_hhi', label: 'Revenue Concentration (HHI)', fmt: v => v == null ? '—' : Math.round(v).toLocaleString(), used: true, weight: '10%' },
-  { key: 'segment_count',            label: 'Business Segments',    fmt: v => num(v, 0) },
-  { key: 'largest_segment_revenue_pct', label: 'Largest Segment %', fmt: v => pct(v, 1) },
-  { key: 'is_diversified',           label: 'Diversified',          fmt: v => v == null ? '—' : (v ? 'Yes' : 'No') },
+  // segment_count/largest_segment_revenue_pct/is_diversified cut 20260816 (second pass) -
+  // unweighted reference fields (revenue_concentration_hhi above is the one that
+  // actually feeds stability_score).
 ];
