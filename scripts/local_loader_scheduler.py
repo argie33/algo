@@ -619,6 +619,19 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             # the DB alone. Switched to Popen with a tee'ing reader thread: output still
             # streams live to this process's own stdout exactly as before, but the last 40
             # lines are also kept and attached to the failure message on a non-zero exit.
+            #
+            # GAP FOUND 2026-08-16: the 40-line tail is not enough when the loader itself is
+            # chatty (e.g. DB_CONTEXT enter/exit tracing) - the actual root-cause warning (SEC
+            # "rate limited (429)"/"forbidden (403)" retries, which is exactly what preceded a
+            # live company_info_sec stall-kill this session) scrolls out of the deque long
+            # before the kill, leaving only unrelated commit/rollback noise in error_message and
+            # making the failure undiagnosable from the DB - the same class of gap the 2026-08-11
+            # fix above closed for exit-code crashes, just not for stalls/timeouts. Also write the
+            # full stream to a per-run log file so the complete history survives regardless of
+            # how noisy the loader is.
+            logs_dir = repo_root / "logs"
+            logs_dir.mkdir(exist_ok=True)
+            full_log_path = logs_dir / f"{loader_filename.replace('.py', '')}_{int(time.time())}.log"
             tail_lines: collections.deque[str] = collections.deque(maxlen=40)
             proc = subprocess.Popen(
                 cmd,
@@ -630,16 +643,20 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 bufsize=1,
             )
 
-            def _stream_and_capture(pipe: IO[str], sink: "collections.deque[str]") -> None:
-                for line in pipe:
-                    sys.stdout.write(line)
-                    sink.append(line.rstrip("\n"))
+            def _stream_and_capture(pipe: IO[str], sink: "collections.deque[str]", log_path: Path) -> None:
+                with open(log_path, "w", encoding="utf-8") as log_file:
+                    for line in pipe:
+                        sys.stdout.write(line)
+                        sink.append(line.rstrip("\n"))
+                        log_file.write(line)
                 pipe.close()
 
             assert proc.stdout is not None
             # SESSION 108 FIX: Non-daemon thread ensures we capture all output before using tail_lines
             # Daemon threads may be killed before reader finishes, losing diagnostic info
-            reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=False)
+            reader_thread = threading.Thread(
+                target=_stream_and_capture, args=(proc.stdout, tail_lines, full_log_path), daemon=False
+            )
             reader_thread.start()
             scheduler_timeout = int(timeout * 1.1)
             scheduler_timeout_str = f"{scheduler_timeout}s ({scheduler_timeout // 60}m {scheduler_timeout % 60}s)"
@@ -708,7 +725,8 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 tail = "\n".join(tail_lines)
                 _mark_loader_failed_after_crash(
                     loader_filename,
-                    f"local_loader_scheduler: timed out after {scheduler_timeout_str}. Last output:\n{tail}",
+                    f"local_loader_scheduler: timed out after {scheduler_timeout_str}. "
+                    f"Full log: {full_log_path}. Last output:\n{tail}",
                 )
                 any_failed = True
                 continue
@@ -719,7 +737,8 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 tail = "\n".join(tail_lines)
                 _mark_loader_failed_after_crash(
                     loader_filename,
-                    f"local_loader_scheduler: killed due to 0%% stall for >{stall_timeout}s. Last output:\n{tail}",
+                    f"local_loader_scheduler: killed due to 0%% stall for >{stall_timeout}s. "
+                    f"Full log: {full_log_path}. Last output:\n{tail}",
                 )
                 any_failed = True
                 continue
@@ -734,7 +753,8 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 tail = "\n".join(tail_lines)
                 _mark_loader_failed_after_crash(
                     loader_filename,
-                    f"local_loader_scheduler: subprocess exited with code {returncode}. Last output:\n{tail}",
+                    f"local_loader_scheduler: subprocess exited with code {returncode}. "
+                    f"Full log: {full_log_path}. Last output:\n{tail}",
                 )
                 any_failed = True
                 continue
