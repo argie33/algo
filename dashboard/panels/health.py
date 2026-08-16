@@ -295,12 +295,11 @@ def _calc_data_completeness(hlth_items: list[Any]) -> dict[str, tuple[int, int]]
 
 
 def _format_halt_age(trading_halt_at: Any) -> str:
-    """Format how long ago a trading-halt record was written, e.g. '(2h 15m ago)'.
+    """Format how long ago the current halt was triggered, e.g. '(2h 15m ago)'.
 
-    The halt reason shown on the dashboard is always the *latest* orchestrator run record,
-    which stays displayed as-is until a newer run supersedes it - including after the bug
-    that caused it has already been fixed in code. Without an age, an operator can't tell a
-    live blocker from an hours-old stale one (confirmed live 2026-08-16).
+    trading_halt_at now comes from algo_runtime_state.halt_triggered_at - the same flag
+    HaltFlagManager gates every phase on - not the latest orchestrator_runs log row, so
+    this age reflects how long the real block has been active, not how old the last run is.
     """
     if not trading_halt_at or not isinstance(trading_halt_at, str):
         return ""
@@ -316,6 +315,20 @@ def _format_halt_age(trading_halt_at: Any) -> str:
         return ""
     hours, minutes = divmod(total_minutes, 60)
     return f" ({hours}h {minutes}m ago)" if hours else f" ({minutes}m ago)"
+
+
+# Mirrors HaltFlagManager._check_halt_flag_rds's eligible_for_calendar_auto_expiry allowlist
+# (algo/orchestration/halt_flag_manager.py) - anything outside it (governance/manual halts)
+# requires an explicit human clear via scripts/manage_halt_flag.py and will NOT self-resolve
+# just because a new trading day started.
+_AUTO_EXPIRING_HALT_TRIGGERS = ("phase1_data_freshness", "phase2_circuit_breaker")
+
+
+def _format_halt_manual_clear_note(triggered_by: Any) -> str:
+    """Flag halts that will not self-clear and need scripts/manage_halt_flag.py."""
+    if not triggered_by or triggered_by in _AUTO_EXPIRING_HALT_TRIGGERS:
+        return ""
+    return " [dim](requires manual clear)[/]"
 
 
 def _calc_loader_success_rate(hlth_items: list[Any]) -> tuple[int, int, float | None]:
@@ -1315,7 +1328,10 @@ def _build_freshness_panel(
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
     if trading_halted and trading_halt_reason:
         halt_age = _format_halt_age(hlth_dict.get("trading_halt_at"))
-        left_rows.append(Text.from_markup(f"[{Y}]→ Trading halted:[/] {trading_halt_reason}[dim]{halt_age}[/]"))
+        manual_note = _format_halt_manual_clear_note(hlth_dict.get("trading_halt_triggered_by"))
+        left_rows.append(
+            Text.from_markup(f"[{Y}]→ Trading halted:[/] {trading_halt_reason}[dim]{halt_age}[/]{manual_note}")
+        )
 
     expected_date = hlth_dict.get("expected_date")
     if expected_date:
@@ -2372,6 +2388,26 @@ def _get_status_safe(run: dict[str, Any]) -> str:
     return str(status).lower()
 
 
+_last_status_summary_warning_key: tuple[Any, ...] | None = None
+
+
+def _warn_status_summary_once(key: tuple[Any, ...], message: str) -> None:
+    """Log a [STATUS SUMMARY] warning only when the underlying condition actually changes.
+
+    ROOT-CAUSE FIX 2026-08-16: _format_execution_stats() runs on every render tick, not
+    every data fetch (watch mode's Live loop redraws far more often than load_all()
+    refreshes - live-confirmed: 52,000+ identical warnings logged in a single 12-minute
+    session for one unchanging exec_stats snapshot, ~18 duplicate lines per tick). An
+    unconditional logger.warning() here re-logs the same finding every single redraw
+    instead of once when it first appears, drowning out real signal in the log file.
+    """
+    global _last_status_summary_warning_key
+    if key == _last_status_summary_warning_key:
+        return
+    _last_status_summary_warning_key = key
+    logger.warning(message)
+
+
 def _format_execution_stats(exec_stats: dict[str, Any] | None) -> Text | None:
     """Format 24-hour execution statistics prominently.
 
@@ -2409,11 +2445,14 @@ def _format_execution_stats(exec_stats: dict[str, Any] | None) -> Text | None:
     accounted = error_count + halt_count + ok_count + skipped_count + degraded_count + running_count
 
     if accounted == 0 and total:
-        logger.warning("[STATUS SUMMARY] All status counts are 0 or missing - data may be incomplete")
+        _warn_status_summary_once(
+            ("zero", total), "[STATUS SUMMARY] All status counts are 0 or missing - data may be incomplete"
+        )
     elif accounted != total:
-        logger.warning(
+        _warn_status_summary_once(
+            ("mismatch", total, accounted, tuple(sorted(by_status.items()))),
             f"[STATUS SUMMARY] by_status counts ({accounted}) don't sum to total_runs ({total}) - "
-            f"unrecognized status value present: {by_status}"
+            f"unrecognized status value present: {by_status}",
         )
 
     # Determine alert level
@@ -4398,7 +4437,12 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
     if trading_halted and trading_halt_reason:
         halt_age = _format_halt_age(hlth_dict.get("trading_halt_at"))
-        rows.append(Text.from_markup(f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}[dim]{halt_age}[/]"))
+        manual_note = _format_halt_manual_clear_note(hlth_dict.get("trading_halt_triggered_by"))
+        rows.append(
+            Text.from_markup(
+                f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}[dim]{halt_age}[/]{manual_note}"
+            )
+        )
 
     # ── Loader success rate (NEW) ────────────────────────────────────────────
     if hlth_items:
