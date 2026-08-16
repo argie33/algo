@@ -61,12 +61,17 @@ class TestWeekendGapCoversAllOnceDailyTables:
         single morning before that day's run. stock_scores' own thresholds were
         never migrated to match (confirmed live 2026-07-28: a completely normal
         10.9h age read '[OK]' in check_system_health.py but 'CRITICAL' here) -
-        fixed to the same 1440/2160/2880 minute bounds. A "genuinely stuck"
-        scenario now means missing more than a full extra trading day's run.
+        fixed to the same 1440/2160/2880/4320 minute bounds (fresh/unconfirmed/
+        stale/critical - a 4th "unconfirmed" tier was added between fresh and
+        stale after this test was first written, shifting what age actually
+        lands in the "critical" tier; this test's `fake_age` wasn't updated to
+        match, so it silently asserted against the wrong tier boundary until
+        caught 2026-08-16). A "genuinely stuck" scenario now means missing more
+        than a full extra trading day's run past the 48h "stale" boundary.
         """
 
         def fake_age(table_name):
-            return 45 * 60 if table_name == "stock_scores" else 60  # 45h: past stale(36h), short of dead(48h)
+            return 60 * 60 if table_name == "stock_scores" else 60  # 60h: past stale(48h), short of dead(72h)
 
         tuesday = date(2026, 7, 28)
         assert tuesday.weekday() == 1
