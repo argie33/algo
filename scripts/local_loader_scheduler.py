@@ -45,6 +45,23 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
     every poll_interval_sec and kills the process if completion_pct hasn't changed in
     max_stall_sec seconds.
 
+    FALSE-POSITIVE FIX (2026-08-16): completion_pct is only ever written once, at the very
+    end of OptimalLoader._update_final_status() - confirmed via repo-wide grep, only 2 of
+    ~40 OptimalLoader subclasses (load_technical_indicators.py,
+    load_value_quality_growth_metrics.py) call update_progress() mid-run. Every other
+    loader's completion_pct sits frozen at 0 (or its pre-run value) for the loader's ENTIRE
+    duration, so this watchdog's "stuck at 0% for max_stall_sec" check was true for those
+    loaders even while they were actively working. Live-confirmed 2026-08-16:
+    earnings_calendar got killed with "hung at 0% for 1440s" while its own table's
+    MAX(updated_at) matched the kill timestamp almost exactly - real per-symbol progress the
+    whole time, just never reflected in completion_pct. Now also tracks the primary table's
+    own row count as a second liveness signal (increases as an event-log-style loader like
+    earnings_calendar writes rows, even for symbols with no data - see its
+    `_unavailable_record` marker rows) and only calls it a real stall if BOTH signals are
+    flat for max_stall_sec - preserves detection of a genuinely hung process (nothing
+    written anywhere) without false-killing one that's writing rows but not calling
+    update_progress().
+
     Args:
         loader_filename: e.g., "load_prices.py"
         poll_interval_sec: How often to check progress (default 30s)
@@ -61,6 +78,8 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
         primary_table = tables[0]
         last_pct = None
         last_pct_time = time.time()
+        last_row_count = None
+        last_row_count_time = time.time()
 
         while True:
             time.sleep(poll_interval_sec)
@@ -85,12 +104,29 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
                             # Making progress, reset stall timer
                             continue
 
-                    # Check stall condition
+                    # Secondary liveness signal: has the primary table itself grown?
+                    # table_name here always comes from all_tables() (loader_registry.py's
+                    # static registry), never user input - same trust convention already
+                    # used for dynamic table names elsewhere in this file.
+                    cur.execute(f"SELECT COUNT(*) FROM {primary_table}")
+                    row_count_result = cur.fetchone()
+                    current_row_count = row_count_result[0] if row_count_result else None
+                    if current_row_count is not None and current_row_count != last_row_count:
+                        last_row_count = current_row_count
+                        last_row_count_time = now
+
+                    # Check stall condition - only a real stall if NEITHER signal moved
                     stall_duration = now - last_pct_time
-                    if stall_duration > max_stall_sec and (last_pct is None or last_pct <= 0.0):
+                    row_stall_duration = now - last_row_count_time
+                    if (
+                        stall_duration > max_stall_sec
+                        and row_stall_duration > max_stall_sec
+                        and (last_pct is None or last_pct <= 0.0)
+                    ):
                         print(
                             f"[PROGRESS_MONITOR] {loader_filename}: STALLED at {last_pct or 0}% "
-                            f"for {stall_duration:.0f}s (>{max_stall_sec}s threshold). "
+                            f"for {stall_duration:.0f}s (>{max_stall_sec}s threshold), "
+                            f"{primary_table} row count also unchanged for {row_stall_duration:.0f}s. "
                             f"Will signal process termination.",
                             file=sys.stderr,
                         )

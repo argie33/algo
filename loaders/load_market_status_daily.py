@@ -62,6 +62,18 @@ class MarketStatusDailyLoader(OptimalLoader):
         self._yield_curve_fetcher = YieldCurveFetcher()
         self._breadth_fetcher = BreadthFetcher()
         self._fred_api_key: str | None = None
+        # BACKFILL SUPPORT (2026-08-16): unlike load_prices.py, this loader has no
+        # range-based incremental fetch - run()/fetch_global()/fetch_incremental() always
+        # targeted "today" (now_et.date()), with no way to ever fill in a specific missed
+        # trading day. Live-confirmed gap: market_health_daily/market_exposure_daily/
+        # market_sentiment have zero rows for 2026-08-14 (a real trading day the production
+        # pipeline apparently skipped) and normal operation can NEVER backfill it - Monday's
+        # run only ever writes Monday's own date, leaving Friday permanently missing from
+        # the daily series (unlike price_daily, whose fetch_batch_incremental pulls a range
+        # from the watermark forward and self-heals gaps automatically). Setting this
+        # attribute before calling run() targets that specific date instead of "today";
+        # leaving it None (default) preserves the exact original behavior.
+        self._target_date: date | None = None
 
     def run(
         self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
@@ -72,10 +84,10 @@ class MarketStatusDailyLoader(OptimalLoader):
         from algo.infrastructure import MarketCalendar
 
         now_et = datetime.now(EASTERN_TZ)
-        run_date = now_et.date()
+        run_date = self._target_date or now_et.date()
         if not MarketCalendar.is_trading_day(run_date):
             logger.info(
-                f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
+                f"[{self.table_name}] Skipping load: {run_date} is not a trading day. "
                 f"Market data will use last available trading day's data."
             )
             # Refresh data_loader_status from the real table state even when skipping the
@@ -110,10 +122,10 @@ class MarketStatusDailyLoader(OptimalLoader):
         from algo.infrastructure import MarketCalendar
 
         now_et = datetime.now(EASTERN_TZ)
-        run_date = now_et.date()
+        run_date = self._target_date or now_et.date()
         if not MarketCalendar.is_trading_day(run_date):
             logger.info(
-                f"[{self.table_name}] Skipping fetch_global: today ({run_date}) is not a trading day. "
+                f"[{self.table_name}] Skipping fetch_global: {run_date} is not a trading day. "
                 f"Market data will use last available trading day's data."
             )
             return {"data_unavailable": True, "reason": "non_trading_day"}
@@ -131,12 +143,12 @@ class MarketStatusDailyLoader(OptimalLoader):
             List with single market status dict or data_unavailable marker
         """
         if symbol != "market":
-            return [{"date": date.today(), "data_unavailable": True, "reason": "invalid_symbol"}]
+            return [{"date": self._target_date or date.today(), "data_unavailable": True, "reason": "invalid_symbol"}]
 
         try:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
-            end_date = now_et.date()
+            end_date = self._target_date or now_et.date()
 
             # Fetch all market data (health, breadth, vix, yields)
             health_data = self._fetch_market_health(end_date)
@@ -226,7 +238,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             logger.error(f"[MARKET_STATUS] Fatal error: {e}", exc_info=True)
             return [
                 {
-                    "date": date.today(),
+                    "date": self._target_date or date.today(),
                     "data_unavailable": True,
                     # Truncate the full formatted string (not just str(e)) to the reason column's
                     # actual VARCHAR(255) limit - see _compute_market_exposure's identical fix for
