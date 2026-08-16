@@ -822,6 +822,7 @@ def fetch_health(c: None) -> dict[str, Any]:
         trading_halted = inner.get("trading_halted")
         trading_halt_reason = inner.get("trading_halt_reason")
         trading_halt_at = inner.get("trading_halt_at")
+        trading_halt_triggered_by = inner.get("trading_halt_triggered_by")
         expected_date = inner.get("expected_date")
         as_of = inner.get("as_of")
 
@@ -834,6 +835,7 @@ def fetch_health(c: None) -> dict[str, Any]:
             "trading_halted": trading_halted,
             "trading_halt_reason": trading_halt_reason,
             "trading_halt_at": trading_halt_at,
+            "trading_halt_triggered_by": trading_halt_triggered_by,
             "expected_date": expected_date,
             "as_of": as_of,
         }

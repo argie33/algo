@@ -966,40 +966,45 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # The circuit breaker (Phase 2) can halt entries for reasons unrelated to data
         # staleness (e.g. portfolio drawdown >= 20%) - ready_to_trade must reflect that,
         # or the dashboard shows a contradictory "READY TO TRADE" checkmark right next to
-        # an orchestrator panel reporting HALTED. Use the most recent orchestrator run's
-        # halt state as the authoritative "is trading currently permitted" signal.
+        # an orchestrator panel reporting HALTED.
+        #
+        # FIX (2026-08-16): This used to read the latest algo_orchestrator_runs row's
+        # overall_status/halt_reason instead of algo_runtime_state. That's a log of what
+        # the last run DID, not the flag the orchestrator actually gates on before running
+        # any phase (HaltFlagManager.check_halt_flag() reads algo_runtime_state, see
+        # algo/orchestration/halt_flag_manager.py). The two diverge whenever the latest run
+        # crashed on a since-fixed bug: the dashboard showed that stale, already-fixed run
+        # error as "the" halt reason while algo_runtime_state's REAL governance/manual halt
+        # (which requires explicit human clearing and does not auto-expire) sat unseen for
+        # days. Confirmed live 2026-08-16: algo_runtime_state held a phase9_reconciliation_
+        # governance halt from 2026-08-14 while the latest orchestrator_runs row showed an
+        # unrelated, already-patched Phase 1 crash from hours earlier. Read the real gate.
         trading_halted = False
         trading_halt_reason = None
         trading_halt_at = None
+        trading_halt_triggered_by = None
         try:
-            cur.execute("""
-                SELECT overall_status, halt_reason, started_at
-                FROM algo_orchestrator_runs
-                ORDER BY started_at DESC
-                LIMIT 1
-            """)
-            latest_run_row = cur.fetchone()
-            if latest_run_row:
-                latest_run_dict = safe_dict_convert(latest_run_row)
-                run_status = latest_run_dict.get("overall_status")
-                if run_status is None:
-                    logger.error(
-                        "[DATA_STATUS] CRITICAL: Orchestrator run record missing overall_status field. "
-                        "Database schema mismatch or corrupt record. Cannot determine trading halt state."
-                    )
-                    raise ValueError("Orchestrator run status query returned row without overall_status field")
-                run_status = str(run_status).lower()
-                if run_status in ("halted", "error"):
+            cur.execute(
+                """
+                SELECT halt_flag, halt_reason, halt_triggered_at, state_value
+                FROM algo_runtime_state
+                WHERE state_key = 'orchestrator_halt'
+                """
+            )
+            halt_row = cur.fetchone()
+            if halt_row:
+                halt_flag, halt_reason, halt_triggered_at, state_value = halt_row
+                if halt_flag:
                     trading_halted = True
-                    trading_halt_reason = latest_run_dict.get("halt_reason")
-                    # Surfaced so the dashboard can show how old this halt record is - a halt
-                    # reason from a bug that's since been fixed in code still shows as the
-                    # "current" halt until a newer run record supersedes it, and without a
-                    # timestamp there's no way for an operator to tell a live blocker from a
-                    # stale one (confirmed live 2026-08-16: a halt reason for an already-fixed
-                    # bug sat as the latest row for hours with no fresher run to replace it).
-                    started_at_val = latest_run_dict.get("started_at")
-                    trading_halt_at = started_at_val.isoformat() if hasattr(started_at_val, "isoformat") else None
+                    trading_halt_reason = halt_reason
+                    trading_halt_at = halt_triggered_at.isoformat() if hasattr(halt_triggered_at, "isoformat") else None
+                    if isinstance(state_value, str):
+                        try:
+                            state_value = json.loads(state_value)
+                        except (json.JSONDecodeError, TypeError):
+                            state_value = None
+                    if isinstance(state_value, dict):
+                        trading_halt_triggered_by = state_value.get("halt_triggered_by")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             _rollback_after_error(cur)
             logger.warning(f"[DATA_STATUS] Could not determine orchestrator halt state: {e}")
@@ -1349,6 +1354,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         response["data"]["trading_halted"] = trading_halted
         response["data"]["trading_halt_reason"] = trading_halt_reason
         response["data"]["trading_halt_at"] = trading_halt_at
+        response["data"]["trading_halt_triggered_by"] = trading_halt_triggered_by
         response["data"]["summary"] = summary
         response["data"]["critical_stale"] = critical_stale
         response["data"]["expected_date"] = str(expected_date)

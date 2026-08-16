@@ -461,6 +461,7 @@ DASHBOARD_ENDPOINTS = {
                 "trading_halt_reason",
                 "trading_halted",
                 "trading_halt_at",
+                "trading_halt_triggered_by",
             ],
             field_types={
                 "ready_to_trade": bool,
