@@ -753,7 +753,22 @@ class OptimalLoader:
             # 2-day-stale execution_started and no trace of what happened. Guard on
             # status_already_finalized so this doesn't clobber the more specific TIMEOUT
             # status already written above.
-            if "status_already_finalized" in locals() and not status_already_finalized:
+            # BUG FIX (2026-08-16): LockAcquisitionError means THIS instance never started
+            # doing any work - it means another, legitimately-running instance already holds
+            # the lock (or, on the permission-error branch, we couldn't even check). Either
+            # way, this instance has no business overwriting data_loader_status for a table
+            # it was correctly refused. Live-confirmed on company_info_sec: a second/duplicate
+            # invocation exhausted its lock-retry budget (~1min in LOCAL_MODE), raised
+            # LockAcquisitionError, and this handler then unconditionally called mark_failed()
+            # on the SHARED table_name - stomping FAILED over the still-actively-running first
+            # instance's real status (which kept working and completed normally minutes
+            # later). The lock mechanism itself worked exactly as designed; only this status
+            # write was wrong.
+            if (
+                "status_already_finalized" in locals()
+                and not status_already_finalized
+                and not isinstance(e, LockAcquisitionError)
+            ):
                 try:
                     self._status_manager.mark_failed(str(e)[:500])
                 except Exception as mark_err:

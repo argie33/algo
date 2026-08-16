@@ -180,6 +180,45 @@ MIGRATIONS = [
         "ALTER TABLE data_loader_status ADD COLUMN IF NOT EXISTS symbols_failed INTEGER",
         "Add symbols_failed to data_loader_status",
     ),
+    # Migration 1202 (2026-08-16): tag financial-statement rows with their real source
+    # (sec_audited vs yfinance fallback) - see
+    # migrations/versions/1202_add_data_source_to_financial_statements.sql
+    (
+        "annual_income_statement.data_source",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='annual_income_statement' AND column_name='data_source'",
+        "ALTER TABLE annual_income_statement ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
+        "Add data_source to annual_income_statement",
+    ),
+    (
+        "quarterly_income_statement.data_source",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quarterly_income_statement' AND column_name='data_source'",
+        "ALTER TABLE quarterly_income_statement ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
+        "Add data_source to quarterly_income_statement",
+    ),
+    (
+        "annual_balance_sheet.data_source",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='annual_balance_sheet' AND column_name='data_source'",
+        "ALTER TABLE annual_balance_sheet ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
+        "Add data_source to annual_balance_sheet",
+    ),
+    (
+        "quarterly_balance_sheet.data_source",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quarterly_balance_sheet' AND column_name='data_source'",
+        "ALTER TABLE quarterly_balance_sheet ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
+        "Add data_source to quarterly_balance_sheet",
+    ),
+    (
+        "annual_cash_flow.data_source",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='annual_cash_flow' AND column_name='data_source'",
+        "ALTER TABLE annual_cash_flow ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
+        "Add data_source to annual_cash_flow",
+    ),
+    (
+        "quarterly_cash_flow.data_source",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quarterly_cash_flow' AND column_name='data_source'",
+        "ALTER TABLE quarterly_cash_flow ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
+        "Add data_source to quarterly_cash_flow",
+    ),
 ]
 
 

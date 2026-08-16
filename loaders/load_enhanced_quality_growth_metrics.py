@@ -210,7 +210,17 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                                 values.append(metric_dict[key])
 
                         if update_fields:
-                            update_fields.append("updated_at = CURRENT_DATE")
+                            # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
+                            # truncates to midnight) - every UPDATE for the rest of the same calendar
+                            # day wrote the identical value, so MAX(updated_at) never advanced during
+                            # a run. Live-confirmed: this loader ran for 30+ min actively computing and
+                            # committing per-symbol updates (log showed continuous ENHANCED_METRICS
+                            # writes through hundreds of symbols) while growth_metrics/quality_metrics
+                            # both stayed frozen at their pre-run updated_at - the scheduler's stall
+                            # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
+                            # seeing it flat, killed a genuinely-working loader as a false stall
+                            # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
+                            update_fields.append("updated_at = NOW()")
                             cur.execute(
                                 f"UPDATE growth_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
                                 [*values, symbol],
@@ -277,7 +287,17 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                                 values.append(metric_dict[key])
 
                         if update_fields:
-                            update_fields.append("updated_at = CURRENT_DATE")
+                            # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
+                            # truncates to midnight) - every UPDATE for the rest of the same calendar
+                            # day wrote the identical value, so MAX(updated_at) never advanced during
+                            # a run. Live-confirmed: this loader ran for 30+ min actively computing and
+                            # committing per-symbol updates (log showed continuous ENHANCED_METRICS
+                            # writes through hundreds of symbols) while growth_metrics/quality_metrics
+                            # both stayed frozen at their pre-run updated_at - the scheduler's stall
+                            # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
+                            # seeing it flat, killed a genuinely-working loader as a false stall
+                            # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
+                            update_fields.append("updated_at = NOW()")
                             cur.execute(
                                 f"UPDATE quality_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
                                 [*values, symbol],

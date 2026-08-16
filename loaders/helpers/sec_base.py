@@ -411,6 +411,42 @@ class SecEdgarStatementLoader(SecLoaderBase):
             marker["fiscal_period"] = 0
         return marker
 
+    def _try_yfinance_fallback(self, symbol: str, since: date | None, sec_reason: str) -> list[dict[str, Any]]:
+        """Attempt a yfinance fallback fetch when SEC EDGAR has nothing for this symbol.
+
+        Called only from the paths where SEC genuinely returned no usable data (CIK not
+        found, 404/empty facts under any taxonomy) - see utils/external/yfinance_financials.py's
+        docstring for why this is a fallback, not a competing source, and why every row it
+        returns is tagged data_source='yfinance' rather than silently blended with SEC data.
+
+        Returns the standard SEC-unavailable marker (same as the caller would have returned
+        without this fallback) if yfinance also has nothing, or errors - a fallback failing
+        is not itself a loader failure, the symbol just stays genuinely unavailable.
+        """
+        try:
+            from utils.external.yfinance_financials import fetch_financial_statement
+
+            yf_rows = fetch_financial_statement(symbol, self.statement_type, self.period)
+        except Exception as e:
+            logger.debug(f"[{self.table_name}] {symbol}: yfinance fallback also failed: {e}")
+            yf_rows = None
+
+        if not yf_rows:
+            return [self._unavailable_marker(symbol, sec_reason)]
+
+        since_year = int(since.year) if since else 2000
+        filtered = [r for r in yf_rows if isinstance(r.get("fiscal_year"), int) and r["fiscal_year"] > since_year]
+        if not filtered:
+            return [self._unavailable_marker(symbol, sec_reason)]
+
+        for r in filtered:
+            r["data_source"] = "yfinance"
+        logger.info(
+            f"[{self.table_name}] {symbol}: SEC EDGAR unavailable ({sec_reason}), "
+            f"recovered {len(filtered)} row(s) from yfinance fallback"
+        )
+        return filtered
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         # FIX 2026-08-10: watermark/table desync self-heal. loader_watermarks can advance
         # for a symbol (via bulk_insert_manager's advance_watermark, called with
@@ -447,10 +483,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # as a hard failure here, which at scale (dozens of preferred-share symbols
             # in one run) pushed the loader's failure rate past its 15% abort threshold.
             logger.debug(f"[{self.statement_type.upper()}] {symbol}: CIK not found in SEC ticker cache.")
-            return [self._unavailable_marker(symbol, "cik_not_found")]
+            return self._try_yfinance_fallback(symbol, since, "cik_not_found")
 
         if not cik:
-            return [self._unavailable_marker(symbol, "cik_not_found")]
+            return self._try_yfinance_fallback(symbol, since, "cik_not_found")
 
         logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
@@ -478,22 +514,21 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # the entire run. Convert to the same clean marker the `not rows` branch
             # below already produces for the equivalent case.
             logger.debug(f"[{self.statement_type.upper()}] {symbol}: No SEC facts available: {e}")
-            return [
-                self._unavailable_marker(
-                    symbol, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
-                )
-            ]
+            return self._try_yfinance_fallback(
+                symbol, since, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
+            )
 
         if not rows:
             logger.debug(
                 f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR. "
                 f"Stock may be REIT, investment trust, or lack SEC filings."
             )
-            return [
-                self._unavailable_marker(
-                    symbol, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
-                )
-            ]
+            return self._try_yfinance_fallback(
+                symbol, since, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
+            )
+
+        for r in rows:
+            r.setdefault("data_source", "sec_audited")
 
         logger.info(
             "%s: Fetched %d %s %s row(s)",

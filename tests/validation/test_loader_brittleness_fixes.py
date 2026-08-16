@@ -25,6 +25,19 @@ sys.path.insert(0, str(project_root))
 from utils.db.context import DatabaseContext
 from utils.loaders.status_manager import LoaderStatusManager
 
+# SAFETY GUARD (added 2026-08-16 after live incident): this file writes a fake FAILED/429
+# status directly onto the real company_info_sec row via whatever DB DatabaseContext resolves
+# to. Live-confirmed this DID run against the real `stocks` dev DB (not the isolated
+# `algo_trading` pytest DB conftest.py sets DB_NAME to) and left company_info_sec falsely
+# reporting FAILED while its actual loader process was still alive and successfully writing
+# data - see company_info_sec_status_test_pollution_20260816. Hard-fail before the destructive
+# UPDATE if DB_NAME isn't the isolated test DB, instead of trusting conftest.py silently.
+assert os.environ.get("DB_NAME") == "algo_trading", (
+    f"REFUSING to run: DB_NAME={os.environ.get('DB_NAME')!r}, expected 'algo_trading'. "
+    "This test writes a fake FAILED status directly onto the real company_info_sec row - "
+    "running it against any other database corrupts real loader status data."
+)
+
 
 def test_1_sec_graceful_skip():
     """Test: SEC rate-limited loaders skip gracefully, allow cached data."""

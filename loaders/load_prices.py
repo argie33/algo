@@ -2361,6 +2361,37 @@ class PriceLoader(OptimalLoader):
                 f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
                 f"Price data will use last available trading day's data."
             )
+            # BUG FIX: this branch used to return without touching data_loader_status at all.
+            # run() is the only place that calls _finalize_execution_metrics() (which marks
+            # COMPLETED/FAILED); returning early here meant every non-trading day (i.e. every
+            # weekend) left price_daily and its 5 aux tables frozen at whatever status a PRIOR
+            # run last wrote (live-confirmed: stuck at RUNNING/0% completion from an earlier
+            # crashed run for days over a weekend), silently lying to the dashboard/Phase 1
+            # about loader health. Mirrors the same "1/1 = no-op success" convention runner.py's
+            # global_mode path already uses for a legitimate skip (see mark_completed calls
+            # around line 247) - correctly clears the stale status without claiming any new
+            # data was actually fetched.
+            try:
+                LoaderStatusManager(self.table_name).mark_completed(
+                    current_run_symbols_loaded=1,
+                    current_run_symbol_count=1,
+                )
+                if self.table_name == "price_daily":
+                    for aux_table in (
+                        "price_weekly",
+                        "price_monthly",
+                        "etf_price_daily",
+                        "etf_price_weekly",
+                        "etf_price_monthly",
+                    ):
+                        LoaderStatusManager(aux_table).mark_completed(
+                            current_run_symbols_loaded=1,
+                            current_run_symbol_count=1,
+                        )
+            except Exception as skip_status_err:
+                logger.error(
+                    f"[{self.table_name}] Failed to mark status COMPLETED on non-trading-day skip: {skip_status_err}"
+                )
             return {
                 "symbols_processed": 0,
                 "symbols_failed": 0,

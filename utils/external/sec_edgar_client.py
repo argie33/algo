@@ -502,6 +502,32 @@ class SecEdgarClient:
 
     # ----- High-level extraction helpers -----
 
+    @staticmethod
+    def _is_plausible_fiscal_year(fy: Any, period_end: str | None) -> bool:
+        """Reject filer-tagged XBRL 'fy' values that can't be real.
+
+        The SEC companyfacts 'fy' field is filer-supplied, not SEC-validated, and is
+        occasionally mistagged (live-confirmed 2026-08-16: AAL fy=2027, ASLE fy=2034,
+        THM/AXR fy=2033 while their actual period_end dates were all in the past).
+        Cross-checks fy against the fact's own period_end year, which comes from the
+        filing's real reporting period and isn't subject to the same tagging error -
+        allows a +/-1 year gap to accommodate non-calendar fiscal year ends.
+        """
+        if fy is None:
+            return False
+        try:
+            fy_int = int(fy)
+        except (TypeError, ValueError):
+            return False
+        if period_end:
+            try:
+                end_year = int(str(period_end)[:4])
+                if abs(fy_int - end_year) > 1:
+                    return False
+            except (TypeError, ValueError):
+                pass
+        return True
+
     def get_annual_concept(
         self,
         symbol: str,
@@ -526,9 +552,19 @@ class SecEdgarClient:
             for entry in entries:
                 if entry.get("fp") != "FY":
                     continue
+                fy = entry.get("fy")
+                if not self._is_plausible_fiscal_year(fy, entry.get("end")):
+                    logger.warning(
+                        f"[SEC_FY_SANITY] Skipping {symbol} {concept}: filer-tagged fy={fy} "
+                        f"implausible vs period_end={entry.get('end')} (live-confirmed 2026-08-16: "
+                        "raw XBRL 'fy' is filer-supplied and occasionally garbage/mistagged - "
+                        "e.g. AAL tagged fy=2027, ASLE tagged fy=2034 - ingesting it verbatim "
+                        "produced impossible future-dated annual_income_statement rows)."
+                    )
+                    continue
                 results.append(
                     {
-                        "fiscal_year": entry.get("fy"),
+                        "fiscal_year": fy,
                         "value": entry.get("val"),
                         "unit": unit,
                         "filed": entry.get("filed"),
@@ -576,9 +612,17 @@ class SecEdgarClient:
             for entry in entries:
                 if entry.get("fp") not in ("Q1", "Q2", "Q3", "Q4"):
                     continue
+                fy = entry.get("fy")
+                if not self._is_plausible_fiscal_year(fy, entry.get("end")):
+                    logger.warning(
+                        f"[SEC_FY_SANITY] Skipping {symbol} {concept} {entry.get('fp')}: "
+                        f"filer-tagged fy={fy} implausible vs period_end={entry.get('end')} "
+                        "(see get_annual_concept's identical guard for the live incident this fixes)."
+                    )
+                    continue
                 results.append(
                     {
-                        "fiscal_year": entry.get("fy"),
+                        "fiscal_year": fy,
                         "fiscal_period": entry.get("fp"),
                         "value": entry.get("val"),
                         "unit": unit,

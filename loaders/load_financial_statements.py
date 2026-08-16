@@ -89,6 +89,12 @@ def get_all_statement_configs() -> list[tuple[str, str]]:
 _MARKER_FIELDS = {
     "data_unavailable": "data_unavailable",
     "reason": "reason",
+    # FIXED 2026-08-16: added alongside the yfinance fallback (loaders/helpers/sec_base.py's
+    # SecEdgarStatementLoader._try_yfinance_fallback) - every row now carries an explicit
+    # 'sec_audited' or 'yfinance' tag (migration 1202) so a lower-fidelity fallback row is
+    # never indistinguishable from a real SEC filing, per the same governance discipline
+    # tests/unit/test_company_info_sec_no_yfinance_pollution.py enforces elsewhere.
+    "data_source": "data_source",
 }
 
 _INCOME_FIELD_MAPPING = {
@@ -362,6 +368,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "created_at",
                     "data_unavailable",
                     "reason",
+                    "data_source",
                 ]
             ),
         }
@@ -395,6 +402,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "created_at",
                     "data_unavailable",
                     "reason",
+                    "data_source",
                 ]
             ),
         }
@@ -450,6 +458,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "created_at",
                     "data_unavailable",
                     "reason",
+                    "data_source",
                 ]
             ),
         }
@@ -477,6 +486,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "created_at",
                     "data_unavailable",
                     "reason",
+                    "data_source",
                 ]
             ),
         }
@@ -525,6 +535,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "created_at",
                     "data_unavailable",
                     "reason",
+                    "data_source",
                 ]
             ),
         }
@@ -548,6 +559,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "created_at",
                     "data_unavailable",
                     "reason",
+                    "data_source",
                 ]
             ),
         }

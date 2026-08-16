@@ -14,14 +14,10 @@ don't wait for them in as_completed() loop.
 """
 
 import logging
-import os
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-
-# Set up for local dev DB
-os.environ["DB_NAME"] = "stocks"
 
 logger = logging.getLogger(__name__)
 
