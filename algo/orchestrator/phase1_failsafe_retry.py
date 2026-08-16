@@ -95,9 +95,15 @@ def _get_table_date_column(table_name: str) -> str | None:
         "naaim": "date",
         "aaii": "date",
         "aaii_sentiment": "date",
-        # These don't have 'date' or 'updated_at' - no temporal freshness check
-        "earnings_calendar": "created_at",  # forward-looking announcements
-        "earnings_calendar_sec": "created_at",  # SEC version
+        # BUG FIX (2026-08-16): both were "created_at", which is stamped once at INSERT and
+        # never updated on upsert - a table loaded once weeks ago and never touched since
+        # would show as permanently "fresh". earnings_date/filing_date are forward-looking
+        # announcement dates, not load timestamps, so updated_at is the only real freshness
+        # signal - same reasoning the completeness-check code below (~line 465) already uses
+        # for earnings_calendar, and confirmed by a test predating this fix
+        # (test_phase1_failsafe_earnings_calendar_column.py) that this map alone missed.
+        "earnings_calendar": "updated_at",
+        "earnings_calendar_sec": "updated_at",
         # Company info & SEC data (use 'updated_at' for load recency)
         "company_info_sec": "updated_at",  # Session 98: fixed from 'date'
         "company_profile": "updated_at",  # yfinance-sourced, no date column
@@ -841,8 +847,21 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     # Check if this loader has a main() function and no OptimalLoader class
                     from utils.optimal_loader import OptimalLoader
 
-                    # Force main() path for financial_statements even though it also has Loader class
-                    if loader_key == "financial_statements" or (
+                    # BUG FIX (2026-08-16): "prices" regressed the exact bug the 2026-08-10 fix
+                    # above (see the long comment starting "BUG FOUND 2026-08-10") was written to
+                    # prevent. PriceLoader IS an OptimalLoader subclass, so the "not any(...
+                    # OptimalLoader subclass)" clause below is False for it and it silently fell
+                    # through to the else-branch's `loader_class().run(symbols)` - which only
+                    # loads price_daily (default asset_class="stock", interval="1d") - instead of
+                    # load_prices.py's own main(), the only path that loops over all 6
+                    # asset_class x interval combos (price_daily/weekly/monthly, etf_price_daily/
+                    # weekly/monthly). Caught by
+                    # test_phase1_failsafe_retry_invokes_loader_main_not_generic_path.py, which
+                    # predates the Session 94 in-process rewrite of this block and was never
+                    # re-verified against it until now - confirmed live-relevant since price_daily
+                    # and siblings are still showing stale on the dashboard's Phase 1 self-heal.
+                    # Force main() path for financial_statements/prices even though they also have Loader classes
+                    if loader_key in ("financial_statements", "prices") or (
                         hasattr(loader_module, "main")
                         and callable(loader_module.main)
                         and not any(

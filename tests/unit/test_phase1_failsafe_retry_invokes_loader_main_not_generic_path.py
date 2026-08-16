@@ -18,6 +18,20 @@ Fixed identically to local_loader_scheduler.py: invoke `python loaders/{file}.py
 directly. Also fixed a second, related bug: exit code 0 only means the subprocess didn't
 crash, not that the specific table's own load succeeded - now re-checks the table's own
 terminal status before reporting "recovered".
+
+UPDATED (2026-08-16): Session 94 (2026-08-12) rewrote this retry loop from a
+`subprocess.run(["python", "loaders/{file}.py"])` call to an in-process
+`importlib.import_module()` + direct `main()`/class invocation (to fix file-lock
+contention - see that block's own "SESSION 94 CRITICAL FIX" comment). This test still
+patched `subprocess.run`, which the new code path never calls, so the mock silently went
+unused and the REAL loader ran in-process - live yfinance network calls and live DB writes,
+observed directly when this test was run locally. Worse, the regression this test exists to
+catch had recurred: PriceLoader is an OptimalLoader subclass, so the in-process rewrite's
+"does this loader have main() and no OptimalLoader class" check fell through to
+`loader_class().run(symbols)` for "prices" too - the exact same "only price_daily loads,
+siblings never do" bug, just relocated. Fixed by adding "prices" to the same forced-main()
+special case financial_statements already had. Test rewritten to mock the actual current
+invocation boundary (`importlib.import_module`) instead of the no-longer-used subprocess.
 """
 
 import datetime
@@ -59,7 +73,19 @@ class _StaleOnlyDatabaseContext:
         return False
 
 
-def _run_with_stale_etf(monkeypatch, mock_subprocess_run, mock_status_mgr_factory):
+def _make_fake_loader_module(main_return=0):
+    """A fake `loaders.load_prices`-like module exposing only main(), matching the shape
+    the forced-main() special case expects (financial_statements/prices)."""
+    module = MagicMock()
+    module.main = MagicMock(return_value=main_return)
+    # Ensure `hasattr(module, "main") and callable(module.main)` reads True, and that the
+    # OptimalLoader-subclass scan in the else-branch (not exercised for "prices"/
+    # "financial_statements", but iterated defensively via dir()) finds nothing loader-like.
+    module.__name__ = "loaders.load_prices"
+    return module
+
+
+def _run_with_stale_etf(monkeypatch, mock_import_module, mock_status_mgr_factory):
     from algo.orchestrator import phase1_failsafe_retry as mod
 
     fresh = datetime.date(2026, 8, 10)
@@ -69,31 +95,37 @@ def _run_with_stale_etf(monkeypatch, mock_subprocess_run, mock_status_mgr_factor
     monkeypatch.setattr(mod, "_get_expected_data_date", lambda **kwargs: (fresh, "EOD - test"))
     monkeypatch.setattr(mod, "LoaderStatusManager", mock_status_mgr_factory)
 
-    with patch("subprocess.run", mock_subprocess_run):
+    with patch("importlib.import_module", mock_import_module):
         return _check_and_refresh_local(run_date=fresh, pipeline_context="EOD", dry_run=False)
 
 
 class TestFailsafeRetryInvokesLoaderMainDirectly:
     def test_invokes_loader_module_directly_not_run_loader_generic_path(self, monkeypatch):
-        mock_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
+        fake_module = _make_fake_loader_module(main_return=0)
+        mock_import = MagicMock(return_value=fake_module)
         mock_status_mgr = MagicMock()
         mock_status_mgr.get_status.return_value = {"status": "COMPLETED", "completion_pct": 100.0}
 
-        _run_with_stale_etf(monkeypatch, mock_run, lambda table: mock_status_mgr)
+        _run_with_stale_etf(monkeypatch, mock_import, lambda table: mock_status_mgr)
 
-        assert mock_run.call_count == 1
-        cmd = mock_run.call_args.args[0]
-        assert len(cmd) == 2 and cmd[1] == "loaders/load_prices.py", (
-            f"must invoke the loader module's own main() directly (`python "
-            f"loaders/load_prices.py`), not the generic run_loader.py dispatch that "
-            f"bypasses it - got {cmd}"
+        assert mock_import.call_count == 1
+        assert mock_import.call_args.args[0] == "loaders.load_prices", (
+            f"must import the loader module for the etf_price_daily table's loader_key "
+            f"('prices' -> loaders.load_prices) - got {mock_import.call_args.args}"
+        )
+        assert fake_module.main.call_count == 1, (
+            "must invoke the loader module's own main() directly - the only path that "
+            "loops over all 6 asset_class x interval combos - not instantiate the "
+            "PriceLoader class and call .run() with default constructor args, which only "
+            "ever loads price_daily"
         )
 
     def test_exit_code_zero_but_table_not_completed_is_not_reported_recovered(self, monkeypatch):
-        """The regression itself: a subprocess that exits 0 while THIS table's own
+        """The regression itself: a loader run that exits 0 while THIS table's own
         status is FAILED (e.g. only price_daily loaded, etf_price_daily got 0.00%
         completion under its own safety check) must not be reported as recovered."""
-        mock_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
+        fake_module = _make_fake_loader_module(main_return=0)
+        mock_import = MagicMock(return_value=fake_module)
         mock_status_mgr = MagicMock()
         mock_status_mgr.get_status.return_value = {
             "status": "FAILED",
@@ -101,17 +133,18 @@ class TestFailsafeRetryInvokesLoaderMainDirectly:
             "error_message": "Cannot mark COMPLETED with only 0.00% completion (0/5 symbols)",
         }
 
-        result = _run_with_stale_etf(monkeypatch, mock_run, lambda table: mock_status_mgr)
+        result = _run_with_stale_etf(monkeypatch, mock_import, lambda table: mock_status_mgr)
 
         assert "etf_price_daily" not in result["recovered"]
         assert "etf_price_daily" in result["still_failing"]
 
     def test_exit_code_zero_and_table_completed_is_reported_recovered(self, monkeypatch):
-        mock_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
+        fake_module = _make_fake_loader_module(main_return=0)
+        mock_import = MagicMock(return_value=fake_module)
         mock_status_mgr = MagicMock()
         mock_status_mgr.get_status.return_value = {"status": "COMPLETED", "completion_pct": 100.0}
 
-        result = _run_with_stale_etf(monkeypatch, mock_run, lambda table: mock_status_mgr)
+        result = _run_with_stale_etf(monkeypatch, mock_import, lambda table: mock_status_mgr)
 
         assert "etf_price_daily" in result["recovered"]
         assert "etf_price_daily" not in result["still_failing"]
