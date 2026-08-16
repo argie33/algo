@@ -44,7 +44,19 @@ jobs:
           # (latest, what CI silently picked up) made CI fail on 2 files ruff-format --check
           # passed locally, on the exact push meant to finally get CI green again after a
           # month of failures.
-          pip install "ruff==0.15.18" mypy pytest pylint bandit pre-commit
+          #
+          # mypy pinned 2026-08-16 for the identical reason, found the same day the ruff pin
+          # above landed: .pre-commit-config.yaml's mypy hooks use `language: system` (whatever
+          # mypy is on the developer's machine, not a pinned repo/rev like ruff's hook), so
+          # there was no version pin for mypy ANYWHERE in the repo - CI always installed
+          # whatever was newest on PyPI. Live-confirmed: the very next push after the ruff fix
+          # (1b879494b) failed CI with 20 "Unused type: ignore comment [unused-ignore]" errors
+          # across 6 files that mypy 2.1.0 (this repo's actual dev/pre-commit version) passes
+          # clean on the identical command - a newer mypy's stricter unused-ignore detection,
+          # not a real type error. Pin to the version these type: ignore comments were actually
+          # written/verified against; bump deliberately (and re-verify the ignores) if mypy is
+          # ever upgraded on dev machines.
+          pip install "ruff==0.15.18" "mypy==2.1.0" pytest pylint bandit pre-commit
 
       - name: Install project dependencies
         run: |
