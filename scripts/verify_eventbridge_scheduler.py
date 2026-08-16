@@ -64,13 +64,13 @@ def run_aws_cli(args: list) -> dict | None:
         elif "ResourceNotFoundException" in result.stderr:
             return None
         else:
-            print(f"❌ AWS CLI Error: {result.stderr}", file=sys.stderr)
+            print(f"[FAIL] AWS CLI Error: {result.stderr}", file=sys.stderr)
             return {"_cli_error": result.stderr}
     except FileNotFoundError:
-        print("❌ AWS CLI not installed. Install with: pip install awscli", file=sys.stderr)
+        print("[FAIL] AWS CLI not installed. Install with: pip install awscli", file=sys.stderr)
         return {"_cli_error": "AWS CLI not found on PATH"}
     except Exception as e:
-        print(f"❌ Error running AWS CLI: {e}", file=sys.stderr)
+        print(f"[FAIL] Error running AWS CLI: {e}", file=sys.stderr)
         return {"_cli_error": str(e)}
 
 
@@ -154,10 +154,10 @@ def enable_schedule(name: str) -> bool:
     )
 
     if result is not None:
-        print("✅ ENABLED")
+        print("[OK] ENABLED")
         return True
     else:
-        print("❌ FAILED")
+        print("[FAIL] FAILED")
         return False
 
 
@@ -173,7 +173,7 @@ def check_all_schedules() -> dict:
 
     # Print report
     for name, data in results.items():
-        emoji = "✅" if data["status"] == "OK" else "❌" if data["status"] in ("MISSING", "ERROR") else "⚠️ "
+        emoji = "[OK]" if data["status"] == "OK" else "[FAIL]" if data["status"] in ("MISSING", "ERROR") else "[WARN] "
         print(f"{emoji} {name}")
         print(f"   Status: {data['status']}")
         print(f"   {data['message']}")
@@ -229,17 +229,17 @@ def main():
             for name in disabled:
                 if enable_schedule(name):
                     fixed += 1
-            print(f"\n✅ Fixed {fixed}/{len(disabled)} schedules")
+            print(f"\n[OK] Fixed {fixed}/{len(disabled)} schedules")
         else:
-            print("✅ No disabled schedules found - nothing to fix")
+            print("[OK] No disabled schedules found - nothing to fix")
 
     # Exit with error if any issues
     issues = sum(1 for d in results.values() if d["status"] != "OK")
     if issues:
-        print(f"\n⚠️  {issues} issue(s) found. See above for details.")
+        print(f"\n[WARN]  {issues} issue(s) found. See above for details.")
         sys.exit(1)
     else:
-        print("✅ All scheduler checks passed!")
+        print("[OK] All scheduler checks passed!")
         sys.exit(0)
 
 

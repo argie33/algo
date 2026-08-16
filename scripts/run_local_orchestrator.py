@@ -106,13 +106,13 @@ def _check_loader_freshness(run_type: str, now) -> None:
             signals_loaders_count = cur.fetchone()[0]
 
         if morning_loaders_count < 3:
-            print(f"  ⚠️  WARNING: MORNING pipeline incomplete ({morning_loaders_count}/3 loaders ran today)")
+            print(f"  [WARN]  WARNING: MORNING pipeline incomplete ({morning_loaders_count}/3 loaders ran today)")
             print("     Run before orchestrator: python scripts/local_loader_scheduler.py --now morning")
         if metrics_loaders_count < 4:
-            print(f"  ⚠️  WARNING: METRICS pipeline incomplete ({metrics_loaders_count}/4 loaders ran today)")
+            print(f"  [WARN]  WARNING: METRICS pipeline incomplete ({metrics_loaders_count}/4 loaders ran today)")
             print("     Run before orchestrator: python scripts/local_loader_scheduler.py --now metrics")
         if signals_loaders_count < 2:
-            print(f"  ⚠️  WARNING: SIGNALS pipeline incomplete ({signals_loaders_count}/2 loaders ran today)")
+            print(f"  [WARN]  WARNING: SIGNALS pipeline incomplete ({signals_loaders_count}/2 loaders ran today)")
             print("     Run before orchestrator: python scripts/local_loader_scheduler.py --now signals")
     except Exception as loader_check_err:
         # Non-critical check - don't block orchestrator on check failure

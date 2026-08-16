@@ -12,7 +12,6 @@ Exit code:
   1 = Drift detected (requires manual fix)
 """
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -29,7 +28,7 @@ if sys.platform == "win32" and "pytest" not in sys.modules:
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root))
 
-from loaders.loader_registry import LOADER_TABLES, SHORTHAND_TO_FILENAME, get_table_names
+from loaders.loader_registry import LOADER_TABLES, SHORTHAND_TO_FILENAME, get_table_names  # noqa: E402
 
 
 def load_terraform_loaders():
@@ -37,7 +36,7 @@ def load_terraform_loaders():
     tf_file = repo_root / "terraform" / "modules" / "loaders" / "main.tf"
 
     loaders = {}
-    with open(tf_file, "r") as f:
+    with open(tf_file) as f:
         content = f.read()
 
     # Extract loader_file_map block
@@ -63,12 +62,12 @@ def load_lambda_valid_names():
     """Extract VALID_LOADER_NAMES from lambda/trigger-loaders/lambda_function.py."""
     lambda_file = repo_root / "lambda" / "trigger-loaders" / "lambda_function.py"
 
-    with open(lambda_file, "r") as f:
+    with open(lambda_file) as f:
         content = f.read()
 
     # Check if it's importing from registry or hardcoded
     if "from loaders.loader_registry import get_table_names" in content:
-        print("✓ Lambda: Using auto-generated VALID_LOADER_NAMES from registry")
+        print("[OK] Lambda: Using auto-generated VALID_LOADER_NAMES from registry")
         return None  # Dynamically loaded, no static check needed
     elif "VALID_LOADER_NAMES = frozenset(" in content:
         # Parse hardcoded list
@@ -109,20 +108,20 @@ def main():
     # Build mapping from terraform table names to filenames
     terraform_filenames = set(terraform_loaders.values())
 
-    print(f"\nRegistry Statistics:")
+    print("\nRegistry Statistics:")
     print(f"  Loader filenames: {len(registry_filenames)}")
     print(f"  Primary table names: {len(registry_table_names)}")
     print(f"  Shorthand aliases: {len(registry_shorthands)}")
 
-    print(f"\nTerraform loader_file_map:")
+    print("\nTerraform loader_file_map:")
     print(f"  Table->filename mappings: {len(terraform_loaders)}")
     print(f"  Unique filenames: {len(terraform_filenames)}")
 
     if lambda_names is None:
-        print(f"\nLambda VALID_LOADER_NAMES:")
-        print(f"  [OK] Auto-generated from registry (in sync)")
+        print("\nLambda VALID_LOADER_NAMES:")
+        print("  [OK] Auto-generated from registry (in sync)")
     else:
-        print(f"\nLambda VALID_LOADER_NAMES:")
+        print("\nLambda VALID_LOADER_NAMES:")
         print(f"  Hardcoded entries: {len(lambda_names)} (WARNING: should be auto-generated)")
 
     # Check 1: Registry completeness
@@ -164,9 +163,9 @@ def main():
 
     if not terraform_only_filtered:
         if not registry_only:
-            print(f"  [OK] All active terraform filenames are in registry")
+            print("  [OK] All active terraform filenames are in registry")
         else:
-            print(f"  [OK] All terraform filenames are covered (registry may have extras)")
+            print("  [OK] All terraform filenames are covered (registry may have extras)")
 
     # Check 3: Lambda vs Registry (only if hardcoded)
     if lambda_names is not None:
@@ -195,7 +194,7 @@ def main():
         print(f"\n{'=' * 70}")
         print("CHECK 3: Lambda vs Registry Table Names")
         print(f"{'=' * 70}")
-        print(f"  [OK] Lambda auto-generates from registry (always in sync)")
+        print("  [OK] Lambda auto-generates from registry (always in sync)")
 
     # Summary
     print(f"\n{'=' * 70}")

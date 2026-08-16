@@ -448,12 +448,18 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         loader_health_total_unhealthy = len(loader_health)
 
         # 5. Calculate trend summary (7-day vs 30-day comparison)
+        # NOTE: excludes overall_status='skipped' runs (non_trading_day / outside_market_hours -
+        # the orchestrator correctly declining to run, not a failure). Confirmed live 2026-08-16:
+        # including them inflated the denominator (48 of 198 runs in 7 days were legitimate
+        # skips) and dragged success_rate_7d down to 45.5%/"degrading" when the real rate on
+        # actual attempted runs was ~60%, misleading anyone reading the dashboard trend.
         cur.execute("""
             SELECT
                 COUNT(*) as total_7d,
                 SUM(CASE WHEN overall_status IN ('success', 'ok') THEN 1 ELSE 0 END) as successful_7d
             FROM orchestrator_execution_log
             WHERE started_at > NOW() - INTERVAL '7 days'
+              AND overall_status != 'skipped'
         """)
 
         trend_7d_row = cur.fetchone()
@@ -471,6 +477,7 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
                 SUM(CASE WHEN overall_status IN ('success', 'ok') THEN 1 ELSE 0 END) as successful_30d
             FROM orchestrator_execution_log
             WHERE started_at > NOW() - INTERVAL '30 days'
+              AND overall_status != 'skipped'
         """)
 
         trend_30d_row = cur.fetchone()

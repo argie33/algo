@@ -114,7 +114,7 @@ def main():
     # Recommendation
     print("\nRECOMMENDATION:")
     if result_p2["success"]:
-        print("✅ SAFE TO ENABLE: No 429 errors detected with parallelism=2")
+        print("[OK] SAFE TO ENABLE: No 429 errors detected with parallelism=2")
         print("   Next steps:")
         print("   1. Update scripts/local_loader_scheduler.py: LOADER_PARALLELISM = '2'")
         print("   2. Update loaders/runner.py default parallelism to 2")
@@ -122,19 +122,19 @@ def main():
         print("   4. Expected speedup: 50-67% on analyst loaders (6+ hours → 3 hours)")
         return 0
     elif result_p2.get("timeout"):
-        print("⚠️  TIMEOUT: Loader exceeded 30-min timeout")
+        print("[WARN]  TIMEOUT: Loader exceeded 30-min timeout")
         print("   This may indicate:")
         print("   - Parallelism=2 still triggers rate limiting")
         print("   - 30 min is insufficient (increase timeout)")
         print("   Recommendation: Keep parallelism=1 for now")
         return 1
     elif result_p2.get("has_429_errors"):
-        print("❌ RATE LIMITED: HTTP 429 errors detected")
+        print("[FAIL] RATE LIMITED: HTTP 429 errors detected")
         print("   Parallelism=2 triggers Yahoo rate limiting")
         print("   Keep parallelism=1 (safe)")
         return 1
     else:
-        print("❌ FAILED: Loader execution failed")
+        print("[FAIL] FAILED: Loader execution failed")
         print(f"   Error: {result_p2.get('error', 'Unknown')}")
         print("   Recommendation: Investigate error before enabling parallelism=2")
         return 1

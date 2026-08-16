@@ -438,7 +438,7 @@ def check_all_tables() -> dict:
         age = get_table_age_minutes(table)
 
         if age is None:
-            status = "❓ NO DATA"
+            status = "[UNCONFIRMED] NO DATA"
             level = "unknown"
         else:
             formatted = format_age(age)
@@ -509,15 +509,15 @@ def check_all_tables() -> dict:
                 critical_threshold = thresholds["critical"]
 
             emoji = (
-                "✅"
+                "[OK]"
                 if age < fresh_threshold
-                else "❓"
+                else "[UNCONFIRMED]"
                 if age < unconfirmed_threshold
-                else "🟡"
+                else "[STALE]"
                 if age < stale_threshold
-                else "🔴"
+                else "[CRITICAL]"
                 if age < critical_threshold
-                else "💀"
+                else "[DEAD]"
             )
 
             if age < fresh_threshold:
@@ -539,7 +539,7 @@ def check_all_tables() -> dict:
         # A recent-looking updated_at can't distinguish a real refresh from a crashed run
         # that only wrote a handful of rows - cross-check the loader's own reported outcome.
         if get_loader_failed(table):
-            status = f"🔴 LOAD FAILED (last touch {format_age(age) if age is not None else 'unknown'})"
+            status = f"[CRITICAL] LOAD FAILED (last touch {format_age(age) if age is not None else 'unknown'})"
             level = "critical"
 
         results[table] = {
@@ -564,10 +564,10 @@ def check_all_tables() -> dict:
             min_coverage_pct, min_symbol_count = 75, 5000
 
         if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
-            status = f"🔴 SYMBOL COVERAGE INSUFFICIENT ({symbols_loaded}/{total_active} = {coverage_pct:.1f}%)"
+            status = f"[CRITICAL] SYMBOL COVERAGE INSUFFICIENT ({symbols_loaded}/{total_active} = {coverage_pct:.1f}%)"
             level = "critical"
         else:
-            status = f"✅ {symbols_loaded}/{total_active} symbols ({coverage_pct:.1f}%)"
+            status = f"[OK] {symbols_loaded}/{total_active} symbols ({coverage_pct:.1f}%)"
             level = "ok"
 
         results["price_daily_symbol_coverage"] = {
@@ -599,12 +599,12 @@ def print_report(results: dict) -> None:
 
     print("\n" + "-" * 70)
     print("SUMMARY:")
-    print(f"  ✅ FRESH:       {levels.get('ok', 0)}")
-    print(f"  ❓ UNCONFIRMED: {levels.get('unconfirmed', 0)}")
-    print(f"  🟡 STALE:       {levels.get('warning', 0)}")
-    print(f"  🔴 CRITICAL:    {levels.get('critical', 0)}")
-    print(f"  💀 DEAD:        {levels.get('dead', 0)}")
-    print(f"  ❌ NO DATA:     {levels.get('unknown', 0)}")
+    print(f"  [OK] FRESH:       {levels.get('ok', 0)}")
+    print(f"  [UNCONFIRMED] UNCONFIRMED: {levels.get('unconfirmed', 0)}")
+    print(f"  [STALE] STALE:       {levels.get('warning', 0)}")
+    print(f"  [CRITICAL] CRITICAL:    {levels.get('critical', 0)}")
+    print(f"  [DEAD] DEAD:        {levels.get('dead', 0)}")
+    print(f"  [FAIL] NO DATA:     {levels.get('unknown', 0)}")
 
     # Recommendations
     print("\n" + "-" * 70)
@@ -615,7 +615,7 @@ def print_report(results: dict) -> None:
     unconfirmed_tables = [t for t, d in results.items() if d["level"] == "unconfirmed"]
 
     if critical_tables:
-        print(f"\n🚨 CRITICAL: {', '.join(critical_tables)}")
+        print(f"\n[CRITICAL] CRITICAL: {', '.join(critical_tables)}")
         print("\nFIX IMMEDIATELY:")
         print("  1. Check if EventBridge Scheduler is running:")
         print("     aws events list-rules --query 'Rules[?contains(Name, `pipeline`)]' --region us-east-1")
@@ -627,23 +627,23 @@ def print_report(results: dict) -> None:
         print("     python scripts/run_local_orchestrator.py --morning")
         if stale_tables or unconfirmed_tables:
             tables_to_watch = stale_tables + unconfirmed_tables
-            print(f"\n⚠️  Also watch (aging data): {', '.join(tables_to_watch)}")
+            print(f"\n[WARN]  Also watch (aging data): {', '.join(tables_to_watch)}")
     elif stale_tables:
-        print(f"\n🟡 STALE DATA: {', '.join(stale_tables)}")
+        print(f"\n[STALE] STALE DATA: {', '.join(stale_tables)}")
         print("\nGetting old - plan a refresh soon:")
         print("  1. Local dev - run orchestrator/loaders to refresh:")
         print("     python scripts/run_local_orchestrator.py --morning")
         print("  2. If this persists, escalate to critical (FIX IMMEDIATELY above).")
         if unconfirmed_tables:
-            print(f"\n❓ Also aging (unconfirmed): {', '.join(unconfirmed_tables)}")
+            print(f"\n[UNCONFIRMED] Also aging (unconfirmed): {', '.join(unconfirmed_tables)}")
     elif unconfirmed_tables:
-        print(f"\n❓ UNCONFIRMED DATA: {', '.join(unconfirmed_tables)}")
+        print(f"\n[UNCONFIRMED] UNCONFIRMED DATA: {', '.join(unconfirmed_tables)}")
         print("\nData is aging and no longer fresh. Monitor closely:")
         print("  1. Not yet critical, but losing confidence in freshness.")
         print("  2. Plan to run orchestrator/loaders soon:")
         print("     python scripts/run_local_orchestrator.py --morning")
     else:
-        print("\n✅ All data is fresh. No action needed.")
+        print("\n[OK] All data is fresh. No action needed.")
 
     print("\n" + "=" * 70 + "\n")
 
@@ -667,11 +667,11 @@ def send_slack_alert(table_name: str, level: str, age_minutes: int, threshold_mi
 
         hours = age_minutes // 60
         message = {
-            "text": f"⚠️ Data Staleness Alert: {table_name}",
+            "text": f"[WARN] Data Staleness Alert: {table_name}",
             "blocks": [
                 {
                     "type": "header",
-                    "text": {"type": "plain_text", "text": "🚨 Data Staleness Alert"},
+                    "text": {"type": "plain_text", "text": "[CRITICAL] Data Staleness Alert"},
                 }
             ],
             "attachments": [
@@ -777,7 +777,7 @@ def watch_mode(interval: int, alert_method: str | None = None) -> None:
             # Check for critical staleness and send alerts
             critical = [t for t, d in results.items() if d["level"] in ("critical", "dead")]
             if critical:
-                print(f"⚠️  ALERT: {len(critical)} table(s) critically stale!")
+                print(f"[WARN]  ALERT: {len(critical)} table(s) critically stale!")
                 if alert_method:
                     for table in critical:
                         data = results[table]

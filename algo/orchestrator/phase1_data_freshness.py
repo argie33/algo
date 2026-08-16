@@ -1315,7 +1315,14 @@ def run(  # noqa: C901
                 "market_exposure_daily": "Market exposure limits (EOD loader)",
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "sector_ranking": "Sector rankings",
-                "financial_statements": "Financial statement data (SESSION 116 FIX: for visibility)",
+                # NOTE: "financial_statements" is a pipeline/loader name (load_financial_statements.py),
+                # not a real table - it writes to annual_income_statement, annual_balance_sheet,
+                # annual_cash_flow, quarterly_income_statement, quarterly_balance_sheet,
+                # quarterly_cash_flow (see loaders/loader_registry.py). Checking a nonexistent
+                # "financial_statements" relation raised "relation does not exist" and halted
+                # trading (confirmed live 2026-08-16). Using annual_income_statement as the
+                # representative table - it and its siblings are written together per symbol.
+                "annual_income_statement": "Financial statement data (SESSION 116 FIX: for visibility)",
                 "company_info_sec": "Company SEC information (SESSION 116 FIX: for visibility)",
                 "growth_metrics": "Growth metrics (enrichment only)",
                 "quality_metrics": "Quality metrics (enrichment only)",
@@ -1352,10 +1359,12 @@ def run(  # noqa: C901
                 "value_metrics": "updated_at",
                 "positioning_metrics": "updated_at",
                 "stability_metrics": "updated_at",
-                # SESSION 116 FIX: Add financial_statements & company_info_sec for visibility
-                # These are SEC/financial data without daily "date" columns; use "updated_at"
-                # to track when loaders last ran. Allows early detection of stale financial data.
-                "financial_statements": "updated_at",
+                # SESSION 116 FIX: Add annual_income_statement (real table for the
+                # "financial_statements" loader/pipeline - see note in warn_tables above)
+                # & company_info_sec for visibility. These are SEC/financial data without
+                # daily "date" columns; use "updated_at" to track when loaders last ran.
+                # Allows early detection of stale financial data.
+                "annual_income_statement": "updated_at",
                 "company_info_sec": "updated_at",
                 # CRITICAL FIX (2026-08-05): Add explicit date column for technical_data_daily
                 # (was being skipped entirely from freshness checks). Uses standard "date" column
@@ -1454,6 +1463,14 @@ def run(  # noqa: C901
                 "value_metrics": run_date,
                 "positioning_metrics": run_date,
                 "stability_metrics": run_date,
+                # SESSION 116 FIX added annual_income_statement/company_info_sec to
+                # date_checked_tables (warn_tables) but never added matching entries here,
+                # so Phase 1 crashed with "missing reference date" the moment the earlier
+                # "relation financial_statements does not exist" bug was fixed (confirmed
+                # live 2026-08-16). Both are warn-only enrichment tables like growth_metrics
+                # above, so run_date is the correct reference.
+                "annual_income_statement": run_date,
+                "company_info_sec": run_date,
             }
 
             try:

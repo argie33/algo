@@ -37,7 +37,7 @@ try:
         )
 
     conn.commit()
-    print(f"✓ Cleared {len(stale_loaders)} stale loader statuses")
+    print(f"[OK] Cleared {len(stale_loaders)} stale loader statuses")
 
     # Verify
     cur.execute(

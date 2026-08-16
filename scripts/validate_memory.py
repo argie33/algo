@@ -50,7 +50,7 @@ def check_red_flags(content: str, filename: str) -> list[str]:
         for match in matches:
             line_num = content[: match.start()].count("\n") + 1
             issues.append(
-                f"  ❌ Line {line_num} [{filename}]: Found '{match.group()}'\n"
+                f"  [FAIL] Line {line_num} [{filename}]: Found '{match.group()}'\n"
                 f"     Reason: {reason}\n"
                 f"     Fix: Add test method, dates, and reproducibility proof"
             )
@@ -63,12 +63,12 @@ def check_structure(filepath: Path, content: str) -> list[str]:
 
     # Parse frontmatter
     if not content.startswith("---"):
-        issues.append("  ❌ Missing frontmatter (---)")
+        issues.append("  [FAIL] Missing frontmatter (---)")
         return issues
 
     frontmatter_end = content.find("---", 3)
     if frontmatter_end == -1:
-        issues.append("  ❌ Malformed frontmatter (no closing ---)")
+        issues.append("  [FAIL] Malformed frontmatter (no closing ---)")
         return issues
 
     frontmatter = content[3:frontmatter_end]
@@ -76,7 +76,7 @@ def check_structure(filepath: Path, content: str) -> list[str]:
     # Check for metadata type
     type_match = re.search(r"type:\s*(\w+)", frontmatter)
     if not type_match:
-        issues.append("  ❌ Missing 'type:' field in frontmatter")
+        issues.append("  [FAIL] Missing 'type:' field in frontmatter")
         return issues
 
     mem_type = type_match.group(1)
@@ -84,7 +84,7 @@ def check_structure(filepath: Path, content: str) -> list[str]:
     # For session files: always fail
     if filepath.name.startswith("session_"):
         issues.append(
-            "  ❌ Session memory files are banned\n"
+            "  [FAIL] Session memory files are banned\n"
             "     Reason: Status files rot and become false\n"
             "     Fix: Keep specific bugs/rules instead, not session summaries"
         )
@@ -128,7 +128,7 @@ def check_structure(filepath: Path, content: str) -> list[str]:
             has_method = has_shown_command and has_result_line
         if not has_method:
             issues.append(
-                "  ❌ Claims tested/verified but no test method shown\n"
+                "  [FAIL] Claims tested/verified but no test method shown\n"
                 "     Fix: Show exact command/code run, date, result"
             )
 
@@ -136,11 +136,11 @@ def check_structure(filepath: Path, content: str) -> list[str]:
     if mem_type == "feedback":
         if "**Why:**" not in content and "**why:**" not in content:
             issues.append(
-                "  ❌ Feedback missing '**Why:**' section\n     Required: Explain the bug or reason for this rule"
+                "  [FAIL] Feedback missing '**Why:**' section\n     Required: Explain the bug or reason for this rule"
             )
         if "**How to apply:**" not in content and "**how to apply:**" not in content:
             issues.append(
-                "  ❌ Feedback missing '**How to apply:**' section\n     Required: Explain when/how to use this rule"
+                "  [FAIL] Feedback missing '**How to apply:**' section\n     Required: Explain when/how to use this rule"
             )
 
     return issues
@@ -166,7 +166,7 @@ def check_memory_staleness() -> list[str]:
             if any(word in content.lower() for word in ["tested:", "verified:", "method:"]):
                 age_days = (datetime.now() - mod_time).days
                 issues.append(
-                    f"  ⚠️  Stale memory ({age_days} days old): {filepath.name}\n"
+                    f"  [WARN]  Stale memory ({age_days} days old): {filepath.name}\n"
                     f"     Fix: Re-verify this memory is still accurate or delete it"
                 )
 
@@ -208,7 +208,7 @@ def validate_all() -> tuple[int, list[str]]:
             "feedback_verify_claims_before_memory.md",  # teaching file about claims
         }
         if filepath.name in skip_files:
-            print(f"⊘ {filepath.name} (documentation - skipped)")
+            print(f"[SKIP] {filepath.name} (documentation - skipped)")
             continue
 
         issues.extend(check_red_flags(content, filepath.name))
@@ -216,12 +216,12 @@ def validate_all() -> tuple[int, list[str]]:
 
         if issues:
             files_with_issues += 1
-            print(f"❌ {filepath.name}")
+            print(f"[FAIL] {filepath.name}")
             for issue in issues:
                 print(issue)
             print()
         else:
-            print(f"✅ {filepath.name}")
+            print(f"[OK] {filepath.name}")
 
     # Check staleness
     print("\nChecking for stale memory...\n")
