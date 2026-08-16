@@ -42,7 +42,12 @@ def _run_with_crash(loader, run_serial_side_effect, sla_timeout_seconds=999999):
 
     with (
         patch("utils.db.local_file_lock.get_lock_manager", return_value=lock_manager),
-        patch("loaders.config.get_loader_sla_timeout", return_value=sla_timeout_seconds),
+        # UPDATED (2026-08-16, Session 95 commit f2bf6e77c): optimal_loader.py now imports
+        # get_loader_timeout from loaders.loader_timeout_config, not the old
+        # loaders.config.get_loader_sla_timeout this used to patch - patching the removed
+        # name silently did nothing, so the real (unmocked) timeout lookup ran and this test
+        # fell through into real, unmocked DB queries further down in run().
+        patch("loaders.loader_timeout_config.get_loader_timeout", return_value=sla_timeout_seconds),
         patch("utils.db.pooled_connection_manager.PooledConnectionManager", return_value=conn_manager),
         patch("utils.db.pooled_context_var.set_pooled_connection"),
         patch.object(loader, "_run_serial", side_effect=run_serial_side_effect),

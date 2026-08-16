@@ -964,7 +964,14 @@ class OptimalLoader:
                     current_run_symbol_count=0,
                     min_completion_pct=0.0,
                 )
-                return 0
+                # BUG FIX (2026-08-16): was `return 0`. loaders/runner.py's global-mode caller
+                # does `if result > 0: mark_completed() else: mark_failed()` - returning 0 here
+                # made it immediately call mark_failed(), overwriting the mark_completed() just
+                # written above, for every subclass that legitimately signals "no fetch_global
+                # implementation, real data handled elsewhere" via this (more common, non-list)
+                # marker shape. Identical bug, already fixed below for the list-wrapped marker
+                # shape (see its own "CRITICAL FIX: Return 1" comment) but never applied here.
+                return 1
 
             # Some subclasses (e.g. load_naaim.py) list-wrap the marker dict instead of
             # returning it bare - recognize that shape too, or it falls through to a real

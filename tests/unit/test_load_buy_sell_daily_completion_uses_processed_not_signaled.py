@@ -22,14 +22,24 @@ SOURCE = REPO_ROOT / "loaders" / "load_buy_sell_daily.py"
 
 
 def _find_mark_completed_call():
+    """Returns the main (real-data) mark_completed() call - the one carrying
+    current_run_symbols_loaded. A second call exists for the zero-data-day branch (e.g. a
+    weekend/holiday with no new signals - see the "zero-data day" comment in
+    load_buy_sell_daily.py), which intentionally omits these kwargs since there's no
+    per-run count to report; that call isn't what this test is verifying."""
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     calls = [
         node
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "mark_completed"
     ]
-    assert len(calls) == 1, f"Expected exactly one mark_completed() call, found {len(calls)}"
-    return calls[0]
+    assert calls, "Expected at least one mark_completed() call, found none"
+    main_calls = [call for call in calls if any(kw.arg == "current_run_symbols_loaded" for kw in call.keywords)]
+    assert len(main_calls) == 1, (
+        f"Expected exactly one mark_completed() call passing current_run_symbols_loaded, "
+        f"found {len(main_calls)} (of {len(calls)} total mark_completed() calls)"
+    )
+    return main_calls[0]
 
 
 def test_completion_numerator_is_not_same_day_signal_count():

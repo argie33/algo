@@ -112,8 +112,14 @@ class TestAaiiRejectsNonFiniteSentiment:
         # silently falling through to the "neutral" branch (score=50) - directly
         # contradicting the function's own docstring ("sentiment extremes are key
         # contrarian signals... missing data is a data error, not a skip condition").
+        #
+        # UPDATED (2026-08-16): a 2026-08-11 fix added an unbounded-staleness guard to
+        # aaii() (see its own "BUG FOUND 2026-08-11" comment), which added `date` as a
+        # third SELECT column read via row[2] - this fixture predates that and only had 2
+        # elements. Third element must be a non-stale date (within 21 days of eval_date) so
+        # the staleness check passes and the NaN check under test is what actually fires.
         calc = MarketFactorCalculator()
-        cur = _FakeCursor((float("nan"), 30.0))
+        cur = _FakeCursor((float("nan"), 30.0, date(2026, 8, 10)))
         with pytest.raises(RuntimeError, match="Non-finite AAII sentiment"):
             calc.aaii(date(2026, 8, 10), cur)
 
@@ -122,13 +128,16 @@ class TestNaaimRejectsNonFiniteExposure:
     def test_nan_exposure_raises_instead_of_scoring_as_extreme_overweight(self):
         # Without the fix: min(100, max(0, 100 - nan / 2)) silently -> 0.0
         # (extreme-overweight / most-bearish-contrarian score) for corrupted data.
+        #
+        # UPDATED (2026-08-16): same staleness-guard fix as aaii() above added `date` as a
+        # second SELECT column read via row[1] - this fixture predates that.
         calc = MarketFactorCalculator()
-        cur = _FakeCursor((float("nan"),))
+        cur = _FakeCursor((float("nan"), date(2026, 8, 10)))
         with pytest.raises(RuntimeError, match="Non-finite NAAIM exposure"):
             calc.naaim(date(2026, 8, 10), cur)
 
     def test_finite_exposure_still_works(self):
         calc = MarketFactorCalculator()
-        cur = _FakeCursor((50.0,))
+        cur = _FakeCursor((50.0, date(2026, 8, 10)))
         result = calc.naaim(date(2026, 8, 10), cur)
         assert result["score"] == 75.0

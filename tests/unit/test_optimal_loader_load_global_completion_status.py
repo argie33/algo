@@ -66,6 +66,12 @@ def _run_load_global(loader, fetch_global_return):
         patch("utils.optimal_loader.DatabaseContext", side_effect=fake_db_context),
         patch("utils.db.pooled_connection_manager.PooledConnectionManager", return_value=conn_manager),
         patch("utils.db.pooled_context_var.set_pooled_connection"),
+        # UPDATED (2026-08-16, Session 95 commit f2bf6e77c): load_global() now looks up its
+        # SLA timeout via loaders.loader_timeout_config.get_loader_timeout(self.table_name),
+        # which fails fast (RuntimeError) for any table_name not in the real loader registry -
+        # "test_global_table" (this fixture's synthetic name) isn't and never should be
+        # registered there, so this must be mocked rather than relying on registry membership.
+        patch("loaders.loader_timeout_config.get_loader_timeout", return_value=7200),
     ):
         return loader.load_global()
 
@@ -90,11 +96,16 @@ class TestLoadGlobalCompletionStatus:
         loader._status_manager.mark_completed.assert_called()
 
     def test_data_unavailable_marker_dict_still_marks_completed(self):
+        # BUG FIX (2026-08-16): must return 1, not 0. loaders/runner.py's global-mode caller
+        # does `if result > 0: mark_completed() else: mark_failed()` - 0 made it immediately
+        # overwrite the mark_completed() load_global() itself just wrote with mark_failed(),
+        # for every subclass using this (more common, non-list) marker shape. See the sibling
+        # list-wrapped case below, which already had this fix; this dict-shaped case didn't.
         loader = _make_loader()
 
         result = _run_load_global(loader, {"data_unavailable": True, "reason": "no_source_available"})
 
-        assert result == 0
+        assert result == 1
         loader._status_manager.mark_completed.assert_called()
 
     def test_list_wrapped_data_unavailable_marker_still_marks_completed(self):
@@ -102,7 +113,7 @@ class TestLoadGlobalCompletionStatus:
 
         result = _run_load_global(loader, [{"data_unavailable": True, "reason": "no_source_available"}])
 
-        assert result == 0
+        assert result == 1
         loader._status_manager.mark_completed.assert_called()
 
     def test_successful_load_passes_current_run_counts_to_mark_completed(self):
