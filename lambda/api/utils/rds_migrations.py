@@ -171,6 +171,15 @@ MIGRATIONS = [
         "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS eps_growth_stability_unavailable_reason VARCHAR(255)",
         "Add eps_growth_stability unavailable reason to quality_metrics",
     ),
+    # Migration 1196 (2026-08-16): was applied to local `stocks` dev DB manually but never
+    # registered here, so RDS (and the algo_trading pytest DB) never got it - see
+    # migrations/versions/1196_add_symbols_failed_to_data_loader_status.sql
+    (
+        "data_loader_status.symbols_failed",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='data_loader_status' AND column_name='symbols_failed'",
+        "ALTER TABLE data_loader_status ADD COLUMN IF NOT EXISTS symbols_failed INTEGER",
+        "Add symbols_failed to data_loader_status",
+    ),
 ]
 
 

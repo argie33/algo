@@ -323,6 +323,4 @@ test-results.txt
 
 # Stray nohup redirects from local script runs
 nohup.out
-!steering/LOADING_SYSTEM_ROOT_CAUSE_FIX_SUMMARY.md
 !steering/YFINANCE_PARALLELISM_INVESTIGATION.md
-!steering/LOADER_BRITTLENESS_COMPLETE_FIX_SUMMARY.md
