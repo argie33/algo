@@ -339,6 +339,36 @@ def format_age(minutes: float) -> str:
     return f"{days:.1f}d"
 
 
+def get_last_success_age_minutes(table_name: str) -> float | None:
+    """Age in minutes of `data_loader_status.last_success_at` for this table, or None.
+
+    `last_success_at` only advances on `mark_completed()`, which itself refuses to fire
+    below 98% completion (see status_manager.py's "PRODUCTION SAFETY FIX 2026-08-03") - so
+    unlike a plain table-content timestamp, a recent `last_success_at` can't be fooled by a
+    handful of rows from a still-broken load. Lets the CURRENT-status-FAILED override below
+    tell "last attempt failed, but the data on disk is from a genuinely complete run and is
+    still fresh" apart from "last attempt failed and the data is actually stale too" - live-
+    confirmed 2026-08-16: growth_metrics/quality_metrics/value_metrics/positioning_metrics/
+    sector_ranking all had status='FAILED' purely from an unrelated abandoned session hours
+    later reaping their RUNNING row, while their actual table content was current through
+    Friday 2026-08-14 (or same-day for sector_ranking) - reporting those as [CRITICAL] LOAD
+    FAILED was actively misleading, not just imprecise.
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT EXTRACT(EPOCH FROM (NOW() - last_success_at)) / 60 FROM data_loader_status WHERE table_name = %s",
+                (table_name,),
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0])
+            return None
+    except Exception as e:
+        logger.error(f"Error checking last_success_at for {table_name}: {e}")
+        return None
+
+
 def get_loader_failed(table_name: str) -> bool:
     """Check whether data_loader_status's CURRENT row for this table reports 'failed'.
 
@@ -539,8 +569,20 @@ def check_all_tables() -> dict:
         # A recent-looking updated_at can't distinguish a real refresh from a crashed run
         # that only wrote a handful of rows - cross-check the loader's own reported outcome.
         if get_loader_failed(table):
-            status = f"[CRITICAL] LOAD FAILED (last touch {format_age(age) if age is not None else 'unknown'})"
-            level = "critical"
+            # The CURRENT status row being FAILED doesn't mean the DATA is stale - a later,
+            # unrelated attempt (e.g. an abandoned session reaping a stuck RUNNING row hours
+            # after a genuinely complete earlier run) can flip status to FAILED while the
+            # actual table content is still current. Check the last *complete* run
+            # (last_success_at, which only advances on >=98%-complete mark_completed() -
+            # see get_last_success_age_minutes) against this table's own already gap-aware
+            # thresholds before escalating to CRITICAL.
+            success_age = get_last_success_age_minutes(table)
+            if success_age is not None and age is not None and success_age < fresh_threshold:
+                status = f"[WARNING] LAST RUN FAILED, data still FRESH (complete as of {format_age(success_age)} ago)"
+                level = "warning"
+            else:
+                status = f"[CRITICAL] LOAD FAILED (last touch {format_age(age) if age is not None else 'unknown'})"
+                level = "critical"
 
         results[table] = {
             "status": status,

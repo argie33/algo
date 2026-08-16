@@ -74,6 +74,46 @@ class TestFailedLoadNotMaskedAsFresh:
             assert mds.get_loader_failed("some_untracked_table") is False
 
 
+class TestFailedStatusDoesNotOverstateSeverityWhenDataIsActuallyCurrent:
+    """Regression test for a bug found live 2026-08-16: a table's data_loader_status can flip
+    to 'failed' from an event completely unrelated to the data's actual freshness - e.g. an
+    abandoned session's later, separate pipeline attempt getting reaped hours after a
+    genuinely complete earlier run. growth_metrics/quality_metrics/value_metrics/
+    positioning_metrics/sector_ranking all showed status='FAILED' this way while their table
+    content was current through the same day or the prior trading day - reporting those as
+    plain '[CRITICAL] LOAD FAILED' (indistinguishable from a table that's actually stale) was
+    itself a dashboard-accuracy bug, not just an imprecision.
+
+    Fixed by cross-checking last_success_at (which only advances on a >=98%-complete
+    mark_completed() - see status_manager.py - so it can't be fooled by a partial/crashed
+    write the way a plain content timestamp can, unlike the July 28 bug this module already
+    guards against above).
+    """
+
+    def test_failed_status_with_recent_complete_success_is_downgraded_to_warning(self):
+        with (
+            patch.object(mds, "get_table_age_minutes", return_value=5.0),
+            patch.object(mds, "get_loader_failed", return_value=True),
+            patch.object(mds, "get_last_success_age_minutes", return_value=60.0),
+        ):
+            results = mds.check_all_tables()
+
+        assert results["price_daily"]["level"] == "warning"
+        assert "FRESH" in results["price_daily"]["status"]
+        assert "LAST RUN FAILED" in results["price_daily"]["status"]
+
+    def test_failed_status_with_stale_or_missing_last_success_stays_critical(self):
+        with (
+            patch.object(mds, "get_table_age_minutes", return_value=5.0),
+            patch.object(mds, "get_loader_failed", return_value=True),
+            patch.object(mds, "get_last_success_age_minutes", return_value=None),
+        ):
+            results = mds.check_all_tables()
+
+        assert results["price_daily"]["level"] == "critical"
+        assert "FAILED" in results["price_daily"]["status"]
+
+
 if __name__ == "__main__":
     import pytest
 
