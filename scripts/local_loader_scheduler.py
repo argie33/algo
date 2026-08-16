@@ -582,6 +582,25 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 # to all 6 statement/period combos via load_all_statements(); the class
                 # constructor alone requires one specific combo to already be named.
                 env["LOADER_STATEMENT_TYPE"] = "all"
+            if loader == "company_info":
+                # ROOT-CAUSE FIX 2026-08-16: OptimalLoader._configure_chunk_size() defaults to
+                # a local (non-AWS) chunk_size of up to 50,000 rows - bigger than
+                # company_info_sec's entire ~4,922-symbol universe, so it accumulates every
+                # symbol in memory and performs exactly ONE bulk write, at full completion.
+                # Live-confirmed 2026-08-16: 52 symbols genuinely fetched from SEC (real
+                # per-symbol warnings logged, e.g. "[AVAT] SEC API facts missing 'dei'
+                # namespace") over ~6 minutes, but company_info_sec.updated_at never moved -
+                # zero DB-visible progress the entire time. Combined with the stall watchdog's
+                # hardcoded 1800s (30min) cap (`_monitor_loader_progress`, itself scaled from
+                # this loader's 540min configured timeout under the assumption that 30min is
+                # enough for "pure initialization" - true for other loaders, false here since
+                # the whole run before its first write can exceed 30min), this loader is
+                # structurally guaranteed to be killed as "stalled" on every single local run,
+                # regardless of health - not a transient issue, a design incompatibility.
+                # Forcing a small chunk size makes it flush every ~100 symbols instead, so the
+                # watchdog's row-count/updated_at liveness signal actually reflects real
+                # progress well inside the 30min window.
+                env["LOADER_CHUNK_SIZE"] = "100"
             cmd = [sys.executable, f"loaders/{loader_filename}"]
 
             # CRITICAL FIX SESSION 102: Mark all output tables RUNNING BEFORE subprocess starts
