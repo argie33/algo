@@ -33,6 +33,20 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
+# BUG FOUND 2026-08-16: total_debt/total_cash/ebitda/enterprise_value are all NUMERIC(15,2)
+# columns (max abs value < 10^13, i.e. $10 trillion) but were written with no sanity bound at
+# all - unlike pe_ratio/pb_ratio/ps_ratio/ev_ebitda/ev_revenue just below, which all already
+# have explicit bounds. Live-confirmed: BBAR/BCH/BMA/BSAC/HDB/HMC (all foreign ADR filers -
+# Argentine/Chilean/Indian/Japanese banks and companies) hit NumericValueOutOfRange on this
+# exact column class, crashing the whole sec_valuations INSERT and losing every other computed
+# ratio for that symbol too - same root cause and same crash-and-lose-everything failure mode
+# already documented for loaders/load_value_quality_growth_metrics.py's identical
+# MAX_ABSOLUTE_DOLLAR_VALUE guard (foreign filers reporting balance-sheet figures in local
+# currency without USD conversion - see that file's docstring for the VFS/KEP example). This
+# bound only prevents the crash symptom, same scope as that fix; the currency-conversion root
+# cause is a separate, larger fix.
+MAX_ABSOLUTE_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion - no real company exceeds this
+
 
 class SecValuationsLoader(OptimalLoader):
     """Compute valuations from SEC audited data instead of yfinance estimates.
@@ -439,10 +453,14 @@ class SecValuationsLoader(OptimalLoader):
             "shares_outstanding": shares_out,
             "market_cap": None,
             # Balance sheet metrics
-            "total_debt": total_debt,
-            "total_cash": total_cash,
+            "total_debt": total_debt
+            if total_debt is not None and abs(total_debt) < MAX_ABSOLUTE_DOLLAR_VALUE
+            else None,
+            "total_cash": total_cash
+            if total_cash is not None and abs(total_cash) < MAX_ABSOLUTE_DOLLAR_VALUE
+            else None,
             "enterprise_value": None,
-            "ebitda": ebitda,
+            "ebitda": ebitda if ebitda is not None and abs(ebitda) < MAX_ABSOLUTE_DOLLAR_VALUE else None,
             # Valuation ratios
             "pe_ratio": None,
             "pb_ratio": None,
@@ -553,10 +571,10 @@ class SecValuationsLoader(OptimalLoader):
             debt_val = total_debt if total_debt else 0
             cash_val = total_cash if total_cash else 0
             ev = result["market_cap"] + debt_val - cash_val
-            if ev > 0:
+            if ev > 0 and abs(ev) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 result["enterprise_value"] = round(ev, 2)
             else:
-                logger.debug(f"[{symbol}] Enterprise value non-positive ({ev:.0f}), marking as NULL")
+                logger.debug(f"[{symbol}] Enterprise value non-positive or implausible ({ev:.0f}), marking as NULL")
 
         # EV / EBITDA Ratio
         if result["enterprise_value"] and ebitda and ebitda > 0:
