@@ -152,14 +152,55 @@ class PipelineHealth:
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
         "algo_performance_metrics": {"date_column": "updated_at", "sla_days": 1},
         "circuit_breaker_status": {"date_column": "updated_at", "sla_days": 1},
+        # BUG FIX (2026-08-16): these 7 tables were missing from CRITICAL_TABLES entirely,
+        # so every health sweep's "second pass" (see get_pipeline_status() below) fell
+        # through to SECONDARY_TABLE_SLA_OVERRIDES.get(table_name, default_sla_days=7) and
+        # wrote stale_threshold_days=7 to their data_loader_status row on every run - even
+        # though utils/validation/freshness_config.py's canonical FRESHNESS_RULES already
+        # specified max_age_days=1 for all seven. This silently reverted an earlier one-time
+        # DB correction (documented, now-deleted memory note "Session 119") every time this
+        # sweep ran, since lambda/api/routes/algo_handlers/market.py prefers the DB value
+        # over config (market.py:692-696) - live-confirmed 2026-08-16: all seven still showed
+        # stale_threshold_days=7 in data_loader_status despite that earlier fix. market_
+        # exposure_daily is explicitly called out in KNOWN_DEPRECATED_TABLES' own comment
+        # above as a table that "must keep alerting if it goes stale" - this is what was
+        # silently defeating that intent. Note algo_performance_daily is distinct from the
+        # pre-existing algo_performance_metrics entry above - easy to conflate, confirmed
+        # live both tables exist with different columns/writers.
+        "market_exposure_daily": {"date_column": "date", "sla_days": 1},
+        "etf_price_daily": {"date_column": "date", "sla_days": 1},
+        "algo_portfolio_snapshots": {"date_column": "snapshot_date", "sla_days": 1},
+        "algo_risk_daily": {"date_column": "updated_at", "sla_days": 1},
+        "algo_performance_daily": {"date_column": "updated_at", "sla_days": 1},
+        "signal_quality_scores": {"date_column": "date", "sla_days": 1},
+        "trend_template_data": {"date_column": "date", "sla_days": 1},
     }
 
     # Tables that only update once per trading day - a weekend/holiday gap since the
     # last completed trading day is expected staleness, not an incident. Tables not in
     # this set (e.g. stock_symbols, earnings_calendar with sla_days=30) already have
     # enough slack that a multi-day gap is a rounding error and don't need adjustment.
+    # The 6 tables added to CRITICAL_TABLES above (2026-08-16) are included here too -
+    # they're all written only when the orchestrator actually runs (gated on
+    # is_trading_day, or Phase 9's "always_run" phases which still only execute on
+    # trading days per algo_orchestrator_runs - confirmed live: every non-trading-day
+    # local run logs "Skipped run: non_trading_day"), so without this they'd have
+    # produced a false STALE reading every Monday morning, the exact class of bug this
+    # set already exists to prevent for price_daily/buy_sell_daily/etc.
     TRADING_DAY_CADENCE_TABLES = frozenset(
-        {"price_daily", "buy_sell_daily", "technical_data_daily", "market_health_daily"}
+        {
+            "price_daily",
+            "buy_sell_daily",
+            "technical_data_daily",
+            "market_health_daily",
+            "market_exposure_daily",
+            "etf_price_daily",
+            "algo_portfolio_snapshots",
+            "algo_risk_daily",
+            "algo_performance_daily",
+            "signal_quality_scores",
+            "trend_template_data",
+        }
     )
 
     # Tables whose loaders were deliberately removed/consolidated (see

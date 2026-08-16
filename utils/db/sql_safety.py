@@ -210,6 +210,10 @@ SAFE_COLUMNS = {
     "transaction_date",
     "action_date",
     "score_date",
+    # algo_portfolio_snapshots' date column - added 2026-08-16 alongside pipeline_health.py's
+    # CRITICAL_TABLES entry for that table; check_table_health() rejected it with "not in
+    # whitelist" despite being a real column (confirmed via information_schema).
+    "snapshot_date",
     # Common columns
     "symbol",
     "count",
