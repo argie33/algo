@@ -353,9 +353,16 @@ class StockScoresLoader(OptimalLoader):
 
             # downside_volatility_252d/max_drawdown_1y added: written by load_risk_metrics_daily.py
             # (migration 1184/1175) but never read here before.
+            # FIX 2026-08-16: downside_volatility_60d/30d also added here - _score_stability has
+            # scored them (7.5%/5% weight) since the "Fixed 2026-08-16: 60d/30d now scored too"
+            # comment there, but this SELECT never fetched either column even though both already
+            # exist on stability_metrics (same table, no new migration needed) - the two weight
+            # slots were dead in every real score since that fix landed. Same bug class as
+            # [[momentum_score_sma_dead_weight_fix_20260816]].
             cur.execute(
                 "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, debt_to_assets, "
-                "downside_volatility_252d, max_drawdown_1y, data_unavailable "
+                "downside_volatility_252d, downside_volatility_60d, downside_volatility_30d, max_drawdown_1y, "
+                "data_unavailable "
                 "FROM stability_metrics"
             )
             self._stability_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -374,8 +381,18 @@ class StockScoresLoader(OptimalLoader):
             # the same thing as momentum_1m/3m/6m/12m (windowed % price return) and would just
             # double-weight that signal; RSI/MACD are qualitatively different (oscillator /
             # trend-confirmation) so they add real incremental information.
+            # FIX 2026-08-16: also pull sma_50/sma_200/close so _get_momentum_metrics can
+            # compute price_vs_sma_50/200 - _score_momentum has always had an 8%-weighted SMA
+            # positioning component (and the scores dashboard has advertised it as a real
+            # "used: true, 8% avg" input since the 2026-08-04 momentum audit), but this cache
+            # never fetched sma_50/sma_200/close, so metrics.get(sma_field) was unconditionally
+            # None for every symbol - 8% of the documented momentum_score formula was dead in
+            # every real score computed. Unlike ROC above, SMA positioning is NOT a duplicate
+            # signal of price-return momentum (it's price-vs-trend, not windowed % return), so
+            # there's no double-weighting concern here.
             cur.execute(
-                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd FROM technical_data_daily ORDER BY symbol, date DESC"
+                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200, close "
+                "FROM technical_data_daily ORDER BY symbol, date DESC"
             )
             self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -1108,18 +1125,31 @@ class StockScoresLoader(OptimalLoader):
         rows) and this SELECT never even fetched it - the weight bucket was permanently dead.
         load_risk_metrics_daily.py now populates it from quality_metrics.debt_to_assets.
 
+        FIX 2026-08-16: downside_volatility_60d/30d now included (columns already existed on
+        stability_metrics, just never selected - see the cache-building query's comment), and
+        debt_to_equity/current_ratio/quick_ratio/cash_per_share are now merged in from
+        self._quality_cache. _score_financial_stability (called by _score_stability for its
+        20%-weighted Financial Stability sub-score) has always read all 4 of these keys, but
+        this function never supplied them - debt_to_equity (30% of that sub-score),
+        current/quick ratio (30% combined liquidity), and cash_per_share (15%) were dead in
+        every real score; only debt_to_assets (25%) could ever fire. Same "displayed/scored in
+        code but never fetched" bug class as [[momentum_score_sma_dead_weight_fix_20260816]].
+        These 4 fields live on quality_metrics, not stability_metrics (confirmed via
+        information_schema), which is exactly why this table's own SELECT could never have
+        supplied them - reuses the already-loaded quality cache instead of a second query.
+
         MINIMUM DATA REQUIREMENT: Row must have exactly 6 columns. Missing columns causes immediate
         fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
         row = self._stability_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 8 columns before accessing indices
-            if len(row) < 8:
+            # CRITICAL: Validate row has expected 10 columns before accessing indices
+            if len(row) < 10:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 8. "
+                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 10. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[7]
+            data_unavailable = row[9]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1135,8 +1165,16 @@ class StockScoresLoader(OptimalLoader):
                 "beta": safe_float(row[3], f"{symbol}.beta"),
                 "debt_to_assets": safe_float(row[4], f"{symbol}.debt_to_assets", allow_none=True),
                 "downside_volatility_252d": safe_float(row[5], f"{symbol}.downside_volatility_252d", allow_none=True),
-                "max_drawdown_1y": safe_float(row[6], f"{symbol}.max_drawdown_1y", allow_none=True),
+                "downside_volatility_60d": safe_float(row[6], f"{symbol}.downside_volatility_60d", allow_none=True),
+                "downside_volatility_30d": safe_float(row[7], f"{symbol}.downside_volatility_30d", allow_none=True),
+                "max_drawdown_1y": safe_float(row[8], f"{symbol}.max_drawdown_1y", allow_none=True),
             }
+            quality_row = self._quality_cache.get(symbol)
+            if quality_row:
+                metrics["debt_to_equity"] = safe_float(quality_row[4], f"{symbol}.debt_to_equity", allow_none=True)
+                metrics["current_ratio"] = safe_float(quality_row[5], f"{symbol}.current_ratio", allow_none=True)
+                metrics["quick_ratio"] = safe_float(quality_row[6], f"{symbol}.quick_ratio", allow_none=True)
+                metrics["cash_per_share"] = safe_float(quality_row[20], f"{symbol}.cash_per_share", allow_none=True)
             segment_row = self._segment_cache.get(symbol)
             if segment_row and not segment_row[1]:
                 metrics["revenue_concentration_hhi"] = safe_float(
@@ -1173,6 +1211,13 @@ class StockScoresLoader(OptimalLoader):
             tech_row = self._technical_cache.get(symbol, None)
             rsi_14 = safe_float(tech_row[0], f"{symbol}.rsi_14", allow_none=True) if tech_row else None
             macd = safe_float(tech_row[1], f"{symbol}.macd", allow_none=True) if tech_row else None
+            sma_50 = safe_float(tech_row[2], f"{symbol}.sma_50", allow_none=True) if tech_row else None
+            sma_200 = safe_float(tech_row[3], f"{symbol}.sma_200", allow_none=True) if tech_row else None
+            close = safe_float(tech_row[4], f"{symbol}.close", allow_none=True) if tech_row else None
+            # Decimal fraction (0.05 = +5%), matching _score_momentum's ±10%-range-maps-to-0-100
+            # formula - NOT the *100 percentage scale the scores API computes for display.
+            price_vs_sma_50 = (close - sma_50) / sma_50 if close is not None and sma_50 else None
+            price_vs_sma_200 = (close - sma_200) / sma_200 if close is not None and sma_200 else None
 
             row = self._momentum_cache.get(symbol, None)
 
@@ -1202,6 +1247,8 @@ class StockScoresLoader(OptimalLoader):
                         "momentum_12m": None,
                         "rsi_14": rsi_14,
                         "macd": macd,
+                        "price_vs_sma_50": price_vs_sma_50,
+                        "price_vs_sma_200": price_vs_sma_200,
                     }
 
                 return {
@@ -1211,6 +1258,8 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_12m": momentum_12m,
                     "rsi_14": rsi_14,
                     "macd": macd,
+                    "price_vs_sma_50": price_vs_sma_50,
+                    "price_vs_sma_200": price_vs_sma_200,
                 }
 
             # Symbol not in momentum_metrics cache; RSI/MACD alone cannot substitute for price momentum
