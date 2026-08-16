@@ -54,12 +54,24 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
     loaders even while they were actively working. Live-confirmed 2026-08-16:
     earnings_calendar got killed with "hung at 0% for 1440s" while its own table's
     MAX(updated_at) matched the kill timestamp almost exactly - real per-symbol progress the
-    whole time, just never reflected in completion_pct. Now also tracks the primary table's
-    own row count as a second liveness signal (increases as an event-log-style loader like
+    whole time, just never reflected in completion_pct. Added the primary table's own row
+    count as a second liveness signal (increases as an event-log-style loader like
     earnings_calendar writes rows, even for symbols with no data - see its
-    `_unavailable_record` marker rows) and only calls it a real stall if BOTH signals are
-    flat for max_stall_sec - preserves detection of a genuinely hung process (nothing
-    written anywhere) without false-killing one that's writing rows but not calling
+    `_unavailable_record` marker rows).
+
+    SECOND FALSE-POSITIVE FIX (2026-08-16): row count also fails to move for upsert-style
+    loaders keyed by symbol (e.g. company_info_sec, PRIMARY KEY (symbol)) once every symbol
+    already has a row - every write is an UPDATE, not an INSERT, so COUNT(*) stays flat for
+    the loader's entire run just like completion_pct. Live-confirmed 2026-08-16:
+    company_info_sec was killed at the 30-minute stall_timeout while its log showed real
+    per-symbol SEC EDGAR progress (100/4922 at +76s, 200/4922 at +150s - a real ~60min total
+    runtime, more than double the 30min clamp) and company_info_sec's row count sat at a
+    static 5529 the entire time (all symbols already had rows from a prior run). Now also
+    tracks MAX(updated_at) on the primary table as a third liveness signal, when that column
+    exists - catches UPDATE-driven progress that neither completion_pct nor COUNT(*) can see.
+    Only calls it a real stall if ALL signals that exist for this table are flat for
+    max_stall_sec - preserves detection of a genuinely hung process (nothing written
+    anywhere) without false-killing one that's writing/updating rows but not calling
     update_progress().
 
     Args:
@@ -80,6 +92,19 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
         last_pct_time = time.time()
         last_row_count = None
         last_row_count_time = time.time()
+        last_max_updated = None
+        last_max_updated_time = time.time()
+
+        has_updated_at = False
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = 'updated_at'",
+                    (primary_table,),
+                )
+                has_updated_at = cur.fetchone() is not None
+        except Exception:
+            has_updated_at = False  # Can't confirm the column - skip this signal, not fatal
 
         while True:
             time.sleep(poll_interval_sec)
@@ -115,19 +140,40 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
                         last_row_count = current_row_count
                         last_row_count_time = now
 
-                    # Check stall condition - only a real stall if NEITHER signal moved
+                    # Tertiary liveness signal: for upsert-style loaders (symbol-keyed
+                    # tables where every row already exists), COUNT(*) never moves either -
+                    # MAX(updated_at) catches UPDATE-driven progress that neither of the
+                    # above can see.
+                    if has_updated_at:
+                        cur.execute(f"SELECT MAX(updated_at) FROM {primary_table}")
+                        max_updated_result = cur.fetchone()
+                        current_max_updated = max_updated_result[0] if max_updated_result else None
+                        if current_max_updated is not None and current_max_updated != last_max_updated:
+                            last_max_updated = current_max_updated
+                            last_max_updated_time = now
+
+                    # Check stall condition - only a real stall if NO signal that exists for
+                    # this table moved
                     stall_duration = now - last_pct_time
                     row_stall_duration = now - last_row_count_time
-                    if (
+                    updated_at_stall_duration = now - last_max_updated_time
+                    is_stalled = (
                         stall_duration > max_stall_sec
                         and row_stall_duration > max_stall_sec
                         and (last_pct is None or last_pct <= 0.0)
-                    ):
+                        and (not has_updated_at or updated_at_stall_duration > max_stall_sec)
+                    )
+                    if is_stalled:
                         print(
                             f"[PROGRESS_MONITOR] {loader_filename}: STALLED at {last_pct or 0}% "
                             f"for {stall_duration:.0f}s (>{max_stall_sec}s threshold), "
-                            f"{primary_table} row count also unchanged for {row_stall_duration:.0f}s. "
-                            f"Will signal process termination.",
+                            f"{primary_table} row count also unchanged for {row_stall_duration:.0f}s"
+                            + (
+                                f", updated_at also unchanged for {updated_at_stall_duration:.0f}s. "
+                                if has_updated_at
+                                else ". "
+                            )
+                            + "Will signal process termination.",
                             file=sys.stderr,
                         )
                         return False  # Indicate hung
@@ -597,10 +643,21 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 # the whole run before its first write can exceed 30min), this loader is
                 # structurally guaranteed to be killed as "stalled" on every single local run,
                 # regardless of health - not a transient issue, a design incompatibility.
-                # Forcing a small chunk size makes it flush every ~100 symbols instead, so the
+                # Forcing a small chunk size makes it flush every ~N symbols instead, so the
                 # watchdog's row-count/updated_at liveness signal actually reflects real
                 # progress well inside the 30min window.
-                env["LOADER_CHUNK_SIZE"] = "100"
+                #
+                # LOWERED 100->25 2026-08-16: at the observed live SEC EDGAR fetch rate
+                # (52 symbols/~6min, ~8.7 symbols/min), a 100-symbol chunk needs ~11.5min
+                # to reach its first flush - live-confirmed 0 DB-visible progress across two
+                # consecutive attempts (~8min and ~6min each) that were externally restarted
+                # (repeated manual `--now metrics` invocations hitting "Another scheduler
+                # instance is already running" ~7min apart) before that first flush ever
+                # landed. Every restart re-fetches from the same still-unmoved watermark,
+                # so the loader was perpetually stuck re-doing its first ~7 minutes of work.
+                # 25 symbols flushes in ~3min - inside even a fast impatient-restart cadence,
+                # so genuine progress survives regardless of who/what restarts the pipeline.
+                env["LOADER_CHUNK_SIZE"] = "25"
             cmd = [sys.executable, f"loaders/{loader_filename}"]
 
             # CRITICAL FIX SESSION 102: Mark all output tables RUNNING BEFORE subprocess starts

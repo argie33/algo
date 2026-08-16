@@ -209,6 +209,22 @@ class BulkInsertManager:
                 for c in columns
                 if c not in self.primary_key
             ]
+            # ROOT-CAUSE FIX 2026-08-16: `updated_at` has DEFAULT now() in every table's
+            # schema, but that default only fires on a fresh INSERT. Since loaders never
+            # put `updated_at` in their row dicts, it was never in `columns`, so it was
+            # never in this SET clause either - on the ON CONFLICT DO UPDATE path (i.e.
+            # every re-run against a symbol the table already has) the column just kept
+            # its original insert-time value forever. Live-confirmed on company_info_sec:
+            # a 2026-08-16 run wrote today's `filing_date` to existing rows while
+            # `updated_at` stayed frozen at 2026-07-22. This silently breaks two
+            # consumers that treat updated_at as "last touched": the local scheduler's
+            # stall watchdog (which uses row-count/updated_at movement as its liveness
+            # signal for a loader whose own completion_pct only updates at the very end -
+            # see _monitor_loader_progress) and monitor_data_staleness.py's freshness
+            # buckets. Stamp it explicitly with NOW() on every update, independent of
+            # whatever the loader did or didn't include.
+            if "updated_at" in existing_cols and "updated_at" not in columns:
+                update_parts.append(psycopg2.sql.SQL("updated_at = NOW()"))
             if update_parts:
                 pk_ids = [psycopg2.sql.Identifier(pk) for pk in self.primary_key]
                 on_conflict = psycopg2.sql.SQL("ON CONFLICT ({}) DO UPDATE SET {}").format(

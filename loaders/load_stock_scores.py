@@ -1770,7 +1770,8 @@ class StockScoresLoader(OptimalLoader):
 
         Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)
         + Beta (15%) + Financial Stability (20%, Phase 3 metrics) + Business Diversification
-        (10%, revenue concentration HHI from XBRL segment disclosures, when available). Lower
+        (10%, revenue concentration HHI from XBRL segment disclosures, when available)
+        + Downside Volatility 252d/60d/30d (15%/7.5%/5%, purer "risk of loss" signal). Lower
         volatility and beta closer to 1.0 indicate stable, market-correlated stocks. Financial
         stability combines debt ratios, liquidity (current/quick ratios), and cash position for
         solvency assessment. Weights are relative, not required to sum to 100 - each present
@@ -1882,11 +1883,16 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += diversification_score * 0.10
             total_weight += 0.10
 
-        # Downside deviation (252d): only penalizes downside price moves, unlike the
-        # symmetric volatility_252d above which penalizes upside moves equally - a purer
+        # Downside deviation (252d/60d/30d): only penalizes downside price moves, unlike the
+        # symmetric volatility_* above which penalizes upside moves equally - a purer
         # "risk of loss" signal (2026-08-03: written by load_risk_metrics_daily.py,
-        # displayed on the scores page, but never weighted). Same tiered curve as
-        # volatility_252d since it's on the same annualized-stdev scale.
+        # displayed on the scores page, but only 252d was ever weighted - 60d/30d were
+        # computed and shown on the dashboard with no scoring effect, an inconsistency vs.
+        # symmetric volatility which scores all three windows. Fixed 2026-08-16: 60d/30d
+        # now scored too, at the same 40:20:15 ratio as symmetric volatility's
+        # 252d:60d:30d weights, scaled onto downside's 15% base (15 * 20/40 = 7.5,
+        # 15 * 15/40 = 5.625 -> 5). Same tiered curve as volatility_252d since it's on the
+        # same annualized-stdev scale.
         if metrics.get("downside_volatility_252d") is not None:
             dvol = max(0, metrics["downside_volatility_252d"])
             if dvol <= 0.15:
@@ -1899,6 +1905,32 @@ class StockScoresLoader(OptimalLoader):
                 dvol_score = max(0, 10 - (dvol - 0.60) * 20)
             weighted_sum += dvol_score * 0.15
             total_weight += 0.15
+
+        if metrics.get("downside_volatility_60d") is not None:
+            dvol60 = max(0, metrics["downside_volatility_60d"])
+            if dvol60 <= 0.15:
+                dvol60_score = 100
+            elif dvol60 <= 0.30:
+                dvol60_score = 100 - ((dvol60 - 0.15) / 0.15) * 50
+            elif dvol60 <= 0.60:
+                dvol60_score = 50 - ((dvol60 - 0.30) / 0.30) * 40
+            else:
+                dvol60_score = max(0, 10 - (dvol60 - 0.60) * 20)
+            weighted_sum += dvol60_score * 0.075
+            total_weight += 0.075
+
+        if metrics.get("downside_volatility_30d") is not None:
+            dvol30 = max(0, metrics["downside_volatility_30d"])
+            if dvol30 <= 0.15:
+                dvol30_score = 100
+            elif dvol30 <= 0.30:
+                dvol30_score = 100 - ((dvol30 - 0.15) / 0.15) * 50
+            elif dvol30 <= 0.60:
+                dvol30_score = 50 - ((dvol30 - 0.30) / 0.30) * 40
+            else:
+                dvol30_score = max(0, 10 - (dvol30 - 0.60) * 20)
+            weighted_sum += dvol30_score * 0.05
+            total_weight += 0.05
 
         # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
         # (e.g. -34.63 = a 34.63% decline from peak) - 2026-08-03: written by

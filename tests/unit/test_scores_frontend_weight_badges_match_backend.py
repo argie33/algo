@@ -93,6 +93,8 @@ class TestStabilityScoreWeightBadges:
             "v30_score": "volatility_30d",
             "beta_score": "beta",
             "dvol_score": "downside_volatility_252d",
+            "dvol60_score": "downside_volatility_60d",
+            "dvol30_score": "downside_volatility_30d",
             "dd_score": "max_drawdown_1y",
             "diversification_score": "revenue_concentration_hhi",
         }

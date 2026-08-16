@@ -656,6 +656,11 @@ const POSITIONING_SCHEMA = [
 // surfaced under the Quality tab's quality_inputs (unweighted there too, since none of
 // them feed quality_score) and were completely absent from stability_inputs - added
 // server-side in lambda/api/routes/scores.py (already-selected columns, no new SQL).
+//
+// FIXED 2026-08-16: downside_volatility_60d/30d were computed and displayed but never
+// scored (only 252d was) - now wired into _score_stability at 0.075/0.05 (badges rounded
+// to 8%/5%, matching this file's round() convention), the same 40:20:15 ratio symmetric
+// volatility uses across its own 252d/60d/30d windows.
 const STABILITY_SCHEMA = [
   { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '40%' },
   { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '20%' },
@@ -667,8 +672,8 @@ const STABILITY_SCHEMA = [
   { key: 'quick_ratio',              label: 'Quick Ratio',          fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
   { key: 'cash_per_share',           label: 'Cash / Share',         fmt: v => `$${num(v, 2)}`, used: true, weight: 'part of 20%' },
   { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2), used: true, weight: '15%' },
-  { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2) },
-  { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2) },
+  { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2), used: true, weight: '8%' },
+  { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2), used: true, weight: '10%' },
   { key: 'revenue_concentration_hhi', label: 'Revenue Concentration (HHI)', fmt: v => v == null ? '—' : Math.round(v).toLocaleString(), used: true, weight: '10%' },
   { key: 'segment_count',            label: 'Business Segments',    fmt: v => num(v, 0) },
