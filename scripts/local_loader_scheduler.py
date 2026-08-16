@@ -26,6 +26,29 @@ from utils.loaders.status_manager import LoaderStatusManager, reap_stale_running
 
 logger = logging.getLogger(__name__)
 
+
+class _Tee:
+    """Mirrors writes to an underlying stream and appends them to a log file.
+
+    Line-buffered (flush after every write) so output survives an abrupt kill of this
+    process, matching the same durability reasoning run_pipeline()'s per-loader
+    _stream_and_capture already uses for subprocess output.
+    """
+
+    def __init__(self, stream: IO[str], log_path: Path) -> None:
+        self._stream = stream
+        self._file = open(log_path, "a", encoding="utf-8")
+
+    def write(self, data: str) -> int:
+        self._file.write(data)
+        self._file.flush()
+        return self._stream.write(data)
+
+    def flush(self) -> None:
+        self._file.flush()
+        self._stream.flush()
+
+
 # GAP FOUND 2026-08-16: this entry point never loaded .env.local - only
 # scripts/run_local_orchestrator.py and algo/orchestration/orchestrator.py do (both via
 # this same utils.dotenv_loader import). Every loader subprocess this script spawns
@@ -1017,6 +1040,22 @@ def _clean_all_locks() -> int:
 
 
 def main():
+    # FIXED 2026-08-16: this process's own top-level output (pipeline start, lock
+    # rejections, pre-mark errors) was bare print()/stderr with zero persistent capture -
+    # only each individual loader SUBPROCESS's stdout gets tee'd to logs/load_*.log inside
+    # run_pipeline(). Live-confirmed: a burst of ~13 loaders (including company_info_sec)
+    # got 0-byte log files at 16:53 and 17:06 today while a `--now reference` run already
+    # held the lock - the rejecting scheduler instance's own "Another scheduler instance is
+    # already running" message went only to whatever terminal launched it (never captured
+    # to disk), so the whole failed attempt left no trace anywhere data_loader_status or
+    # this repo's log files could surface it. Tee this process's own stdout/stderr to a
+    # durable, append-only log for every invocation from the very first line, including
+    # ones that get rejected before run_pipeline() is ever entered.
+    logs_dir = Path(__file__).parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    sys.stdout = _Tee(sys.stdout, logs_dir / "scheduler_invocations.log")
+    sys.stderr = _Tee(sys.stderr, logs_dir / "scheduler_invocations.log")
+
     parser = argparse.ArgumentParser(description="Local loader scheduler")
     parser.add_argument(
         "--now",
@@ -1029,6 +1068,7 @@ def main():
         help="SESSION 113 FIX: Remove all stale lock files (emergency override for cascading failures)",
     )
     args = parser.parse_args()
+    print(f"[LOCAL_SCHEDULER] Invoked: --now={args.now} --clean-locks={args.clean_locks} (pid={os.getpid()})")
 
     # Handle --clean-locks flag
     if args.clean_locks:
@@ -1040,12 +1080,33 @@ def main():
         return 1
 
     # CRITICAL: Prevent concurrent scheduler invocations to avoid redundant loader runs
-    # A single global scheduler lock ensures only one instance can run at a time
+    # A single global scheduler lock ensures only one instance can run at a time.
+    #
+    # FIXED 2026-08-16: the original check-then-act (`.exists()` then `.touch()`) has a
+    # classic TOCTOU race - two scheduler processes starting within the same window can
+    # both see no lock present and both proceed to touch() and enter run_pipeline(), each
+    # unaware of the other. Live-observed symptom matching this exactly: overlapping
+    # `--now reference` and `--now metrics` runs, where every loader in the second
+    # pipeline collided with per-loader/per-table locks the first pipeline already held
+    # and exited near-instantly with zero output. os.open() with O_CREAT|O_EXCL is atomic
+    # at the OS level - only one of two racing processes can win it.
     scheduler_lock = Path(tempfile.gettempdir()) / "algo-scheduler.lock"
-    if scheduler_lock.exists():
-        # Check if lock is stale (> 12 hours, conservatively larger than max pipeline runtime ~4h)
-        lock_age = time.time() - scheduler_lock.stat().st_mtime
-        if lock_age < 43200:  # 12 hours in seconds
+
+    def _try_acquire() -> bool:
+        try:
+            fd = os.open(str(scheduler_lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return True
+        except FileExistsError:
+            return False
+
+    if not _try_acquire():
+        # Lock is held (or was, a moment ago) - check staleness before giving up.
+        try:
+            lock_age = time.time() - scheduler_lock.stat().st_mtime
+        except FileNotFoundError:
+            lock_age = None  # Released between our failed acquire and this stat() - retry.
+        if lock_age is not None and lock_age < 43200:  # 12 hours in seconds
             print(
                 f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is already running "
                 f"(lock held for {lock_age:.0f}s). Cannot start duplicate run. "
@@ -1053,13 +1114,23 @@ def main():
                 file=sys.stderr,
             )
             return 1
-        else:
-            print(f"[LOCAL_SCHEDULER] Cleaning stale scheduler lock (age: {lock_age:.0f}s)")
+        # Stale (or vanished mid-check) - clear it and make one retry attempt. If we lose
+        # this retry too, a genuinely fresh instance beat us fairly; bail out rather than
+        # loop, since a live instance now legitimately holds it.
+        try:
             scheduler_lock.unlink()
+            print(f"[LOCAL_SCHEDULER] Cleaned stale/vanished scheduler lock (age: {lock_age})")
+        except FileNotFoundError:
+            pass
+        if not _try_acquire():
+            print(
+                "[LOCAL_SCHEDULER] ERROR: Lost the race for the scheduler lock on retry "
+                "- another instance just started. Cannot start duplicate run.",
+                file=sys.stderr,
+            )
+            return 1
 
     try:
-        # Create lock before running pipeline
-        scheduler_lock.touch()
         return run_pipeline(args.now)
     finally:
         # Always clean up lock on exit (success or failure)
