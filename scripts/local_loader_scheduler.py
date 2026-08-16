@@ -845,8 +845,18 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 pipe.close()
 
             assert proc.stdout is not None
+            # GAP FOUND 2026-08-16 (same day as the header itself): a real Popen.pid is always
+            # an int, but tests/unit/test_local_loader_scheduler_direct_invocation.py mocks
+            # subprocess.Popen for every real loader name (including company_info_sec) to
+            # exercise run_pipeline()'s full shorthand coverage - proc.pid on that mock is a
+            # MagicMock, not an int. Before this header existed those runs just produced a
+            # harmless 0-byte log; printing the MagicMock repr verbatim would instead leave a
+            # confusing fake-looking entry in a REAL loader's log file. Same guard style as the
+            # proc.poll() non-int check below - never trust an unvalidated attribute into a
+            # diagnostic file meant for a human debugging a real run.
+            log_pid = proc.pid if isinstance(proc.pid, int) else "<unknown>"
             log_header = (
-                f"[LOCAL_SCHEDULER] cmd={cmd} pid={proc.pid} "
+                f"[LOCAL_SCHEDULER] cmd={cmd} pid={log_pid} "
                 f"started={time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} UTC\n"
             )
             # SESSION 108 FIX: Non-daemon thread ensures we capture all output before using tail_lines

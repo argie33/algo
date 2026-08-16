@@ -67,3 +67,37 @@ class TestLogHeaderOnInstantDeath:
             assert "pid=999999" in content
         finally:
             expected_log_path.unlink(missing_ok=True)
+
+    def test_mock_popen_with_non_int_pid_does_not_leak_magicmock_repr_into_log(self) -> None:
+        """Regression for a bug in the header fix itself, found the same day: tests/unit/
+        test_local_loader_scheduler_direct_invocation.py mocks subprocess.Popen for every real
+        loader name (including company_info_sec) to exercise run_pipeline()'s full shorthand
+        coverage - proc.pid on that mock is a MagicMock, not an int. Live-observed: this wrote
+        a confusing `pid=<MagicMock name='mock.pid' id=...>` line into a REAL-looking
+        logs/load_company_info_sec_*.log file, worse than the pre-header-fix behavior (a
+        harmless 0-byte file) for exactly the scenario the header fix was meant to help with.
+        """
+        module = _load_scheduler_module()
+        mock_proc = MagicMock()  # proc.pid is a MagicMock attribute here, not patched to an int
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.wait.return_value = 1
+
+        fixed_epoch = 1735689601  # distinct sentinel from the test above, same safe non-real date
+        expected_log_path = LOGS_DIR / f"load_trend_analysis_{fixed_epoch}.log"
+        expected_log_path.unlink(missing_ok=True)
+
+        try:
+            with (
+                patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
+                patch.object(module, "reap_stale_running_loaders", return_value=[]),
+                patch.object(module.subprocess, "Popen", return_value=mock_proc),
+                patch.object(module, "_mark_loader_failed_after_crash"),
+                patch.object(module.time, "time", return_value=fixed_epoch),
+            ):
+                module.run_pipeline("test_pipeline")
+
+            content = expected_log_path.read_text(encoding="utf-8")
+            assert "MagicMock" not in content, f"MagicMock repr leaked into a diagnostic log file: {content!r}"
+            assert "pid=<unknown>" in content
+        finally:
+            expected_log_path.unlink(missing_ok=True)
