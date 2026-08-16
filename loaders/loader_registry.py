@@ -119,6 +119,31 @@ PSEUDO_LOADER_TABLES: dict[str, list[str]] = {
     "load_market_exposure_daily.py": ["market_exposure_daily"],
 }
 
+# BUG FOUND 2026-08-16: algo/orchestrator/phase1_failsafe_retry.py's in-process retry path
+# unconditionally called loader.run(symbols) for EVERY failed loader, with no awareness of
+# which ones are global/market-wide (no symbol column at all, e.g. aaii_sentiment,
+# algo_metrics_daily) vs per-symbol. Every Phase 1 self-heal attempt on a global loader was
+# therefore guaranteed to fail with a nonsensical "N symbols failed" error listing stock
+# tickers for a table that was never symbol-based - live-confirmed on aaii_sentiment (2040
+# rows, no symbol column) and algo_metrics_daily. scripts/run_loader.py had its own partial,
+# independently hand-maintained copy of this same list (missing aaii_sentiment entirely) -
+# exactly the kind of drifted duplicate this registry module exists to prevent. This set is
+# the actual authoritative source: every loaders/*.py file whose own `if __name__ ==
+# "__main__":` block passes global_mode=True to run_loader() (grep-verified 2026-08-16).
+# Keep in sync the same way as LOADER_TABLES above - update here when a loader's
+# global_mode changes.
+GLOBAL_MODE_LOADERS: frozenset[str] = frozenset(
+    {
+        "load_aaii_sentiment.py",
+        "load_algo_metrics_daily.py",
+        "load_institutional_holdings_13f.py",
+        "load_market_constituents.py",
+        "load_market_status_daily.py",
+        "load_naaim.py",
+        "load_sector_industry_daily.py",
+    }
+)
+
 
 def primary_table(loader_name: str) -> str | None:
     """Return the first (primary) output table for a loader script, or None if unknown."""

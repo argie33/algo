@@ -55,9 +55,17 @@ if "REDIS_URL" not in os.environ:
 logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# Import loader registry (source of truth for loader → table mappings)
-from loaders.loader_registry import LOADER_TABLES
-from utils.loaders.helpers import get_active_symbols
+# Import loader registry (source of truth for loader → table mappings). These come after
+# the os.environ LOCAL_MODE/LOADER_PARALLELISM setup above (pre-existing, not moved by this
+# change) in case an imported module reads them at import time.
+from loaders.loader_registry import GLOBAL_MODE_LOADERS, LOADER_TABLES  # noqa: E402
+from utils.loaders.helpers import get_active_symbols  # noqa: E402
+
+# BUG FOUND 2026-08-16: this file's own inline table-name list below was a hand-maintained,
+# independently-drifted duplicate of loaders/loader_registry.py's GLOBAL_MODE_LOADERS -
+# missing aaii_sentiment entirely and sector_ranking/industry_ranking (both real
+# load_sector_industry_daily.py outputs). Derive it from the single source of truth instead.
+_GLOBAL_MODE_TABLES: frozenset[str] = frozenset(t for f in GLOBAL_MODE_LOADERS for t in LOADER_TABLES.get(f, []))
 
 
 def get_loader_class_for_file(loader_filename: str):
@@ -186,7 +194,9 @@ def update_watermarks_to_today(loader_filename: str, table_names: list[str], sym
         logger.error(f"[WATERMARK] Failed to update watermarks: {e}", exc_info=True)
 
 
-def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfill_days=0, limit=None):
+def run_loader_generic(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change
+    loader_class, loader_filename: str, symbols=None, backfill_days=0, limit=None
+):
     """Generic loader runner (replaces 13 hand-written run_*_loader functions).
 
     CONSOLIDATED (Session 48): All loader invocation logic is now unified here.
@@ -215,16 +225,7 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
     logger.info(f"[LOADER] {table_name}: starting execution")
 
     # Special-case loaders with custom symbol selection logic
-    if table_name in [
-        "stock_symbols",
-        "etf_symbols",
-        "market_health_daily",
-        "market_exposure_daily",
-        "market_sentiment",
-        "sector_performance",
-        "naaim",
-        "algo_metrics_daily",
-    ]:
+    if table_name in _GLOBAL_MODE_TABLES:
         # Global loaders (market-wide, not per-symbol)
         logger.info(f"[LOADER] {table_name}: using global mode (no per-symbol runs)")
         result = loader.load_global()
@@ -351,7 +352,7 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
     return result
 
 
-def main():
+def main():  # noqa: C901 -- pre-existing complexity debt, not introduced by this change
     # Build available loaders from registry
     loader_files = sorted(LOADER_TABLES.keys())
 

@@ -39,7 +39,7 @@ import psycopg2
 from botocore.exceptions import BotoCoreError, ClientError
 
 from loaders.config import get_loader_max_fail_rate
-from loaders.loader_registry import all_tables, normalize_loader_name, table_to_loader_shorthand
+from loaders.loader_registry import GLOBAL_MODE_LOADERS, all_tables, normalize_loader_name, table_to_loader_shorthand
 from loaders.loader_timeout_config import get_loader_timeouts
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
@@ -898,24 +898,39 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                         # Direct instantiation
                         loader = loader_class()
 
-                        # CRITICAL SESSION 107 FIX: Fetch active symbols instead of passing empty list
-                        # Previously: loader.run([]) loaded 0 symbols, completed "successfully" with no data
-                        # This caused stock_scores, buy_sell_daily, metrics to silently stay stale for 1-2 days
-                        # Now: fetch full symbol list so loader actually has data to process
-                        exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
-                        from utils.loaders.helpers import get_active_symbols
+                        # BUG FOUND 2026-08-16: this used to unconditionally call loader.run(symbols)
+                        # for every failed loader, with no awareness of global/market-wide loaders
+                        # (no symbol column at all - aaii_sentiment, algo_metrics_daily, etc.).
+                        # Every retry of a global loader was guaranteed to fail with a nonsensical
+                        # "N symbols failed" error listing stock tickers for a table that was never
+                        # symbol-based. See loaders/loader_registry.py's GLOBAL_MODE_LOADERS for the
+                        # authoritative list (same source scripts/local_loader_scheduler.py and each
+                        # loader's own __main__ block use).
+                        if loader_filename in GLOBAL_MODE_LOADERS:
+                            logger.info(
+                                f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Global-mode loader, using load_global()"
+                            )
+                            global_result = loader.load_global()
+                            returncode = 0 if global_result else 1
+                        else:
+                            # CRITICAL SESSION 107 FIX: Fetch active symbols instead of passing empty list
+                            # Previously: loader.run([]) loaded 0 symbols, completed "successfully" with no data
+                            # This caused stock_scores, buy_sell_daily, metrics to silently stay stale for 1-2 days
+                            # Now: fetch full symbol list so loader actually has data to process
+                            exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
+                            from utils.loaders.helpers import get_active_symbols
 
-                        # SESSION 109 FIX: Increase timeout from 300s to 1800s (30 min)
-                        # Problem: yfinance rate limiting can slow symbol fetch to 30+ min for 4900 symbols
-                        # Previous 300s timeout caused "0% stall" failures, loader hung on symbol fetch
-                        # Now matches other loaders' tolerance for network slowdown under rate limiting
-                        symbols_to_load = get_active_symbols(timeout_secs=1800, exclude_etfs=exclude_etfs)
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Fetched {len(symbols_to_load)} active symbols for in-process retry"
-                        )
+                            # SESSION 109 FIX: Increase timeout from 300s to 1800s (30 min)
+                            # Problem: yfinance rate limiting can slow symbol fetch to 30+ min for 4900 symbols
+                            # Previous 300s timeout caused "0% stall" failures, loader hung on symbol fetch
+                            # Now matches other loaders' tolerance for network slowdown under rate limiting
+                            symbols_to_load = get_active_symbols(timeout_secs=1800, exclude_etfs=exclude_etfs)
+                            logger.info(
+                                f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Fetched {len(symbols_to_load)} active symbols for in-process retry"
+                            )
 
-                        result_status = loader.run(symbols_to_load)
-                        returncode = 0 if result_status else 1
+                            result_status = loader.run(symbols_to_load)
+                            returncode = 0 if result_status else 1
 
                 except RuntimeError as timeout_err:
                     # Timeout exception from signal handler
