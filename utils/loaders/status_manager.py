@@ -825,9 +825,9 @@ class LoaderStatusManager:
             return None
 
 
-def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hours: float | None = None) -> list[str]:
-    """Mark any of the given tables' RUNNING status as FAILED if execution_started is older
-    than max_age_hours.
+def reap_stale_running_loaders() -> list[str]:
+    """Mark any RUNNING data_loader_status row as FAILED once it's past that loader's own
+    timeout + 25% safety margin.
 
     No local-dev process supervises data_loader_status independently of the loader process
     itself - a crashed process, a killed subprocess whose parent's subprocess.run(timeout=...)
@@ -845,14 +845,15 @@ def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hou
     inaccuracy (overwritten the moment that process finishes and calls its own
     mark_completed()/mark_failed()) - not a second concurrent run of real work.
 
-    Args:
-        table_names: Tables to check, or None to check every table currently in
-            data_loader_status (a stuck loader anywhere is worth correcting - this isn't
-            scoped to a single pipeline run).
-        max_age_hours: Ignored if table_names provided. Reaper now uses per-loader timeout.
-            CRITICAL SESSION 106 FIX: Changed from longest_timeout * 1.5 (36h for prices)
-            to per-loader timeout + 25% safety margin. This prevents short-timeout loaders
-            (30m) from waiting 36h before reaper runs.
+    Checks every table currently in data_loader_status - a stuck loader anywhere is worth
+    correcting, not just ones in the caller's own pipeline. CRITICAL SESSION 106 FIX: uses
+    each loader's own timeout + 25% safety margin (previously a flat max_age_hours, e.g.
+    longest_timeout * 1.5 = 36h for prices, which left short-timeout loaders (30m) stuck
+    for up to 36h before this ever caught them). No caller has needed table-scoping since
+    that refactor (all call sites pass zero args) - removed the dead table_names/max_age_hours
+    parameters that refactor left behind rather than keep unused surface area (2026-08-16,
+    found via test_reap_stale_running_loaders.py drift - the tests still asserted the old
+    scoped-query/flat-max_age contract this docstring already said was gone).
 
     Returns:
         Table names that were reaped (previously RUNNING, now marked FAILED).
