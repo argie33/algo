@@ -105,3 +105,33 @@ class TestComputeEstimateRevisionMetrics:
             loader._compute_estimate_revision_metrics("AAPL", metrics)
 
         assert metrics == {}
+
+    def test_eps_trend_and_eps_revisions_fetches_are_timeout_protected(self):
+        """Regression test: eps_trend/eps_revisions must go through
+        _yfinance_call_with_timeout, same as the sibling earnings_dates call.
+
+        Live-reproduced 2026-08-16: these two fetches were calling retry_with_backoff
+        directly on `ticker.eps_trend`/`ticker.eps_revisions` with no timeout wrapper - a
+        real hang there (yfinance/curl_cffi hangs are known to never raise, so
+        retry_with_backoff alone can't catch them) stalled the loader for 30+ minutes
+        until local_loader_scheduler's external stall-killer intervened. A docstring here
+        already claimed timeout protection "for the same reason" as earnings_dates, but
+        the code never actually applied it.
+        """
+        loader = _loader()
+        mock_ticker = MagicMock()
+        mock_ticker.eps_trend = _eps_trend_df()
+        mock_ticker.eps_revisions = _eps_revisions_df()
+        metrics: dict = {}
+
+        with (
+            patch("yfinance.Ticker", return_value=mock_ticker),
+            patch(
+                "loaders.load_enhanced_quality_growth_metrics._yfinance_call_with_timeout",
+                side_effect=lambda fn, context, *a, **kw: fn(),
+            ) as mock_timeout_wrapper,
+        ):
+            loader._compute_estimate_revision_metrics("AAPL", metrics)
+
+        assert mock_timeout_wrapper.call_count == 2
+        assert metrics["estimate_momentum_60d"] is not None

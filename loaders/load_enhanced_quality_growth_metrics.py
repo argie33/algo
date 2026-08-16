@@ -599,9 +599,11 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             # Get last 4 quarters of earnings data. Retried (2026-08-09) for the same reason
             # as _compute_estimate_revision_metrics's eps_trend/eps_revisions fetch - a single
             # transient yfinance failure here shouldn't be indistinguishable from real absence.
-            # Each attempt is timeout-bounded (2026-08-10 fix) - see
-            # _yfinance_call_with_timeout's docstring for why a hang here can't just be caught
-            # by retry_with_backoff on its own.
+            # Each attempt is timeout-bounded (2026-08-10 fix; the eps_trend/eps_revisions sibling
+            # call was NOT actually wrapped despite this comment claiming parity - live-reproduced
+            # 2026-08-16 hanging the loader for 30+min until the scheduler's external stall-killer
+            # intervened - see _yfinance_call_with_timeout's docstring for why a hang here can't
+            # just be caught by retry_with_backoff on its own).
             earnings_dates = retry_with_backoff(
                 lambda: _yfinance_call_with_timeout(lambda: ticker.earnings_dates, f"{symbol} earnings_dates"),
                 context=f"{symbol} earnings_dates",
@@ -678,10 +680,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             # over this loader's ~25min full-universe run (measured coverage stayed ~8-9% even
             # after the original retry fix landed and ran live - see this method's docstring).
             eps_trend = retry_with_backoff(
-                lambda: ticker.eps_trend, context=f"{symbol} eps_trend", max_retries=4, backoff_seconds=3.0
+                lambda: _yfinance_call_with_timeout(lambda: ticker.eps_trend, f"{symbol} eps_trend"),
+                context=f"{symbol} eps_trend",
+                max_retries=4,
+                backoff_seconds=3.0,
             )
             eps_revisions = retry_with_backoff(
-                lambda: ticker.eps_revisions, context=f"{symbol} eps_revisions", max_retries=4, backoff_seconds=3.0
+                lambda: _yfinance_call_with_timeout(lambda: ticker.eps_revisions, f"{symbol} eps_revisions"),
+                context=f"{symbol} eps_revisions",
+                max_retries=4,
+                backoff_seconds=3.0,
             )
 
             if eps_trend is not None and not eps_trend.empty and "0q" in eps_trend.index:
