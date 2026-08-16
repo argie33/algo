@@ -824,8 +824,20 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 bufsize=1,
             )
 
-            def _stream_and_capture(pipe: IO[str], sink: "collections.deque[str]", log_path: Path) -> None:
+            def _stream_and_capture(pipe: IO[str], sink: "collections.deque[str]", log_path: Path, header: str) -> None:
+                # GAP FOUND 2026-08-16: a subprocess that dies (killed, crashes at interpreter
+                # startup, etc.) before writing a single line of its own output left this file
+                # at 0 bytes - live-observed repeatedly today (price_daily, stock_scores, and
+                # others each produced several 0-byte logs across a ~4h window during an active
+                # company_info_sec backfill holding the global scheduler lock). A 0-byte log is
+                # indistinguishable from "never ran" and defeats the entire point of this
+                # tee-capture mechanism (added 2026-08-11 specifically so failures are
+                # diagnosable from the log file, not just a bare exit code). Writing the command
+                # and start time immediately - before blocking on the child's output - guarantees
+                # every log file carries at least that much, even for a near-instant death.
                 with open(log_path, "w", encoding="utf-8") as log_file:
+                    log_file.write(header)
+                    log_file.flush()
                     for line in pipe:
                         sys.stdout.write(line)
                         sink.append(line.rstrip("\n"))
@@ -833,10 +845,14 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 pipe.close()
 
             assert proc.stdout is not None
+            log_header = (
+                f"[LOCAL_SCHEDULER] cmd={cmd} pid={proc.pid} "
+                f"started={time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} UTC\n"
+            )
             # SESSION 108 FIX: Non-daemon thread ensures we capture all output before using tail_lines
             # Daemon threads may be killed before reader finishes, losing diagnostic info
             reader_thread = threading.Thread(
-                target=_stream_and_capture, args=(proc.stdout, tail_lines, full_log_path), daemon=False
+                target=_stream_and_capture, args=(proc.stdout, tail_lines, full_log_path, log_header), daemon=False
             )
             reader_thread.start()
             scheduler_timeout = int(timeout * 1.1)
