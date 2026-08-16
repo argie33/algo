@@ -761,6 +761,27 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 while True:
                     try:
                         returncode = proc.poll()  # Non-blocking check
+                        # DEFENSIVE FIX 2026-08-16: proc.poll() on a real subprocess.Popen can
+                        # only ever return None (still running) or an int (exit code) - by
+                        # contract, nothing else. Live-confirmed this was violated: a mocked
+                        # Popen with an unconfigured .poll() leaked through (likely a debug/test
+                        # script that patched subprocess.Popen without exiting the patch context)
+                        # and proc.poll() returned a truthy MagicMock, which this loop then
+                        # treated as "process finished" and formatted straight into
+                        # data_loader_status.error_message ("subprocess exited with code
+                        # <MagicMock ...>"), corrupting company_info_sec's real status row while
+                        # the actual subprocess was still alive and working. Refuse to trust a
+                        # non-int/non-None poll() result - fall back to a real blocking wait()
+                        # for the true result instead of persisting garbage.
+                        if returncode is not None and not isinstance(returncode, int):
+                            print(
+                                f"[LOCAL_SCHEDULER] WARNING: {loader}: proc.poll() returned "
+                                f"non-int/non-None value {returncode!r} - ignoring and falling "
+                                f"back to proc.wait() for the real exit code.",
+                                file=sys.stderr,
+                            )
+                            returncode = proc.wait()
+                            break
                         if returncode is not None:
                             break  # Process finished
 
