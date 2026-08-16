@@ -205,7 +205,17 @@ class AlpacaSyncManager:
                         """,
                             (
                                 qty_float,
-                                float(current_price) if current_price else None,
+                                # BUG FOUND 2026-08-16: `if current_price else None` treats a
+                                # legitimate current_price=0.0 as falsy, silently writing NULL
+                                # instead of 0.0 - same anti-pattern this codebase already
+                                # identified and fixed elsewhere for financial fields (see
+                                # lambda/api/routes/algo_handlers/dashboard.py's "FIX: Use
+                                # explicit None checks instead of falsy checks (0.0 is a valid
+                                # price)"). current_price is already guaranteed non-None here
+                                # (checked at the top of this loop), but explicit is not None
+                                # matches this codebase's established convention and is correct
+                                # regardless of that upstream guarantee.
+                                float(current_price) if current_price is not None else None,
                                 position_value,
                                 symbol,
                             ),
@@ -220,7 +230,7 @@ class AlpacaSyncManager:
                             (
                                 symbol,
                                 qty_float,
-                                float(current_price) if current_price else None,
+                                float(current_price) if current_price is not None else None,
                                 position_value,
                                 get_algo_owner_cognito_sub(),
                             ),
@@ -443,7 +453,11 @@ class AlpacaSyncManager:
 
             alpaca_symbols.add(symbol)
             current_price = pos.get("current_price")
-            position_value = qty_float * float(current_price) if current_price else None
+            # BUG FOUND 2026-08-16: `if current_price else None` treats a legitimate
+            # current_price=0.0 as falsy, silently dropping position_value to None instead of
+            # computing 0.0 - same anti-pattern already fixed elsewhere in this codebase for
+            # financial fields (0.0 is a valid price, not "missing").
+            position_value = qty_float * float(current_price) if current_price is not None else None
 
             # Update existing algo-tracked position - never INSERT from Alpaca sync.
             # The algo's entry execution is the source of truth for position creation.
@@ -475,8 +489,11 @@ class AlpacaSyncManager:
                 """,
                     (
                         qty_float,
-                        float(current_price) if current_price else None,
-                        float(position_value) if position_value else None,
+                        # BUG FOUND 2026-08-16: same falsy-vs-None anti-pattern as above -
+                        # current_price=0.0 or position_value=0.0 are legitimate values, not
+                        # "missing", and must not be silently written as NULL.
+                        float(current_price) if current_price is not None else None,
+                        float(position_value) if position_value is not None else None,
                         symbol,
                     ),
                 )
