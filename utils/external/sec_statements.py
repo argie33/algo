@@ -637,9 +637,16 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     row[f"_filed_{col}"] = entry.get("filed")
 
     # Drop helper fields, return sorted (require fiscal_year for ordering)
+    # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
+    # concepts, no target column) - left in, they guaranteed-fire sec_base.py's
+    # "Unmapped SEC field" warning on every single row of every symbol across all 6
+    # statement tables, drowning real per-symbol unmapped-concept warnings in noise
+    # (564,688 lines / 109MB from one 2026-08-14 run, confirmed via log analysis).
     result = []
     for row in rows.values():
-        result.append({k: v for k, v in row.items() if not k.startswith("_filed_")})
+        result.append(
+            {k: v for k, v in row.items() if not k.startswith("_filed_") and k not in ("period_end", "filed", "form")}
+        )
     # Validate fiscal_year exists before sorting (critical for financial statement ordering)
     for r in result:
         if r.get("fiscal_year") is None:
