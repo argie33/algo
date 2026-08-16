@@ -140,7 +140,16 @@ class StructuredDBLogger:
             max_attempts: Maximum retry attempts
         """
         formatted_query = StructuredDBLogger.format_query_for_logs(query)
-        formatted_params = StructuredDBLogger.format_parameters(params)
+        # GAP FOUND 2026-08-16: format_parameters()'s default max_items=10 (sized for
+        # log_retry(), which can genuinely see bulk-operation params) silently hid the actual
+        # bad value on every error - live-confirmed: a NumericValueOutOfRange on GLPI's
+        # quality_metrics INSERT (91 params, ~30 numeric columns) logged only the first 10
+        # ("+81 more"), none of which were the overflowing field, making the error
+        # undiagnosable from the log alone without live-reproducing the whole loader run.
+        # Error logging is inherently low-frequency (only fires on actual failures, never on
+        # the success path that generates real log volume), so a much higher cap here is safe
+        # and directly serves the reason this function exists - full context for a failure.
+        formatted_params = StructuredDBLogger.format_parameters(params, max_items=200)
 
         # Build structured error context
         error_data: dict[str, Any] = {
