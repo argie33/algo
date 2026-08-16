@@ -9,9 +9,11 @@ import logging
 import os
 import random
 import socket
+import tempfile
 import threading
 import time
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, cast
 
 import requests
@@ -31,6 +33,71 @@ DEFAULT_USER_AGENT = os.getenv(
     "algo-trading argeropolos@gmail.com",
 )
 
+# CROSS-PROCESS RATE GATE (2026-08-16): RateLimiter below only throttles requests within
+# a single process. Live-confirmed this is insufficient locally: multiple concurrent
+# Claude Code sessions can each run their own SEC-EDGAR-touching loader/script
+# simultaneously, each getting its own independent in-memory budget, so the *aggregate*
+# machine-wide request rate (all sharing one outbound IP) can exceed SEC's real limit
+# even though every individual process behaves. Observed symptom: repeated 10s
+# read-timeouts against data.sec.gov during a local backfill with zero 429/403s -
+# consistent with self-inflicted contention, not a hard SEC rejection. This file-based
+# gate is a best-effort courtesy layer on top of RateLimiter, not a replacement for it -
+# it fails open (proceeds without waiting) on any lock contention/error, and only
+# engages in LOCAL_MODE (AWS ECS tasks are separate hosts; this isn't their problem).
+_CROSS_PROCESS_LOCK_FILE = Path(tempfile.gettempdir()) / "algo-sec-edgar-rate.lock"
+_CROSS_PROCESS_STATE_FILE = Path(tempfile.gettempdir()) / "algo-sec-edgar-last-request.txt"
+
+
+def _cross_process_wait(min_interval: float) -> None:
+    """Best-effort machine-wide pacing across concurrent local processes.
+
+    Uses time.time() (wall clock), not time.monotonic() - monotonic's reference point
+    is not guaranteed comparable across separate OS processes, only within one.
+    """
+    if os.environ.get("LOCAL_MODE", "").lower() != "true":
+        return
+
+    fd = None
+    deadline = time.monotonic() + 2.0  # Give up and proceed uncoordinated after 2s of contention
+    try:
+        while fd is None and time.monotonic() < deadline:
+            try:
+                fd = os.open(str(_CROSS_PROCESS_LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                time.sleep(0.05)
+        if fd is None:
+            return
+
+        sleep_time = 0.0
+        try:
+            try:
+                last = float(_CROSS_PROCESS_STATE_FILE.read_text().strip())
+            except (OSError, ValueError):
+                last = 0.0
+            now = time.time()
+            elapsed = now - last
+            if elapsed < min_interval:
+                sleep_time = min_interval - elapsed
+            _CROSS_PROCESS_STATE_FILE.write_text(str(now + sleep_time))
+        finally:
+            os.close(fd)
+            try:
+                _CROSS_PROCESS_LOCK_FILE.unlink()
+            except OSError:
+                pass
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+    except OSError:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            try:
+                _CROSS_PROCESS_LOCK_FILE.unlink()
+            except OSError:
+                pass
+
 
 class RateLimiter:
     """SEC requires <10 req/sec. We target 8/sec for safety margin."""
@@ -49,6 +116,7 @@ class RateLimiter:
             self._last_request = time.monotonic()
         if sleep_time > 0:
             time.sleep(sleep_time)
+        _cross_process_wait(self.min_interval)
 
 
 class SecEdgarClient:
