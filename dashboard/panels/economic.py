@@ -1,12 +1,20 @@
 """Economic indicators and calendar panel functions."""
 
 import logging
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
+
+# Live at refresh_per_second=4 (see dashboard.py's Live()), panel_economic_pulse re-runs
+# ~4x/second regardless of whether the underlying data changed - logging unconditionally here
+# flooded dashboard-local.log with the identical "stale" warning multiple times per second
+# (confirmed live 2026-08-16). Throttle to once per interval instead of once per render tick.
+_STALE_LOG_INTERVAL_SEC = 300.0
+_last_stale_log_ts: float = 0.0
 
 if TYPE_CHECKING:
     from dashboard.panel_registry import register_panel as register_panel
@@ -257,7 +265,11 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:
             ah_f = (_datetime.now(ET) - ts).total_seconds() / 3600
             if ah_f > 24:  # Stale if older than 24 hours
                 stale_warning = f" [yellow]⚠ Data {ah_f:.0f}h old[/]"
-                logger.warning(f"[ECONOMIC] Economic data stale ({ah_f:.0f}h)")
+                global _last_stale_log_ts
+                now = time.monotonic()
+                if now - _last_stale_log_ts >= _STALE_LOG_INTERVAL_SEC:
+                    logger.warning(f"[ECONOMIC] Economic data stale ({ah_f:.0f}h)")
+                    _last_stale_log_ts = now
         except (ValueError, TypeError):
             pass
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""

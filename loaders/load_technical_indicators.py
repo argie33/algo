@@ -1181,12 +1181,20 @@ def main() -> int:
             exit_code = 0
         elif not result["data_available"] and result["error"] is None:
             # Data unavailable (market closed, etc) - this is NO_DATA, not an error
+            # BUG FOUND live 2026-08-16: the skip-path result dict never carries
+            # "symbols_processed"/"symbols_loaded" keys, so result.get(...) returned None
+            # for both, and mark_completed() (via _update_tech_loader_status) fell back to
+            # re-reading symbol_count/symbols_loaded from the DB row - which mark_running()
+            # had just reset to (len(symbols), 0) at the start of THIS run. That read as
+            # "0/4922 loaded (0.00%)", tripped the <98%-completion safety check, and got
+            # silently overridden to FAILED even though skipping was the correct behavior.
+            # Pass explicit counts so a legitimate no-op skip reads as 100% complete, not 0%.
             _update_tech_loader_status(
                 "COMPLETED",
                 latest_date=result["latest_date"],
                 execution_duration_sec=result.get("duration_sec"),
-                current_run_symbol_count=result.get("symbols_processed"),
-                current_run_symbols_loaded=result.get("symbols_loaded"),
+                current_run_symbol_count=result.get("symbols_processed", len(symbols)),
+                current_run_symbols_loaded=result.get("symbols_loaded", len(symbols)),
             )
             final_status = "no_data"
             exit_code = 2
@@ -1194,12 +1202,13 @@ def main() -> int:
         elif result["rows_inserted"] == 0 and result["data_available"] and result["error"] is None:
             # No new rows but data available (non-trading day, or already cached)
             # This is normal and expected - market data isn't changing when market is closed
+            # Same fallback-to-stale-zeroed-row bug as the branch above - see comment there.
             _update_tech_loader_status(
                 "COMPLETED",
                 latest_date=result["latest_date"],
                 execution_duration_sec=result.get("duration_sec"),
-                current_run_symbol_count=result.get("symbols_processed"),
-                current_run_symbols_loaded=result.get("symbols_loaded"),
+                current_run_symbol_count=result.get("symbols_processed", len(symbols)),
+                current_run_symbols_loaded=result.get("symbols_loaded", len(symbols)),
             )
             final_status = "completed"
             exit_code = 0
