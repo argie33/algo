@@ -1101,6 +1101,22 @@ class OptimalLoader:
                     self._stats.set("http_status_code", status_code)
             if i % 100 == 0:
                 logger.info(f"  Progress: {i}/{len(symbols)}")
+                # BUG FIX (2026-08-16): data_loader_status.completion_pct/symbols_loaded were
+                # only ever written once, at the very end of the run (_update_final_status) -
+                # every consumer that reads them mid-run (market.py's ">30min and <5% complete
+                # -> TIMEOUT" heuristic among them) saw a frozen 0% for the entire duration of
+                # any serial per-symbol loader, misreporting long-but-healthy runs as stuck.
+                # update_progress() already existed for exactly this but was never called from
+                # this shared loop - wire it in at the same cadence as the log line above.
+                # Best-effort: must never fail the actual load.
+                try:
+                    self._status_manager.update_progress(
+                        symbols_loaded=i,
+                        symbol_count=len(symbols),
+                        completion_pct=(i / len(symbols) * 100.0) if symbols else 100.0,
+                    )
+                except Exception as progress_err:
+                    logger.warning(f"[{self.table_name}] Failed to write incremental progress: {progress_err}")
 
         if failed_symbols:
             fail_rate = (len(failed_symbols) / len(symbols)) * 100 if symbols else 0

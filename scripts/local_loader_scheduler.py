@@ -611,11 +611,33 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                         or "sec edgar" in error_msg.lower()
                         or "429" in error_msg.lower()
                     )
+                    # ROOT-CAUSE FIX 2026-08-16: reap_stale_running_loaders() marks an abandoned
+                    # (no owning process alive) loader FAILED with an "[REAPED]" error_message,
+                    # incrementing consecutive_failures exactly like a real repeated failure would.
+                    # Live-reproduced: stability_metrics hit consecutive_failures=6 purely from one
+                    # abandoned-run reap cascade (same underlying incident as the earnings_calendar
+                    # deadlock documented in price_daily_20260814_missing_load_monitor - that one
+                    # was fixed with a one-off manual reset; this generalizes it). Without this,
+                    # the loader never gets a chance to actually run again and self-reset the
+                    # counter on success - a permanent false deadlock from a single dead process,
+                    # indistinguishable at the DB level from a genuinely broken loader.
+                    is_reaped_only = error_msg.strip().startswith("[REAPED]")
 
                     # SESSION 88: For SEC loaders, skip after just 2 failures (not 3+)
                     # SEC rate limiting is an external factor - retrying won't help once it starts
-                    # For other loaders, require 3+ failures before skipping
-                    should_skip = (is_sec_issue and failures_int >= 2) or (not is_sec_issue and failures_int >= 3)
+                    # For other loaders, require 3+ failures before skipping - but not when the
+                    # most recent failure was just an abandoned-process reap, not a real bug.
+                    should_skip = (is_sec_issue and failures_int >= 2) or (
+                        not is_sec_issue and not is_reaped_only and failures_int >= 3
+                    )
+
+                    if is_reaped_only and not is_sec_issue and failures_int >= 3:
+                        print(
+                            f"[LOCAL_SCHEDULER] {loader}: {failures_int} consecutive failures but most "
+                            f"recent was an abandoned-process reap, not a real failure - allowing retry "
+                            f"instead of permanently skipping.",
+                            file=sys.stderr,
+                        )
 
                     if should_skip:
                         if is_sec_issue:

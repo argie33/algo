@@ -37,7 +37,14 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy pytest pylint bandit pre-commit
+          # ruff pinned to match .pre-commit-config.yaml's rev (2026-08-16): this was
+          # unpinned, so CI always installed whatever ruff was newest - drifting from the
+          # version every local commit is actually gated on via the pre-commit hook. Caught
+          # live: a formatter rule change between 0.15.18 (local/pre-commit) and 0.16.3
+          # (latest, what CI silently picked up) made CI fail on 2 files ruff-format --check
+          # passed locally, on the exact push meant to finally get CI green again after a
+          # month of failures.
+          pip install "ruff==0.15.18" mypy pytest pylint bandit pre-commit
 
       - name: Install project dependencies
         run: |
