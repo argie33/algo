@@ -21,9 +21,24 @@ from typing import IO
 
 from loaders.loader_registry import all_tables, normalize_loader_name
 from utils.db.context import DatabaseContext
+from utils.dotenv_loader import load_env_local
 from utils.loaders.status_manager import LoaderStatusManager, reap_stale_running_loaders
 
 logger = logging.getLogger(__name__)
+
+# GAP FOUND 2026-08-16: this entry point never loaded .env.local - only
+# scripts/run_local_orchestrator.py and algo/orchestration/orchestrator.py do (both via
+# this same utils.dotenv_loader import). Every loader subprocess this script spawns
+# inherits env = os.environ.copy() from THIS process, so any .env.local-only setting
+# (e.g. API_REQUEST_TIMEOUT_SECONDS, PRICE_DATA_SOURCE) silently never reached
+# scheduler-driven local backfills - confirmed live: a fresh shell here had DB_HOST/
+# DB_NAME already set (baked in some other way) but not LOCAL_MODE, PRICE_DATA_SOURCE,
+# or a newly-added API_REQUEST_TIMEOUT_SECONDS=30 fix, since nothing in this file's own
+# import chain ever read the .env.local file itself. override=False in load_env_local()
+# means this can't clobber the os.environ["LOCAL_MODE"]/["ENVIRONMENT"] set below, or any
+# real env var already set - it only fills in gaps, and runs before those hardcoded
+# lines so this script's own required overrides still always win.
+load_env_local()
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
