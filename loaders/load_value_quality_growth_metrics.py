@@ -1776,10 +1776,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("cash_per_share")
 
             # Earnings Growth YoY = (Current EPS - Prior Year EPS) / Prior Year EPS * 100
+            # BUG FOUND 2026-08-16: unlike every sibling *_growth_yoy field in this function
+            # (net_income_growth_yoy, operating_income_growth_yoy, fcf_growth_yoy,
+            # ocf_growth_yoy, asset_growth_yoy - see the MAX_TREND_PERCENTAGE_POINTS guard and
+            # its ANET FY2024 example below), this field and revenue_growth_yoy were missing
+            # the same overflow guard. Live-confirmed: GLPI's quality_metrics INSERT failed
+            # with NumericValueOutOfRange on this exact column class - a real but near-zero
+            # prior-year EPS/revenue base (same root cause as the already-documented ANET case)
+            # produces a percentage that overflows earnings_growth_yoy/revenue_growth_yoy's
+            # NUMERIC(10,2) (max magnitude 99,999,999.99) and crashed the INSERT for the whole
+            # row, losing every other metric in it too. Same fix as the sibling fields: cap and
+            # mark unavailable rather than let an unbounded ratio reach the DB.
             if earnings_per_share is not None and prior_year_eps is not None and prior_year_eps != 0:
                 try:
                     yoy_growth = ((earnings_per_share - prior_year_eps) / abs(prior_year_eps)) * 100
-                    metrics["earnings_growth_yoy"] = float(round(yoy_growth, 2))
+                    if abs(yoy_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["earnings_growth_yoy"] = float(round(yoy_growth, 2))
+                    else:
+                        failed_metrics.append("earnings_growth_yoy")
                 except (ValueError, TypeError):
                     failed_metrics.append("earnings_growth_yoy")
             else:
@@ -1789,7 +1803,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if revenue is not None and prior_year_revenue is not None and prior_year_revenue != 0:
                 try:
                     yoy_growth = ((revenue - prior_year_revenue) / abs(prior_year_revenue)) * 100
-                    metrics["revenue_growth_yoy"] = float(round(yoy_growth, 2))
+                    if abs(yoy_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["revenue_growth_yoy"] = float(round(yoy_growth, 2))
+                    else:
+                        failed_metrics.append("revenue_growth_yoy")
                 except (ValueError, TypeError):
                     failed_metrics.append("revenue_growth_yoy")
             else:
