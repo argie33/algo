@@ -1500,113 +1500,136 @@ class OptimalLoader:
                     # insert so far, but would have frozen data_loader_status (and thus
                     # every dashboard/staleness check reading it) for every OptimalLoader
                     # table permanently after its second-ever run.
-                    cur.execute(
-                        "INSERT INTO data_loader_status "
-                        "(table_name, row_count, latest_date, last_updated, status, error_message, "
-                        "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed, "
-                        "execution_duration_sec, symbols_per_second, "
-                        "last_success_at, consecutive_failures) "
-                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, NOW(), %s, %s, "
-                        "CASE WHEN %s = 'COMPLETED' THEN NOW() ELSE NULL END, "
-                        "CASE WHEN %s = 'COMPLETED' THEN 0 ELSE 1 END) "
-                        "ON CONFLICT (table_name) DO UPDATE SET "
-                        "row_count = EXCLUDED.row_count, "
-                        "latest_date = EXCLUDED.latest_date, "
-                        "last_updated = EXCLUDED.last_updated, "
-                        "status = EXCLUDED.status, "
-                        "error_message = EXCLUDED.error_message, "
-                        "completion_pct = EXCLUDED.completion_pct, "
-                        "symbol_count = EXCLUDED.symbol_count, "
-                        "symbols_loaded = EXCLUDED.symbols_loaded, "
-                        "execution_started = EXCLUDED.execution_started, "
-                        "execution_completed = EXCLUDED.execution_completed, "
-                        "execution_duration_sec = EXCLUDED.execution_duration_sec, "
-                        "symbols_per_second = EXCLUDED.symbols_per_second, "
-                        "last_success_at = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NOW() "
-                        "ELSE data_loader_status.last_success_at END, "
-                        "consecutive_failures = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN 0 "
-                        "ELSE data_loader_status.consecutive_failures + 1 END, "
-                        # FIXED 2026-07-28: this UPSERT never touched `reason` at all, so any
-                        # value ever written there (manually, or by a one-off diagnostic pass -
-                        # this INSERT list doesn't include it, and neither does
-                        # utils/loaders/status_manager.py's mark_completed/mark_failed) stays
-                        # frozen forever, regardless of how many times the loader succeeds
-                        # afterward. Live-confirmed: analyst_sentiment_analysis carried
-                        # reason='analyst_ratings_no_free_source' - a claim this codebase's own
-                        # history already disproved (see DATA_LOADERS.md) - through many
-                        # subsequent successful runs. industry_ranking and
-                        # sector_rotation_signal carried a similarly stale "no active loader,
-                        # marked for removal" reason despite being actively written and HEALTHY.
-                        # Clear it on a genuine COMPLETED run so it can't keep misleading anyone
-                        # reading data_loader_status as if it were live-maintained.
-                        "reason = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NULL "
-                        "ELSE data_loader_status.reason END",
-                        (
-                            self.table_name,
-                            total_rows,
-                            latest_date,
-                            loader_status,
-                            status_error_message,
-                            completion_pct,
-                            expected_symbols,
-                            symbols_loaded,
-                            execution_started,
-                            execution_duration_sec,
-                            symbols_per_sec,
-                            loader_status,
-                            loader_status,
-                        ),
-                    )
-
-                    # Archive to history for failure-pattern analysis (dashboard's
-                    # DATA FRESHNESS panel - see dashboard/freshness_enhancements.py's
-                    # enrich_health_item_with_failure_pattern). utils/loaders/status_manager.py's
-                    # StatusManager class already does this on its own mark_completed/mark_failed/
-                    # mark_timeout methods, but this loader base class writes data_loader_status
-                    # directly via the raw SQL above instead of going through StatusManager, so
-                    # every loader built on OptimalLoader (the large majority) never reached that
-                    # archiving call - confirmed live: 0 rows in data_loader_status_history despite
-                    # dozens of loader runs/day. Runs inside a SAVEPOINT, not just a bare
-                    # try/except: an uncaught statement error aborts the whole transaction, and
-                    # this runs after the real DELETE+INSERT above in the same transaction -
-                    # without a SAVEPOINT to roll back to, a failure here would silently discard
-                    # that write too when __exit__ commits (Postgres treats COMMIT on an aborted
-                    # transaction as a ROLLBACK).
-                    try:
-                        cur.execute("SAVEPOINT archive_history")
+                    # BUG FIX (2026-08-16): this UPSERT used to write self.table_name only.
+                    # Multi-output-table loaders (e.g. load_risk_metrics_daily.py, output_tables
+                    # = ["momentum_metrics", "stability_metrics"]) never got their SECONDARY
+                    # table's data_loader_status row touched here - it kept whatever completion_pct/
+                    # symbol_count a past run left, so a later mark_completed() call elsewhere
+                    # (runner.py's output_tables loop, which doesn't pass current-run counts)
+                    # re-derives completion_pct from that stale row and can misjudge a genuinely
+                    # successful run. Live-confirmed 2026-08-16: stability_metrics stuck at
+                    # consecutive_failures=5, last_success_at=2026-08-12 while its sibling
+                    # momentum_metrics (same run, same loader) correctly showed
+                    # consecutive_failures=0, last_success_at=2026-08-13 - the dashboard's
+                    # "Loader Health: 1 table(s) with issues" false positive. Loop the identical
+                    # UPSERT over output_tables too, reusing this run's own already-computed
+                    # loader_status/completion_pct/symbols_loaded (the secondary tables are
+                    # populated as a side effect of this same run, so they share its verdict -
+                    # same convention runner.py's output_tables loop already uses for the
+                    # success/failure/crash paths it does cover).
+                    status_tables = [self.table_name] + [
+                        t for t in getattr(self, "output_tables", []) if t != self.table_name
+                    ]
+                    for status_table_name in status_tables:
                         cur.execute(
-                            "INSERT INTO data_loader_status_history "
-                            "(table_name, status, execution_started, execution_completed, "
-                            "error_message, row_count, completion_pct, symbols_loaded, symbol_count) "
-                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s)",
+                            "INSERT INTO data_loader_status "
+                            "(table_name, row_count, latest_date, last_updated, status, error_message, "
+                            "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed, "
+                            "execution_duration_sec, symbols_per_second, "
+                            "last_success_at, consecutive_failures) "
+                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, NOW(), %s, %s, "
+                            "CASE WHEN %s = 'COMPLETED' THEN NOW() ELSE NULL END, "
+                            "CASE WHEN %s = 'COMPLETED' THEN 0 ELSE 1 END) "
+                            "ON CONFLICT (table_name) DO UPDATE SET "
+                            "row_count = EXCLUDED.row_count, "
+                            "latest_date = EXCLUDED.latest_date, "
+                            "last_updated = EXCLUDED.last_updated, "
+                            "status = EXCLUDED.status, "
+                            "error_message = EXCLUDED.error_message, "
+                            "completion_pct = EXCLUDED.completion_pct, "
+                            "symbol_count = EXCLUDED.symbol_count, "
+                            "symbols_loaded = EXCLUDED.symbols_loaded, "
+                            "execution_started = EXCLUDED.execution_started, "
+                            "execution_completed = EXCLUDED.execution_completed, "
+                            "execution_duration_sec = EXCLUDED.execution_duration_sec, "
+                            "symbols_per_second = EXCLUDED.symbols_per_second, "
+                            "last_success_at = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NOW() "
+                            "ELSE data_loader_status.last_success_at END, "
+                            "consecutive_failures = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN 0 "
+                            "ELSE data_loader_status.consecutive_failures + 1 END, "
+                            # FIXED 2026-07-28: this UPSERT never touched `reason` at all, so any
+                            # value ever written there (manually, or by a one-off diagnostic pass -
+                            # this INSERT list doesn't include it, and neither does
+                            # utils/loaders/status_manager.py's mark_completed/mark_failed) stays
+                            # frozen forever, regardless of how many times the loader succeeds
+                            # afterward. Live-confirmed: analyst_sentiment_analysis carried
+                            # reason='analyst_ratings_no_free_source' - a claim this codebase's own
+                            # history already disproved (see DATA_LOADERS.md) - through many
+                            # subsequent successful runs. industry_ranking and
+                            # sector_rotation_signal carried a similarly stale "no active loader,
+                            # marked for removal" reason despite being actively written and HEALTHY.
+                            # Clear it on a genuine COMPLETED run so it can't keep misleading anyone
+                            # reading data_loader_status as if it were live-maintained.
+                            "reason = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NULL "
+                            "ELSE data_loader_status.reason END",
                             (
-                                self.table_name,
-                                loader_status,
-                                execution_started,
-                                status_error_message,
+                                status_table_name,
                                 total_rows,
+                                latest_date,
+                                loader_status,
+                                status_error_message,
                                 completion_pct,
-                                symbols_loaded,
                                 expected_symbols,
+                                symbols_loaded,
+                                execution_started,
+                                execution_duration_sec,
+                                symbols_per_sec,
+                                loader_status,
+                                loader_status,
                             ),
                         )
-                        # Keep only the last 100 runs per table (matches StatusManager's own
-                        # retention policy in utils/loaders/status_manager.py)
-                        cur.execute(
-                            "DELETE FROM data_loader_status_history "
-                            "WHERE table_name = %s AND id NOT IN ("
-                            "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
-                            "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
-                            ")",
-                            (self.table_name, self.table_name),
-                        )
-                        cur.execute("RELEASE SAVEPOINT archive_history")
-                    except Exception as archive_err:
-                        logger.debug(f"[OPTIMAL_LOADER] Failed to archive history for {self.table_name}: {archive_err}")
+
+                        # Archive to history for failure-pattern analysis (dashboard's
+                        # DATA FRESHNESS panel - see dashboard/freshness_enhancements.py's
+                        # enrich_health_item_with_failure_pattern). utils/loaders/status_manager.py's
+                        # StatusManager class already does this on its own mark_completed/mark_failed/
+                        # mark_timeout methods, but this loader base class writes data_loader_status
+                        # directly via the raw SQL above instead of going through StatusManager, so
+                        # every loader built on OptimalLoader (the large majority) never reached that
+                        # archiving call - confirmed live: 0 rows in data_loader_status_history despite
+                        # dozens of loader runs/day. Runs inside a SAVEPOINT, not just a bare
+                        # try/except: an uncaught statement error aborts the whole transaction, and
+                        # this runs after the real DELETE+INSERT above in the same transaction -
+                        # without a SAVEPOINT to roll back to, a failure here would silently discard
+                        # that write too when __exit__ commits (Postgres treats COMMIT on an aborted
+                        # transaction as a ROLLBACK).
                         try:
-                            cur.execute("ROLLBACK TO SAVEPOINT archive_history")
-                        except Exception as savepoint_err:
-                            logger.debug(f"[OPTIMAL_LOADER] Failed to rollback to savepoint: {savepoint_err}")
+                            cur.execute("SAVEPOINT archive_history")
+                            cur.execute(
+                                "INSERT INTO data_loader_status_history "
+                                "(table_name, status, execution_started, execution_completed, "
+                                "error_message, row_count, completion_pct, symbols_loaded, symbol_count) "
+                                "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s)",
+                                (
+                                    status_table_name,
+                                    loader_status,
+                                    execution_started,
+                                    status_error_message,
+                                    total_rows,
+                                    completion_pct,
+                                    symbols_loaded,
+                                    expected_symbols,
+                                ),
+                            )
+                            # Keep only the last 100 runs per table (matches StatusManager's own
+                            # retention policy in utils/loaders/status_manager.py)
+                            cur.execute(
+                                "DELETE FROM data_loader_status_history "
+                                "WHERE table_name = %s AND id NOT IN ("
+                                "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                                "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                                ")",
+                                (status_table_name, status_table_name),
+                            )
+                            cur.execute("RELEASE SAVEPOINT archive_history")
+                        except Exception as archive_err:
+                            logger.debug(
+                                f"[OPTIMAL_LOADER] Failed to archive history for {status_table_name}: {archive_err}"
+                            )
+                            try:
+                                cur.execute("ROLLBACK TO SAVEPOINT archive_history")
+                            except Exception as savepoint_err:
+                                logger.debug(f"[OPTIMAL_LOADER] Failed to rollback to savepoint: {savepoint_err}")
             finally:
                 set_pooled_connection(_saved)
         except Exception as e:
