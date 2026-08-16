@@ -14,7 +14,7 @@ or have consecutive failures but no proper error tracking. It:
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 os.environ["LOCAL_MODE"] = "true"
@@ -26,39 +26,29 @@ from utils.db.connection import get_db_connection
 from utils.loaders.status_manager import LoaderStatusManager
 
 
-def fix_stuck_running_loaders(cur, stale_threshold_minutes: int = 5) -> list[str]:
-    """Detect and fix loaders stuck RUNNING for >N minutes.
+def fix_stuck_running_loaders(cur, stale_threshold_minutes: int | None = None) -> list[str]:
+    """Detect and fix loaders genuinely stuck RUNNING, using each table's own configured
+    loader timeout rather than one flat threshold for every table.
 
-    FIXED SESSION 91: Threshold reduced from 30 to 5 minutes to match Phase 1's
-    _detect_and_fail_stale_running_loaders(). 5 minutes is conservative (normal slow
-    loaders won't be affected) but aggressive enough to catch real crashes within the
-    window a human operator expects to wait before manually retrying.
+    ROOT-CAUSE FIX 2026-08-16: the flat `stale_threshold_minutes` this function used to take
+    (5 by default, 30 from this script's own main()) has no relationship to how long a real
+    loader run is allowed to take - CLAUDE.md itself documents per-loader timeouts up to
+    540 minutes (company_info_sec) and 1440 minutes (prices). Live-confirmed: company_info_sec
+    was marked FAILED here after only ~19 minutes of a legitimately still-running, healthy
+    ~45-70 minute backfill (process alive, log actively growing, real per-symbol progress the
+    whole time) - the exact "genuinely healthy but declared stuck" false positive this
+    function's own docstring claimed couldn't happen ("5 minutes is conservative... normal
+    slow loaders won't be affected" - false for any of this codebase's many 30+ minute
+    loaders). `utils/loaders/status_manager.py`'s `reap_stale_running_loaders()` already solves
+    this correctly (per-loader timeout * 1.25 safety margin, via `get_loader_timeout()`) -
+    delegate to it instead of maintaining a second, less-safe implementation here.
 
-    These are almost certainly crashed processes that never marked themselves FAILED.
+    `stale_threshold_minutes` is now ignored (kept only for call-site backward compatibility)
+    - real per-loader timeouts always take precedence.
     """
-    fixed = []
-    cur.execute(f"""
-        SELECT table_name, execution_started
-        FROM data_loader_status
-        WHERE status = 'RUNNING'
-        AND execution_started < CURRENT_TIMESTAMP - INTERVAL '{stale_threshold_minutes} minutes'
-        ORDER BY execution_started ASC
-    """)
+    from utils.loaders.status_manager import reap_stale_running_loaders
 
-    for table_name, exec_start in cur.fetchall():
-        age_min = (datetime.now(timezone.utc) - exec_start.replace(tzinfo=timezone.utc)).total_seconds() / 60
-        error_msg = (
-            f"[FIX_SCRIPT] Auto-failed stuck RUNNING loader (started {exec_start}, "
-            f"{age_min:.0f} min ago, no active process). Marking as failed for retry."
-        )
-        print(f"[FIX] Recovering {table_name}: {error_msg[:80]}...")
-        try:
-            LoaderStatusManager(table_name).mark_failed(error_msg)
-            fixed.append(table_name)
-        except Exception as e:
-            print(f"[FIX] ERROR marking {table_name} as failed: {e}", file=sys.stderr)
-
-    return fixed
+    return reap_stale_running_loaders()
 
 
 def clean_stale_locks(max_age_hours: int = 2) -> list[str]:
