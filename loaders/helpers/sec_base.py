@@ -93,13 +93,13 @@ class SecLoaderBase(OptimalLoader):
         return tuple(SecLoaderBase._clean_decimal(v) for v in row)
 
     @staticmethod
-    def _validate_numeric_precision(value: Any, precision: int = 12, scale: int = 4) -> bool:
+    def _validate_numeric_precision(value: Any, precision: int, scale: int) -> bool:
         """Check if a numeric value fits within NUMERIC(precision, scale) constraints.
 
         Args:
             value: Value to validate (None is always valid)
-            precision: Total digits (default 12)
-            scale: Decimal places (default 4)
+            precision: Total digits
+            scale: Decimal places
 
         Returns:
             True if value fits, False if it would overflow
@@ -120,6 +120,43 @@ class SecLoaderBase(OptimalLoader):
             return abs(float(value)) <= max_value
         except (ValueError, TypeError, OverflowError):
             return True
+
+    _precision_cache: dict[str, dict[str, tuple[int, int] | None]] = {}
+
+    def _get_field_precision_scale(self, db_field: str) -> tuple[int, int] | None:
+        """Look up the real NUMERIC(precision, scale) for a column from the live DB schema.
+
+        BUGFIX 2026-08-16: _validate_numeric_precision was always called with its
+        hardcoded default of NUMERIC(12,4) (~$100M cap), regardless of what the column
+        actually allows. Confirmed live: revenue/net_income/total_assets etc. are
+        NUMERIC(20,2) or unbounded `numeric` in the DB, but the (12,4) default rejected
+        any real company's figures above ~$100M as "overflow" and marked the row
+        data_unavailable - flagging 67-80% of annual/quarterly statement rows as
+        unavailable when the data was actually fine. Looking up the true column
+        precision (cached per table) makes the check match what the DB will actually
+        accept. Returns None for unbounded `numeric` columns (no overflow is possible).
+        """
+        table_cache = SecLoaderBase._precision_cache.get(self.table_name)
+        if table_cache is None:
+            table_cache = {}
+            try:
+                from utils.db.context import DatabaseContext
+
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT column_name, numeric_precision, numeric_scale
+                        FROM information_schema.columns
+                        WHERE table_name = %s AND data_type = 'numeric'
+                        """,
+                        (self.table_name,),
+                    )
+                    for col, col_precision, col_scale in cur.fetchall():
+                        table_cache[col] = (col_precision, col_scale) if col_precision is not None else None
+            except Exception as e:
+                logger.error(f"[{self.table_name}] Failed to load numeric column precision from schema: {e}")
+            SecLoaderBase._precision_cache[self.table_name] = table_cache
+        return table_cache.get(db_field)
 
     def _ensure_schema_ready(self) -> None:
         """Ensure all required columns exist, auto-creating if needed.
@@ -537,16 +574,20 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     row["data_unavailable"] = value
                 elif db_field == "reason":
                     row["reason"] = value
-                elif not self._validate_numeric_precision(value):
-                    symbol = r.get("symbol", "?")
-                    logger.error(
-                        f"[{self.table_name}] {symbol}: Numeric overflow in field '{db_field}' "
-                        f"(value={value}). Field expects NUMERIC(12,4). Marking data_unavailable."
-                    )
-                    row["data_unavailable"] = True
-                    row["reason"] = f"Numeric overflow in {db_field}"
                 else:
-                    row[db_field] = value
+                    precision_scale = self._get_field_precision_scale(db_field)
+                    if precision_scale is not None and not self._validate_numeric_precision(
+                        value, precision=precision_scale[0], scale=precision_scale[1]
+                    ):
+                        symbol = r.get("symbol", "?")
+                        logger.error(
+                            f"[{self.table_name}] {symbol}: Numeric overflow in field '{db_field}' "
+                            f"(value={value}). Field is NUMERIC{precision_scale}. Marking data_unavailable."
+                        )
+                        row["data_unavailable"] = True
+                        row["reason"] = f"Numeric overflow in {db_field}"
+                    else:
+                        row[db_field] = value
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
             # filers don't tag) - derive it from operating_cash_flow - capex, the standard
