@@ -1376,6 +1376,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("quick_ratio")
 
+            # REITs/banks file unclassified balance sheets and never report
+            # AssetsCurrent/LiabilitiesCurrent at all - that's not a data gap, it's a
+            # different accounting model. Distinguish that case (both fields absent) from
+            # a real missing-data gap so the frontend's existing "reit_special_entity"
+            # reason (already defined but never populated) shows instead of the generic
+            # "SEC data not available".
+            unclassified_balance_sheet = current_assets is None and current_liabilities is None
+
             # Interest Coverage = Operating Income / Interest Expense. Higher is better
             # (ability to service debt from operating earnings). Column existed on
             # quality_metrics (migration predates this loader) and is already displayed by
@@ -2191,9 +2199,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "missing_sec_data" if "debt_to_equity" in failed_metrics else None
             )
             metrics["current_ratio_unavailable_reason"] = (
-                "missing_sec_data" if "current_ratio" in failed_metrics else None
+                ("reit_special_entity" if unclassified_balance_sheet else "missing_sec_data")
+                if "current_ratio" in failed_metrics
+                else None
             )
-            metrics["quick_ratio_unavailable_reason"] = "missing_sec_data" if "quick_ratio" in failed_metrics else None
+            metrics["quick_ratio_unavailable_reason"] = (
+                ("reit_special_entity" if unclassified_balance_sheet else "missing_sec_data")
+                if "quick_ratio" in failed_metrics
+                else None
+            )
             metrics["interest_coverage_unavailable_reason"] = (
                 "missing_sec_data" if "interest_coverage" in failed_metrics else None
             )
