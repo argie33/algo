@@ -1759,6 +1759,25 @@ class PriceLoader(OptimalLoader):
         remaining_batches = batches_count - (processed // self.batch_size)
         estimated_remaining_sec = remaining_batches * avg_batch_time
 
+        # DASHBOARD ACCURACY FIX 2026-08-17: this loader marks RUNNING at the start and
+        # COMPLETED/FAILED at the end (see the mark_completed() call site's own comment: "this
+        # loader never calls mark_running()/update_progress() to keep the DB row in sync during
+        # a run") but never anything in between - live-confirmed the dashboard's price_daily row
+        # sits frozen at completion_pct=0/symbols_loaded=0 for the loader's entire multi-hour
+        # runtime even while this exact per-batch progress line below shows real forward motion
+        # (e.g. "3000/4925 symbols (61%)"). Persist that same number so the dashboard reflects it.
+        try:
+            LoaderStatusManager(self.table_name).update_progress(
+                symbols_loaded=processed,
+                symbol_count=total_symbols,
+                completion_pct=completion_pct * 100,
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(
+                f"[LOAD_PRICES] Progress update failed (dashboard will show stale completion_pct "
+                f"until next successful update): {type(e).__name__}: {str(e)[:100]}"
+            )
+
         logger.info(
             "  Progress: %d/%d symbols (%.0f%%) - batch: %.1fs, avg: %.1fs, est. %d more min",
             processed,
