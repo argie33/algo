@@ -104,8 +104,13 @@ def test_mark_failed_increments_streak_without_touching_last_success(monkeypatch
         mock_db_ctx.return_value.__exit__.return_value = False
         mock_cur.rowcount = 1  # Verify rowcount check passes
 
-        # Mock fetchone() for archive SELECT (7 values)
-        mock_cur.fetchone.return_value = (None, None, None, None, None, None, None)
+        # First fetchone(): stale-report guard SELECT (execution_started, last_success_at).
+        # Second fetchone(): archive SELECT (7 values). last_success_at=None means the guard
+        # never suppresses, so the real UPDATE always runs in these tests.
+        mock_cur.fetchone.side_effect = [
+            (None, None),
+            (None, None, None, None, None, None, None),
+        ]
 
         manager.mark_failed("connection refused")
 
@@ -132,8 +137,11 @@ def test_mark_failed_with_completion_pct_also_increments_streak():
         mock_db_ctx.return_value.__exit__.return_value = False
         mock_cur.rowcount = 1  # Verify rowcount check passes
 
-        # Mock fetchone() for archive SELECT (7 values)
-        mock_cur.fetchone.return_value = (None, None, None, None, None, None, None)
+        # First fetchone(): stale-report guard SELECT. Second: archive SELECT (7 values).
+        mock_cur.fetchone.side_effect = [
+            (None, None),
+            (None, None, None, None, None, None, None),
+        ]
 
         manager.mark_failed("timeout mid-batch", completion_pct=42.0)
 
@@ -157,8 +165,11 @@ def test_mark_timeout_increments_streak_without_touching_last_success():
         mock_db_ctx.return_value.__exit__.return_value = False
         mock_cur.rowcount = 1  # Verify rowcount check passes
 
-        # Mock fetchone() for archive SELECT (7 values)
-        mock_cur.fetchone.return_value = (None, None, None, None, None, None, None)
+        # First fetchone(): stale-report guard SELECT. Second: archive SELECT (7 values).
+        mock_cur.fetchone.side_effect = [
+            (None, None),
+            (None, None, None, None, None, None, None),
+        ]
 
         manager.mark_timeout(runtime_seconds=120.5)
 
@@ -176,3 +187,51 @@ def test_mark_timeout_increments_streak_without_touching_last_success():
         # Verify new diagnostic fields are included
         assert "execution_duration_sec" in update_sql
         assert "http_status_code" in update_sql
+
+
+def test_mark_failed_suppresses_stale_report_after_newer_success():
+    """Regression test (2026-08-17): a hung/orphaned run's late failure report must not
+    clobber a newer run's already-recorded success. Live-reproduced: sector_ranking/
+    industry_ranking/sector_performance/trend_template_data all genuinely completed, then
+    a stale reap of an older overlapping run's RUNNING row overwrote status back to FAILED
+    with a stale error_message - the dashboard reported FAILED for tables that had actually
+    succeeded. Guard: if last_success_at is newer than execution_started, skip the write."""
+    manager = _make_manager()
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+
+        from datetime import datetime
+
+        execution_started = datetime(2026, 8, 16, 13, 25, 12)
+        last_success_at = datetime(2026, 8, 16, 18, 10, 5)  # newer than execution_started
+        mock_cur.fetchone.return_value = (execution_started, last_success_at)
+
+        manager.mark_failed("[REAPED] Stuck in RUNNING since 2026-08-16 13:25:12")
+
+        # No UPDATE should have been issued - the stale report must be suppressed entirely.
+        for call in mock_cur.execute.call_args_list:
+            sql = call[0][0]
+            assert "UPDATE data_loader_status" not in sql, f"Stale FAILED report was not suppressed: {sql}"
+
+
+def test_mark_timeout_suppresses_stale_report_after_newer_success():
+    """Same guard as mark_failed, for the mark_timeout() sibling path."""
+    manager = _make_manager()
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+
+        from datetime import datetime
+
+        execution_started = datetime(2026, 8, 16, 20, 0, 0)
+        last_success_at = datetime(2026, 8, 16, 20, 30, 0)  # newer than execution_started
+        mock_cur.fetchone.return_value = (execution_started, last_success_at)
+
+        manager.mark_timeout(runtime_seconds=1800.0)
+
+        for call in mock_cur.execute.call_args_list:
+            sql = call[0][0]
+            assert "UPDATE data_loader_status" not in sql, f"Stale TIMEOUT report was not suppressed: {sql}"

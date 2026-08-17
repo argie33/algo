@@ -516,9 +516,36 @@ class LoaderStatusManager:
             with DatabaseContext("write") as cur:
                 # SELECT FOR UPDATE locks the row within this transaction
                 cur.execute(
-                    "SELECT table_name FROM data_loader_status WHERE table_name = %s FOR UPDATE",
+                    "SELECT execution_started, last_success_at FROM data_loader_status "
+                    "WHERE table_name = %s FOR UPDATE",
                     (self.table_name,),
                 )
+                row = cur.fetchone()
+                execution_started, last_success_at = row if row else (None, None)
+                # STALE-FAILURE GUARD: a hung/orphaned run (e.g. one the stall-killer finally
+                # reaps minutes-to-hours late) can report its failure AFTER a newer overlapping
+                # run of the same loader already succeeded (mark_completed() sets execution_started
+                # fresh on every mark_running(), so an older run's failure arriving now always sees
+                # a newer execution_started than its own start). Live-reproduced 2026-08-16/17:
+                # growth_metrics/quality_metrics had last_success_at hours after this exact
+                # stall-kill's log timestamp, yet this unconditional UPDATE still clobbered
+                # status=COMPLETED with status=FAILED and a stale error_message, while the
+                # actual table held fresh same-day data - the dashboard was flatly lying.
+                # Guard: if a success is already recorded more recently than the row's current
+                # execution_started, some run that started at-or-before that point already won -
+                # this failure report is for a superseded attempt and must not overwrite it.
+                if (
+                    last_success_at is not None
+                    and execution_started is not None
+                    and last_success_at > execution_started
+                ):
+                    logger.warning(
+                        f"[STATUS_MANAGER] Suppressing stale FAILED report for {self.table_name}: "
+                        f"last_success_at={last_success_at} is newer than execution_started="
+                        f"{execution_started}, so a later run already completed successfully. "
+                        f"Stale error was: {msg[:200]}"
+                    )
+                    return
                 if completion_pct is not None:
                     cur.execute(
                         """
@@ -574,9 +601,26 @@ class LoaderStatusManager:
             with DatabaseContext("write") as cur:
                 # SELECT FOR UPDATE locks the row within this transaction
                 cur.execute(
-                    "SELECT table_name FROM data_loader_status WHERE table_name = %s FOR UPDATE",
+                    "SELECT execution_started, last_success_at FROM data_loader_status "
+                    "WHERE table_name = %s FOR UPDATE",
                     (self.table_name,),
                 )
+                row = cur.fetchone()
+                execution_started, last_success_at = row if row else (None, None)
+                # Same stale-report guard as mark_failed() above - see that comment for the
+                # live-reproduced incident this prevents.
+                if (
+                    last_success_at is not None
+                    and execution_started is not None
+                    and last_success_at > execution_started
+                ):
+                    logger.warning(
+                        f"[STATUS_MANAGER] Suppressing stale TIMEOUT report for {self.table_name}: "
+                        f"last_success_at={last_success_at} is newer than execution_started="
+                        f"{execution_started}, so a later run already completed successfully. "
+                        f"Stale error was: {msg[:200]}"
+                    )
+                    return
                 cur.execute(
                     """
                     UPDATE data_loader_status
