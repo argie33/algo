@@ -12,19 +12,14 @@ from ..utilities import DIM, G, R, Y
 
 logger = logging.getLogger(__name__)
 
-# Phase status constants to prevent shotgun surgery changes
-# "skipped" (skip_if_halted=YES phases that never ran because an earlier phase halted)
-# is intentionally separate from a genuine halt/warn/degraded - see SKIPPED_STATES below
-# and its longer explanation next to the module-level HALTED_STATES constant.
-# "blocked" (a safety guard - e.g. Phase 8's market-hours/stale-signal/pending-order guards -
-# correctly preventing execution; see PhaseResult.ok in algo/orchestrator/phase_result.py,
-# which treats it as a successful outcome) belongs here too: every one of these status
-# buckets defaults anything unrecognized to a red ERROR badge, so before this fix a
-# perfectly healthy guard block rendered identically to a genuine phase crash on the
-# dashboard - exactly the false alarm this system can't afford once real money is on the line.
-PHASE_SUCCESS_STATES = ("success", "completed", "ok")
-PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "blocked")
-PHASE_SKIPPED_STATES = ("skipped",)
+# Phase status constants to prevent shotgun surgery changes. PHASE_SUCCESS_STATES/
+# PHASE_HALTED_STATES/PHASE_SKIPPED_STATES are defined as aliases of SUCCESS_STATES/
+# HALTED_STATES/SKIPPED_STATES below (see that block's comment for the "blocked"/"skipped"
+# rationale) - this used to be two independently-maintained tuples with identical values,
+# which meant a function like _format_run_history_summary could sum n_ok against one family
+# and n_hlt/n_skip/n_err against the other with no error, silently desyncing the moment either
+# copy was edited without the other. One definition, two names, so both call-site styles
+# already in this file keep working.
 
 
 # Phase status determination strategy (replaces long if/elif chains)
@@ -176,6 +171,13 @@ SUCCESS_STATES = ("success", "completed", "ok")
 HALTED_STATES = ("halt", "halted", "warn", "degraded", "blocked")
 SKIPPED_STATES = ("skipped",)
 ERROR_STATES = ("error", "failed")
+
+# Aliases for the PHASE_-prefixed call sites elsewhere in this file - see the comment on
+# the old PHASE_SUCCESS_STATES/PHASE_HALTED_STATES/PHASE_SKIPPED_STATES definitions above
+# for why these are aliases now instead of a second, independently-maintained tuple.
+PHASE_SUCCESS_STATES = SUCCESS_STATES
+PHASE_HALTED_STATES = HALTED_STATES
+PHASE_SKIPPED_STATES = SKIPPED_STATES
 
 # Role priority ordering for health items
 ROLE_ORDER = {"CRIT": 0, "IMP": 1, "NORM": 2}
