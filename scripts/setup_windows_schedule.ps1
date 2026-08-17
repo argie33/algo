@@ -228,6 +228,60 @@ Register-ScheduledTask `
 
 Write-Host "[OK] Metrics task scheduled for 7:00 PM ET (MON-FRI)"
 
+# Task 4: Reference/slow-changing loader pipeline (11:30 PM ET, MON-FRI)
+Write-Host ""
+Write-Host "Task 4: Reference Pipeline (11:30 PM ET, MON-FRI)"
+Write-Host "  - Refreshes company profile, institutional/insider holdings, SEC filings, short interest,"
+Write-Host "    segment info/metrics, earnings calendar (SEC), index constituents, economic/sentiment data, dividends"
+
+# ADDED 2026-08-17: PIPELINES["reference"] in local_loader_scheduler.py has 15 real loaders
+# (company_info, profile, institutional, insider_holdings, insider_velocity, sec_reports,
+# short_interest, segment_info, segment_metrics, earnings_sec, constituents, economic, naaim,
+# aaii, dividends) but this script never registered a scheduled task for it at all - unlike
+# morning/signals/metrics, "reference" had no automation to even be broken (LogonType or
+# otherwise). Confirmed live: sec_segment_info, sec_segment_metrics, dividend_data,
+# current_reports_8k, and stock_symbols - all "reference" pipeline outputs - were sitting
+# FAILED for days with nothing ever queued to refresh them. Scheduled after "evening" (metrics,
+# 7 PM ET) and well before "morning" (2 AM ET) so it doesn't compete with either for the
+# scheduler lock on a normal day; -RestartCount below covers the case where metrics is still
+# running late.
+$referenceAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "scripts/local_loader_scheduler.py --now reference" `
+    -WorkingDirectory $algoPath
+
+$referenceTrigger = New-ScheduledTaskTrigger `
+    -Weekly `
+    -At $referenceLocalTime `
+    -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+
+$referenceSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$false `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "reference-pipeline" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "reference-pipeline" -Confirm:$false
+    Write-Host "[OK] Replaced existing reference task"
+} else {
+    Write-Host "[INFO] No existing reference task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "reference-pipeline" `
+    -TaskPath $taskFolder `
+    -Action $referenceAction `
+    -Trigger $referenceTrigger `
+    -Settings $referenceSettings `
+    -Principal $taskPrincipal `
+    -Description "Refresh slow-changing reference data: company profile, institutional/insider holdings, SEC filings, short interest, segment info/metrics, earnings calendar, constituents, economic/sentiment, dividends (reference pipeline)" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] Reference task scheduled for 11:30 PM ET (MON-FRI)"
+
 # BUG FIX (2026-08-17): the actual trading orchestrator's own scheduled tasks
 # (AlgoTrading_Orchestrator_930AM/1PM/3PM, under \AlgoTrading\ - registered separately from
 # this script, no repo script ever managed them) were live-confirmed to have the exact same
@@ -285,7 +339,7 @@ Get-ScheduledTask -TaskPath "$orchestratorTaskFolder\" | Select-Object -Property
 
 Write-Host ""
 Write-Host "[SUCCESS] Task Scheduler setup complete!"
-Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, and 7:00 PM ET"
+Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, 7:00 PM, and 11:30 PM ET"
 Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, and 3:00 PM local"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
