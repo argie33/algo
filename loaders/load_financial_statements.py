@@ -238,6 +238,25 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         "interest_and_dividend_income_operating",
         "sales_revenue_net",
         "sales_revenue_goods_net",
+        # FIXED 2026-08-17 (goal: "no SEC data" audit continuation): "cost_of_goods_and_
+        # services_sold" (added e1a3ae3b9 as a plain, always-overwrite mapping so retail/
+        # product filers that never tag CostOfRevenue/CostOfSales at all - AMZN et al -
+        # get a real cost_of_revenue) was NOT fallback-only, so on filers that tag BOTH
+        # concepts for unrelated line items it silently clobbered a correct value with a
+        # wrong one via sec_base.py's last-processed-wins copy loop. Live-confirmed via
+        # real SEC EDGAR companyfacts for CAT: CostOfRevenue FY2025=$44.75B (real,
+        # consolidated, ~65% of $67.6B revenue) vs. CostOfGoodsAndServicesSold FY2025=$49M
+        # (some unrelated minor line item) - annual_income_statement.cost_of_revenue was
+        # $49M, wrong by ~900x, with no data_unavailable/reason flag anywhere. A DB-wide
+        # ratio scan (revenue > $1B, cost_of_revenue/revenue < 2%) found 32 symbols with
+        # this same implausible-magnitude signature (CAT, CNC, VICI, JEF, ARCO, ...) - not
+        # proof for every one without a per-symbol EDGAR check the way CAT was, but the
+        # same pattern. Reusing this frozenset (not just "revenue" fields despite the
+        # name - it's really "sec_field keys that only fill an already-empty db_field")
+        # since it's already wired into every income-statement cfg below; this key now
+        # only fills cost_of_revenue when CostOfRevenue/CostOfSales didn't already set it,
+        # same as this set's existing entries, so AMZN-style filers are unaffected.
+        "cost_of_goods_and_services_sold",
     }
 )
 
