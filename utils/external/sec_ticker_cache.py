@@ -8,6 +8,7 @@ Uses file-based persistent caching with live SEC API refresh.
 import json
 import logging
 import random
+import re
 import socket
 import tempfile
 import time
@@ -17,6 +18,9 @@ from typing import cast
 import requests
 
 logger = logging.getLogger(__name__)
+
+BROWSE_EDGAR_URL = "https://www.sec.gov/cgi-bin/browse-edgar"
+_CIK_TAG_RE = re.compile(r"<cik>(\d+)</cik>")
 
 TICKER_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_TIMEOUT = 10.0
@@ -180,6 +184,71 @@ class TickerCache:
 
         raise RuntimeError("SEC ticker cache refresh exhausted all retries")
 
+    def _lookup_via_browse_edgar(self, symbol: str) -> str | None:
+        """Resolve a ticker to a CIK via SEC's legacy browse-edgar company search.
+
+        FIXED 2026-08-17 (goal: "no SEC data" audit): live-confirmed both of SEC's own
+        "complete" ticker files (company_tickers.json AND company_tickers_exchange.json,
+        ~10,400 entries each, all exchanges represented) are missing real, actively-traded,
+        large-cap tickers entirely - AEP (American Electric Power, NYSE, S&P 500 utility),
+        PARA (Paramount Global), JHG (Janus Henderson), AMWD, KFS, KW, NSA all confirmed
+        absent from both files, yet all resolve to real 10-K filers via this endpoint
+        (AEP -> CIK 4904, confirmed against a live 10-K filed 2026-02-12). This isn't a
+        one-off SEC data quirk like the XOM CIK_OVERRIDES case - a live DB scan found 149
+        symbols with reason='cik_not_found' in annual_income_statement, 59 of them
+        plain/undecorated tickers (not preferred-share/rights/dual-class variants that have
+        their own explanations), and a 20-symbol sample against this endpoint found 8-9 real
+        resolvable filers - too many for manual CIK_OVERRIDES entries to keep up with.
+        browse-edgar's CIK= parameter accepts a ticker directly (not just numeric CIKs) and
+        is more complete than either bulk ticker file, so it's used here as a last-resort
+        fallback, not the primary lookup (slower legacy CGI endpoint, atom XML instead of
+        JSON, not intended for bulk traffic - only worth the cost after the fast bulk-file
+        lookup and dash-fallback both miss). Kept to a small retry budget (unlike
+        _refresh_ticker_cache's 8 retries, which amortizes over a 24h-cached bulk fetch) so a
+        run hitting many unresolvable symbols doesn't balloon runtime. A miss here (no <cik>
+        tag in the response) means the ticker is genuinely unregistered/delisted/non-filing -
+        returns None, never fabricates a CIK.
+        """
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                if self._rate_limiter:
+                    cast(object, self._rate_limiter).wait()  # type: ignore
+                resp = self._session.get(
+                    BROWSE_EDGAR_URL,
+                    params={
+                        "action": "getcompany",
+                        "CIK": symbol,
+                        "type": "10-K",
+                        "dateb": "",
+                        "owner": "include",
+                        "count": "1",
+                        "output": "atom",
+                    },
+                    timeout=max(self._timeout, 15.0),
+                )
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt < max_retries - 1:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                logger.warning(f"browse-edgar CIK fallback network error for {symbol}: {e}")
+                return None
+
+            if resp.status_code in (429, 403, 502, 503, 504):
+                if attempt < max_retries - 1:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                logger.warning(f"browse-edgar CIK fallback got HTTP {resp.status_code} for {symbol}")
+                return None
+            if resp.status_code != 200:
+                return None
+
+            match = _CIK_TAG_RE.search(resp.text)
+            if not match:
+                return None
+            return match.group(1).zfill(10)
+        return None
+
     def symbol_to_cik(self, symbol: str) -> str:
         """Convert ticker (AAPL) to zero-padded CIK (0000320193).
 
@@ -205,6 +274,17 @@ class TickerCache:
             # remaining dotted tickers are ".R" (rights) suffixes, which genuinely have no
             # separate SEC ticker entry - only retried here, not fabricated.
             cik = self._ticker_cache.get(symbol.upper().replace(".", "-"))
+        if not cik:
+            # FIXED 2026-08-17 (goal: "no SEC data" audit): last-resort browse-edgar fallback
+            # for tickers missing from both SEC bulk ticker files - see
+            # _lookup_via_browse_edgar's docstring for the live-verified scale (AEP/PARA/JHG/
+            # AMWD/KFS/KW/NSA and more). Cache a successful resolution into the in-memory AND
+            # persistent file cache so repeated lookups (this process and others sharing the
+            # file) don't re-hit the slow legacy endpoint every time.
+            cik = self._lookup_via_browse_edgar(symbol)
+            if cik:
+                self._ticker_cache[symbol.upper()] = cik
+                self._save_ticker_cache_to_file()
         if not cik:
             raise ValueError(f"Symbol {symbol} not found in SEC ticker cache")
         return cik

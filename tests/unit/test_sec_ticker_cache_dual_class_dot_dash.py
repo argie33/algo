@@ -36,6 +36,10 @@ class TestDualClassDotDashFallback:
 
     def test_no_dash_variant_raises_same_as_before(self):
         cache = _cache_with({"AAPL": "0000320193"})
+        # The browse-edgar fallback (see test_sec_ticker_cache_browse_edgar_fallback.py) is
+        # network-dependent and covered separately - stub it here so this test stays a fast,
+        # deterministic check of the dot/dash logic alone, not an integration test.
+        cache._lookup_via_browse_edgar = lambda symbol: None
         try:
             cache.symbol_to_cik("XFLH.R")
             raised = False
