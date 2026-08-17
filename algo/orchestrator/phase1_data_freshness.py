@@ -365,11 +365,34 @@ def _validate_dependency_freshness(
                 elif upstream == "earnings_calendar":
                     # earnings_calendar uses updated_at, not date
                     cur.execute("SELECT MAX(updated_at)::date FROM earnings_calendar")
-                elif upstream == "stock_scores":
-                    # stock_scores uses updated_at, not date
-                    cur.execute("SELECT MAX(updated_at)::date FROM stock_scores")
+                elif upstream in (
+                    "stock_scores",
+                    "annual_income_statement",
+                    "annual_balance_sheet",
+                    "sec_segment_info",
+                    "institutional_holdings_13f",
+                    "insider_holdings_sec",
+                    "stability_metrics",
+                    "value_metrics",
+                ):
+                    # FIX (live-confirmed 2026-08-17): the `else` branch below unconditionally
+                    # queried MAX(date), but none of these 6 SEC/financial/metrics tables have
+                    # a `date` column at all (only `updated_at` - confirmed live via
+                    # information_schema) - every real orchestrator run hit
+                    # psycopg2.errors.UndefinedColumn on the very first one
+                    # (annual_income_statement) and, because the aborted transaction was never
+                    # rolled back (see except-block fix below), that ALSO cascaded
+                    # InFailedSqlTransaction onto every other dependency check sharing this
+                    # cursor, for the entire lifetime of this check. Nothing in `failed_deps`
+                    # ever recorded this - the whole "CRITICAL DEPENDENCIES" safety check this
+                    # function exists for was silently a no-op on every single run. value_metrics
+                    # does have a `date` column too, but `updated_at` (when the row was actually
+                    # loaded) matches this function's "was this dependency fresh" purpose - and
+                    # the sibling table_reference_dates/date_column_overrides check further down
+                    # this file already uses updated_at for these exact tables.
+                    cur.execute(f"SELECT MAX(updated_at)::date FROM {upstream}")
                 else:
-                    # Most tables use date column
+                    # Remaining tables use a real date column
                     cur.execute(f"SELECT MAX(date) FROM {upstream}")
 
                 result = cur.fetchone()
@@ -393,6 +416,17 @@ def _validate_dependency_freshness(
                         failed_deps.append(f"{downstream}→{upstream}: marked {status}")
             except Exception as e:
                 logger.warning(f"[PHASE 1] Could not check dependency {upstream}: {e}")
+                # FIX (live-confirmed 2026-08-17): without this, a single failed query (e.g.
+                # the UndefinedColumn bug fixed above) leaves the shared connection in Postgres's
+                # "current transaction is aborted" state, so every subsequent dependency check
+                # in this same loop - unrelated tables entirely - also fails with
+                # InFailedSqlTransaction instead of getting a real answer. Same connection-
+                # poisoning bug class as the load-bearing "rollback() in close() before
+                # returning to pool" rule, just mid-loop instead of at connection-close time.
+                try:
+                    cur.connection.rollback()
+                except Exception as rollback_err:
+                    logger.warning(f"[PHASE 1] Rollback after failed dependency check also failed: {rollback_err}")
 
     if failed_deps:
         error_msg = (
