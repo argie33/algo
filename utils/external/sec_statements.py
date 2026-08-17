@@ -607,6 +607,31 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 end_date = entry.get("end", "")
                 period_year = int(end_date[:4]) if end_date and len(end_date) >= 4 else entry.get("fy")
 
+                # FIXED 2026-08-16: 52/53-week fiscal calendars (common among retail/
+                # industrial filers, e.g. SWK) can end a few days into January instead
+                # of Dec 31 - live-confirmed SWK's real FY2020 10-K reports fy=2020,
+                # start=2019-12-29, end=2021-01-02 (370-day/53-week year, majority of
+                # days in calendar 2020). Bucketing by end-date's bare calendar year put
+                # this in "2021", silently colliding with (and getting overwritten by)
+                # FY2021's own later-filed entry - leaving FY2020 revenue/net_income
+                # NULL (data_unavailable='incomplete_sec_filing_income') despite SEC
+                # having the data all along; live-confirmed via direct DB query this
+                # single mislabeling pattern accounts for a meaningful share of the
+                # ~1,077 historical-year "incomplete_sec_filing" rows. Narrowly scoped
+                # to end dates in the first 10 days of January, so ordinary non-calendar
+                # fiscal years that end well into January/February (e.g. Walmart's Jan
+                # 31) or other months (e.g. Apple's Sep 30) are untouched - only the
+                # narrow year-end-crosses-Jan-1 case is affected. entry['fy'] is trusted
+                # here specifically because in this window it's the filing's own current-
+                # period label, not a comparative-year figure (see comment above) - only
+                # applied when it actually points one year earlier than the naive
+                # end-date bucket, so a filer that genuinely intends the end-year label
+                # is left alone.
+                if period == "annual" and end_date and len(end_date) >= 10 and end_date[5:10] <= "01-10":
+                    fy = entry.get("fy")
+                    if isinstance(fy, int) and fy == period_year - 1:
+                        period_year = fy
+
                 key = (
                     period_year,
                     fp if period == "quarterly" else "FY",
