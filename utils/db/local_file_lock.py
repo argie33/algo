@@ -208,6 +208,38 @@ class FileLockManager:
             logger.warning(f"[FILE_LOCK] cleanup_expired_locks failed: {e}")
             return 0
 
+    def is_locked(self, lock_key: str) -> bool:
+        """Read-only check: is lock_key currently held by a live (non-expired) lock?
+
+        Never creates, modifies, or deletes anything - safe to call from a caller that just
+        wants to know whether to bother attempting its own acquire(). Mirrors the same
+        content-based validity check acquire() uses internally (see its lock_is_valid logic)
+        so this can't drift out of sync with what acquire() would actually decide.
+
+        ADDED 2026-08-17: phase1_failsafe_retry.py's in-process loader retries had no way to
+        tell a table was already being loaded by a concurrently-running scheduler pipeline
+        before attempting its own redundant retry - live-confirmed this caused current_reports_8k
+        to crash with LockAcquisitionError and forced an operator to manually kill a duplicate
+        dividend_data load that was racing the in-flight `reference` pipeline (see that
+        function's own retry-loop comment). This lets it skip instead of colliding.
+        """
+        lock_file = self.lock_dir / f"{lock_key}.lock"
+        try:
+            with open(lock_file, encoding="utf-8") as f:
+                content = f.read().strip()
+            parts = content.split("|")
+            if len(parts) < 2:
+                return False
+            expiry = datetime.fromisoformat(parts[1])
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            return datetime.now(timezone.utc) < expiry
+        except FileNotFoundError:
+            return False
+        except Exception as e:
+            logger.debug(f"[FILE_LOCK] is_locked: could not parse {lock_file.name}, assuming unlocked: {e}")
+            return False
+
     def acquire(self, lock_key: str = "orchestrator-run-lock", timeout_seconds: int = 5) -> bool:
         """Acquire file-based lock using atomic file creation.
 

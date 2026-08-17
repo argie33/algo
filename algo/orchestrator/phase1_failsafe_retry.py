@@ -774,6 +774,37 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # Run each loader (FAILED or stale) locally
         for table_name, loader_key, age_in_days in all_loaders_to_retry:
             try:
+                # BUG FOUND 2026-08-17: this retry loop had no way to tell that table_name was
+                # already being loaded by a concurrently-running scheduler pipeline (e.g.
+                # `reference`) before starting its own in-process retry - the SESSION 94 comment
+                # above claims running in-process "eliminates file lock contention", but
+                # loader.run() still acquires the exact same FileLockManager per-table lock
+                # either way, it just no longer spawns a new OS process to do it. Live-confirmed
+                # 2026-08-17: current_reports_8k crashed with LockAcquisitionError from this
+                # exact collision, and a separate redundant dividend_data retry had to be
+                # force-killed by an operator mid-load for the same reason (see MEMORY.md
+                # scheduler_stale_lock_sweep_stole_active_locks_20260817). is_locked() is a
+                # read-only peek (never acquires/mutates) - skip this pass's retry if another
+                # process already holds the lock; the next Phase 1 pass will re-check once it's
+                # released, and the process already holding it makes this retry redundant anyway.
+                try:
+                    from utils.db.local_file_lock import get_lock_manager
+
+                    peek_lock_manager = get_lock_manager(table_name=table_name, enable_auto_cleanup=False)
+                    if hasattr(peek_lock_manager, "is_locked") and peek_lock_manager.is_locked(table_name):
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: already locked by another "
+                            f"active process (likely a concurrently-running scheduler pipeline). Not "
+                            f"retrying redundantly - will re-check next pass."
+                        )
+                        results["still_failing"].append(table_name)
+                        continue
+                except Exception as lock_peek_err:
+                    logger.debug(
+                        f"[PHASE 1 FAILSAFE LOCAL] Could not check lock state for {table_name} "
+                        f"(non-fatal, proceeding with retry): {lock_peek_err}"
+                    )
+
                 if age_in_days == 0 and table_name in failed_loaders_to_retry:
                     logger.info(f"[PHASE 1 FAILSAFE LOCAL] Retrying FAILED loader: {table_name}")
                 else:
