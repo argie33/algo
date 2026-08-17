@@ -22,6 +22,7 @@ from typing import IO
 
 from loaders.loader_registry import all_tables, normalize_loader_name
 from utils.db.context import DatabaseContext
+from utils.db.local_file_lock import FileLockManager
 from utils.dotenv_loader import load_env_local
 from utils.loaders.status_manager import LoaderStatusManager, reap_stale_running_loaders
 
@@ -518,6 +519,36 @@ def _check_loader_dependencies(loader: str, completed_loaders: set[str], run_sco
     return True
 
 
+def _cleanup_stale_lock_files() -> None:
+    """Auto-cleanup stale lock files before running loaders (SESSION 103 FIX).
+
+    Hung/crashed loaders don't delete their locks, causing subsequent invocations to block
+    indefinitely.
+
+    BUG FIX (2026-08-17): SESSION 108's flat 5-minute file-age threshold reimplemented, in a
+    second unpatched location, the exact bug already fixed once in
+    utils/db/local_file_lock.py's FileLockManager (see that file's _cleanup_expired_locks
+    docstring, commit 676c6c949): per-loader lock TTLs derive from real SLA timeouts (up to
+    1440min for prices, 540min for company_info_sec - loaders/loader_timeout_config.py), so
+    any lock older than 5 minutes but still legitimately held had it stolen out from under
+    the live loader. Live-caught 2026-08-17: this exact sweep, run unconditionally on every
+    pipeline startup, deleted sec_segment_info.lock/current_reports_8k.lock/
+    dividend_data.lock/insider_transaction_velocity.lock out from under the `reference`
+    pipeline (PID 29036) while it was actively writing sec_segment_info - a `signals`
+    pipeline startup has no business touching `reference`'s locks at all, since the two now
+    run concurrently under separate scheduler locks (see _lock_paths_for_pipeline). Fix:
+    delegate to FileLockManager.cleanup_expired_locks(), which checks each lock's own
+    recorded expiry first and only falls back to file age for locks whose content can't be
+    parsed - instead of a third from-scratch reimplementation of the same cleanup logic.
+    """
+    try:
+        deleted_count = FileLockManager(enable_auto_cleanup=False).cleanup_expired_locks()
+        if deleted_count:
+            print(f"[LOCAL_SCHEDULER] Cleaned {deleted_count} expired lock file(s) (content-based TTL)")
+    except Exception as e:
+        print(f"[LOCAL_SCHEDULER] WARNING: Could not clean stale locks: {e}", file=sys.stderr)
+
+
 def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> int:  # noqa: C901
     """Run all loaders for a given pipeline.
 
@@ -560,30 +591,7 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
     if reaped:
         print(f"[LOCAL_SCHEDULER] Reaped {len(reaped)} stale RUNNING loader(s): {', '.join(reaped)}")
 
-    # SESSION 103 FIX: Auto-cleanup stale lock files before running loaders
-    # Hung/crashed loaders don't delete their locks, causing subsequent invocations to block
-    # indefinitely. SESSION 108 FIX: Reduce threshold from 30 min to 5 min - most loaders
-    # complete in <5 min, so any lock older than 5 min is from a crashed/stuck process.
-    try:
-        import time as time_module
-
-        lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
-        if lock_dir.exists():
-            stale_lock_threshold_seconds = 5 * 60  # SESSION 108: 5 minutes (was 30)
-            now = time_module.time()
-            cleaned_locks = []
-            for lock_file in lock_dir.glob("*.lock"):
-                lock_age_seconds = now - lock_file.stat().st_mtime
-                if lock_age_seconds > stale_lock_threshold_seconds:
-                    lock_file.unlink()
-                    cleaned_locks.append(lock_file.name)
-            if cleaned_locks:
-                print(
-                    f"[LOCAL_SCHEDULER] Cleaned {len(cleaned_locks)} stale lock file(s): {', '.join(cleaned_locks)} "
-                    f"(older than 5 min)"
-                )
-    except Exception as e:
-        print(f"[LOCAL_SCHEDULER] WARNING: Could not clean stale locks: {e}", file=sys.stderr)
+    _cleanup_stale_lock_files()
 
     repo_root = Path(__file__).parent.parent
     completed_loaders: set[str] = set()  # Track completed loaders for dependency checking
