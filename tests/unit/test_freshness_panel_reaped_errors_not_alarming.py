@@ -51,23 +51,26 @@ def test_reaped_only_errors_are_labeled_self_healing_not_red_alert():
 
 def test_genuine_errors_still_shown_prominently():
     items = [{"tbl": "price_daily", "st": "ok", "role": "CRIT", "age_hours": 1, "row_count": 100}]
-    hlth_dict = _hlth_dict(loaders_with_errors=2, total_failures=5, genuine=2, reaped_only=0)
+    hlth_dict = _hlth_dict(loaders_with_errors=2, total_failures=2, genuine=2, reaped_only=0)
 
     panel = _build_freshness_panel(items, ready_to_trade=True, hlth_dict=hlth_dict)
     text = _flatten(render_panel_to_text(panel))
 
-    assert "2 loader(s) with errors (5 total)" in text
+    assert "2 loader(s) with errors (2 total)" in text
     assert "self-healing" not in text
 
 
 def test_mixed_genuine_and_reaped_shows_both():
+    """total_loader_failures is a loader COUNT (see BUG FOUND 2026-08-17 in market.py), so it
+    must always equal genuine + reaped_only - pinning that reconciliation here, not just the
+    two halves separately."""
     items = [{"tbl": "price_daily", "st": "ok", "role": "CRIT", "age_hours": 1, "row_count": 100}]
-    hlth_dict = _hlth_dict(loaders_with_errors=5, total_failures=6, genuine=1, reaped_only=4)
+    hlth_dict = _hlth_dict(loaders_with_errors=5, total_failures=5, genuine=1, reaped_only=4)
 
     panel = _build_freshness_panel(items, ready_to_trade=True, hlth_dict=hlth_dict)
     text = _flatten(render_panel_to_text(panel))
 
-    assert "1 loader(s) with errors (6 total)" in text
+    assert "1 loader(s) with errors (5 total)" in text
     assert "4 reaped, self-healing" in text
 
 

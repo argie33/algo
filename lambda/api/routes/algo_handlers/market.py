@@ -1020,7 +1020,16 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             if _is_reaped_artifact(r.get("error_message"))
         ]
         genuine_errors = len(loaders_with_errors) - len(reaped_only)
-        total_failure_count = sum(r[0] for r in loaders_with_errors)
+        # BUG FOUND 2026-08-17: this used to be sum(r[0] for r in loaders_with_errors) - a sum
+        # of each loader's consecutive_failures streak, not a count of loaders. The dashboard
+        # displays it right next to loaders_with_errors_genuine/_reaped_only (both loader
+        # counts) as "N loader(s) with errors (TOTAL total) (M reaped, self-healing)", which
+        # reads as TOTAL == N + M. Whenever any single loader's consecutive_failures streak was
+        # >1, the sum inflated past N+M with no way for the reader to tell "more distinct
+        # loaders are broken" from "the same loaders failed repeatedly" - live-caught as
+        # "1 loader(s) with errors (10 total) ... 8 reaped" (1+8=9, not 10). Now a loader count
+        # like its siblings, so the three numbers on that line always reconcile.
+        total_failure_count = len(loaders_with_errors)
         summary["loaders_with_errors"] = len(loaders_with_errors)
         summary["total_loader_failures"] = int(total_failure_count)
         summary["loaders_with_errors_genuine"] = genuine_errors
