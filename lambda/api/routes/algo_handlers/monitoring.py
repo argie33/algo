@@ -93,6 +93,20 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 # FIXED Issue #6: Orchestrator execution history endpoints
 
 
+def _normalize_run_timestamps(run_dict: dict[str, Any], naive_tz: Any) -> None:
+    """In-place: stamp started_at/completed_at UTC-aware before serialization.
+
+    Both columns are naive `timestamp without time zone` written in the DB session's
+    local wall-clock (see normalize_to_utc_datetime's docstring) - left naive,
+    safe_json_serialize() emits an offset-less ISO string that dashboard/
+    formatter_strategies.py's DataAgeFormatter then has to guess a zone for.
+    """
+    for ts_field in ("started_at", "completed_at"):
+        normalized = normalize_to_utc_datetime(run_dict.get(ts_field), naive_tz)
+        if isinstance(normalized, datetime):
+            run_dict[ts_field] = normalized
+
+
 @db_route_handler("get last run")
 @validate_api_response("run")
 def _get_last_run(cur: cursor) -> Any:
@@ -111,7 +125,18 @@ def _get_last_run(cur: cursor) -> Any:
     if latest is None:
         return error_response(503, "no_data", "No orchestrator run data available yet")
 
-    latest_dict = safe_json_serialize(safe_dict_convert(latest))
+    # BUG FIX 2026-08-17: started_at/completed_at are naive `timestamp without time
+    # zone` columns written in the DB session's local wall-clock (UTC here, see
+    # normalize_to_utc_datetime's docstring), not automatically UTC. Serializing them
+    # via safe_json_serialize() below with no tzinfo emits an offset-less ISO string -
+    # dashboard/formatter_strategies.py's DataAgeFormatter then has to guess a zone for
+    # it and assumes Eastern, silently mislabeling this run's actual age (live-observed:
+    # a run 39min old rendered as "-202m ago" once ET was wrongly stamped on a UTC
+    # value). Normalize to UTC-aware before serialization, same pattern already used
+    # for data_loader_status timestamps below (naive_tz = get_db_timezone()).
+    raw_dict = safe_dict_convert(latest)
+    _normalize_run_timestamps(raw_dict, get_db_timezone())
+    latest_dict = safe_json_serialize(raw_dict)
 
     # Validate required fields exist in orchestrator run record
     required_fields = ["run_id", "overall_status", "started_at"]
@@ -227,6 +252,10 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
     - trend_summary: Overall health trend (improving/degrading/stable)
     """
     limit = safe_limit(extract_param(params, "limit"), max_val=50, default=20)
+    # Resolved once, reused for every naive timestamp column read below (algo_orchestrator_runs
+    # AND data_loader_status both use `timestamp without time zone` written in this same DB
+    # session's local wall-clock - see normalize_to_utc_datetime's docstring).
+    naive_tz = get_db_timezone()
 
     try:
         # 1. Get recent run history (last N runs)
@@ -256,6 +285,9 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
             # row and keep serving the rest instead of failing the whole response.
             try:
                 run_dict = safe_dict_convert(row)
+                # Same offset-less-string bug as _get_last_run above: normalize before
+                # safe_json_serialize() stringifies these, not after.
+                _normalize_run_timestamps(run_dict, naive_tz)
                 row_data = safe_json_serialize(run_dict)
 
                 # Parse phase results
@@ -385,11 +417,8 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         #
         # execution_started is a naive timestamp written in the DB session's local
         # wall-clock, not UTC (utils/bulk_insert_manager.py's convention - see
-        # normalize_to_utc_datetime's docstring) - resolved once here, same pattern as
-        # market.py's _get_data_status, so the RUNNING-elapsed-time check below isn't off
-        # by the session's UTC offset.
-        naive_tz = get_db_timezone()
-
+        # normalize_to_utc_datetime's docstring) - `naive_tz` resolved once at the top
+        # of this function, reused here for the RUNNING-elapsed-time check below.
         cur.execute("""
             SELECT table_name, status, consecutive_failures, retry_count, last_success_at,
                    execution_started, execution_completed, completion_pct

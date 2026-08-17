@@ -97,6 +97,46 @@ class TestAgeFormatting:
         assert result is not None
 
 
+class TestDataAgeFormatterUtcNotEastern:
+    """Regression: naive DB timestamps are UTC (SHOW timezone), not Eastern.
+
+    BUG (live-observed 2026-08-17): DataAgeFormatter used to stamp tzinfo=ET onto any
+    naive datetime before diffing against datetime.now(ET). Orchestrator run timestamps
+    (algo_orchestrator_runs.started_at) are naive UTC once they cross the API boundary
+    (offset-less ISO string). Mislabeling a UTC value as ET shifted the computed age by
+    the ET/UTC offset (4-5h) - a run started 39 minutes ago rendered as "-202m ago" in
+    the dashboard's orchestrator-run panel.
+    """
+
+    def test_recent_naive_utc_iso_string_reads_as_minutes_not_negative(self):
+        from datetime import timedelta, timezone
+
+        from dashboard.formatter_strategies import DataAgeFormatter
+
+        # Naive ISO string as it actually arrives from the API - no offset suffix,
+        # representing a timestamp 5 minutes ago in real UTC.
+        naive_utc_5min_ago = (datetime.now(timezone.utc) - timedelta(minutes=5)).replace(tzinfo=None).isoformat()
+
+        result = DataAgeFormatter().format(naive_utc_5min_ago)
+
+        assert result != "--"
+        assert "-" not in result, f"age must never render negative, got {result!r}"
+        assert result.startswith(("4m", "5m", "6m"))
+
+    def test_negative_elapsed_clamps_to_zero_not_shown_negative(self):
+        from datetime import timedelta, timezone
+
+        from dashboard.formatter_strategies import DataAgeFormatter
+
+        # A naive timestamp that's actually in the future relative to now (clock skew
+        # or bad upstream data) must never render as e.g. "-202m ago".
+        future_naive = (datetime.now(timezone.utc) + timedelta(hours=4)).replace(tzinfo=None)
+
+        result = DataAgeFormatter().format(future_naive)
+
+        assert "-" not in result
+
+
 class TestSignFormatting:
     """Test sign formatting for positive/negative."""
 

@@ -5,11 +5,9 @@ Each formatter handles a specific formatting task independently.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
-
-from .utilities import ET
 
 
 class FormatterStrategy(ABC):
@@ -110,15 +108,26 @@ class DataAgeFormatter(FormatterStrategy):
                 return "--"
 
         if isinstance(ts, datetime):
+            # BUG FIX 2026-08-17: naive timestamps here come from DB columns
+            # (`timestamp without time zone`), and this DB's session timezone is UTC
+            # (confirmed via SHOW timezone) - not Eastern. Assuming ET silently shifted
+            # every age by the ET/UTC offset (4-5h) and could go negative when a
+            # recent UTC timestamp got read as if it were that many hours in the
+            # future ET (live-observed: a run 39min old rendered as "-202m ago").
             if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=ET)
+                ts = ts.replace(tzinfo=timezone.utc)
         else:
             return "--"
 
         try:
-            m = int((datetime.now(ET) - ts).total_seconds() / 60)
+            m = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
         except (TypeError, ValueError):
             return "--"
+
+        # Defensive floor: a still-negative value here means the source timestamp is
+        # ahead of "now" (clock skew or bad upstream data), not that this formatter
+        # should ever display a negative age.
+        m = max(m, 0)
 
         if m < 60:
             return f"{m}m ago"
