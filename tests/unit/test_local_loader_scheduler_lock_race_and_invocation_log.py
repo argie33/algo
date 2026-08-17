@@ -30,7 +30,10 @@ since-cleaned-up tmp_path would leak into every later test in the same pytest pr
 import importlib.util
 import io
 import os
+import subprocess
 import sys
+import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
@@ -336,6 +339,134 @@ class TestWaiterSlotDedup:
         # This process's own slot claim must have failed rather than overwriting the
         # existing live waiter's marker.
         assert f"pid={os.getpid()}" in waiter_marker.read_text()
+
+
+class TestLockQueueFifoFairness:
+    """Unit tests for the FIFO ticket queue (_register_queue_ticket/_unregister_queue_ticket/
+    _is_next_in_queue) added 2026-08-17 to fix a real starvation bug: acquisition used to be
+    pure timing luck across different pipeline names sharing the shared lock, so a
+    later-arriving pipeline could win a just-released lock ahead of one that had already been
+    waiting for many minutes. See TestSchedulerLockFifoFairnessAcrossPipelines below for the
+    end-to-end reproduction."""
+
+    def test_is_next_in_queue_true_when_queue_file_missing(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+
+        assert module._is_next_in_queue(queue_path, os.getpid()) is True
+
+    def test_is_next_in_queue_true_when_only_entry_is_self(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+        module._register_queue_ticket(queue_path, "metrics")
+
+        assert module._is_next_in_queue(queue_path, os.getpid()) is True
+
+    def test_is_next_in_queue_false_when_live_other_pid_is_ahead(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        try:
+            queue_path.write_text(f"pid={other.pid} pipeline=morning\n")
+
+            assert module._is_next_in_queue(queue_path, os.getpid()) is False
+
+            # Registering behind it must not change that - we're still not first.
+            module._register_queue_ticket(queue_path, "signals")
+            assert module._is_next_in_queue(queue_path, os.getpid()) is False
+        finally:
+            other.kill()
+            other.wait(timeout=5)
+
+    def test_is_next_in_queue_prunes_dead_entry_and_promotes_next_live_one(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+        # A crashed waiter that never called _unregister_queue_ticket, astronomically
+        # unlikely to be a real live PID, ahead of our own (guaranteed-alive) entry.
+        queue_path.write_text(f"pid=999999999 pipeline=morning\npid={os.getpid()} pipeline=signals\n")
+
+        assert module._is_next_in_queue(queue_path, os.getpid()) is True
+        assert "999999999" not in queue_path.read_text()
+
+    def test_unregister_removes_only_the_matching_pid(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+        queue_path.write_text("pid=111 pipeline=morning\npid=222 pipeline=signals\n")
+
+        module._unregister_queue_ticket(queue_path, 111)
+
+        remaining = queue_path.read_text()
+        assert "pid=111" not in remaining
+        assert "pid=222" in remaining
+
+    def test_unregister_last_entry_removes_the_queue_file(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+        module._register_queue_ticket(queue_path, "metrics")
+
+        module._unregister_queue_ticket(queue_path, os.getpid())
+
+        assert not queue_path.exists()
+
+
+class TestSchedulerLockFifoFairnessAcrossPipelines:
+    """End-to-end reproduction of the live 2026-08-17 race: 'morning' had been queued for
+    the shared lock since before 'metrics' released it, but 'signals' - which only started
+    seconds before the release - won the lock anyway, because acquisition had no ordering
+    guarantee across different pipeline names, just whoever's poll tick landed first. Fixed
+    via the FIFO ticket queue: a late arrival may never even attempt _try_acquire_lock while
+    an earlier-queued pipeline is still waiting."""
+
+    def test_late_arrival_never_attempts_acquire_while_earlier_waiter_is_queued(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        lock_path = tmp_path / "algo-scheduler.lock"
+        queue_path = tmp_path / "algo-scheduler.lock.queue"
+
+        # A real, alive process stands in for 'morning', already queued (ticket registered)
+        # well before 'signals' shows up - exactly what _acquire_scheduler_lock itself would
+        # have written after morning's own first failed acquire attempt.
+        morning_stub = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        try:
+            queue_path.write_text(f"pid={morning_stub.pid} pipeline=morning\n")
+            # Lock is actually free (as if 'metrics' just released it) - the bug was that a
+            # free lock let a late arrival win regardless of who else was already queued.
+            assert not lock_path.exists()
+
+            attempts_while_morning_queued = {"n": 0}
+            real_try_acquire = module._try_acquire_lock
+
+            def _tracking_try_acquire(lock: Path, name: str) -> bool:
+                if queue_path.exists():
+                    attempts_while_morning_queued["n"] += 1
+                return bool(real_try_acquire(lock, name))
+
+            result_holder: dict[str, object] = {}
+
+            def _run() -> None:
+                result_holder["result"] = module._acquire_scheduler_lock(lock_path, "signals")
+
+            with (
+                patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
+                patch.object(module, "_try_acquire_lock", side_effect=_tracking_try_acquire),
+                patch.object(module, "LOCK_POLL_INTERVAL_SECONDS", 0.05),
+            ):
+                t = threading.Thread(target=_run, daemon=True)
+                t.start()
+                time.sleep(0.3)  # let 'signals' poll repeatedly while morning is still queued
+                # 'morning' wins the lock and starts running - clears its own ticket.
+                queue_path.unlink()
+                morning_stub.kill()
+                morning_stub.wait(timeout=5)
+                t.join(timeout=10)
+
+            assert not t.is_alive()
+            assert attempts_while_morning_queued["n"] == 0
+            assert result_holder["result"] is None
+            assert lock_path.exists()  # 'signals' acquired it only once morning cleared out
+        finally:
+            if morning_stub.poll() is None:
+                morning_stub.kill()
+                morning_stub.wait(timeout=5)
 
 
 class TestSchedulerInvocationIsDurablyLogged:

@@ -1294,6 +1294,85 @@ def _release_waiter_slot(pipeline_name: str) -> None:
         pass
 
 
+def _queue_path_for_lock(scheduler_lock: Path) -> Path:
+    return Path(str(scheduler_lock) + ".queue")
+
+
+def _register_queue_ticket(queue_path: Path, pipeline_name: str) -> None:
+    """Append this process to the FIFO queue for a lock. Atomic (O_APPEND is a single
+    kernel-level write for a line this short), so concurrent registrants can't interleave
+    into a corrupt line - see _acquire_scheduler_lock for why ordering matters here."""
+    try:
+        fd = os.open(str(queue_path), os.O_CREAT | os.O_APPEND | os.O_WRONLY)
+        os.write(fd, f"pid={os.getpid()} pipeline={pipeline_name}\n".encode())
+        os.close(fd)
+    except OSError as e:
+        print(f"[LOCAL_SCHEDULER] WARNING: could not register queue ticket: {e}", file=sys.stderr)
+
+
+def _unregister_queue_ticket(queue_path: Path, pid: int) -> None:
+    try:
+        lines = queue_path.read_text().splitlines()
+    except (FileNotFoundError, OSError):
+        return
+    remaining = [line for line in lines if f"pid={pid} " not in line + " "]
+    try:
+        if remaining:
+            queue_path.write_text("\n".join(remaining) + "\n")
+        else:
+            queue_path.unlink()
+    except (FileNotFoundError, OSError):
+        pass
+
+
+def _is_next_in_queue(queue_path: Path, pid: int) -> bool:
+    """True if no other live-pid ticket is ahead of `pid` in this lock's FIFO queue.
+
+    ROOT-CAUSE FIX 2026-08-17: _try_acquire_lock's os.open(O_CREAT|O_EXCL) is atomic, but
+    WHO gets to attempt it every poll tick was pure luck of timing - live-observed:
+    "morning" queued for the shared lock at 16:01 UTC (waiting on a long "metrics" run),
+    but "signals" started fresh at 16:16:30 UTC, the exact instant "metrics" released the
+    lock, and its very first (unqueued) acquire attempt won before "morning"'s next 60s
+    poll tick ever fired - a process that had been waiting 15+ minutes lost to one that had
+    been alive for 2 seconds. This makes acquisition FIFO: a process may only attempt
+    _try_acquire_lock if it is first in line (or the queue is empty/only contains itself),
+    so a late arrival can never race a lock's release against an existing waiter.
+
+    Also prunes dead-pid entries opportunistically (crashed waiters never got to call
+    _unregister_queue_ticket), so the queue can't accumulate stale entries forever.
+    """
+    try:
+        lines = queue_path.read_text().splitlines()
+    except (FileNotFoundError, OSError):
+        return True  # No queue at all - nobody is ahead of us.
+
+    live_entries: list[tuple[int, str]] = []
+    for line in lines:
+        entry_pid = None
+        for token in line.split():
+            if token.startswith("pid="):
+                try:
+                    entry_pid = int(token.split("=", 1)[1])
+                except ValueError:
+                    pass
+        if entry_pid is not None and (entry_pid == pid or _pid_alive(entry_pid)):
+            live_entries.append((entry_pid, line))
+
+    if len(live_entries) != len(lines):
+        # Some dead-pid entries were dropped - persist the pruned queue.
+        try:
+            if live_entries:
+                queue_path.write_text("\n".join(line for _pid, line in live_entries) + "\n")
+            else:
+                queue_path.unlink()
+        except (FileNotFoundError, OSError):
+            pass
+
+    if not live_entries:
+        return True
+    return live_entries[0][0] == pid
+
+
 def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | None:
     """Acquire the scheduler lock, checking owner liveness before reclaiming or rejecting.
 
@@ -1309,15 +1388,21 @@ def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | N
 
     Only one process waits for a given pipeline_name at a time (see _try_claim_waiter_slot) -
     a second concurrent request for the same pipeline exits immediately instead of piling on.
+    Across DIFFERENT pipeline names sharing this lock (morning/metrics/signals), acquisition
+    is FIFO by arrival order (see _is_next_in_queue) - a later arrival can never race an
+    existing waiter for a just-released lock.
 
     Returns None on success (lock held by us), or an exit code (1) if acquisition failed.
     """
+    queue_path = _queue_path_for_lock(scheduler_lock)
+    pid = os.getpid()
     waited = 0.0
     announced_wait = False
     claimed_waiter_slot = False
+    registered_ticket = False
     try:
         while True:
-            if _try_acquire_lock(scheduler_lock, pipeline_name):
+            if _is_next_in_queue(queue_path, pid) and _try_acquire_lock(scheduler_lock, pipeline_name):
                 return None
 
             if not claimed_waiter_slot:
@@ -1331,6 +1416,10 @@ def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | N
                     )
                     return 1
                 claimed_waiter_slot = True
+
+            if not registered_ticket:
+                _register_queue_ticket(queue_path, pipeline_name)
+                registered_ticket = True
 
             # Lock is held (or was, a moment ago) - check liveness first, then staleness age.
             owner_info = _lock_owner_info(scheduler_lock)
@@ -1364,7 +1453,7 @@ def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | N
                     print(f"[LOCAL_SCHEDULER] Cleaned stale scheduler lock (age: {lock_age:.0f}s, owner: {owner_info})")
                 except FileNotFoundError:
                     pass
-                if _try_acquire_lock(scheduler_lock, pipeline_name):
+                if _is_next_in_queue(queue_path, pid) and _try_acquire_lock(scheduler_lock, pipeline_name):
                     return None
                 continue
 
@@ -1397,6 +1486,8 @@ def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | N
     finally:
         if claimed_waiter_slot:
             _release_waiter_slot(pipeline_name)
+        if registered_ticket:
+            _unregister_queue_ticket(queue_path, pid)
 
 
 def _lock_paths_for_pipeline(pipeline_name: str) -> list[Path]:
