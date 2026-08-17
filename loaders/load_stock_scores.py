@@ -336,9 +336,12 @@ class StockScoresLoader(OptimalLoader):
             # (migration 1191 backfilled ev_ebitda/ev_revenue/forward_pe onto sec_valuations,
             # copied into value_metrics by load_value_quality_growth_metrics.py) but never
             # read here before - zero influence on value_score.
+            # margin_of_safety_pct added: DCF-based "discount to intrinsic value" (Value
+            # factor goal, 2026-08-17) - computed by load_sec_valuations.py, copied onto
+            # value_metrics by load_value_quality_growth_metrics.py, migration 1208.
             cur.execute(
                 "SELECT symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, "
-                "forward_pe, ev_ebitda, ev_revenue, data_unavailable FROM value_metrics"
+                "forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct, data_unavailable FROM value_metrics"
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -1000,13 +1003,14 @@ class StockScoresLoader(OptimalLoader):
         """
         row = self._value_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 10 columns before accessing indices
-            if len(row) < 10:
+            # CRITICAL: Validate row has expected 11 columns before accessing indices
+            # (10 + margin_of_safety_pct added for the DCF Value factor goal, 2026-08-17)
+            if len(row) < 11:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 10. "
+                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 11. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[9]
+            data_unavailable = row[10]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1025,6 +1029,7 @@ class StockScoresLoader(OptimalLoader):
                 "forward_pe": safe_float(row[6], f"{symbol}.forward_pe", allow_none=True),
                 "ev_ebitda": safe_float(row[7], f"{symbol}.ev_ebitda", allow_none=True),
                 "ev_revenue": safe_float(row[8], f"{symbol}.ev_revenue", allow_none=True),
+                "margin_of_safety_pct": safe_float(row[9], f"{symbol}.margin_of_safety_pct", allow_none=True),
             }
         # No row exists at all
         logger.warning(
@@ -1548,8 +1553,9 @@ class StockScoresLoader(OptimalLoader):
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + PEG (15%) + FCF yield (12%)
-        + Dividend yield (8%). Peak zone for growth stocks: P/E 15-30, P/B < 5, PEG < 1-2,
-        positive FCF yield.
+        + Dividend yield (8%) + Forward P/E (15%) + EV/EBITDA (12%) + EV/Revenue (10%) +
+        Margin of Safety / DCF discount to intrinsic value (20%). Peak zone for growth
+        stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
@@ -1700,6 +1706,25 @@ class StockScoresLoader(OptimalLoader):
                 evr_score = max(0, 30 - (evr - 15.0) * 1.5)
             weighted_sum += evr_score * 0.10
             total_weight += 0.10
+
+        # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
+        # migration 1208) - positive means the stock trades below its DCF intrinsic value
+        # (undervalued), negative means above (overvalued). Unlike every other field in this
+        # function, a legitimate value can be negative (a real, meaningful "overvalued"
+        # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
+        # drop this input instead of being correctly scored low.
+        if metrics.get("margin_of_safety_pct") is not None:
+            mos = metrics["margin_of_safety_pct"]
+            if mos >= 50:
+                mos_score = 100
+            elif mos >= 0:
+                mos_score = 60 + mos * 0.8  # 0% -> 60, 50% -> 100
+            elif mos >= -50:
+                mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
+            else:
+                mos_score = 0
+            weighted_sum += mos_score * 0.20
+            total_weight += 0.20
 
         if total_weight > 0:
             return weighted_sum / total_weight

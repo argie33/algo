@@ -242,7 +242,8 @@ def handle(  # noqa: C901
                     ROUND(((mm.market_median_pe - vm.pe_ratio)
                            / NULLIF(mm.market_median_pe, 0) * 100)::numeric,
                           2) AS discount_vs_market_pe_pct,
-                    ROUND((lp.current_price / NULLIF(vm.pb_ratio, 0))::numeric, 2) AS intrinsic_value_per_share,
+                    vm.intrinsic_value_per_share AS intrinsic_value_per_share,
+                    vm.margin_of_safety_pct AS margin_of_safety_pct,
                     ROUND(gm.revenue_growth_3y::numeric, 2) AS revenue_growth_3y_pct,
                     ROUND(gm.eps_growth_3y::numeric, 2) AS eps_growth_3y_pct,
                     ROUND(gm.revenue_growth_1y::numeric, 2) AS revenue_growth_yoy_pct,

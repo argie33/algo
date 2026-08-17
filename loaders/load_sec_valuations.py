@@ -502,6 +502,70 @@ class SecValuationsLoader(OptimalLoader):
             marker = handle_exception(symbol, e, "computing valuations")
             return [marker]
 
+    # DCF constants (migration 1208, Value factor goal 2026-08-17)
+    DCF_DISCOUNT_RATE = 0.10
+    DCF_TERMINAL_GROWTH_RATE = 0.025
+    DCF_GROWTH_FLOOR = -0.10
+    DCF_GROWTH_CEILING = 0.15
+    DCF_FORECAST_YEARS = 5
+    MAX_INTRINSIC_VALUE_PER_SHARE = 1_000_000.0  # $1M/share - no real per-share DCF exceeds this
+
+    def _compute_dcf_intrinsic_value(
+        self,
+        symbol: str,
+        fcf: float | None,
+        eps_growth_pct: float | None,
+        shares_out: float | None,
+        current_price: float | None,
+    ) -> tuple[float | None, float | None]:
+        """Two-stage FCFE DCF: 5-year explicit forecast of `fcf` grown at `eps_growth_pct`
+        (clamped to [DCF_GROWTH_FLOOR, DCF_GROWTH_CEILING]/yr), discounted at
+        DCF_DISCOUNT_RATE, plus a Gordon Growth terminal value at DCF_TERMINAL_GROWTH_RATE,
+        divided by shares_out.
+
+        Returns (intrinsic_value_per_share, margin_of_safety_pct) - both None when fcf/
+        shares_out/current_price aren't usable or the result is implausible. A missing/
+        unusable eps_growth_pct defaults to flat 0%/yr rather than skipping the DCF entirely:
+        FCF, shares, and price are the primary drivers and are independently available even
+        when EPS history isn't (unlike peg_ratio, which requires a positive prior_year_eps to
+        be meaningful at all).
+        """
+        if (
+            fcf is None
+            or fcf <= 0
+            or shares_out is None
+            or shares_out <= 0
+            or current_price is None
+            or current_price <= 0
+        ):
+            return None, None
+
+        growth_rate = 0.0 if eps_growth_pct is None else eps_growth_pct / 100.0
+        growth_rate = max(self.DCF_GROWTH_FLOOR, min(self.DCF_GROWTH_CEILING, growth_rate))
+
+        pv_explicit = 0.0
+        fcf_year = fcf
+        for year in range(1, self.DCF_FORECAST_YEARS + 1):
+            fcf_year = fcf_year * (1 + growth_rate)
+            pv_explicit += fcf_year / ((1 + self.DCF_DISCOUNT_RATE) ** year)
+
+        terminal_value = (fcf_year * (1 + self.DCF_TERMINAL_GROWTH_RATE)) / (
+            self.DCF_DISCOUNT_RATE - self.DCF_TERMINAL_GROWTH_RATE
+        )
+        pv_terminal = terminal_value / ((1 + self.DCF_DISCOUNT_RATE) ** self.DCF_FORECAST_YEARS)
+        intrinsic_per_share = (pv_explicit + pv_terminal) / shares_out
+
+        if not (0 < intrinsic_per_share < self.MAX_INTRINSIC_VALUE_PER_SHARE):
+            logger.debug(f"[{symbol}] DCF intrinsic value implausible ({intrinsic_per_share:.2f}), marking as NULL")
+            return None, None
+
+        margin_of_safety_pct = (intrinsic_per_share - current_price) / intrinsic_per_share * 100
+        if not (-1000 <= margin_of_safety_pct <= 1000):
+            logger.debug(f"[{symbol}] Margin of safety out of bounds ({margin_of_safety_pct:.0f}%), marking as NULL")
+            return round(intrinsic_per_share, 2), None
+
+        return round(intrinsic_per_share, 2), round(margin_of_safety_pct, 2)
+
     def _compute_valuations(  # noqa: C901
         self,
         symbol: str,
@@ -548,6 +612,8 @@ class SecValuationsLoader(OptimalLoader):
             "ev_ebitda": None,
             "ev_revenue": None,
             "forward_pe": None,
+            "intrinsic_value_per_share": None,
+            "margin_of_safety_pct": None,
         }
 
         if current_price <= 0:
@@ -669,6 +735,20 @@ class SecValuationsLoader(OptimalLoader):
             else:
                 logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
 
+        # Intrinsic Value / Margin of Safety: 2-stage FCFE DCF (migration 1208, Value factor
+        # goal 2026-08-17). Reuses the same FCF base (OCF - CapEx) as FCF yield above so this
+        # stays consistent with the other value metrics instead of introducing a second FCF
+        # definition, and the same YoY EPS growth basis peg_ratio uses (see
+        # _compute_dcf_intrinsic_value for why a missing/unusable growth rate defaults to flat
+        # 0%/yr here instead of blocking the DCF the way peg_ratio is blocked).
+        fcf_base = ocf - capex if ocf and capex is not None else None
+        eps_growth_pct = None
+        if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
+            eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100
+        result["intrinsic_value_per_share"], result["margin_of_safety_pct"] = self._compute_dcf_intrinsic_value(
+            symbol, fcf_base, eps_growth_pct, shares_out, current_price
+        )
+
         # Forward PE Ratio removed: Requires external analyst data.
         # Removed per GOVERNANCE.md: no external fallbacks for financial metrics.
         # All metrics computed from SEC audited data only.
@@ -711,6 +791,8 @@ class SecValuationsLoader(OptimalLoader):
             "dividend_yield": None,
             "ev_ebitda": None,
             "ev_revenue": None,
+            "intrinsic_value_per_share": None,
+            "margin_of_safety_pct": None,
         }
 
 
