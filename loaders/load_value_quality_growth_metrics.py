@@ -2306,6 +2306,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         metric_key: str,
         metrics: dict[str, Any],
         failed_metrics: list[str],
+        sign_change_metrics: set[str],
     ) -> None:
         """Compute growth for a single period (nominally 1y, 3y, or 5y).
 
@@ -2318,6 +2319,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         (e.g. a 2-year gap compounded as if it were 1 year).
 
         Sets metrics[metric_key] if computation succeeds; appends metric_key to failed_metrics if it fails.
+        A profit/loss sign flip between the two points (e.g. EPS -5.95 -> 0.35) also adds
+        metric_key to sign_change_metrics - CAGR is mathematically undefined there regardless
+        of how much history exists, which is a different, legitimate condition from having too
+        few data points and must not be reported to the user as "insufficient history" (found
+        2026-08-17: 796 of 1,493 symbols flagged eps_growth_1y "insufficient_history" actually
+        had ample EPS history - this sign-flip case, not a real data gap).
         """
         required_count = offset + 1
         if len(values) < required_count:
@@ -2330,6 +2337,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if actual_years <= 0:
             # Duplicate/out-of-order fiscal_year (restatement) - can't annualize.
             failed_metrics.append(metric_key)
+            return
+
+        if (latest_val > 0 and target_val < 0) or (latest_val < 0 and target_val > 0):
+            failed_metrics.append(metric_key)
+            sign_change_metrics.add(metric_key)
             return
 
         growth = self._cagr(latest_val, target_val, actual_years)
@@ -2380,35 +2392,43 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 continue
 
         failed_metrics: list[str] = []
-        self._compute_period_growth(symbol, revenues, 1, "revenue_growth_1y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, eps_values, 1, "eps_growth_1y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, revenues, 3, "revenue_growth_3y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, eps_values, 3, "eps_growth_3y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, revenues, 5, "revenue_growth_5y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, eps_values, 5, "eps_growth_5y", metrics, failed_metrics)
+        sign_change_metrics: set[str] = set()
+        self._compute_period_growth(
+            symbol, revenues, 1, "revenue_growth_1y", metrics, failed_metrics, sign_change_metrics
+        )
+        self._compute_period_growth(
+            symbol, eps_values, 1, "eps_growth_1y", metrics, failed_metrics, sign_change_metrics
+        )
+        self._compute_period_growth(
+            symbol, revenues, 3, "revenue_growth_3y", metrics, failed_metrics, sign_change_metrics
+        )
+        self._compute_period_growth(
+            symbol, eps_values, 3, "eps_growth_3y", metrics, failed_metrics, sign_change_metrics
+        )
+        self._compute_period_growth(
+            symbol, revenues, 5, "revenue_growth_5y", metrics, failed_metrics, sign_change_metrics
+        )
+        self._compute_period_growth(
+            symbol, eps_values, 5, "eps_growth_5y", metrics, failed_metrics, sign_change_metrics
+        )
 
         if not revenues and not eps_values:
             return self._unavailable_marker("growth_metrics", symbol)
 
+        def _growth_reason(metric_key: str) -> str | None:
+            if metric_key in sign_change_metrics:
+                return "growth_undefined_sign_change"
+            if metric_key in failed_metrics:
+                return "insufficient_history"
+            return None
+
         # Initialize all *_unavailable_reason fields (Session 389)
-        metrics["revenue_growth_1y_unavailable_reason"] = (
-            "insufficient_history" if "revenue_growth_1y" in failed_metrics else None
-        )
-        metrics["revenue_growth_3y_unavailable_reason"] = (
-            "insufficient_history" if "revenue_growth_3y" in failed_metrics else None
-        )
-        metrics["revenue_growth_5y_unavailable_reason"] = (
-            "insufficient_history" if "revenue_growth_5y" in failed_metrics else None
-        )
-        metrics["eps_growth_1y_unavailable_reason"] = (
-            "insufficient_history" if "eps_growth_1y" in failed_metrics else None
-        )
-        metrics["eps_growth_3y_unavailable_reason"] = (
-            "insufficient_history" if "eps_growth_3y" in failed_metrics else None
-        )
-        metrics["eps_growth_5y_unavailable_reason"] = (
-            "insufficient_history" if "eps_growth_5y" in failed_metrics else None
-        )
+        metrics["revenue_growth_1y_unavailable_reason"] = _growth_reason("revenue_growth_1y")
+        metrics["revenue_growth_3y_unavailable_reason"] = _growth_reason("revenue_growth_3y")
+        metrics["revenue_growth_5y_unavailable_reason"] = _growth_reason("revenue_growth_5y")
+        metrics["eps_growth_1y_unavailable_reason"] = _growth_reason("eps_growth_1y")
+        metrics["eps_growth_3y_unavailable_reason"] = _growth_reason("eps_growth_3y")
+        metrics["eps_growth_5y_unavailable_reason"] = _growth_reason("eps_growth_5y")
 
         if failed_metrics:
             if len(failed_metrics) == 6:

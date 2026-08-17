@@ -77,6 +77,7 @@ const formatReasonDisplay = (reason) => {
     insufficient_eps_data: "EPS data missing for recent quarters",
     insufficient_revenue_data: "Revenue data missing for recent quarters",
     insufficient_eps_growth_datapoints: "Not enough EPS comparisons for a trend",
+    growth_undefined_sign_change: "Growth undefined (profit/loss swing)",
   };
   return reasonMap[reason] || reason;
 };
@@ -94,6 +95,7 @@ const reasonTooltips = {
   foreign_20f_filer: "Foreign companies filing 20-F use different XBRL data structure; full metrics extraction limited",
   bank_special_reporting: "Banks and financial institutions use specialized accounting; different metrics apply",
   insufficient_prior_year_data: "This company's prior fiscal year filing doesn't report the comparison figure needed for this trend/growth calculation",
+  growth_undefined_sign_change: "This company's earnings switched between profit and loss across the comparison period - a compound annual growth rate is not mathematically meaningful across a sign change, regardless of how much history is available",
 };
 
 const FACTORS = [
