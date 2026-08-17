@@ -21,6 +21,7 @@ Run:
     python3 loaders/load_positioning_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
 
+import json
 import logging
 import math
 import sys
@@ -354,11 +355,13 @@ class PositioningMetricsLoader(OptimalLoader):
                         else "none"
                     )
                 ),
-                "source_tracking": {
-                    "short_interest": short_interest_source,
-                    "institutional": institutional_source,
-                    "insider": insider_source,
-                },
+                "source_tracking": json.dumps(
+                    {
+                        "short_interest": short_interest_source,
+                        "institutional": institutional_source,
+                        "insider": insider_source,
+                    }
+                ),
                 "updated_at": now_et,
             }
         ]
