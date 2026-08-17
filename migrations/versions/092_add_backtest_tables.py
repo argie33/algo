@@ -22,12 +22,25 @@ def up():
     }
     db_ssl = ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require")
 
+    db_host = os.getenv("DB_HOST")
+    if not db_host:
+        raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
+    db_user = os.getenv("DB_USER")
+    if not db_user:
+        raise ValueError("DB_USER environment variable is required (no 'postgres' fallback for safety)")
+    db_password = os.getenv("DB_PASSWORD")
+    if not db_password:
+        raise ValueError("DB_PASSWORD environment variable is required (no blank fallback for safety)")
+    db_name = os.getenv("DB_NAME")
+    if not db_name:
+        raise ValueError("DB_NAME environment variable is required (no 'postgres' fallback for safety)")
+
     conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
+        host=db_host,
         port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", ""),
-        dbname=os.getenv("DB_NAME", "postgres"),
+        user=db_user,
+        password=db_password,
+        dbname=db_name,
         sslmode=db_ssl,
     )
     cur = conn.cursor()
@@ -137,12 +150,25 @@ def down():
     }
     db_ssl = ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require")
 
+    db_host = os.getenv("DB_HOST")
+    if not db_host:
+        raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
+    db_user = os.getenv("DB_USER")
+    if not db_user:
+        raise ValueError("DB_USER environment variable is required (no 'postgres' fallback for safety)")
+    db_password = os.getenv("DB_PASSWORD")
+    if not db_password:
+        raise ValueError("DB_PASSWORD environment variable is required (no blank fallback for safety)")
+    db_name = os.getenv("DB_NAME")
+    if not db_name:
+        raise ValueError("DB_NAME environment variable is required (no 'postgres' fallback for safety)")
+
     conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
+        host=db_host,
         port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", ""),
-        dbname=os.getenv("DB_NAME", "postgres"),
+        user=db_user,
+        password=db_password,
+        dbname=db_name,
         sslmode=db_ssl,
     )
     cur = conn.cursor()

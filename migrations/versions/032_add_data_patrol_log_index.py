@@ -40,6 +40,15 @@ def _connect_autocommit():
     db_host = os.getenv("DB_HOST")
     if not db_host:
         raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
+    db_user = os.getenv("DB_USER")
+    if not db_user:
+        raise ValueError("DB_USER environment variable is required (no 'postgres' fallback for safety)")
+    db_password = os.getenv("DB_PASSWORD")
+    if not db_password:
+        raise ValueError("DB_PASSWORD environment variable is required (no blank fallback for safety)")
+    db_name = os.getenv("DB_NAME")
+    if not db_name:
+        raise ValueError("DB_NAME environment variable is required (no 'algo' fallback for safety)")
 
     ssl_map = {
         "true": "require",
@@ -51,9 +60,9 @@ def _connect_autocommit():
     conn = psycopg2.connect(
         host=db_host,
         port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME", "algo"),
+        user=db_user,
+        password=db_password,
+        database=db_name,
         sslmode=ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require"),
     )
     conn.autocommit = True
