@@ -125,7 +125,11 @@ def test_recently_started_running_loader_not_flagged_unhealthy():
     assert data["loader_health_total_unhealthy"] == 0
 
 
-def test_stuck_running_loader_past_90_minutes_is_flagged_unhealthy():
+def test_running_loader_past_old_flat_90min_but_within_its_own_timeout_not_flagged():
+    # Locks in the actual behavior ROOT-CAUSE FIX 2026-08-17 was meant to guarantee: a
+    # table with a real per-loader timeout longer than the old flat 90min default (here
+    # dividend_data's real 150min, loaders/loader_timeout_config.py) must not be flagged
+    # just for running past that old flat mark while still well inside its real budget.
     started_2_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2)
     data = _run(
         [
@@ -136,6 +140,32 @@ def test_stuck_running_loader_past_90_minutes_is_flagged_unhealthy():
                 "retry_count": 0,
                 "last_success_at": None,
                 "execution_started": started_2_hours_ago,
+                "execution_completed": None,
+                "completion_pct": 62,
+            },
+        ]
+    )
+
+    assert data["loader_health"] == []
+    assert data["loader_health_total_unhealthy"] == 0
+
+
+def test_stuck_running_loader_past_its_own_timeout_is_flagged_unhealthy():
+    # dividend_data's real configured timeout is 150min (loaders/loader_timeout_config.py,
+    # FIX 2026-08-17) - the per-loader-timeout-aware check (monitoring.py's ROOT-CAUSE FIX
+    # 2026-08-17) correctly does NOT flag it at the old flat 90min mark since that's still
+    # well inside its real budget. Use an elapsed time past its actual 150min timeout so
+    # this test still exercises genuine stuck-loader detection instead of a stale threshold.
+    started_3_hours_ago = datetime.now(timezone.utc) - timedelta(hours=3)
+    data = _run(
+        [
+            {
+                "table_name": "dividend_data",
+                "status": "RUNNING",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_started": started_3_hours_ago,
                 "execution_completed": None,
                 "completion_pct": 12,
             },
