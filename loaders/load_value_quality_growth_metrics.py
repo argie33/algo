@@ -1685,9 +1685,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # every symbol matches dividend_data's "confirmed no dividend" marker rows too);
             # only ~92 have real dividend history elsewhere but the SEC concept wasn't
             # extracted for this fiscal year - a true data gap.
+            # BUG FOUND 2026-08-17 (live-reproduced, GLPI): unlike every other ratio field in this
+            # function, payout_ratio had no magnitude guard - a near-zero (but still >0) net_income
+            # denominator lets the ratio explode arbitrarily (105,668,646.22% for GLPI), crashing
+            # the INSERT with psycopg2.errors.NumericValueOutOfRange since quality_metrics.
+            # payout_ratio is NUMERIC(10,2) (max ~1e8). Reuses the same |ratio| <= 1000% sanity
+            # bound already applied to margin fields elsewhere in this function (MAX_MARGIN_ABS_PCT,
+            # defined later at the trend-calc site since it runs after this block) - a payout ratio
+            # in the hundred-thousands of percent is exactly as meaningless as an implausible margin.
+            MAX_PAYOUT_RATIO_ABS_PCT = 1000.0  # noqa: N806
             payout_ratio_reason = None
             if dividends_paid is not None and net_income is not None and net_income > 0:
-                metrics["payout_ratio"] = float((dividends_paid / net_income) * 100)
+                payout_ratio_pct = (dividends_paid / net_income) * 100
+                if abs(payout_ratio_pct) <= MAX_PAYOUT_RATIO_ABS_PCT:
+                    metrics["payout_ratio"] = float(payout_ratio_pct)
+                else:
+                    failed_metrics.append("payout_ratio")
+                    payout_ratio_reason = "implausible_ratio"
             else:
                 failed_metrics.append("payout_ratio")
                 if dividends_paid is not None and net_income is not None and net_income <= 0:
