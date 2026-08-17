@@ -117,7 +117,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             result = module.main()
 
         assert result == 0
-        mock_run_pipeline.assert_called_once_with("metrics")
+        mock_run_pipeline.assert_called_once_with("metrics", loader_filter=None)
 
     def test_live_owner_pid_is_respected_but_eventually_times_out(
         self, scheduler_module: ModuleType, tmp_path: Path
@@ -182,7 +182,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             result = module.main()
 
         assert result == 0
-        mock_run_pipeline.assert_called_once_with("metrics")
+        mock_run_pipeline.assert_called_once_with("metrics", loader_filter=None)
         assert call_count["n"] >= 2
 
     def test_successful_acquire_records_pid_and_pipeline_for_future_liveness_checks(
@@ -194,7 +194,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
         module = scheduler_module
         recorded_content = {}
 
-        def _capture_lock_content_while_held(pipeline_name: str) -> int:
+        def _capture_lock_content_while_held(pipeline_name: str, loader_filter: set[str] | None = None) -> int:
             recorded_content["text"] = (tmp_path / "algo-scheduler.lock").read_text()
             return 0
 
@@ -226,7 +226,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             result = module.main()
 
         assert result == 0
-        mock_run_pipeline.assert_called_once_with("metrics")
+        mock_run_pipeline.assert_called_once_with("metrics", loader_filter=None)
         # Lock is released again after a successful run, not left dangling.
         assert not lock_path.exists()
 

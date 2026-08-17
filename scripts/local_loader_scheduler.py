@@ -479,18 +479,35 @@ LOADER_DEPENDENCIES = {
 }
 
 
-def _check_loader_dependencies(loader: str, completed_loaders: set[str]) -> bool:
+def _check_loader_dependencies(loader: str, completed_loaders: set[str], run_scope: set[str] | None = None) -> bool:
     """Check if a loader's dependencies have completed.
 
     Args:
         loader: The loader name to check
         completed_loaders: Set of loader names that have already completed successfully
+        run_scope: ADDED 2026-08-17 for --loaders: the set of loaders actually included in
+            this invocation (None means "the whole pipeline" - normal full-run behavior,
+            unchanged). A dependency that isn't in run_scope was deliberately excluded by
+            the operator (e.g. `--now metrics --loaders positioning,stability_metrics` to
+            skip company_info/financial_statements because they're fresh from a prior run
+            or already being refreshed by a concurrent scheduler instance) - treat it as
+            satisfied by existing DB state rather than failing the dependent loader, since
+            requiring every transitive dependency defeats the entire point of a scoped
+            subset run.
 
     Returns:
         True if all dependencies are met, False otherwise
     """
     dependencies = LOADER_DEPENDENCIES.get(loader, [])
-    missing = [dep for dep in dependencies if dep not in completed_loaders]
+    missing = [dep for dep in dependencies if dep not in completed_loaders and (run_scope is None or dep in run_scope)]
+    assumed_fresh = [
+        dep for dep in dependencies if dep not in completed_loaders and run_scope is not None and dep not in run_scope
+    ]
+    if assumed_fresh:
+        print(
+            f"[LOCAL_SCHEDULER] {loader}: assuming upstream {assumed_fresh} is already fresh "
+            f"(excluded from this --loaders run, not re-checked)"
+        )
 
     if missing:
         print(
@@ -501,13 +518,33 @@ def _check_loader_dependencies(loader: str, completed_loaders: set[str]) -> bool
     return True
 
 
-def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
-    """Run all loaders for a given pipeline."""
+def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> int:  # noqa: C901
+    """Run all loaders for a given pipeline.
+
+    Args:
+        loader_filter: ADDED 2026-08-17 (--loaders flag) - if given, only run the named
+            loaders (still in the pipeline's declared order), skipping the rest without
+            treating them as failed. Lets an operator backfill just what's needed (e.g.
+            positioning/stability_metrics) instead of an all-or-nothing multi-hour run,
+            without bypassing the scheduler (see feedback_always_use_pipeline_scheduler_for_backfills
+            - the point is to avoid direct loader invocation, not to force full-pipeline-or-nothing).
+    """
     loaders = PIPELINES.get(pipeline_name)
     if not loaders:
         print(f"ERROR: Unknown pipeline '{pipeline_name}'", file=sys.stderr)
         print(f"Valid pipelines: {', '.join(PIPELINES.keys())}", file=sys.stderr)
         return 1
+
+    if loader_filter is not None:
+        unknown = loader_filter - set(loaders)
+        if unknown:
+            print(
+                f"ERROR: --loaders {sorted(unknown)} not in '{pipeline_name}' pipeline. "
+                f"Valid loaders for {pipeline_name}: {', '.join(loaders)}",
+                file=sys.stderr,
+            )
+            return 1
+        loaders = [loader for loader in loaders if loader in loader_filter]
 
     print(f"[LOCAL_SCHEDULER] Starting {pipeline_name} pipeline ({len(loaders)} loaders)...")
 
@@ -588,7 +625,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
     for loader in loaders:
         # CRITICAL FIX (Session 81): Check loader dependencies before running
         # Prevents silent data degradation if a required upstream loader fails
-        if not _check_loader_dependencies(loader, completed_loaders):
+        if not _check_loader_dependencies(loader, completed_loaders, run_scope=loader_filter):
             # Check if dependency was skipped (doesn't exist in completed) or failed (in skipped)
             deps = LOADER_DEPENDENCIES.get(loader, [])
             missing = [dep for dep in deps if dep not in completed_loaders]
@@ -1430,8 +1467,24 @@ def main() -> int:
         action="store_true",
         help="SESSION 113 FIX: Remove all stale lock files (emergency override for cascading failures)",
     )
+    parser.add_argument(
+        "--loaders",
+        type=str,
+        default=None,
+        help="ADDED 2026-08-17: comma-separated subset of shorthand loader names to run within "
+        "the --now pipeline (e.g. 'positioning,stability_metrics'), instead of every loader in "
+        "it. Dependencies excluded from the subset are assumed already-fresh from prior/"
+        "concurrent runs rather than re-checked. Not valid with --now=all.",
+    )
     args = parser.parse_args()
-    print(f"[LOCAL_SCHEDULER] Invoked: --now={args.now} --clean-locks={args.clean_locks} (pid={os.getpid()})")
+    if args.loaders and args.now == "all":
+        parser.error("--loaders is not valid with --now=all (ambiguous which pipeline it scopes)")
+        return 1
+    loader_filter = {name.strip() for name in args.loaders.split(",") if name.strip()} if args.loaders else None
+    print(
+        f"[LOCAL_SCHEDULER] Invoked: --now={args.now} --clean-locks={args.clean_locks} "
+        f"--loaders={sorted(loader_filter) if loader_filter else None} (pid={os.getpid()})"
+    )
 
     # Handle --clean-locks flag
     if args.clean_locks:
@@ -1478,7 +1531,7 @@ def main() -> int:
     try:
         exit_code = 0
         for pipeline_name in pipelines_to_run:
-            code = run_pipeline(pipeline_name)
+            code = run_pipeline(pipeline_name, loader_filter=loader_filter)
             if code != 0:
                 exit_code = code
                 print(

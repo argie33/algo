@@ -154,6 +154,19 @@ _CASHFLOW_IFRS_ALIASES = [
     # existing - same target_key as the us-gaap PaymentsOfDividends* concepts below so
     # field_mapping needs no changes.
     ("DividendsPaid", "payments_of_dividends"),
+    # FIXED 2026-08-17 (user-reported live: AEM's Scores page showed dividend_yield "SEC
+    # data not available" despite AEM being a well-known real dividend payer). Root cause:
+    # AEM is a 40-F/20-F Canadian foreign private issuer that reports BOTH us-gaap and
+    # ifrs-full facts, but its us-gaap:PaymentsOfDividendsCommonStock data stops at FY2013
+    # (filer switched taxonomies) while "DividendsPaid" (the alias above) was never AEM's
+    # real concept name at all. Live-confirmed via real companyfacts JSON: AEM reports
+    # ifrs-full:DividendsPaidClassifiedAsFinancingActivities every fiscal year through
+    # FY2025 ($728.1M FY2025, $671.7M FY2024) - the IFRS cash-flow-statement financing-
+    # activities dividend line, i.e. exactly what this target column represents (unlike
+    # the sibling ifrs-full:DividendsPaidOrdinaryShares concept AEM also reports, which is
+    # a different, larger figure - $802.9M FY2025 - not the cash-flow-statement line, so
+    # deliberately not aliased here to avoid conflating the two).
+    ("DividendsPaidClassifiedAsFinancingActivities", "payments_of_dividends"),
     # ("DepreciationExpense", "depreciation") REMOVED 2026-07-28 - see get_cash_flow()'s
     # comment: no destination column exists for cash-flow-context depreciation.
     # FIXED 2026-08-17 (loader-review goal continuation, migration 1206 follow-up): the
