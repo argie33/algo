@@ -1,5 +1,6 @@
 # Setup Windows Task Scheduler for algo loaders (MON-FRI)
 # Mimics AWS EventBridge schedule: 2 AM ET (morning) + 4:05 PM ET (signals/EOD) + 7 PM ET (metrics)
+#   + 11:30 PM ET (reference) - see Task 4 below, added 2026-08-17.
 
 $algoPath = "C:\Users\arger\code\algo"
 $taskFolder = "\algo"
@@ -27,8 +28,9 @@ function Convert-EasternTimeToLocal {
 $morningLocalTime = Convert-EasternTimeToLocal -Hour 2 -Minute 0
 $signalsLocalTime = Convert-EasternTimeToLocal -Hour 16 -Minute 5
 $metricsLocalTime = Convert-EasternTimeToLocal -Hour 19 -Minute 0
+$referenceLocalTime = Convert-EasternTimeToLocal -Hour 23 -Minute 30
 Write-Host "[INFO] Local machine timezone: $((Get-TimeZone).Id)"
-Write-Host "[INFO] ET 02:00 -> local $morningLocalTime | ET 16:05 -> local $signalsLocalTime | ET 19:00 -> local $metricsLocalTime"
+Write-Host "[INFO] ET 02:00 -> local $morningLocalTime | ET 16:05 -> local $signalsLocalTime | ET 19:00 -> local $metricsLocalTime | ET 23:30 -> local $referenceLocalTime"
 
 # Resolve a fully-qualified python.exe path. Task Scheduler's execution context does
 # NOT inherit the interactive user's PATH, so a bare "python" action fails immediately
@@ -95,11 +97,20 @@ $morningTrigger = New-ScheduledTaskTrigger `
     -At $morningLocalTime `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
+# ADDED 2026-08-17: these tasks fail-fast (no built-in wait/block) if
+# algo-scheduler.lock is held by another pipeline at trigger time - confirmed live this
+# session (afternoon-pipeline/evening-pipeline's one real trigger both failed outright on lock
+# contention with zero retry, requiring a human to notice hours later and hand-launch a watcher
+# script). -RestartCount/-RestartInterval makes Task Scheduler itself retry a failed run a few
+# times before giving up, covering the common case where the previous pipeline is still
+# finishing a few minutes past this one's trigger time.
 $morningSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
-    -WakeToRun
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "morning-pipeline" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "morning-pipeline" -Confirm:$false
@@ -148,7 +159,9 @@ $signalsSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
-    -WakeToRun
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "afternoon-pipeline" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "afternoon-pipeline" -Confirm:$false
@@ -192,7 +205,9 @@ $metricsSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
-    -WakeToRun
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "evening-pipeline" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "evening-pipeline" -Confirm:$false
@@ -213,15 +228,65 @@ Register-ScheduledTask `
 
 Write-Host "[OK] Metrics task scheduled for 7:00 PM ET (MON-FRI)"
 
+# BUG FIX (2026-08-17): the actual trading orchestrator's own scheduled tasks
+# (AlgoTrading_Orchestrator_930AM/1PM/3PM, under \AlgoTrading\ - registered separately from
+# this script, no repo script ever managed them) were live-confirmed to have the exact same
+# LogonType=Interactive gap as the loader tasks above, PLUS -Daily triggers (fire 7 days/week;
+# harmless today only because orchestrator.py's own market-hours guard no-ops on weekends, but
+# still wrong). Re-registering them here too so one elevated run of this script fixes every
+# algo-related scheduled task, not just the 3 data-loader ones. Times/actions preserved exactly
+# from the existing tasks (Get-ScheduledTaskInfo) - these are local wall-clock times as already
+# configured, not ET-converted like the loader triggers above.
+$orchestratorTaskFolder = "\AlgoTrading"
+$orchestratorTasks = @(
+    @{ Name = "AlgoTrading_Orchestrator_930AM"; At = "09:30"; Args = "scripts/run_local_orchestrator.py"; Desc = "Trading orchestrator - morning phases" },
+    @{ Name = "AlgoTrading_Orchestrator_1PM";   At = "13:00"; Args = "scripts/run_local_orchestrator.py --afternoon"; Desc = "Trading orchestrator - afternoon phases" },
+    @{ Name = "AlgoTrading_Orchestrator_3PM";   At = "15:00"; Args = "scripts/run_local_orchestrator.py --evening"; Desc = "Trading orchestrator - evening phases" }
+)
+
+Write-Host ""
+Write-Host "Fixing trading orchestrator tasks (LogonType + MON-FRI only)..."
+
+foreach ($t in $orchestratorTasks) {
+    $action = New-ScheduledTaskAction -Execute $pythonExe -Argument $t.Args -WorkingDirectory $algoPath
+    $trigger = New-ScheduledTaskTrigger -Weekly -At $t.At -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+    $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries:$false `
+        -Compatibility Win8 `
+        -MultipleInstances IgnoreNew `
+        -WakeToRun
+
+    if (Get-ScheduledTask -TaskPath "$orchestratorTaskFolder\" -TaskName $t.Name -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskPath "$orchestratorTaskFolder\" -TaskName $t.Name -Confirm:$false
+        Write-Host "[OK] Replaced existing $($t.Name)"
+    } else {
+        Write-Host "[INFO] No existing $($t.Name) found"
+    }
+
+    Register-ScheduledTask `
+        -TaskName $t.Name `
+        -TaskPath $orchestratorTaskFolder `
+        -Action $action `
+        -Trigger $trigger `
+        -Settings $settings `
+        -Principal $taskPrincipal `
+        -Description $t.Desc `
+        -ErrorAction Stop | Out-Null
+
+    Write-Host "[OK] $($t.Name) scheduled for $($t.At) local, MON-FRI"
+}
+
 # List created tasks
 Write-Host ""
 Write-Host "================================"
 Write-Host "Scheduled Tasks Created:"
 Get-ScheduledTask -TaskPath "$taskFolder\" | Select-Object -Property TaskName, @{Name="Schedule";Expression={$_.Triggers[0].StartBoundary}} | Format-Table
+Get-ScheduledTask -TaskPath "$orchestratorTaskFolder\" | Select-Object -Property TaskName, @{Name="Schedule";Expression={$_.Triggers[0].StartBoundary}} | Format-Table
 
 Write-Host ""
 Write-Host "[SUCCESS] Task Scheduler setup complete!"
 Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, and 7:00 PM ET"
+Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, and 3:00 PM local"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
-Write-Host "Tasks are under: Task Scheduler Library > algo"
+Write-Host "Tasks are under: Task Scheduler Library > algo, and Task Scheduler Library > AlgoTrading"
