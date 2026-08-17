@@ -323,4 +323,8 @@ test-results.txt
 
 # Stray nohup redirects from local script runs
 nohup.out
+
+# Throwaway one-off watcher/recovery scripts (hardcoded PIDs, dated log paths) written during
+# live incident response - real for that session, meaningless as permanent history afterward.
+scripts/_wait_and_run_*.ps1
 !steering/YFINANCE_PARALLELISM_INVESTIGATION.md
