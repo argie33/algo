@@ -492,6 +492,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # also keeps balance-sheet and income-statement fields from the SAME fiscal year
                 # (picking an older year for both is strictly better than pairing a fresh balance
                 # sheet with a stale/absent income statement).
+                # FIXED 2026-08-17 (goal: "no SEC data"/loader audit): the ais.symbol IS NOT
+                # NULL tier above only checks that a joined row exists, not that it's usable -
+                # live-confirmed AMZN's FY2026 annual_income_statement row has data_unavailable
+                # =FALSE and a real net_income ($135.281B) but NULL revenue/operating_income/
+                # cost_of_revenue/gross_profit (a partial/interim fact set, likely a duration-
+                # matched NetIncomeLoss with no matching Revenues concept for the same period -
+                # passes load_financial_statements.py's transform() because its required-metrics
+                # check only demands ONE of {revenue, net_income}, not both). This row still
+                # ranked ahead of the complete FY2025 row (real revenue/operating_income/
+                # net_income) under the old 2-tier CASE, so operating_margin/net_margin computed
+                # off it: operating_margin failed outright (no revenue), net_margin silently fell
+                # into the bank/no-revenue fallback (net_income / total_assets) and returned a
+                # real-looking but WRONG 12.35% instead of the correct revenue-based ~9.85% -
+                # worse than "missing_sec_data", a plausible wrong number with no unavailable_
+                # reason to flag it. gross_margin was accidentally spared by its own separate
+                # prior-year-fallback query (see gross_profit_used below), but nothing else was.
+                # A DB-wide audit found 288 symbols whose most recent usable income-statement
+                # fiscal year has NULL revenue while an earlier year has real revenue - all
+                # candidates for this same silent-wrong-value trap. New top CASE tier prefers a
+                # fiscal year with real revenue over a merely-joined one, same "prefer usable
+                # data over merely-present data" principle as the ais.symbol IS NOT NULL tier.
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
@@ -533,7 +554,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
-                    ORDER BY (CASE WHEN ais.symbol IS NOT NULL THEN 0 ELSE 1 END),
+                    ORDER BY (CASE WHEN ais.revenue IS NOT NULL THEN 0
+                                    WHEN ais.symbol IS NOT NULL THEN 1
+                                    ELSE 2 END),
                              (CASE WHEN acf.free_cash_flow IS NOT NULL
                                     AND abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
                                     THEN 0 ELSE 1 END), abs.fiscal_year DESC

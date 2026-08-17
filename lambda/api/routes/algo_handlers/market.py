@@ -7,6 +7,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, cast
 
 import psycopg2
@@ -338,7 +339,12 @@ def _classify_loader_state_issue(
                 elapsed_seconds = (datetime.now(timezone.utc) - exec_start_utc).total_seconds()
             else:
                 elapsed_seconds = 0
-            completion_float = float(completion_pct) if isinstance(completion_pct, (int, float, str)) else 0
+            # FIX 2026-08-17: same Decimal-vs-isinstance gap as the status-classification copy
+            # of this check above - NUMERIC completion_pct arrives as decimal.Decimal, which
+            # (int, float, str) does not match, so this silently read as 0% for every real
+            # value once a loader passed 30 minutes, producing a false "TIMEOUT: ... at 0%"
+            # message no matter how far along the loader actually was.
+            completion_float = float(completion_pct) if isinstance(completion_pct, (int, float, str, Decimal)) else 0
             if elapsed_seconds > 1800 and completion_float < 5:  # >30 min, <5% complete
                 return f"TIMEOUT: running {elapsed_seconds / 3600:.1f}h at {completion_float:.0f}%"
             return f"RUNNING: {completion_float:.0f}% complete"
@@ -833,8 +839,18 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                                 elapsed_seconds = (datetime.now(timezone.utc) - exec_start_utc).total_seconds()
                             else:
                                 elapsed_seconds = 0
+                            # FIX 2026-08-17: completion_pct is a NUMERIC column - psycopg2
+                            # returns it as decimal.Decimal, which this isinstance check did not
+                            # match, silently forcing completion_float to 0 for every real
+                            # value. That made every loader running >30min falsely trip the
+                            # "stuck" status="error" branch below regardless of true progress
+                            # (live-confirmed: current_reports_8k genuinely 32% complete, still
+                            # marked "error" here). See the matching fix in
+                            # _classify_loader_state_issue for the same bug's display-text half.
                             completion_float = (
-                                float(completion_pct_raw) if isinstance(completion_pct_raw, (int, float, str)) else 0
+                                float(completion_pct_raw)
+                                if isinstance(completion_pct_raw, (int, float, str, Decimal))
+                                else 0
                             )
                             # FIX 2026-08-16: the <5% branch alone missed a loader that made
                             # real partial progress (e.g. 32%) and then died (crashed/OOM/killed)
