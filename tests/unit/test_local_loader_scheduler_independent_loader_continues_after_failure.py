@@ -16,16 +16,25 @@ code is still 1 if anything failed, preserving the "something went wrong" signal
 """
 
 import importlib.util
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _load_scheduler_module():
-    spec = importlib.util.spec_from_file_location(
-        "local_loader_scheduler_under_test", REPO_ROOT / "scripts" / "local_loader_scheduler.py"
-    )
+def _load_scheduler_module(tmp_path):
+    """Load the real scheduler source from a copy under tmp_path, not its real repo location -
+    see test_local_loader_scheduler_marks_failed_on_crash.py's _load_scheduler_module for why
+    (these tests use "trend_analysis"/"sector_industry" with real, unmocked wall-clock
+    timestamps, so loading straight from the real file leaks real logs/load_*_<epoch>.log
+    files on every run)."""
+    fake_scripts_dir = tmp_path / "scripts"
+    fake_scripts_dir.mkdir(parents=True, exist_ok=True)
+    fake_module_path = fake_scripts_dir / "local_loader_scheduler.py"
+    shutil.copyfile(REPO_ROOT / "scripts" / "local_loader_scheduler.py", fake_module_path)
+
+    spec = importlib.util.spec_from_file_location("local_loader_scheduler_under_test", fake_module_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -45,8 +54,8 @@ def _mock_proc(returncode=0):
 
 
 class TestIndependentLoaderContinuesAfterUpstreamFailure:
-    def test_second_independent_loader_still_runs_after_first_fails(self):
-        module = _load_scheduler_module()
+    def test_second_independent_loader_still_runs_after_first_fails(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         # "trend_analysis" and "sector_industry" have no LOADER_DEPENDENCIES entry between
         # them (neither declares a dependency on the other) - a real independent pair,
         # matching the real "scores" -> "buy_sell" case without depending on that exact
@@ -68,8 +77,8 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
         mock_mark.assert_called_once()
         assert mock_mark.call_args.args[0] == "load_trend_analysis.py"
 
-    def test_dependent_loader_is_still_skipped_after_its_real_dependency_fails(self):
-        module = _load_scheduler_module()
+    def test_dependent_loader_is_still_skipped_after_its_real_dependency_fails(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         # Isolate from LOADER_DEPENDENCIES' real chains (value_quality_growth itself
         # requires financial_statements/valuations/analyst_earnings_estimates, which would
         # skip it before it even runs) - use a synthetic 2-loader dependency edge instead.
@@ -87,8 +96,8 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
         assert mock_popen.call_count == 1
         assert rc == 1
 
-    def test_all_success_still_returns_zero(self):
-        module = _load_scheduler_module()
+    def test_all_success_still_returns_zero(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),

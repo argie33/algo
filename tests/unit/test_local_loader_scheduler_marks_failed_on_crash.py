@@ -18,6 +18,7 @@ branches.
 """
 
 import importlib.util
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -25,10 +26,23 @@ from unittest.mock import MagicMock, patch
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _load_scheduler_module():
-    spec = importlib.util.spec_from_file_location(
-        "local_loader_scheduler_under_test", REPO_ROOT / "scripts" / "local_loader_scheduler.py"
-    )
+def _load_scheduler_module(tmp_path):
+    """Load the real scheduler source from a copy under tmp_path, not its real repo location.
+
+    run_pipeline() derives repo_root from Path(__file__).parent.parent and unconditionally
+    writes a per-loader log header to {repo_root}/logs/ before subprocess.Popen is even
+    mocked out - these tests use real (unmocked) wall-clock timestamps for "trend_analysis",
+    so loading straight from the real file leaks a real, timestamped, pid=<unknown>
+    logs/load_trend_analysis_*.log into the actual repo on every test run (same leak class
+    fixed in test_local_loader_scheduler_direct_invocation.py by c6eac1a4f - that fix only
+    covered that one file, not this sibling).
+    """
+    fake_scripts_dir = tmp_path / "scripts"
+    fake_scripts_dir.mkdir(parents=True, exist_ok=True)
+    fake_module_path = fake_scripts_dir / "local_loader_scheduler.py"
+    shutil.copyfile(REPO_ROOT / "scripts" / "local_loader_scheduler.py", fake_module_path)
+
+    spec = importlib.util.spec_from_file_location("local_loader_scheduler_under_test", fake_module_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -43,8 +57,8 @@ def _stdout_mock(lines=()):
 
 
 class TestMarkLoaderFailedAfterCrash:
-    def test_marks_every_table_the_loader_owns(self):
-        module = _load_scheduler_module()
+    def test_marks_every_table_the_loader_owns(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         mock_manager = MagicMock()
         with (
             patch.object(module, "all_tables", return_value=["table_a", "table_b"]) as mock_all_tables,
@@ -59,10 +73,10 @@ class TestMarkLoaderFailedAfterCrash:
         assert mock_manager.mark_failed.call_count == 2
         mock_manager.mark_failed.assert_any_call("boom")
 
-    def test_swallows_its_own_errors_without_raising(self):
+    def test_swallows_its_own_errors_without_raising(self, tmp_path):
         """A failure to record the failure must never mask the original crash being reported
         by the caller - run_pipeline() must be able to call this unconditionally."""
-        module = _load_scheduler_module()
+        module = _load_scheduler_module(tmp_path)
         with patch.object(module, "all_tables", side_effect=ValueError("unknown loader")):
             module._mark_loader_failed_after_crash("load_unknown.py", "boom")  # must not raise
 
@@ -75,8 +89,8 @@ class TestRunPipelineMarksFailedOnCrash:
     thread does `for line in pipe`) and wait() takes the place of run()'s returncode/
     TimeoutExpired."""
 
-    def test_nonzero_exit_marks_loader_failed(self):
-        module = _load_scheduler_module()
+    def test_nonzero_exit_marks_loader_failed(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
         mock_proc.wait.return_value = 1
@@ -93,8 +107,8 @@ class TestRunPipelineMarksFailedOnCrash:
         assert mock_mark.call_args.args[0] == "load_trend_analysis.py"
         assert "exit" in mock_mark.call_args.args[1] or "1" in mock_mark.call_args.args[1]
 
-    def test_timeout_marks_loader_failed(self):
-        module = _load_scheduler_module()
+    def test_timeout_marks_loader_failed(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
         mock_proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="x", timeout=1), 0]
@@ -112,8 +126,8 @@ class TestRunPipelineMarksFailedOnCrash:
         assert "timed out" in mock_mark.call_args.args[1]
         mock_proc.kill.assert_called_once()
 
-    def test_success_does_not_mark_failed(self):
-        module = _load_scheduler_module()
+    def test_success_does_not_mark_failed(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
         mock_proc.wait.return_value = 0
@@ -128,10 +142,10 @@ class TestRunPipelineMarksFailedOnCrash:
         assert rc == 0
         mock_mark.assert_not_called()
 
-    def test_failure_message_includes_captured_output_tail(self):
+    def test_failure_message_includes_captured_output_tail(self, tmp_path):
         """The whole point of the Popen switch: a crash's real stdout/stderr output must
         reach data_loader_status.error_message, not just a bare exit code."""
-        module = _load_scheduler_module()
+        module = _load_scheduler_module(tmp_path)
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock(["Traceback (most recent call last):\n", "ValueError: boom\n"])
         mock_proc.wait.return_value = 1
@@ -159,8 +173,8 @@ class TestChildLoaderTimeoutMatchesScheduler:
     drift apart again. CRITICAL FIX 2026-08-13: Changed from LOADER_TIMEOUT_MINUTES to LOADER_TIMEOUT
     to match Terraform's environment variable naming."""
 
-    def test_env_carries_matching_timeout_seconds(self):
-        module = _load_scheduler_module()
+    def test_env_carries_matching_timeout_seconds(self, tmp_path):
+        module = _load_scheduler_module(tmp_path)
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
         mock_proc.poll.return_value = 0
@@ -180,7 +194,7 @@ class TestChildLoaderTimeoutMatchesScheduler:
         # live regression risk) is that the per-loader budget reaches the child process.
         assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT"] == "900"
 
-    def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self):
+    def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self, tmp_path):
         """Direct regression for the live-reproduced case: enhanced_quality_growth's
         scheduler budget must reach its child process instead of the runner's stale 120 min
         default, because nothing used to propagate the real budget through. CRITICAL FIX
@@ -196,7 +210,7 @@ class TestChildLoaderTimeoutMatchesScheduler:
 
         expected_timeout_seconds = get_loader_timeout("enhanced_quality_growth")
 
-        module = _load_scheduler_module()
+        module = _load_scheduler_module(tmp_path)
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
         mock_proc.poll.return_value = 0
