@@ -886,12 +886,33 @@ class PipelineHealth:
                             -- Preserve the loader's own last_updated while RUNNING; resume writing
                             -- this sweep's fresh business-date value once the loader reaches a
                             -- terminal status.
+                            --
+                            -- FIX 2026-08-17: the terminal-status ELSE branch used to take
+                            -- EXCLUDED.last_updated unconditionally - this sweep's coarse
+                            -- "latest_date at midnight" proxy - even when the row already held a
+                            -- precise, more recent last_updated/last_success_at written by
+                            -- LoaderStatusManager.mark_completed() (real wall-clock time at actual
+                            -- run completion). Live-confirmed on trend_template_data: its loader ran
+                            -- and completed at 2026-08-17 19:26:59 (execution_started/completed
+                            -- both correct), but the very next health sweep tick clobbered
+                            -- last_updated AND last_success_at down to 2026-08-14 00:00:00
+                            -- (midnight of its latest_date, Friday - the most recent date its
+                            -- upstream price_daily had available at that point in the run). That
+                            -- inflated /api/algo/data-status's age calc by 3+ days for a loader
+                            -- that had in fact just run cleanly, producing a false CRIT STALE
+                            -- reading. GREATEST() keeps whichever of the two is actually more
+                            -- recent: it preserves a loader's own precise timestamp when one
+                            -- exists, while still seeding/advancing the proxy value forward for
+                            -- tables with no dedicated LoaderStatusManager writer at all (e.g.
+                            -- algo_positions/sector_ranking - see the last_success_at comment
+                            -- below), since GREATEST(NULL, x) = x in Postgres.
                             last_updated = CASE
                                 WHEN EXCLUDED.status = 'RUNNING' THEN data_loader_status.last_updated
-                                ELSE EXCLUDED.last_updated
+                                ELSE GREATEST(data_loader_status.last_updated, EXCLUDED.last_updated)
                             END,
                             last_success_at = CASE
-                                WHEN EXCLUDED.status = 'HEALTHY' THEN EXCLUDED.last_updated
+                                WHEN EXCLUDED.status = 'HEALTHY'
+                                    THEN GREATEST(data_loader_status.last_success_at, EXCLUDED.last_updated)
                                 ELSE data_loader_status.last_success_at
                             END,
                             execution_duration_sec = COALESCE(data_loader_status.execution_duration_sec, EXCLUDED.execution_duration_sec),

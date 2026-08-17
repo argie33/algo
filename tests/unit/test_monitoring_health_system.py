@@ -175,8 +175,12 @@ class TestPipelineHealthMonitoring:
         # FIXED 2026-08-10: last_updated is only taken from EXCLUDED (this sweep's fresh
         # business-date value) for non-RUNNING rows now - see
         # test_log_health_check_preserves_last_updated_while_running below for why.
+        # FIXED 2026-08-17: the terminal-status branch must not blindly take EXCLUDED's
+        # coarse business-date value when the existing row already holds a more precise/
+        # recent timestamp from LoaderStatusManager.mark_completed() - GREATEST() keeps
+        # whichever is actually newer instead of always regressing to the coarse one.
         assert "WHEN EXCLUDED.status = 'RUNNING' THEN data_loader_status.last_updated" in sql_text
-        assert "ELSE EXCLUDED.last_updated" in sql_text
+        assert "ELSE GREATEST(data_loader_status.last_updated, EXCLUDED.last_updated)" in sql_text
 
         last_updated_by_table = {row[0]: row[-1] for row in insert_values}
         assert last_updated_by_table["price_daily"] == fresh_date
