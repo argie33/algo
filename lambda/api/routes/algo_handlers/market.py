@@ -30,6 +30,7 @@ from routes.utils import (
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.monitoring.pipeline_health import PipelineHealth
+from loaders.loader_timeout_config import get_loader_timeout
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import format_decimal_string, get_optional_field
 
@@ -794,8 +795,23 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                             completion_float = (
                                 float(completion_pct_raw) if isinstance(completion_pct_raw, (int, float, str)) else 0
                             )
+                            # FIX 2026-08-16: the <5% branch alone missed a loader that made
+                            # real partial progress (e.g. 32%) and then died (crashed/OOM/killed)
+                            # with no owning process left - it never re-enters this branch's
+                            # low-completion case, so it just showed plain "RUNNING" (not even
+                            # "warning") indefinitely until utils/loaders/status_manager.py's
+                            # reap_stale_running_loaders() next happened to run for this exact
+                            # table, which for a long-timeout loader (e.g. 9h) can be many hours
+                            # away. Live-reproduced tonight: sec_segment_info died mid-run at
+                            # 32.51% with no process alive, dashboard still would have called it
+                            # healthy. Reuse the SAME per-loader-timeout+25%-margin the reaper
+                            # itself uses, so any RUNNING loader long past its own realistic
+                            # budget is flagged regardless of how far it got before dying.
+                            timeout_seconds = get_loader_timeout(table_name, default_seconds=3600)
                             if elapsed_seconds > 1800 and completion_float < 5:  # >30 min, <5% done
                                 status = "error"  # Treat stuck runners as error
+                            elif elapsed_seconds > timeout_seconds * 1.25:
+                                status = "error"  # Past its own timeout+margin - likely a dead/zombie run
                         except (ValueError, TypeError, AttributeError):
                             pass  # If we can't calculate, don't override status
 
