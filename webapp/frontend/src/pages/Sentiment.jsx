@@ -122,7 +122,15 @@ function SentimentContent() {
     refetch,
   } = useApiQuery(
     ["sentiment-stocks"],
-    () => api.get("/api/sentiment/data?limit=5000&page=1"),
+    // BUG FOUND 2026-08-17: limit=5000 with the backend's `ORDER BY date DESC, symbol ASC`
+    // meant this query exhausted almost its entire limit on a single day (4,922 of ~5,118
+    // symbols report per day) before ever reaching a second date - every stock's grouped
+    // allData ended up with just 1 row, so the 30-Day Sentiment Trend chart showed "Not
+    // enough history" for nearly every symbol despite the DB holding up to 10 real days of
+    // history per symbol. The backend already supports (and defaults to) up to 50000 rows
+    // (lambda/api/routes/sentiment.py's safe_limit(max_val=50000)); the table is currently
+    // ~37k rows total, so 50000 covers it in one request.
+    () => api.get("/api/sentiment/data?limit=50000&page=1"),
     { staleTime: 300000, refetchInterval: 300000 }
   );
 
