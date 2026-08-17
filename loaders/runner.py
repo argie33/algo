@@ -154,7 +154,7 @@ def _setup_timeout() -> None:
     timeout_sec = LOADER_TIMEOUT_SECONDS % 60
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(LOADER_TIMEOUT_SECONDS)  # type: ignore[attr-defined]  # guarded by hasattr above; SIGALRM/alarm are Unix-only
+        signal.alarm(LOADER_TIMEOUT_SECONDS)  # guarded by hasattr above; SIGALRM/alarm are Unix-only
         logger.info(
             f"[TIMEOUT] SIGALRM timeout set to {timeout_min}m {timeout_sec}s (env LOADER_TIMEOUT={LOADER_TIMEOUT_SECONDS}s)"
         )

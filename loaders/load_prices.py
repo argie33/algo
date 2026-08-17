@@ -2470,8 +2470,8 @@ class PriceLoader(OptimalLoader):
         # Set timeout only if running in an environment that supports signals
         old_handler = None
         try:
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
-            signal.alarm(overall_timeout_sec)  # type: ignore[attr-defined]
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(overall_timeout_sec)
         except (ValueError, AttributeError, OSError):
             # Windows or environments that don't support SIGALRM - skip timeout protection
             logger.warning("[PRICE_LOADER] Timeout protection unavailable on this platform (SIGALRM not supported)")
@@ -3538,7 +3538,7 @@ def main() -> int:
     # SIGALRM only available on Unix; skip on Windows
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
+        signal.alarm(execution_timeout_sec)
     else:
         logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 

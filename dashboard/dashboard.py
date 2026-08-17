@@ -102,7 +102,7 @@ else:
         _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
         _os_auto.environ["LOCAL_MODE"] = "true"
 
-try:
+if sys.platform == "win32":
     import msvcrt
 
     def _keypress() -> str:
@@ -125,7 +125,7 @@ try:
             logger.debug(f"[DEBUG] Windows msvcrt kbhit() failed: {type(e).__name__}: {e}")
             return ""
 
-except ImportError:
+else:
     import select
     import termios
     import tty
@@ -134,13 +134,13 @@ except ImportError:
         if select.select([sys.stdin], [], [], 0)[0]:
             try:
                 fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
+                old_settings = termios.tcgetattr(fd)
                 try:
-                    tty.setraw(fd)  # type: ignore[attr-defined]
+                    tty.setraw(fd)
                     ch = sys.stdin.read(1).lower()
                     return ch if ch else ""
                 finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             except (OSError, AttributeError, ValueError) as e:
                 raise RuntimeError(
                     f"Dashboard terminal input failed: {type(e).__name__}: {e}. "

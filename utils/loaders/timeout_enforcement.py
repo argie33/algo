@@ -64,7 +64,7 @@ def setup_loader_timeout(loader_name: str, timeout_seconds: int) -> None:
     if hasattr(signal, "SIGALRM"):
         # Unix-like systems: use SIGALRM
         signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(timeout_seconds)  # type: ignore[attr-defined]
+        signal.alarm(timeout_seconds)
         logger.info(f"[TIMEOUT] {loader_name}: SIGALRM timeout set to {timeout_min}m {timeout_sec}s")
     else:
         # Windows fallback: use threading.Timer
@@ -86,7 +86,7 @@ def cancel_loader_timeout() -> None:
 
     if hasattr(signal, "SIGALRM"):
         # Unix: cancel SIGALRM
-        signal.alarm(0)  # type: ignore[attr-defined]
+        signal.alarm(0)
 
     if _TIMEOUT_TIMER is not None:
         # Windows: cancel threading.Timer
