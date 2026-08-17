@@ -131,6 +131,24 @@ THRESHOLDS = {
         "stale": 2880,
         "critical": 4320,
     },
+    # Phase 1 (algo/orchestrator/phase1_data_freshness.py, SESSION 116 FIX) checks these two
+    # as warn-only tables using the same run_date/updated_at convention as growth_metrics
+    # above, but they were never added here - this script was blind to two tables the
+    # operator-facing "check freshness before trading" tool is supposed to cover. Both are
+    # written by the "financial_statements"/"company_info" loaders in the once-daily metrics
+    # pipeline (7 PM ET evening-pipeline), same cadence as growth_metrics/quality_metrics.
+    "annual_income_statement": {
+        "fresh": 1440,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
+    },
+    "company_info_sec": {
+        "fresh": 1440,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
+    },
     "stability_metrics": {
         # Stability metrics (volatility, beta) - same once-per-trading-day cadence as
         # other metric enrichments. Used by stock_scores as a dependency, but if
@@ -298,6 +316,11 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "market_health_daily": "updated_at",
                 "positioning_metrics": "updated_at",
                 "sector_ranking": "updated_at",
+                # Same "updated_at" convention Phase 1 uses for these two (see
+                # date_column_overrides in phase1_data_freshness.py) - both are SEC/financial
+                # data without a daily "date" column.
+                "annual_income_statement": "updated_at",
+                "company_info_sec": "updated_at",
             }
 
             if table_name not in timestamp_cols:
@@ -507,6 +530,11 @@ def check_all_tables() -> dict[str, Any]:
                     "positioning_metrics",
                     "sector_ranking",
                     "buy_sell_daily",
+                    # Same once-per-trading-day metrics-pipeline cadence as growth_metrics/
+                    # quality_metrics/value_metrics above (written by the same 7 PM ET evening
+                    # run) - needs the identical weekend/holiday gap allowance.
+                    "annual_income_statement",
+                    "company_info_sec",
                     # stock_scores/algo_trades/algo_positions share the identical once-
                     # per-trading-day cadence as the tables above (stock_scores via the
                     # signals pipeline; algo_trades/algo_positions only change when an
@@ -618,6 +646,12 @@ def check_all_tables() -> dict[str, Any]:
             "status": status,
             "level": level,
             "age_minutes": None,
+            # Not a time threshold like every other table's entry - this is a coverage
+            # percentage. send_alert()/send_slack_alert() just render it as "threshold=Xmin"
+            # in the alert text; a slightly misleading label beats the KeyError this entry
+            # used to cause (no "threshold_minutes" key at all) the moment coverage actually
+            # dropped below min_coverage_pct and --alert tried to fire.
+            "threshold_minutes": min_coverage_pct,
         }
 
     return results
