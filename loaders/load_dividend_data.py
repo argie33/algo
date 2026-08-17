@@ -149,6 +149,23 @@ class DividendDataLoader(SecLoaderBase):
                 if value is None or value == 0:
                     continue  # Skip zero dividends
 
+                # FIX 2026-08-17: dividend_per_share is DECIMAL(10,4) (migration 1155), so any
+                # |value| >= 10**6 overflows the column at insert time. This isn't a unit-tag
+                # error the check above catches - the unit IS correctly "USD/shares", the VALUE
+                # itself is filer-tagging garbage (live-confirmed MDRR: val=12650000 tagged as
+                # CommonStockDividendsPerShareDeclared/USD/shares, obviously a total-dollars
+                # figure mistagged as per-share). Per-symbol isolation in optimal_loader.py's
+                # load loop meant this only killed MDRR's own row, but it recurred every single
+                # run since it's a permanent bad fact, not a transient error - MDRR would never
+                # get dividend data until this magnitude bound rejects it here instead of at
+                # the DB COPY boundary.
+                if abs(value) >= 10**6:
+                    logger.warning(
+                        f"[{symbol}] {concept_name}: skipping implausible value {value!r} "
+                        "(>= 1,000,000, would overflow DECIMAL(10,4) column) - filer tagging error, not a real per-share amount"
+                    )
+                    continue
+
                 filed_str = fact.get("filed")
                 end_str = fact.get("end")
                 if not filed_str or not end_str:
