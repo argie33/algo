@@ -466,6 +466,7 @@ def check_all_tables() -> dict[str, Any]:
 
     for table, thresholds in THRESHOLDS.items():
         age = get_table_age_minutes(table)
+        critical_threshold: int | None = None
 
         if age is None:
             status = "[UNCONFIRMED] NO DATA"
@@ -588,6 +589,7 @@ def check_all_tables() -> dict[str, Any]:
             "status": status,
             "level": level,
             "age_minutes": age,
+            "threshold_minutes": critical_threshold,
         }
 
     # Table-wide age can't see a partial-batch crash that leaves a subset of symbols
@@ -823,7 +825,7 @@ def watch_mode(interval: int, alert_method: str | None = None) -> None:
                 if alert_method:
                     for table in critical:
                         data = results[table]
-                        send_alert(table, data["level"], data["age_minutes"], data["stale_threshold"], alert_method)
+                        send_alert(table, data["level"], data["age_minutes"], data["threshold_minutes"], alert_method)
 
             time.sleep(interval)
     except KeyboardInterrupt:
@@ -871,7 +873,7 @@ if __name__ == "__main__":
         if args.alert:
             for table, data in results.items():
                 if data["level"] in ("critical", "dead"):
-                    send_alert(table, data["level"], data["age_minutes"], data["stale_threshold"], args.alert)
+                    send_alert(table, data["level"], data["age_minutes"], data["threshold_minutes"], args.alert)
 
         # Exit with error code if critical staleness detected
         critical = [t for t, d in results.items() if d["level"] in ("critical", "dead")]

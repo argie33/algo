@@ -1806,8 +1806,16 @@ def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rul
         completed_at = run.get("completed_at")
         halt_reason = run.get("halt_reason")
 
-        # Format status with color and icon
-        if status in ("success", "ok"):
+        # Format status with color and icon.
+        # BUG FOUND 2026-08-17 (live-reproduced via LOCAL-MORNING-20260814-120000-000000):
+        # this classifier reimplemented its own status buckets instead of using the
+        # SUCCESS_STATES/HALTED_STATES/SKIPPED_STATES constants above, and its version never
+        # learned "skipped" or "blocked" - both fell into the else clause and rendered as a red
+        # ERROR badge. A run that was correctly skipped by the outside-market-hours guard
+        # (overall_status="skipped", not a crash) showed up in Run History identical to a
+        # genuine phase failure - a false alarm, the exact bug class already fixed in
+        # _format_phase_badge/_get_phase_status_badge above but missed here.
+        if status in SUCCESS_STATES:
             status_icon = "[bold green]✓[/]"
             status_text = "OK"
             status_color = G
@@ -1819,6 +1827,14 @@ def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rul
             status_icon = "[dim]⊘[/]"
             status_text = "DEGRADED"
             status_color = Y
+        elif status in SKIPPED_STATES or status == "blocked":
+            status_icon = "[dim]⊘[/]"
+            status_text = "SKIPPED"
+            status_color = DIM
+        elif status in ERROR_STATES:
+            status_icon = "[bold red]✗[/]"
+            status_text = "ERROR"
+            status_color = R
         else:
             status_icon = "[bold red]✗[/]"
             status_text = "ERROR"
