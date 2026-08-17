@@ -42,3 +42,18 @@ class TestStallTimeoutFloorOverrides:
         assert module._stall_timeout_for("company_info", 32400) == 1800  # clamped ceiling
         assert module._stall_timeout_for("short_interest", 600) == 900  # clamped floor
         assert module._stall_timeout_for("earnings_calendar", 7200) == 1440  # 7200/5, mid-range
+
+    def test_insider_velocity_shorthand_alias_also_gets_the_override(self):
+        """LIVE BUG FOUND 2026-08-17 (later same day): the fix above never actually applied
+        when the scheduler was invoked via `--loaders insider_velocity` (the scoped-subset
+        flag) - `loader` at the _stall_timeout_for() call site is the raw, unnormalized CLI
+        token, and STALL_TIMEOUT_FLOOR_OVERRIDES was only ever keyed by the canonical
+        "insider_transaction_velocity" spelling. loader_timeout_config.py already handles this
+        exact alias by listing both spellings with identical values - live-reproduced the same
+        900s-floor kill this fix was meant to prevent (killed at 931s, not 1500s) via that
+        invocation path today."""
+        module = _load_scheduler_module()
+        assert module._stall_timeout_for("insider_velocity", 2700) == 1500
+        assert module._stall_timeout_for("insider_velocity", 2700) == module._stall_timeout_for(
+            "insider_transaction_velocity", 2700
+        )

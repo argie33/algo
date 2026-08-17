@@ -89,8 +89,19 @@ if "LOADER_PARALLELISM" not in os.environ:
 # only 9/12 quarters in at the 900s mark. The generic per-loader formula's 900s floor is
 # stricter than the loader's own designed download budget, so it was structurally guaranteed
 # to kill this loader before its first possible DB write, every run.
+#
+# LIVE BUG FOUND 2026-08-17 (later same day): the override above never actually applied when
+# the scheduler was invoked via `--loaders insider_velocity` (the `--loaders` scoped-subset
+# flag added earlier today, see scheduler_scoped_loaders_flag_added_20260817) - `loader` at
+# the _stall_timeout_for() call site is the raw, unnormalized CLI token, and this dict was
+# only ever keyed by the canonical "insider_transaction_velocity" form. loader_timeout_config.py
+# already handles this exact alias by listing both spellings with identical values - live-
+# reproduced the same 900s-floor kill this fix was meant to prevent (killed at 931s, not
+# 1500s) via that invocation path today. Match that established pattern instead of introducing
+# a normalization step this dict didn't have before.
 STALL_TIMEOUT_FLOOR_OVERRIDES = {
     "insider_transaction_velocity": 1500,  # 1080s download budget + 420s margin
+    "insider_velocity": 1500,  # Alias for insider_transaction_velocity - see above
 }
 
 
