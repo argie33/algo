@@ -209,14 +209,20 @@ class SpecializedChecker(BaseCheck):
     def check_fundamental_data(self, cur: Any) -> None:
         today = _date.today()
         table_checks = [
-            # DISABLED 2026-08-06: SEC financial statement loaders hang for 5+ hours and get force-killed.
-            # Removed from monitoring since they're no longer actively loaded.
-            # ("quarterly_income_statement", "created_at", 45, WARN),
-            # ("quarterly_balance_sheet", "created_at", 45, WARN),
-            # ("quarterly_cash_flow", "created_at", 45, WARN),
-            # ("annual_income_statement", "created_at", 120, WARN),
-            # ("annual_balance_sheet", "created_at", 120, WARN),
-            # ("annual_cash_flow", "created_at", 120, WARN),
+            # RE-ENABLED 2026-08-16: was disabled 2026-08-06 because the SEC financial statement
+            # loaders hung for 5+ hours and got force-killed. That hang is exactly the class of
+            # bug the loader timeout/stall-kill fixes landed this session address (e.g. the
+            # eps_trend/eps_revisions timeout wrapper, the flat-120s stall-kill false-positive
+            # fix) - live-verified 2026-08-16 ~20:35 UTC all 6 tables have fresh same-day
+            # created_at rows (150k+ rows each) and are in loaders/loader_registry.py as actively
+            # scheduled, so this monitoring gap (over a week silently unwatching core
+            # quality/growth-scoring inputs) is no longer warranted.
+            ("quarterly_income_statement", "created_at", 45, WARN),
+            ("quarterly_balance_sheet", "created_at", 45, WARN),
+            ("quarterly_cash_flow", "created_at", 45, WARN),
+            ("annual_income_statement", "created_at", 120, WARN),
+            ("annual_balance_sheet", "created_at", 120, WARN),
+            ("annual_cash_flow", "created_at", 120, WARN),
             # BUG FOUND 2026-08-11: key_metrics has had no active writer since 2026-05-21
             # (confirmed: not in loaders/loader_registry.py, not scheduled anywhere) - this
             # check was correctly flagging it as stale every day, but that masked the real
