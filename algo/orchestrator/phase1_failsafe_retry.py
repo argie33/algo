@@ -317,6 +317,25 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         "halt_required": False,
     }
 
+    # BUG FIX 2026-08-16: live-reproduced via logs/orchestrator_retry_20260814.log (104MB,
+    # single run) - when Postgres itself was down for the whole run, this function had no
+    # way to notice up front. It went on to retry all ~30 FAILED loaders one at a time,
+    # in-process, each one independently discovering the same dead connection via its own
+    # per-symbol DatabaseContext calls (4 retry attempts each, full traceback logged every
+    # time) - thousands of duplicate "Connection refused" stack traces burying any real
+    # diagnostic signal and burning the whole retry window without loading a single row.
+    # One cheap up-front probe lets this fail fast with ONE clear message instead.
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT 1")
+    except Exception as e:
+        logger.error(
+            f"[PHASE 1 FAILSAFE] Database unreachable - aborting loader retry pass before it "
+            f"starts (would otherwise retry every incomplete loader against a dead connection): {e}"
+        )
+        results["halt_required"] = True
+        return results
+
     # CRITICAL FIX 2026-08-12: First pass - check for FAILED loaders and retry them
     # Loaders marked FAILED on Friday are ignored by Monday because they're not "stale" (data is recent)
     # but they DO need retry to recover from the crash/timeout that caused the FAILED status
