@@ -112,35 +112,36 @@ class DataAgeValidator:
                     "is_critical": rule["critical"],
                 }
 
-        # Calculate age
-        age_days = (current_date - max_date).days
-
-        # Strictly enforce freshness thresholds using trading-day logic.
-        # Markets are closed on weekends/holidays, so data from last trading day is acceptable.
-        # BUT: Only if max_age_days explicitly allows it (e.g., price_weekly allows 7 days).
-        # For daily data (max_age_days=1), stale data after 1 trading day is NOT acceptable.
-        threshold_days = rule["max_age_days"]
-
-        # CRITICAL FIX: Use MarketCalendar.is_trading_day() instead of hardcoded weekday checks
-        # This correctly handles market holidays (Presidents Day, Thanksgiving, etc.)
-        # which would be misclassified as weekdays by raw weekday() checks.
+        # Calculate age in TRADING days, not raw calendar days (CLAUDE.md: "Date math must use
+        # MarketCalendar, not raw days"). LIVE-REPRODUCED BUG 2026-08-17: the old
+        # `age_days = (current_date - max_date).days` was always raw calendar days regardless
+        # of the trading-day branching below, which only ever adjusted the *threshold* based on
+        # whether TODAY was a trading day - it never adjusted the *age* itself for weekends
+        # sitting between max_date and today. On a Monday with the most recent complete trading
+        # day being Friday, that's a real, correct age of 1 trading day (nothing missed since
+        # Friday's close), but the old code computed age_days=3 (raw Sat/Sun/Mon count), which a
+        # threshold=1 rule always fails - hard-failing load_technical_indicators.py's
+        # price_daily freshness check every Monday morning before today's own session data
+        # exists, regardless of how fresh the data actually was. Confirmed live: this exact
+        # failure just broke `technical_data_daily` (and therefore the whole `signals` pipeline
+        # behind it) at 2026-08-17 06:07 local with "[price_daily] Data is 3 days old
+        # (threshold 1d)" while price_daily was in fact current as of Friday's close.
+        #
+        # get_trading_days(max_date, current_date) returns the trading days in that inclusive
+        # range; subtracting 1 excludes max_date's own day, giving "how many trading days have
+        # elapsed since this data's date" - correctly 1 across a weekend/holiday gap, and
+        # identical to the old raw-day count on any run of consecutive trading days (no
+        # behavior change on a normal Tue-after-Mon check). This also subsumes the old
+        # "is today itself a trading day" +1-grace/strict branching (a Saturday check against
+        # Friday's data now naturally computes age=0), so that branching - including the
+        # fragile `"price" in rule.get("description", "").lower()` string match - is removed
+        # rather than duplicated.
         from algo.infrastructure import MarketCalendar
 
-        is_trading_day = MarketCalendar.is_trading_day(current_date)
-
-        if is_trading_day:
-            # Today is a trading day: use strict threshold
-            adjusted_threshold = threshold_days
-        else:
-            # Today is weekend/holiday: markets closed, data from last trading day is acceptable
-            # Allow 1 extra day of grace for market data (prices, ETFs)
-            # For computed data (signals, scores, risk), enforce strict threshold
-            if "price" in rule.get("description", "").lower():
-                # Price/market data can be 1 extra day old on weekends/holidays
-                adjusted_threshold = threshold_days + 1
-            else:
-                # Computed data must meet strict threshold regardless of trading day status
-                adjusted_threshold = threshold_days
+        threshold_days = rule["max_age_days"]
+        trading_days_covered = MarketCalendar.get_trading_days(max_date, current_date)
+        age_days = max(0, len(trading_days_covered) - 1)
+        adjusted_threshold = threshold_days
 
         is_fresh = age_days <= adjusted_threshold
 
