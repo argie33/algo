@@ -126,6 +126,11 @@ _INCOME_FIELD_MAPPING = {
     # filers that have nothing else.
     "interest_and_dividend_income_operating": "revenue",
     "cost_of_revenue": "cost_of_revenue",
+    # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
+    # added to sec_statements.py's get_income_statement() concepts list - see that file's
+    # comment above the concept for the live-verified AMZN/COST/CI/JD/SHEL/TTE cases this
+    # recovers. Same target column as "cost_of_revenue" above.
+    "cost_of_goods_and_services_sold": "cost_of_revenue",
     "gross_profit": "gross_profit",
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
