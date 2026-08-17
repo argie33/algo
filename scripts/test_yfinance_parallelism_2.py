@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """Test yfinance with parallelism=2 to verify no rate limiting occurs.
 
+SUPERSEDED - do not run against real infrastructure: LOADER_PARALLELISM=1 is now a
+load-bearing rule (see MEMORY.md analyst_loaders_reloaded_and_local_parallelism_ban_20260810)
+- parallelism=4 self-triggered the yfinance shared-IP circuit breaker even from a single
+local machine. The per-loader LOADER_CONSTRAINTS scoping this test to just
+analyst_sentiment/analyst_upgrades (steering/YFINANCE_PARALLELISM_INVESTIGATION.md) was
+never implemented - LOADER_PARALLELISM is a single global env var, so running this script
+raises parallelism for every loader process-wide, not just the two it was scoped to. Kept
+for reference only, in case yfinance's rate limit is ever revisited.
+
 This test safely increases parallelism from 1 to 2 and monitors for HTTP 429 errors.
 If no rate limiting is detected, the optimization can be enabled.
 """
@@ -10,9 +19,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
-def run_analyst_loader_with_parallelism(parallelism: int, timeout_minutes: int = 30) -> dict:
+def run_analyst_loader_with_parallelism(parallelism: int, timeout_minutes: int = 30) -> dict[str, Any]:
     """Run analyst_sentiment_analysis with specified parallelism."""
     env = os.environ.copy()
     env["LOADER_PARALLELISM"] = str(parallelism)
@@ -77,7 +87,7 @@ def run_analyst_loader_with_parallelism(parallelism: int, timeout_minutes: int =
         }
 
 
-def main():
+def main() -> int:
     """Test parallelism=2 and determine if it's safe to enable."""
     print("Yfinance Parallelism Optimization Test")
     print("=" * 70)

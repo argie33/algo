@@ -447,8 +447,8 @@ def get_price_symbol_coverage() -> tuple[int, int, float] | None:
         return None
 
 
-def check_all_tables() -> dict:
-    results = {}
+def check_all_tables() -> dict[str, Any]:
+    results: dict[str, Any] = {}
     today = date.today()
 
     # Whether today is itself a trading day is the wrong question for freshness: on a
@@ -621,7 +621,7 @@ def check_all_tables() -> dict:
     return results
 
 
-def print_report(results: dict) -> None:
+def print_report(results: dict[str, Any]) -> None:
     """Print formatted report."""
     is_trading_day = MarketCalendar.is_trading_day(date.today())
     day_type = "Trading Day" if is_trading_day else "Non-Trading Day (Weekend/Holiday)"
@@ -633,7 +633,7 @@ def print_report(results: dict) -> None:
     print("=" * 70 + "\n")
 
     # Count by level
-    levels = {}
+    levels: dict[str, int] = {}
     for table, data in results.items():
         level = data["level"]
         levels[level] = levels.get(level, 0) + 1

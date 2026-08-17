@@ -135,7 +135,7 @@ def list_flows() -> None:
         print("No capital flows recorded.")
         return
     print(f"{'id':>4}  {'date':<10}  {'amount':>14}  {'type':<10}  {'source':<28}  notes")
-    for row_id, flow_date, amount, flow_type, source, notes, created_at in rows:
+    for row_id, flow_date, amount, flow_type, source, notes, _created_at in rows:
         print(f"{row_id:>4}  {flow_date}  {amount:>14,.2f}  {flow_type:<10}  {source:<28}  {notes or ''}")
 
 

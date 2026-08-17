@@ -20,6 +20,7 @@ import logging
 import sys
 import time
 from datetime import datetime, timedelta
+from typing import Any
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def cleanup_old_watermarks(retention_days: int = 14, dry_run: bool = False, batch_size: int = 5000) -> dict:
+def cleanup_old_watermarks(retention_days: int = 14, dry_run: bool = False, batch_size: int = 5000) -> dict[str, Any]:
     """Delete watermark records older than retention_days.
 
     Args:
@@ -123,7 +124,7 @@ def cleanup_old_watermarks(retention_days: int = 14, dry_run: bool = False, batc
     return stats
 
 
-def analyze_watermarks(retention_days: int = 14) -> dict:
+def analyze_watermarks(retention_days: int = 14) -> dict[str, Any]:
     """Analyze watermark table health."""
     cutoff_date = datetime.now(EASTERN_TZ) - timedelta(days=retention_days)
 

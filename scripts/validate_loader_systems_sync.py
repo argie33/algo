@@ -31,11 +31,11 @@ sys.path.insert(0, str(repo_root))
 from loaders.loader_registry import LOADER_TABLES, SHORTHAND_TO_FILENAME, get_table_names  # noqa: E402
 
 
-def load_terraform_loaders():
+def load_terraform_loaders() -> dict[str, str]:
     """Extract loader_file_map from terraform/modules/loaders/main.tf."""
     tf_file = repo_root / "terraform" / "modules" / "loaders" / "main.tf"
 
-    loaders = {}
+    loaders: dict[str, str] = {}
     with open(tf_file) as f:
         content = f.read()
 
@@ -58,7 +58,7 @@ def load_terraform_loaders():
     return loaders
 
 
-def load_lambda_valid_names():
+def load_lambda_valid_names() -> set[str] | None:
     """Extract VALID_LOADER_NAMES from lambda/trigger-loaders/lambda_function.py."""
     lambda_file = repo_root / "lambda" / "trigger-loaders" / "lambda_function.py"
 
@@ -90,7 +90,7 @@ def load_lambda_valid_names():
     return set()
 
 
-def main():
+def main() -> int:
     print("=" * 70)
     print("LOADER SYSTEMS SYNC VALIDATION")
     print("=" * 70)

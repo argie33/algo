@@ -77,6 +77,31 @@ class TestReapedFailuresDoNotDeadlock:
         assert rc == 0
         mock_popen.assert_called_once()
 
+    def test_manual_reap_prefix_also_does_not_skip_the_loader(self, tmp_path):
+        """Bug fix 2026-08-17: a human running LoaderStatusManager.mark_failed() directly writes
+        "[MANUAL REAP ..." (not the automatic sweep's "[REAPED]") for the identical abandoned-
+        process situation - live-reproduced on sec_segment_info. Must not deadlock either."""
+        module = _load_scheduler_module(tmp_path)
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        fake_conn = _mock_db_row(
+            3,
+            "[MANUAL REAP] Stuck RUNNING since 2026-08-17 05:32:23 UTC with no owning OS process "
+            "(confirmed via Get-CimInstance Win32_Process). Manually reaped for dashboard accuracy.",
+        )
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["stability_metrics"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "Popen", return_value=mock_proc) as mock_popen,
+            patch("utils.db.connection.get_db_connection", return_value=fake_conn),
+        ):
+            rc = module.run_pipeline("test_pipeline")
+
+        assert rc == 0
+        mock_popen.assert_called_once()
+
     def test_genuine_repeated_failures_still_skip_the_loader(self, tmp_path):
         """Same 3+ threshold, but the most recent failure was a real error - must still block,
         this fix must not weaken the original protection for an actually-broken loader."""

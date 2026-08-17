@@ -17,11 +17,11 @@ Usage:
     python comprehensive_diagnostics.py --verbose          # Detailed output
 """
 
-import sys
 import argparse
-from datetime import datetime, timedelta
+import sys
+from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
 # Add repo root (parent of this script's scripts/ directory) to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,14 +32,14 @@ from utils.db.context import DatabaseContext
 class DiagnosticResult:
     """Result of a diagnostic check."""
 
-    def __init__(self, name: str, status: str, message: str = "", details: Dict[str, Any] = None):
+    def __init__(self, name: str, status: str, message: str = "", details: dict[str, Any] | None = None):
         self.name = name
         self.status = status  # OK, WARNING, ERROR, CRITICAL
         self.message = message
         self.details = details or {}
         self.timestamp = datetime.utcnow()
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {
             "check": self.name,
             "status": self.status,
@@ -54,7 +54,7 @@ class SystemDiagnostics:
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
-        self.results: List[DiagnosticResult] = []
+        self.results: list[DiagnosticResult] = []
 
     def run_all(self) -> bool:
         """Run all diagnostics and return True if all pass."""
@@ -97,7 +97,7 @@ class SystemDiagnostics:
             print(f"CRITICAL: Diagnostics initialization failed: {e}")
             return False
 
-    def check_database_connection(self):
+    def check_database_connection(self) -> None:
         """Verify database connection works."""
         try:
             with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
@@ -112,10 +112,10 @@ class SystemDiagnostics:
                 )
         except Exception as e:
             self.results.append(
-                DiagnosticResult("Database Connection", "CRITICAL", f"Database connection failed: {str(e)}")
+                DiagnosticResult("Database Connection", "CRITICAL", f"Database connection failed: {e!s}")
             )
 
-    def check_locks_health(self):
+    def check_locks_health(self) -> None:
         """Check for stale and orphaned locks."""
         try:
             with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
@@ -175,9 +175,9 @@ class SystemDiagnostics:
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult("Stale Locks", "WARNING", f"Lock health check failed: {str(e)}"))
+            self.results.append(DiagnosticResult("Stale Locks", "WARNING", f"Lock health check failed: {e!s}"))
 
-    def check_loader_performance(self):
+    def check_loader_performance(self) -> None:
         """Check recent loader execution performance."""
         try:
             with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
@@ -205,7 +205,7 @@ class SystemDiagnostics:
                         )
                     else:
                         # Summarize by status
-                        status_counts = {}
+                        status_counts: dict[str, int] = {}
                         for row in runs:
                             status = row["status"]
                             status_counts[status] = status_counts.get(status, 0) + row["count"]
@@ -240,10 +240,10 @@ class SystemDiagnostics:
                         raise
         except Exception as e:
             self.results.append(
-                DiagnosticResult("Loader Performance", "WARNING", f"Loader performance check failed: {str(e)}")
+                DiagnosticResult("Loader Performance", "WARNING", f"Loader performance check failed: {e!s}")
             )
 
-    def check_data_freshness(self):
+    def check_data_freshness(self) -> None:
         """Check how recent the data is across key tables."""
         try:
             with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
@@ -297,9 +297,9 @@ class SystemDiagnostics:
 
                 self.results.append(DiagnosticResult("Data Freshness", status, message, freshness_results))
         except Exception as e:
-            self.results.append(DiagnosticResult("Data Freshness", "WARNING", f"Data freshness check failed: {str(e)}"))
+            self.results.append(DiagnosticResult("Data Freshness", "WARNING", f"Data freshness check failed: {e!s}"))
 
-    def check_configuration(self):
+    def check_configuration(self) -> None:
         """Check critical configuration values."""
         try:
             with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
@@ -338,9 +338,9 @@ class SystemDiagnostics:
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult("Configuration", "WARNING", f"Configuration check failed: {str(e)}"))
+            self.results.append(DiagnosticResult("Configuration", "WARNING", f"Configuration check failed: {e!s}"))
 
-    def check_recent_errors(self):
+    def check_recent_errors(self) -> None:
         """Check for recent errors in logs."""
         try:
             with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
@@ -387,7 +387,7 @@ class SystemDiagnostics:
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult("Recent Errors", "WARNING", f"Error check failed: {str(e)}"))
+            self.results.append(DiagnosticResult("Recent Errors", "WARNING", f"Error check failed: {e!s}"))
 
     def print_results(self) -> bool:
         """Print diagnostic results and return True if all are OK/WARNING."""
@@ -411,7 +411,7 @@ class SystemDiagnostics:
         print()
 
         # Group results by status
-        status_groups = {}
+        status_groups: dict[str, list[DiagnosticResult]] = {}
         for result in self.results:
             if result.status not in status_groups:
                 status_groups[result.status] = []
@@ -457,7 +457,7 @@ class SystemDiagnostics:
             return True
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Run system diagnostics")
     parser.add_argument(
         "--focus",

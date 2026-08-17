@@ -17,6 +17,7 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
@@ -27,7 +28,7 @@ from utils.db.connection import get_db_connection
 from utils.loaders.status_manager import LoaderStatusManager
 
 
-def fix_stuck_running_loaders(cur, stale_threshold_minutes: int | None = None) -> list[str]:
+def fix_stuck_running_loaders(cur: Any, stale_threshold_minutes: int | None = None) -> list[str]:
     """Detect and fix loaders genuinely stuck RUNNING, using each table's own configured
     loader timeout rather than one flat threshold for every table.
 
@@ -58,7 +59,7 @@ def clean_stale_locks(max_age_hours: int = 2) -> list[str]:
     Loader processes create .lock files and should clean them on exit. Files
     older than the max age almost certainly indicate a crashed process.
     """
-    cleaned = []
+    cleaned: list[str] = []
     lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
     if not lock_dir.exists():
         return cleaned
@@ -86,7 +87,7 @@ def clean_stale_locks(max_age_hours: int = 2) -> list[str]:
 def validate_dependency_data(
     loader: str,
     dependencies: dict[str, list[str]],
-    cur,  # Use existing cursor
+    cur: Any,  # Use existing cursor
 ) -> tuple[bool, str | None]:
     """Check if a loader's dependencies have fresh data.
 
@@ -125,7 +126,7 @@ def validate_dependency_data(
 
 def reset_fixable_pending_loaders(
     dependencies: dict[str, list[str]],
-    cur,  # Use existing cursor instead of creating new connection
+    cur: Any,  # Use existing cursor instead of creating new connection
 ) -> list[str]:
     """Reset PENDING loaders with 0-1 failures that can be retried.
 
@@ -163,7 +164,7 @@ def reset_fixable_pending_loaders(
     return reset
 
 
-def main():
+def main() -> int:
     # BUG FIX 2026-08-17: this script had zero argument parsing, so `--help` (or any typo'd
     # flag) was silently ignored and fell straight through to the real repair below - an
     # operator checking usage before running it against prod-adjacent data_loader_status would

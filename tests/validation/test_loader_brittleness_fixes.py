@@ -176,9 +176,19 @@ def test_3_circuit_breaker_cancellation():
 
 
 def test_4_yfinance_parallelism_safety():
-    """Test: Yfinance parallelism=2 is safe (no 429 rate limit errors)."""
+    """Test: yfinance parallelism=2 test harness exists (its safety hypothesis is superseded).
+
+    SUPERSEDED: LOADER_PARALLELISM=1 is now a load-bearing rule (see MEMORY.md
+    analyst_loaders_reloaded_and_local_parallelism_ban_20260810) - parallelism=4
+    self-triggered the yfinance shared-IP circuit breaker even from a single local
+    machine, and the per-loader LOADER_CONSTRAINTS scoping this script's parent
+    investigation (steering/YFINANCE_PARALLELISM_INVESTIGATION.md) assumed was never
+    implemented. Do NOT run scripts/test_yfinance_parallelism_2.py - it would raise
+    parallelism for every loader process-wide, not just the two loaders it was scoped to.
+    This test only checks the script's static content, never executes it.
+    """
     print("\n" + "=" * 70)
-    print("TEST 4: YFINANCE PARALLELISM OPTIMIZATION")
+    print("TEST 4: YFINANCE PARALLELISM SCRIPT (SUPERSEDED - not executed)")
     print("=" * 70)
 
     try:
@@ -190,9 +200,7 @@ def test_4_yfinance_parallelism_safety():
             return False
 
         print(f"✓ Test script exists: {test_script}")
-        print("⏳ NOTE: This test requires 30-minute analyst_sentiment_analysis run")
-        print("   To validate: python scripts/test_yfinance_parallelism_2.py")
-        print("   Status: NEVER RUN - requires scheduled time block")
+        print("⛔ DO NOT RUN: superseded by the load-bearing LOADER_PARALLELISM=1 rule")
 
         # For now, verify the logic is in place
         from pathlib import Path

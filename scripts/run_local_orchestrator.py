@@ -22,8 +22,9 @@ live-trading session with a different label.
 import argparse
 import os
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 # CRITICAL: Load environment variables from .env.local BEFORE any boto3/AWS calls
@@ -50,14 +51,19 @@ except Exception as e:
 # name instead (same trick lambda/api/dev_server.py uses for its own lambda_function.py).
 # Reuses the real production run_identifier -> dry_run mapping rather than keeping a second,
 # driftable copy here.
+# mypy note: pyproject.toml's mypy_path adds lambda/api to the search path, which also
+# contains a lambda_function.py - mypy statically resolves the bare `lambda_function` name
+# to THAT file (silently checking the wrong module) rather than the one actually imported
+# here at runtime via the sys.path.insert() above. attr-defined is suppressed because it's
+# checking against the wrong file entirely, not because these names are genuinely optional.
 sys.path.insert(0, str(project_root / "lambda" / "algo_orchestrator"))
-from lambda_function import (  # noqa: E402
+from lambda_function import (  # type: ignore[attr-defined] # noqa: E402
     LIVE_TRADING_RUN_IDENTIFIERS,
     MONITOR_ONLY_RUN_IDENTIFIERS,
 )
 
 
-def _check_loader_freshness(run_type: str, now) -> None:
+def _check_loader_freshness(run_type: str, now: datetime) -> None:
     """Check if required loaders have run today and warn if not.
 
     SESSION 107 FIX: Extracted from main() to reduce complexity (C901).
@@ -121,7 +127,7 @@ def _check_loader_freshness(run_type: str, now) -> None:
         )
 
 
-def _find_todays_run(run_type: str, run_date) -> dict | None:
+def _find_todays_run(run_type: str, run_date: date) -> dict[str, Any] | None:
     """Return the most recent orchestrator_execution_log row for this run_type/run_date, if any.
 
     CRITICAL FIX: Check DATE(started_at) instead of run_date. Runs that start late on one

@@ -15,6 +15,19 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
+# BUG FIX: this script's emoji status markers (checkmark/cross/warning) crash outright on
+# Windows' default cp1252 console encoding before STEP 1 even finishes printing - the same
+# bug class already fixed in scripts/monitor_data_staleness.py and
+# scripts/validate_loader_systems_sync.py. Guarded against pytest: reassigning
+# sys.stdout/stderr to a new TextIOWrapper while pytest has already substituted its own
+# capture streams corrupts pytest's capture teardown the first time anything imports this
+# module.
+if sys.platform == "win32" and "pytest" not in sys.modules:
+    import io
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -187,17 +200,21 @@ def test_scenario_sec_rate_limit_with_incomplete_load():  # noqa: C901
         print(f"❌ ERROR: {e}")
         return False
 
-    # STEP 5: Verify yfinance parallelism test exists (but hasn't been run)
-    print("\n[STEP 5] Yfinance parallelism optimization (NOT YET IMPLEMENTED)")
+    # STEP 5: Yfinance parallelism=2 experiment - superseded, do not run
+    print("\n[STEP 5] Yfinance parallelism optimization (SUPERSEDED - do not run)")
     print("-" * 80)
     try:
         test_script = project_root / "scripts" / "test_yfinance_parallelism_2.py"
 
         if test_script.exists():
             print("✅ Test script exists: test_yfinance_parallelism_2.py")
-            print("⏳ STATUS: Never run (30-minute time commitment)")
-            print("   This would validate parallelism=2 is safe (no 429 rate limits)")
-            print("   Impact: Reduce 6+ hour analyst pipeline to 2-3 hours")
+            print("⛔ SUPERSEDED: LOADER_PARALLELISM is now a load-bearing rule fixed at 1")
+            print("   (see MEMORY.md analyst_loaders_reloaded_and_local_parallelism_ban_20260810 -")
+            print("   parallelism=4 self-triggered the yfinance shared-IP circuit breaker even from")
+            print("   a single local machine). The per-loader LOADER_CONSTRAINTS scoping this script's")
+            print("   parent investigation (steering/YFINANCE_PARALLELISM_INVESTIGATION.md) assumed was")
+            print("   never implemented - LOADER_PARALLELISM is a single global env var, so running this")
+            print("   script would raise parallelism for every loader, not just analyst_sentiment/upgrades.")
         else:
             print("❌ Test script not found")
             all_pass = False
@@ -223,12 +240,12 @@ Session 88 fixes are implemented:
 
 ⚠️  CRITICAL: These are implemented but production-load validation is missing.
    - Circuit breaker cancellation (fut.cancel) has not been tested under timeout
-   - Yfinance parallelism test (30 min) has never been run
    - No end-to-end Monday scenario (SEC rate limit + incomplete) has been validated
 
 RECOMMENDATION:
-  Run test_yfinance_parallelism_2.py to enable faster data refresh.
-  Then schedule a "Monday chaos" test simulating SEC rate-limits.
+  Do NOT run test_yfinance_parallelism_2.py - its parallelism=2 hypothesis is superseded
+  by the load-bearing LOADER_PARALLELISM=1 rule (see STEP 5 above for why).
+  Schedule a "Monday chaos" test simulating SEC rate-limits instead.
         """)
         return 0
     else:

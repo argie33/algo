@@ -9,10 +9,13 @@ Checks:
 5. Whether loader output feeds downstream dependencies
 """
 
+import logging
 from datetime import datetime
 from typing import Any
 
 import psycopg2
+
+logger = logging.getLogger(__name__)
 
 # Kept in sync with the active loader list in scripts/local_loader_scheduler.py.
 # Previous version of this dict referenced load_yfinance_snapshot.py and
@@ -280,7 +283,7 @@ def _validate_against_registry() -> None:
 _validate_against_registry()
 
 
-def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
+def verify_loader(conn: Any, loader_name: str, config: dict[str, Any]) -> dict[str, Any]:
     """Verify a single loader's output."""
     cur = conn.cursor()
     results = {
@@ -362,9 +365,7 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                     results["issues"].append("No date data found")
             except Exception as e:
                 # Log staleness check failure but continue with other checks
-                import logging
-
-                logging.debug(f"[VERIFY_LOADERS] Failed to check date staleness for {config['output_table']}: {e}")
+                logger.debug(f"[VERIFY_LOADERS] Failed to check date staleness for {config['output_table']}: {e}")
 
         # Check for excessive NULLs in key columns
         try:
@@ -383,13 +384,9 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                     if null_pct > 20:
                         results["issues"].append(f"High NULL rate in {col}: {null_pct:.1f}%")
                 except Exception as e:
-                    import logging
-
-                    logging.debug(f"[VERIFY_LOADERS] Failed to check NULL rate for {col}: {e}")
+                    logger.debug(f"[VERIFY_LOADERS] Failed to check NULL rate for {col}: {e}")
         except Exception as e:
-            import logging
-
-            logging.debug(f"[VERIFY_LOADERS] Failed to enumerate columns for {config['output_table']}: {e}")
+            logger.debug(f"[VERIFY_LOADERS] Failed to enumerate columns for {config['output_table']}: {e}")
 
         # Determine overall status
         if not results["issues"]:
@@ -406,7 +403,7 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
     return results
 
 
-def verify_all_loaders():
+def verify_all_loaders() -> bool:
     """Verify all loaders."""
     print("\n" + "=" * 100)
     print("LOADER HEALTH VERIFICATION")

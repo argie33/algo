@@ -104,11 +104,13 @@ def ensure_credentials_loaded() -> dict[str, str]:
         Dict with credentials that are now set in environment
     """
     # Check if already set
-    if os.getenv("APCA_API_KEY_ID") and os.getenv("APCA_API_SECRET_KEY"):
+    api_key_id = os.getenv("APCA_API_KEY_ID")
+    api_secret_key = os.getenv("APCA_API_SECRET_KEY")
+    if api_key_id and api_secret_key:
         logger.info("[CREDS] Alpaca credentials already in environment")
         return {
-            "APCA_API_KEY_ID": os.getenv("APCA_API_KEY_ID"),
-            "APCA_API_SECRET_KEY": os.getenv("APCA_API_SECRET_KEY"),
+            "APCA_API_KEY_ID": api_key_id,
+            "APCA_API_SECRET_KEY": api_secret_key,
             "APCA_API_BASE_URL": os.getenv("APCA_API_BASE_URL", "https://paper-api.alpaca.markets"),
         }
 

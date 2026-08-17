@@ -4,14 +4,11 @@
 Verifies the dev_server is running and responsive, with detailed diagnostics if not.
 """
 
-import json
 import logging
 import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
-from typing import Optional
 
 logging.basicConfig(level=logging.INFO, format="[HEALTH] %(message)s")
 logger = logging.getLogger(__name__)
@@ -32,7 +29,7 @@ def check_port_open(port: int, timeout: float = 1.0) -> bool:
     return False
 
 
-def get_process_holding_port(port: int) -> Optional[int]:
+def get_process_holding_port(port: int) -> int | None:
     """Get PID of process holding a port (Windows only)."""
     if sys.platform != "win32":
         return None
@@ -154,12 +151,14 @@ def diagnose_issue() -> None:
 
 def main() -> int:
     """Main entry point."""
-    parser_help = """
-    Usage: python dev_server_health_check.py [--diagnose] [--kill-orphaned]
-
-    --diagnose       Run full diagnostics
-    --kill-orphaned  Kill any orphaned processes on port 3001
-    """
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(
+            "Usage: python dev_server_health_check.py [--diagnose] [--kill-orphaned]\n"
+            "\n"
+            "--diagnose       Run full diagnostics\n"
+            "--kill-orphaned  Kill any orphaned processes on port 3001"
+        )
+        return 0
 
     if "--diagnose" in sys.argv:
         diagnose_issue()

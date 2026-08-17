@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timezone
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -43,7 +44,7 @@ EXPECTED_SCHEDULES = {
 }
 
 
-def run_aws_cli(args: list) -> dict | None:
+def run_aws_cli(args: list[str]) -> dict[str, Any] | None:
     """Run AWS CLI command and return JSON result."""
     import shutil
 
@@ -74,7 +75,7 @@ def run_aws_cli(args: list) -> dict | None:
         return {"_cli_error": str(e)}
 
 
-def check_schedule(name: str, expected: dict) -> dict:
+def check_schedule(name: str, expected: dict[str, Any]) -> dict[str, Any]:
     # get-schedule returns fields at the top level (no "Schedule" wrapper key);
     # a nonexistent schedule is a nonzero exit + ResourceNotFoundException on
     # stderr, not a missing key in a successful response.
@@ -161,7 +162,7 @@ def enable_schedule(name: str) -> bool:
         return False
 
 
-def check_all_schedules() -> dict:
+def check_all_schedules() -> dict[str, Any]:
     print("\n" + "=" * 70)
     print("EVENTBRIDGE SCHEDULER VERIFICATION")
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
@@ -190,7 +191,7 @@ def check_all_schedules() -> dict:
     return results
 
 
-def main():
+def main() -> None:
     import argparse
 
     # Windows console encoding fix (emoji output crashes cp1252 console otherwise).

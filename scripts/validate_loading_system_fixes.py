@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(m
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-def check_dependency_enforcement():
+def check_dependency_enforcement() -> bool:
     """ROOT CAUSE #1: Verify all loader dependencies are enforced in scheduler."""
     logger.info("\n[FIX #1] Checking loader dependency enforcement...")
 
@@ -56,7 +56,7 @@ def check_dependency_enforcement():
         return False
 
 
-def check_timeout_configurations():
+def check_timeout_configurations() -> bool:
     """ROOT CAUSE #2: Verify timeouts are sized to real runtime."""
     logger.info("\n[FIX #2] Checking timeout configurations...")
 
@@ -93,7 +93,7 @@ def check_timeout_configurations():
         return False
 
 
-def check_stale_running_detection():
+def check_stale_running_detection() -> bool:
     """ROOT CAUSE #3: Verify Phase 1 detects stale RUNNING loaders."""
     logger.info("\n[FIX #3] Checking stale RUNNING loader detection...")
 
@@ -119,7 +119,7 @@ def check_stale_running_detection():
         return False
 
 
-def check_loader_registry():
+def check_loader_registry() -> bool:
     """ROOT CAUSE #4: Verify all 34 loaders are registered in scheduler."""
     logger.info("\n[FIX #4] Checking complete loader registry...")
 
@@ -158,7 +158,7 @@ def check_loader_registry():
         return False
 
 
-def check_mid_run_crash_recovery():
+def check_mid_run_crash_recovery() -> bool:
     """ROOT CAUSE #5: Verify Phase 1 marks old RUNNING loaders as FAILED."""
     logger.info("\n[FIX #5] Checking mid-run crash recovery in Phase 1...")
 
@@ -191,7 +191,7 @@ def check_mid_run_crash_recovery():
         return False
 
 
-def check_dashboard_loader_status():
+def check_dashboard_loader_status() -> bool | None:
     """BONUS: Verify dashboard shows accurate loader status."""
     logger.info("\n[BONUS] Checking dashboard loader status display...")
 
@@ -223,7 +223,7 @@ def check_dashboard_loader_status():
         return None  # Don't fail on this
 
 
-def main():
+def main() -> int:
     print("=" * 80)
     print("LOADER BRITTLENESS ROOT CAUSE VALIDATION (2026-08-12)")
     print("=" * 80)

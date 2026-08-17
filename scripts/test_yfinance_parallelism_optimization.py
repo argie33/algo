@@ -2,6 +2,15 @@
 """
 Test harness for yfinance parallelism=2 optimization (Phase 1).
 
+SUPERSEDED - do not run against real infrastructure: LOADER_PARALLELISM=1 is now a
+load-bearing rule (see MEMORY.md analyst_loaders_reloaded_and_local_parallelism_ban_20260810)
+- parallelism=4 self-triggered the yfinance shared-IP circuit breaker even from a single
+local machine. The per-loader LOADER_CONSTRAINTS scoping this test to just
+analyst_sentiment/analyst_upgrades (below) was never implemented - LOADER_PARALLELISM is a
+single global env var, so running this script raises parallelism for every loader
+process-wide, not just the two it was scoped to. Kept for reference only, in case
+yfinance's rate limit is ever revisited.
+
 This script tests whether analyst_sentiment and analyst_upgrades can safely run
 at parallelism=2 without triggering HTTP 429 rate limit errors from Yahoo Finance.
 
@@ -28,6 +37,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Add repo to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -38,7 +48,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
 
 
-def get_loaders_to_test(target_loaders=None):
+def get_loaders_to_test(target_loaders: list[str] | None = None) -> list[str]:
     """Get yfinance-dependent loaders for Phase 1 testing.
 
     Phase 1 tests analyst_sentiment and analyst_upgrades.
@@ -53,7 +63,7 @@ def get_loaders_to_test(target_loaders=None):
     ]
 
 
-def get_prior_loader_status():
+def get_prior_loader_status() -> dict[str, Any]:
     """Get baseline status of target loaders from prior runs."""
     loaders = get_loaders_to_test()
 
@@ -84,7 +94,7 @@ def get_prior_loader_status():
         return {}
 
 
-def reset_loader_status_for_test(loaders):
+def reset_loader_status_for_test(loaders: list[str]) -> None:
     """Reset test loaders to PENDING status to allow fresh run."""
     try:
         with DatabaseContext("write") as cur:
@@ -105,7 +115,7 @@ def reset_loader_status_for_test(loaders):
         raise
 
 
-def run_metrics_pipeline(parallelism=2, dry_run=False):
+def run_metrics_pipeline(parallelism: int = 2, dry_run: bool = False) -> tuple[int, datetime, datetime]:
     """Run the metrics pipeline with specified parallelism.
 
     Returns: (exit_code, start_time, end_time)
@@ -142,8 +152,16 @@ def run_metrics_pipeline(parallelism=2, dry_run=False):
         return 1, start_time, datetime.now()
 
 
-def check_for_rate_limit_errors(start_time, end_time):
-    """Check logs for HTTP 429 errors during the test window."""
+def check_for_rate_limit_errors(start_time: datetime | None, end_time: datetime | None) -> bool | None:
+    """Check logs for HTTP 429 errors during the test window.
+
+    BUG FIX: start_time/end_time were accepted but never applied to the query - every call
+    checked the last 10 rate-limit error rows regardless of when they occurred, so a stale
+    429 from an unrelated earlier run could false-positive this test, or a real one could
+    scroll off the LIMIT 10 window and be missed entirely. Now filters on the actual window
+    when both bounds are known (falls back to the unfiltered last-10 check for the
+    --check-results-only path, which has no test window to compare against).
+    """
     try:
         logger.info("Checking for HTTP 429 errors in logs...")
 
@@ -152,14 +170,27 @@ def check_for_rate_limit_errors(start_time, end_time):
         try:
             with DatabaseContext("read") as cur:
                 # Some loaders may log 429 errors to data_loader_status
-                cur.execute("""
-                    SELECT table_name, error_message, last_updated
-                    FROM data_loader_status
-                    WHERE error_message ILIKE '%429%'
-                       OR error_message ILIKE '%rate limit%'
-                    ORDER BY last_updated DESC
-                    LIMIT 10
-                """)
+                if start_time is not None and end_time is not None:
+                    cur.execute(
+                        """
+                        SELECT table_name, error_message, last_updated
+                        FROM data_loader_status
+                        WHERE (error_message ILIKE '%429%' OR error_message ILIKE '%rate limit%')
+                           AND last_updated BETWEEN %s AND %s
+                        ORDER BY last_updated DESC
+                        LIMIT 10
+                        """,
+                        (start_time, end_time),
+                    )
+                else:
+                    cur.execute("""
+                        SELECT table_name, error_message, last_updated
+                        FROM data_loader_status
+                        WHERE error_message ILIKE '%429%'
+                           OR error_message ILIKE '%rate limit%'
+                        ORDER BY last_updated DESC
+                        LIMIT 10
+                    """)
 
                 errors = cur.fetchall()
                 if errors:
@@ -179,7 +210,7 @@ def check_for_rate_limit_errors(start_time, end_time):
         return None
 
 
-def get_loader_completion_stats():
+def get_loader_completion_stats() -> list[dict[str, Any]]:
     """Get completion stats for test loaders."""
     loaders = get_loaders_to_test()
 
@@ -213,7 +244,14 @@ def get_loader_completion_stats():
         return []
 
 
-def generate_report(parallelism, exit_code, start_time, end_time, rate_limit_ok, completion_stats):
+def generate_report(
+    parallelism: int,
+    exit_code: int,
+    start_time: datetime,
+    end_time: datetime,
+    rate_limit_ok: bool | None,
+    completion_stats: list[dict[str, Any]],
+) -> bool:
     """Generate test report with success/failure verdict."""
     duration = (end_time - start_time).total_seconds()
 
@@ -283,7 +321,7 @@ def generate_report(parallelism, exit_code, start_time, end_time, rate_limit_ok,
     return success
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--parallelism", type=int, default=2, help="Parallelism to test")
     parser.add_argument("--max-symbols", type=int, help="Limit to N symbols")

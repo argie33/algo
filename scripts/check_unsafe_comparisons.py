@@ -24,7 +24,7 @@ def check_file(filepath: str) -> list[str]:
 
     Returns list of error messages.
     """
-    errors = []
+    errors: list[str] = []
     try:
         content = Path(filepath).read_text(encoding="utf-8")
     except (UnicodeDecodeError, FileNotFoundError):

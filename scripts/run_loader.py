@@ -31,6 +31,7 @@ import logging
 import os
 import sys
 from datetime import date
+from typing import Any
 
 # Set LOCAL_MODE for direct database access and to skip AWS-dependent operations
 os.environ["LOCAL_MODE"] = "true"
@@ -68,7 +69,7 @@ from utils.loaders.helpers import get_active_symbols  # noqa: E402
 _GLOBAL_MODE_TABLES: frozenset[str] = frozenset(t for f in GLOBAL_MODE_LOADERS for t in LOADER_TABLES.get(f, []))
 
 
-def get_loader_class_for_file(loader_filename: str):
+def get_loader_class_for_file(loader_filename: str) -> type | None:
     """Dynamically import loader class from filename.
 
     Example: 'load_prices.py' → from loaders.load_prices import PriceLoader
@@ -195,8 +196,12 @@ def update_watermarks_to_today(loader_filename: str, table_names: list[str], sym
 
 
 def run_loader_generic(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change
-    loader_class, loader_filename: str, symbols=None, backfill_days=0, limit=None
-):
+    loader_class: type,
+    loader_filename: str,
+    symbols: list[str] | None = None,
+    backfill_days: int = 0,
+    limit: int | None = None,
+) -> dict[str, Any]:
     """Generic loader runner (replaces 13 hand-written run_*_loader functions).
 
     CONSOLIDATED (Session 48): All loader invocation logic is now unified here.
@@ -332,7 +337,7 @@ def run_loader_generic(  # noqa: C901 -- pre-existing complexity debt, not intro
             symbols = symbols[:limit]
 
         # Build kwargs for loader.run()
-        kwargs = {"symbols": symbols}
+        kwargs: dict[str, Any] = {"symbols": symbols}
         if backfill_days > 0:
             kwargs["backfill_days"] = backfill_days
 
@@ -349,10 +354,14 @@ def run_loader_generic(  # noqa: C901 -- pre-existing complexity debt, not intro
         logger.info(f"[LOADER] {table_name}: running post_run() hook")
         loader.post_run()
 
-    return result
+    # loader_class is intentionally the bare `type` (any registered OptimalLoader subclass,
+    # resolved dynamically at runtime by get_loader_class_for_file) rather than a narrower
+    # bound, so loader.run()'s actual return type - dict[str, Any] per OptimalLoader.run() -
+    # is invisible to mypy here; the declared return type documents the real contract.
+    return result  # type: ignore[no-any-return]
 
 
-def main():  # noqa: C901 -- pre-existing complexity debt, not introduced by this change
+def main() -> int:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change
     # Build available loaders from registry
     loader_files = sorted(LOADER_TABLES.keys())
 

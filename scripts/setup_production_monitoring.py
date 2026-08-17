@@ -15,9 +15,8 @@ Usage:
 """
 
 import argparse
-import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import psycopg2
@@ -31,11 +30,11 @@ from utils.db.context import DatabaseContext
 class ProductionMonitor:
     """Daily production health monitoring."""
 
-    def __init__(self, alert_on_issues: bool = False, component: str = None):
+    def __init__(self, alert_on_issues: bool = False, component: str | None = None):
         self.alert_on_issues = alert_on_issues
         self.component = component
-        self.issues = []
-        self.warnings = []
+        self.issues: list[str] = []
+        self.warnings: list[str] = []
 
     def check_position_quantities(self) -> bool:
         """Check for position quantity issues that could indicate data corruption.
@@ -248,13 +247,13 @@ class ProductionMonitor:
                     diff_pct = abs(portfolio_value - expected_total) / max(expected_total, 1) * 100
 
                     if diff_pct < 0.1:
-                        print(f"Status: OK")
+                        print("Status: OK")
                         print(f"  Equity: ${equity:,.2f}")
                         print(f"  Cash: ${cash:,.2f}")
                         print(f"  Total: ${portfolio_value:,.2f}")
                         return True
                     else:
-                        print(f"Status: WARNING - Mismatch detected")
+                        print("Status: WARNING - Mismatch detected")
                         print(f"  Expected: ${expected_total:,.2f}")
                         print(f"  Actual: ${portfolio_value:,.2f}")
                         print(f"  Difference: {diff_pct:.2f}%")
@@ -339,7 +338,7 @@ class ProductionMonitor:
         return self.print_summary()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Daily production health monitoring")
     parser.add_argument(
         "--component",
