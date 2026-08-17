@@ -31,6 +31,7 @@ from routes.utils import (
     validate_api_response,
 )
 
+from loaders.loader_timeout_config import get_loader_timeout
 from shared_contracts.response_validator import ResponseValidator
 from utils.db.timezone_utils import get_db_timezone
 
@@ -393,9 +394,19 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         # "Loading now:" as benign in-progress work, not an issue - producing a "Loader
         # Health: N table(s) with issues (see Data Freshness Table below)" summary where
         # the table below shows nothing wrong. Only flag it once it's been running long
-        # enough to plausibly be stuck - same 90-minute threshold health.py's own
-        # "TIMEOUT RISK" flag on that same "Loading now:" section already uses.
-        loader_stuck_running_minutes = 90
+        # enough to plausibly be stuck.
+        #
+        # ROOT-CAUSE FIX 2026-08-17: this used to be one flat 90-minute threshold for every
+        # table - the exact same anti-pattern already fixed in reap_stale_running_loaders()
+        # (see utils/loaders/status_manager.py) and fix_loader_status_drift.py's original
+        # 30-min flat check. Real per-loader timeouts range from ~10min (naaim/aaii) to
+        # 1440min/24h (price_daily, per loaders/loader_timeout_config.py's yfinance
+        # rate-limiting margin) - a perfectly healthy price_daily or company_info_sec
+        # (540min/9h) run past 90 minutes was being counted as "unhealthy" here, and flagged
+        # "TIMEOUT RISK" in dashboard/panels/health.py's mirrored (now also fixed) check,
+        # despite having used only a fraction of its real budget. Falls back to the old
+        # 90-minute default only for a table with no registered timeout.
+        default_stuck_running_minutes = 90
 
         loader_health_total_tracked = 0
         loader_health = []
@@ -424,7 +435,12 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
                     started_utc = normalize_to_utc_datetime(exec_started, naive_tz)
                     if isinstance(started_utc, datetime):
                         elapsed_min = (datetime.now(timezone.utc) - started_utc).total_seconds() / 60
-                        is_actively_running = elapsed_min <= loader_stuck_running_minutes
+                        table_timeout_min = (
+                            get_loader_timeout(table_name, default_seconds=default_stuck_running_minutes * 60) / 60
+                            if table_name
+                            else default_stuck_running_minutes
+                        )
+                        is_actively_running = elapsed_min <= table_timeout_min
 
                 is_unhealthy = cons_failures > 0 or (status not in healthy_loader_statuses and not is_actively_running)
 

@@ -161,8 +161,10 @@ def check_memory_staleness() -> list[str]:
         mod_time = datetime.fromtimestamp(stat.st_mtime)
 
         if mod_time < cutoff:
-            # Check if it has a "verified" or "tested" claim
-            content = filepath.read_text(encoding="utf-8", errors="replace")
+            # Check if it has a "verified" or "tested" claim. utf-8-sig (see check_structure's
+            # matching fix below for the full rationale) so a BOM-prefixed file's content
+            # doesn't start with a stray BOM character.
+            content = filepath.read_text(encoding="utf-8-sig", errors="replace")
             if any(word in content.lower() for word in ["tested:", "verified:", "method:"]):
                 age_days = (datetime.now() - mod_time).days
                 issues.append(
@@ -200,7 +202,14 @@ def validate_all() -> tuple[int, list[str]]:
 
     files_with_issues = 0
     for filepath in md_files:
-        content = filepath.read_text(encoding="utf-8", errors="replace")
+        # utf-8-sig (not plain utf-8) strips a leading BOM if present, falling back to
+        # normal utf-8 otherwise - ROOT-CAUSE FIX 2026-08-17: a BOM-prefixed memory file
+        # (e.g. written by PowerShell's Out-File, which defaults to UTF-8-with-BOM) read as
+        # "﻿---\n..." under plain utf-8, so `content.startswith("---")` below false-failed
+        # a structurally-valid file as "Missing frontmatter", blocking every commit repo-wide
+        # via this validator's pre-commit hook - live-reproduced on
+        # scheduler_lock_owner_liveness_check_fix_20260817.md.
+        content = filepath.read_text(encoding="utf-8-sig", errors="replace")
         issues = []
 
         # Skip checking documentation/teaching files (they intentionally contain examples of bad memory)

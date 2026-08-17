@@ -145,6 +145,7 @@ from rich.table import Table
 from rich.text import Text
 
 from dashboard.data_validation import safe_float, safe_int
+from loaders.loader_timeout_config import get_loader_timeout
 
 from ..error_boundary import has_error
 from ..formatters import fmt_age, next_run_str
@@ -1626,9 +1627,18 @@ def _build_freshness_panel(
             pct_s = f"{float(pct):.0f}%" if pct is not None else "?"
             sl, sc = r.get("symbols_loaded"), r.get("symbol_count")
             cnt_s = f" ({sl}/{sc} symbols)" if sl is not None and sc is not None else ""
-            # Elapsed runtime + a heuristic timeout-risk flag. LOADER_TIMEOUT_MINUTES
-            # (loaders/runner.py) defaults to 120min; flag past 90min (75% of default) since
-            # the dashboard has no per-process visibility into the actual configured value.
+            # Elapsed runtime + a timeout-risk flag against this table's own configured
+            # timeout (loaders/loader_timeout_config.py - the same single source of truth
+            # reap_stale_running_loaders() and phase1_failsafe_retry.py already use).
+            #
+            # ROOT-CAUSE FIX 2026-08-17: this used to flag ANY loader past a flat 90-minute
+            # mark ("the dashboard has no per-process visibility into the actual configured
+            # value" - no longer true, loader_timeout_config.py is a plain dict, safe to
+            # import here) - same anti-pattern already fixed in reap_stale_running_loaders()
+            # and mirrored in lambda/api/routes/algo_handlers/monitoring.py's loader_health
+            # unhealthy-count (fixed alongside this). Real timeouts range ~10min-1440min
+            # (price_daily=24h) - a healthy price_daily/company_info_sec run past 90min was
+            # false-flagged "TIMEOUT RISK" here despite using a fraction of its real budget.
             started_raw = r.get("execution_started")
             elapsed_s = fmt_age(started_raw)
             elapsed_label = elapsed_s.replace(" ago", "") if elapsed_s != "--" else "?"
@@ -1641,7 +1651,13 @@ def _build_freshness_panel(
                     if ts.tzinfo is None:
                         ts = ts.replace(tzinfo=timezone.utc)
                     elapsed_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60
-                    if elapsed_min > 90:
+                    tbl_name_for_timeout = r.get("tbl")
+                    timeout_min = (
+                        get_loader_timeout(tbl_name_for_timeout, default_seconds=90 * 60) / 60
+                        if tbl_name_for_timeout
+                        else 90
+                    )
+                    if elapsed_min > timeout_min:
                         risk_s = f" [{R}]⚠ TIMEOUT RISK[/]"
             except (TypeError, ValueError):
                 pass
