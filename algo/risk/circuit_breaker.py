@@ -1664,7 +1664,14 @@ class CircuitBreaker:
                 INSERT INTO algo_audit_log (action_type, action_date, details, actor, status, created_at)
                 VALUES ('circuit_breaker_halt', CURRENT_TIMESTAMP, %s, 'circuit_breaker', 'halt', CURRENT_TIMESTAMP)
                 """,
-                (json.dumps(results),),
+                # BUG FOUND 2026-08-17: `results` is loosely typed (dict[str, Any]) and this is
+                # called from many different _check_* methods throughout this file - all
+                # currently return plain str/float/bool, but nothing prevents a future caller
+                # from including a raw Decimal/datetime, which would raise TypeError here and
+                # be lost (only DatabaseError/OperationalError are caught below). Same bug class
+                # already found and fixed in phase9_reconciliation.py's audit log insert -
+                # default=str is the same standard, safe fallback for an archival JSON column.
+                (json.dumps(results, default=str),),
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(f"[AUDIT_FAILURE] Could not log circuit breaker halt to audit log: {e}")

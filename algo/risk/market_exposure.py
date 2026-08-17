@@ -1322,8 +1322,13 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
-            factors_json = json.dumps(result["factors"])
-            halt_reasons_json = json.dumps(result["halt_reasons"])
+            # BUG FOUND 2026-08-17: result["factors"] is built up via `**eco`-spreading
+            # sub-detector output dicts (e.g. _economic_regime_overlay) whose fields aren't
+            # guaranteed to already be JSON-safe (raw DB dates, Decimals). Same bug class
+            # already found and fixed in phase9_reconciliation.py's audit log insert -
+            # default=str is the same standard, safe fallback for an archival JSON column.
+            factors_json = json.dumps(result["factors"], default=str)
+            halt_reasons_json = json.dumps(result["halt_reasons"], default=str)
             regime = result.get("regime")
             if not regime:
                 raise ValueError("Market regime calculation missing. Cannot build exposure summary.")

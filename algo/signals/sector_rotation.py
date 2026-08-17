@@ -361,7 +361,13 @@ class SectorRotationDetector:
                 "sector_data": result["sector_data"],
             }
 
-            details_json = json.dumps(details_dict)
+            # BUG FOUND 2026-08-17: details_dict["sector_data"] is an opaque nested structure
+            # not guaranteed JSON-safe (raw DB dates/Decimals) - and the try/except below only
+            # guards json.loads() (the re-parse check), not this json.dumps() call itself, so a
+            # genuine TypeError here would propagate uncaught, never reaching that fallback.
+            # Same bug class already found and fixed in phase9_reconciliation.py's audit log
+            # insert - default=str is the same standard, safe fallback for an archival column.
+            details_json = json.dumps(details_dict, default=str)
 
             # Validate the JSON can be parsed back (catch bad data before DB insert)
             try:
