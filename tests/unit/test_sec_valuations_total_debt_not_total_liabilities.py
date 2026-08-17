@@ -17,12 +17,13 @@ lease liability, finance lease liability) are summed correctly with any missing 
 treated as 0, not as a reason to null out the whole figure.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from loaders.load_sec_valuations import SecValuationsLoader
 
 
-def _make_loader():
+def _make_loader() -> SecValuationsLoader:
     return SecValuationsLoader.__new__(SecValuationsLoader)
 
 
@@ -31,14 +32,14 @@ class _FakeCursor:
     for a symbol with a directly-usable reported share count (skips every shares_out fallback
     query branch)."""
 
-    def __init__(self, fetchone_results):
+    def __init__(self, fetchone_results: list[tuple[Any, ...]]) -> None:
         self._fetchone_results = list(fetchone_results)
         self._fetchone_idx = 0
 
-    def execute(self, *args, **kwargs):
+    def execute(self, *args: object, **kwargs: object) -> None:
         pass
 
-    def fetchall(self):
+    def fetchall(self) -> list[tuple[Any, ...]]:
         # income_rows: (revenue, net_income, eps, operating_income, pretax_income,
         # depreciation_expense, amortization_expense, shares_outstanding_basic, income_tax_expense)
         return [
@@ -55,30 +56,31 @@ class _FakeCursor:
             )
         ]
 
-    def fetchone(self):
+    def fetchone(self) -> tuple[Any, ...] | None:
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
 
 
 class TestTotalDebtNotTotalLiabilities:
-    def test_total_debt_sums_all_four_real_debt_components(self):
+    def test_total_debt_sums_all_four_real_debt_components(self) -> None:
         loader = _make_loader()
 
         # Order matches fetch_incremental's real query sequence once shares_out resolves from
         # the first income_rows fetchall (no fallback queries triggered): price, balance_row
-        # (stockholders_equity), cash_row (ocf, capex, dividends_paid), debt_row (long_term_debt,
-        # short_term_debt, operating_lease_liability, finance_lease_liability, cash_and_equivalents).
+        # (stockholders_equity), cash_row (ocf, capex, dividends_paid), cash_row2
+        # (cash_and_equivalents, queried separately from debt as of 2026-08-17), debt_row
+        # (long_term_debt, short_term_debt, operating_lease_liability, finance_lease_liability).
         fetchone_results = [
             (50.0,),  # price_daily.close
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (80_000_000.0, 10_000_000.0, None),  # annual_cash_flow: ocf, capex, dividends_paid
+            (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt - real debt
                 5_000_000.0,  # short_term_debt - real debt
                 8_000_000.0,  # operating_lease_liability - real debt (S&P/Moody's adjusted-debt convention)
                 2_000_000.0,  # finance_lease_liability - real debt
-                30_000_000.0,  # cash_and_equivalents
             ),
         ]
         fake_cursor = _FakeCursor(fetchone_results)
@@ -99,7 +101,7 @@ class TestTotalDebtNotTotalLiabilities:
         # than this test's fixture provides).
         assert row["total_debt"] == 35_000_000.0
 
-    def test_total_debt_treats_missing_component_as_zero_not_null(self):
+    def test_total_debt_treats_missing_component_as_zero_not_null(self) -> None:
         """A company with real long-term debt but no leases at all still gets a real
         total_debt (leases missing = 0 contribution), not a NULL just because 2 of 4
         components are absent."""
@@ -109,12 +111,12 @@ class TestTotalDebtNotTotalLiabilities:
             (50.0,),
             (500_000_000.0,),
             (80_000_000.0, 10_000_000.0, None),
+            (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt
                 5_000_000.0,  # short_term_debt
                 None,  # operating_lease_liability - not reported
                 None,  # finance_lease_liability - not reported
-                30_000_000.0,  # cash_and_equivalents
             ),
         ]
         fake_cursor = _FakeCursor(fetchone_results)
@@ -130,7 +132,7 @@ class TestTotalDebtNotTotalLiabilities:
         row = result[0]
         assert row["total_debt"] == 25_000_000.0
 
-    def test_total_debt_none_when_no_debt_column_present(self):
+    def test_total_debt_none_when_no_debt_column_present(self) -> None:
         """A company with none of the 4 debt/lease concepts reported gets an honest NULL,
         not a fabricated $0 or a fallback to some unrelated liabilities figure."""
         loader = _make_loader()
@@ -139,7 +141,8 @@ class TestTotalDebtNotTotalLiabilities:
             (50.0,),
             (500_000_000.0,),
             (80_000_000.0, 10_000_000.0, None),
-            (None, None, None, None, 30_000_000.0),  # debt_row: nothing reported
+            (30_000_000.0,),  # cash_and_equivalents
+            (None, None, None, None),  # debt_row: nothing reported
         ]
         fake_cursor = _FakeCursor(fetchone_results)
 

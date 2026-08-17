@@ -391,41 +391,59 @@ class SecValuationsLoader(OptimalLoader):
                 # are present, treating a missing individual component as 0 (a filer with
                 # real long_term_debt but no leases has real total_debt, not NULL).
                 # See the fiscal_year IS NOT NULL comment on the book_value query above.
+                #
+                # FIXED 2026-08-17 (loader-review goal, continuation): plain `ORDER BY
+                # fiscal_year DESC` picked the latest fiscal year even when its long_term_debt
+                # is NULL because that year's filing is still in progress, while an older year
+                # has the real reported value - same "latest year is empty" bug class already
+                # fixed above for the income-statement/shares_outstanding queries in this file.
+                # Live-confirmed: GOOGL's FY2026 row has real stockholders_equity/
+                # total_liabilities/cash (a genuine, non-placeholder row) but long_term_debt is
+                # NULL, while FY2025 has real long_term_debt=$49.085B - short_term_debt alone
+                # being 0 (not NULL) on the FY2026 row meant the old "all four components NULL"
+                # check never caught this, silently producing total_debt=None for a symbol with
+                # 10 years of real debt history. Prioritizing fiscal years where long_term_debt
+                # is populated (same primary-signal convention as the shares_outstanding
+                # fallback chain above) before falling back to fiscal_year DESC alone. Cash is
+                # queried separately (plain latest-fiscal-year, same as book_value/cash_row
+                # above) so its freshness isn't coupled to debt-field completeness - GOOGL's
+                # FY2026 cash figure is real and shouldn't be held back a year just because
+                # that year's debt tags aren't filed yet.
                 cur.execute(
                     """
-                    SELECT
-                        long_term_debt,
-                        short_term_debt,
-                        operating_lease_liability,
-                        finance_lease_liability,
-                        cash_and_equivalents
+                    SELECT cash_and_equivalents
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND fiscal_year IS NOT NULL
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
                 )
+                cash_row2 = cur.fetchone()
+                total_cash = cash_row2[0] if cash_row2 else None
+
+                cur.execute(
+                    """
+                    SELECT
+                        long_term_debt,
+                        short_term_debt,
+                        operating_lease_liability,
+                        finance_lease_liability
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    ORDER BY (CASE WHEN long_term_debt IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
                 debt_row = cur.fetchone()
                 if debt_row:
-                    (
-                        long_term_debt_val,
-                        short_term_debt_val,
-                        operating_lease_liability_val,
-                        finance_lease_liability_val,
-                        total_cash,
-                    ) = debt_row
-                    debt_components = (
-                        long_term_debt_val,
-                        short_term_debt_val,
-                        operating_lease_liability_val,
-                        finance_lease_liability_val,
-                    )
+                    debt_components = debt_row
                     if all(c is None for c in debt_components):
                         total_debt = None
                     else:
                         total_debt = sum(c or 0 for c in debt_components)
                 else:
-                    total_debt, total_cash = None, None
+                    total_debt = None
                 # Note: None values mean EV metrics won't be computed
 
                 # Session 398: Calculate EBITDA from operating income + depreciation + amortization
