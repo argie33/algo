@@ -54,15 +54,33 @@ class AlpacaDataError(RuntimeError):
     """Raised when the Alpaca Market Data API returns an unrecoverable error."""
 
 
-class _TokenBucket:
-    """Simple thread-safe sliding-window limiter (N requests per 60s)."""
+class _TokenBucketExhaustedError(RuntimeError):
+    """Raised when the rate-limit bucket stays saturated past its max total wait."""
 
-    def __init__(self, per_minute: int) -> None:
+
+class _TokenBucket:
+    """Simple thread-safe sliding-window limiter (N requests per 60s).
+
+    FIX 2026-08-17: acquire() used to sleep in an unbounded loop with no logging - live-caught
+    in local dev holding load_prices.py hung for 5+ hours (found via py-spy stack dump showing
+    the worker thread parked in this method's time.sleep). Real cause was concurrent local
+    sessions sharing one free-tier Alpaca account and exhausting its real server-side limit far
+    below this process's own 190/min budget; since the bucket never logs while waiting and never
+    gives up, the hang was invisible until someone manually checked. Now bounded to
+    max_total_wait_sec (default 5 min) with a warning on the first wait and periodically after,
+    then raises so callers already wired for this (_alpaca_batch_or_none catches Exception and
+    falls back to yfinance) can actually recover instead of blocking forever.
+    """
+
+    def __init__(self, per_minute: int, max_total_wait_sec: float = 300.0) -> None:
         self.per_minute = per_minute
+        self.max_total_wait_sec = max_total_wait_sec
         self._timestamps: deque[float] = deque()
         self._lock = threading.Lock()
 
     def acquire(self) -> None:
+        total_waited = 0.0
+        last_logged = 0.0
         while True:
             with self._lock:
                 now = time.monotonic()
@@ -72,7 +90,22 @@ class _TokenBucket:
                     self._timestamps.append(now)
                     return
                 wait = 60.0 - (now - self._timestamps[0]) + 0.05
-            time.sleep(min(max(wait, 0.05), 60.0))
+            if total_waited >= self.max_total_wait_sec:
+                raise _TokenBucketExhaustedError(
+                    f"[ALPACA_DATA] Rate-limit bucket still saturated after {total_waited:.0f}s "
+                    f"(limit={self.per_minute}/min) - giving up so the caller can fall back."
+                )
+            sleep_for = min(max(wait, 0.05), 60.0, self.max_total_wait_sec - total_waited)
+            if total_waited == 0 or total_waited - last_logged >= 60.0:
+                logger.warning(
+                    "[ALPACA_DATA] Rate-limit bucket saturated (limit=%s/min), waited %.0fs so far - sleeping %.1fs more",
+                    self.per_minute,
+                    total_waited,
+                    sleep_for,
+                )
+                last_logged = total_waited
+            time.sleep(sleep_for)
+            total_waited += sleep_for
 
 
 class AlpacaMarketData:
