@@ -275,12 +275,24 @@ class CurrentReports8KLoader(SecLoaderBase):
             raise RuntimeError(f"[8K] Unexpected error fetching CIK for {symbol}: {type(e).__name__}: {e}") from e
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
-        """Return a data_unavailable marker for this symbol."""
+        """Return a data_unavailable marker for this symbol.
+
+        LIVE-REPRODUCED 2026-08-16: accession_number is NOT NULL (it's part of this table's
+        composite primary key with symbol, varchar(20)) and used to be "" here. bulk_insert_manager's
+        COPY path applies FORCE_NULL to every column and collapses None->"" before writing the CSV
+        buffer (utils/bulk_insert_manager.py's normalized[k] = "" if v is None else v), so it can't
+        tell a deliberate empty string apart from a real None - FORCE_NULL converted this "" straight
+        back to NULL on the way into Postgres, which then failed the NOT NULL/PK constraint on every
+        single unavailable-marker row (i.e. every ETF/foreign-issuer symbol with no SEC 8-K coverage -
+        confirmed live via AEP/AFBI/AGG all failing with the same "null value in column
+        accession_number" error during a full-universe run). A short non-empty sentinel side-steps the
+        ambiguity without touching the shared COPY/CSV code path other loaders also depend on.
+        """
         return [
             {
                 "symbol": symbol,
                 "filing_date": measurement_date,
-                "accession_number": "",
+                "accession_number": "UNAVAILABLE",
                 "form_type": "8-K",
                 "item_1_01": False,
                 "item_1_02": False,

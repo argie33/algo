@@ -79,3 +79,26 @@ def test_get_filing_plaintext_called_with_dashed_accession_number() -> None:
     loader.sec_client.get_filing_plaintext.assert_called_once_with("0000320193", "0001193125-26-000111")
     # The DB primary key column must still stay dash-stripped (existing convention).
     assert records[0]["accession_number"] == "000119312526000111"
+
+
+def test_unavailable_marker_accession_number_is_not_empty_string() -> None:
+    """LIVE-REPRODUCED 2026-08-16: accession_number is NOT NULL (part of the composite PK
+    with symbol). BulkInsertManager's COPY path applies FORCE_NULL to every column and
+    collapses None->"" before writing the CSV buffer, so it can't tell a deliberate empty
+    string apart from a real None - an "" here round-trips back to a real NULL and fails
+    the NOT NULL/PK constraint on every single unavailable-marker row. Confirmed live: every
+    ETF/foreign-issuer symbol with no SEC 8-K coverage (AEP, AFBI, AGG, ...) failed with
+    'null value in column accession_number' during a full-universe run.
+    """
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+
+    records = loader.fetch_incremental("ETFX", since=None)
+
+    assert len(records) == 1
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "symbol_not_found"
+    accession = records[0]["accession_number"]
+    assert accession != ""
+    assert accession is not None
+    assert len(accession) <= 20  # DB column is varchar(20)
