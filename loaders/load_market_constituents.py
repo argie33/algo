@@ -174,6 +174,15 @@ class MarketConstituentsLoader(OptimalLoader):
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"
+    # BUG FOUND 2026-08-17: loader_registry.py already listed etf_symbols as this loader's
+    # second output table (used to pre-mark it RUNNING before the subprocess starts), but
+    # this class never declared it here - the only place runner.py's mark_completed()/
+    # mark_failed() secondary-table sweep looks. Every run correctly TRUNCATE+rebuilt
+    # etf_symbols (see _upsert_etf_symbols) yet left its data_loader_status row stuck RUNNING
+    # forever, later reaped as FAILED - live-reproduced 2026-08-17 19:37 UTC: loader logged
+    # "SUCCESS" in 2.6s, but etf_symbols was reaped FAILED 15 min later anyway (3rd
+    # consecutive occurrence, not intermittent - every single run hit this).
+    output_tables = ["etf_symbols"]
 
     def _deactivate_stale_excluded_symbols(self) -> None:
         """Re-apply should_exclude() to already-`active=true` rows and flip any new matches.
