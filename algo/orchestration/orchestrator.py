@@ -2143,19 +2143,31 @@ class Orchestrator:
         # Market hours guard is a safety check that must always apply.
         # Phase 8 also has this guard, but adding it here stops pre-market runs much earlier.
         # ALLOW_OUTSIDE_MARKET_HOURS=true still bypasses for explicit automated testing.
-        from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
+        from utils.infrastructure.market_timing import (
+            MARKET_CLOSE_TIME,
+            MARKET_OPEN_TIME,
+            MONITOR_WINDOW_CLOSE_TIME,
+        )
 
         allow_outside_hours = os.environ.get("ALLOW_OUTSIDE_MARKET_HOURS", "false").lower() == "true"
         now_et = datetime.now(EASTERN_TZ).time()
+        # The evening/monitor-only run (dry_run=True, never places real orders - see
+        # MONITOR_ONLY_RUN_IDENTIFIERS in lambda_function.py) is intentionally scheduled at
+        # 5:30 PM ET, after MARKET_CLOSE_TIME. Only widen the UPPER bound for it; the lower
+        # bound (MARKET_OPEN_TIME) stays identical for every run type, so this does not
+        # reopen the pre-market incident (2026-08-07, 05:03 ET) this guard exists to prevent.
+        window_close = MONITOR_WINDOW_CLOSE_TIME if self.dry_run else MARKET_CLOSE_TIME
         logger.info(
-            f"[MARKET_HOURS_GUARD] Checking: allow_outside_hours={allow_outside_hours}, now_et={now_et}, market_open={MARKET_OPEN_TIME}, market_close={MARKET_CLOSE_TIME}"
+            f"[MARKET_HOURS_GUARD] Checking: allow_outside_hours={allow_outside_hours}, now_et={now_et}, market_open={MARKET_OPEN_TIME}, window_close={window_close}"
         )
 
-        # Market hours enforced for ALL runs (dry_run or not), UNLESS explicitly allowed
-        if not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
+        # Market hours enforced for ALL runs, UNLESS explicitly allowed - but dry_run
+        # (monitor-only) runs get a later upper bound so the legitimate 5:30 PM evening slot
+        # can pass this guard instead of skipping every single day (live-confirmed 2026-08-17).
+        if not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < window_close):
             logger.critical(
                 f"[MARKET_HOURS_GUARD] BLOCKING: Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
-                f"Market hours: {MARKET_OPEN_TIME.strftime('%H:%M')} - {MARKET_CLOSE_TIME.strftime('%H:%M')} ET. "
+                f"Allowed window: {MARKET_OPEN_TIME.strftime('%H:%M')} - {window_close.strftime('%H:%M')} ET. "
                 f"This prevents pre-market/after-hours execution from corrupting production state. "
                 f"To test outside market hours, use: ALLOW_OUTSIDE_MARKET_HOURS=true"
             )
@@ -2178,8 +2190,8 @@ class Orchestrator:
                 "skipped": True,
                 "reason": f"outside_market_hours: {now_et.strftime('%H:%M:%S')} ET",
             }
-        if MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME:
-            logger.info(f"[MARKET_HOURS_GUARD] OK: Current time {now_et} is within market hours")
+        if MARKET_OPEN_TIME <= now_et < window_close:
+            logger.info(f"[MARKET_HOURS_GUARD] OK: Current time {now_et} is within the allowed window")
         else:
             # allow_outside_hours is the only reason we got here while actually outside hours.
             # Previous message unconditionally claimed "within market hours" even on this path,
@@ -2187,7 +2199,7 @@ class Orchestrator:
             # safety guard was bypassed rather than genuinely satisfied.
             logger.warning(
                 f"[MARKET_HOURS_GUARD] BYPASSED via ALLOW_OUTSIDE_MARKET_HOURS=true: current time "
-                f"{now_et} is OUTSIDE market hours ({MARKET_OPEN_TIME}-{MARKET_CLOSE_TIME} ET). "
+                f"{now_et} is OUTSIDE the allowed window ({MARKET_OPEN_TIME}-{window_close} ET). "
                 f"Proceeding anyway because the guard was explicitly overridden."
             )
 

@@ -63,6 +63,13 @@ SKIP_PATHS = {
     "api-pkg",  # Vendored botocore and dependencies (3rd-party code)
     "lambda/api/package",  # Auto-generated packaged Lambda code
     "lambda/api/routes/__pycache__",
+    # CHECK_PATHS=["."] walks the whole repo tree, which also contains nested git
+    # worktrees for concurrent sessions (memory: "never git stash here - use git
+    # worktree"). Without this, a violation in another session's in-progress,
+    # uncommitted worktree branch blocks every unrelated commit anywhere in the repo -
+    # live-hit 2026-08-17 (this commit blocked by a .get() default inside
+    # .claude/worktrees/sec-def14a-scale-fix, a file this commit never touched).
+    ".claude/worktrees/",
 }
 
 # Repo-root ad-hoc diagnostic/verification scripts follow the same convention as

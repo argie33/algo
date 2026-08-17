@@ -24,6 +24,19 @@ MARKET_CLOSE_HOUR = 16
 MARKET_CLOSE_MINUTE = 0
 MARKET_CLOSE_TIME = time(16, 0)
 
+# Upper bound for the orchestrator's top-level market-hours guard on MONITOR_ONLY runs only
+# (evening/default/prewarm/manual - see lambda_function.py's MONITOR_ONLY_RUN_IDENTIFIERS).
+# The evening orchestrator is intentionally scheduled at 5:30 PM ET, after MARKET_CLOSE_TIME,
+# for post-close "final position management" (terraform/modules/services/2x-daily-orchestrator.tf)
+# - it never places new entries (Phase 8 has its own is_market_open() guard for that) and is
+# hardcoded dry_run=True with no way to override to live. Using MARKET_CLOSE_TIME as the upper
+# bound for these runs too meant the evening run hit "outside_market_hours" and skipped entirely,
+# every single day it fired at its real scheduled time, in both local dev and production - live
+# 2026-08-17 confirmed via orchestrator_execution_log. Does NOT affect LIVE_TRADING_RUN_IDENTIFIERS
+# (morning/afternoon/preclose/premarket), which still use MARKET_OPEN_TIME/MARKET_CLOSE_TIME as
+# both bounds - this only widens the window for runs that can never place real orders.
+MONITOR_WINDOW_CLOSE_TIME = time(18, 0)
+
 # Early close time (half-days: day before Independence Day, day after Thanksgiving, Christmas
 # Eve) - NYSE/NASDAQ close these at 1:00 PM ET, not 3:00 PM. There is no separate 3:00 PM
 # variant in current practice; a prior version of this file defined one (unused, never

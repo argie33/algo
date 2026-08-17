@@ -53,6 +53,11 @@ SKIP_PATHS = {
     "check_credential_defaults.py",  # Don't flag our own docstring examples
     "dev_server.py",  # Local dev server with intentional defaults for LOCAL_MODE
     "api-proxy-server.py",  # Local dev helper script
+    # rglob("*.py") walks the whole repo tree, including nested git worktrees used by
+    # concurrent sessions - a violation in another session's in-progress worktree
+    # branch would otherwise block every unrelated commit. See matching fix and
+    # live-hit note in check-silent-fallbacks.py's SKIP_PATHS.
+    ".claude/worktrees/",
 }
 
 
