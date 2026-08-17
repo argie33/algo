@@ -1174,60 +1174,91 @@ def _try_acquire_lock(scheduler_lock: Path, pipeline_name: str) -> bool:
         return False
 
 
+LOCK_WAIT_TIMEOUT_SECONDS = 1800  # 30 min - absorbs a still-running prior pipeline before giving up
+LOCK_POLL_INTERVAL_SECONDS = 60
+
+
 def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | None:
     """Acquire the scheduler lock, checking owner liveness before reclaiming or rejecting.
 
+    ADDED 2026-08-17: if the lock is held by a live, non-stale owner, waits and retries for
+    up to LOCK_WAIT_TIMEOUT_SECONDS instead of failing on the first attempt. Absorbs the
+    common case of a prior pipeline still finishing when the next one's trigger fires (e.g.
+    a long metrics run still active when the evening/reference scheduled tasks start) - this
+    used to require a human (or an ad hoc watcher script) noticing the failure and retrying
+    manually; at least 8-10 redundant one-off watcher scripts existed for exactly this reason
+    during the 2026-08-17 live incident (see MEMORY.md). Task Scheduler's own
+    -RestartCount/-RestartInterval settings still provide a second layer of retry on top of
+    this for longer overruns.
+
     Returns None on success (lock held by us), or an exit code (1) if acquisition failed.
     """
-    if _try_acquire_lock(scheduler_lock, pipeline_name):
-        return None
+    waited = 0.0
+    announced_wait = False
+    while True:
+        if _try_acquire_lock(scheduler_lock, pipeline_name):
+            return None
 
-    # Lock is held (or was, a moment ago) - check liveness first, then staleness age.
-    owner_info = _lock_owner_info(scheduler_lock)
-    owner_pid = None
-    for token in owner_info.split():
-        if token.startswith("pid="):
+        # Lock is held (or was, a moment ago) - check liveness first, then staleness age.
+        owner_info = _lock_owner_info(scheduler_lock)
+        owner_pid = None
+        for token in owner_info.split():
+            if token.startswith("pid="):
+                try:
+                    owner_pid = int(token.split("=", 1)[1])
+                except ValueError:
+                    pass
+
+        owner_dead = owner_pid is not None and not _pid_alive(owner_pid)
+
+        try:
+            lock_age = time.time() - scheduler_lock.stat().st_mtime
+        except FileNotFoundError:
+            # Released between our failed acquire and this stat() - retry immediately,
+            # don't count this negligible race window against the wait budget.
+            time.sleep(0.5)
+            continue
+
+        if owner_dead or lock_age >= 43200:  # 12 hours in seconds
+            if owner_dead:
+                print(f"[LOCAL_SCHEDULER] Lock owner (pid={owner_pid}) confirmed dead - clearing lock immediately.")
+            # Stale (owner confirmed dead, or past the 12h age fallback) - clear it and make
+            # one retry attempt. If we lose this retry too, a genuinely fresh instance beat
+            # us fairly; fall through to the wait loop rather than looping forever here.
             try:
-                owner_pid = int(token.split("=", 1)[1])
-            except ValueError:
+                scheduler_lock.unlink()
+                print(f"[LOCAL_SCHEDULER] Cleaned stale scheduler lock (age: {lock_age:.0f}s, owner: {owner_info})")
+            except FileNotFoundError:
                 pass
+            if _try_acquire_lock(scheduler_lock, pipeline_name):
+                return None
+            continue
 
-    owner_dead = owner_pid is not None and not _pid_alive(owner_pid)
+        # Live owner, not stale - wait and retry rather than failing immediately, up to
+        # LOCK_WAIT_TIMEOUT_SECONDS.
+        if waited >= LOCK_WAIT_TIMEOUT_SECONDS:
+            print(
+                f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is still running after "
+                f"waiting {waited:.0f}s (lock held for {lock_age:.0f}s, {owner_info}). Giving up. "
+                f"Wait for the existing instance to complete, or verify PID {owner_pid} is "
+                f'actually dead (e.g. `tasklist /FI "PID eq {owner_pid}"`) before manually '
+                f"removing {scheduler_lock} - killing a live session's run destroys its progress.",
+                file=sys.stderr,
+            )
+            return 1
 
-    try:
-        lock_age = time.time() - scheduler_lock.stat().st_mtime
-    except FileNotFoundError:
-        lock_age = None  # Released between our failed acquire and this stat() - retry.
+        if not announced_wait:
+            print(
+                f"[LOCAL_SCHEDULER] Lock held by a live instance ({owner_info}, held for "
+                f"{lock_age:.0f}s) - waiting up to {LOCK_WAIT_TIMEOUT_SECONDS:.0f}s for it to "
+                "finish instead of failing immediately."
+            )
+            announced_wait = True
+        elif int(waited) % 300 == 0:  # log roughly every 5 min
+            print(f"[LOCAL_SCHEDULER] Still waiting for scheduler lock ({waited:.0f}s so far)...")
 
-    if lock_age is not None and lock_age < 43200 and not owner_dead:  # 12 hours in seconds
-        print(
-            f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is already running "
-            f"(lock held for {lock_age:.0f}s, {owner_info}). Cannot start duplicate run. "
-            f"Wait for the existing instance to complete, or verify PID {owner_pid} is "
-            f'actually dead (e.g. `tasklist /FI "PID eq {owner_pid}"`) before manually '
-            f"removing {scheduler_lock} - killing a live session's run destroys its progress.",
-            file=sys.stderr,
-        )
-        return 1
-    if owner_dead:
-        print(f"[LOCAL_SCHEDULER] Lock owner (pid={owner_pid}) confirmed dead - clearing lock immediately.")
-    # Stale (owner confirmed dead, vanished mid-check, or past the 12h age fallback) -
-    # clear it and make one retry attempt. If we lose this retry too, a genuinely fresh
-    # instance beat us fairly; bail out rather than loop, since a live instance now
-    # legitimately holds it.
-    try:
-        scheduler_lock.unlink()
-        print(f"[LOCAL_SCHEDULER] Cleaned stale/vanished scheduler lock (age: {lock_age}, owner: {owner_info})")
-    except FileNotFoundError:
-        pass
-    if not _try_acquire_lock(scheduler_lock, pipeline_name):
-        print(
-            "[LOCAL_SCHEDULER] ERROR: Lost the race for the scheduler lock on retry "
-            "- another instance just started. Cannot start duplicate run.",
-            file=sys.stderr,
-        )
-        return 1
-    return None
+        time.sleep(LOCK_POLL_INTERVAL_SECONDS)
+        waited += LOCK_POLL_INTERVAL_SECONDS
 
 
 def main() -> int:

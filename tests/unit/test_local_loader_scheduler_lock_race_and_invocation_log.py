@@ -78,6 +78,8 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
         lock_path.write_text("held by another process")
 
         with (
+            patch.object(module, "LOCK_WAIT_TIMEOUT_SECONDS", 0.3),
+            patch.object(module, "LOCK_POLL_INTERVAL_SECONDS", 0.1),
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline") as mock_run_pipeline,
@@ -112,11 +114,14 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
         assert result == 0
         mock_run_pipeline.assert_called_once_with("metrics")
 
-    def test_live_owner_pid_is_respected_even_though_lock_is_fresh(self, scheduler_module, tmp_path):
+    def test_live_owner_pid_is_respected_but_eventually_times_out(self, scheduler_module, tmp_path):
         # Mirror case: a genuinely alive owner (this test process's own PID, guaranteed alive)
         # must NOT be reclaimed just because something about the lock looks inspectable now -
         # the liveness check must only ever shorten the wait for dead owners, never shorten it
-        # for live ones.
+        # for live ones. ADDED 2026-08-17: a live owner is now retried (not failed instantly)
+        # for up to LOCK_WAIT_TIMEOUT_SECONDS - patched tiny here so the test doesn't really
+        # wait 30 real minutes - but must still eventually give up and return 1 if the owner
+        # never releases it.
         module = scheduler_module
         lock_path = tmp_path / "algo-scheduler.lock"
         lock_path.write_text(f"pid={os.getpid()} pipeline=signals started=2026-08-17T05:32:23+00:00")
@@ -124,6 +129,8 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
         os.utime(lock_path, (recent_time, recent_time))
 
         with (
+            patch.object(module, "LOCK_WAIT_TIMEOUT_SECONDS", 0.3),
+            patch.object(module, "LOCK_POLL_INTERVAL_SECONDS", 0.1),
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline") as mock_run_pipeline,
@@ -132,6 +139,42 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
 
         assert result == 1
         mock_run_pipeline.assert_not_called()
+
+    def test_waits_for_live_owner_lock_and_succeeds_once_it_is_released(self, scheduler_module, tmp_path):
+        # The actual point of the 2026-08-17 fix: a scheduled task firing while a prior
+        # pipeline is still finishing should self-heal once the lock frees up, instead of
+        # failing on the very first attempt and relying on Task Scheduler's own
+        # -RestartCount/-RestartInterval (or a human) to notice and retry.
+        module = scheduler_module
+        lock_path = tmp_path / "algo-scheduler.lock"
+        lock_path.write_text(f"pid={os.getpid()} pipeline=metrics started=2026-08-17T05:32:23+00:00")
+        recent_time = module.time.time() - 5
+        os.utime(lock_path, (recent_time, recent_time))
+
+        original_try_acquire = module._try_acquire_lock
+        call_count = {"n": 0}
+
+        def _try_acquire_then_release_on_second_attempt(lock, name):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                # Simulate the other process finishing and releasing the lock right before
+                # this poll.
+                lock_path.unlink()
+            return original_try_acquire(lock, name)
+
+        with (
+            patch.object(module, "LOCK_WAIT_TIMEOUT_SECONDS", 5),
+            patch.object(module, "LOCK_POLL_INTERVAL_SECONDS", 0.05),
+            patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
+            patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
+            patch.object(module, "_try_acquire_lock", side_effect=_try_acquire_then_release_on_second_attempt),
+            patch.object(module, "run_pipeline", return_value=0) as mock_run_pipeline,
+        ):
+            result = module.main()
+
+        assert result == 0
+        mock_run_pipeline.assert_called_once_with("metrics")
+        assert call_count["n"] >= 2
 
     def test_successful_acquire_records_pid_and_pipeline_for_future_liveness_checks(self, scheduler_module, tmp_path):
         # The lock used to be written empty (os.O_WRONLY, no content) - nothing could verify
@@ -184,6 +227,8 @@ class TestSchedulerInvocationIsDurablyLogged:
         lock_path.write_text("held by another process")
 
         with (
+            patch.object(module, "LOCK_WAIT_TIMEOUT_SECONDS", 0.3),
+            patch.object(module, "LOCK_POLL_INTERVAL_SECONDS", 0.1),
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
         ):
@@ -193,7 +238,7 @@ class TestSchedulerInvocationIsDurablyLogged:
         invocation_log = tmp_path / "logs" / "scheduler_invocations.log"
         assert invocation_log.exists()
         content = invocation_log.read_text(encoding="utf-8")
-        assert "Another scheduler instance is already running" in content
+        assert "Another scheduler instance is still running" in content
         assert "--now=metrics" in content
 
 
