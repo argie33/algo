@@ -21,6 +21,7 @@ asserts that invariant directly, across every registered loader, instead of pars
 """
 
 import importlib.util
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,10 +32,23 @@ from loaders.loader_registry import SHORTHAND_TO_FILENAME, normalize_loader_name
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _load_scheduler_module():
-    spec = importlib.util.spec_from_file_location(
-        "local_loader_scheduler_under_test", REPO_ROOT / "scripts" / "local_loader_scheduler.py"
-    )
+def _load_scheduler_module(tmp_path):
+    """Load the real scheduler source, but from a copy under tmp_path rather than its real
+    repo location. run_pipeline() derives repo_root from Path(__file__).parent.parent and
+    unconditionally writes a per-loader log header to {repo_root}/logs/ before subprocess.Popen
+    is even mocked out - loading straight from the real file (live-confirmed 2026-08-16) made
+    every run of this test write real, header-only, real-looking entries into the actual repo
+    logs/ directory for all 30+ loader shorthands in one wall-clock second, indistinguishable
+    from genuine runs except by an anomalous `pid=<unknown>`. A prior fix (386719ded) only
+    cleaned up the ugly MagicMock-repr symptom in those files; this fixes the actual leak by
+    giving the loaded module a fake repo_root that resolves inside pytest's tmp_path instead.
+    """
+    fake_scripts_dir = tmp_path / "scripts"
+    fake_scripts_dir.mkdir(parents=True, exist_ok=True)
+    fake_module_path = fake_scripts_dir / "local_loader_scheduler.py"
+    shutil.copyfile(REPO_ROOT / "scripts" / "local_loader_scheduler.py", fake_module_path)
+
+    spec = importlib.util.spec_from_file_location("local_loader_scheduler_under_test", fake_module_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -62,8 +76,8 @@ def _mock_proc(returncode=0):
 
 
 @pytest.mark.parametrize("shorthand", sorted(SHORTHAND_TO_FILENAME.keys()))
-def test_every_loader_is_invoked_via_direct_module_execution(shorthand):
-    module = _load_scheduler_module()
+def test_every_loader_is_invoked_via_direct_module_execution(shorthand, tmp_path):
+    module = _load_scheduler_module(tmp_path)
     filename = normalize_loader_name(shorthand)
     with (
         patch.object(module, "PIPELINES", {"test_pipeline": [shorthand]}),
@@ -81,11 +95,11 @@ def test_every_loader_is_invoked_via_direct_module_execution(shorthand):
     )
 
 
-def test_financial_statements_still_gets_statement_type_all_env_var():
+def test_financial_statements_still_gets_statement_type_all_env_var(tmp_path):
     """The one loader that still needs a special case: not a different cmd, just an env var -
     financial_statements' main() fans LOADER_STATEMENT_TYPE="all" out to all 6 statement/period
     combos; the class constructor alone requires one specific combo to already be named."""
-    module = _load_scheduler_module()
+    module = _load_scheduler_module(tmp_path)
     with (
         patch.object(module, "PIPELINES", {"test_pipeline": ["financial_statements"]}),
         patch.object(module, "_check_loader_dependencies", return_value=True),
@@ -97,10 +111,10 @@ def test_financial_statements_still_gets_statement_type_all_env_var():
     assert mock_popen.call_args.kwargs["env"]["LOADER_STATEMENT_TYPE"] == "all"
 
 
-def test_run_loader_py_generic_path_never_invoked():
+def test_run_loader_py_generic_path_never_invoked(tmp_path):
     """scripts/run_loader.py must never appear in a run_pipeline() subprocess command - its
     generic class-lookup path is the whole bug class this fix eliminates."""
-    module = _load_scheduler_module()
+    module = _load_scheduler_module(tmp_path)
     all_shorthands = list(SHORTHAND_TO_FILENAME.keys())
     with (
         patch.object(module, "PIPELINES", {"test_pipeline": all_shorthands}),
