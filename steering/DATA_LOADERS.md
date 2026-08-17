@@ -1189,8 +1189,13 @@ green/yellow/red per table.
 ## For Detailed Reference
 
 - `steering/GOVERNANCE.md` — data quality principles, fail-fast rules
-- `steering/OPERATIONS.md` — troubleshooting, deploy chain (CI success auto-deploys; a
-  failed CI run silently skips deployment — always verify after pushing)
+- `steering/COMMON_OPERATIONS.md` — troubleshooting
+  (FIXED 2026-08-17: this used to say `steering/OPERATIONS.md`, deleted 2026-07-26
+  in commit `6e81a267c` as "AWS-only, local dev doesn't use" along with several other
+  one-time steering docs — not a stray typo, an intentional deletion that left this one
+  pointer behind. The deploy-chain note it carried isn't covered by any current doc, so
+  it's kept here directly: CI success auto-deploys; a failed CI run silently skips
+  deployment — always verify after pushing)
 - `loaders/runner.py`, `utils/optimal_loader.py`, `utils/bulk_insert_manager.py`
 - `utils/external/alpaca_market_data.py` (SIP price data)
 - `utils/external/sec_edgar_client.py` (companyfacts LRU, form 4/5/13F)

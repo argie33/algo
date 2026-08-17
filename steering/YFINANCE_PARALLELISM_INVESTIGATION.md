@@ -1,5 +1,13 @@
 # Yfinance Parallelism Investigation & Optimization Plan
 
+**SUPERSEDED 2026-08-17**: CLAUDE.md's Core Rules now state `LOADER_PARALLELISM must be 1`
+as a non-negotiable, current-day rule (yfinance blocks even at parallelism=2 — see memory
+`analyst_loaders_reloaded_and_local_parallelism_ban_20260810`). The "Phase 1: Test
+Parallelism=2" plan below predates that rule and proposes re-running an experiment the
+project has since settled as unsafe. Don't act on this doc's Phase 1/2 without first
+checking whether that rule has since been relaxed in CLAUDE.md — the rate-limit math and
+root-cause analysis below are still accurate background, just not the current plan.
+
 ## Current State (Analysis 2026-08-12)
 
 ### Problem

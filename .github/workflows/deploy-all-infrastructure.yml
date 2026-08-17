@@ -2029,7 +2029,7 @@ jobs:
               --function-name "$LAMBDA_NAME" \
               --timeout 900 \
               $CONFIG_ARGS \
-              --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
+              --environment "Variables={DB_NAME=stocks,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
               --region $AWS_REGION || echo "[WARN] Could not update Lambda config"
             aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
           elif echo "$UPDATE_OUTPUT" | grep -q "ResourceNotFoundException"; then
@@ -2069,7 +2069,7 @@ jobs:
               $LAYER_ARGS \
               --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
               --region $AWS_REGION \
-              --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
+              --environment "Variables={DB_NAME=stocks,DB_SECRET_ARN=${DB_SECRET_ARN}}"
             # function-active only waits for State=Active, which can flip before the layer
             # and VPC config finish provisioning (LastUpdateStatus stays InProgress longer,
             # especially with VPC ENIs). Confirmed live 2026-07-07: invoking right after
