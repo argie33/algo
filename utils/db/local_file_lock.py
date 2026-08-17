@@ -57,26 +57,36 @@ class FileLockManager:
 
         CRITICAL FIX: Windows file deletion can fail (WinError 32) during __del__ of crashed runs,
         leaving stale locks. Auto-cleanup needs to handle both:
-        1. Content-based expiry: Lock has explicit expiry timestamp in content
-        2. File-age fallback: If lock file is > 30min old, assume it's stale (process crashed)
+        1. Content-based expiry: Lock has explicit expiry timestamp in content (authoritative -
+           each lock file records its own TTL, set from that loader's real SLA timeout).
+        2. File-age fallback: ONLY when content can't be read/parsed at all (corrupted or
+           malformed lock file) - assume stale after 30min with no readable expiry.
 
-        SESSION 113 FIX: Changed stale threshold from 2x lock_duration (10min) to 30min.
-        Reason: Friday night crashes need to be cleaned up by Saturday morning to prevent
-        cascading 2-3 day data staleness (momentum → stability → quality → growth metrics).
-        Lock file persisting >10min indicates process is definitely dead (normal runtime <5min).
+        BUG FIX (2026-08-17): Previously deleted a lock if EITHER content was expired OR the file
+        was merely >30min old - even when the file's own recorded expiry was still hours in the
+        future. Per-loader lock TTLs are tied to real SLA timeouts (company_info_sec: 540min,
+        prices: 1440min - see loaders/loader_timeout_config.py), so any loader running longer
+        than 30 minutes had its still-valid lock stolen mid-run by a second concurrent
+        invocation, corrupting progress tracking and double-writing data. Live-reproduced
+        2026-08-17: company_info_sec's lock (acquired 10:23:04, legitimately held until
+        12:16:38) was deleted by this file-age fallback at ~11:something, letting a second
+        process acquire the "same" lock 73 minutes in and run concurrently - the two racing
+        writers tripped the STATUS_MANAGER's "symbols_loaded cannot decrease" guard repeatedly.
+        This mirrors the bug class already fixed twice in orchestrator.py's DB-lock cleanup
+        (see algo/orchestration/orchestrator.py's _cleanup_expired_locks docstring) - never
+        reconciled here for the filesystem-lock path. Fix: file-age is now only consulted when
+        content-based expiry is undeterminable; a lock with a valid, still-future recorded
+        expiry is never deleted early regardless of file age.
         """
         try:
             now = datetime.now(timezone.utc)
-            # Use 30-minute timeout for stale detection (not 2x lock_duration)
+            # 30-minute fallback threshold, used ONLY when a lock file's content can't be parsed.
             stale_threshold = now - timedelta(seconds=1800)
 
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
-                    # Check file modification time as fallback for crashed processes
-                    file_mtime = datetime.fromtimestamp(lock_file.stat().st_mtime, tz=timezone.utc)
-                    is_file_stale = file_mtime < stale_threshold
-
-                    # Read expiry time from file content
+                    # Read expiry time from file content - authoritative when present.
+                    expiry_str = None
                     is_content_expired = False
                     try:
                         with open(lock_file, encoding="utf-8") as f:
@@ -94,10 +104,20 @@ class FileLockManager:
                             f"[FILE_LOCK] Could not parse lock file content, treating as not-expired: {parse_err}"
                         )
 
-                    # Remove lock if EITHER content is expired OR file is too old (crashed process)
-                    if is_content_expired or is_file_stale:
+                    if expiry_str:
+                        # Content had a readable expiry - it alone decides staleness. A valid,
+                        # still-future TTL (even one hours long) must never be overridden by
+                        # file age, since file age says nothing about this lock's own duration.
+                        should_delete = is_content_expired
+                        reason = "content_expired"
+                    else:
+                        # No readable expiry (missing/corrupted content) - fall back to file age.
+                        file_mtime = datetime.fromtimestamp(lock_file.stat().st_mtime, tz=timezone.utc)
+                        should_delete = file_mtime < stale_threshold
+                        reason = "file_age_stale_no_content"
+
+                    if should_delete:
                         lock_file.unlink()
-                        reason = "content_expired" if is_content_expired else "file_age_stale"
                         logger.debug(f"[FILE_LOCK] Cleaned {reason} lock: {lock_file.name}")
                 except Exception as e:
                     logger.warning(f"[FILE_LOCK] Error cleaning lock {lock_file.name}: {e}")
@@ -113,11 +133,24 @@ class FileLockManager:
 
         Returns: Number of locks deleted
 
-        CRITICAL FIX (Session 107): Use file modification time as fallback.
-        Previous: relied entirely on expiry timestamp in file content. If parsing failed or
-        expiry was in the future, lock would never be deleted even if stale (e.g., lock >1h old
-        from crashed run). Now: delete if file modification time is older than max_age_seconds,
-        providing reliable cleanup for stale locks from crashed processes.
+        CRITICAL FIX (Session 107): Use file modification time as fallback for locks whose
+        content can't be read (parsing failed / missing expiry) - without this, a corrupted
+        lock file with no readable expiry would never be deleted.
+
+        BUG FIX (2026-08-17): Session 107's version made file-age the PRIMARY criterion,
+        deleting any lock older than max_age_seconds before even checking its own recorded
+        TTL. Callers (utils/optimal_loader.py) pass a flat max_age_seconds=1800 (30min) on
+        every loader startup, assuming (per that call site's own comment) this "deletes locks
+        whose OWN expires_at is 1800s+ in the past" - but the implementation never actually
+        checked expires_at first. Per-loader lock TTLs now derive from real SLA timeouts (up to
+        1440min for prices, 540min for company_info_sec - loaders/loader_timeout_config.py), so
+        any such loader running past 30 minutes had its still-valid lock deleted out from under
+        it, letting a second invocation acquire the "same" lock and run concurrently. Live-
+        reproduced 2026-08-17 with company_info_sec (see _cleanup_expired_locks() docstring
+        above for the full incident). Fix: content-based expiry is now checked FIRST and is
+        authoritative when readable; file age is only the deciding factor when content can't be
+        parsed at all, and max_age_seconds is only a lower bound on the recorded TTL, never an
+        override of it.
         """
         try:
             now = datetime.now(timezone.utc)
@@ -126,21 +159,7 @@ class FileLockManager:
 
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
-                    # Check file modification time as primary indicator of staleness
-                    file_mtime = datetime.fromtimestamp(lock_file.stat().st_mtime, tz=timezone.utc)
-
-                    # Use file age as the primary deletion criterion (Session 107 fix)
-                    # This handles crashed processes where the lock file persists indefinitely
-                    if file_mtime < file_age_stale_threshold:
-                        lock_file.unlink()
-                        deleted_count += 1
-                        logger.debug(
-                            f"[FILE_LOCK] Cleaned stale lock by file age: {lock_file.name} "
-                            f"(age={int((now - file_mtime).total_seconds())}s > {max_age_seconds}s)"
-                        )
-                        continue
-
-                    # Secondary check: if lock content has expiry timestamp, delete if expired
+                    expiry_str = None
                     try:
                         with open(lock_file, encoding="utf-8") as f:
                             content = f.read().strip()
@@ -150,7 +169,8 @@ class FileLockManager:
                                 expiry = datetime.fromisoformat(expiry_str)
                                 if expiry.tzinfo is None:
                                     expiry = expiry.replace(tzinfo=timezone.utc)
-                                # Delete if lock TTL has already expired
+                                # Content's own recorded TTL is authoritative - delete only if
+                                # it has actually expired, regardless of max_age_seconds/file age.
                                 if now > expiry:
                                     lock_file.unlink()
                                     deleted_count += 1
@@ -158,8 +178,25 @@ class FileLockManager:
                                         f"[FILE_LOCK] Cleaned expired-TTL lock: {lock_file.name} "
                                         f"(expiry={expiry.isoformat()} < now={now.isoformat()})"
                                     )
+                                continue
                     except Exception as parse_err:
                         logger.debug(f"[FILE_LOCK] Could not parse lock content for {lock_file.name}: {parse_err}")
+
+                    if expiry_str:
+                        # Content parsed fine and wasn't expired (handled above) - never fall
+                        # through to the file-age heuristic for a lock with a known-valid TTL.
+                        continue
+
+                    # No readable expiry at all (missing/corrupted content) - file age is the
+                    # only signal available, so fall back to it.
+                    file_mtime = datetime.fromtimestamp(lock_file.stat().st_mtime, tz=timezone.utc)
+                    if file_mtime < file_age_stale_threshold:
+                        lock_file.unlink()
+                        deleted_count += 1
+                        logger.debug(
+                            f"[FILE_LOCK] Cleaned stale lock by file age (no readable content): {lock_file.name} "
+                            f"(age={int((now - file_mtime).total_seconds())}s > {max_age_seconds}s)"
+                        )
 
                 except Exception as e:
                     logger.warning(f"[FILE_LOCK] Error cleaning lock {lock_file.name}: {e}")
