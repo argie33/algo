@@ -339,7 +339,7 @@ def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict
             return None
         if max_abs is not None and abs(val) > max_abs:
             logger.warning(
-                f"[EARNINGS_CALENDAR] {col} magnitude {val} exceeds sane bound "
+                f"[EARNINGS_CALENDAR] {symbol}: {col} magnitude {val} exceeds sane bound "
                 f"({max_abs}) for a per-share value - treating as corrupt/unavailable"
             )
             return None
