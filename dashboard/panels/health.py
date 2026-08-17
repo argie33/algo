@@ -1372,11 +1372,19 @@ def _build_freshness_panel(
     # This shows infrastructure health independent of data staleness
     loader_errors_count = 0
     total_loader_failures = 0
+    loader_errors_genuine = 0
+    loader_errors_reaped_only = 0
     if hlth_dict and isinstance(hlth_dict, dict):
         summary_data = hlth_dict.get("summary")
         if isinstance(summary_data, dict):
             loader_errors_count = summary_data.get("loaders_with_errors", 0)
             total_loader_failures = summary_data.get("total_loader_failures", 0)
+            # Backend splits reaped-abandoned-process artifacts (self-heal automatically -
+            # see market.py's _is_reaped_artifact) out of the raw count. Older cached API
+            # responses won't have these keys - fall back to "assume all genuine" so this
+            # degrades to the previous behavior instead of erroring.
+            loader_errors_genuine = summary_data.get("loaders_with_errors_genuine", int(loader_errors_count))
+            loader_errors_reaped_only = summary_data.get("loaders_with_errors_reaped_only", 0)
 
     # Check for execution guards that block trading (Phase 8 price check, market hours, etc)
     # CRITICAL: ready_to_trade=False can mean either:
@@ -1407,12 +1415,18 @@ def _build_freshness_panel(
         f"  [{R}]{stale_count} stale[/]" if stale_count else ""
     )
 
-    # Add loader error info if there are any
+    # Add loader error info if there are any. Colored (and counted for urgency) off the
+    # GENUINE count, not the raw total - a loader whose only failure is an abandoned-process
+    # reap artifact retries and self-heals on its own next scheduled pass (see
+    # local_loader_scheduler.py's is_reaped_only handling), so it shouldn't read as red-alert
+    # the same as an actually-broken loader.
     if loader_errors_count > 0:
-        error_color = R if loader_errors_count >= 3 else Y
+        error_color = R if loader_errors_genuine >= 3 else (Y if loader_errors_genuine > 0 else "dim")
         freshness_line += (
-            f"  [{error_color}]{loader_errors_count} loader(s) with errors ({total_loader_failures} total)[/]"
+            f"  [{error_color}]{loader_errors_genuine} loader(s) with errors ({total_loader_failures} total)[/]"
         )
+        if loader_errors_reaped_only > 0:
+            freshness_line += f"  [dim]({loader_errors_reaped_only} reaped, self-healing)[/]"
 
     freshness_line += rtt_part
     left_rows.append(Text.from_markup(freshness_line))

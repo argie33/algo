@@ -953,14 +953,41 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # CRITICAL FIX: Add loader error count to summary for visibility
         # Loaders with consecutive_failures >= 1 indicate persistent issues
         # This is different from data staleness - it shows infrastructure health
+        #
+        # REAPED-ARTIFACT SPLIT (2026-08-16): live-checked this count against the DB while
+        # investigating an operator's "the dashboard says errors but everything's actually
+        # fine" report - every single one of the 20 loaders then flagged here had its
+        # consecutive_failures streak entirely from reap_stale_running_loaders() marking an
+        # abandoned (no owning process alive) run FAILED with an "[REAPED]"/"[MANUAL REAP"
+        # error_message, not a real bug. local_loader_scheduler.py's run_pipeline() already
+        # classifies this exact pattern the same way (see its is_reaped_only check) so a
+        # reaped loader retries and self-heals on the next scheduled pass instead of being
+        # permanently skipped - but this summary counted it identically to a genuinely broken
+        # loader, so the dashboard read "N errors" with no way to tell noise from a real
+        # problem. Splitting the two lets the panel say what's actually actionable.
+        def _is_reaped_artifact(msg: object) -> bool:
+            if not isinstance(msg, str):
+                return False
+            stripped = msg.strip()
+            return stripped.startswith(("[REAPED]", "[MANUAL REAP"))
+
         loaders_with_errors = [
             (r.get("consecutive_failures") or 0, r.get("table_name"))
             for r in enriched_rows
             if isinstance(r.get("consecutive_failures"), (int, float)) and r.get("consecutive_failures") >= 1
         ]
+        reaped_only = [
+            (r.get("consecutive_failures") or 0, r.get("table_name"))
+            for r in enriched_rows
+            if isinstance(r.get("consecutive_failures"), (int, float)) and r.get("consecutive_failures") >= 1
+            if _is_reaped_artifact(r.get("error_message"))
+        ]
+        genuine_errors = len(loaders_with_errors) - len(reaped_only)
         total_failure_count = sum(r[0] for r in loaders_with_errors)
         summary["loaders_with_errors"] = len(loaders_with_errors)
         summary["total_loader_failures"] = int(total_failure_count)
+        summary["loaders_with_errors_genuine"] = genuine_errors
+        summary["loaders_with_errors_reaped_only"] = len(reaped_only)
 
         # CRITICAL: Data freshness alone does not mean trading is actually authorized.
         # The circuit breaker (Phase 2) can halt entries for reasons unrelated to data

@@ -23,6 +23,16 @@ suite (`tests/conftest.py` hardcodes `DB_NAME=algo_trading`) — if `.env.local`
 instead, local orchestrator runs will silently execute against a barren DB and any "verified
 locally" claim from that session is worthless. This exact drift happened and was fixed 2026-08-09.
 
+**`--date YYYY-MM-DD` does not bypass the market-hours guard.** `algo/orchestration/orchestrator.py`
+checks the *real* current wall-clock ET time against real market hours on every run, regardless
+of `--date` or `--force` — this is intentional (prevents pre/post-market runs from corrupting
+production state), not a bug. Outside real market hours (which is most of the time you'd be
+testing locally, including all weekends), a `--date` run for a past trading day will silently
+`skip` with `halt_reason: "outside_market_hours: HH:MM:SS ET"` and never reach Phase 1 at all —
+easy to mistake for the loader/data problem you were actually trying to reproduce. To actually
+exercise phase logic for a historical date outside real market hours, set
+`ALLOW_OUTSIDE_MARKET_HOURS=true` in the environment first.
+
 **Troubleshooting data issues:**
 ```bash
 python scripts/monitor_data_staleness.py               # Check freshness
@@ -85,7 +95,7 @@ rm *.log                                       # Remove orchestrator test logs
 rm -r __pycache__ .pytest_cache .mypy_cache   # Python cache (regenerated)
 
 # Git optimization
-git stash clear                                # Clear uncommitted work storage  
+git stash clear                                # Clear uncommitted work storage
 git gc --aggressive --prune=now                # Compact .git (frees 50-100 MB)
 
 # Memory system
@@ -97,7 +107,7 @@ git gc --aggressive --prune=now                # Compact .git (frees 50-100 MB)
 **What to delete:** `.log` files, old audit reports, Python cache, debug scripts, dated session findings from memory, .terraform cache (auto-regenerated).
 
 **Recent cleanup (2026-08-07):**
-- Memory: 70+ files (250 KB) → 32 files (111 KB) 
+- Memory: 70+ files (250 KB) → 32 files (111 KB)
 - Logs: 80 files (39 MB deleted)
 - Python cache: 26 dirs (13 MB deleted)
 - Terraform cache: 3 dirs (1,785 MB deleted)
