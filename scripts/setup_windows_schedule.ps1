@@ -288,14 +288,44 @@ Write-Host "[OK] Reference task scheduled for 11:30 PM ET (MON-FRI)"
 # LogonType=Interactive gap as the loader tasks above, PLUS -Daily triggers (fire 7 days/week;
 # harmless today only because orchestrator.py's own market-hours guard no-ops on weekends, but
 # still wrong). Re-registering them here too so one elevated run of this script fixes every
-# algo-related scheduled task, not just the 3 data-loader ones. Times/actions preserved exactly
-# from the existing tasks (Get-ScheduledTaskInfo) - these are local wall-clock times as already
-# configured, not ET-converted like the loader triggers above.
+# algo-related scheduled task, not just the 3 data-loader ones.
+#
+# BUG FIX (2026-08-17, later same day): the "Times/actions preserved exactly from the existing
+# tasks... local wall-clock, not ET-converted" note this comment used to have was itself the
+# same off-by-a-DST-hour bug as the loader triggers above, just not yet fixed for these three.
+# scripts/run_local_orchestrator.py's own docstring states production's real schedule in ET:
+# "morning 9:30 AM ET, afternoon 1:00 PM ET, preclose 3:00 PM ET" - which is exactly what these
+# task names (930AM/1PM/3PM) encode, so `At` below must be ET-converted like the loader triggers,
+# not literal local time (was firing every session ~1h later in ET than the name promises).
+# NOTE: this fixes clock math only. It does NOT address a separate, independently-noticed
+# mapping question - the "_3PM" task invokes `--evening` (production's monitor-only, always
+# dry_run=True session per lambda_function.py's MONITOR_ONLY_RUN_IDENTIFIERS) rather than
+# `--preclose` (a live-order-submitting session, which is what runs at 3 PM ET in production) -
+# left untouched here since it changes which sessions place real paper orders, not just when a
+# task fires; needs a deliberate human call, not a mechanical timezone fix.
+#
+# FIXED 2026-08-17 (deliberate human call made, per the note above): production actually
+# schedules 4 sessions (terraform/modules/services/2x-daily-orchestrator.tf) - morning
+# 9:30 AM ET, afternoon 1:00 PM ET, preclose 3:00 PM ET, evening 5:30 PM ET. Per
+# run_local_orchestrator.py's own docstring, morning/afternoon/preclose place real (paper)
+# orders via LIVE_TRADING_RUN_IDENTIFIERS; only evening is monitor-only (dry_run=True,
+# enforced in run_local_orchestrator.py regardless of ORCHESTRATOR_DRY_RUN). The old 3-task
+# setup below ran --evening (monitor-only, no real orders) in the 3PM slot instead of
+# --preclose - meaning the real 3PM preclose session (which places real paper orders) never
+# ran locally at all, and evening ran 2.5 hours early under the wrong session's clock
+# alignment. Now matches production exactly: 4 tasks, --preclose restored to its real 3PM
+# slot, --evening moved to its own real 5:30 PM slot.
 $orchestratorTaskFolder = "\AlgoTrading"
+$orchestrator930Local = Convert-EasternTimeToLocal -Hour 9 -Minute 30
+$orchestrator1pmLocal = Convert-EasternTimeToLocal -Hour 13 -Minute 0
+$orchestrator3pmLocal = Convert-EasternTimeToLocal -Hour 15 -Minute 0
+$orchestrator530pmLocal = Convert-EasternTimeToLocal -Hour 17 -Minute 30
+Write-Host "[INFO] ET 09:30 -> local $orchestrator930Local | ET 13:00 -> local $orchestrator1pmLocal | ET 15:00 -> local $orchestrator3pmLocal | ET 17:30 -> local $orchestrator530pmLocal"
 $orchestratorTasks = @(
-    @{ Name = "AlgoTrading_Orchestrator_930AM"; At = "09:30"; Args = "scripts/run_local_orchestrator.py"; Desc = "Trading orchestrator - morning phases" },
-    @{ Name = "AlgoTrading_Orchestrator_1PM";   At = "13:00"; Args = "scripts/run_local_orchestrator.py --afternoon"; Desc = "Trading orchestrator - afternoon phases" },
-    @{ Name = "AlgoTrading_Orchestrator_3PM";   At = "15:00"; Args = "scripts/run_local_orchestrator.py --evening"; Desc = "Trading orchestrator - evening phases" }
+    @{ Name = "AlgoTrading_Orchestrator_930AM"; At = $orchestrator930Local;   Args = "scripts/run_local_orchestrator.py";           Desc = "Trading orchestrator - morning phases (real orders)" },
+    @{ Name = "AlgoTrading_Orchestrator_1PM";   At = $orchestrator1pmLocal;   Args = "scripts/run_local_orchestrator.py --afternoon"; Desc = "Trading orchestrator - afternoon phases (real orders)" },
+    @{ Name = "AlgoTrading_Orchestrator_3PM";   At = $orchestrator3pmLocal;   Args = "scripts/run_local_orchestrator.py --preclose";  Desc = "Trading orchestrator - preclose phases (real orders)" },
+    @{ Name = "AlgoTrading_Orchestrator_530PM"; At = $orchestrator530pmLocal; Args = "scripts/run_local_orchestrator.py --evening";   Desc = "Trading orchestrator - evening phases (monitor-only, dry_run)" }
 )
 
 Write-Host ""
@@ -340,7 +370,7 @@ Get-ScheduledTask -TaskPath "$orchestratorTaskFolder\" | Select-Object -Property
 Write-Host ""
 Write-Host "[SUCCESS] Task Scheduler setup complete!"
 Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, 7:00 PM, and 11:30 PM ET"
-Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, and 3:00 PM local"
+Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, 3:00 PM (all real orders), and 5:30 PM ET (monitor-only)"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
 Write-Host "Tasks are under: Task Scheduler Library > algo, and Task Scheduler Library > AlgoTrading"
