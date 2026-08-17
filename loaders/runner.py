@@ -23,6 +23,7 @@ import os
 import signal
 import socket
 import threading
+from datetime import date
 
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
@@ -289,6 +290,23 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
                 # Check if this loader needs real stocks only (exclude ETFs)
                 exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
                 symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
+
+                # ROOT-CAUSE FIX 2026-08-16: get_active_symbols() always returns symbols in
+                # fixed `ORDER BY symbol` (alphabetical) order. For a loader whose per-symbol
+                # latency * universe size exceeds its own timeout, this is a structural
+                # coverage gap, not a transient stall - every run starts over from 'A' and
+                # the hard timeout always cuts it off at the same point, so symbols past that
+                # point are NEVER reached, run after run, forever. Live-confirmed for
+                # current_reports_8k: a 120-minute-timeout SEC EDGAR loader with ~10s/symbol
+                # latency against a 4,922-symbol universe only ever reaches ~886 symbols
+                # (through 'COCP') before being killed - DB query confirmed zero rows, ever,
+                # for symbols past that alphabetical point (e.g. ZYME, ZWS, ZVRA). Loaders
+                # that opt in via `rotate_symbols_daily = True` get a day-rotating start
+                # offset instead, so the uncovered window shifts daily and the full universe
+                # gets covered over successive days rather than the same ~18% forever.
+                if getattr(loader, "rotate_symbols_daily", False) and symbols:
+                    offset = date.today().toordinal() % len(symbols)
+                    symbols = symbols[offset:] + symbols[:offset]
 
             if args.backfill_days:
                 stats = loader.run(

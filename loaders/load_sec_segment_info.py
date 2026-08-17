@@ -47,6 +47,17 @@ class SecSegmentInfoLoader(SecLoaderBase):
     watermark_field = "parsed_at"
     exclude_etfs_from_symbols = True
     max_fail_rate = 70.0  # Many companies are single-segment; allow partial data writes
+    # ROOT-CAUSE FIX 2026-08-16: live-reaped mid-session with a hard process death (no
+    # traceback) at symbol ~1610/4922 ('EXLS') after repeated per-symbol MemoryErrors
+    # parsing large raw XBRL documents (individually caught and logged fine - it's the
+    # eventual fatal one that isn't). Symbols get() always returns fixed `ORDER BY symbol`
+    # order, so without rotation every run restarts at 'A' and re-does the same ~1,600
+    # symbols before hitting the same crash zone again, never making net progress past it.
+    # Rotating the start point daily at least lets different alphabetical windows get
+    # covered across days instead of the same prefix forever. See runner.py's
+    # rotate_symbols_daily and current_reports_8k's identical fix for the timeout variant
+    # of this same underlying bug class.
+    rotate_symbols_daily = True
 
     def __init__(self) -> None:
         """Initialize loader with SEC Edgar client."""

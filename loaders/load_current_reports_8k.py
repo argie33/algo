@@ -56,6 +56,14 @@ class CurrentReports8KLoader(SecLoaderBase):
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
     max_fail_rate = 2.0  # SEC API occasionally fails on isolated symbols
+    # ROOT-CAUSE FIX 2026-08-16: universe (4,922 symbols) * SEC EDGAR per-symbol latency
+    # (~10s observed) is ~13.7h of work against a 120-minute timeout - this loader can
+    # never finish a full alphabetical pass. Without rotation, symbols get() always
+    # returns in fixed `ORDER BY symbol` order, so every run starts at 'A' and the same
+    # ~18% prefix (through ~'COCP') gets covered forever while everything after it is never
+    # checked for 8-K filings. Rotating the start point daily spreads coverage across the
+    # full universe over successive days instead. See runner.py's rotate_symbols_daily.
+    rotate_symbols_daily = True
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
