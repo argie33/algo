@@ -1459,9 +1459,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # and market_sentiment in a single operation (all succeed or fail together)
       # This eliminates the separate market_exposure_daily task that was previously run here
       MorningMarketExposure = {
-        Type = "Pass"
+        Type    = "Pass"
         Comment = "REMOVED: market_exposure_daily now runs atomically as part of market_status_daily (Phase 2 consolidation)"
-        Next = "MorningTechnicalData"
+        Next    = "MorningTechnicalData"
       }
 
       # ── Morning technical data daily (required for Phase 1 freshness) ──
@@ -2516,9 +2516,18 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # production. Same "Class 3: registered but never wired in at all" bug already found and
       # fixed for company_info_sec/earnings_calendar_sec/short_interest_finra/sec_cash_flow_metrics.
       CurrentReports8k = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIX 2026-08-16: was 1800s (30min), while loaders/loader_timeout_config.py configures
+        # this loader's own internal timeout at 7200s (120min) - violates the project's
+        # terraform-must-match-python-timeout rule and was strictly worse than useless: Step
+        # Functions killed the ECS task at 30min regardless of the loader's own budget, and
+        # MaxAttempts=0 below means no retry, so production only ever covered ~5% of the
+        # universe/day under rotate_symbols_daily (loaders/load_current_reports_8k.py) instead
+        # of the ~21%/day the loader's own 120min timeout allows. Live-measured local throughput
+        # tonight: ~1000/4922 symbols in 116min (SEC EDGAR rate-limited full-text 8-K fetches
+        # are the bottleneck, not a hang - see logs/load_current_reports_8k_1786923820.log).
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
