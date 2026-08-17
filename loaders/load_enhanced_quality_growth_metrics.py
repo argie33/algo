@@ -128,6 +128,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0
     exclude_etfs_from_symbols = True
 
+    # Class attribute (not a run() local) so tests can shrink it instead of waiting 60s.
+    per_symbol_timeout_seconds = 60.0
+
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run() to write trend metrics to BOTH quality_metrics and growth_metrics.
 
@@ -152,164 +155,75 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if backfill_days is not None:
                 self._backfill_days = backfill_days
 
+            # PER-SYMBOL TIMEOUT FIX 2026-08-16: live-reproduced today - this loop had NO bound
+            # on total per-symbol work (DB reads/writes + fetch_incremental), only the individual
+            # yfinance sub-calls inside it were capped at 20s each. growth_metrics/quality_metrics
+            # went silent (zero log output, any level) after committing a normal per-symbol write
+            # at 16:07:42 and stayed silent for 4+ hours until local_loader_scheduler's external
+            # "0%% stall for >1800s" watchdog force-killed the subprocess - a genuinely-hung symbol
+            # anywhere in this loop blocks every symbol queued behind it with no visibility into
+            # which one. Same daemon-thread-abandon-with-timeout containment already proven for
+            # this exact failure class in load_financial_statements.py's per-symbol timeout
+            # (2026-08-09) - bounds each symbol to per_symbol_timeout_seconds regardless of root
+            # cause, so the loop always keeps moving and logs which symbol stalled.
+            per_symbol_timeout_seconds = self.per_symbol_timeout_seconds
+
             for symbol in symbols:
-                try:
-                    # Calculate since_date from backfill_days (matching parent behavior)
-                    from datetime import datetime, timedelta
-                    from datetime import timezone as tz
+                # Calculate since_date from backfill_days (matching parent behavior)
+                from datetime import datetime, timedelta
+                from datetime import timezone as tz
 
-                    since_date = None
-                    if self._backfill_days > 0:
-                        since_date = datetime.now(tz.utc).date() - timedelta(days=self._backfill_days)
-                    else:
-                        # Use watermark for incremental loading
-                        since_date = self._watermark.get_current_watermark(symbol=symbol)
+                since_date = None
+                if self._backfill_days > 0:
+                    since_date = datetime.now(tz.utc).date() - timedelta(days=self._backfill_days)
+                else:
+                    # Use watermark for incremental loading
+                    since_date = self._watermark.get_current_watermark(symbol=symbol)
 
-                    metrics = self.fetch_incremental(symbol, since_date)
-                    if not metrics:
-                        logger.error(f"[ENHANCED] {symbol}: fetch_incremental returned empty list")
-                        symbols_failed += 1
-                        continue
+                outcome: list[str] = ["failed"]
+                thread_exc: list[BaseException | None] = [None]
 
-                    metric_dict = metrics[0]
+                # Default-arg binding (evaluated now, not at call time): otherwise every closure
+                # across loop iterations shares the same enclosing-scope cells, and an abandoned
+                # (timed-out but not actually dead - daemon threads can't be force-killed) thread
+                # that finishes later would write into whatever symbol/outcome/thread_exc is
+                # current *at that point*, silently corrupting a different symbol's result.
+                def _process_symbol(
+                    self: "EnhancedQualityGrowthMetricsLoader" = self,
+                    symbol: str = symbol,
+                    since_date: date | None = since_date,
+                    outcome: list[str] = outcome,
+                    thread_exc: list[BaseException | None] = thread_exc,
+                ) -> None:
+                    try:
+                        self._process_one_symbol(symbol, since_date, outcome)
+                    except (ValueError, KeyError) as e:
+                        logger.error(f"[ENHANCED] {symbol}: Data structure error: {e}")
+                    except Exception as e:
+                        thread_exc[0] = e
 
-                    # FIX 2026-08-09: fetch_incremental() returns a truthy
-                    # {"data_unavailable": True, "reason": ...} marker dict (not an empty list)
-                    # when the symbol has no annual_income_statement history - the `if not
-                    # metrics` check above only catches an empty list, not this marker. Without
-                    # this check, the marker dict has none of the growth_fields/quality_fields
-                    # keys, so both update_fields lists below stay empty, no UPDATE ever runs,
-                    # and symbols_succeeded still increments - a symbol with zero real data
-                    # written is silently counted as a success. Same bug class as
-                    # earnings_calendar's fetch-failure placeholder rows fooling Phase 8 (see
-                    # earnings_calendar_placeholder_false_rejection_fix_20260809).
-                    if metric_dict.get("data_unavailable"):
-                        symbols_failed += 1
-                        continue
+                thread = threading.Thread(target=_process_symbol, daemon=True)
+                thread.start()
+                thread.join(timeout=per_symbol_timeout_seconds)
 
-                    with DatabaseContext("write") as cur:
-                        growth_fields = [
-                            "gross_margin_trend",
-                            "operating_margin_trend",
-                            "net_margin_trend",
-                            "roe_trend",
-                            "sustainable_growth_rate",
-                            "fcf_growth_yoy",
-                            "ocf_growth_yoy",
-                            "asset_growth_yoy",
-                            "quarterly_growth_momentum",
-                            "net_income_growth_yoy",
-                            "operating_income_growth_yoy",
-                        ]
-
-                        update_fields = []
-                        values = []
-                        for key in growth_fields:
-                            if key in metric_dict and metric_dict[key] is not None:
-                                update_fields.append(f"{key} = %s")
-                                values.append(metric_dict[key])
-
-                        if update_fields:
-                            # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
-                            # truncates to midnight) - every UPDATE for the rest of the same calendar
-                            # day wrote the identical value, so MAX(updated_at) never advanced during
-                            # a run. Live-confirmed: this loader ran for 30+ min actively computing and
-                            # committing per-symbol updates (log showed continuous ENHANCED_METRICS
-                            # writes through hundreds of symbols) while growth_metrics/quality_metrics
-                            # both stayed frozen at their pre-run updated_at - the scheduler's stall
-                            # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
-                            # seeing it flat, killed a genuinely-working loader as a false stall
-                            # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
-                            update_fields.append("updated_at = NOW()")
-                            cur.execute(
-                                f"UPDATE growth_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
-                                [*values, symbol],
-                            )
-
-                        quality_fields = [
-                            # CRITICAL FIX 2026-08-10: quality_metrics has the same
-                            # gross_margin_trend/operating_margin_trend/net_margin_trend/roe_trend
-                            # columns as growth_metrics (load_value_quality_growth_metrics.py's
-                            # own _SHARED_TREND_FIELDS convention mirrors these 4 fields to BOTH
-                            # tables from one computation), but this loader's quality_fields list
-                            # never included them while growth_fields above always has - so this
-                            # loader's per-symbol UPDATE (a partial/conditional SET - only columns
-                            # present in metric_dict are touched) could refresh growth_metrics'
-                            # trend columns but could NEVER refresh or clear quality_metrics'
-                            # corresponding columns, even when this same fetch_incremental() call
-                            # just computed a fresh, correctly-bounded value for both. Live-
-                            # confirmed: growth_metrics garbage rows (ABS(trend) > 2000) dropped
-                            # from 275 to 252 over a ~50-symbol-per-minute full-universe run while
-                            # quality_metrics' count sat unchanged at 281 the entire time - this
-                            # loader was structurally incapable of clearing them.
-                            "gross_margin_trend",
-                            "operating_margin_trend",
-                            "net_margin_trend",
-                            "roe_trend",
-                            # roic_pct REMOVED 2026-08-03: found while fixing
-                            # quality_metrics.roic_pct's real gap (was hardcoded unavailable in
-                            # load_value_quality_growth_metrics.py, now computes real
-                            # NOPAT/invested-capital ROIC using actual SEC-reported income tax
-                            # data, migration 1178). This loader's own roic_pct formula
-                            # (operating_income / (total_assets - current_liabilities), no tax
-                            # adjustment, no debt/cash netting) is a strictly cruder duplicate.
-                            #
-                            # CORRECTION 2026-08-09: this comment used to also claim "this loader
-                            # isn't wired into any active pipeline" as the reason the removal was
-                            # only theoretical ("if this loader were ever scheduled..."). That was
-                            # already false the day it was written - terraform/modules/pipeline/
-                            # main.tf's EnhancedQualityGrowthMetrics Step Functions state and
-                            # terraform/modules/loaders/main.tf's loader_file_map both schedule
-                            # this loader in AWS production (a separate same-day 2026-08-03 fix
-                            # enabled it), running after ValueQualityGrowthMetrics on the real
-                            # quality_metrics/growth_metrics tables. It does NOT run in the local
-                            # dev pipeline (scripts/local_loader_scheduler.py has zero references
-                            # to it), so this file's behavior cannot be verified via a local
-                            # orchestrator run - only in AWS. The roic_pct removal above was and
-                            # is load-bearing in production, not a hypothetical.
-                            "earnings_surprise_avg",
-                            "eps_growth_stability",
-                            "earnings_beat_rate",
-                            "consecutive_positive_quarters",
-                            "estimate_revision_direction",
-                            "revision_activity_30d",
-                            "estimate_momentum_60d",
-                            "estimate_momentum_90d",
-                            "revision_trend_score",
-                            "earnings_growth_4q_avg",
-                        ]
-
-                        update_fields = []
-                        values = []
-                        for key in quality_fields:
-                            if key in metric_dict and metric_dict[key] is not None:
-                                update_fields.append(f"{key} = %s")
-                                values.append(metric_dict[key])
-
-                        if update_fields:
-                            # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
-                            # truncates to midnight) - every UPDATE for the rest of the same calendar
-                            # day wrote the identical value, so MAX(updated_at) never advanced during
-                            # a run. Live-confirmed: this loader ran for 30+ min actively computing and
-                            # committing per-symbol updates (log showed continuous ENHANCED_METRICS
-                            # writes through hundreds of symbols) while growth_metrics/quality_metrics
-                            # both stayed frozen at their pre-run updated_at - the scheduler's stall
-                            # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
-                            # seeing it flat, killed a genuinely-working loader as a false stall
-                            # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
-                            update_fields.append("updated_at = NOW()")
-                            cur.execute(
-                                f"UPDATE quality_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
-                                [*values, symbol],
-                            )
-
-                    symbols_succeeded += 1
-
-                except (ValueError, KeyError) as e:
-                    logger.error(f"[ENHANCED] {symbol}: Data structure error: {e}")
+                if thread.is_alive():
+                    logger.error(
+                        f"[ENHANCED] {symbol}: exceeded per-symbol timeout "
+                        f"({per_symbol_timeout_seconds:.0f}s) - abandoning (thread left running) "
+                        "and moving on to the next symbol."
+                    )
                     symbols_failed += 1
-                except Exception as e:
-                    logger.error(f"[ENHANCED] {symbol}: Unexpected error: {e}", exc_info=True)
+                    continue
+
+                if thread_exc[0] is not None:
+                    # exc_info can't be passed here (LOG014: only valid inside an except block) -
+                    # this is a captured exception object from the abandoned worker thread, not
+                    # one currently being handled, so log its repr instead of a live traceback.
+                    logger.error(f"[ENHANCED] {symbol}: Unexpected error: {thread_exc[0]!r}")
+                    symbols_failed += 1
+                elif outcome[0] == "success":
+                    symbols_succeeded += 1
+                else:
                     symbols_failed += 1
 
             success = symbols_succeeded > 0
@@ -345,6 +259,150 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except Exception as e:
             logger.error(f"[ENHANCED] Fatal unexpected error: {type(e).__name__}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+
+    def _process_one_symbol(self, symbol: str, since_date: date | None, outcome: list[str]) -> None:
+        """Fetch + write metrics for one symbol. Sets outcome[0]='success' on a real write.
+
+        Split out of run() so the per-symbol timeout wrapper there can run this whole unit
+        of work (DB reads, yfinance calls, DB writes) on a daemon thread and bound it, instead
+        of only bounding the yfinance sub-calls inside fetch_incremental().
+        """
+        metrics = self.fetch_incremental(symbol, since_date)
+        if not metrics:
+            logger.error(f"[ENHANCED] {symbol}: fetch_incremental returned empty list")
+            return
+
+        metric_dict = metrics[0]
+
+        # FIX 2026-08-09: fetch_incremental() returns a truthy
+        # {"data_unavailable": True, "reason": ...} marker dict (not an empty list)
+        # when the symbol has no annual_income_statement history - the `if not
+        # metrics` check above only catches an empty list, not this marker. Without
+        # this check, the marker dict has none of the growth_fields/quality_fields
+        # keys, so both update_fields lists below stay empty, no UPDATE ever runs,
+        # and the caller would silently count zero real data written as a success.
+        # Same bug class as earnings_calendar's fetch-failure placeholder rows
+        # fooling Phase 8 (see earnings_calendar_placeholder_false_rejection_fix_20260809).
+        if metric_dict.get("data_unavailable"):
+            return
+
+        with DatabaseContext("write") as cur:
+            growth_fields = [
+                "gross_margin_trend",
+                "operating_margin_trend",
+                "net_margin_trend",
+                "roe_trend",
+                "sustainable_growth_rate",
+                "fcf_growth_yoy",
+                "ocf_growth_yoy",
+                "asset_growth_yoy",
+                "quarterly_growth_momentum",
+                "net_income_growth_yoy",
+                "operating_income_growth_yoy",
+            ]
+
+            update_fields = []
+            values = []
+            for key in growth_fields:
+                if key in metric_dict and metric_dict[key] is not None:
+                    update_fields.append(f"{key} = %s")
+                    values.append(metric_dict[key])
+
+            if update_fields:
+                # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
+                # truncates to midnight) - every UPDATE for the rest of the same calendar
+                # day wrote the identical value, so MAX(updated_at) never advanced during
+                # a run. Live-confirmed: this loader ran for 30+ min actively computing and
+                # committing per-symbol updates (log showed continuous ENHANCED_METRICS
+                # writes through hundreds of symbols) while growth_metrics/quality_metrics
+                # both stayed frozen at their pre-run updated_at - the scheduler's stall
+                # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
+                # seeing it flat, killed a genuinely-working loader as a false stall
+                # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
+                update_fields.append("updated_at = NOW()")
+                cur.execute(
+                    f"UPDATE growth_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
+                    [*values, symbol],
+                )
+
+            quality_fields = [
+                # CRITICAL FIX 2026-08-10: quality_metrics has the same
+                # gross_margin_trend/operating_margin_trend/net_margin_trend/roe_trend
+                # columns as growth_metrics (load_value_quality_growth_metrics.py's
+                # own _SHARED_TREND_FIELDS convention mirrors these 4 fields to BOTH
+                # tables from one computation), but this loader's quality_fields list
+                # never included them while growth_fields above always has - so this
+                # loader's per-symbol UPDATE (a partial/conditional SET - only columns
+                # present in metric_dict are touched) could refresh growth_metrics'
+                # trend columns but could NEVER refresh or clear quality_metrics'
+                # corresponding columns, even when this same fetch_incremental() call
+                # just computed a fresh, correctly-bounded value for both. Live-
+                # confirmed: growth_metrics garbage rows (ABS(trend) > 2000) dropped
+                # from 275 to 252 over a ~50-symbol-per-minute full-universe run while
+                # quality_metrics' count sat unchanged at 281 the entire time - this
+                # loader was structurally incapable of clearing them.
+                "gross_margin_trend",
+                "operating_margin_trend",
+                "net_margin_trend",
+                "roe_trend",
+                # roic_pct REMOVED 2026-08-03: found while fixing
+                # quality_metrics.roic_pct's real gap (was hardcoded unavailable in
+                # load_value_quality_growth_metrics.py, now computes real
+                # NOPAT/invested-capital ROIC using actual SEC-reported income tax
+                # data, migration 1178). This loader's own roic_pct formula
+                # (operating_income / (total_assets - current_liabilities), no tax
+                # adjustment, no debt/cash netting) is a strictly cruder duplicate.
+                #
+                # CORRECTION 2026-08-09: this comment used to also claim "this loader
+                # isn't wired into any active pipeline" as the reason the removal was
+                # only theoretical ("if this loader were ever scheduled..."). That was
+                # already false the day it was written - terraform/modules/pipeline/
+                # main.tf's EnhancedQualityGrowthMetrics Step Functions state and
+                # terraform/modules/loaders/main.tf's loader_file_map both schedule
+                # this loader in AWS production (a separate same-day 2026-08-03 fix
+                # enabled it), running after ValueQualityGrowthMetrics on the real
+                # quality_metrics/growth_metrics tables. It does NOT run in the local
+                # dev pipeline (scripts/local_loader_scheduler.py has zero references
+                # to it), so this file's behavior cannot be verified via a local
+                # orchestrator run - only in AWS. The roic_pct removal above was and
+                # is load-bearing in production, not a hypothetical.
+                "earnings_surprise_avg",
+                "eps_growth_stability",
+                "earnings_beat_rate",
+                "consecutive_positive_quarters",
+                "estimate_revision_direction",
+                "revision_activity_30d",
+                "estimate_momentum_60d",
+                "estimate_momentum_90d",
+                "revision_trend_score",
+                "earnings_growth_4q_avg",
+            ]
+
+            update_fields = []
+            values = []
+            for key in quality_fields:
+                if key in metric_dict and metric_dict[key] is not None:
+                    update_fields.append(f"{key} = %s")
+                    values.append(metric_dict[key])
+
+            if update_fields:
+                # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
+                # truncates to midnight) - every UPDATE for the rest of the same calendar
+                # day wrote the identical value, so MAX(updated_at) never advanced during
+                # a run. Live-confirmed: this loader ran for 30+ min actively computing and
+                # committing per-symbol updates (log showed continuous ENHANCED_METRICS
+                # writes through hundreds of symbols) while growth_metrics/quality_metrics
+                # both stayed frozen at their pre-run updated_at - the scheduler's stall
+                # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
+                # seeing it flat, killed a genuinely-working loader as a false stall
+                # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
+                update_fields.append("updated_at = NOW()")
+                cur.execute(
+                    f"UPDATE quality_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
+                    [*values, symbol],
+                )
+
+        outcome[0] = "success"
 
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:  # noqa: C901
         # Pre-existing complexity debt, surfaced now that the ruff pre-commit hook actually
