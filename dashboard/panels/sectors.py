@@ -108,18 +108,21 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     srank_timestamp = srank.get("timestamp") if isinstance(srank, dict) else None
     age_s = f"  [dim]{fmt_age(srank_timestamp)}[/]" if srank_timestamp is not None else ""
 
-    # Data freshness check
+    # BUG FOUND 2026-08-17: this loop read an "age_hours" key off all four
+    # sources, but no fetcher (fetch_sector_ranking/fetch_positions/fetch_portfolio/
+    # fetch_sector_rotation) has ever set that key - dead code regardless of real staleness,
+    # same bug class as the now-fixed TRADES/MARKET/EXPOSURE panels. `pos` is the one source
+    # here with a real, already-correct server-computed data_freshness signal (fetch_positions
+    # propagates it - see dashboard/fetchers_portfolio.py); srank/port/sec_rot don't carry an
+    # equivalent yet, so this only reflects positions staleness, not the sector data itself -
+    # still strictly better than the previous always-silent check.
     stale_indicators = []
-    for data_source, name in [(srank, "srank"), (pos, "positions"), (port, "portfolio"), (sec_rot, "sec_rot")]:
-        if data_source and isinstance(data_source, dict):
-            age_hours = data_source.get("age_hours")
-            if age_hours is not None:
-                try:
-                    ah_f = safe_float(age_hours)
-                    if ah_f is not None and ah_f > 24:  # Stale if older than 24 hours
-                        stale_indicators.append(f"{name} stale ({ah_f:.0f}h)")
-                except (ValueError, TypeError):
-                    pass
+    if isinstance(pos, dict):
+        pos_freshness = pos.get("data_freshness")
+        if isinstance(pos_freshness, dict) and pos_freshness.get("is_stale"):
+            age_days = pos_freshness.get("data_age_days")
+            age_display = f"{age_days}d" if age_days is not None else "stale"
+            stale_indicators.append(f"positions {age_display}")
 
     rows: list[Text | Rule | Table] = []
 
