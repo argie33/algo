@@ -341,7 +341,12 @@ class SecEdgarClient:
         if "." in primary_doc:
             stem, _, ext = primary_doc.rpartition(".")
             candidates.append(f"{stem}_{ext}.xml")
-        candidates.append(primary_doc)
+        # ROOT-CAUSE FIX 2026-08-16: only fall back to primary_doc itself when it's
+        # actually an .xml file (the "older/non-inline filings" case above) - not the
+        # modern inline-XBRL .htm case, which blew up ET.fromstring()'s memory use
+        # (root cause of sec_segment_info's fatal MemoryError, ~symbol 1610/4922).
+        if primary_doc.lower().endswith(".xml"):
+            candidates.append(primary_doc)
 
         last_error: Exception = FileNotFoundError(f"No XML candidate found for {accession_number}")
         for filename in candidates:
