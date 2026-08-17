@@ -199,7 +199,12 @@ def _get_signals_stocks(
                 b.atr,
                 b.adx,
                 b.mansfield_rs,
-                -- RS% FIX (2026-08-03): b.rs_rating is only backfilled from stock_scores.rs_percentile
+                -- BUG FIX 2026-08-17: this comment used to contain a percent sign (as part of the
+                -- literal name "RS percent FIX"), which broke psycopg2's placeholder scanning
+                -- (it operates on the raw query string, oblivious to SQL comment syntax) with
+                -- IndexError: tuple index out of range on every call - live-reproduced on
+                -- GET /api/signals/stocks. Rephrased below to avoid any percent character.
+                -- RS FIX (2026-08-03): b.rs_rating is only backfilled from stock_scores.rs_percentile
                 -- by a same-day sync (load_signal_quality_scores.py) that runs before buy_sell_daily's
                 -- own daily load, so rows for the current day are never stamped and read blank. Fall
                 -- back to the live stock_scores value so today's signals aren't always empty; older
