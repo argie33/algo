@@ -87,6 +87,75 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
         assert result == 1
         mock_run_pipeline.assert_not_called()
 
+    def test_dead_owner_pid_is_reclaimed_immediately_even_though_lock_is_fresh(self, scheduler_module, tmp_path):
+        # LIVE-INCIDENT REGRESSION 2026-08-17: a concurrent session force-killed the scheduler
+        # process holding this lock, orphaning it well before the 12h age fallback would have
+        # kicked in. Before this fix, nothing could tell the difference between that orphaned
+        # lock and a legitimately slow-but-alive run - a lock recording a PID that's actually
+        # dead must be reclaimed on liveness alone, not left to sit for up to 12h.
+        module = scheduler_module
+        lock_path = tmp_path / "algo-scheduler.lock"
+        # A PID astronomically unlikely to be a real running process on the test machine.
+        lock_path.write_text("pid=999999999 pipeline=metrics started=2026-08-17T05:32:23+00:00")
+        # Fresh mtime - well under the 12h staleness threshold, so only the liveness check
+        # (not the age fallback) can be responsible for reclaiming this lock.
+        recent_time = module.time.time() - 5
+        os.utime(lock_path, (recent_time, recent_time))
+
+        with (
+            patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
+            patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
+            patch.object(module, "run_pipeline", return_value=0) as mock_run_pipeline,
+        ):
+            result = module.main()
+
+        assert result == 0
+        mock_run_pipeline.assert_called_once_with("metrics")
+
+    def test_live_owner_pid_is_respected_even_though_lock_is_fresh(self, scheduler_module, tmp_path):
+        # Mirror case: a genuinely alive owner (this test process's own PID, guaranteed alive)
+        # must NOT be reclaimed just because something about the lock looks inspectable now -
+        # the liveness check must only ever shorten the wait for dead owners, never shorten it
+        # for live ones.
+        module = scheduler_module
+        lock_path = tmp_path / "algo-scheduler.lock"
+        lock_path.write_text(f"pid={os.getpid()} pipeline=signals started=2026-08-17T05:32:23+00:00")
+        recent_time = module.time.time() - 5
+        os.utime(lock_path, (recent_time, recent_time))
+
+        with (
+            patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
+            patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
+            patch.object(module, "run_pipeline") as mock_run_pipeline,
+        ):
+            result = module.main()
+
+        assert result == 1
+        mock_run_pipeline.assert_not_called()
+
+    def test_successful_acquire_records_pid_and_pipeline_for_future_liveness_checks(self, scheduler_module, tmp_path):
+        # The lock used to be written empty (os.O_WRONLY, no content) - nothing could verify
+        # who held it without cross-referencing OS process lists by hand. Assert the content
+        # a concurrent invocation (or a human debugging a "stuck" run) would actually rely on.
+        module = scheduler_module
+        recorded_content = {}
+
+        def _capture_lock_content_while_held(pipeline_name):
+            recorded_content["text"] = (tmp_path / "algo-scheduler.lock").read_text()
+            return 0
+
+        with (
+            patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
+            patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
+            patch.object(module, "run_pipeline", side_effect=_capture_lock_content_while_held),
+        ):
+            result = module.main()
+
+        assert result == 0
+        assert f"pid={os.getpid()}" in recorded_content["text"]
+        assert "pipeline=metrics" in recorded_content["text"]
+        assert "started=" in recorded_content["text"]
+
     def test_stale_lock_is_reclaimed_and_pipeline_runs(self, scheduler_module, tmp_path):
         module = scheduler_module
         lock_path = tmp_path / "algo-scheduler.lock"

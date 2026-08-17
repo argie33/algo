@@ -16,6 +16,7 @@ import sys
 import tempfile
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO
 
@@ -527,7 +528,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
         print(f"[LOCAL_SCHEDULER] WARNING: Could not clean stale locks: {e}", file=sys.stderr)
 
     repo_root = Path(__file__).parent.parent
-    completed_loaders = set()  # Track completed loaders for dependency checking
+    completed_loaders: set[str] = set()  # Track completed loaders for dependency checking
 
     # CRITICAL FIX (SESSION 94): Import centralized timeout config to prevent mismatch-brittleness
     # SESSION 93 root cause: local_loader_scheduler had 75m for earnings_calendar while
@@ -656,7 +657,16 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                     # the loader never gets a chance to actually run again and self-reset the
                     # counter on success - a permanent false deadlock from a single dead process,
                     # indistinguishable at the DB level from a genuinely broken loader.
-                    is_reaped_only = error_msg.strip().startswith("[REAPED]")
+                    #
+                    # BUG FIX 2026-08-17: only matched the automatic reaper's literal "[REAPED]"
+                    # prefix, not a manual reap's "[MANUAL REAP" prefix (same abandoned-process
+                    # situation, written by a human running LoaderStatusManager.mark_failed()
+                    # directly instead of the automatic sweep) - live-reproduced on
+                    # sec_segment_info, which a session had manually reaped with that exact
+                    # wording and which then sat blocked at the 3-failure threshold below.
+                    # lambda/api/routes/algo_handlers/market.py's _is_reaped_artifact() already
+                    # recognized both prefixes; this generalizes the same fix here.
+                    is_reaped_only = error_msg.strip().startswith(("[REAPED]", "[MANUAL REAP"))
 
                     # SESSION 88: For SEC loaders, skip after just 2 failures (not 3+)
                     # SEC rate limiting is an external factor - retrying won't help once it starts
@@ -1099,7 +1109,115 @@ def _clean_all_locks() -> int:
         return 1
 
 
-def main():
+def _pid_alive(pid: int) -> bool:
+    # Fails safe: any uncertainty (can't run tasklist, permission denied, etc.) reports
+    # "alive" so we never auto-clear a lock we're not actually sure is dead - the 12h
+    # age-based fallback in _acquire_scheduler_lock still catches genuinely stuck-forever cases.
+    if sys.platform == "win32":
+        try:
+            out = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return str(pid) in out.stdout
+        except Exception:
+            return True
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except Exception:
+            return True
+
+
+def _lock_owner_info(scheduler_lock: Path) -> str:
+    # LIVE-INCIDENT FIX 2026-08-17: a concurrent session force-killed this scheduler's
+    # owning process mid-run (see concurrent_sessions_live_collision_20260817 in memory),
+    # leaving an orphaned lock that nothing could distinguish from a slow-but-alive run
+    # without manually cross-referencing OS process lists. The lock file used to be
+    # written empty (os.O_WRONLY, no content) - recording "pid=<n> pipeline=<name>
+    # started=<iso>" here lets both humans and future scheduler invocations check PID
+    # liveness directly instead of guessing from age alone, and lets whoever's debugging
+    # a "stuck" run verify it's actually dead before killing it.
+    try:
+        content = scheduler_lock.read_text().strip()
+        return content if content else "(no owner info recorded - pre-fix lock format)"
+    except (FileNotFoundError, OSError):
+        return "(lock vanished while reading)"
+
+
+def _try_acquire_lock(scheduler_lock: Path, pipeline_name: str) -> bool:
+    try:
+        fd = os.open(str(scheduler_lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        owner_info = f"pid={os.getpid()} pipeline={pipeline_name} started={datetime.now(timezone.utc).isoformat()}"
+        os.write(fd, owner_info.encode("utf-8"))
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+
+
+def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | None:
+    """Acquire the scheduler lock, checking owner liveness before reclaiming or rejecting.
+
+    Returns None on success (lock held by us), or an exit code (1) if acquisition failed.
+    """
+    if _try_acquire_lock(scheduler_lock, pipeline_name):
+        return None
+
+    # Lock is held (or was, a moment ago) - check liveness first, then staleness age.
+    owner_info = _lock_owner_info(scheduler_lock)
+    owner_pid = None
+    for token in owner_info.split():
+        if token.startswith("pid="):
+            try:
+                owner_pid = int(token.split("=", 1)[1])
+            except ValueError:
+                pass
+
+    owner_dead = owner_pid is not None and not _pid_alive(owner_pid)
+
+    try:
+        lock_age = time.time() - scheduler_lock.stat().st_mtime
+    except FileNotFoundError:
+        lock_age = None  # Released between our failed acquire and this stat() - retry.
+
+    if lock_age is not None and lock_age < 43200 and not owner_dead:  # 12 hours in seconds
+        print(
+            f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is already running "
+            f"(lock held for {lock_age:.0f}s, {owner_info}). Cannot start duplicate run. "
+            f"Wait for the existing instance to complete, or verify PID {owner_pid} is "
+            f'actually dead (e.g. `tasklist /FI "PID eq {owner_pid}"`) before manually '
+            f"removing {scheduler_lock} - killing a live session's run destroys its progress.",
+            file=sys.stderr,
+        )
+        return 1
+    if owner_dead:
+        print(f"[LOCAL_SCHEDULER] Lock owner (pid={owner_pid}) confirmed dead - clearing lock immediately.")
+    # Stale (owner confirmed dead, vanished mid-check, or past the 12h age fallback) -
+    # clear it and make one retry attempt. If we lose this retry too, a genuinely fresh
+    # instance beat us fairly; bail out rather than loop, since a live instance now
+    # legitimately holds it.
+    try:
+        scheduler_lock.unlink()
+        print(f"[LOCAL_SCHEDULER] Cleaned stale/vanished scheduler lock (age: {lock_age}, owner: {owner_info})")
+    except FileNotFoundError:
+        pass
+    if not _try_acquire_lock(scheduler_lock, pipeline_name):
+        print(
+            "[LOCAL_SCHEDULER] ERROR: Lost the race for the scheduler lock on retry "
+            "- another instance just started. Cannot start duplicate run.",
+            file=sys.stderr,
+        )
+        return 1
+    return None
+
+
+def main() -> int:
     # FIXED 2026-08-16: this process's own top-level output (pipeline start, lock
     # rejections, pre-mark errors) was bare print()/stderr with zero persistent capture -
     # only each individual loader SUBPROCESS's stdout gets tee'd to logs/load_*.log inside
@@ -1152,43 +1270,9 @@ def main():
     # at the OS level - only one of two racing processes can win it.
     scheduler_lock = Path(tempfile.gettempdir()) / "algo-scheduler.lock"
 
-    def _try_acquire() -> bool:
-        try:
-            fd = os.open(str(scheduler_lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            return True
-        except FileExistsError:
-            return False
-
-    if not _try_acquire():
-        # Lock is held (or was, a moment ago) - check staleness before giving up.
-        try:
-            lock_age = time.time() - scheduler_lock.stat().st_mtime
-        except FileNotFoundError:
-            lock_age = None  # Released between our failed acquire and this stat() - retry.
-        if lock_age is not None and lock_age < 43200:  # 12 hours in seconds
-            print(
-                f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is already running "
-                f"(lock held for {lock_age:.0f}s). Cannot start duplicate run. "
-                f"Wait for the existing instance to complete or manually remove {scheduler_lock} if stale.",
-                file=sys.stderr,
-            )
-            return 1
-        # Stale (or vanished mid-check) - clear it and make one retry attempt. If we lose
-        # this retry too, a genuinely fresh instance beat us fairly; bail out rather than
-        # loop, since a live instance now legitimately holds it.
-        try:
-            scheduler_lock.unlink()
-            print(f"[LOCAL_SCHEDULER] Cleaned stale/vanished scheduler lock (age: {lock_age})")
-        except FileNotFoundError:
-            pass
-        if not _try_acquire():
-            print(
-                "[LOCAL_SCHEDULER] ERROR: Lost the race for the scheduler lock on retry "
-                "- another instance just started. Cannot start duplicate run.",
-                file=sys.stderr,
-            )
-            return 1
+    lock_failure = _acquire_scheduler_lock(scheduler_lock, args.now)
+    if lock_failure is not None:
+        return lock_failure
 
     try:
         return run_pipeline(args.now)

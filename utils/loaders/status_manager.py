@@ -492,6 +492,65 @@ class LoaderStatusManager:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as COMPLETED: {e}")
             raise
 
+    def _self_heal_stale_report(self, cur: Any, msg: str) -> None:
+        """Correct a row left stuck RUNNING after a stale FAILED/TIMEOUT report is suppressed.
+
+        BUG FOUND 2026-08-17: mark_failed()/mark_timeout()'s stale-report guard (see their
+        docstrings) correctly detects that a newer run already succeeded and skips the
+        wrong FAILED/TIMEOUT write - but historically just `return`ed there, leaving the row
+        exactly as some earlier mark_running() left it: status=RUNNING, completion_pct=0,
+        symbols_loaded=0, execution_started/last_updated stuck at that stale run's start time.
+        Live-confirmed on growth_metrics/quality_metrics/value_metrics: last_success_at showed
+        a real COMPLETED run (verified against data_loader_status_history - exact stats
+        present there) roughly 90 minutes prior, yet the row itself still read RUNNING at 0%
+        indefinitely - a permanent false "still running" reading for the dashboard and for
+        anything gating on status=='COMPLETED' (e.g. fix_loader_status_drift.py's
+        validate_dependency_data), not just a transient one until the next real run.
+        Suppressing the wrong write was correct; leaving the row self-contradictory afterward
+        was not. Pulls the most recent COMPLETED snapshot from history to restore accurate
+        stats instead of just flipping status with no data to back it up.
+        """
+        cur.execute(
+            """
+            SELECT completion_pct, symbols_loaded, symbol_count, execution_started
+            FROM data_loader_status_history
+            WHERE table_name = %s AND status = %s
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (self.table_name, LoaderStatus.COMPLETED.value),
+        )
+        hist = cur.fetchone()
+        if hist:
+            completion_pct, symbols_loaded, symbol_count, execution_started = hist
+            cur.execute(
+                """
+                UPDATE data_loader_status
+                SET status = %s, completion_pct = %s, symbols_loaded = %s, symbol_count = %s,
+                    execution_started = %s, error_message = NULL, last_updated = NOW()
+                WHERE table_name = %s
+                """,
+                (
+                    LoaderStatus.COMPLETED.value,
+                    completion_pct,
+                    symbols_loaded,
+                    symbol_count,
+                    execution_started,
+                    self.table_name,
+                ),
+            )
+        else:
+            # No history to restore stats from - still correct the status itself so the row
+            # stops reading as an active run that no longer exists.
+            cur.execute(
+                """
+                UPDATE data_loader_status
+                SET status = %s, error_message = NULL, last_updated = NOW()
+                WHERE table_name = %s
+                """,
+                (LoaderStatus.COMPLETED.value, self.table_name),
+            )
+        logger.info(f"[STATUS_MANAGER] Self-healed {self.table_name} RUNNING->COMPLETED after suppressing: {msg[:200]}")
+
     def mark_failed(
         self,
         error_message: str,
@@ -545,6 +604,7 @@ class LoaderStatusManager:
                         f"{execution_started}, so a later run already completed successfully. "
                         f"Stale error was: {msg[:200]}"
                     )
+                    self._self_heal_stale_report(cur, msg)
                     return
                 if completion_pct is not None:
                     cur.execute(
@@ -620,6 +680,7 @@ class LoaderStatusManager:
                         f"{execution_started}, so a later run already completed successfully. "
                         f"Stale error was: {msg[:200]}"
                     )
+                    self._self_heal_stale_report(cur, msg)
                     return
                 cur.execute(
                     """

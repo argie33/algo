@@ -195,7 +195,14 @@ def test_mark_failed_suppresses_stale_report_after_newer_success():
     industry_ranking/sector_performance/trend_template_data all genuinely completed, then
     a stale reap of an older overlapping run's RUNNING row overwrote status back to FAILED
     with a stale error_message - the dashboard reported FAILED for tables that had actually
-    succeeded. Guard: if last_success_at is newer than execution_started, skip the write."""
+    succeeded. Guard: if last_success_at is newer than execution_started, skip the write.
+
+    UPDATED 2026-08-17 (later): suppressing the wrong FAILED write isn't enough on its own -
+    live-confirmed growth_metrics/quality_metrics/value_metrics stuck showing RUNNING at 0%
+    indefinitely because the guard used to just `return` with no correction, leaving the row
+    exactly as a stale mark_running() left it even though last_success_at proved a newer run
+    had already completed. The guard must now self-heal the row back to COMPLETED (pulling
+    real stats from history) instead of leaving it in a self-contradictory RUNNING state."""
     manager = _make_manager()
     with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
         mock_cur = MagicMock()
@@ -206,18 +213,30 @@ def test_mark_failed_suppresses_stale_report_after_newer_success():
 
         execution_started = datetime(2026, 8, 16, 13, 25, 12)
         last_success_at = datetime(2026, 8, 16, 18, 10, 5)  # newer than execution_started
-        mock_cur.fetchone.return_value = (execution_started, last_success_at)
+        history_completion_pct = 98.5
+        history_symbols_loaded = 4850
+        history_symbol_count = 4922
+        history_execution_started = datetime(2026, 8, 16, 18, 9, 40)
+        mock_cur.fetchone.side_effect = [
+            (execution_started, last_success_at),  # guard's own SELECT FOR UPDATE
+            (history_completion_pct, history_symbols_loaded, history_symbol_count, history_execution_started),
+        ]
 
         manager.mark_failed("[REAPED] Stuck in RUNNING since 2026-08-16 13:25:12")
 
-        # No UPDATE should have been issued - the stale report must be suppressed entirely.
-        for call in mock_cur.execute.call_args_list:
-            sql = call[0][0]
-            assert "UPDATE data_loader_status" not in sql, f"Stale FAILED report was not suppressed: {sql}"
+        # No FAILED write should have been issued - the stale report must be suppressed.
+        update_calls = [
+            call[0][0] for call in mock_cur.execute.call_args_list if "UPDATE data_loader_status" in call[0][0]
+        ]
+        assert len(update_calls) == 1, f"Expected exactly one self-healing UPDATE, got: {update_calls}"
+        assert "status = %s" in update_calls[0]
+        healing_call = mock_cur.execute.call_args_list[-1]
+        assert healing_call[0][1][0] == "COMPLETED"
 
 
 def test_mark_timeout_suppresses_stale_report_after_newer_success():
-    """Same guard as mark_failed, for the mark_timeout() sibling path."""
+    """Same guard as mark_failed, for the mark_timeout() sibling path. See the self-heal
+    note on test_mark_failed_suppresses_stale_report_after_newer_success above."""
     manager = _make_manager()
     with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
         mock_cur = MagicMock()
@@ -228,10 +247,16 @@ def test_mark_timeout_suppresses_stale_report_after_newer_success():
 
         execution_started = datetime(2026, 8, 16, 20, 0, 0)
         last_success_at = datetime(2026, 8, 16, 20, 30, 0)  # newer than execution_started
-        mock_cur.fetchone.return_value = (execution_started, last_success_at)
+        mock_cur.fetchone.side_effect = [
+            (execution_started, last_success_at),  # guard's own SELECT FOR UPDATE
+            None,  # no history row - self-heal falls back to a status-only correction
+        ]
 
         manager.mark_timeout(runtime_seconds=1800.0)
 
-        for call in mock_cur.execute.call_args_list:
-            sql = call[0][0]
-            assert "UPDATE data_loader_status" not in sql, f"Stale TIMEOUT report was not suppressed: {sql}"
+        update_calls = [
+            call[0][0] for call in mock_cur.execute.call_args_list if "UPDATE data_loader_status" in call[0][0]
+        ]
+        assert len(update_calls) == 1, f"Expected exactly one self-healing UPDATE, got: {update_calls}"
+        healing_call = mock_cur.execute.call_args_list[-1]
+        assert healing_call[0][1][0] == "COMPLETED"

@@ -51,6 +51,16 @@ correctly halt on at 5 PM once market close makes today's data the requirement. 
 expected — not a bug in either script — but don't use the monitor's output as a substitute for
 running the orchestrator itself when you need to know if Phase 1 will pass.
 
+**Never force-kill a `local_loader_scheduler.py` or loader child process without checking
+liveness first.** A "stuck" PID may belong to a concurrent session's genuinely in-progress work
+— live-witnessed 2026-08-17: a session force-killed a loader ~1.5h into a real run plus its
+parent scheduler, destroying that progress and orphaning several tables' status rows (see
+`concurrent_sessions_live_collision_20260817` / `scheduler_lock_owner_liveness_check_fix_20260817`
+in memory). `%TEMP%/algo-scheduler.lock` now records `pid=/pipeline=/started=` for exactly this
+reason — before killing anything, run `tasklist /FI "PID eq <n>"` (or `ps -ef | grep <n>`) to
+confirm the PID in that lock file is actually dead, not just slow. If it's alive, it's not
+stuck — wait for it, or ask before touching it.
+
 ## Core Rules (Non-Negotiable)
 
 **Data integrity first.** These rules prevent real bugs:
