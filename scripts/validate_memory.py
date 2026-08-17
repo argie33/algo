@@ -182,8 +182,13 @@ def validate_all() -> tuple[int, list[str]]:
     print("=" * 70 + "\n")
 
     if not MEMORY_DIR.exists():
-        print(f"Memory directory not found: {MEMORY_DIR}")
-        return 1, []
+        # Memory lives outside the repo (~/.claude/projects/.../memory), so it never exists on
+        # a CI runner or a fresh checkout - that's "nothing to validate", not a violation. This
+        # used to return 1 here, unconditionally failing CI's "validate" job on every push since
+        # this script was wired in (5a20388c0, 2026-07-31) - hidden behind the ruff/mypy pin
+        # failures until those were fixed, at which point this became the real blocker.
+        print(f"Memory directory not found: {MEMORY_DIR} (nothing to validate)")
+        return 0, []
 
     # Check all .md files
     md_files = sorted(MEMORY_DIR.glob("*.md"))

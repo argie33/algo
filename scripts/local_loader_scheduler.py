@@ -615,11 +615,23 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
         try:
             from utils.db.connection import get_db_connection
 
+            # BUG FIX 2026-08-17: this queried data_loader_status.table_name using `loader`
+            # (the PIPELINES shorthand, e.g. "company_info", "financial_statements") directly.
+            # But table_name stores the loader's real output table(s) (e.g. "company_info_sec",
+            # "annual_income_statement"), which only coincidentally equals the shorthand for 4 of
+            # 35 registered loaders (naaim, stability_metrics, analyst_earnings_estimates,
+            # earnings_calendar) - live-confirmed today. For the other 31, this SELECT always
+            # returned zero rows, so the entire consecutive-failures skip and SEC-rate-limit
+            # graceful-skip block below (SESSION 87/88) was silently dead code for almost every
+            # loader: a persistently-failing or rate-limited loader would never be skipped, just
+            # retried every single run. Resolve to the loader's real primary output table first.
+            real_table = all_tables(normalize_loader_name(loader))[0]
+
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute(
                 "SELECT consecutive_failures, error_message FROM data_loader_status WHERE table_name = %s",
-                (loader,),
+                (real_table,),
             )
             row = cur.fetchone()
             cur.close()

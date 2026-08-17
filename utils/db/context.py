@@ -17,7 +17,7 @@ from typing import Any
 import psycopg2
 from psycopg2.extras import DictCursor
 
-from utils.db.connection import get_db_connection
+from utils.db import connection as _connection_module
 from utils.db.pooled_context_var import get_pooled_connection
 from utils.db.structured_logging import StructuredDBLogger
 
@@ -315,7 +315,21 @@ class DatabaseContext:
                 logger.debug("[DB_CONTEXT] Reusing pooled connection from OptimalLoader")
             else:
                 # Normal flow: acquire new connection from pool
-                self.conn = get_db_connection(timeout=self.timeout)
+                # BUG FIX 2026-08-16: was `from utils.db.connection import get_db_connection`
+                # at module level, which bound a name in THIS module's namespace to whatever
+                # get_db_connection was at utils/db/context.py's own import time. Since
+                # utils.db.context gets imported before tests/conftest.py's pytest_configure()
+                # patches utils.db.connection.get_db_connection with a mock, every
+                # DatabaseContext call in tests silently escaped the mock and hit a real (or,
+                # in CI, absent) Postgres - live-confirmed via direct identity check
+                # (utils.db.connection.get_db_connection was the MagicMock, utils.db.context's
+                # own bound name was still the real function). Root cause of ~17+ CI-only
+                # "connection to server at localhost:5432 refused" test failures across
+                # get_db_timezone(), circuit-breaker ban-state reads, Phase 8 signal-freshness
+                # checks, and OptimalLoader's health check. Call through the module instead of
+                # importing the name, so this always resolves the current (possibly patched)
+                # attribute.
+                self.conn = _connection_module.get_db_connection(timeout=self.timeout)
                 self._externally_managed = False
 
             self.cur = self.conn.cursor(cursor_factory=self.cursor_factory)
@@ -464,7 +478,7 @@ class DatabaseContext:
         """
         try:
             # Get the default connection pool from get_db_connection
-            conn = get_db_connection(timeout=2)
+            conn = _connection_module.get_db_connection(timeout=2)
             if hasattr(conn, "pool"):
                 # If connection has a pool reference, check utilization
                 db_pool = conn.pool

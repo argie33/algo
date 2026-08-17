@@ -86,7 +86,15 @@ class ShortInterestFinraLoader(OptimalLoader):
         # Skip on non-trading days (short interest data not updated)
         if not MarketCalendar.is_trading_day(run_date):
             logger.info(f"[SHORT_INTEREST] Skipping: {run_date} is not a trading day")
-            status_mgr.mark_completed()
+            # BUG FIX 2026-08-17: bare mark_completed() falls back to re-reading symbol_count/
+            # symbols_loaded from the DB row, which this run never touches (0 symbols processed
+            # on a legitimate skip) - live-reproduced: this computed 0/4920 = 0% and got
+            # overridden to FAILED by mark_completed()'s own completion-threshold safety check,
+            # so every single non-trading day (i.e. every weekend) marked this loader FAILED and
+            # incremented consecutive_failures, even though skipping was correct behavior.
+            # load_prices.py hit and fixed the identical bug (see its non-trading-day skip
+            # branch) with the same "1/1 = no-op success" convention - mirrored here.
+            status_mgr.mark_completed(current_run_symbols_loaded=1, current_run_symbol_count=1)
             return {
                 "symbols_succeeded": 0,
                 "symbols_failed": 0,
