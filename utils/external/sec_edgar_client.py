@@ -5,6 +5,7 @@ Handles SEC EDGAR XBRL API calls with rate limiting and retry logic.
 Uses TickerCache for ticker-to-CIK conversion.
 """
 
+import json
 import logging
 import os
 import random
@@ -46,6 +47,67 @@ DEFAULT_USER_AGENT = os.getenv(
 # engages in LOCAL_MODE (AWS ECS tasks are separate hosts; this isn't their problem).
 _CROSS_PROCESS_LOCK_FILE = Path(tempfile.gettempdir()) / "algo-sec-edgar-rate.lock"
 _CROSS_PROCESS_STATE_FILE = Path(tempfile.gettempdir()) / "algo-sec-edgar-last-request.txt"
+
+# CROSS-LOADER DISK CACHE (2026-08-17): get_company_facts()/get_submissions() were only
+# ever cached in-process (companyfacts: a 4-entry LRU; submissions: not cached at all).
+# Confirmed live via grep: financial_statements, company_info_sec, segment_info, and
+# dividend_data each independently call get_company_facts() for the same CIK, and
+# company_info_sec/segment_info/current_reports_8k/earnings_calendar_sec each independently
+# call get_submissions() - each loader is its own subprocess (local_loader_scheduler.py),
+# so none of them share the in-memory cache. company_info_sec+financial_statements both
+# run in the same "metrics" pipeline (~7PM ET); segment_info+dividend_data both run in
+# "reference" (~11:30PM ET, ~4.5h later) - meaning the same multi-MB companyfacts payload
+# for the same CIK gets re-downloaded from SEC up to 4x/day today. Mirrors TickerCache's
+# existing tempdir-JSON pattern (utils/external/sec_ticker_cache.py) but keyed per-CIK
+# (companyfacts payloads are multi-MB each - one shared file per kind would defeat the
+# purpose). TTL is deliberately shorter than the ~19.5h reference->next-metrics gap so
+# each new day still gets a genuinely fresh fetch, while still absorbing the same-day
+# 4.5h metrics->reference gap and any intra-pipeline gap between loaders. Only positive
+# (2xx) results are persisted - a negative/404 result is never written to disk, so a
+# symbol that gets a real CIK assigned later (new listing, spinoff) isn't blocked by a
+# stale not-found cached from an earlier run.
+_DISK_CACHE_DIR = Path(tempfile.gettempdir()) / "algo-sec-edgar-cache"
+_DISK_CACHE_TTL_SECONDS = float(os.getenv("SEC_EDGAR_DISK_CACHE_TTL_SECONDS", str(12 * 3600)))
+
+
+def _disk_cache_path(kind: str, cik: str) -> Path:
+    return _DISK_CACHE_DIR / kind / f"{cik}.json"
+
+
+def _disk_cache_read(kind: str, cik: str) -> dict[str, Any] | None:
+    """Return a fresh cached payload for (kind, cik), or None on any miss/error.
+
+    Fails open (treats any read/parse problem as a cache miss) - this is a best-effort
+    optimization layer, never a source of truth, so it must never turn into a loader
+    failure on its own.
+    """
+    path = _disk_cache_path(kind, cik)
+    try:
+        if not path.exists():
+            return None
+        with open(path) as f:
+            payload = json.load(f)
+        if time.time() - payload["timestamp"] > _DISK_CACHE_TTL_SECONDS:
+            return None
+        return cast(dict[str, Any], payload["data"])
+    except (OSError, json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def _disk_cache_write(kind: str, cik: str, data: dict[str, Any]) -> None:
+    """Best-effort write; a failure here must never fail the caller's real fetch."""
+    path = _disk_cache_path(kind, cik)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Atomic write (temp file + os.replace) - these payloads are multi-MB and other
+        # loader processes may read this same file concurrently; a torn write would
+        # otherwise be a plausible json.JSONDecodeError for a concurrent reader.
+        tmp_path = path.with_suffix(f".{os.getpid()}.tmp")
+        with open(tmp_path, "w") as f:
+            json.dump({"timestamp": time.time(), "data": data}, f)
+        os.replace(tmp_path, path)
+    except OSError as e:
+        logger.debug(f"SEC disk cache write failed for {kind}/{cik}: {e}")
 
 
 def _cross_process_wait(min_interval: float) -> None:
@@ -224,6 +286,11 @@ class SecEdgarClient:
                         raise FileNotFoundError(f"SEC filing not found: {url}")
                     return cached
 
+        disk_cached = _disk_cache_read("companyfacts", cik_padded)
+        if disk_cached is not None:
+            self._cache_companyfacts(cik, disk_cached)
+            return disk_cached
+
         try:
             data = self._get_json(url)
         except FileNotFoundError:
@@ -232,6 +299,7 @@ class SecEdgarClient:
             self._cache_companyfacts(cik, None)
             raise
         self._cache_companyfacts(cik, data)
+        _disk_cache_write("companyfacts", cik_padded, data)
         return data
 
     def _cache_companyfacts(self, cik: str, data: dict[str, Any] | None) -> None:
@@ -256,10 +324,22 @@ class SecEdgarClient:
         return self._get_json(url)
 
     def get_submissions(self, cik: str) -> dict[str, Any]:
-        """List of all filings for a company (10K, 10Q, 8K, etc.)."""
+        """List of all filings for a company (10K, 10Q, 8K, etc.).
+
+        Cached on disk per-CIK (see _disk_cache_read/_disk_cache_write) - unlike
+        get_company_facts this has no in-process LRU at all today, so without the
+        disk cache every loader that needs a filing list (company_info_sec,
+        segment_info, current_reports_8k, earnings_calendar_sec) re-fetches it
+        independently, even within the same pipeline run.
+        """
         cik_padded = str(cik).zfill(10)
+        disk_cached = _disk_cache_read("submissions", cik_padded)
+        if disk_cached is not None:
+            return disk_cached
         url = f"{EDGAR_BASE}/submissions/CIK{cik_padded}.json"
-        return self._get_json(url)
+        data = self._get_json(url)
+        _disk_cache_write("submissions", cik_padded, data)
+        return data
 
     def _get_primary_document(self, submissions: dict[str, Any], accession_number: str) -> str:
         """Extract primaryDocument path from submissions data for a specific accession.
