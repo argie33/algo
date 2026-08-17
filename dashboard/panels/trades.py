@@ -77,6 +77,66 @@ from ..utilities import (
 from .data_extractors import safe_get_field
 
 
+def _stale_warning(trades: Any) -> str:
+    """Server-computed staleness badge from the API's data_freshness field.
+
+    BUG FOUND 2026-08-17: this panel previously read trades.get("age_hours"), a key
+    fetch_completed_trades() never set - the check could never fire no matter how stale
+    algo_trades actually was. The real freshness signal (check_data_freshness() on
+    algo_trades.created_at) was computed by the backend but silently dropped by the
+    fetcher. Mirrors the already-correct fetch_positions()/positions.py pattern.
+    """
+    if not isinstance(trades, dict):
+        return ""
+    data_freshness = trades.get("data_freshness")
+    if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+        warning_text = data_freshness.get("warning") or "stale"
+        logger.warning(f"[TRADES] Trade data stale: {warning_text}")
+        return " [yellow]⚠ STALE[/]"
+    return ""
+
+
+_EXIT_REASON_SHORT = {
+    "stop_loss": "stop",
+    "stop": "stop",
+    "t1_target": "T1",
+    "t1_hit": "T1",
+    "t1": "T1",
+    "t2_target": "T2",
+    "t2_hit": "T2",
+    "t2": "T2",
+    "manual": "man",
+    "time_exit": "time",
+    "time": "time",
+    "closed position recorded during reconciliation - pending fill price confirmation": "recon",
+    "closed position recorded during reconciliation": "recon",
+    "delisted_alpaca_404_force_close": "dlst",
+}
+
+
+def _resolve_exit_reason(exit_rsn_val: Any) -> str:
+    """Map a raw exit_reason value to its short display code (extracted from
+    panel_trades_expanded to keep that function's branching complexity in check)."""
+    if exit_rsn_val is None:
+        return "--"
+    exit_rsn_raw = str(exit_rsn_val).lower().strip()
+    if exit_rsn_raw in _EXIT_REASON_SHORT:
+        return _EXIT_REASON_SHORT[exit_rsn_raw]
+    if "stop triggered at" in exit_rsn_raw or "stop loss hit" in exit_rsn_raw:
+        return "stop"
+    if "force_exit" in exit_rsn_raw and "concentration" in exit_rsn_raw:
+        return "conc"
+    if "force_exit" in exit_rsn_raw:
+        return "force"
+    if "minervini" in exit_rsn_raw:
+        return "mv"
+    if "health flag" in exit_rsn_raw:
+        return "hlth"
+    if "rs line" in exit_rsn_raw:
+        return "rs"
+    return "--"
+
+
 def _compute_trade_grade(rmul: float | None) -> str:
     """Derive a letter grade for a closed trade from its R-multiple.
 
@@ -213,20 +273,7 @@ def panel_completed_trades(trades: Any) -> Any:
             padding=(0, 1),
         )
 
-    trades_age_hours = None
-    if isinstance(trades, dict):
-        trades_age_hours = trades.get("age_hours")  # Check freshness
-
-    # Data freshness warning if stale
-    stale_style = ""
-    if trades_age_hours is not None:
-        try:
-            ah_f = safe_float(trades_age_hours)
-            if ah_f is not None and ah_f > 24:  # Stale if older than 24 hours
-                stale_style = "yellow"  # Will add ⚠ to title
-                logger.warning(f"[TRADES] Trade data stale ({ah_f:.0f}h)")
-        except (ValueError, TypeError):
-            pass
+    stale_warning = _stale_warning(trades)
 
     # Filter to closed trades only - open/pending are in the positions panel
     closed_trades = [
@@ -235,11 +282,10 @@ def panel_completed_trades(trades: Any) -> Any:
 
     if not closed_trades:
         age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
-        stale_indicator = "[yellow]⚠[/] " if stale_style == "yellow" else ""
         return Panel(
             Text("no closed trades yet", style="dim"),
-            title=rf"[bold cyan]{stale_indicator}COMPLETED TRADES[/]{age_s}  [dim]\[t] expand[/]",
-            border_style="cyan" if stale_style != "yellow" else "yellow",
+            title=rf"[bold cyan]COMPLETED TRADES[/]{age_s}{stale_warning}  [dim]\[t] expand[/]",
+            border_style="cyan" if not stale_warning else "yellow",
             padding=(0, 1),
         )
 
@@ -331,8 +377,8 @@ def panel_completed_trades(trades: Any) -> Any:
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
         t,
-        title=rf"[bold cyan]COMPLETED TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}  [dim]\[t] expand[/]",
-        border_style="cyan",
+        title=rf"[bold cyan]COMPLETED TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}{stale_warning}  [dim]\[t] expand[/]",
+        border_style="cyan" if not stale_warning else "yellow",
         padding=(0, 0),
     )
 
@@ -364,6 +410,8 @@ def panel_trades_expanded(trades: Any) -> Any:
         tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"
     ]
 
+    stale_warning = _stale_warning(trades)
+
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold cyan]t[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -373,8 +421,8 @@ def panel_trades_expanded(trades: Any) -> Any:
         rows.append(Text("no closed trades yet", style="dim"))
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-            title=r"[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim]\[t] return[/]",
-            border_style="cyan",
+            title=rf"[bold cyan]TRADE HISTORY - EXPANDED[/]{stale_warning}  [dim]\[t] return[/]",
+            border_style="cyan" if not stale_warning else "yellow",
             padding=(0, 1),
         )
 
@@ -420,23 +468,6 @@ def panel_trades_expanded(trades: Any) -> Any:
         )
     )
     rows.append(Rule(style="dim"))
-
-    exit_short = {
-        "stop_loss": "stop",
-        "stop": "stop",
-        "t1_target": "T1",
-        "t1_hit": "T1",
-        "t1": "T1",
-        "t2_target": "T2",
-        "t2_hit": "T2",
-        "t2": "T2",
-        "manual": "man",
-        "time_exit": "time",
-        "time": "time",
-        "closed position recorded during reconciliation - pending fill price confirmation": "recon",
-        "closed position recorded during reconciliation": "recon",
-        "delisted_alpaca_404_force_close": "dlst",
-    }
 
     tbl = Table(
         box=box.SIMPLE_HEAD,
@@ -503,31 +534,7 @@ def panel_trades_expanded(trades: Any) -> Any:
                     f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: trade_date missing, using signal_date"
                 )
         exit_date = safe_get_field(tr, "exit_date")
-        exit_rsn_val = safe_get_field(tr, "exit_reason")
-        if exit_rsn_val is None:
-            exit_rsn = "--"
-        else:
-            exit_rsn_raw = str(exit_rsn_val).lower().strip()
-            # Try direct mapping first
-            if exit_rsn_raw in exit_short:
-                exit_rsn = exit_short[exit_rsn_raw]
-            elif "stop triggered at" in exit_rsn_raw:
-                exit_rsn = "stop"
-            # Phase 6 generated reasons - pattern-based mapping
-            elif "force_exit" in exit_rsn_raw and "concentration" in exit_rsn_raw:
-                exit_rsn = "conc"
-            elif "force_exit" in exit_rsn_raw:
-                exit_rsn = "force"
-            elif "stop loss hit" in exit_rsn_raw:
-                exit_rsn = "stop"
-            elif "minervini" in exit_rsn_raw:
-                exit_rsn = "mv"
-            elif "health flag" in exit_rsn_raw:
-                exit_rsn = "hlth"
-            elif "rs line" in exit_rsn_raw:
-                exit_rsn = "rs"
-            else:
-                exit_rsn = "--"
+        exit_rsn = _resolve_exit_reason(safe_get_field(tr, "exit_reason"))
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
         # DIM (not R) when unavailable - see panel_completed_trades' identical fix above.
@@ -569,8 +576,8 @@ def panel_trades_expanded(trades: Any) -> Any:
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=rf"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}  [dim]\[t] return[/]",
-        border_style="cyan",
+        title=rf"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}{stale_warning}  [dim]\[t] return[/]",
+        border_style="cyan" if not stale_warning else "yellow",
         padding=(0, 1),
     )
 

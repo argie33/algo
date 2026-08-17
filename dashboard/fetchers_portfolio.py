@@ -369,6 +369,13 @@ def fetch_completed_trades(c: None) -> dict[str, Any]:
             "timestamp": datetime.now(ET),
             "trades_count": trades_count,
             "data_available": trades_count > 0,
+            # Server-computed freshness of algo_trades.created_at (see
+            # lambda/api/routes/algo_handlers/dashboard.py's check_data_freshness call) -
+            # NOT derived from "timestamp" above, which is only this fetch's local clock
+            # time and can't detect genuinely stale underlying trade data. Same fix as
+            # fetch_positions() above; this fetcher was previously dropping the field
+            # entirely, so the TRADES panel's staleness check could never fire.
+            "data_freshness": result.get("data_freshness") if isinstance(result, dict) else None,
         }
     except Exception as e:
         error_msg = format_fetcher_error("trades", e)
