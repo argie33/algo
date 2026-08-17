@@ -6,14 +6,16 @@ loader with consecutive_failures >= 1, with no distinction for *why* it failed. 
 against the live DB while investigating an operator's "dashboard says errors but everything's
 actually fine" report: every single one of the 20 flagged loaders had failed purely because
 reap_stale_running_loaders() marked an abandoned (no owning process alive) run FAILED with an
-"[REAPED]"/"[MANUAL REAP" error_message - not a real bug. local_loader_scheduler.py's
-run_pipeline() already treats this exact pattern as self-healing (see its is_reaped_only
-check), so these loaders retry and recover on their own - but the dashboard summary still
-read "20 loader(s) with errors" in red, indistinguishable from a genuinely broken loader.
+"[REAPED]"/"[MANUAL REAP" error_message - not a real bug, so it shouldn't read as red-alert
+the same as an actually-broken loader - but the dashboard summary still read
+"20 loader(s) with errors" in red, indistinguishable from a genuinely broken loader.
 
 market.py now splits loaders_with_errors_genuine / loaders_with_errors_reaped_only into the
 summary; this test pins that _build_freshness_panel surfaces that split instead of flattening
-it back into one alarming count.
+it back into one alarming count. Label text says "not yet retried", not "self-healing" (see
+ACCURACY FIX 2026-08-17 in health.py and REAPED_SELF_HEAL_GRACE in market.py) - there is no
+local guarantee a reaped loader actually gets retried soon, so the wording and, past a 2h
+grace window, the severity classification itself must not claim healing that isn't confirmed.
 """
 
 from dashboard.panels.health import _build_freshness_panel
@@ -46,7 +48,7 @@ def test_reaped_only_errors_are_labeled_self_healing_not_red_alert():
     text = _flatten(render_panel_to_text(panel))
 
     assert "0 loader(s) with errors" in text
-    assert "4 reaped, self-healing" in text
+    assert "4 reaped - not yet retried" in text
 
 
 def test_genuine_errors_still_shown_prominently():
@@ -57,7 +59,7 @@ def test_genuine_errors_still_shown_prominently():
     text = _flatten(render_panel_to_text(panel))
 
     assert "2 loader(s) with errors (2 total)" in text
-    assert "self-healing" not in text
+    assert "not yet retried" not in text
 
 
 def test_mixed_genuine_and_reaped_shows_both():
@@ -71,7 +73,7 @@ def test_mixed_genuine_and_reaped_shows_both():
     text = _flatten(render_panel_to_text(panel))
 
     assert "1 loader(s) with errors (5 total)" in text
-    assert "4 reaped, self-healing" in text
+    assert "4 reaped - not yet retried" in text
 
 
 def test_missing_split_keys_falls_back_to_treating_all_as_genuine():

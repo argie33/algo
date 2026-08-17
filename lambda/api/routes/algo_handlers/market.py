@@ -376,6 +376,46 @@ def _is_stale_by_trading_days(data_date: date, today: date, max_age: int) -> boo
     return trading_days_elapsed > max_age
 
 
+REAPED_SELF_HEAL_GRACE = timedelta(hours=2)
+
+
+def _is_reaped_artifact(msg: object) -> bool:
+    """True if error_message is a reap-cleanup artifact (abandoned RUNNING row marked FAILED),
+    not a genuine loader failure. See _reaped_recently for the time-bounded "self-healing"
+    classification built on top of this."""
+    if not isinstance(msg, str):
+        return False
+    stripped = msg.strip()
+    return stripped.startswith(("[REAPED]", "[MANUAL REAP"))
+
+
+def _reaped_recently(row: dict[str, Any], now_utc: datetime) -> bool:
+    """True if `row` is a reap artifact AND recent enough to plausibly still be
+    "self-healing" (i.e. worth the dashboard's dim/reassuring treatment).
+
+    RECENCY CHECK ADDED 2026-08-17: "self-healing" was previously asserted unconditionally
+    for every reaped loader with no time bound - live-caught the same day this false
+    reassurance actually misled an operator: a mass-reap at 05:32:23 hit ~30 tables across all
+    4 pipelines, but the "signals" pipeline (stock_scores, stability_metrics, buy_sell_daily,
+    signal_quality_scores) never got a retry queued for it (unlike morning/metrics/reference,
+    which did). Those 4 tables sat FAILED for 8+ hours while the dashboard kept calling them
+    "self-healing" the entire time - there is no cron/scheduled-pass guarantee locally (see
+    CLAUDE.md), only whatever a human happens to re-invoke, so claiming "self-healing"
+    indefinitely is not something the code can back up. A reap that's still unaddressed after
+    a couple hours demonstrably isn't healing on its own and should read as actionable, not
+    dim/reassuring.
+    """
+    if not _is_reaped_artifact(row.get("error_message")):
+        return False
+    started = row.get("execution_started")
+    if not isinstance(started, datetime):
+        # No timestamp to judge recency by - don't assume it's still healing.
+        return False
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return (now_utc - started) <= REAPED_SELF_HEAL_GRACE
+
+
 @db_route_handler("fetch data status")
 @validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
@@ -997,16 +1037,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # consecutive_failures streak entirely from reap_stale_running_loaders() marking an
         # abandoned (no owning process alive) run FAILED with an "[REAPED]"/"[MANUAL REAP"
         # error_message, not a real bug. local_loader_scheduler.py's run_pipeline() already
-        # classifies this exact pattern the same way (see its is_reaped_only check) so a
-        # reaped loader retries and self-heals on the next scheduled pass instead of being
+        # classifies this exact pattern the same way (see its is_reaped_only check), and IF
+        # something re-invokes that table's pipeline it retries and self-heals instead of being
         # permanently skipped - but this summary counted it identically to a genuinely broken
         # loader, so the dashboard read "N errors" with no way to tell noise from a real
-        # problem. Splitting the two lets the panel say what's actually actionable.
-        def _is_reaped_artifact(msg: object) -> bool:
-            if not isinstance(msg, str):
-                return False
-            stripped = msg.strip()
-            return stripped.startswith(("[REAPED]", "[MANUAL REAP"))
+        # problem. Splitting the two lets the panel say what's actually actionable. Only reaps
+        # within the last REAPED_SELF_HEAL_GRACE count as "reaped_only" (see _reaped_recently) -
+        # past that grace window nothing local guarantees a retry actually happened, so it
+        # reads as genuine again rather than asserting healing that may never come.
+        now_utc = datetime.now(timezone.utc)
 
         loaders_with_errors = [
             (r.get("consecutive_failures") or 0, r.get("table_name"))
@@ -1017,7 +1056,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             (r.get("consecutive_failures") or 0, r.get("table_name"))
             for r in enriched_rows
             if isinstance(r.get("consecutive_failures"), (int, float)) and r.get("consecutive_failures") >= 1
-            if _is_reaped_artifact(r.get("error_message"))
+            if _reaped_recently(r, now_utc)
         ]
         genuine_errors = len(loaders_with_errors) - len(reaped_only)
         # BUG FOUND 2026-08-17: this used to be sum(r[0] for r in loaders_with_errors) - a sum

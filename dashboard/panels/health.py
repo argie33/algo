@@ -1418,16 +1418,25 @@ def _build_freshness_panel(
 
     # Add loader error info if there are any. Colored (and counted for urgency) off the
     # GENUINE count, not the raw total - a loader whose only failure is an abandoned-process
-    # reap artifact retries and self-heals on its own next scheduled pass (see
-    # local_loader_scheduler.py's is_reaped_only handling), so it shouldn't read as red-alert
-    # the same as an actually-broken loader.
+    # reap artifact is lower-severity than an actually-broken loader, so it shouldn't read
+    # as red-alert the same way.
+    #
+    # ACCURACY FIX 2026-08-17: this used to say "self-healing", implying a retry is already
+    # in flight. Live-verified false: a batch of 11 tables reaped at 05:32:23 sat FAILED for
+    # 5+ hours with no retry queued anywhere - the intended watcher chain
+    # (logs/pipeline_watcher_chain.log) died silently after its first log line, and "reaped"
+    # only means the stuck status row got cleared, not that anything is re-running it. The
+    # only real auto-retry path locally is the orchestrator's Phase 1 failsafe sweep on its
+    # next scheduled run (930AM/1PM/3PM tasks, market-hours-gated) or a human re-running the
+    # owning pipeline - neither is guaranteed "soon". Don't claim healing that isn't
+    # confirmed in flight.
     if loader_errors_count > 0:
         error_color = R if loader_errors_genuine >= 3 else (Y if loader_errors_genuine > 0 else "dim")
         freshness_line += (
             f"  [{error_color}]{loader_errors_genuine} loader(s) with errors ({total_loader_failures} total)[/]"
         )
         if loader_errors_reaped_only > 0:
-            freshness_line += f"  [dim]({loader_errors_reaped_only} reaped, self-healing)[/]"
+            freshness_line += f"  [dim]({loader_errors_reaped_only} reaped - not yet retried)[/]"
 
     freshness_line += rtt_part
     left_rows.append(Text.from_markup(freshness_line))

@@ -395,6 +395,19 @@ PIPELINES = {
     ],
 }
 
+# ADDED 2026-08-17: recovery from a mass-failure (e.g. a scheduler parent process killed
+# mid-run, orphaning tables across all 4 pipelines simultaneously - see
+# mass_phantom_running_05_32_23 incident) previously required a human to hand-launch a
+# separate polling watcher script per affected pipeline name. That's exactly how signals
+# (stock_scores, stability_metrics, buy_sell_daily, signal_quality_scores) sat FAILED for 8+
+# hours after one such incident: watchers got started for metrics/reference/morning but
+# nobody remembered signals, and it had no active retry at all. `--now all` runs every
+# pipeline in one invocation/one lock acquisition so recovery is one command, not N
+# separately-tracked scripts where one can silently get forgotten. Order follows the
+# documented dependency chain (morning -> metrics -> signals); reference has no ordering
+# dependency on the others so it runs last.
+ALL_PIPELINES_ORDER = ["morning", "metrics", "signals", "reference"]
+
 # CRITICAL: Loader dependencies - some loaders must run before others
 # Session 81/82 fix: enforce these dependencies to prevent silent data degradation
 # CRITICAL FIX SESSION 86: Use shorthand names from PIPELINES/registry, not table names
@@ -1238,7 +1251,10 @@ def main() -> int:
     parser.add_argument(
         "--now",
         type=str,
-        help="Run this pipeline immediately (morning|metrics|signals)",
+        help="Run this pipeline immediately (morning|metrics|signals|reference|all). "
+        "'all' runs every pipeline in dependency order under one lock acquisition - the "
+        "standard recovery command after a mass-failure, instead of hand-launching a "
+        "separate retry watcher per pipeline.",
     )
     parser.add_argument(
         "--clean-locks",
@@ -1274,8 +1290,20 @@ def main() -> int:
     if lock_failure is not None:
         return lock_failure
 
+    pipelines_to_run = ALL_PIPELINES_ORDER if args.now == "all" else [args.now]
+
     try:
-        return run_pipeline(args.now)
+        exit_code = 0
+        for pipeline_name in pipelines_to_run:
+            code = run_pipeline(pipeline_name)
+            if code != 0:
+                exit_code = code
+                print(
+                    f"[LOCAL_SCHEDULER] '{pipeline_name}' pipeline exited {code}; continuing to "
+                    "remaining pipelines in --now=all so one failure doesn't block the rest",
+                    file=sys.stderr,
+                )
+        return exit_code
     finally:
         # Always clean up lock on exit (success or failure)
         try:
