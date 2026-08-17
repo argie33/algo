@@ -134,6 +134,13 @@ _INCOME_FIELD_MAPPING = {
     "gross_profit": "gross_profit",
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
+    # FIXED 2026-08-17 (goal: "no SEC data" audit): "ProfitLoss" added to sec_statements.py's
+    # get_income_statement() concepts list - see that file's comment above the concept for the
+    # live-verified PRI (Primerica) case this recovers: PRI has ZERO NetIncomeLoss entries in
+    # its us-gaap facts (confirmed via companyfacts JSON) but reports the exact same figure
+    # under ProfitLoss instead (FY2025: $751,234,000, matching pretax_income - income_tax_expense
+    # exactly). Same target column as "net_income_loss" above.
+    "profit_loss": "net_income",
     "earnings_per_share_basic": "earnings_per_share",
     # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
     # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)

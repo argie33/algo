@@ -401,6 +401,19 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # removed the same session (see get_cash_flow() below).
         "GrossProfit",
         "OperatingIncomeLoss",
+        # FIXED 2026-08-17 (goal: "no SEC data" audit): PRI (Primerica) live-confirmed via real
+        # companyfacts JSON to report ZERO NetIncomeLoss entries ever, using "ProfitLoss" (the
+        # us-gaap concept for consolidated net income including noncontrolling interest) as its
+        # only bottom-line tag instead - FY2025 ProfitLoss=$751,234,000 exactly matches
+        # pretax_income ($974,564,000) minus income_tax_expense ($223,330,000), confirming this
+        # is the real net income figure, not a different line item. This is a legitimate us-gaap
+        # concept (also aliased for ifrs-full filers via _INCOME_IFRS_ALIASES below, but that
+        # list is only checked against the ifrs-full namespace - PRI files under us-gaap, so it
+        # needs its own entry here). Listed BEFORE NetIncomeLoss so the standard tag wins on
+        # overwrite for the common case of filers reporting both; ProfitLoss only wins for
+        # filers (like PRI) that report solely this concept. Maps to the same "net_income"
+        # column via _INCOME_FIELD_MAPPING's "profit_loss" key.
+        "ProfitLoss",
         "NetIncomeLoss",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
