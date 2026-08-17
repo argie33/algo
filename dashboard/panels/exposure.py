@@ -72,6 +72,27 @@ from ._helpers import _error_panel
 _tier_formatter = TierFormatter()
 
 
+def _stale_warning(exp_f: Any) -> str:
+    """Server-computed staleness badge from the API's data_freshness field.
+
+    BUG FOUND 2026-08-17: unlike MARKET/POSITIONS/TRADES/SIGNALS/SCORES, the EXPOSURE panel
+    had no staleness detection at all - just a passive "Xh ago" age string (fmt_age does no
+    threshold check). Same root cause as the MARKET panel fix (see
+    [[unwrap_api_response_data_freshness_root_cause_fix_20260817]] in memory): fetch_exp_factors()
+    (dashboard/fetchers_market.py) never propagated data_freshness from the /api/algo/markets
+    response it shares with fetch_market(), and stamped "timestamp" with the client's own fetch
+    time instead. The 12-factor exposure breakdown feeds position-sizing gating, same as MARKET.
+    """
+    if not isinstance(exp_f, dict):
+        return ""
+    data_freshness = exp_f.get("data_freshness")
+    if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+        warning_text = data_freshness.get("warning") or "stale"
+        logger.warning(f"[EXPOSURE] Exposure data stale: {warning_text}")
+        return " [yellow]⚠ STALE[/]"
+    return ""
+
+
 @register_panel(
     "exp",
     endpoint_deps=["exp_factors"],
@@ -336,10 +357,11 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         )
     timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    stale_warning = _stale_warning(exp_f)
     return Panel(
         Group(header, tbl),
-        title=rf"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]{age_s}  [dim]\[x] expand[/]",
-        border_style="blue",
+        title=rf"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]{age_s}{stale_warning}  [dim]\[x] expand[/]",
+        border_style="blue" if not stale_warning else "yellow",
         padding=(0, 1),
     )
 
@@ -683,10 +705,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
 
     timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    stale_warning = _stale_warning(exp_f)
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=rf"[bold blue]EXPOSURE SCORE - EXPANDED[/]{age_s}  [dim]\[x] return[/]",
-        border_style="blue",
+        title=rf"[bold blue]EXPOSURE SCORE - EXPANDED[/]{age_s}{stale_warning}  [dim]\[x] return[/]",
+        border_style="blue" if not stale_warning else "yellow",
         padding=(0, 1),
     )
 

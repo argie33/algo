@@ -430,6 +430,10 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
             "exposure_pct": exposure_pct,
             "raw_score": raw_score,
             "timestamp": datetime.now(ET),
+            # Server-computed freshness shared with fetch_market() (same /api/algo/markets
+            # response) - NOT derived from "timestamp" above, which is only this fetch's local
+            # clock time. See dashboard/panels/exposure.py's _stale_warning().
+            "data_freshness": inner.get("data_freshness"),
         }
 
         if not regime_unavailable:
