@@ -48,27 +48,51 @@ class TestNetIncomeCoverageFix:
         net_incomes = [s.get("net_income_loss") for s in statements]
         assert any(v is not None for v in net_incomes), "EE should have net_income in at least some statements"
 
-    def test_onon_on_holding_ifrs_filer_has_net_income(self, client):
-        """ONON (On Holding) - IFRS-only filer, uses fallback net income concepts."""
-        statements = get_income_statement(client, "ONON", period="annual")
-        assert len(statements) > 0, "ONON should have annual income statements"
+    def test_onon_on_holding_ifrs_filer_has_no_usd_net_income(self, client):
+        """ONON (On Holding) - IFRS-only filer, CHF-denominated - correctly excluded.
 
-        # ONON reports ProfitLossAttributableToOwnersOfParent in IFRS, which is now
-        # mapped to net_income_loss via fallback aliases
-        latest = statements[-1]
-        assert latest.get("net_income_loss") is not None, (
-            "ONON should have net_income_loss (from IFRS ProfitLossAttributableToOwnersOfParent)"
+        SUPERSEDED 2026-08-17 by the non-USD currency guard in _aggregate_concepts
+        (utils/external/sec_statements.py): this test originally (2026-08-01) asserted
+        ONON's ProfitLossAttributableToOwnersOfParent alias populated net_income_loss.
+        Live-confirmed via ONON's real companyfacts JSON: ALL 31 of its
+        ProfitLossAttributableToOwnersOfParent entries are tagged unit="CHF" - it has
+        no USD-denominated net income fact anywhere (only one incidental USD concept
+        in its entire ifrs-full taxonomy: CashAndCashEquivalents). The currency guard
+        now correctly skips these CHF facts rather than writing Swiss-franc magnitudes
+        into a column documented as USD - same "no reliable per-filer FX rate, don't
+        fabricate" reasoning as the rejected NumberOfSharesOutstanding IFRS alias and
+        the SHG/MUFG/SMFG non-USD Assets exclusions in the same file. Restoring the old
+        assertion would require reverting that guard, reintroducing a real ~magnitude
+        data-quality bug for the sake of this one test - so the test is updated to
+        assert the current, correct behavior instead.
+        """
+        statements = get_income_statement(client, "ONON", period="annual")
+        # ONON has no us-gaap facts at all and its only income-statement-relevant IFRS
+        # concepts (revenue, profit) are CHF-only, so once the currency guard correctly
+        # excludes them, _aggregate_concepts has nothing left to build a row from -
+        # zero rows, not rows with a None net_income_loss.
+        assert statements == [], (
+            f"ONON has no USD-denominated income-statement concepts (all CHF) - expected "
+            f"zero rows, got {len(statements)}"
         )
 
-    def test_athe_athena_ifrs_filer_has_net_income(self, client):
-        """ATHE (Athena) - IFRS-only filer, uses ComprehensiveIncome fallback."""
-        statements = get_income_statement(client, "ATHE", period="annual")
-        assert len(statements) > 0, "ATHE should have annual income statements"
+    def test_athe_athena_ifrs_filer_has_no_usd_net_income(self, client):
+        """ATHE (Athena) - IFRS-only filer, AUD-denominated - correctly excluded.
 
-        # ATHE reports ComprehensiveIncome in IFRS, which is now mapped to
-        # net_income_loss via fallback aliases
+        SUPERSEDED 2026-08-17, same root cause and reasoning as
+        test_onon_on_holding_ifrs_filer_has_no_usd_net_income above. Live-confirmed via
+        ATHE's real companyfacts JSON: its ComprehensiveIncome fallback concept is
+        tagged unit="AUD" (Australian dollars), not USD.
+        """
+        statements = get_income_statement(client, "ATHE", period="annual")
+        assert len(statements) > 0, "ATHE should still have annual income statement rows (from its us-gaap facts)"
+
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert any(v is not None for v in net_incomes), "ATHE should have net_income in at least some statements"
+        assert not any(v is not None for v in net_incomes), (
+            "ATHE's only net-income concept (ComprehensiveIncome) is AUD-denominated with "
+            "no USD equivalent - net_income_loss should stay None rather than silently "
+            "treat AUD as USD"
+        )
 
     def test_rani_aytu_has_net_income(self, client):
         """RANI (Aytu BioPharma) - us-gaap filer, should still work."""
