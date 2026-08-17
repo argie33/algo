@@ -2044,7 +2044,16 @@ class Orchestrator:
             if not lock_acquired:
                 if self.lock_manager.is_available:
                     logger.error("\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
-                    return {"success": False, "error": "Lock acquisition failed"}
+                    # Unlike every other early-exit path in run(), this branch used to return
+                    # without writing to execution_tracker/algo_orchestrator_runs, so a lock
+                    # contention abort left zero record it ever happened.
+                    halt_reason = "lock_contention: another orchestrator instance already holds the run lock"
+                    try:
+                        self.execution_tracker.save_execution_log("halted", halt_reason)
+                        self._save_orchestrator_run_status("halted", halt_reason)
+                    except Exception as e:
+                        logger.warning(f"[EXECUTION_LOG] Could not save lock-contention status: {e}")
+                    return {"success": False, "error": "Lock acquisition failed", "halted": True, "reason": halt_reason}
                 else:
                     # CRITICAL FIX (Session 282): ALWAYS fail closed when DynamoDB locks unavailable.
                     # Session 281 removed LOCAL_MODE fallback to FileLockManager in get_lock_manager(),
@@ -2068,9 +2077,18 @@ class Orchestrator:
                         "and live Alpaca account, so distributed locking is non-negotiable. "
                         "Fix: Ensure AWS credentials available, or use dry_run=True for testing."
                     )
+                    # Same silent-early-exit gap as the sibling branch above.
+                    halt_reason = "lock_system_unavailable: distributed lock backend unreachable, failing closed"
+                    try:
+                        self.execution_tracker.save_execution_log("halted", halt_reason)
+                        self._save_orchestrator_run_status("halted", halt_reason)
+                    except Exception as e:
+                        logger.warning(f"[EXECUTION_LOG] Could not save lock-unavailable status: {e}")
                     return {
                         "success": False,
                         "error": "Distributed lock system unavailable. Cannot proceed with trading.",
+                        "halted": True,
+                        "reason": halt_reason,
                     }
             self._install_shutdown_handler()
         else:

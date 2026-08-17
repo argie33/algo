@@ -104,8 +104,16 @@ $morningTrigger = New-ScheduledTaskTrigger `
 # script). -RestartCount/-RestartInterval makes Task Scheduler itself retry a failed run a few
 # times before giving up, covering the common case where the previous pipeline is still
 # finishing a few minutes past this one's trigger time.
+# BUG FIX (2026-08-17 evening): neither -AllowStartIfOnBatteries nor any battery flag here
+# disables StopIfGoingOnBatteries, which New-ScheduledTaskSettingsSet defaults to $true -
+# confirmed via the live \AlgoTrading\AlgoTrading_Orchestrator_3PM task's exported XML.
+# This dev machine's Kernel-Power log shows AC/battery source flips every 10-90 minutes all
+# day, so any task running when one occurs gets TerminateProcess'd mid-run with no chance to
+# log or write a DB row - exactly the signature of a live run (PID 25284, 2026-08-17 14:00)
+# that left zero row in algo_orchestrator_runs. -DontStopIfGoingOnBatteries prevents that.
 $morningSettings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries:$false `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
     -WakeToRun `
@@ -156,7 +164,8 @@ $signalsTrigger = New-ScheduledTaskTrigger `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
 $signalsSettings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries:$false `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
     -WakeToRun `
@@ -202,7 +211,8 @@ $metricsTrigger = New-ScheduledTaskTrigger `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
 $metricsSettings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries:$false `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
     -WakeToRun `
@@ -256,7 +266,8 @@ $referenceTrigger = New-ScheduledTaskTrigger `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
 $referenceSettings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries:$false `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew `
     -WakeToRun `
@@ -334,8 +345,11 @@ Write-Host "Fixing trading orchestrator tasks (LogonType + MON-FRI only)..."
 foreach ($t in $orchestratorTasks) {
     $action = New-ScheduledTaskAction -Execute $pythonExe -Argument $t.Args -WorkingDirectory $algoPath
     $trigger = New-ScheduledTaskTrigger -Weekly -At $t.At -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+    # Same StopIfGoingOnBatteries fix as the loader tasks above (see morningSettings) - a
+    # live-order-submitting orchestrator run must not be killable by a transient power flip.
     $settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries:$false `
+        -AllowStartIfOnBatteries:$true `
+        -DontStopIfGoingOnBatteries `
         -Compatibility Win8 `
         -MultipleInstances IgnoreNew `
         -WakeToRun

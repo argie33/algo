@@ -33,7 +33,7 @@ variable "github_repo" {
 }
 
 variable "github_ref_path" {
-  description = "GitHub ref path for OIDC trust (e.g., refs/heads/main). Root module's var.github_ref_path was declared but never wired to this module - the OIDC trust condition hardcoded 'refs/heads/main' instead, so changing the root variable silently had no effect. See main.tf's github_actions_assume trust condition."
+  description = "GitHub ref path for OIDC trust (e.g., refs/heads/main). Wired from root main.tf into this module's github_actions_assume trust condition (commit 96f87041b)."
   type        = string
 }
 
