@@ -655,7 +655,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
             ]
 
-    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:  # noqa: C901
+    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
         """Build value_metrics from SEC valuations (yfinance-free, Session 271).
 
         All metrics from SEC-audited data. Dividend yield added 2026-07-20 (migration
@@ -685,32 +685,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         ev_revenue = row_dict.get("ev_revenue")
         market_cap = row_dict.get("market_cap")
 
-        # TIER 2 FALLBACK (Session 346+): Use yfinance_snapshot for PEG and dividend_yield if SEC missing
-        # CRITICAL: Only as fallback after SEC fails. Mark source explicitly to distinguish from SEC-audited data.
-        # Reason: PEG ratio and dividend_yield are difficult to derive accurately from SEC data alone.
-        # yfinance_snapshot is maintained separately and provides better coverage for these metrics.
-        data_source_peg = "sec_audited"  # Will update to "yfinance" if fallback used
-        data_source_dividend = "sec_audited"  # Will update to "yfinance" if fallback used
-
-        if peg is None:
-            # Try yfinance_snapshot as TIER 2 fallback
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT peg_ratio FROM yfinance_snapshot
-                        WHERE symbol = %s AND peg_ratio IS NOT NULL
-                        ORDER BY fetched_at DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    yf_peg_row = cur.fetchone()
-                    if yf_peg_row:
-                        peg = yf_peg_row[0]
-                        data_source_peg = "yfinance"
-            except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: yfinance PEG fallback failed: {e}")
-
+        # yfinance_snapshot has had no live writer since Session 275 (frozen at 2026-07-16,
+        # live-confirmed 2026-08-17 - MAX(fetched_at) unchanged for a month while today's date
+        # is 2026-08-17). load_positioning_metrics.py already removed its own equivalent
+        # yfinance_snapshot TIER 2 fallback for exactly this reason (Session 275+ comment there:
+        # "yfinance_snapshot is deprecated"). This loader's own PEG/dividend fallback (added
+        # Session 346, AFTER that deprecation) never got the same treatment: live-confirmed
+        # 1302/5715 value_metrics rows (~22.8%) had peg_ratio silently copied verbatim from the
+        # frozen table (data_source='mixed') - a PEG ratio that can never refresh, masquerading
+        # as a live fallback tier. The dividend_yield TIER 3 fallback below it is comparatively
+        # harmless (only 3 rows ever matched, since the 2026-08-05 SEC dividend_data tier already
+        # covers almost everything) but reads the same dead table and is removed for the same
+        # reason. Nothing downstream reads data_source/'mixed' (grep-confirmed) - dropping both
+        # fallbacks only removes stale/frozen values, doesn't touch anything live.
         if dividend_yield is None:
             # TIER 2 FALLBACK: Try SEC dividend_data (most recent dividend)
             # FIX 2026-08-05: Use SEC dividend_data directly instead of relying only on yfinance
@@ -727,34 +714,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     sec_div_row = cur.fetchone()
                     if sec_div_row:
                         dividend_yield = sec_div_row[0] / 100.0  # Convert percentage to decimal
-                        data_source_dividend = "sec_audited"
                         logger.debug(f"[VALUE_METRICS] {symbol}: Using SEC dividend_data: {dividend_yield:.2%}")
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: SEC dividend_data fallback failed: {e}")
-
-            # TIER 3 FALLBACK: Try yfinance_snapshot as final fallback
-            if dividend_yield is None:
-                try:
-                    with DatabaseContext("read") as cur:
-                        cur.execute(
-                            """
-                            SELECT dividend_yield FROM yfinance_snapshot
-                            WHERE symbol = %s AND dividend_yield IS NOT NULL
-                            ORDER BY fetched_at DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        yf_div_row = cur.fetchone()
-                        if yf_div_row:
-                            # yfinance_snapshot.dividend_yield is stored in percent scale
-                            # (e.g. 1.23 for 1.23%), same as dividend_data.dividend_yield_pct
-                            # above - must convert to decimal fraction to match the SEC-tier
-                            # convention this field uses everywhere else (downstream *100 for
-                            # display). Without this, a real 1.23% yield rendered as 123.00%.
-                            dividend_yield = yf_div_row[0] / 100.0
-                            data_source_dividend = "yfinance"
-                except Exception as e:
-                    logger.debug(f"[VALUE_METRICS] {symbol}: yfinance dividend fallback failed: {e}")
 
         # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
         # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
@@ -852,11 +814,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             pe_ratio_reason if peg is None and pe is None else ("missing_sec_data" if peg is None else None)
         )
 
-        # Track which fields are unavailable (Session 389)
-        # Session 346+: Mark data source as "mixed" if any field came from yfinance fallback
+        # Track which fields are unavailable (Session 389). No yfinance fallback remains
+        # (removed 2026-08-17 - see comment above data_source_peg/data_source_dividend), so
+        # this is always "sec_audited" now regardless of which individual field is populated.
         overall_data_source = "sec_audited"
-        if data_source_peg == "yfinance" or data_source_dividend == "yfinance":
-            overall_data_source = "mixed"  # Some fields from yfinance fallback
 
         return {
             "symbol": symbol,
