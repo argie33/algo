@@ -11,6 +11,7 @@ or have consecutive failures but no proper error tracking. It:
 5. Validates dependencies before allowing loaders to run
 """
 
+import argparse
 import os
 import sys
 import tempfile
@@ -163,6 +164,17 @@ def reset_fixable_pending_loaders(
 
 
 def main():
+    # BUG FIX 2026-08-17: this script had zero argument parsing, so `--help` (or any typo'd
+    # flag) was silently ignored and fell straight through to the real repair below - an
+    # operator checking usage before running it against prod-adjacent data_loader_status would
+    # instead reap RUNNING loaders and reset PENDING ones for real. argparse's own -h/--help
+    # exits before any of that runs.
+    argparse.ArgumentParser(
+        description="Detect and repair loader status drift: reap stale RUNNING rows, "
+        "clean stale lock files, and reset fixable PENDING loaders in data_loader_status. "
+        "Always performs the repair live - there is no dry-run mode."
+    ).parse_args()
+
     print("=" * 80)
     print("LOADER STATUS DRIFT FIX")
     print("=" * 80)
