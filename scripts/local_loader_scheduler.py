@@ -508,12 +508,38 @@ LOADER_DEPENDENCIES = {
 }
 
 
-def _check_loader_dependencies(loader: str, completed_loaders: set[str], run_scope: set[str] | None = None) -> bool:
+def _check_loader_dependencies(
+    loader: str,
+    completed_loaders: set[str],
+    own_pipeline_loaders: set[str],
+    run_scope: set[str] | None = None,
+) -> bool:
     """Check if a loader's dependencies have completed.
 
     Args:
         loader: The loader name to check
         completed_loaders: Set of loader names that have already completed successfully
+        own_pipeline_loaders: ADDED 2026-08-17: every loader declared in PIPELINES[this
+            pipeline] (the full roster, independent of --loaders scoping). A dependency
+            outside this set lives in an entirely DIFFERENT pipeline - e.g. "scores" in
+            PIPELINES["signals"] depends on "value_quality_growth"/"enhanced_quality_growth"/
+            "positioning"/"stability_metrics", all of which only exist in PIPELINES["metrics"].
+            completed_loaders starts empty on every run_pipeline() call and only ever gains
+            entries from loaders THIS invocation executes, so a cross-pipeline dependency can
+            NEVER appear in it - not for a standalone `--now signals`, and not even for
+            `--now all` (each pipeline in ALL_PIPELINES_ORDER gets its own run_pipeline() call
+            with its own fresh completed_loaders). Live-reproduced 2026-08-17: a `--now signals`
+            run hard-failed scores/buy_sell/signal_quality/algo on this exact gate minutes after
+            a `metrics` run had freshly completed value_quality_growth/enhanced_quality_growth/
+            positioning/stability_metrics in a separate process - this is the root cause of
+            stock_scores/signal_quality_scores sitting FAILED for days while their actual
+            upstream data was hours-fresh. Treat cross-pipeline dependencies as always
+            assumed-fresh (trust DB state) - the exact same trust model `run_scope` below
+            already applies to deliberately-excluded --loaders, just unconditional here since
+            these deps could never be satisfied in-process regardless of --loaders. Same-
+            pipeline dependencies (e.g. enhanced_quality_growth needing value_quality_growth
+            within one "metrics" run) keep full same-run enforcement - only the pipeline split
+            itself is exempted, not genuine same-run ordering.
         run_scope: ADDED 2026-08-17 for --loaders: the set of loaders actually included in
             this invocation (None means "the whole pipeline" - normal full-run behavior,
             unchanged). A dependency that isn't in run_scope was deliberately excluded by
@@ -528,14 +554,21 @@ def _check_loader_dependencies(loader: str, completed_loaders: set[str], run_sco
         True if all dependencies are met, False otherwise
     """
     dependencies = LOADER_DEPENDENCIES.get(loader, [])
-    missing = [dep for dep in dependencies if dep not in completed_loaders and (run_scope is None or dep in run_scope)]
-    assumed_fresh = [
-        dep for dep in dependencies if dep not in completed_loaders and run_scope is not None and dep not in run_scope
+    same_pipeline_deps = [dep for dep in dependencies if dep in own_pipeline_loaders]
+    cross_pipeline_deps = [dep for dep in dependencies if dep not in own_pipeline_loaders]
+
+    missing = [
+        dep for dep in same_pipeline_deps if dep not in completed_loaders and (run_scope is None or dep in run_scope)
+    ]
+    assumed_fresh = [dep for dep in cross_pipeline_deps if dep not in completed_loaders] + [
+        dep
+        for dep in same_pipeline_deps
+        if dep not in completed_loaders and run_scope is not None and dep not in run_scope
     ]
     if assumed_fresh:
         print(
             f"[LOCAL_SCHEDULER] {loader}: assuming upstream {assumed_fresh} is already fresh "
-            f"(excluded from this --loaders run, not re-checked)"
+            f"(cross-pipeline or excluded from this --loaders run, not re-checked)"
         )
 
     if missing:
@@ -593,6 +626,10 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
         print(f"ERROR: Unknown pipeline '{pipeline_name}'", file=sys.stderr)
         print(f"Valid pipelines: {', '.join(PIPELINES.keys())}", file=sys.stderr)
         return 1
+
+    # Captured before loader_filter narrows `loaders` below - see _check_loader_dependencies'
+    # own_pipeline_loaders docstring for why this must be the full declared roster.
+    own_pipeline_loaders = set(loaders)
 
     if loader_filter is not None:
         unknown = loader_filter - set(loaders)
@@ -661,9 +698,12 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
     for loader in loaders:
         # CRITICAL FIX (Session 81): Check loader dependencies before running
         # Prevents silent data degradation if a required upstream loader fails
-        if not _check_loader_dependencies(loader, completed_loaders, run_scope=loader_filter):
+        if not _check_loader_dependencies(loader, completed_loaders, own_pipeline_loaders, run_scope=loader_filter):
             # Check if dependency was skipped (doesn't exist in completed) or failed (in skipped)
-            deps = LOADER_DEPENDENCIES.get(loader, [])
+            # Scoped to same-pipeline deps only - cross-pipeline deps are never the reason
+            # _check_loader_dependencies returned False (see its own docstring), so including
+            # them here would misleadingly imply they're still required.
+            deps = [dep for dep in LOADER_DEPENDENCIES.get(loader, []) if dep in own_pipeline_loaders]
             missing = [dep for dep in deps if dep not in completed_loaders]
             missing_skipped = [dep for dep in missing if dep in skipped_loaders]
             if missing_skipped:
