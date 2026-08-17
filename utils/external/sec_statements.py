@@ -376,6 +376,21 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # _INCOME_FIELD_MAPPING comment for the live-verification details.
         "InterestAndDividendIncomeOperating",
         "CostOfRevenue",
+        # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" is the
+        # standard us-gaap tag product/retail companies use for cost of goods sold - it was
+        # never fetched at all, only the much rarer "CostOfRevenue"/"CostOfSales" tags were.
+        # Live-confirmed via this DB: AMZN, COST, CI, JD, SHEL, TTE all have real revenue but
+        # NULL cost_of_revenue AND NULL gross_profit for every fiscal year - not financial/
+        # unclassified-balance-sheet filers (which legitimately lack a COGS concept), but
+        # ordinary product/retail companies that plainly report cost of goods sold in their
+        # 10-Ks. 2,261 of 5,304 symbols (43%) with revenue had both concepts NULL at their
+        # latest fiscal year before this fix. Same target_key ("cost_of_revenue") as
+        # "CostOfRevenue" above via load_financial_statements.py's _INCOME_FIELD_MAPPING, so
+        # no new column is needed. Listed after CostOfRevenue (wins on overwrite per this
+        # file's last-listed-wins convention) though not live-confirmed as a real double-
+        # booking case for any filer - the two tags serve different business models
+        # (services vs. product/retail) and haven't been seen co-reported.
+        "CostOfGoodsAndServicesSold",
         # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
         # as would-be operating_income fallbacks, but neither has a field_mapping entry or
         # destination column, and live-checking real filers missing operating_income (SWK,
