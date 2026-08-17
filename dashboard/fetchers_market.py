@@ -234,6 +234,11 @@ def fetch_market(c: None) -> dict[str, Any]:
             "nl": nl_val,
             "bmom": bmom_val,
             "timestamp": datetime.now(ET),
+            # Server-computed freshness of market_health_daily.date (see
+            # lambda/api/routes/algo_handlers/market.py's _get_markets) - NOT derived from
+            # "timestamp" above, which is only this fetch's local clock time and can't detect
+            # genuinely stale underlying VIX/market regime data. Same fix as fetch_positions().
+            "data_freshness": mkt.get("data_freshness"),
         }
 
         # Add spy_chg only if available

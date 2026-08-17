@@ -85,6 +85,40 @@ def test_unwrap_preserves_metadata():
     print("[OK] Metadata preservation works")
 
 
+def test_unwrap_preserves_sibling_data_freshness():
+    """BUG FOUND 2026-08-17: json_response()'s data_freshness=... kwarg (lambda/api/routes/utils.py)
+    puts data_freshness as a SIBLING of "data", not nested inside it - {statusCode, data: {...},
+    data_freshness: {...}} - unlike test_unwrap_preserves_metadata above (which only covers the
+    case where a handler manually stuffs data_freshness INSIDE its data dict, e.g. the positions
+    endpoint). This sibling form, used at 30+ call sites across lambda/api/routes/ (trades, market,
+    scores, signals, sectors, financials, etc.), was silently dropped by _unwrap_api_response's
+    Format-1 branch - confirmed live via a real /api/algo/trades call showing algo_trades 4 days
+    stale with data_freshness present in the raw response but absent after api_call()'s unwrap.
+    Every dashboard panel relying on the kwarg form (not the "stuff it inside data" workaround)
+    had a non-functional staleness check as a result."""
+    response = {
+        "statusCode": 200,
+        "data": {"items": [{"id": 1}]},
+        "data_freshness": {"is_stale": True, "data_age_days": 4, "warning": "4 days old"},
+    }
+    unwrapped = _unwrap_api_response(response)
+    assert unwrapped["statusCode"] == 200
+    assert unwrapped["items"] == [{"id": 1}]
+    assert unwrapped["data_freshness"] == {"is_stale": True, "data_age_days": 4, "warning": "4 days old"}
+
+
+def test_unwrap_sibling_data_freshness_does_not_override_nested():
+    """If a handler already put data_freshness inside its data dict (the positions.py pattern),
+    the sibling merge must not clobber it with something else."""
+    response = {
+        "statusCode": 200,
+        "data": {"items": [{"id": 1}], "data_freshness": {"is_stale": False, "source": "nested"}},
+        "data_freshness": {"is_stale": True, "source": "sibling"},
+    }
+    unwrapped = _unwrap_api_response(response)
+    assert unwrapped["data_freshness"] == {"is_stale": False, "source": "nested"}
+
+
 def test_unwrap_empty_response():
     """Test unwrapping empty response with data wrapper."""
     # Even empty responses must have 'data' wrapper for consistency

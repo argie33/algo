@@ -17,6 +17,7 @@ from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
+    check_data_freshness,
     db_route_handler,
     error_response,
     handle_db_error,
@@ -1767,7 +1768,17 @@ def _get_market(cur: cursor) -> Any:
             ),
         }
 
-        return json_response(200, data)
+        # BUG FOUND 2026-08-17: this endpoint never computed a real freshness signal for
+        # market_health_daily/market_exposure_daily - the dashboard's MARKET panel
+        # (dashboard/panels/market.py) instead self-computed "age" from the fetch's own
+        # datetime.now(ET) timestamp, which is always ~0 seconds old regardless of how stale
+        # the underlying VIX/exposure data actually is. VIX and market regime directly feed
+        # position sizing (see this function's own "CRITICAL: fail fast if unavailable"
+        # comments above) - stale data here with zero warning is a real risk. Mirrors the
+        # already-correct pattern used for algo_positions/algo_trades/algo_signals freshness.
+        freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
+
+        return json_response(200, data, data_freshness=freshness)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -2248,7 +2259,19 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         )
         data["fed"] = market_health.get("fed_rate_environment")
 
-        return json_response(200, data)
+        # BUG FOUND 2026-08-17: this endpoint (the one the dashboard's fetch_market() actually
+        # calls, /api/algo/markets - NOT the separate /api/algo/market singular endpoint) never
+        # returned a real freshness signal for market_health_daily/market_exposure_daily. The
+        # dashboard's MARKET panel (dashboard/panels/market.py) instead self-computed "age" from
+        # the fetch's own datetime.now(ET) timestamp, which is always ~0 seconds old regardless
+        # of how stale the underlying VIX/exposure data actually is - VIX and market regime
+        # directly feed position sizing, so stale data here with zero warning is a real risk.
+        # Mirrors the same fix already applied to the algo_positions/algo_trades/algo_signals
+        # endpoints. Uses market_health_daily specifically (not market_exposure_daily) since
+        # VIX/breadth data is the more failure-prone side of this combined payload.
+        freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
+
+        return json_response(200, data, data_freshness=freshness)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

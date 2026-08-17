@@ -208,6 +208,26 @@ logger.info(f"[API_STARTUP] Initialized API_BASE_URL from {_initial_source}: {_i
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
+
+# errorType values for 5xx responses that are fail-closed/permanent-until-next-computation,
+# not transient infrastructure blips - retrying within a ~12s window cannot change the outcome.
+# e.g. circuit-breakers endpoint returns these whenever today's circuit_breaker_status row
+# hasn't been computed yet by the orchestrator; the condition only clears once that run
+# completes, never mid-retry. Retrying anyway just burns ~12s per dashboard load/refresh.
+NON_TRANSIENT_5XX_ERROR_TYPES = frozenset(
+    {
+        "deprecated_endpoint",
+        "missing_critical_tables",
+        "missing_circuit_breaker_data",
+        "stale_circuit_breaker_data",
+        "incomplete_circuit_breaker_data",
+        "circuit_breaker_computation_error",
+        "missing_vix_data",
+        "vix_computation_error",
+        "missing_spy_price_data",
+        "market_health_computation_error",
+    }
+)
 # CRITICAL FIX (BLOCKER #5): Cache freshness threshold - position sizing depends on current prices
 # Changed from 30 min (1800s) to 5 min (300s). Risk calculations drift if prices are stale.
 # Position-sensitive operations (risk calc, position sizing) must use fresh price data.
@@ -643,15 +663,17 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
             if resp.status_code >= 400:
                 logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
-                # Check for deprecated endpoint (503 with errorType=deprecated_endpoint)
+                # Check for fail-closed/permanent 5xx conditions that retrying cannot resolve
+                # (e.g. deprecated endpoint, or circuit-breaker data not yet computed for today)
                 try:
                     resp_data = resp.json()
-                    if resp.status_code == 503 and resp_data.get("errorType") == "deprecated_endpoint":
-                        msg = resp_data.get("message", "Endpoint deprecated")
-                        logger.info(f"API {endpoint}: endpoint deprecated, failing fast without retries")
+                    error_type = resp_data.get("errorType")
+                    if resp.status_code >= 500 and error_type in NON_TRANSIENT_5XX_ERROR_TYPES:
+                        msg = resp_data.get("message", "Service unavailable")
+                        logger.info(f"API {endpoint}: non-transient 5xx ({error_type}), failing fast without retries")
                         return {
                             "_error": f"API error {resp.status_code}: {msg}",
-                            "_endpoint_deprecated": True,
+                            "_endpoint_deprecated": error_type == "deprecated_endpoint",
                         }
                 except (ValueError, AttributeError) as e:
                     # JSON parsing failed - log and continue with normal error handling
@@ -724,13 +746,15 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                             "_error": error_msg,
                             "_auth_error": True,
                         }
-                    # Deprecated endpoints (503 with errorType=deprecated_endpoint) should fail fast without retries
-                    if status_code_int == 503 and data.get("errorType") == "deprecated_endpoint":
-                        msg = data.get("message", "Endpoint deprecated")
-                        logger.info(f"API {endpoint}: endpoint deprecated, failing fast without retries")
+                    # Fail-closed/permanent 5xx conditions (deprecated endpoint, circuit-breaker
+                    # data not yet computed for today, etc.) should fail fast without retries
+                    error_type = data.get("errorType")
+                    if status_code_int >= 500 and error_type in NON_TRANSIENT_5XX_ERROR_TYPES:
+                        msg = data.get("message", "Service unavailable")
+                        logger.info(f"API {endpoint}: non-transient 5xx ({error_type}), failing fast without retries")
                         return {
                             "_error": f"API error {status_code_int}: {msg}",
-                            "_endpoint_deprecated": True,
+                            "_endpoint_deprecated": error_type == "deprecated_endpoint",
                         }
                     # For other 4xx errors (client errors), don't retry; fail immediately
                     if status_code_int < 500:
@@ -883,6 +907,21 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
         # Only treat as payload if it's actually a dict; otherwise it's malformed
         if isinstance(data_field, dict):
             payload = cast(dict[str, Any], data_field)
+            # BUG FOUND 2026-08-17: this module's own header comment documents the contract
+            # as "{statusCode: 200, data: {...payload...}, ...metadata}", but this branch only
+            # ever copied response["data"] - any top-level metadata sibling of "data" (namely
+            # json_response()'s/list_response()'s own data_freshness=... kwarg, used at 30+
+            # call sites across lambda/api/routes/) was silently dropped before any fetcher
+            # ever saw it. Empirically confirmed live: /api/algo/trades returns a real, current
+            # data_freshness ({"is_stale": true, "data_age_days": 4, ...} - algo_trades was
+            # genuinely 4 days stale at the time) that api_call() discarded before
+            # fetch_completed_trades() ever ran. The only endpoints that "worked" (e.g.
+            # /api/algo/positions) did so by coincidence - their handler stuffs data_freshness
+            # INSIDE the data dict itself rather than passing it via the kwarg, sidestepping
+            # this bug rather than being unaffected by it. Fixed at the root instead of
+            # patching 30+ call sites individually.
+            if "data_freshness" in response and "data_freshness" not in payload:
+                payload = {**payload, "data_freshness": response["data_freshness"]}
         else:
             # Data field is malformed (string, list, etc) - mark as error
             logger.error(

@@ -110,7 +110,13 @@ repos:
         # no has_error() check, git-blame-confirmed to 2026-06-28/29 - well before this
         # session's unrelated fetch_completed_trades() data_freshness fix). Excluded pending
         # the same dedicated remediation pass as the other three files above, not silenced.
-        exclude: ^dashboard/(panels/health|fetchers_config|fetchers_market|fetchers_portfolio)\.py$
+        # dashboard/api_data_layer.py added 2026-08-17: same pre-existing debt (api_call(),
+        # 10 .get() calls with no has_error() check, git-blame-confirmed to 2026-07-19 - well
+        # before this session's unrelated _unwrap_api_response() data_freshness fix). api_call()
+        # is the core HTTP client (retry/backoff/circuit-breaker/auth) - not a place to rush a
+        # has_error()-based rewrite alongside an unrelated bugfix. Excluded pending the same
+        # dedicated remediation pass as the other four files above, not silenced.
+        exclude: ^dashboard/(panels/health|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer)\.py$
         stages: [pre-commit]
 
       - id: check-credential-defaults

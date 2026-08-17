@@ -83,6 +83,28 @@ from .data_extractors import (
 )
 
 
+def _stale_warning(mkt: Any) -> str:
+    """Server-computed staleness badge from the API's data_freshness field.
+
+    BUG FOUND 2026-08-17: both MARKET panels previously self-computed "age" by diffing
+    mkt.get("timestamp") against datetime.now() - but that "timestamp" was always
+    datetime.now(ET) at fetch time (see fetch_market() in dashboard/fetchers_market.py), so
+    the diff was always ~0 seconds regardless of how stale the underlying VIX/market regime
+    data actually was. VIX and market regime directly feed position sizing. Fixed at the root
+    (see dashboard/api_data_layer.py's _unwrap_api_response - the real server-computed
+    data_freshness signal was being silently dropped before any fetcher saw it) and wired
+    through here, mirroring the already-correct pattern in scores.py/positions.py/signals.py.
+    """
+    if not isinstance(mkt, dict):
+        return ""
+    data_freshness = mkt.get("data_freshness")
+    if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+        warning_text = data_freshness.get("warning") or "stale"
+        logger.warning(f"[MARKET] Market data stale: {warning_text}")
+        return " [yellow]⚠ STALE[/]"
+    return ""
+
+
 def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
     halts_raw = mkt_data.get("halts")
     if halts_raw is None:
@@ -118,22 +140,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
         return err_panel
 
     # Check data freshness: warn if market data is stale
-    from datetime import datetime, timezone
-
-    stale_warning = ""
     market_timestamp = mkt.get("timestamp")
     age_s = f"  [dim]{fmt_age(market_timestamp)}[/]" if market_timestamp is not None else ""
-    if market_timestamp:
-        try:
-            if isinstance(market_timestamp, str):
-                market_dt = datetime.fromisoformat(market_timestamp.replace("Z", "+00:00"))
-            else:
-                market_dt = market_timestamp
-            age_hours = (datetime.now(timezone.utc) - market_dt).total_seconds() / 3600
-            if age_hours > 24:
-                stale_warning = f" ⚠ STALE ({age_hours:.0f}h old)"
-        except Exception as e:
-            logger.debug(f"[MARKET_PANEL] Could not parse timestamp: {e}")
+    stale_warning = _stale_warning(mkt)
 
     tier = mkt.get("tier", "unknown")
     tc = TIER_COLOR.get(tier, "dim")
@@ -459,20 +468,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     # Mirrors panel_market_full's staleness check - the compact view flags stale data in its
     # title, but this expanded view (same underlying `mkt` dict) previously had no equivalent,
     # so pressing 'm' to inspect data already flagged stale lost that warning entirely.
-    from datetime import datetime, timezone
-
-    stale_warning = ""
-    if market_timestamp:
-        try:
-            if isinstance(market_timestamp, str):
-                market_dt = datetime.fromisoformat(market_timestamp.replace("Z", "+00:00"))
-            else:
-                market_dt = market_timestamp
-            age_hours = (datetime.now(timezone.utc) - market_dt).total_seconds() / 3600
-            if age_hours > 24:
-                stale_warning = f" ⚠ STALE ({age_hours:.0f}h old)"
-        except Exception as e:
-            logger.debug(f"[MARKET_EXPANDED] Could not parse timestamp: {e}")
+    stale_warning = _stale_warning(mkt)
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
         title=rf"[bold blue]MARKET - EXPANDED[/]{age_s}{stale_warning}  [dim]\[m] return[/]",

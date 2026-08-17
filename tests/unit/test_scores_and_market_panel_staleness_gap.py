@@ -10,10 +10,21 @@ Also: dashboard/fetchers_signals.py's fetch_scores() stamped "timestamp" with th
 fetch time (datetime.now(ET)) instead of reading the API's real server-computed data_freshness
 field, which was available in the response but silently dropped - the same "always looks fresh"
 bug class already fixed for positions/portfolio.
+
+UPDATED 2026-08-17: the MARKET panels' staleness check itself was ALSO a variant of this same
+bug class and has been fixed - it used to diff mkt.get("timestamp") against datetime.now(), but
+that "timestamp" was always datetime.now(ET) at fetch time (see fetch_market() in
+dashboard/fetchers_market.py), so the diff was always ~0 seconds regardless of actual data age -
+the "shows stale badge when old" tests below only ever passed because they injected a fake old
+`timestamp` directly, which real production data never did. Root-caused to
+dashboard/api_data_layer.py's _unwrap_api_response() silently dropping the API's real
+data_freshness field for any endpoint that passed it via json_response's separate kwarg (30+
+call sites; the endpoints that "worked" - positions.py's fetcher - did so by coincidence, by
+stuffing data_freshness inside the payload dict instead of using the kwarg). Now uses
+_stale_warning() from data_freshness like scores.py/positions.py/signals.py/trades.py.
 """
 
-from datetime import datetime, timedelta, timezone
-
+from dashboard.panels.market import _stale_warning as _market_stale_warning
 from dashboard.panels.market import panel_market_expanded, panel_market_full
 from dashboard.panels.scores import _stale_warning, panel_scores_compact, panel_scores_expanded
 
@@ -24,34 +35,41 @@ def _base_mkt(**overrides: object) -> dict:
         "spy": 550.0,
         "tier": "confirmed_uptrend",
         "halts": [],
-        "timestamp": overrides.pop("timestamp", None),
+        "timestamp": None,
     }
     row.update(overrides)
     return row
 
 
-def _stale_ts() -> str:
-    return (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+def test_market_stale_warning_helper_detects_is_stale():
+    mkt = {"data_freshness": {"is_stale": True, "warning": "2 days old"}}
+    assert "STALE" in _market_stale_warning(mkt)
 
 
-def _fresh_ts() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def test_market_stale_warning_helper_silent_when_fresh():
+    mkt = {"data_freshness": {"is_stale": False}}
+    assert _market_stale_warning(mkt) == ""
+
+
+def test_market_stale_warning_helper_silent_when_missing():
+    assert _market_stale_warning({}) == ""
+    assert _market_stale_warning([]) == ""  # malformed input must not crash
 
 
 def test_market_expanded_shows_stale_badge_when_old():
-    mkt = _base_mkt(timestamp=_stale_ts())
+    mkt = _base_mkt(data_freshness={"is_stale": True, "warning": "stale"})
     panel = panel_market_expanded(mkt)
     assert "STALE" in str(panel.title)
 
 
 def test_market_expanded_no_stale_badge_when_fresh():
-    mkt = _base_mkt(timestamp=_fresh_ts())
+    mkt = _base_mkt(data_freshness={"is_stale": False})
     panel = panel_market_expanded(mkt)
     assert "STALE" not in str(panel.title)
 
 
 def test_market_full_and_expanded_agree_on_staleness():
-    mkt = _base_mkt(timestamp=_stale_ts())
+    mkt = _base_mkt(data_freshness={"is_stale": True, "warning": "stale"})
     full_panel = panel_market_full(mkt)
     expanded_panel = panel_market_expanded(mkt)
     assert "STALE" in str(full_panel.title)
