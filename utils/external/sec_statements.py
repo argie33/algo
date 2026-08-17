@@ -42,6 +42,32 @@ _BALANCE_IFRS_ALIASES = [
     # us-gaap's LongTermDebt); live-confirmed present with real 2018-2024 values for
     # ASR. This alias had never worked for any filer.
     ("LongtermBorrowings", "long_term_debt"),
+    # FIXED 2026-08-17 (loader-review goal, continued): "ShorttermBorrowings" is IFRS's
+    # paired current-portion concept for the above (same convention as us-gaap's
+    # CommercialPaper/ShortTermBorrowings, which already map to the same short_term_debt
+    # column via _BALANCE_FIELD_MAPPING and are NOT fallback-only - i.e. genuine
+    # either/or alternatives, not a "don't overwrite the real concept" case). Target key
+    # is "short_term_borrowings" (the field_mapping dict KEY the equivalent us-gaap
+    # concept _to_snake()'s to), not "short_term_debt" (the DB column) - using the
+    # column name directly would make sec_field not in field_mapping true and silently
+    # drop the value via the unmapped-field warning path instead of writing it (see
+    # sec_ifrs_sbc_buyback_alias_gap_fixed_20260817 memory for this exact class of bug
+    # caught before shipping on the SBC/buyback aliases below).
+    ("ShorttermBorrowings", "short_term_borrowings"),
+    # FIXED 2026-08-17 (loader-review goal continuation): IFRS 16 lessee accounting
+    # doesn't distinguish operating vs. finance leases the way US GAAP does - IFRS
+    # filers report a single combined "LeaseLiabilities" concept, not separate
+    # OperatingLeaseLiability/FinanceLeaseLiability tags. Live-confirmed via real
+    # companyfacts JSON that "LeaseLiabilities" is the true Current+Noncurrent total
+    # (E/Eni: EUR 5.70B == 1.263B + 4.437B; TS/Tenaris: USD 143.249M == 48.346M +
+    # 94.903M), same combined-tag pattern already used for the GAAP concepts above.
+    # Mapped to "operating_lease_liability" (not a new column) so it flows through
+    # the existing total_debt = long_term_debt + short_term_debt +
+    # operating_lease_liability + finance_lease_liability sum unchanged;
+    # finance_lease_liability stays NULL for these filers, which is fine since IFRS
+    # doesn't separate the two anyway - the combined total lands intact either way.
+    # Foreign filers previously got NULL lease liabilities entirely.
+    ("LeaseLiabilities", "operating_lease_liability"),
 ]
 
 _INCOME_IFRS_ALIASES = [
@@ -130,6 +156,20 @@ _CASHFLOW_IFRS_ALIASES = [
     ("DividendsPaid", "payments_of_dividends"),
     # ("DepreciationExpense", "depreciation") REMOVED 2026-07-28 - see get_cash_flow()'s
     # comment: no destination column exists for cash-flow-context depreciation.
+    # FIXED 2026-08-17 (loader-review goal continuation, migration 1206 follow-up): the
+    # us-gaap ShareBasedCompensation/PaymentsForRepurchaseOfCommonStock concepts added
+    # this session had no IFRS equivalents, so every IFRS-only filer got NULL for both -
+    # same "foreign filer silently dropped" bug class as every other alias in this list.
+    # Live-confirmed via real companyfacts JSON against ifrs-full (not guessed):
+    # "AdjustmentsForSharebasedPayments" is WPM's real cash-flow-statement non-cash SBC
+    # addback (the IFRS reconciliation-of-profit-to-operating-cash-flow line, direct
+    # analog of us-gaap's ShareBasedCompensation) - $16.57M FY2024, $26.03M FY2025.
+    # "PurchaseOfTreasuryShares" is TS's and E's real financing-activities buyback outflow
+    # - TS $1.44B FY2024/$1.36B FY2025, E EUR2.00B FY2024/EUR1.88B FY2025 (E's non-USD
+    # facts are correctly dropped by the non-USD unit guard below, not fabricated).
+    # Same target_key as the us-gaap concepts so field_mapping needs no changes.
+    ("AdjustmentsForSharebasedPayments", "share_based_compensation"),
+    ("PurchaseOfTreasuryShares", "payments_for_repurchase_of_common_stock"),
 ]
 
 _INCOME_DEI_ALIASES = [
@@ -189,6 +229,34 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "InventoryNet",
         "PropertyPlantAndEquipmentNet",
         "Goodwill",
+        # FIXED 2026-08-17 (loader-review goal continuation): fallback long-term-debt
+        # concepts for filers that never tag the standard "LongTermDebt" concept at all -
+        # live-confirmed via real SEC companyfacts JSON that this is common among small/
+        # micro-cap filers (MRKR, MODD, ATNM among others), which tag their real debt
+        # under one of these instead. A live DB scan found 2,306 symbols with real
+        # (non-data_unavailable) annual_balance_sheet rows that had NEVER had a single
+        # long_term_debt value across every fiscal year - many are genuinely debt-free
+        # (biotechs funded by equity), but MRKR/MODD/ATNM specifically have real,
+        # instant-fact (not duration) debt reported under these concepts and were being
+        # silently treated as debt-free. Listed BEFORE "LongTermDebt" (least-preferred
+        # position, same "fallback listed first" convention as the cash_and_equivalents
+        # fallbacks above) AND marked fallback-only in load_financial_statements.py's
+        # field_mapping (_DEBT_FALLBACK_ONLY_FIELDS) so a filer that reports the standard
+        # LongTermDebt concept always keeps that value - these only fill the gap when
+        # LongTermDebt is absent for that fiscal year, never overwrite it.
+        "NotesPayableRelatedPartiesNoncurrent",
+        "LongTermNotesPayable",
+        "ConvertibleNotesPayable",
+        # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM (the largest US bank by assets)
+        # stopped tagging the plain "LongTermDebt" concept after FY2013 - live-confirmed
+        # via its real companyfacts JSON, last "LongTermDebt" fact is 2013-12-31, every
+        # 10-K since uses "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities"
+        # instead ($435.2B for FY2025). Most other large banks (MS/USB/PNC/TFC/COF/AXP/
+        # SCHW/STT live-checked) still tag plain LongTermDebt even when they also report
+        # this concept, so - same reasoning as the small/micro-cap fallbacks just above -
+        # it's fallback-only in field_mapping's _DEBT_FALLBACK_ONLY_FIELDS: only fills the
+        # gap when a filer has no real LongTermDebt for that fiscal year, never overwrites it.
+        "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
         "LongTermDebt",
         # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt instruments -
         # LongTermDebt only covers long-term borrowings (including their current portion for
@@ -423,6 +491,49 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # dividend-payment concepts, not a broader/narrower one.
         "PaymentsOfDividendsCommonStock",
         "PaymentsOfOrdinaryDividends",
+        # FIXED 2026-08-17 (migration 1206): non-cash stock-based compensation and cash
+        # buybacks - both real, well-populated concepts (live-confirmed AAPL 180/126
+        # entries, MSFT 133/230 entries) never fetched before. ShareBasedCompensation is
+        # the standard operating-section addback tag; PaymentsForRepurchaseOfCommonStock
+        # is the standard financing-section buyback outflow (counterpart to
+        # PaymentsOfDividends above). No fallback-variant search done yet for either (only
+        # AAPL/MSFT verified this session) - unlike the multi-variant dividend/capex
+        # concepts above, coverage gaps for other filers are not yet characterized.
+        #
+        # FIXED 2026-08-17 (loader-review goal continuation): the fallback-variant search
+        # promised above, now done. Live-confirmed via real companyfacts JSON across a
+        # random sample of ~80 symbols with real cash-flow data:
+        # - "AllocatedShareBasedCompensationExpense": the standard alternate SBC-expense
+        #   tag filers use instead of "ShareBasedCompensation" (real, reasonable-magnitude
+        #   annual totals confirmed for FIP $11.1M FY2025, DC $3.5M FY2025, CNA $41M
+        #   FY2025 - all three report ONLY this tag, never "ShareBasedCompensation").
+        #   Every OTHER us-gaap concept containing "SharebasedCompensation"/
+        #   "StockCompensat" in these filers' companyfacts is a disclosure-only item
+        #   (option pricing assumptions, shares outstanding, tax benefit detail) - not a
+        #   real cash-flow-statement addback total, so not added here.
+        # - "PaymentsForRepurchaseOfEquity": the standard broader alternate SPWH (real
+        #   duration facts, $2.75M and $64.7M across two fiscal years, both real
+        #   filed 10-Ks) uses instead of "PaymentsForRepurchaseOfCommonStock", which it
+        #   never tags at all. Deliberately NOT adding "StockRepurchasedDuringPeriodValue"
+        #   (RKTO/ARES) - that is an equity-statement (shares issued/repurchased roll-
+        #   forward) concept, not a cash-flow-statement concept; the amount recognized in
+        #   the equity roll-forward is not guaranteed to equal cash actually paid in the
+        #   period (timing differences from unsettled repurchases), so it is not a safe
+        #   substitute for a real cash outflow figure. Same reasoning applies to
+        #   "PaymentsForRepurchaseOfPreferredStockAndPreferenceStock" (FIP/RKTO) - a
+        #   different equity instrument (preferred, not common), not a substitute for a
+        #   missing common-stock buyback figure.
+        #
+        # Listed BEFORE their preferred counterparts (least-preferred position, same
+        # "fallback listed first" convention as the cash/debt fallbacks above) AND marked
+        # fallback-only in load_financial_statements.py's field_mapping
+        # (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS) so a filer that reports the standard concept
+        # always keeps that value - these only fill the gap when the standard concept is
+        # absent for that fiscal year, never overwrite it.
+        "AllocatedShareBasedCompensationExpense",
+        "ShareBasedCompensation",
+        "PaymentsForRepurchaseOfEquity",
+        "PaymentsForRepurchaseOfCommonStock",
     ]
     # REMOVED 2026-07-28: "Depreciation"/"DepreciationAndAmortization" (and the matching
     # ("DepreciationExpense", "depreciation") IFRS alias) used to be fetched here too, but
@@ -563,6 +674,30 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             continue
 
         for _unit, entries in units.items():
+            # FIXED 2026-08-17 (SEC-vs-yfinance audit): foreign private issuers filing
+            # 20-F/40-F often report monetary facts in home-market currency instead of
+            # USD, with no separate USD-denominated fact anywhere in the filing - live-
+            # confirmed via real companyfacts JSON: SHG (Shinhan) tags "Assets" only
+            # under unit="KRW" ($739.76e12 raw KRW, ~$550B real), MUFG/SMFG only under
+            # unit="JPY". Every dollar-value concept in this file was being pulled
+            # regardless of unit, so these filers' total_assets/long_term_debt/revenue/
+            # etc. landed in the DB as raw local-currency magnitudes masquerading as
+            # USD - off by ~100-1000x (KRW/JPY are both ~3-4 orders of magnitude weaker
+            # than USD). Live DB scan found 15 symbols with total_assets > $50 trillion
+            # (BCH, BSAC, EC, KB, KEP, MFG, MUFG, NMR, PKX, SHG, SMFG, TLK, TM, VFS, WF)
+            # - all real foreign banks/industrials whose true USD-equivalent assets are
+            # 2-4 orders of magnitude smaller, plus an unknown number of smaller foreign
+            # filers below that crude threshold that are still wrong without looking
+            # absurd. No reliable per-filer FX rate is available in XBRL to convert
+            # these correctly (same "can't safely correct, only detect" situation as
+            # the rejected NumberOfSharesOutstanding IFRS alias above) - skip any
+            # non-USD 3-letter ISO-4217-style currency unit entirely rather than fabricate
+            # a converted value; "shares"/"pure"/"USD/shares" units (share counts, ratios,
+            # per-share figures) don't match this 3-letter-uppercase-currency-code shape
+            # and are unaffected. A filer left without a real USD fact gets an honest
+            # NULL, not a silently wrong number 2-4 orders of magnitude off.
+            if _unit != "USD" and len(_unit) == 3 and _unit.isalpha() and _unit.isupper():
+                continue
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
                 # whatever share unit the local filing uses - domestic 10-K/10-Q filers

@@ -244,6 +244,43 @@ _REIT_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     }
 )
 
+# FIXED 2026-08-17 (loader-review goal continuation): see sec_statements.py's
+# get_balance_sheet() comment - these 3 concepts are alternate ways small/micro-cap
+# filers tag real long-term debt when they never use the standard "LongTermDebt" concept
+# at all (live-confirmed real instant-fact debt for MRKR/MODD/ATNM under these tags,
+# part of a live DB scan finding 2,306 symbols with real balance sheet rows but zero
+# long_term_debt ever). Fallback-only (not a plain mapping) so a filer that DOES report
+# the standard LongTermDebt concept always keeps that value - see sec_base.py's copy
+# loop: a non-fallback field always overwrites unconditionally regardless of processing
+# order, so "long_term_debt" (from the real LongTermDebt concept) wins over any of these
+# 3 whenever both are present for the same fiscal year; these only fill genuinely empty
+# years.
+_DEBT_FALLBACK_ONLY_FIELDS = frozenset(
+    {
+        "notes_payable_related_parties_noncurrent",
+        "long_term_notes_payable",
+        "convertible_notes_payable",
+        # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM-style bank fallback - see
+        # sec_statements.py's get_balance_sheet() comment for why this concept is needed
+        # (JPM has not tagged plain "LongTermDebt" since FY2013).
+        "long_term_debt_and_capital_lease_obligations_including_current_maturities",
+    }
+)
+
+# FIXED 2026-08-17 (loader-review goal continuation): the fallback-variant search for
+# SBC/buybacks migration 1206's comment flagged as not-yet-done - see sec_statements.py's
+# get_cash_flow() comment for the live evidence (FIP/DC/CNA report SBC only under
+# "AllocatedShareBasedCompensationExpense"; SPWH reports buybacks only under
+# "PaymentsForRepurchaseOfEquity"). Fallback-only for the same reason as
+# _DEBT_FALLBACK_ONLY_FIELDS: a filer that DOES report the standard concept
+# (ShareBasedCompensation / PaymentsForRepurchaseOfCommonStock) always keeps that value.
+_SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
+    {
+        "allocated_share_based_compensation_expense",
+        "payments_for_repurchase_of_equity",
+    }
+)
+
 _BALANCE_FIELD_MAPPING = {
     "assets": "total_assets",
     "assets_current": "current_assets",
@@ -273,6 +310,12 @@ _BALANCE_FIELD_MAPPING = {
     "property_plant_and_equipment_net": "ppe_net",
     "goodwill": "goodwill",
     "long_term_debt": "long_term_debt",
+    # FIXED 2026-08-17 (loader-review goal continuation): fallback-only, see
+    # _DEBT_FALLBACK_ONLY_FIELDS comment above.
+    "notes_payable_related_parties_noncurrent": "long_term_debt",
+    "long_term_notes_payable": "long_term_debt",
+    "convertible_notes_payable": "long_term_debt",
+    "long_term_debt_and_capital_lease_obligations_including_current_maturities": "long_term_debt",
     # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
     # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
     # alone (the only debt concept fetched before this fix) misses commercial paper/short-term
@@ -311,6 +354,17 @@ _CASHFLOW_FIELD_MAPPING = {
     # of two real capex tags. See sec_statements.py's get_cash_flow() concept list.
     "payments_to_acquire_productive_assets": "capex",
     "payments_of_dividends": "dividends_paid",
+    # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
+    # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but
+    # never mapped here - same "fetched but unmapped" bug class this file has hit
+    # repeatedly (see test_financial_statements_field_mapping_completeness.py). Real data
+    # was being fetched from SEC every run and silently dropped at transform().
+    "share_based_compensation": "stock_based_compensation",
+    "payments_for_repurchase_of_common_stock": "common_stock_repurchased",
+    # FIXED 2026-08-17 (loader-review goal continuation): fallback-only, see
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS comment above.
+    "allocated_share_based_compensation_expense": "stock_based_compensation",
+    "payments_for_repurchase_of_equity": "common_stock_repurchased",
     # FIXED 2026-08-03: real dividend-payment concepts some filers use INSTEAD of plain
     # "PaymentsOfDividends" - see sec_statements.py's comment above these concepts.
     "payments_of_dividends_common_stock": "dividends_paid",
@@ -453,6 +507,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "annual_balance_sheet",
             "field_mapping": dict(_BALANCE_FIELD_MAPPING),
+            "fallback_only_fields": _DEBT_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -483,6 +538,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "quarterly_balance_sheet",
             "field_mapping": {**_BALANCE_FIELD_MAPPING, **_QUARTERLY_EXTRA},
+            "fallback_only_fields": _DEBT_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -540,6 +596,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "annual_cash_flow",
             "field_mapping": dict(_CASHFLOW_FIELD_MAPPING),
+            "fallback_only_fields": _SBC_BUYBACK_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -552,6 +609,8 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "free_cash_flow",
                     "capex",
                     "dividends_paid",
+                    "stock_based_compensation",
+                    "common_stock_repurchased",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -563,6 +622,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "quarterly_cash_flow",
             "field_mapping": {**_CASHFLOW_FIELD_MAPPING, **_QUARTERLY_EXTRA},
+            "fallback_only_fields": _SBC_BUYBACK_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -576,6 +636,8 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "free_cash_flow",
                     "capex",
                     "dividends_paid",
+                    "stock_based_compensation",
+                    "common_stock_repurchased",
                     "created_at",
                     "data_unavailable",
                     "reason",

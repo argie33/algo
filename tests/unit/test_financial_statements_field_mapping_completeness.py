@@ -58,7 +58,11 @@ _BALANCE_CONCEPTS = [
     "InventoryNet",
     "PropertyPlantAndEquipmentNet",
     "Goodwill",
+    "NotesPayableRelatedPartiesNoncurrent",
+    "LongTermNotesPayable",
+    "ConvertibleNotesPayable",
     "LongTermDebt",
+    "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
     "CommercialPaper",
     "ShortTermBorrowings",
     "OperatingLeaseLiability",
@@ -72,23 +76,29 @@ _CASHFLOW_CONCEPTS = [
     "PaymentsToAcquirePropertyPlantAndEquipment",
     "PaymentsToAcquireProductiveAssets",
     "PaymentsOfDividends",
+    "PaymentsOfDividendsCommonStock",
+    "PaymentsOfOrdinaryDividends",
+    "AllocatedShareBasedCompensationExpense",
+    "ShareBasedCompensation",
+    "PaymentsForRepurchaseOfEquity",
+    "PaymentsForRepurchaseOfCommonStock",
 ]
 
 
-def _unmapped(concepts, ifrs_aliases, field_mapping):
+def _unmapped(concepts: list[str], ifrs_aliases: list[tuple[str, str]], field_mapping: dict[str, str]) -> list[str]:
     target_keys = {_to_snake(c) for c in concepts} | {alias_key for _, alias_key in ifrs_aliases}
     return sorted(target_keys - set(field_mapping.keys()))
 
 
 class TestFieldMappingCoversFetchedConcepts:
-    def test_income_statement_concepts_all_mapped(self):
+    def test_income_statement_concepts_all_mapped(self) -> None:
         unmapped = _unmapped(_INCOME_CONCEPTS, _INCOME_IFRS_ALIASES, _INCOME_FIELD_MAPPING)
         assert not unmapped, f"Fetched but unmapped income concepts (data silently dropped): {unmapped}"
 
-    def test_balance_sheet_concepts_all_mapped(self):
+    def test_balance_sheet_concepts_all_mapped(self) -> None:
         unmapped = _unmapped(_BALANCE_CONCEPTS, _BALANCE_IFRS_ALIASES, _BALANCE_FIELD_MAPPING)
         assert not unmapped, f"Fetched but unmapped balance sheet concepts (data silently dropped): {unmapped}"
 
-    def test_cash_flow_concepts_all_mapped(self):
+    def test_cash_flow_concepts_all_mapped(self) -> None:
         unmapped = _unmapped(_CASHFLOW_CONCEPTS, _CASHFLOW_IFRS_ALIASES, _CASHFLOW_FIELD_MAPPING)
         assert not unmapped, f"Fetched but unmapped cash flow concepts (data silently dropped): {unmapped}"
