@@ -19,6 +19,11 @@ distinguishable outcomes:
   - position value: $2,000
   - sum of open positions (old, wrong denominator): $10,000  -> 20% (flagged, > 6%)
   - total account equity (new, correct denominator): $72,000 -> 2.8% (not flagged)
+
+BUG FIX 2026-08-17: the patch target below used to be "algo.orchestrator.phase6_exit_execution.DatabaseContext" - the
+wrong location. See test_phase6_concentration_decimal_handling.py's matching fix docstring for
+why (phase6_exit_execution.py binds its own module-local DatabaseContext name at import time,
+so patching the original definition site never intercepted it).
 """
 
 from datetime import date as _date
@@ -49,6 +54,7 @@ def test_small_legit_position_not_flagged_against_account_equity():
     even though it would exceed the limit against the old (wrong) open-positions-sum."""
     mock_context = MagicMock()
     mock_cursor = MagicMock()
+    mock_cursor.rowcount = 0  # orphaned-trade cleanup DELETE (phase6_exit_execution.py) compares this to an int
     mock_context.__enter__ = MagicMock(return_value=mock_cursor)
     mock_context.__exit__ = MagicMock(return_value=None)
 
@@ -57,17 +63,19 @@ def test_small_legit_position_not_flagged_against_account_equity():
 
     mock_cursor.fetchone = MagicMock(
         side_effect=[
+            (0,),  # phase6_exit_execution's own orphaned-trade validation check, runs first
             (1, 0),  # COUNT(*), COUNT(NULL position_value) - one open position, no NULLs
             (total_account_equity,),  # algo_portfolio_snapshots.total_portfolio_value
         ]
     )
     mock_cursor.fetchall = MagicMock(
         side_effect=[
+            [],  # _check_sector_concentration runs first - no over-concentrated sectors
             [("pos_001", "XYZ", position_value)],  # all open positions, ordered by value desc
         ]
     )
 
-    with patch("utils.db.context.DatabaseContext", return_value=mock_context):
+    with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext", return_value=mock_context):
         with patch("algo.trading.ExitEngine"):
             result = phase6_run(
                 config=BASE_CONFIG,

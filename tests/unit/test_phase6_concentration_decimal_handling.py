@@ -6,10 +6,21 @@ Previous failure: "unsupported operand type(s) for -: 'decimal.Decimal' and 'flo
 when computing percentage calculations with database-returned Decimal types.
 
 These tests verify the Decimal->float conversion is working correctly.
+
+BUG FIX 2026-08-17: all `patch(...)` targets here used to be "utils.db.context.DatabaseContext"
+- the wrong location. algo/orchestrator/phase6_exit_execution.py does
+`from utils.db.context import DatabaseContext` (binding the name into its OWN module namespace
+at import time), so patching the original definition site never intercepted calls made as
+`DatabaseContext(...)` from inside that module - they silently used the real class, which then
+fell through to tests/conftest.py's global mock cursor (which doesn't special-case this file's
+exact position-concentration query), returning None where real Postgres never would and getting
+misread as "query returned NULL". Same bug class as tests/test_pooled_connections.py's
+get_db_connection patch-location fix. Patch the name where it's actually used instead.
 """
 
 from datetime import date as _date
 from decimal import Decimal
+from itertools import chain, repeat
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -49,6 +60,7 @@ class TestPhase6ConcentrationDecimalHandling:
         # Simulate concentration check query results with Decimal types
         # These are the EXACT types psycopg2 returns
         mock_cursor.execute = MagicMock()
+        mock_cursor.rowcount = 0  # orphaned-trade cleanup DELETE (phase6_exit_execution.py) compares this to an int
         mock_context.__enter__ = MagicMock(return_value=mock_cursor)
         mock_context.__exit__ = MagicMock(return_value=None)
 
@@ -88,7 +100,7 @@ class TestPhase6ConcentrationDecimalHandling:
         )
 
         # Run Phase 6
-        with patch("utils.db.context.DatabaseContext", return_value=mock_context):
+        with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext", return_value=mock_context):
             with patch("algo.trading.ExitEngine") as mock_engine:
                 mock_engine.return_value.exit_trade = MagicMock(return_value={"status": "ok"})
 
@@ -127,7 +139,7 @@ class TestPhase6ConcentrationDecimalHandling:
         mock_cursor.fetchone = MagicMock(return_value=(0,))
 
         # Run Phase 6
-        with patch("utils.db.context.DatabaseContext", return_value=mock_context):
+        with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext", return_value=mock_context):
             with patch("algo.trading.ExitEngine"):
                 # max_positions_per_sector as Decimal (like config.get() might return)
                 config = base_config.copy()
@@ -177,13 +189,26 @@ class TestPhase6ConcentrationDecimalHandling:
         assert exceed_amount == pytest.approx(2.5, rel=0.01)  # 8.5% - 6% = 2.5%
 
     def test_null_position_value_detection(self, base_config, mock_db_decimal_returns):
-        """Verify Phase 6 detects and halts on NULL position_value (data integrity check)."""
+        """Verify Phase 6 detects and halts on NULL position_value (data integrity check).
+
+        This is deliberate, not a bug: phase6_exit_execution.py's concentration-check callers
+        (lines ~861-897) only degrade (skip + log) on transient/recoverable RuntimeErrors, and
+        explicitly re-raise (halting all of Phase 6, including stop-loss/chandelier exits) when
+        the error message contains "CRITICAL" or "Data integrity" - the NULL-position_value
+        RuntimeError is raised with exactly that "[PHASE 6 CRITICAL] ... Data integrity" wording,
+        so it was deliberately chosen to halt rather than degrade. Concentration cannot be safely
+        assessed at all without every open position's value, so this isn't a "skip the bad row,
+        process the rest" situation the way most other concentration-check failures are.
+        """
         mock_context, mock_cursor = mock_db_decimal_returns
 
-        # Simulate data integrity issue: 1 position has NULL value
-        mock_cursor.fetchone = MagicMock(return_value=(5, 1))  # 5 total, 1 with NULL
+        # Simulate data integrity issue: 1 position has NULL value.
+        # First fetchone() call is phase6_exit_execution's own orphaned-trade validation
+        # check (runs before the concentration check this test targets) - must be 0 or
+        # it halts on "orphaned trade(s)" before ever reaching the NULL-position-value path.
+        mock_cursor.fetchone = MagicMock(side_effect=chain([(0,)], repeat((5, 1))))  # 5 total, 1 with NULL
 
-        with patch("utils.db.context.DatabaseContext", return_value=mock_context):
+        with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext", return_value=mock_context):
             # Phase 6 returns halted result, not raised exception
             result = phase6_run(
                 config=base_config,
@@ -195,11 +220,11 @@ class TestPhase6ConcentrationDecimalHandling:
                 position_recs=[],
                 exposure_actions=[],
             )
-            # Verify Phase 6 degrades gracefully instead of halting
-            # (NULL position values are skipped, not fatal)
+            # Concentration can't be assessed without every position's value - must halt,
+            # not degrade, so a bad row doesn't silently mask a real concentration breach.
             assert result is not None
-            # Should be degraded (not halted) - processes what it can, skips bad data
-            assert result.status in ("ok", "degraded")
+            assert result.status == "halted"
+            assert "NULL position_value" in result.data["reason"]
 
 
 class TestConfigValueValidation:
@@ -214,7 +239,7 @@ class TestConfigValueValidation:
             "max_positions_per_sector": 10,
         }
 
-        with patch("utils.db.context.DatabaseContext"):
+        with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext"):
             # Phase 6 returns halted result on config errors
             result = phase6_run(
                 config=config,
@@ -237,7 +262,7 @@ class TestConfigValueValidation:
             # Missing: max_positions_per_sector
         }
 
-        with patch("utils.db.context.DatabaseContext"):
+        with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext"):
             # Phase 6 returns halted result on config errors
             result = phase6_run(
                 config=config,
