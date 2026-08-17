@@ -489,12 +489,14 @@ export default StockScoreAccordion;
 // interest_coverage - each ~17% when all present, self-normalizing over whichever are
 // available), then adjusted +/-10 points by _enhance_quality_score using a separate set
 // of signals (margins_avg, earnings_growth_yoy, fcf_to_net_income, roic_pct,
-// ocf_to_net_income). debt_to_equity is NOT read anywhere in quality scoring at all -
-// it's a real input, but to the Financial Stability sub-score under the Stability tab
-// (_score_financial_stability, 30% of that sub-score's own internal weighting) - so its
-// weight badge here was attributing a real, live-used input to the wrong factor
-// entirely. ROIC/FCF-to-NI/OCF-to-NI are real inputs but are bounded +/- point
+// ocf_to_net_income). ROIC/FCF-to-NI/OCF-to-NI are real inputs but are bounded +/- point
 // adjustments, not proportional weights, hence the "adj" labels below instead of a %.
+//
+// CLEANUP 2026-08-16: debt_to_equity/current_ratio/quick_ratio/cash_per_share moved here
+// from the Stability tab - they're balance-sheet leverage/liquidity/cash metrics
+// (_score_financial_stability), not price-volatility signals, so they belong under
+// Quality. They now feed _enhance_quality_score as a bounded +/-3 adjustment (same
+// pattern as margins/ROIC/OCF above), not a proportional weight.
 const QUALITY_SCHEMA = [
   { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
@@ -505,13 +507,11 @@ const QUALITY_SCHEMA = [
   { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'interest_coverage',              label: 'Interest Coverage',        fmt: v => num(v, 2), used: true, weight: '~17%' },
-  // debt_to_assets legitimately feeds both quality_score (~17%, here) and
-  // _score_financial_stability (part of Stability's 20%, also shown on the Stability
-  // tab) - real dual-tab input, not a duplicate. debt_to_equity/current_ratio/
-  // quick_ratio/cash_per_share used to be listed here too but only do real weighted
-  // work on the Stability tab; showing them here was unweighted decoration duplicating
-  // that tab, so they were removed from Quality (20260816 field audit).
   { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v, 1), used: true, weight: '~17%' },
+  { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2), used: true, weight: '±3 adj' },
+  { key: 'current_ratio',                  label: 'Current Ratio',            fmt: v => num(v, 2), used: true, weight: '±3 adj' },
+  { key: 'quick_ratio',                    label: 'Quick Ratio',              fmt: v => num(v, 2), used: true, weight: '±3 adj' },
+  { key: 'cash_per_share',                 label: 'Cash / Share',             fmt: v => `$${num(v, 2)}`, used: true, weight: '±3 adj' },
   // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
   // tab (earnings_surprise_avg, eps_growth_stability, earnings_beat_rate,
   // consecutive_positive_quarters, free_cashflow, operating_cashflow, total_debt,
@@ -604,37 +604,24 @@ const POSITIONING_SCHEMA = [
 // FIXED 2026-08-04: volatility weight badges were stale vs. _score_stability's actual
 // constants (252d/"12M" 40% not 35%, 60D 20% not 18%, 30D 15% not 12%).
 //
-// FIXED 2026-08-04 (second pass): debt_to_assets/debt_to_equity/current_ratio/
-// quick_ratio/cash_per_share all feed _score_financial_stability, a sub-score that is
-// itself 20% of overall Stability (_score_stability) - not flat top-level weights, so
-// they're labeled "part of 20%" rather than a fabricated precise percentage (their
-// internal 30%/30%(avg of current+quick)/25%/15% split self-normalizes over whichever
-// of the four are present, same as every other self-normalizing weight group in this
-// file). debt_to_equity/current_ratio/quick_ratio/cash_per_share were previously only
-// surfaced under the Quality tab's quality_inputs (unweighted there too, since none of
-// them feed quality_score) and were completely absent from stability_inputs - added
-// server-side in lambda/api/routes/scores.py (already-selected columns, no new SQL).
-//
 // FIXED 2026-08-16: downside_volatility_60d/30d were computed and displayed but never
 // scored (only 252d was) - now wired into _score_stability at 0.075/0.05 (badges rounded
 // to 8%/5%, matching this file's round() convention), the same 40:20:15 ratio symmetric
 // volatility uses across its own 252d/60d/30d windows.
+//
+// CLEANUP 2026-08-16 (later): debt_to_assets/debt_to_equity/current_ratio/quick_ratio/
+// cash_per_share (Financial Stability sub-score) and revenue_concentration_hhi (Business
+// Diversification) removed - these are balance-sheet fundamentals and business
+// concentration, not price-volatility/risk-of-loss signals. The debt/liquidity/cash
+// metrics moved to the Quality tab (see QUALITY_SCHEMA above); revenue_concentration_hhi
+// was dropped from scoring entirely (not a stability signal) per user request.
 const STABILITY_SCHEMA = [
   { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '40%' },
   { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '20%' },
   { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '15%' },
   { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: 'part of 20%' },
-  { key: 'debt_to_equity',           label: 'Debt / Equity',        fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
-  { key: 'current_ratio',            label: 'Current Ratio',        fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
-  { key: 'quick_ratio',              label: 'Quick Ratio',          fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
-  { key: 'cash_per_share',           label: 'Cash / Share',         fmt: v => `$${num(v, 2)}`, used: true, weight: 'part of 20%' },
   { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2), used: true, weight: '15%' },
   { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2), used: true, weight: '8%' },
   { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2), used: true, weight: '10%' },
-  { key: 'revenue_concentration_hhi', label: 'Revenue Concentration (HHI)', fmt: v => v == null ? '—' : Math.round(v).toLocaleString(), used: true, weight: '10%' },
-  // segment_count/largest_segment_revenue_pct/is_diversified cut 20260816 (second pass) -
-  // unweighted reference fields (revenue_concentration_hhi above is the one that
-  // actually feeds stability_score).
 ];

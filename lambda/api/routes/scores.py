@@ -695,43 +695,16 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "max_drawdown_1y_unavailable_reason": data.get("max_drawdown_1y_unavailable_reason"),
                 "beta": data.get("beta_val"),
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
-                "debt_to_assets": data.get("debt_to_assets_val"),
-                "debt_to_assets_unavailable_reason": data.get("debt_to_assets_unavailable_reason"),
-                # FIXED 2026-08-04: debt_to_equity/current_ratio/quick_ratio/cash_per_share
-                # already feed _score_stability's Financial Stability sub-component
-                # (_score_financial_stability, loaders/load_stock_scores.py - 30%/30%(avg
-                # of current+quick)/15% of that sub-score's own weighting) but were only
-                # ever surfaced under quality_inputs, not stability_inputs - already
-                # selected in this same query (qm.debt_to_equity etc. above), so no new SQL
-                # needed. Real, live-used Stability inputs were invisible on the Stability tab.
-                "debt_to_equity": data.get("debt_to_equity"),
-                "debt_to_equity_unavailable_reason": data.get("debt_to_equity_unavailable_reason"),
-                "current_ratio": data.get("current_ratio_val"),
-                "current_ratio_unavailable_reason": data.get("current_ratio_unavailable_reason"),
-                "quick_ratio": data.get("quick_ratio_val"),
-                "quick_ratio_unavailable_reason": data.get("quick_ratio_unavailable_reason"),
-                "cash_per_share": data.get("cash_per_share"),
-                "cash_per_share_unavailable_reason": data.get("cash_per_share_unavailable_reason"),
-                # sec_segment_metrics (real XBRL segment disclosures) already feeds
-                # _score_stability's 0.10-weight diversification sub-component
-                # (loaders/load_stock_scores.py) but was never surfaced here - the input
-                # was used in scoring while being completely invisible on the page.
-                "revenue_concentration_hhi": data.get("segment_revenue_concentration_hhi"),
+                # CLEANUP 2026-08-16: debt_to_assets/debt_to_equity/current_ratio/quick_ratio/
+                # cash_per_share (Financial Stability) and revenue_concentration_hhi (Business
+                # Diversification) removed from here - no longer scored under Stability
+                # (see loaders/load_stock_scores.py _score_stability). The debt/liquidity/cash
+                # metrics now live under quality_inputs instead; revenue_concentration_hhi was
+                # dropped from scoring entirely. segment_count/largest_segment_revenue_pct/
+                # is_diversified below were always unweighted reference fields, kept as-is.
                 "segment_count": data.get("segment_count"),
                 "largest_segment_revenue_pct": data.get("largest_segment_revenue_pct"),
                 "is_diversified": data.get("is_diversified"),
-                # Segment fields all come from the same sec_segment_metrics row, so they
-                # share one reason - but each was only wired to revenue_concentration_hhi,
-                # not to segment_count/largest_segment_revenue_pct/is_diversified. Those 3
-                # rendered as a bare, unexplained "No data" on the Stability tab even though
-                # the real reason (e.g. no_segment_disclosure, no_computable_segment_metrics)
-                # was sitting right there in segm.reason - looked like a loader gap when it
-                # was actually just an unwired API field.
-                "revenue_concentration_hhi_unavailable_reason": (
-                    data.get("segment_unavailable_reason")
-                    if data.get("segment_revenue_concentration_hhi") is None
-                    else None
-                ),
                 "segment_count_unavailable_reason": (
                     data.get("segment_unavailable_reason") if data.get("segment_count") is None else None
                 ),
@@ -1499,27 +1472,11 @@ def _get_stock_scores(  # noqa: C901
                 "max_drawdown_1y_unavailable_reason": d.get("max_drawdown_1y_unavailable_reason"),
                 "beta": d.get("beta_val"),
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
-                "debt_to_assets": d.get("debt_to_assets_val"),
-                "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
-                # FIXED 2026-08-04: same "invisible Financial Stability inputs" fix as the
-                # other stability_inputs block above - see that comment for details.
-                "debt_to_equity": d.get("debt_to_equity"),
-                "debt_to_equity_unavailable_reason": d.get("debt_to_equity_unavailable_reason"),
-                "current_ratio": d.get("current_ratio_val"),
-                "current_ratio_unavailable_reason": d.get("current_ratio_unavailable_reason"),
-                "quick_ratio": d.get("quick_ratio_val"),
-                "quick_ratio_unavailable_reason": d.get("quick_ratio_unavailable_reason"),
-                "cash_per_share": d.get("cash_per_share"),
-                "cash_per_share_unavailable_reason": d.get("cash_per_share_unavailable_reason"),
-                "revenue_concentration_hhi": d.get("segment_revenue_concentration_hhi"),
+                # CLEANUP 2026-08-16: same "moved to Quality" cleanup as the other
+                # stability_inputs block above - see that comment for details.
                 "segment_count": d.get("segment_count"),
                 "largest_segment_revenue_pct": d.get("largest_segment_revenue_pct"),
                 "is_diversified": d.get("is_diversified"),
-                # See matching comment in _get_stock_details - same reason applies to all 4
-                # segment fields, but was only wired to revenue_concentration_hhi.
-                "revenue_concentration_hhi_unavailable_reason": (
-                    d.get("segment_unavailable_reason") if d.get("segment_revenue_concentration_hhi") is None else None
-                ),
                 "segment_count_unavailable_reason": (
                     d.get("segment_unavailable_reason") if d.get("segment_count") is None else None
                 ),

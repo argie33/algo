@@ -359,8 +359,11 @@ class StockScoresLoader(OptimalLoader):
             # exist on stability_metrics (same table, no new migration needed) - the two weight
             # slots were dead in every real score since that fix landed. Same bug class as
             # [[momentum_score_sma_dead_weight_fix_20260816]].
+            # CLEANUP 2026-08-16 (later): debt_to_assets dropped from this SELECT - Stability no
+            # longer scores it (moved to Quality, which reads its own debt_to_assets directly
+            # from quality_metrics), so fetching it here was dead weight.
             cur.execute(
-                "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, debt_to_assets, "
+                "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, "
                 "downside_volatility_252d, downside_volatility_60d, downside_volatility_30d, max_drawdown_1y, "
                 "data_unavailable "
                 "FROM stability_metrics"
@@ -395,15 +398,6 @@ class StockScoresLoader(OptimalLoader):
                 "FROM technical_data_daily ORDER BY symbol, date DESC"
             )
             self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
-
-            # Business segment concentration (Herfindahl index of revenue by segment), computed
-            # from real XBRL segment disclosures. Was written to sec_segment_metrics but never
-            # read by anything - a fully-built, live-verified input sitting unused. Folded into
-            # stability scoring as a minor sub-weight (same pattern as the debt_to_assets fix
-            # above), not a new top-level factor, since it's a slower-moving structural signal
-            # of the same "business risk" character as the existing financial-stability slot.
-            cur.execute("SELECT symbol, revenue_concentration_hhi, data_unavailable FROM sec_segment_metrics")
-            self._segment_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
@@ -498,17 +492,6 @@ class StockScoresLoader(OptimalLoader):
                 positioning = self._get_positioning_metrics(cur, symbol)
                 stability = self._get_stability_metrics(cur, symbol)
                 momentum = self._get_momentum_metrics(cur, symbol)
-
-            # Merge debt_to_assets from quality into stability metrics for solvency scoring
-            if stability and quality and quality.get("debt_to_assets") is not None:
-                dta = quality.get("debt_to_assets")
-                if not isinstance(dta, (int, float)) or isinstance(dta, bool):
-                    logger.warning(
-                        f"[STOCK_SCORES] {symbol}: debt_to_assets from quality is {type(dta).__name__} "
-                        f"(expected float). Not merging invalid value into stability."
-                    )
-                else:
-                    stability["debt_to_assets"] = dta
 
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return float or dict (marker when data unavailable)
@@ -1106,9 +1089,10 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 6 columns (volatility_252d, volatility_60d,
-          volatility_30d, beta, debt_to_assets, data_unavailable)
-        - Schema mismatch (len(row) < 6) → raises ValueError immediately
+        - Row length validation: Must have 9 columns (volatility_252d, volatility_60d,
+          volatility_30d, beta, downside_volatility_252d/60d/30d, max_drawdown_1y,
+          data_unavailable)
+        - Schema mismatch (len(row) < 9) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_stability_metrics_found"
@@ -1120,36 +1104,29 @@ class StockScoresLoader(OptimalLoader):
         CRITICAL FIX 2026-07-03: Now uses safe_float() for all numeric fields to detect
         data corruption. Previous inline float() bypassed error handling.
 
-        CRITICAL FIX 2026-07-20: debt_to_assets added. _score_stability has always had a
-        10%-weight slot for it, but no loader wrote stability_metrics.debt_to_assets (0/7155
-        rows) and this SELECT never even fetched it - the weight bucket was permanently dead.
-        load_risk_metrics_daily.py now populates it from quality_metrics.debt_to_assets.
-
         FIX 2026-08-16: downside_volatility_60d/30d now included (columns already existed on
-        stability_metrics, just never selected - see the cache-building query's comment), and
-        debt_to_equity/current_ratio/quick_ratio/cash_per_share are now merged in from
-        self._quality_cache. _score_financial_stability (called by _score_stability for its
-        20%-weighted Financial Stability sub-score) has always read all 4 of these keys, but
-        this function never supplied them - debt_to_equity (30% of that sub-score),
-        current/quick ratio (30% combined liquidity), and cash_per_share (15%) were dead in
-        every real score; only debt_to_assets (25%) could ever fire. Same "displayed/scored in
-        code but never fetched" bug class as [[momentum_score_sma_dead_weight_fix_20260816]].
-        These 4 fields live on quality_metrics, not stability_metrics (confirmed via
-        information_schema), which is exactly why this table's own SELECT could never have
-        supplied them - reuses the already-loaded quality cache instead of a second query.
+        stability_metrics, just never selected - see the cache-building query's comment).
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 6 columns. Missing columns causes immediate
+        CLEANUP 2026-08-16 (later): debt_to_assets/debt_to_equity/current_ratio/quick_ratio/
+        cash_per_share (fundamental leverage/liquidity metrics) and revenue_concentration_hhi
+        (business diversification) are no longer merged in here - stability is meant to track
+        price-volatility/risk-of-loss character, not balance-sheet fundamentals. The debt/
+        liquidity/cash metrics now feed Quality's _enhance_quality_score instead (see
+        _score_financial_stability, called from there); revenue_concentration_hhi was dropped
+        from scoring entirely per user request (not a stability signal).
+
+        MINIMUM DATA REQUIREMENT: Row must have exactly 9 columns. Missing columns causes immediate
         fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
         row = self._stability_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 10 columns before accessing indices
-            if len(row) < 10:
+            # CRITICAL: Validate row has expected 9 columns before accessing indices
+            if len(row) < 9:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 10. "
+                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 9. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[9]
+            data_unavailable = row[8]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1163,23 +1140,11 @@ class StockScoresLoader(OptimalLoader):
                 "volatility_60d": safe_float(row[1], f"{symbol}.volatility_60d"),
                 "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
                 "beta": safe_float(row[3], f"{symbol}.beta"),
-                "debt_to_assets": safe_float(row[4], f"{symbol}.debt_to_assets", allow_none=True),
-                "downside_volatility_252d": safe_float(row[5], f"{symbol}.downside_volatility_252d", allow_none=True),
-                "downside_volatility_60d": safe_float(row[6], f"{symbol}.downside_volatility_60d", allow_none=True),
-                "downside_volatility_30d": safe_float(row[7], f"{symbol}.downside_volatility_30d", allow_none=True),
-                "max_drawdown_1y": safe_float(row[8], f"{symbol}.max_drawdown_1y", allow_none=True),
+                "downside_volatility_252d": safe_float(row[4], f"{symbol}.downside_volatility_252d", allow_none=True),
+                "downside_volatility_60d": safe_float(row[5], f"{symbol}.downside_volatility_60d", allow_none=True),
+                "downside_volatility_30d": safe_float(row[6], f"{symbol}.downside_volatility_30d", allow_none=True),
+                "max_drawdown_1y": safe_float(row[7], f"{symbol}.max_drawdown_1y", allow_none=True),
             }
-            quality_row = self._quality_cache.get(symbol)
-            if quality_row:
-                metrics["debt_to_equity"] = safe_float(quality_row[4], f"{symbol}.debt_to_equity", allow_none=True)
-                metrics["current_ratio"] = safe_float(quality_row[5], f"{symbol}.current_ratio", allow_none=True)
-                metrics["quick_ratio"] = safe_float(quality_row[6], f"{symbol}.quick_ratio", allow_none=True)
-                metrics["cash_per_share"] = safe_float(quality_row[20], f"{symbol}.cash_per_share", allow_none=True)
-            segment_row = self._segment_cache.get(symbol)
-            if segment_row and not segment_row[1]:
-                metrics["revenue_concentration_hhi"] = safe_float(
-                    segment_row[0], f"{symbol}.revenue_concentration_hhi", allow_none=True
-                )
             return metrics
         # No row exists at all
         logger.warning(
@@ -1321,6 +1286,16 @@ class StockScoresLoader(OptimalLoader):
 
         Adjusts base score by ±10% based on margin trends and earnings growth (Phase 3).
         Keeps existing quality_score as foundation; uses new metrics for refinement.
+
+        CLEANUP 2026-08-16: Financial Stability (debt-to-equity, current/quick ratio, cash
+        per share, debt-to-assets - _score_financial_stability) moved here from Stability's
+        _score_stability, where it was a 20%-weighted sub-score. These are balance-sheet
+        fundamentals (leverage/liquidity/solvency), not price-volatility signals, so they
+        belong under Quality. debt_to_assets already feeds the base quality_score (~17%,
+        computed upstream in load_value_quality_growth_metrics.py) - this adjustment adds
+        the remaining leverage/liquidity/cash signals on top, same bounded-adjustment
+        pattern as the margin/ROIC/OCF adjustments below rather than a new proportional
+        weight slot.
         """
         adjustment = 0.0
 
@@ -1374,6 +1349,18 @@ class StockScoresLoader(OptimalLoader):
                 adjustment += 2.0
             elif ocf_to_ni < 0.7:
                 adjustment -= 2.0
+
+        # Financial stability (leverage/liquidity/cash): moved from Stability's factor
+        # score (see CLEANUP 2026-08-16 note above). _score_financial_stability blends
+        # debt_to_equity/debt_to_assets/current_ratio/quick_ratio/cash_per_share into a
+        # single 0-100 solvency read; treated as a bounded adjustment here, same shape as
+        # the other signals in this method.
+        fin_stability_score = self._score_financial_stability(metrics, symbol)
+        if fin_stability_score is not None:
+            if fin_stability_score >= 70:
+                adjustment += 3.0
+            elif fin_stability_score < 40:
+                adjustment -= 3.0
 
         # Clamp adjustment to ±10 points and apply to base score
         adjustment = max(-10.0, min(10.0, adjustment))
@@ -1815,25 +1802,22 @@ class StockScoresLoader(OptimalLoader):
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_scores_computed"}
 
     def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
-        """Score stability metrics on 0-100 scale using price volatility + financial stability (Phase 8).
+        """Score stability metrics on 0-100 scale using price volatility / risk-of-loss signals only.
 
         Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)
-        + Beta (15%) + Financial Stability (20%, Phase 3 metrics) + Business Diversification
-        (10%, revenue concentration HHI from XBRL segment disclosures, when available)
-        + Downside Volatility 252d/60d/30d (15%/7.5%/5%, purer "risk of loss" signal). Lower
-        volatility and beta closer to 1.0 indicate stable, market-correlated stocks. Financial
-        stability combines debt ratios, liquidity (current/quick ratios), and cash position for
-        solvency assessment. Weights are relative, not required to sum to 100 - each present
+        + Beta (15%) + Downside Volatility 252d/60d/30d (15%/7.5%/5%, purer "risk of loss" signal)
+        + Max Drawdown 1y (10%). Lower volatility and beta closer to 1.0 indicate stable,
+        market-correlated stocks. Weights are relative, not required to sum to 100 - each present
         sub-component contributes weighted_sum/total_weight (self-normalizing over whatever
         metrics are actually available for a symbol, per GOVERNANCE's no-redistribution rule at
         the top-level factor split; this renormalization is local to stability's own sub-scores).
 
-        Phase 3 Enhancement: Financial Stability component now uses:
-        - Debt-to-equity ratio (leverage alternative)
-        - Current ratio (working capital adequacy)
-        - Quick ratio (more conservative liquidity)
-        - Cash per share (absolute cash cushion)
-        - Debt-to-assets (solvency) as fallback
+        CLEANUP 2026-08-16: Financial Stability (debt-to-equity, debt-to-assets, current/quick
+        ratio, cash per share) and Business Diversification (revenue concentration HHI) were
+        removed from this factor - stability is meant to track price-volatility/risk-of-loss
+        character, not balance-sheet fundamentals or business concentration. The debt/liquidity/
+        cash metrics now feed Quality instead (see _enhance_quality_score); revenue concentration
+        HHI was dropped from scoring entirely per user request.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 stability field → returns float (0-100)
@@ -1907,30 +1891,6 @@ class StockScoresLoader(OptimalLoader):
             beta_score = max(0, 100 - (diff * 50))
             weighted_sum += beta_score * 0.15
             total_weight += 0.15
-
-        # Financial Stability (Phase 3 enhancement): Combines debt ratios + liquidity + cash position
-        # Uses debt_to_equity, current_ratio, quick_ratio, cash_per_share, debt_to_assets
-        fin_stability_score = self._score_financial_stability(metrics, symbol)
-        if fin_stability_score is not None:
-            weighted_sum += fin_stability_score * 0.20
-            total_weight += 0.20
-
-        # Business diversification (revenue concentration HHI from real XBRL segment
-        # disclosures, 0-10000 scale per standard antitrust convention: <1500 competitive/
-        # diversified, 1500-2500 moderate, >2500 concentrated, 10000 = single segment).
-        # Small weight (0.10) since most healthy companies legitimately report a single
-        # segment - this penalizes concentration gently as a secondary risk signal, not a
-        # verdict on business quality.
-        if metrics.get("revenue_concentration_hhi") is not None:
-            hhi = max(0.0, metrics["revenue_concentration_hhi"])
-            if hhi <= 1500:
-                diversification_score = 100.0
-            elif hhi <= 2500:
-                diversification_score = 100.0 - ((hhi - 1500) / 1000) * 20  # 100->80
-            else:
-                diversification_score = max(50.0, 80.0 - ((hhi - 2500) / 7500) * 30)  # 80->50
-            weighted_sum += diversification_score * 0.10
-            total_weight += 0.10
 
         # Downside deviation (252d/60d/30d): only penalizes downside price moves, unlike the
         # symmetric volatility_* above which penalizes upside moves equally - a purer
@@ -2047,12 +2007,14 @@ class StockScoresLoader(OptimalLoader):
         return (cps / 10) * 60
 
     def _score_financial_stability(self, metrics: dict[str, Any], symbol: str) -> float | None:
-        """Score financial stability using Phase 3 debt/liquidity metrics.
+        """Score financial stability (leverage/liquidity/solvency) using Phase 3 debt metrics.
 
         Combines: Debt-to-equity (30%) + Debt-to-assets (25%) + Liquidity (current/quick ratio, 30%)
-        + Cash position (15%). Returns None if no financial metrics available (use price volatility/beta only).
+        + Cash position (15%). Returns None if no financial metrics available.
 
-        Session 359: Phase 8 enhancement - adds financial solvency scoring to complement price volatility.
+        Session 359: Phase 8 enhancement - adds financial solvency scoring. CLEANUP 2026-08-16:
+        called from _enhance_quality_score (Quality) instead of _score_stability - these are
+        balance-sheet fundamentals, not price-volatility signals, so they belong under Quality.
         """
         components: list[tuple[float, float]] = []  # (score, weight) pairs
 

@@ -96,7 +96,6 @@ class TestStabilityScoreWeightBadges:
             "dvol60_score": "downside_volatility_60d",
             "dvol30_score": "downside_volatility_30d",
             "dd_score": "max_drawdown_1y",
-            "diversification_score": "revenue_concentration_hhi",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
