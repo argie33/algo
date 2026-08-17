@@ -73,21 +73,34 @@ FRESHNESS_RULES = {
     },
     "algo_portfolio_snapshots": {
         "critical": True,
-        "max_age_days": 1,
+        # BUG FIX 2026-08-16: was 1. data_loader_status.stale_threshold_days (set by the
+        # loader itself) is 2 for this table, but lambda/api/routes/algo_handlers/market.py's
+        # _get_data_status() only falls back to that DB value when a table is ABSENT from
+        # FRESHNESS_RULES - since this table IS present, its own max_age_days=1 silently
+        # overrode the loader's 2, forcing it into the raw elapsed-hours (24h/48h) branch
+        # instead of the trading-day-aware _is_stale_by_trading_days() branch (max_age>1)
+        # that was built and tested specifically for this table. Result: correct Friday data
+        # showed CRIT STALE every weekend despite the trading-day fix already existing.
+        # Matches stale_threshold_days=2 and tests/unit/test_data_status_weekend_trading_day_staleness.py.
+        "max_age_days": 2,
         "description": "Daily portfolio value, returns, P&L tracking",
         "purpose": "Equity curve, Sharpe/Sortino, max drawdown, portfolio monitoring",
         "applies_to": ["orchestrator_phase1", "dashboard", "api"],
     },
     "algo_performance_daily": {
         "critical": True,
-        "max_age_days": 1,
+        # BUG FIX 2026-08-16: see algo_portfolio_snapshots above - same class of bug, same
+        # DB-configured stale_threshold_days=2 was being silently overridden by this 1.
+        "max_age_days": 2,
         "description": "Pre-computed performance metrics (win_rate, sharpe, drawdown)",
         "purpose": "Dashboard display, circuit breaker thresholds, performance reporting",
         "applies_to": ["orchestrator_phase2", "dashboard", "api"],
     },
     "algo_risk_daily": {
         "critical": True,
-        "max_age_days": 1,
+        # BUG FIX 2026-08-16: see algo_portfolio_snapshots above - same class of bug, same
+        # DB-configured stale_threshold_days=2 was being silently overridden by this 1.
+        "max_age_days": 2,
         "description": "Risk metrics (VaR, CVaR, portfolio beta, concentration)",
         "purpose": "Risk dashboard, position risk calculations",
         "applies_to": ["dashboard", "api"],
@@ -109,14 +122,18 @@ FRESHNESS_RULES = {
     },
     "market_health_daily": {
         "critical": True,
-        "max_age_days": 1,
+        # BUG FIX 2026-08-16: see algo_portfolio_snapshots above - same class of bug, same
+        # DB-configured stale_threshold_days=2 was being silently overridden by this 1.
+        "max_age_days": 2,
         "description": "Market regime (VIX, yield curve, market stage, breadth)",
         "purpose": "Circuit breakers, exposure limits, trading regime",
         "applies_to": ["orchestrator_phase2", "dashboard", "api"],
     },
     "market_exposure_daily": {
         "critical": True,
-        "max_age_days": 1,
+        # BUG FIX 2026-08-16: see algo_portfolio_snapshots above - same class of bug, same
+        # DB-configured stale_threshold_days=2 was being silently overridden by this 1.
+        "max_age_days": 2,
         "description": "Market exposure (long/short %, sector allocation)",
         "purpose": "Position monitoring, exposure policy enforcement",
         "applies_to": ["orchestrator_phase3b", "dashboard"],
@@ -266,7 +283,13 @@ FRESHNESS_RULES = {
     },
     "algo_metrics_daily": {
         "critical": False,
-        "max_age_days": 1,
+        # BUG FIX 2026-08-16: same class as algo_portfolio_snapshots above - was 1, silently
+        # overriding data_loader_status.stale_threshold_days=7 (set by this table's own
+        # loader). Ground-truth-verified live: max(date) was the correct, current Friday
+        # trading day, but max_age_days=1 forced this table through _get_data_status()'s raw
+        # elapsed-hours (24h/48h) branch instead of the trading-day-aware one, false-flagging
+        # it stale every weekend. 7 matches the DB value the loader itself declares.
+        "max_age_days": 7,
         "description": "Daily algorithm performance metrics",
         "purpose": "Performance tracking, P&L analysis",
         "applies_to": ["orchestrator_phase7", "dashboard", "data_patrol"],

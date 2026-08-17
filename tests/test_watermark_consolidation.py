@@ -55,10 +55,21 @@ class TestWatermarkConsolidation:
 
     def test_freshness_rule_thresholds(self):
         """Verify threshold values are reasonable."""
-        # Critical tables should have tight thresholds (1 day)
-        for table in ["price_daily", "algo_portfolio_snapshots", "market_health_daily"]:
+        # price_daily updates intraday-sensitive; keep the tightest 1-day threshold.
+        price_rule = get_freshness_rule("price_daily")
+        assert price_rule["max_age_days"] <= 1, "price_daily critical, should have 1d or tighter threshold"
+
+        # BUG FIX 2026-08-16: algo_portfolio_snapshots/market_health_daily (and their siblings
+        # algo_performance_daily/algo_risk_daily/market_exposure_daily) intentionally use 2, not
+        # 1 - matching data_loader_status.stale_threshold_days (set by their own loaders) and
+        # routing them through _get_data_status()'s trading-day-aware _is_stale_by_trading_days()
+        # branch (max_age>1) instead of its raw elapsed-hours (24h/48h) branch, which false-flagged
+        # correct Friday data as CRIT STALE every weekend. See
+        # tests/unit/test_data_status_weekend_trading_day_staleness.py for the dedicated regression
+        # test. "Tight" for these tables means "no more than 1 missed trading day", not "1 calendar day".
+        for table in ["algo_portfolio_snapshots", "market_health_daily"]:
             rule = get_freshness_rule(table)
-            assert rule["max_age_days"] <= 1, f"{table} critical, should have 1d or tighter threshold"
+            assert rule["max_age_days"] <= 2, f"{table} critical, should have 2d or tighter trading-day threshold"
 
         # trend_template_data: non-critical but still regularly refreshed (7-day tolerance)
         trend_rule = get_freshness_rule("trend_template_data")
