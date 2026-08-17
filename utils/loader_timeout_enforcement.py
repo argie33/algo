@@ -58,8 +58,8 @@ def loader_timeout_context(loader_name: str, timeout_seconds: int | None = None)
     try:
         # Try to set up signal-based timeout (Unix only)
         try:
-            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)  # type: ignore[attr-defined]
-            signal.alarm(timeout)  # type: ignore[attr-defined]
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(timeout)
             logger.info(f"[LOADER_TIMEOUT] {loader_name}: timeout enforcement enabled ({timeout}s max)")
         except (AttributeError, ValueError):
             # Windows or signal already set - use time-based fallback only
@@ -72,7 +72,7 @@ def loader_timeout_context(loader_name: str, timeout_seconds: int | None = None)
         finally:
             elapsed = time.time() - start_time
             try:
-                signal.alarm(0)  # type: ignore[attr-defined]
+                signal.alarm(0)
             except (AttributeError, ValueError):
                 pass
             if elapsed > timeout * 0.8:  # Warn if used 80%+ of timeout
@@ -84,7 +84,7 @@ def loader_timeout_context(loader_name: str, timeout_seconds: int | None = None)
     finally:
         if old_handler is not None:
             try:
-                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
+                signal.signal(signal.SIGALRM, old_handler)
             except (AttributeError, ValueError):
                 pass
 

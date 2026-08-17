@@ -45,6 +45,12 @@ dashboard = ["*.py", "**/*.py"]
 
 [tool.mypy]
 python_version = "3.11"
+# Pinned to the real deploy target (Lambda/ECS = Linux), not the host OS mypy happens to run
+# on. Without this, Unix-only stdlib attrs (signal.SIGALRM, signal.alarm) resolve against
+# whichever platform's stubs the developer's machine implies, so a `# type: ignore[attr-defined]`
+# needed on Windows (attr genuinely missing there) reads as a dead "unused-ignore" error on
+# Linux (attr exists there) - exactly the CI-vs-Windows-dev split that broke CI 2026-08-16.
+platform = "linux"
 # lambda/api is added to sys.path at runtime (see lambda/api/dev_server.py's
 # sys.path.insert), which is how "from routes.xxx import ..." resolves in
 # lambda/api/routes/**. Without this, mypy can't find the routes package,
