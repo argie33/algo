@@ -201,6 +201,11 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
             "mortgage": mortgage,
             "umcsent": umcsent,
             "timestamp": datetime.now(ET),
+            # Server-computed freshness of economic_data (see lambda/api/routes/economic.py's
+            # _get_leading_indicators) - NOT derived from "timestamp" above, which is only this
+            # fetch's local clock time and can't detect genuinely stale underlying FRED data.
+            # Same fix as fetch_market()/fetch_positions().
+            "data_freshness": ind_data.get("data_freshness") if isinstance(ind_data, dict) else None,
         }
     except Exception as e:
         from dashboard.fetcher_validator import FetcherValidator

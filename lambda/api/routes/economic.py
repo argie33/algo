@@ -442,7 +442,16 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                     "Economic indicators validation failed (internal error: no message)",
                 )
 
-        return json_response(200, result)
+        # BUG FOUND 2026-08-17: this endpoint never computed a real freshness signal, so the
+        # dashboard's ECONOMIC panel (dashboard/panels/economic.py) fell back to self-computing
+        # "age" from fetch_economic_pulse()'s own datetime.now(ET) fetch timestamp - always ~0s
+        # old regardless of how stale the underlying FRED data actually is. Same bug class as
+        # MARKET/TRADES/SIGNALS/SCORES/EXPOSURE tonight. warning_days=7 matches this table's
+        # already-configured data_loader_status.stale_threshold_days (FRED series have mixed
+        # weekly/monthly/quarterly cadences, so a 1-day threshold would false-alarm constantly).
+        freshness = check_data_freshness(cur, "economic_data", "date", warning_days=7)
+
+        return json_response(200, result, data_freshness=freshness)
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -661,7 +670,10 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
                     500, "response_validation_error", "Yield curve validation failed (internal error: no message)"
                 )
 
-        return json_response(200, result)
+        # Same fix as _get_leading_indicators above - see that comment for detail.
+        freshness = check_data_freshness(cur, "economic_data", "date", warning_days=7)
+
+        return json_response(200, result, data_freshness=freshness)
 
     except (
         psycopg2.errors.UndefinedTable,
