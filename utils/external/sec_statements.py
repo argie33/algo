@@ -190,6 +190,21 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "PropertyPlantAndEquipmentNet",
         "Goodwill",
         "LongTermDebt",
+        # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt instruments -
+        # LongTermDebt only covers long-term borrowings (including their current portion for
+        # most filers, e.g. AAPL's LongTermDebt = LongTermDebtNoncurrent +
+        # LongTermDebtCurrent), never commercial paper or short-term notes payable. Live-
+        # confirmed via AAPL's real companyfacts JSON: CommercialPaper FY2025 = $7.98B, a
+        # real, separate debt instrument not captured by any concept fetched above - this was
+        # previously entirely missing from total_debt, on top of the separate total_debt
+        # mislabeling bug fixed the same session (see load_sec_valuations.py). Both target
+        # the same short_term_debt column (loader-side sum, not an alias collision - a filer
+        # reporting both concepts in different fiscal years would incorrectly overwrite via
+        # the same "last-listed wins" convention as elsewhere in this file, but live-checked
+        # AAPL only ever reports CommercialPaper, never both, so this is not yet a live
+        # collision case).
+        "CommercialPaper",
+        "ShortTermBorrowings",
     ]
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
 

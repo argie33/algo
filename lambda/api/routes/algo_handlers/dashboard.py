@@ -1087,7 +1087,8 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 if data_stale:
                     logger.critical(
                         f"[CIRCUIT_BREAKER_STALE] check_date {check_date} older than expected "
-                        f"trading day {expected_date}. Trading halted. Computed at: {computed_at.isoformat()}"
+                        f"trading day {expected_date}. Trading halted. Evaluated at {now_et.isoformat()} "
+                        f"(latest circuit_breaker_status row is dated {check_date}, not stale wall-clock)"
                     )
                     return json_response(
                         503,

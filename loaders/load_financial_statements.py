@@ -273,6 +273,13 @@ _BALANCE_FIELD_MAPPING = {
     "property_plant_and_equipment_net": "ppe_net",
     "goodwill": "goodwill",
     "long_term_debt": "long_term_debt",
+    # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
+    # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
+    # alone (the only debt concept fetched before this fix) misses commercial paper/short-term
+    # notes payable. Companion fix to load_sec_valuations.py's total_debt mislabeling bug
+    # (was reading total_liabilities, not any debt concept at all).
+    "commercial_paper": "short_term_debt",
+    "short_term_borrowings": "short_term_debt",
     **_MARKER_FIELDS,
 }
 
@@ -455,6 +462,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "ppe_net",
                     "goodwill",
                     "long_term_debt",
+                    "short_term_debt",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -483,6 +491,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "ppe_net",
                     "goodwill",
                     "long_term_debt",
+                    "short_term_debt",
                     "created_at",
                     "data_unavailable",
                     "reason",

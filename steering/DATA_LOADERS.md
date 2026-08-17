@@ -4,6 +4,57 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-08-17: sec_valuations.total_debt was total_liabilities the entire time, not any debt concept
+
+Continuation of the loader-review goal ("getting all the data we can and should from SEC XBRL
+the right way"). `load_sec_valuations.py`'s enterprise-value query has, since the EV-metrics
+feature was first added, selected `total_liabilities` (not any debt-specific column) and stored
+it directly as `total_debt` - so every consumer of `sec_valuations.total_debt` (enterprise_value,
+ev_ebitda, ev_revenue, and `load_value_quality_growth_metrics.py`'s `debt_for_roic`, which
+explicitly documents itself as "the real number, 81% available" preferred over this same table's
+own `long_term_debt` column) was actually consuming total liabilities - every accounts payable
+dollar, deferred-revenue dollar, pension liability, and operating lease, not interest-bearing
+debt.
+
+Live-confirmed against real SEC EDGAR data and the local DB, not just the code: AAPL FY2025 real
+`LongTermDebt` = $90.7B; `sec_valuations.total_debt` = $285.5B, exactly matching
+`annual_balance_sheet.total_liabilities` for that fiscal year (~3.1x overstatement). Same exact
+match (old `total_debt` == that year's `total_liabilities`, to the dollar) reconfirmed for
+MSFT ($315.99B), GOOGL ($281.5B), and F ($244.95B). This inflated enterprise_value/ev_ebitda/
+ev_revenue and understated roic_pct (via an artificially bloated invested_capital) for the whole
+universe, silently, since the feature shipped - notably, `load_value_quality_growth_metrics.py`'s
+own ROIC code already correctly rejected a cruder `total_liabilities - current_liabilities` debt
+estimate in an earlier session with the comment "that includes non-debt liabilities... not a real
+total debt figure" - it just never noticed `total_debt_ev`, the value it was preferring instead,
+had the identical problem one layer removed (no `- current_liabilities` subtraction, so actually
+worse).
+
+**Fixed:** `load_sec_valuations.py`'s debt query now reads `long_term_debt` +
+`short_term_debt` (migration 1204 adds `short_term_debt` to `annual_balance_sheet`/
+`quarterly_balance_sheet` - `CommercialPaper`/`ShortTermBorrowings` XBRL concepts, wired into
+`sec_statements.py`'s `get_balance_sheet()` and `load_financial_statements.py`'s field_mapping;
+live-confirmed real AAPL FY2025 `CommercialPaper` = $7.98B, a genuine short-term debt instrument
+`LongTermDebt` alone never captured). NULL when neither component is present - no fabricated $0
+default, matching this codebase's existing fail-fast/no-guessing convention. New regression test
+`tests/unit/test_sec_valuations_total_debt_not_total_liabilities.py` (mocks the DB layer;
+confirmed fail-before/pass-after via `git stash` on the loader file alone - the pre-fix 2-column
+unpack crashes against the new 3-column debt row shape this test's fixtures use).
+
+**Not yet live-verified end-to-end against a full-universe run** (no scheduled loader run
+triggered this session) - the fix is code + migration + unit-tested only. `long_term_debt`
+coverage itself is real but partial (~58% of symbols ever report it, per a live DB count this
+session: 3,412/5,852) - some real gaps remain for filers that tag debt under neither `LongTermDebt`
+nor the two new short-term concepts (live-confirmed GOOGL's own `long_term_debt` column is
+inconsistently populated across recent fiscal years despite GOOGL genuinely reporting
+`LongTermDebt` to SEC every year - a separate, not-yet-diagnosed extraction gap, not something
+this fix introduces or claims to solve). Those symbols now correctly get `total_debt_unavailable`
+instead of a wrong number, which is the right failure mode per this codebase's own governance,
+but is not the same as full coverage - a future session should investigate why some fiscal years'
+`LongTermDebt` don't make it from SEC XBRL into `annual_balance_sheet` despite the concept being
+fetched.
+
+---
+
 ## Full loader/XBRL audit, 2026-07-28 (loader-review goal continuation)
 
 Systematic pass across every table in `data_loader_status` (76 tables) and every
@@ -369,11 +420,11 @@ Design principles (the "panel data" model — bulk everything, fetch once, write
    trips are treated as bugs (N+1).
 2. **Fetch each external payload at most once per run.** SEC companyfacts are fetched
    once per symbol and reused across all 6 statement/period combos (symbol-major
-   iteration + per-CIK LRU in `SecEdgarClient`). Crash-retries resume from the unfetched 
+   iteration + per-CIK LRU in `SecEdgarClient`). Crash-retries resume from the unfetched
    tail instead of restarting.
 3. **Derive, don't re-fetch.** Weekly/monthly bars are derived in SQL from
    `price_daily` after every daily load (`derive_aggregate_prices` in
-   `loaders/load_prices.py`) — labeled consistently (weekly = Monday, monthly = 1st). 
+   `loaders/load_prices.py`) — labeled consistently (weekly = Monday, monthly = 1st).
    No 1wk/1mo interval is fetched from external APIs.
 4. **Write incrementally with watermarks.** `technical_data_daily` computes over its
    full 400-day lookback but writes only rows past each symbol's watermark (7-day
@@ -447,12 +498,12 @@ is only needed for intraday/real-time (recent-SIP + websocket + 10k/min).
 
 **Config Management:** `utils/loaders/config.py` LoaderConfigManager provides per-loader
 parallelism (DynamoDB `algo-loader-config` → env → constraint max), with CloudWatch-based
-adaptive reduction when RDS proxy connections approach saturation. SEC-facing loaders are 
+adaptive reduction when RDS proxy connections approach saturation. SEC-facing loaders are
 clamped to parallelism 1-2 to protect rate limits.
 
 **Data sources (actual, per code, Session 275+):**
 - **Prices (OHLCV):** Alpaca Market Data multi-symbol daily bars (SIP, free plan) via
-  `DataSourceRouter.fetch_ohlcv_batch`. Symbols Alpaca doesn't serve are marked 
+  `DataSourceRouter.fetch_ohlcv_batch`. Symbols Alpaca doesn't serve are marked
   `data_unavailable`. Weekly/monthly bars are DERIVED in SQL from dailies (never fetched).
 - **Fundamentals/filings:** SEC EDGAR (`SecEdgarClient`, 2 req/s per task, companyfacts
   cached per CIK per run).
@@ -1079,7 +1130,7 @@ technical data (FAIL-CLOSED) → market health → buy/sell signals → algo met
 sector/industry/performance → FRED → market exposure → sentiment → data patrol →
 orchestrator dry-run validation.
 
-**Metrics (3:30 PM):** SEC financials (symbol-major) → growth → quality → value → 
+**Metrics (3:30 PM):** SEC financials (symbol-major) → growth → quality → value →
 stability → stock scores (Session 275: yfinance snapshot removed; uses SEC + institutional holdings).
 CRITICAL: Runs BEFORE signals pipeline (4:05 PM) to ensure stock_scores computes with fresh fundamentals.
 

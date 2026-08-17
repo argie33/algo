@@ -59,6 +59,8 @@ _BALANCE_CONCEPTS = [
     "PropertyPlantAndEquipmentNet",
     "Goodwill",
     "LongTermDebt",
+    "CommercialPaper",
+    "ShortTermBorrowings",
 ]
 
 _CASHFLOW_CONCEPTS = [

@@ -173,12 +173,20 @@ def _load_credentials():
             if not password:
                 logger.error("[CRITICAL] Password missing from credentials JSON - cannot authenticate to database")
                 sys.exit(1)
+            username = creds.get("username")
+            if not username:
+                logger.error("ERROR: 'username' is required in credentials JSON (no 'postgres' fallback for safety)")
+                sys.exit(1)
+            dbname = creds.get("dbname")
+            if not dbname:
+                logger.error("ERROR: 'dbname' is required in credentials JSON (no 'algo' fallback for safety)")
+                sys.exit(1)
             return (
                 host,
                 int(creds.get("port", 5432)),
-                creds.get("username", "postgres"),
+                username,
                 password,
-                creds.get("dbname", "algo"),
+                dbname,
             )
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse credentials from stdin: {e}")
@@ -195,12 +203,22 @@ def _load_credentials():
         logger.error("[CRITICAL] DB_PASSWORD environment variable is required - cannot authenticate to database")
         sys.exit(1)
 
+    db_user = os.getenv("DB_USER")
+    if not db_user:
+        logger.error("ERROR: DB_USER environment variable is required (no 'postgres' fallback for safety)")
+        sys.exit(1)
+
+    db_name = os.getenv("DB_NAME")
+    if not db_name:
+        logger.error("ERROR: DB_NAME environment variable is required (no 'algo' fallback for safety)")
+        sys.exit(1)
+
     return (
         db_host,
         int(os.getenv("DB_PORT", 5432)),
-        os.getenv("DB_USER", "postgres"),
+        db_user,
         db_password,
-        os.getenv("DB_NAME", "algo"),
+        db_name,
     )
 
 

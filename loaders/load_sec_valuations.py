@@ -354,10 +354,27 @@ class SecValuationsLoader(OptimalLoader):
 
                 # Get debt and cash from balance sheet (for Enterprise Value)
                 # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
+                #
+                # FIXED 2026-08-17 (migration 1204): this query used to select total_liabilities
+                # as "total_debt" - live-confirmed against real SEC data and the local DB this
+                # was total_liabilities verbatim (AAPL FY2025: $285.5B "debt" vs real
+                # long_term_debt $90.7B, a ~3.1x overstatement; same pattern for MSFT/GOOGL/F).
+                # total_liabilities includes every non-debt liability (accounts payable,
+                # deferred revenue, accrued expenses, pensions, leases) -
+                # load_value_quality_growth_metrics.py's ROIC code already explicitly rejected
+                # a "total_liabilities - current_liabilities" debt estimate for exactly this
+                # reason, not realizing sec_valuations.total_debt (which it treats as "the real
+                # number, 81% available" and prefers over this same table's own long_term_debt
+                # column) was an even less accurate version of the same mistake. Now sums the
+                # two real debt columns instead: long_term_debt (existing) + short_term_debt
+                # (new, migration 1204 - commercial paper / short-term borrowings, not captured
+                # by long_term_debt). NULL when neither is present (no fabricated $0 default -
+                # same fail-fast convention as the rest of this file), real sum otherwise.
                 cur.execute(
                     """
                     SELECT
-                        total_liabilities,
+                        long_term_debt,
+                        short_term_debt,
                         cash_and_equivalents
                     FROM annual_balance_sheet
                     WHERE symbol = %s
@@ -366,7 +383,14 @@ class SecValuationsLoader(OptimalLoader):
                     (symbol,),
                 )
                 debt_row = cur.fetchone()
-                total_debt, total_cash = debt_row if debt_row else (None, None)
+                if debt_row:
+                    long_term_debt_val, short_term_debt_val, total_cash = debt_row
+                    if long_term_debt_val is None and short_term_debt_val is None:
+                        total_debt = None
+                    else:
+                        total_debt = (long_term_debt_val or 0) + (short_term_debt_val or 0)
+                else:
+                    total_debt, total_cash = None, None
                 # Note: None values mean EV metrics won't be computed
 
                 # Session 398: Calculate EBITDA from operating income + depreciation + amortization
