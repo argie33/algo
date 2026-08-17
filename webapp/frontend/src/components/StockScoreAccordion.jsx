@@ -594,7 +594,7 @@ const POSITIONING_SCHEMA = [
   // it as short_shares / shares_outstanding, the same FINRA short_shares numerator and
   // (per that loader's own comment) "same denominator" short_interest_pct already uses -
   // a near-duplicate restatement of the field above it, not an independent signal.
-  { key: 'short_interest_trend',        label: 'Short Interest Trend', fmt: v => v == null ? '—' : v.charAt(0).toUpperCase() + v.slice(1), used: true, weight: '10%' },
+  { key: 'short_interest_pct_change',   label: 'Short Interest % Chg (MoM)', fmt: v => v == null ? '—' : `${v > 0 ? '+' : ''}${num(v, 1)}%`, used: true, weight: '10%' },
   { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1), used: true, weight: '15%' },
   // top_10_institutions_pct/institutional_holders_count/shares_short_prior_month/
   // short_ratio cut 20260816 (second pass) - unweighted reference fields, don't feed

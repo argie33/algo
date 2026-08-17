@@ -43,19 +43,25 @@ logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
 
 
-def _compute_short_interest_trend(current_pct: Any, prior_pct: Any) -> str | None:
-    """Classify short-interest trend from the current vs. prior settlement period.
+def _compute_short_interest_pct_change(current_pct: Any, prior_pct: Any) -> float | None:
+    """Relative month-over-month % change in short interest, current vs. prior settlement.
 
-    BUG FOUND 2026-08-10 (NaN-comparison-guard class, inverted variant): the original
-    guard used `prior_pct != 0` to avoid division by zero - `!=` is TRUE for NaN against
-    everything including 0, so a NaN prior_pct would sail past that "protection" into a
-    real division, producing a NaN relative_change. That NaN then failed both the `> 0.05`
-    and `< -0.05` comparisons (both False for NaN) and fell through to the else branch,
-    silently mislabeling corrupted/unavailable short-interest data as "stable" instead of
-    leaving the trend unset. Guards explicitly instead of relying on `!= 0`.
+    2026-08-17: replaces the former _compute_short_interest_trend(), which bucketed this
+    same relative_change into a 3-value text enum ('increasing'/'decreasing'/'stable' at a
+    +/-5% threshold) before load_stock_scores.py scored it - every symbol landed in one of
+    only 3 buckets regardless of whether its actual change was 5.1% or 51%, discarding the
+    real signal computed right here. Returning the float directly lets the score be
+    continuous instead of tiered, and matches every other positioning input (all numeric).
 
-    Returns None when the trend cannot be determined (missing or non-finite inputs, or
-    prior_pct is genuinely zero).
+    BUG FOUND 2026-08-10 (NaN-comparison-guard class, inverted variant, still applies):
+    the original guard used `prior_pct != 0` to avoid division by zero - `!=` is TRUE for
+    NaN against everything including 0, so a NaN prior_pct would sail past that
+    "protection" into a real division, producing a NaN result that downstream comparisons
+    would silently mishandle. Guards explicitly instead of relying on `!= 0`.
+
+    Returns None when the change cannot be determined (missing or non-finite inputs, or
+    prior_pct is genuinely zero). Otherwise returns the % change (e.g. 12.34 means short
+    interest rose 12.34% vs. the prior settlement; -12.34 means it fell 12.34%).
     """
     if current_pct is None or prior_pct is None:
         return None
@@ -67,12 +73,7 @@ def _compute_short_interest_trend(current_pct: Any, prior_pct: Any) -> str | Non
         or prior_pct == 0
     ):
         return None
-    relative_change = (current_pct - prior_pct) / prior_pct
-    if relative_change > 0.05:
-        return "increasing"
-    if relative_change < -0.05:
-        return "decreasing"
-    return "stable"
+    return float(((current_pct - prior_pct) / prior_pct) * 100)
 
 
 class PositioningMetricsLoader(OptimalLoader):
@@ -157,7 +158,7 @@ class PositioningMetricsLoader(OptimalLoader):
         short_interest_pct = None
         short_interest_source = None
         shares_short_prior_month = None
-        short_interest_trend = None
+        short_interest_pct_change = None
         short_ratio = None
         short_percent_of_float = None
 
@@ -166,8 +167,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 # FIX 2026-07-20: Was LIMIT 1 (latest settlement only). FINRA reports
                 # settle bi-monthly, so the prior settlement's short_shares is already
                 # in this table - fetching 2 rows lets us derive shares_short_prior_month
-                # and short_interest_trend (both existing positioning_metrics columns that
-                # no loader had ever populated) with no new data source needed.
+                # and short_interest_pct_change (both existing positioning_metrics columns
+                # that no loader had ever populated) with no new data source needed.
                 # NOTE: Removed data_unavailable = FALSE filter to allow processing
                 # even if upstream FINRA loader hasn't marked data available yet
                 cur.execute(
@@ -193,9 +194,9 @@ class PositioningMetricsLoader(OptimalLoader):
             if len(short_rows) >= 2:
                 shares_short_prior_month = short_rows[1][1]
                 current_pct, prior_pct = short_rows[0][0], short_rows[1][0]
-                computed_trend = _compute_short_interest_trend(current_pct, prior_pct)
-                if computed_trend is not None:
-                    short_interest_trend = computed_trend
+                computed_pct_change = _compute_short_interest_pct_change(current_pct, prior_pct)
+                if computed_pct_change is not None:
+                    short_interest_pct_change = computed_pct_change
 
             # NOTE: this is short_shares / shares_outstanding, NOT true public float -
             # SEC filings don't expose a float figure (it would require subtracting
@@ -305,7 +306,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 "insider_ownership_pct": insider_pct,
                 "short_interest_pct": short_interest_pct,
                 "shares_short_prior_month": shares_short_prior_month,
-                "short_interest_trend": short_interest_trend,
+                "short_interest_pct_change": short_interest_pct_change,
                 "short_percent_of_float": short_percent_of_float,
                 "short_ratio": short_ratio,
                 # Session 395+: Add unavailable_reason for each metric
@@ -317,8 +318,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 "shares_short_prior_month_unavailable_reason": (
                     "insufficient_history" if shares_short_prior_month is None else None
                 ),
-                "short_interest_trend_unavailable_reason": (
-                    "insufficient_history" if short_interest_trend is None else None
+                "short_interest_pct_change_unavailable_reason": (
+                    "insufficient_history" if short_interest_pct_change is None else None
                 ),
                 "short_percent_of_float_unavailable_reason": (
                     "missing_sec_data" if short_percent_of_float is None else None

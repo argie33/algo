@@ -31,6 +31,7 @@ setup_imports()
 
 import json  # noqa: E402
 import logging  # noqa: E402
+import math  # noqa: E402
 from collections.abc import Iterable  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
@@ -341,13 +342,15 @@ class StockScoresLoader(OptimalLoader):
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
-            # shares_short_prior_month/short_interest_trend added: written by
-            # load_positioning_metrics.py (migration 1184) but never read here before - the
-            # existing short_interest weight only used the latest %-of-float snapshot, with no
-            # signal for which direction it's moving.
+            # shares_short_prior_month/short_interest_pct_change added: written by
+            # load_positioning_metrics.py (migration 1184, pct_change replacing the former
+            # short_interest_trend enum column in migration 1203) but never read here before -
+            # the existing short_interest weight only used the latest %-of-float snapshot, with
+            # no signal for which direction it's moving.
             cur.execute(
                 "SELECT symbol, institutional_ownership_pct, insider_ownership_pct, short_interest_pct, "
-                "shares_short_prior_month, short_interest_trend, ad_rating, data_unavailable FROM positioning_metrics"
+                "shares_short_prior_month, short_interest_pct_change, ad_rating, data_unavailable "
+                "FROM positioning_metrics"
             )
             self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -810,7 +813,7 @@ class StockScoresLoader(OptimalLoader):
     #   * _get_quality_metrics: 24 columns (roe through revenue_growth_yoy, includes Phase 3 expansion fields)
     #   * _get_growth_metrics: 12 columns (revenue_growth_1y through ocf_growth_yoy, data_unavailable last)
     #   * _get_value_metrics: 10 columns (pe_ratio through ev_revenue, data_unavailable last)
-    #   * _get_positioning_metrics: 6 columns (institutional_ownership through short_interest_trend, data_unavailable last)
+    #   * _get_positioning_metrics: 6 columns (institutional_ownership through short_interest_pct_change, data_unavailable last)
     #   * _get_stability_metrics: 8 columns (volatility_252d through max_drawdown_1y, data_unavailable last)
     #   * _get_momentum_metrics: 5 columns (current through price_12m_ago)
     # - All _score_* functions return marker dicts if input metrics are missing/incomplete
@@ -1037,7 +1040,7 @@ class StockScoresLoader(OptimalLoader):
 
         VALIDATION RULES:
         - Row length validation: Must have 7 columns (institutional_ownership, insider_ownership,
-          short_interest_percent, shares_short_prior_month, short_interest_trend, ad_rating,
+          short_interest_percent, shares_short_prior_month, short_interest_pct_change, ad_rating,
           data_unavailable)
         - Schema mismatch (len(row) < 7) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
@@ -1073,7 +1076,7 @@ class StockScoresLoader(OptimalLoader):
                 "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
                 "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
                 "shares_short_prior_month": safe_float(row[3], f"{symbol}.shares_short_prior_month", allow_none=True),
-                "short_interest_trend": row[4],  # text enum ('increasing'/'decreasing'/'stable'), not numeric
+                "short_interest_pct_change": safe_float(row[4], f"{symbol}.short_interest_pct_change", allow_none=True),
                 "ad_rating": safe_float(row[5], f"{symbol}.ad_rating", allow_none=True),
             }
         # No row exists at all
@@ -1711,7 +1714,7 @@ class StockScoresLoader(OptimalLoader):
 
         Uses weighted scoring (weights normalized over whichever fields are present):
         Institutional ownership (55%) + Insider ownership (20%) + Short interest (25%)
-        + Short interest trend (10%) + A/D rating (15%).
+        + Short interest % change MoM (10%) + A/D rating (15%).
         Higher institutional + insider ownership and lower short interest signal positive positioning.
 
         RETURN TYPES (STRICT):
@@ -1772,17 +1775,24 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += max(0, min(100, score)) * 0.25
             total_weight += 0.25
 
-        # Short interest trend: pre-computed month-over-month direction (2026-08-03: written
-        # by load_positioning_metrics.py from shares_short_prior_month vs the current period,
-        # displayed on the scores page, but never weighted). Shorts covering (decreasing) is
-        # a positive signal independent of the absolute %-of-float level scored above; shorts
-        # building (increasing) is a negative signal even if the absolute level is still low.
-        trend = metrics.get("short_interest_trend")
-        if trend is not None:
-            trend_score = {"decreasing": 100.0, "stable": 55.0, "increasing": 10.0}.get(trend)
-            if trend_score is not None:
-                weighted_sum += trend_score * 0.10
-                total_weight += 0.10
+        # Short interest % change (month-over-month, written by load_positioning_metrics.py's
+        # _compute_short_interest_pct_change): shorts covering (negative change) is a positive
+        # signal independent of the absolute %-of-float level scored above; shorts building
+        # (positive change) is a negative signal even if the absolute level is still low.
+        #
+        # REPLACED 2026-08-17 (migration 1203): this used to read a pre-bucketed 3-value text
+        # enum ('increasing'/'decreasing'/'stable' at a +/-5% threshold) and look up one of 3
+        # fixed scores (10/55/100) - every symbol in a bucket scored identically regardless of
+        # whether its actual change was 5.1% or 51%, discarding real signal the loader had
+        # already computed. Scored with a logistic curve instead of a linear+clamp: strictly
+        # monotonic decreasing in pct_change for every real input (a bigger covering move
+        # always scores higher than a smaller one, no matter how large), naturally bounded to
+        # (0, 100) with no hard clamp/plateau, and centered at 0% change -> 50 (neutral).
+        pct_change = metrics.get("short_interest_pct_change")
+        if pct_change is not None:
+            pct_change_score = 100.0 / (1.0 + math.exp(pct_change / 12.0))
+            weighted_sum += pct_change_score * 0.10
+            total_weight += 0.10
 
         # A/D (Accumulation/Distribution) rating: volume-confirmed price-trend signal from
         # load_positioning_metrics.py (loaders/technical_indicators.py::compute_ad_rating) -
