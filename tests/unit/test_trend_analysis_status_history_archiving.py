@@ -44,6 +44,13 @@ class TestTrendAnalysisStatusHistoryArchiving:
             last_sql = cur.execute.call_args[0][0] if cur.execute.called else ""
             if "symbol_count, symbols_loaded, completion_pct" in last_sql:
                 return (10, 0, 0.0)  # safety check response
+            elif "last_success_at" in last_sql:
+                # mark_failed()'s stale-failure guard (added 2026-08-16/17, commit 39dc66874):
+                # SELECT execution_started, last_success_at ... FOR UPDATE - a 2-tuple. Must be
+                # checked before the broader "execution_started" match below, since this query's
+                # text also contains "execution_started" and would otherwise be misrouted to the
+                # 7-tuple archive response, causing "too many values to unpack (expected 2)".
+                return (None, None)  # no prior run - guard does not suppress
             elif "execution_started" in last_sql or "data_loader_status" in last_sql:
                 return (None, None, "error", 0, 0.0, 0, 10)  # archive response
             return (1,)  # default
