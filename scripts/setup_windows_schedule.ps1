@@ -44,6 +44,21 @@ try {
     exit 1
 }
 
+# BUG FIX (2026-08-17): Register-ScheduledTask below never specified -Principal, so Windows
+# silently defaulted every task to LogonType=Interactive - which only runs while the
+# registering user has an active, unlocked desktop session at trigger time. Live-confirmed:
+# morning-pipeline fired dead-on-schedule at 2:00 AM today (Get-ScheduledTaskInfo
+# LastRunTime) but scripts/local_loader_scheduler.py never even started - zero trace in
+# logs/scheduler_invocations.log, which tees this process's own stdout from its very first
+# line - meaning Task Scheduler failed to launch python.exe at all (no one is logged into an
+# unlocked session at 2 AM). This is why the "automated" cadence never actually loaded data.
+# S4U runs the task whether the user is logged on or not, without needing a stored password
+# (requires the "Log on as a batch job" right, normally already granted to the registering
+# account by Task Scheduler). -WakeToRun lets the 2 AM trigger wake a sleeping machine.
+# NOTE: registering a task with an explicit -Principal requires an ELEVATED (Run as
+# Administrator) PowerShell session - Access Denied otherwise. Run this script elevated.
+$taskPrincipal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
+
 # NOTE: Task folders are created implicitly by Register-ScheduledTask -TaskPath if they
 # don't exist - Get-ScheduledTaskFolder is not a real ScheduledTasks cmdlet (it never
 # existed; the previous version of this script always threw here, silently, on every run).
@@ -83,7 +98,8 @@ $morningTrigger = New-ScheduledTaskTrigger `
 $morningSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
-    -MultipleInstances IgnoreNew
+    -MultipleInstances IgnoreNew `
+    -WakeToRun
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "morning-pipeline" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "morning-pipeline" -Confirm:$false
@@ -98,6 +114,7 @@ Register-ScheduledTask `
     -Action $morningAction `
     -Trigger $morningTrigger `
     -Settings $morningSettings `
+    -Principal $taskPrincipal `
     -Description "Load stock prices, technical indicators, market status (morning pipeline)" `
     -ErrorAction Stop | Out-Null
 
@@ -130,7 +147,8 @@ $signalsTrigger = New-ScheduledTaskTrigger `
 $signalsSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
-    -MultipleInstances IgnoreNew
+    -MultipleInstances IgnoreNew `
+    -WakeToRun
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "afternoon-pipeline" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "afternoon-pipeline" -Confirm:$false
@@ -145,6 +163,7 @@ Register-ScheduledTask `
     -Action $signalsAction `
     -Trigger $signalsTrigger `
     -Settings $signalsSettings `
+    -Principal $taskPrincipal `
     -Description "Re-fetch closing prices/technicals, recompute stock scores and trading signals (signals/EOD pipeline)" `
     -ErrorAction Stop | Out-Null
 
@@ -172,7 +191,8 @@ $metricsTrigger = New-ScheduledTaskTrigger `
 $metricsSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
-    -MultipleInstances IgnoreNew
+    -MultipleInstances IgnoreNew `
+    -WakeToRun
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "evening-pipeline" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "evening-pipeline" -Confirm:$false
@@ -187,6 +207,7 @@ Register-ScheduledTask `
     -Action $metricsAction `
     -Trigger $metricsTrigger `
     -Settings $metricsSettings `
+    -Principal $taskPrincipal `
     -Description "Refresh SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, value/quality/growth (metrics pipeline)" `
     -ErrorAction Stop | Out-Null
 
