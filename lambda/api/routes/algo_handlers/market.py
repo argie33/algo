@@ -355,6 +355,26 @@ def _classify_loader_state_issue(
     return None
 
 
+def _is_stale_by_trading_days(data_date: date, today: date, max_age: int) -> bool:
+    """True if more than max_age *trading* days have elapsed since data_date.
+
+    BUG FIX 2026-08-16: the weekly/biweekly staleness branch used raw
+    `(today - data_date).days`, which counts weekends. A table updated once per trading day
+    with e.g. stale_threshold_days=2 (market_exposure_daily, market_health_daily,
+    algo_risk_daily, algo_portfolio_snapshots all use 2) falsely flipped to "stale" every
+    single weekend even though 0 trading days were actually missed: Friday->Monday is 3
+    calendar days but 0 missed trading days. Live-confirmed: both market_exposure_daily and
+    market_health_daily had correct, current Friday data (the most recent trading day) but
+    showed CRIT STALE on the dashboard. Count actual trading days elapsed via MarketCalendar
+    instead, consistent with this file's own expected_date calc above and this repo's "date
+    math must use MarketCalendar, not raw days" rule.
+    """
+    from algo.infrastructure import MarketCalendar
+
+    trading_days_elapsed = len(MarketCalendar.get_trading_days(data_date, today)) - 1
+    return trading_days_elapsed > max_age
+
+
 @db_route_handler("fetch data status")
 @validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
@@ -728,8 +748,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         # Fallback to date-only comparison if elapsed time unavailable
                         status = "stale" if data_date < expected_date else "ok"
                 else:
-                    # Weekly/biweekly tables: use simple calendar-day age threshold
-                    status = "stale" if (today - data_date).days > max_age else "ok"
+                    # Weekly/biweekly tables: use trading-day age, not raw calendar days -
+                    # see _is_stale_by_trading_days docstring.
+                    status = "stale" if _is_stale_by_trading_days(data_date, today, max_age) else "ok"
 
             # CRITICAL FIX 2026-08-04: a fresh-looking last_success_at/row_count can't tell a
             # clean run apart from one whose MOST RECENT attempt only partially completed -

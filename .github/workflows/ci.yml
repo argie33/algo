@@ -88,10 +88,16 @@ jobs:
           python .pre-commit-scripts/check-credential-defaults.py
           python .pre-commit-scripts/check-silent-fallbacks.py
 
-      - name: Validate memory files
-        run: |
-          python scripts/validate_memory.py
-        continue-on-error: false
+      # NOT run in CI: validate_memory.py checks Path.home()/".claude"/.../"memory" - the
+      # local Claude Code session directory, which lives outside this git repo entirely and
+      # can never exist on a GitHub-hosted runner. Added to CI 2026-07-31 (5a20388c0) as a
+      # straight duplicate of the pre-commit hook (.pre-commit-config.yaml's "validate-memory"
+      # id, which correctly runs locally where the directory exists) - since then this step has
+      # failed on every single push (confirmed via `gh run list`), and because it has
+      # `continue-on-error: false` and runs BEFORE the actual test/security steps, it silently
+      # skipped all of them (loader-registry sync check, trading-safety-threshold verification,
+      # unit/edge/integration tests, StrictValidationError tests, Bandit, TruffleHog) on every
+      # push for 2+ weeks. Real memory safety validation still runs locally via pre-commit.
 
       - name: Validate loader registry/Terraform/Lambda sync
         run: |
