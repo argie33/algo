@@ -2275,13 +2275,21 @@ class PriceLoader(OptimalLoader):
                     for aux_table in auxiliary_tables:
                         try:
                             aux_mgr = LoaderStatusManager(aux_table)
+                            # BUG FOUND 2026-08-17: do NOT pass this (price_daily/stock) run's
+                            # current_run_symbols_loaded/current_run_symbol_count here - those are
+                            # the STOCK universe's counts (e.g. 4886/4925) and get written verbatim
+                            # into each aux table's row, even though etf_price_daily/weekly/monthly
+                            # have an unrelated ~5-symbol universe. Live-confirmed: this poisoned
+                            # etf_price_daily's symbols_loaded to 4886, which then made the real
+                            # etf loader's own update_progress(symbols_loaded=5) fail the monotonic
+                            # "cannot decrease" guard on its very next run. Omitting these params
+                            # falls back to mark_completed()'s DB-read branch, which validates
+                            # against that aux table's own last-known counts instead.
                             aux_mgr.mark_completed(
                                 execution_duration_sec=(time.time() - start_time)
                                 if hasattr(self, "_start_time")
                                 else None,
                                 latest_date=latest_date,
-                                current_run_symbols_loaded=symbols_successfully_loaded,
-                                current_run_symbol_count=symbols_expected,
                                 min_completion_pct=95.0,
                             )
                             logger.info(

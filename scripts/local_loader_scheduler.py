@@ -75,6 +75,34 @@ os.environ["ENVIRONMENT"] = "development"
 if "LOADER_PARALLELISM" not in os.environ:
     os.environ["LOADER_PARALLELISM"] = "1"
 
+# LIVE BUG FOUND 2026-08-17: insider_transaction_velocity killed at exactly the generic
+# formula's 900s floor ("0% stall for >900s") while genuinely mid-download, not hung. Unlike
+# company_info_sec (fixed 2026-08-16 by shrinking LOADER_CHUNK_SIZE so a partial flush lands
+# inside the watchdog window), this loader has no early-flush option:
+# CachedForm345Aggregator.get_velocity_metrics(wait_for_download=True) blocks on a single
+# all-or-nothing threading.Event that only fires after all 12 quarters of SEC Form 3/4/5 bulk
+# data finish downloading sequentially (no on-disk cache -
+# utils/external/sec_form345_transaction_velocity_cached.py re-downloads every run), so zero
+# DB-visible progress is possible before that completes. The loader itself budgets up to 1080s
+# for this (CachedForm345Aggregator(..., timeout_seconds=1080) in
+# load_insider_transaction_velocity.py) - live-confirmed today the download alone was still
+# only 9/12 quarters in at the 900s mark. The generic per-loader formula's 900s floor is
+# stricter than the loader's own designed download budget, so it was structurally guaranteed
+# to kill this loader before its first possible DB write, every run.
+STALL_TIMEOUT_FLOOR_OVERRIDES = {
+    "insider_transaction_velocity": 1500,  # 1080s download budget + 420s margin
+}
+
+
+def _stall_timeout_for(loader: str, timeout: int) -> int:
+    """SESSION 117: scale the stall-kill threshold to 20% of a loader's configured timeout,
+    clamped to 15-30min, so loaders with long initialization periods aren't false-killed at a
+    hardcoded 5min. STALL_TIMEOUT_FLOOR_OVERRIDES raises that floor further for specific
+    loaders whose init phase is known to structurally exceed even the 15min default floor -
+    see the module-level comment above."""
+    stall_timeout = min(1800, max(900, int(timeout / 5)))
+    return max(stall_timeout, STALL_TIMEOUT_FLOOR_OVERRIDES.get(loader, 0))
+
 
 def _monitor_loader_progress(
     loader_filename: str,
@@ -989,7 +1017,8 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
             # Formula: min(1800, max(900, timeout / 5)) = allow 20% of configured timeout for initialization
             # Examples: 30m loader gets 6min, 120m gets 24min, 540m gets capped at 30min (1800s)
             # Rationale: Even yfinance/SEC rate-limited loaders shouldn't take >30min of pure initialization
-            stall_timeout = min(1800, max(900, int(timeout / 5)))  # Allow 20% of timeout, clamped 15-30 min
+            # See STALL_TIMEOUT_FLOOR_OVERRIDES / _stall_timeout_for() above for per-loader floor overrides.
+            stall_timeout = _stall_timeout_for(loader, timeout)  # Allow 20% of timeout, clamped 15-30 min
             progress_check_interval = 30  # Poll progress every 30 seconds
 
             # CRITICAL SESSION 106 FIX: Poll the subprocess and monitor progress
