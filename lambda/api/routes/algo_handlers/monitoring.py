@@ -201,6 +201,19 @@ def _get_last_run(cur: cursor) -> Any:
     return json_response(200, response_data)
 
 
+def _loader_health_staleness_sort_key(entry: dict[str, Any], naive_tz: Any) -> tuple[int, datetime]:
+    """Sort key for loader_health truncation: oldest last_success_at first, never-succeeded oldest of all.
+
+    Module-level (not a closure) so it doesn't count toward
+    _get_orchestrator_history_extended's own C901 complexity budget.
+    """
+    last_success = entry.get("last_success_at")
+    normalized = normalize_to_utc_datetime(last_success, naive_tz) if last_success else None
+    if not isinstance(normalized, datetime):
+        return (0, datetime.min.replace(tzinfo=timezone.utc))
+    return (1, normalized)
+
+
 @db_route_handler("get orchestrator history extended")
 @validate_api_response("freshness_extended")
 def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | None = None) -> Any:
@@ -462,6 +475,18 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
                 continue
 
         loader_health_total_unhealthy = len(loader_health)
+
+        # BUG FIX 2026-08-17: loader_health was truncated to [:15] in SQL-fetch order
+        # (ORDER BY consecutive_failures DESC), so a table with a low retry count but
+        # ancient last_success_at - e.g. stability_metrics, FAILED with only 1
+        # consecutive_failure but stale since 2026-08-13 (4 days, a direct algo score
+        # input) - silently lost to 32 other tables with a higher raw failure count and
+        # never appeared in this list, even though loader_health_total_unhealthy still
+        # correctly counted it. Re-sort by actual staleness (oldest last_success_at
+        # first; never-succeeded sorts oldest of all) before truncating, so the detail
+        # list surfaces what's actually been broken longest instead of what merely
+        # retried the most times.
+        loader_health.sort(key=lambda entry: _loader_health_staleness_sort_key(entry, naive_tz))
 
         # 5. Calculate trend summary (7-day vs 30-day comparison)
         # NOTE: excludes overall_status='skipped' runs (non_trading_day / outside_market_hours -
