@@ -383,10 +383,18 @@ PIPELINES = {
         # for slow-changing/low-frequency reference data - all confirmed correctly wired
         # in terraform/modules/pipeline/main.tf's production Step Functions (FredEconomicData,
         # NaaimSentiment, AaiiSentiment, DividendData, StockSymbols), so this was purely a
-        # local-backfill gap, not a production one. "dividends" is the one yfinance-backed
-        # loader in this otherwise SEC/free-API pipeline - a single sequential yfinance
-        # loader here doesn't reintroduce the parallel multi-loader yfinance IP-ban risk
-        # documented for the "metrics" pipeline, but keep an eye on it if that changes.
+        # local-backfill gap, not a production one.
+        # CORRECTED 2026-08-17: this comment used to claim "dividends" is the one
+        # yfinance-backed loader in this pipeline - false. load_dividend_data.py has always
+        # been SEC EDGAR-only (XBRL + 8-K Item 2.02 dividend extraction), confirmed via
+        # `git log --follow` back to its creation - never a yfinance import. In fact NONE of
+        # this "reference" pipeline's loaders touch yfinance - every one is SEC EDGAR, FRED,
+        # FINRA, or an official NASDAQ/NYSE listing feed (constituents' S&P-500-membership
+        # flag is the one Wikipedia-sourced exception - no free official source publishes
+        # S&P Dow Jones Indices' proprietary membership list, see this loader's own comment).
+        # The yfinance-dependent analyst loaders (analyst_upgrades/analyst_sentiment/
+        # analyst_earnings_estimates - consensus data with no free official replacement) live
+        # in the separate "metrics" pipeline above, not here.
         "constituents",
         "economic",
         "naaim",
@@ -1174,8 +1182,79 @@ def _try_acquire_lock(scheduler_lock: Path, pipeline_name: str) -> bool:
         return False
 
 
-LOCK_WAIT_TIMEOUT_SECONDS = 1800  # 30 min - absorbs a still-running prior pipeline before giving up
+# RAISED 2026-08-17 from 1800s (30 min): live-measured the "metrics" pipeline's single
+# slowest step (enhanced_quality_growth, ~5000 symbols x per-symbol sequential yfinance
+# earnings/estimates calls at the mandatory LOADER_PARALLELISM=1) alone taking ~2.5h, with 3
+# more per-symbol steps (analyst_upgrades, analyst_sentiment, stability_metrics) still queued
+# behind it in PIPELINES["metrics"] - full-pipeline runtime of 6-8h is a realistic steady
+# state, not an incident-day anomaly. This value no longer needs to cover "reference" waiting
+# on metrics (see _lock_paths_for_pipeline - reference has its own lock now and never
+# contends with metrics at all) but "morning"'s 2 AM trigger can still land behind a metrics
+# run that started late or ran long the previous evening (7 PM ET start), and 30 min was
+# never going to cover a multi-hour overrun there either. Safe to raise now that
+# _try_claim_waiter_slot (below) caps this at exactly one waiting process per pipeline name
+# regardless of how long it waits - previously a longer timeout would have meant more
+# redundant waiters each burning a python process for that much longer. A dead owner is
+# still reclaimed immediately regardless of this timeout (see the owner-liveness check
+# below), and each individual loader has its own stall watchdog - so a lock held this long
+# by a live owner means real, if slow, progress, not a hang this timeout needs to catch.
+LOCK_WAIT_TIMEOUT_SECONDS = 28800  # 8h - must outlast metrics' realistic worst-case runtime
 LOCK_POLL_INTERVAL_SECONDS = 60
+
+
+def _waiter_marker_path(pipeline_name: str) -> Path:
+    return Path(tempfile.gettempdir()) / f"algo-scheduler-waiting-{pipeline_name}.marker"
+
+
+def _try_claim_waiter_slot(pipeline_name: str) -> bool:
+    """Claim the single "currently waiting for this pipeline" slot, or detect a live one.
+
+    ADDED 2026-08-17 (live pileup): once a live incident put multiple humans/watchers/Task
+    Scheduler restarts all after the same recovery, up to 23 separate `--now reference`
+    invocations were observed live, each independently spin-waiting up to
+    LOCK_WAIT_TIMEOUT_SECONDS (30 min) for the same lock. None of them could possibly
+    succeed any sooner than whichever was first in line - every extra waiter beyond the
+    first was pure waste (a whole python process + DB pool + 30 min of log noise) with zero
+    chance of doing anything the first waiter wasn't already going to do. Only one process
+    should ever be waiting for a given pipeline name at a time; everyone else finds out
+    immediately and exits instead of queueing redundantly. Same dead-owner-reclaim pattern
+    as the scheduler lock itself, so a crashed waiter's marker doesn't block forever.
+    """
+    marker = _waiter_marker_path(pipeline_name)
+    try:
+        fd = os.open(str(marker), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, f"pid={os.getpid()} started={datetime.now(timezone.utc).isoformat()}".encode())
+        os.close(fd)
+        return True
+    except FileExistsError:
+        try:
+            content = marker.read_text().strip()
+        except (FileNotFoundError, OSError):
+            return _try_claim_waiter_slot(pipeline_name)  # vanished between calls - retry once
+
+        owner_pid = None
+        for token in content.split():
+            if token.startswith("pid="):
+                try:
+                    owner_pid = int(token.split("=", 1)[1])
+                except ValueError:
+                    pass
+
+        if owner_pid is not None and not _pid_alive(owner_pid):
+            try:
+                marker.unlink()
+            except FileNotFoundError:
+                pass
+            return _try_claim_waiter_slot(pipeline_name)
+
+        return False
+
+
+def _release_waiter_slot(pipeline_name: str) -> None:
+    try:
+        _waiter_marker_path(pipeline_name).unlink()
+    except FileNotFoundError:
+        pass
 
 
 def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | None:
@@ -1191,74 +1270,133 @@ def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | N
     -RestartCount/-RestartInterval settings still provide a second layer of retry on top of
     this for longer overruns.
 
+    Only one process waits for a given pipeline_name at a time (see _try_claim_waiter_slot) -
+    a second concurrent request for the same pipeline exits immediately instead of piling on.
+
     Returns None on success (lock held by us), or an exit code (1) if acquisition failed.
     """
     waited = 0.0
     announced_wait = False
-    while True:
-        if _try_acquire_lock(scheduler_lock, pipeline_name):
-            return None
-
-        # Lock is held (or was, a moment ago) - check liveness first, then staleness age.
-        owner_info = _lock_owner_info(scheduler_lock)
-        owner_pid = None
-        for token in owner_info.split():
-            if token.startswith("pid="):
-                try:
-                    owner_pid = int(token.split("=", 1)[1])
-                except ValueError:
-                    pass
-
-        owner_dead = owner_pid is not None and not _pid_alive(owner_pid)
-
-        try:
-            lock_age = time.time() - scheduler_lock.stat().st_mtime
-        except FileNotFoundError:
-            # Released between our failed acquire and this stat() - retry immediately,
-            # don't count this negligible race window against the wait budget.
-            time.sleep(0.5)
-            continue
-
-        if owner_dead or lock_age >= 43200:  # 12 hours in seconds
-            if owner_dead:
-                print(f"[LOCAL_SCHEDULER] Lock owner (pid={owner_pid}) confirmed dead - clearing lock immediately.")
-            # Stale (owner confirmed dead, or past the 12h age fallback) - clear it and make
-            # one retry attempt. If we lose this retry too, a genuinely fresh instance beat
-            # us fairly; fall through to the wait loop rather than looping forever here.
-            try:
-                scheduler_lock.unlink()
-                print(f"[LOCAL_SCHEDULER] Cleaned stale scheduler lock (age: {lock_age:.0f}s, owner: {owner_info})")
-            except FileNotFoundError:
-                pass
+    claimed_waiter_slot = False
+    try:
+        while True:
             if _try_acquire_lock(scheduler_lock, pipeline_name):
                 return None
-            continue
 
-        # Live owner, not stale - wait and retry rather than failing immediately, up to
-        # LOCK_WAIT_TIMEOUT_SECONDS.
-        if waited >= LOCK_WAIT_TIMEOUT_SECONDS:
-            print(
-                f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is still running after "
-                f"waiting {waited:.0f}s (lock held for {lock_age:.0f}s, {owner_info}). Giving up. "
-                f"Wait for the existing instance to complete, or verify PID {owner_pid} is "
-                f'actually dead (e.g. `tasklist /FI "PID eq {owner_pid}"`) before manually '
-                f"removing {scheduler_lock} - killing a live session's run destroys its progress.",
-                file=sys.stderr,
-            )
-            return 1
+            if not claimed_waiter_slot:
+                if not _try_claim_waiter_slot(pipeline_name):
+                    print(
+                        f"[LOCAL_SCHEDULER] Another instance is already waiting to run "
+                        f"'{pipeline_name}' - exiting immediately instead of queueing a "
+                        "redundant second waiter. That instance will run it once the lock "
+                        "frees up; wait for it instead of launching another.",
+                        file=sys.stderr,
+                    )
+                    return 1
+                claimed_waiter_slot = True
 
-        if not announced_wait:
-            print(
-                f"[LOCAL_SCHEDULER] Lock held by a live instance ({owner_info}, held for "
-                f"{lock_age:.0f}s) - waiting up to {LOCK_WAIT_TIMEOUT_SECONDS:.0f}s for it to "
-                "finish instead of failing immediately."
-            )
-            announced_wait = True
-        elif int(waited) % 300 == 0:  # log roughly every 5 min
-            print(f"[LOCAL_SCHEDULER] Still waiting for scheduler lock ({waited:.0f}s so far)...")
+            # Lock is held (or was, a moment ago) - check liveness first, then staleness age.
+            owner_info = _lock_owner_info(scheduler_lock)
+            owner_pid = None
+            for token in owner_info.split():
+                if token.startswith("pid="):
+                    try:
+                        owner_pid = int(token.split("=", 1)[1])
+                    except ValueError:
+                        pass
 
-        time.sleep(LOCK_POLL_INTERVAL_SECONDS)
-        waited += LOCK_POLL_INTERVAL_SECONDS
+            owner_dead = owner_pid is not None and not _pid_alive(owner_pid)
+
+            try:
+                lock_age = time.time() - scheduler_lock.stat().st_mtime
+            except FileNotFoundError:
+                # Released between our failed acquire and this stat() - retry immediately,
+                # don't count this negligible race window against the wait budget.
+                time.sleep(0.5)
+                continue
+
+            if owner_dead or lock_age >= 43200:  # 12 hours in seconds
+                if owner_dead:
+                    print(f"[LOCAL_SCHEDULER] Lock owner (pid={owner_pid}) confirmed dead - clearing lock immediately.")
+                # Stale (owner confirmed dead, or past the 12h age fallback) - clear it and
+                # make one retry attempt. If we lose this retry too, a genuinely fresh
+                # instance beat us fairly; fall through to the wait loop rather than looping
+                # forever here.
+                try:
+                    scheduler_lock.unlink()
+                    print(f"[LOCAL_SCHEDULER] Cleaned stale scheduler lock (age: {lock_age:.0f}s, owner: {owner_info})")
+                except FileNotFoundError:
+                    pass
+                if _try_acquire_lock(scheduler_lock, pipeline_name):
+                    return None
+                continue
+
+            # Live owner, not stale - wait and retry rather than failing immediately, up to
+            # LOCK_WAIT_TIMEOUT_SECONDS.
+            if waited >= LOCK_WAIT_TIMEOUT_SECONDS:
+                print(
+                    f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is still running "
+                    f"after waiting {waited:.0f}s (lock held for {lock_age:.0f}s, {owner_info}). "
+                    f"Giving up. Wait for the existing instance to complete, or verify PID "
+                    f"{owner_pid} is actually dead (e.g. "
+                    f'`tasklist /FI "PID eq {owner_pid}"`) before manually removing '
+                    f"{scheduler_lock} - killing a live session's run destroys its progress.",
+                    file=sys.stderr,
+                )
+                return 1
+
+            if not announced_wait:
+                print(
+                    f"[LOCAL_SCHEDULER] Lock held by a live instance ({owner_info}, held for "
+                    f"{lock_age:.0f}s) - waiting up to {LOCK_WAIT_TIMEOUT_SECONDS:.0f}s for it "
+                    "to finish instead of failing immediately."
+                )
+                announced_wait = True
+            elif int(waited) % 300 == 0:  # log roughly every 5 min
+                print(f"[LOCAL_SCHEDULER] Still waiting for scheduler lock ({waited:.0f}s so far)...")
+
+            time.sleep(LOCK_POLL_INTERVAL_SECONDS)
+            waited += LOCK_POLL_INTERVAL_SECONDS
+    finally:
+        if claimed_waiter_slot:
+            _release_waiter_slot(pipeline_name)
+
+
+def _lock_paths_for_pipeline(pipeline_name: str) -> list[Path]:
+    """Which physical lock file(s) a pipeline needs held before it's safe to run.
+
+    ADDED 2026-08-17: "reference" (company profile/13F/insider holdings/SEC filings/short
+    interest/segment info+metrics/earnings-calendar-SEC/index constituents/economic/NAAIM/
+    AAII/dividends) is 100% SEC EDGAR/FRED/FINRA/NASDAQ - confirmed via PIPELINES["reference"]
+    above, it never touches yfinance. SEC EDGAR already has its own cross-process rate gate
+    (_cross_process_wait in utils/external/sec_edgar_client.py, added 2026-08-16 for exactly
+    this "multiple local processes hitting the same API" scenario). The other three pipelines
+    (morning/signals/metrics) all touch yfinance, which has no such cross-process protection
+    and must stay serialized under LOADER_PARALLELISM=1 (a real yfinance ban was
+    self-triggered at parallelism=4 - see MEMORY.md). Giving "reference" its own lock lets it
+    run concurrently with a long "metrics" run instead of always queuing behind it -
+    live-measured metrics at ~4.6h steady-state runtime (5000 symbols x sequential per-symbol
+    yfinance earnings/estimates calls), which routinely eats into reference's own 4.5h buffer
+    (7:00 PM -> 11:30 PM ET) and left reference-pipeline tables (sec_segment_info,
+    dividend_data, current_reports_8k, ...) sitting stale for no reason other than an
+    unnecessary lock dependency. Per-table locking (utils/optimal_loader.py) is a second
+    layer of protection for the one loader both pipelines share (company_info) - this split
+    only removes serialization that was never actually required, real per-table conflicts
+    still resolve safely (one waits for the other's per-table lock).
+
+    "all" is the manual incident-recovery command (not an automated nightly trigger, see its
+    --now help text) and runs every pipeline sequentially in one process, including
+    reference - it holds BOTH locks for its whole duration so a concurrently-triggered
+    standalone "reference" run can't race its own in-process reference step.
+    """
+    tmp = Path(tempfile.gettempdir())
+    shared_lock = tmp / "algo-scheduler.lock"
+    reference_lock = tmp / "algo-scheduler-reference.lock"
+    if pipeline_name == "reference":
+        return [reference_lock]
+    if pipeline_name == "all":
+        return [shared_lock, reference_lock]
+    return [shared_lock]
 
 
 def main() -> int:
@@ -1305,7 +1443,7 @@ def main() -> int:
         return 1
 
     # CRITICAL: Prevent concurrent scheduler invocations to avoid redundant loader runs
-    # A single global scheduler lock ensures only one instance can run at a time.
+    # A scheduler lock ensures only one instance of a given resource class can run at a time.
     #
     # FIXED 2026-08-16: the original check-then-act (`.exists()` then `.touch()`) has a
     # classic TOCTOU race - two scheduler processes starting within the same window can
@@ -1315,10 +1453,24 @@ def main() -> int:
     # pipeline collided with per-loader/per-table locks the first pipeline already held
     # and exited near-instantly with zero output. os.open() with O_CREAT|O_EXCL is atomic
     # at the OS level - only one of two racing processes can win it.
-    scheduler_lock = Path(tempfile.gettempdir()) / "algo-scheduler.lock"
+    lock_paths = _lock_paths_for_pipeline(args.now)
 
-    lock_failure = _acquire_scheduler_lock(scheduler_lock, args.now)
+    acquired_locks: list[Path] = []
+    lock_failure: int | None = None
+    for lock_path in lock_paths:
+        lock_failure = _acquire_scheduler_lock(lock_path, args.now)
+        if lock_failure is not None:
+            break
+        acquired_locks.append(lock_path)
+
     if lock_failure is not None:
+        # Partial acquisition (only relevant for "all", which needs two locks) - release
+        # whatever we did get so we don't strand a lock nobody will ever clean up.
+        for lock_path in reversed(acquired_locks):
+            try:
+                lock_path.unlink()
+            except Exception:
+                pass
         return lock_failure
 
     pipelines_to_run = ALL_PIPELINES_ORDER if args.now == "all" else [args.now]
@@ -1336,11 +1488,12 @@ def main() -> int:
                 )
         return exit_code
     finally:
-        # Always clean up lock on exit (success or failure)
-        try:
-            scheduler_lock.unlink()
-        except Exception as e:
-            print(f"[LOCAL_SCHEDULER] WARNING: Could not remove scheduler lock: {e}", file=sys.stderr)
+        # Always clean up locks on exit (success or failure)
+        for lock_path in acquired_locks:
+            try:
+                lock_path.unlink()
+            except Exception as e:
+                print(f"[LOCAL_SCHEDULER] WARNING: Could not remove {lock_path}: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":
