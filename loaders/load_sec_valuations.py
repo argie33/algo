@@ -321,11 +321,19 @@ class SecValuationsLoader(OptimalLoader):
 
                 # Get latest balance sheet (book value - optional, may not exist for all companies)
                 # NOTE: Removed data_unavailable = FALSE filter to allow fallback computation
+                # FIXED 2026-08-17: added "AND fiscal_year IS NOT NULL" - Postgres's DESC
+                # ordering defaults to NULLS FIRST, so a stray NULL-fiscal_year row (e.g. a
+                # crash-marker placeholder - see load_financial_statements.py's 2026-08-17 fix
+                # comment for how one of these got written 4,948 times in a single bad run)
+                # would silently outrank real, recent data here. Defensive: this loader doesn't
+                # write such rows itself, but every "latest fiscal year" query reading a table
+                # another loader also writes to should not trust that no NULL key ever lands
+                # there.
                 cur.execute(
                     """
                     SELECT stockholders_equity
                     FROM annual_balance_sheet
-                    WHERE symbol = %s
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -336,6 +344,7 @@ class SecValuationsLoader(OptimalLoader):
 
                 # Get latest cash flow (for FCF - optional, may not exist for all companies)
                 # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
+                # See the fiscal_year IS NOT NULL comment on the balance sheet query above.
                 cur.execute(
                     """
                     SELECT
@@ -343,7 +352,7 @@ class SecValuationsLoader(OptimalLoader):
                         capex,
                         dividends_paid
                     FROM annual_cash_flow
-                    WHERE symbol = %s
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -368,27 +377,53 @@ class SecValuationsLoader(OptimalLoader):
                 # column) was an even less accurate version of the same mistake. Now sums the
                 # two real debt columns instead: long_term_debt (existing) + short_term_debt
                 # (new, migration 1204 - commercial paper / short-term borrowings, not captured
-                # by long_term_debt). NULL when neither is present (no fabricated $0 default -
-                # same fail-fast convention as the rest of this file), real sum otherwise.
+                # by long_term_debt).
+                #
+                # FIXED 2026-08-17 (migration 1205, same session): also add post-ASC 842
+                # capitalized lease liabilities - operating_lease_liability (S&P/Moody's
+                # "adjusted debt" convention - both rating agencies capitalize operating
+                # leases into adjusted debt for credit analysis) and finance_lease_liability
+                # (unambiguously debt - financed asset ownership). Neither was captured by
+                # long_term_debt/short_term_debt (live-confirmed via AAPL's real companyfacts
+                # JSON - LongTermDebt does not include either lease figure). NULL only when
+                # ALL FOUR components are absent (no fabricated $0 default - same fail-fast
+                # convention as the rest of this file); otherwise sums whichever components
+                # are present, treating a missing individual component as 0 (a filer with
+                # real long_term_debt but no leases has real total_debt, not NULL).
+                # See the fiscal_year IS NOT NULL comment on the book_value query above.
                 cur.execute(
                     """
                     SELECT
                         long_term_debt,
                         short_term_debt,
+                        operating_lease_liability,
+                        finance_lease_liability,
                         cash_and_equivalents
                     FROM annual_balance_sheet
-                    WHERE symbol = %s
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
                 )
                 debt_row = cur.fetchone()
                 if debt_row:
-                    long_term_debt_val, short_term_debt_val, total_cash = debt_row
-                    if long_term_debt_val is None and short_term_debt_val is None:
+                    (
+                        long_term_debt_val,
+                        short_term_debt_val,
+                        operating_lease_liability_val,
+                        finance_lease_liability_val,
+                        total_cash,
+                    ) = debt_row
+                    debt_components = (
+                        long_term_debt_val,
+                        short_term_debt_val,
+                        operating_lease_liability_val,
+                        finance_lease_liability_val,
+                    )
+                    if all(c is None for c in debt_components):
                         total_debt = None
                     else:
-                        total_debt = (long_term_debt_val or 0) + (short_term_debt_val or 0)
+                        total_debt = sum(c or 0 for c in debt_components)
                 else:
                     total_debt, total_cash = None, None
                 # Note: None values mean EV metrics won't be computed

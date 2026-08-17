@@ -579,6 +579,17 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
 
                 if sec_field not in field_mapping:
+                    # FIXED 2026-08-17: "fiscal_period" is present on every annual row (SEC
+                    # tags it "FY") but intentionally has no mapping for annual statements -
+                    # see _QUARTERLY_EXTRA's comment in load_financial_statements.py; annual
+                    # tables have no fiscal_quarter column to map it to. Before this fix, that
+                    # expected, harmless omission logged a per-occurrence WARNING for every
+                    # single annual row of every symbol - live-confirmed 40,050 warnings (plus
+                    # 3,248 per-symbol summary warnings) from one load_financial_statements
+                    # run, 100% of them this one field. That volume of pure noise drowns out
+                    # genuinely actionable unmapped-field warnings for other statement types.
+                    if sec_field == "fiscal_period" and self.period == "annual":
+                        continue
                     symbol = r.get("symbol", "?")
                     if symbol not in unmapped_fields_per_symbol:
                         unmapped_fields_per_symbol[symbol] = set()

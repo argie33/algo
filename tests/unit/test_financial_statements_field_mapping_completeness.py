@@ -61,6 +61,8 @@ _BALANCE_CONCEPTS = [
     "LongTermDebt",
     "CommercialPaper",
     "ShortTermBorrowings",
+    "OperatingLeaseLiability",
+    "FinanceLeaseLiability",
 ]
 
 _CASHFLOW_CONCEPTS = [

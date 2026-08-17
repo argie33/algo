@@ -280,6 +280,13 @@ _BALANCE_FIELD_MAPPING = {
     # (was reading total_liabilities, not any debt concept at all).
     "commercial_paper": "short_term_debt",
     "short_term_borrowings": "short_term_debt",
+    # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
+    # see sec_statements.py's get_balance_sheet() comment for why these use the combined
+    # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's
+    # total_debt per the S&P/Moody's adjusted-debt convention (operating leases) plus
+    # unambiguous debt (finance leases).
+    "operating_lease_liability": "operating_lease_liability",
+    "finance_lease_liability": "finance_lease_liability",
     **_MARKER_FIELDS,
 }
 
@@ -463,6 +470,8 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "goodwill",
                     "long_term_debt",
                     "short_term_debt",
+                    "operating_lease_liability",
+                    "finance_lease_liability",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -492,6 +501,8 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "goodwill",
                     "long_term_debt",
                     "short_term_debt",
+                    "operating_lease_liability",
+                    "finance_lease_liability",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -1024,10 +1035,47 @@ def main() -> int:
         return run_loader(ConsolidatedFinancialStatementsLoader)
     except Exception as e:
         logger.error(f"[FINANCIAL_STATEMENTS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        table_name = "?"
         try:
             period = os.environ["LOADER_PERIOD"]
             config = get_statement_config(statement_type, period)
             table_name = config["table_name"]
+            primary_key = config["primary_key"]
+
+            # FIXED 2026-08-17: every one of this loader's 9 output tables keys its
+            # primary_key on (symbol, fiscal_year[, fiscal_quarter]) or
+            # (symbol, report_date) - never symbol alone - but a crash occurring before
+            # any real row is fetched means fiscal_year/report_date genuinely aren't
+            # known here. The INSERT below used to omit those columns (defaulting them
+            # to NULL) and rely on "ON CONFLICT (symbol, fiscal_year) DO NOTHING" to
+            # dedupe repeat crashes - broken, because SQL NULL never equals NULL, so
+            # ON CONFLICT's uniqueness check never matches and every crash appended a
+            # fresh full-universe batch of NULL-keyed rows with no bound. Worse, a
+            # NULL-fiscal_year row actively corrupts every "get latest" query
+            # elsewhere in the codebase shaped `ORDER BY fiscal_year DESC LIMIT 1`
+            # (load_sec_valuations.py's book_value/cash_row/debt_row lookups among
+            # them) - Postgres's DESC ordering defaults to NULLS FIRST, so the empty
+            # marker silently outranks real, freshly-loaded data. Live-confirmed
+            # 2026-08-17: a single crashed run of this exact except-block wrote 4,948
+            # NULL-fiscal_year rows into annual_balance_sheet in one pass, which
+            # immediately made AAPL/MSFT/GOOGL/F all report "book value missing"
+            # despite each having real FY2025/2026 balance sheet data loaded the same
+            # session. Since the missing key column(s) can't be safely defaulted or
+            # deduplicated, skip the placeholder write entirely for these tables
+            # (symbols keep whatever data they already had - a stale row is safer
+            # than a corrupting NULL-keyed one) rather than writing something no
+            # future run can clean up or safely query around.
+            non_symbol_key_cols = [c for c in primary_key if c != "symbol"]
+            if non_symbol_key_cols:
+                logger.error(
+                    f"[FINANCIAL_STATEMENTS FATAL] Cannot write a per-symbol crash marker to "
+                    f"{table_name}: primary key {primary_key} requires {non_symbol_key_cols}, "
+                    f"which is not known at crash time. Skipping marker writes (existing rows "
+                    f"are left as-is) instead of writing rows with a NULL key column - see "
+                    f"2026-08-17 fix comment above for why that corrupts downstream 'latest "
+                    f"fiscal year' queries."
+                )
+                return 1
 
             symbols = set()
             with DatabaseContext("read") as cur:
@@ -1043,7 +1091,7 @@ def main() -> int:
                         f"""
                         INSERT INTO {table_name} (symbol, data_unavailable, reason, updated_at)
                         VALUES (%s, TRUE, %s, NOW())
-                        ON CONFLICT {get_conflict_target(config["primary_key"])} DO NOTHING
+                        ON CONFLICT {get_conflict_target(primary_key)} DO NOTHING
                     """,
                         (symbol, f"loader_crash:{type(e).__name__}"),
                     )

@@ -205,6 +205,27 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # collision case).
         "CommercialPaper",
         "ShortTermBorrowings",
+        # FIXED 2026-08-17 (migration 1205): post-ASC 842 (2019+) capitalized lease
+        # liabilities - a real, separate liability from long_term_debt/short_term_debt
+        # above (AAPL's LongTermDebt does not include either). Using the COMBINED tags
+        # ("OperatingLeaseLiability"/"FinanceLeaseLiability"), not the Current/Noncurrent
+        # split variants: live-confirmed via AAPL's real companyfacts JSON that the
+        # combined tag exactly equals Current+Noncurrent for both concepts (FY2025:
+        # OperatingLeaseLiability $12.49B == Current $1.579B + Noncurrent $10.911B;
+        # FinanceLeaseLiability $1.23B == Current $538M + Noncurrent $692M) - so this is
+        # the true total, not a dimensional/duplicate fact. Deliberately NOT also fetching
+        # the Current/Noncurrent variants into these same target keys: unlike the
+        # CommercialPaper/ShortTermBorrowings "last-listed wins" pattern above (genuine
+        # either/or alternatives), Current and Noncurrent are two PARTS of one total -
+        # summing them would require different aggregation logic than _aggregate_concepts
+        # provides, and naively listing them here would let a partial (e.g.
+        # Noncurrent-only) value silently overwrite a correct combined total on
+        # last-filed-wins, undercounting real lease debt - same bug class as the
+        # total_liabilities mislabeling this migration's session already fixed once. A
+        # filer that reports only the split (no combined tag) gets an honest NULL here
+        # instead of a guessed or partial sum.
+        "OperatingLeaseLiability",
+        "FinanceLeaseLiability",
     ]
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
 
