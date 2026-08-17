@@ -145,6 +145,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         symbols_failed = 0
         parallelism = parallelism or get_default_parallelism("quality_metrics")
 
+        # DASHBOARD ACCURACY FIX 2026-08-17: materialize so len() gives a real total for
+        # progress reporting - same "frozen at 0% for the entire run" bug class just fixed
+        # in load_prices.py (PriceLoader called mark_running()/mark_completed() only, nothing
+        # in between). Live-confirmed here too: this loader's own per-symbol log lines show
+        # real forward motion while data_loader_status sat at completion_pct=0/symbols_loaded=0
+        # for over an hour, indistinguishable from a hang.
+        symbols = list(symbols)
+        total_symbols = len(symbols)
+
         try:
             # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
             for table in ["quality_metrics", "growth_metrics"]:
@@ -183,48 +192,88 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 outcome: list[str] = ["failed"]
                 thread_exc: list[BaseException | None] = [None]
 
-                # Default-arg binding (evaluated now, not at call time): otherwise every closure
-                # across loop iterations shares the same enclosing-scope cells, and an abandoned
-                # (timed-out but not actually dead - daemon threads can't be force-killed) thread
-                # that finishes later would write into whatever symbol/outcome/thread_exc is
-                # current *at that point*, silently corrupting a different symbol's result.
-                def _process_symbol(
-                    self: "EnhancedQualityGrowthMetricsLoader" = self,
-                    symbol: str = symbol,
-                    since_date: date | None = since_date,
-                    outcome: list[str] = outcome,
-                    thread_exc: list[BaseException | None] = thread_exc,
-                ) -> None:
-                    try:
-                        self._process_one_symbol(symbol, since_date, outcome)
-                    except (ValueError, KeyError) as e:
-                        logger.error(f"[ENHANCED] {symbol}: Data structure error: {e}")
-                    except Exception as e:
-                        thread_exc[0] = e
-
-                thread = threading.Thread(target=_process_symbol, daemon=True)
-                thread.start()
-                thread.join(timeout=per_symbol_timeout_seconds)
-
-                if thread.is_alive():
-                    logger.error(
-                        f"[ENHANCED] {symbol}: exceeded per-symbol timeout "
-                        f"({per_symbol_timeout_seconds:.0f}s) - abandoning (thread left running) "
-                        "and moving on to the next symbol."
-                    )
-                    symbols_failed += 1
-                    continue
-
-                if thread_exc[0] is not None:
-                    # exc_info can't be passed here (LOG014: only valid inside an except block) -
-                    # this is a captured exception object from the abandoned worker thread, not
-                    # one currently being handled, so log its repr instead of a live traceback.
-                    logger.error(f"[ENHANCED] {symbol}: Unexpected error: {thread_exc[0]!r}")
-                    symbols_failed += 1
-                elif outcome[0] == "success":
+                # ROOT-CAUSE FIX 2026-08-17: since_date was read from the watermark above but
+                # never used to skip already-current symbols, and nothing in this loader ever
+                # advanced the watermark after a symbol succeeded (see _process_one_symbol) - so
+                # every invocation, including same-day retries after a partial failure/timeout,
+                # unconditionally re-ran all 3 yfinance calls (earnings_dates/eps_trend/
+                # eps_revisions) for the full ~4,900-symbol universe. Live-measured 2026-08-17:
+                # ~2.9s/symbol -> ~4h for one full run, serially blocking every downstream
+                # "metrics" pipeline loader (analyst_upgrade_downgrade/analyst_sentiment/
+                # stability_metrics/scores/buy_sell) queued behind it in PIPELINES["metrics"].
+                # Skipping symbols the watermark already shows as done today lets a same-day
+                # retry resume instead of restarting the entire universe from scratch.
+                watermark_current = (
+                    since_date is not None and self._backfill_days <= 0 and since_date >= datetime.now(tz.utc).date()
+                )
+                if watermark_current:
+                    # PROGRESS-UPDATE FIX 2026-08-17: this branch must NOT `continue` past the
+                    # progress-persist block below - a same-day retry where most/all symbols are
+                    # already watermark-current would then skip that block for the whole run,
+                    # leaving the dashboard frozen at completion_pct=0 for exactly the retry
+                    # case an operator is most likely to be anxiously watching.
+                    logger.debug(f"[ENHANCED] {symbol}: watermark={since_date} already current today, skipping")
                     symbols_succeeded += 1
                 else:
-                    symbols_failed += 1
+                    # Default-arg binding (evaluated now, not at call time): otherwise every
+                    # closure across loop iterations shares the same enclosing-scope cells, and
+                    # an abandoned (timed-out but not actually dead - daemon threads can't be
+                    # force-killed) thread that finishes later would write into whatever
+                    # symbol/outcome/thread_exc is current *at that point*, silently corrupting a
+                    # different symbol's result.
+                    def _process_symbol(
+                        self: "EnhancedQualityGrowthMetricsLoader" = self,
+                        symbol: str = symbol,
+                        since_date: date | None = since_date,
+                        outcome: list[str] = outcome,
+                        thread_exc: list[BaseException | None] = thread_exc,
+                    ) -> None:
+                        try:
+                            self._process_one_symbol(symbol, since_date, outcome)
+                        except (ValueError, KeyError) as e:
+                            logger.error(f"[ENHANCED] {symbol}: Data structure error: {e}")
+                        except Exception as e:
+                            thread_exc[0] = e
+
+                    thread = threading.Thread(target=_process_symbol, daemon=True)
+                    thread.start()
+                    thread.join(timeout=per_symbol_timeout_seconds)
+
+                    if thread.is_alive():
+                        logger.error(
+                            f"[ENHANCED] {symbol}: exceeded per-symbol timeout "
+                            f"({per_symbol_timeout_seconds:.0f}s) - abandoning (thread left running) "
+                            "and moving on to the next symbol."
+                        )
+                        symbols_failed += 1
+                    elif thread_exc[0] is not None:
+                        # exc_info can't be passed here (LOG014: only valid inside an except
+                        # block) - this is a captured exception object from the abandoned worker
+                        # thread, not one currently being handled, so log its repr instead of a
+                        # live traceback.
+                        logger.error(f"[ENHANCED] {symbol}: Unexpected error: {thread_exc[0]!r}")
+                        symbols_failed += 1
+                    elif outcome[0] == "success":
+                        symbols_succeeded += 1
+                    else:
+                        symbols_failed += 1
+
+                processed = symbols_succeeded + symbols_failed
+                if processed % 50 == 0 or processed == total_symbols:
+                    completion_pct = 100.0 * processed / max(total_symbols, 1)
+                    for table in ["quality_metrics", "growth_metrics"]:
+                        try:
+                            LoaderStatusManager(table).update_progress(
+                                symbols_loaded=processed,
+                                symbol_count=total_symbols,
+                                completion_pct=completion_pct,
+                            )
+                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                            logger.error(
+                                f"[ENHANCED] Progress update failed for {table} (dashboard will "
+                                f"show stale completion_pct until next successful update): "
+                                f"{type(e).__name__}: {str(e)[:100]}"
+                            )
 
             success = symbols_succeeded > 0
             fail_rate = (symbols_failed / max(symbols_succeeded + symbols_failed, 1)) * 100
@@ -403,6 +452,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 )
 
         outcome[0] = "success"
+
+        # ROOT-CAUSE FIX 2026-08-17: pairs with the since_date skip check in run() - without
+        # advancing the watermark here, that check could never trigger (get_current_watermark
+        # would always see None/stale), so a same-day retry would still restart the whole
+        # universe from scratch. rows_loaded=1 (not 0) so advance_watermark's non-trading-day
+        # guard (utils/data/watermark.py) never applies here - this is a same-day completion
+        # marker, not a trading-calendar date advance.
+        from datetime import datetime as _datetime
+        from datetime import timezone as _timezone
+
+        self._watermark.advance_watermark(
+            new_watermark=_datetime.now(_timezone.utc).date(), symbol=symbol, rows_loaded=1
+        )
 
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:  # noqa: C901
         # Pre-existing complexity debt, surfaced now that the ruff pre-commit hook actually
