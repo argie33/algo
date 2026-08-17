@@ -187,7 +187,13 @@ class TestPooledContextVar(unittest.TestCase):
 class TestDatabaseContextIntegration(unittest.TestCase):
     """Test DatabaseContext reuse of pooled connections."""
 
-    @patch("utils.db.context.get_db_connection")
+    # BUG FIX 2026-08-17: was "utils.db.context.get_db_connection" - that name no longer exists
+    # in utils.db.context's namespace by design (see utils/db/context.py's own BUG FIX
+    # 2026-08-16 comment: DatabaseContext now calls through
+    # `_connection_module.get_db_connection(...)` instead of importing the name directly, so a
+    # test-time patch of utils.db.connection.get_db_connection - like conftest.py's real
+    # pytest_configure mock - actually takes effect. Patching the real definition site instead.
+    @patch("utils.db.connection.get_db_connection")
     @patch("utils.db.context.get_pooled_connection")
     def test_context_reuses_pooled_connection(self, mock_get_pooled, mock_get_fresh):
         """Test that DatabaseContext reuses pooled connection if available."""
@@ -206,7 +212,13 @@ class TestDatabaseContextIntegration(unittest.TestCase):
         mock_get_pooled.assert_called()
         mock_get_fresh.assert_not_called()
 
-    @patch("utils.db.context.get_db_connection")
+    # BUG FIX 2026-08-17: was "utils.db.context.get_db_connection" - that name no longer exists
+    # in utils.db.context's namespace by design (see utils/db/context.py's own BUG FIX
+    # 2026-08-16 comment: DatabaseContext now calls through
+    # `_connection_module.get_db_connection(...)` instead of importing the name directly, so a
+    # test-time patch of utils.db.connection.get_db_connection - like conftest.py's real
+    # pytest_configure mock - actually takes effect. Patching the real definition site instead.
+    @patch("utils.db.connection.get_db_connection")
     @patch("utils.db.context.get_pooled_connection")
     def test_context_acquires_new_if_no_pooled(self, mock_get_pooled, mock_get_fresh):
         """Test that DatabaseContext acquires new connection if none pooled."""

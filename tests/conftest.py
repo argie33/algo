@@ -55,9 +55,19 @@ def _create_mock_cursor():
 
     # Track the last query to return appropriate mock data
     last_query = [None]
+    # BUG FIX 2026-08-17: rowcount used to be a static `len(mock_config_rows)` (9) set once at
+    # cursor creation, applied to every query for the whole test session regardless of what it
+    # actually was. Real status-manager code checks `if cur.rowcount != 1: raise` after
+    # single-row UPDATEs (e.g. mark_running/mark_failed in utils/loaders/status_manager.py) -
+    # live-reproduced via 50 currently-failing tests that all hit this false "expected 1, got 9"
+    # RuntimeError. 1 matches the convention already used by every other per-test rowcount mock
+    # in tests/unit/*.py for this exact status-row-UPDATE shape; only the algo_config bulk
+    # SELECT genuinely wants the full row count.
+    rowcount_box = [1]
 
     def mock_execute(query, params=None):
         last_query[0] = query if isinstance(query, str) else str(query)
+        rowcount_box[0] = len(mock_config_rows) if "algo_config" in last_query[0] else 1
 
     def mock_fetchall():
         query = last_query[0] or ""
@@ -104,8 +114,22 @@ def _create_mock_cursor():
             else:
                 return [{"column_name": "symbol"}, {"column_name": "entry_date"}, {"column_name": "entry_price"}]
 
-        # Default: config data - return as dicts
-        return [{"key": k, "value": v, "value_type": d} for k, v, d in mock_config_rows]
+        # algo_config lookups - return as dicts (key, value, value_type)
+        if "algo_config" in query:
+            return [{"key": k, "value": v, "value_type": d} for k, v, d in mock_config_rows]
+
+        # BUG FIX 2026-08-17: this used to be an unconditional catch-all returning fake
+        # algo_config rows for ANY unrecognized query, not just algo_config lookups. Any real
+        # call site whose exact query text wasn't special-cased above (e.g.
+        # data_loader_status.consecutive_failures reads in scripts/local_loader_scheduler.py
+        # and utils/loaders/status_manager.py) silently got back 3 fake config keys instead of
+        # its real 1-3 column shape, then crashed on `row[0]`/tuple-unpack against that
+        # unrelated dict - live-reproduced across 50 tests (all of
+        # test_local_loader_scheduler_*.py) that all route through the exact same default
+        # branch. An empty result is the safe generic default: every real caller already
+        # handles "no rows" (`if row:`/`if result:`), matching how a real query against an
+        # empty/absent table would behave.
+        return []
 
     def mock_fetchone():
         from datetime import datetime, timezone
@@ -162,8 +186,49 @@ def _create_mock_cursor():
                 return {col_name: date(2026, 7, 18)}
             return {"date": date(2026, 7, 18)}
 
-        # Default: config
-        return {"key": "max_positions", "value": "50", "value_type": "int"}
+        # BUG FIX 2026-08-17: single-column key lookups (`SELECT value FROM algo_config WHERE
+        # key = %s`, used by utils/market_symbols_config.py's _fetch_config_from_db for
+        # etf_symbols/orchestrator_schedule/etc.) used to match the broader "algo_config" branch
+        # just below, which returns a 3-key DICT. Real callers here do positional `row[0]`
+        # access expecting the single "value" column, and `dict[0]` raises KeyError(0) - caught
+        # by _fetch_config_from_db's except-block and re-raised as a misleading RuntimeError
+        # ("Failed to fetch config key... Check database connectivity"), not the graceful
+        # "key not found, use hardcoded default" path real code already takes when a row is
+        # falsy. Returning None here lets that same graceful fallback run instead - live-
+        # reproduced via 9 currently-failing dashboard tests that render a schedule/config value
+        # sourced this way.
+        if "SELECT value FROM algo_config" in query:
+            return None
+
+        # algo_config lookups - return as a dict (key, value, value_type)
+        if "algo_config" in query:
+            return {"key": "max_positions", "value": "50", "value_type": "int"}
+
+        # BUG FIX 2026-08-17: get_db_timezone() (utils/db/timezone_utils.py) calls
+        # `cur.fetchone()` for "SHOW timezone" through its own DatabaseContext import, which is
+        # NOT the same reference some tests patch locally (e.g.
+        # tests/unit/test_position_monitor_stale_order_timezone.py's _mock_db only substitutes
+        # algo.monitoring.position_monitor.DatabaseContext, not utils.db.timezone_utils's) - it
+        # falls through to this global mock cursor instead. The unconditional-None default just
+        # below (correct for the algo_config-leakage bug it fixes) broke this specifically:
+        # get_db_timezone() treats an empty fetchone() as a genuine DB failure and raises
+        # RuntimeError - unlike every other caller here, which already tolerates None - and a
+        # real Postgres SHOW command can never return zero rows, so this is a mock gap, not a
+        # real scenario to defend against. Live-reproduced via 6 currently-failing tests
+        # (position_monitor/reconciliation/market_exposure timezone regression tests). Match the
+        # real session timezone convention those tests already assume (America/Chicago; see
+        # test_position_monitor_stale_order_timezone.py's own docstring).
+        if "SHOW timezone" in query:
+            return ("America/Chicago",)
+
+        # BUG FIX 2026-08-17: see matching fix in mock_fetchall() above - this was the same
+        # unconditional catch-all, returning a fake 3-key algo_config dict for every
+        # unrecognized query. Any caller doing tuple-style access (`row[0]`) or a 2-value
+        # unpack (`a, b = row`) against that unrelated dict raised KeyError(0) or "too many
+        # values to unpack" - live-reproduced via 50 currently-failing tests. `None` is the
+        # safe generic default: it means "no row found", which every real caller already
+        # handles (`if row:`/`if result:`), matching a real query against an empty/absent row.
+        return None
 
     cursor.execute.side_effect = mock_execute
     cursor.fetchall.side_effect = mock_fetchall
@@ -172,7 +237,7 @@ def _create_mock_cursor():
     # CRITICAL FIX: Use PropertyMock to prevent MagicMock auto-creating new Mocks
     # When description is accessed, return None, not a new Mock object.
     type(cursor).description = PropertyMock(return_value=None)
-    cursor.rowcount = len(mock_config_rows)
+    type(cursor).rowcount = PropertyMock(side_effect=lambda: rowcount_box[0])
     cursor.connection = MagicMock()
     cursor.connection.rollback = MagicMock()
     return cursor

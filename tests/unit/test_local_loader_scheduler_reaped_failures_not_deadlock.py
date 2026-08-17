@@ -47,6 +47,11 @@ def _mock_db_row(failures, error_message):
     conn = MagicMock()
     cur = MagicMock()
     cur.fetchone.return_value = (failures, error_message)
+    # BUG FIX 2026-08-17: rowcount defaulted to a bare MagicMock attribute here, so
+    # status_manager.py's `if cur.rowcount != 1: raise` (real single-row-UPDATE check) always
+    # failed, masking this test's real assertion behind an unrelated "Failed to update status"
+    # crash - live-reproduced via both tests in this file.
+    cur.rowcount = 1
     conn.cursor.return_value = cur
     return conn
 
