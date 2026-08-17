@@ -448,6 +448,28 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
     return rows
 
 
+def _stale_warning(sig: Any) -> str:
+    """Server-computed staleness badge, mirroring scores.py's _stale_warning.
+
+    BUG FOUND 2026-08-17: unlike scores.py (which had this exact gap found and fixed
+    2026-08-10), the SIGNALS panel never rendered any staleness indicator at all, even
+    though the backend (_get_dashboard_signals in lambda/api/routes/algo_handlers/
+    dashboard.py) has always computed and returned "data_freshness" via check_data_freshness
+    (algo_signals.signal_date, warning_days=1) - the data was simply never read here. A
+    trader could be looking at genuinely stale signals (live-confirmed 2026-08-17:
+    algo_signals.signal_date maxed at 2026-08-13, 4 calendar days behind) with zero visual
+    warning, same failure mode the scores.py fix was written to prevent.
+    """
+    if not isinstance(sig, dict):
+        return ""
+    data_freshness = sig.get("data_freshness")
+    if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+        warning_text = data_freshness.get("warning") or "stale"
+        logger.warning(f"[SIGNALS] Signal data stale: {warning_text}")
+        return " [yellow]⚠ STALE[/]"
+    return ""
+
+
 @register_panel(
     "signals",
     endpoint_deps=["sig"],
@@ -502,10 +524,11 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None) -> Panel | None:
     # MEDIUM FIX: Eliminate redundant safe_get_field calls for timestamp
     timestamp_val = safe_get_field(overview, "timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    stale_warning = _stale_warning(sig)
     title = "[bold magenta]SIGNALS[/]"
     return Panel(
         Group(*rows),
-        title=rf"{title}{age_s}  [dim]\[s] expand[/]",
+        title=rf"{title}{age_s}{stale_warning}  [dim]\[s] expand[/]",
         border_style="magenta",
         padding=(0, 1),
     )
@@ -672,7 +695,8 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
 
     timestamp_val = safe_get_field(overview, "timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
-    title = f"[bold magenta]SIGNALS - EXPANDED[/]{age_s}"
+    stale_warning = _stale_warning(sig)
+    title = f"[bold magenta]SIGNALS - EXPANDED[/]{age_s}{stale_warning}"
     return Panel(
         Group(*rows),
         title=title,
