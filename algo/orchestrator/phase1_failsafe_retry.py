@@ -1602,6 +1602,12 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
     # In local mode, invoke loader directly via subprocess instead of Lambda/ECS
     if os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes"):
         logger.info(f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - invoking {loader_name} directly via subprocess")
+        # Bound before the try so the except blocks below can safely call
+        # _mark_loader_failed_after_crash() even if the loader_key lookup itself never
+        # completes (e.g. table_to_loader_shorthand raising something other than ValueError) -
+        # without this, that cleanup call would raise UnboundLocalError and mask the real
+        # exception instead of reporting it.
+        loader_key: str | None = None
         try:
             # CRITICAL FIX SESSION 104: loader_name is a TABLE NAME (e.g., "price_daily")
             # but scripts/run_loader.py expects LOADER KEYS (e.g., "prices"). Convert first.
@@ -1611,7 +1617,7 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
                 loader_key_or_none = table_to_loader_shorthand(loader_name)
                 if loader_key_or_none is None:
                     raise ValueError(f"Table {loader_name} not found in loader registry")
-                loader_key: str = loader_key_or_none
+                loader_key = loader_key_or_none
             except ValueError as e:
                 logger.error(
                     f"[PHASE 1 FAILSAFE] Cannot convert table {loader_name} to loader key: {e}. "
@@ -1667,9 +1673,33 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
                 f"[PHASE 1 FAILSAFE] Local loader {loader_name} timed out after {subprocess_timeout}s "
                 f"(configured {loader_timeout_seconds}s + 25% margin)"
             )
+            # ROOT-CAUSE FIX 2026-08-17: subprocess.run(timeout=...) kills the child on timeout,
+            # bypassing run_loader.py's own except-block cleanup the same way a hard external
+            # kill would (SIGKILL/TerminateProcess skip Python's exception handling entirely) -
+            # any table run_loader.py --force-refresh had already pre-marked RUNNING (main()'s
+            # "Mark loaders as RUNNING if force-refresh" step, before the loader's real run()
+            # ever executes) is left stuck there until the coarser reap_stale_running_loaders()
+            # eventually catches it on that table's own (sometimes 24h+) timeout budget.
+            # _mark_loader_failed_after_crash() exists specifically for this - it's already used
+            # identically 4x elsewhere in this same file (the in-process LOCAL_MODE retry path)
+            # and is documented as safe to call unconditionally from every failure branch - but
+            # this subprocess-based branch never called it. Live-reproduced: querying
+            # data_loader_status for a shared execution_started timestamp turned up ~30 tables
+            # across every local pipeline all stuck RUNNING from what this exact gap explains.
+            if loader_key is not None:
+                _mark_loader_failed_after_crash(
+                    loader_key, f"[PHASE 1 FAILSAFE] local subprocess timeout after {subprocess_timeout}s"
+                )
             raise RuntimeError(f"[PHASE 1 FAILSAFE] Local loader {loader_name} timeout") from e
         except Exception as e:
             logger.error(f"[PHASE 1 FAILSAFE] Failed to invoke local loader {loader_name}: {e}")
+            # Same gap as the TimeoutExpired branch above - an uncaught exception here (e.g. the
+            # subprocess crashing, or subprocess.run() itself failing to start it) leaves any
+            # already-pre-marked RUNNING table stuck with no cleanup unless we explicitly reap it.
+            if loader_key is not None:
+                _mark_loader_failed_after_crash(
+                    loader_key, f"[PHASE 1 FAILSAFE] local subprocess invocation error: {type(e).__name__}: {e}"
+                )
             raise RuntimeError(f"[PHASE 1 FAILSAFE] Failed to invoke local loader {loader_name}: {e}") from e
 
     trigger_function_name = os.getenv("TRIGGER_LOADERS_FUNCTION_NAME", "algo-trigger-loaders")
