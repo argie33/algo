@@ -150,6 +150,36 @@ def test_unexpected_xbrl_unit_is_skipped_not_treated_as_per_share() -> None:
     assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)
 
 
+def test_implausible_magnitude_value_is_skipped_not_treated_as_per_share() -> None:
+    """dividend_per_share is DECIMAL(10,4) (migration 1155): any |value| >= 10**6 overflows
+    the column at insert time and crashes the whole bulk_insert. Live-confirmed MDRR
+    2026-08-17: val=12650000 tagged under the correct 'USD/shares' unit (so the unit check
+    above doesn't catch it) but is obviously a total-dollars figure mistagged as per-share by
+    the filer, not a real dividend. Must be skipped at extraction time, not left to crash at
+    the DB COPY boundary where it silently drops that symbol's dividend data every run."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [
+                            {"val": 0.24, "filed": "2023-01-30", "end": "2022-12-31"},
+                            {"val": 12650000, "filed": "2023-01-30", "end": "2021-12-31"},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)
+
+
 def test_declared_and_paid_disagreeing_amount_same_period_still_collapses() -> None:
     """Live bug, confirmed 2026-08-04: the outer cross-concept dedup in fetch_incremental
     used to key on (symbol, ex_dividend_date, dividend_per_share) - a 3-column key that

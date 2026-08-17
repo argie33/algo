@@ -119,9 +119,15 @@ def get_loader_timeouts() -> dict[str, int]:
         "segment_info": 540 * 60,  # 540 min (9h) - SESSION 99: increased from 360m; SEC XBRL parsing very slow
         "sec_segment_info": 540 * 60,  # 540 min - Alias for segment_info (XBRL parsing is heavyweight)
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
-        "dividends": 60
-        * 60,  # 60 min - SESSION 94+ FIX: yfinance-based, 4900 symbols. Was 40m, increased due to rate-limit backoff overhead
-        "dividend_data": 60 * 60,  # 60 min - Alias for dividends
+        # FIX 2026-08-17: was 60m (SESSION 94+), never got the SESSION 99 SEC-rate-limiting
+        # pass the sibling SEC loaders (earnings_calendar/valuations/etc.) all received. Live
+        # run 2026-08-17 hard-timeout-killed at exactly 60m having reached only 2900/4930
+        # symbols (58.8%) at a measured ~39 symbols/min - extrapolates to ~126m for the full
+        # universe, so the entire back half of the alphabet silently lost dividend data every
+        # run. 150m matches the 100%+ margin convention used elsewhere in this file (e.g.
+        # earnings_calendar_sec/earnings_sec) and covers the extrapolated full-universe runtime.
+        "dividends": 150 * 60,  # 150 min - SEC XBRL per-symbol, 4900 symbols @ SEC rate limit
+        "dividend_data": 150 * 60,  # 150 min - Alias for dividends
         "sec_valuations": 60 * 60,  # 60 min - SEC-specific valuations
         # Trading signals
         "scores": 25 * 60,  # 25 min - scoring algorithm
