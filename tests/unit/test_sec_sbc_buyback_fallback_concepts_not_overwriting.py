@@ -17,7 +17,7 @@ from utils.external.sec_statements import _to_snake
 
 
 class TestSbcBuybackFallbackConceptMappings:
-    def test_fallback_concepts_map_to_expected_columns(self):
+    def test_fallback_concepts_map_to_expected_columns(self) -> None:
         assert (
             _CASHFLOW_FIELD_MAPPING[_to_snake("AllocatedShareBasedCompensationExpense")] == "stock_based_compensation"
         )
@@ -25,7 +25,7 @@ class TestSbcBuybackFallbackConceptMappings:
         assert _to_snake("AllocatedShareBasedCompensationExpense") in _SBC_BUYBACK_FALLBACK_ONLY_FIELDS
         assert _to_snake("PaymentsForRepurchaseOfEquity") in _SBC_BUYBACK_FALLBACK_ONLY_FIELDS
 
-    def test_standard_concepts_still_map_directly_and_are_not_fallback_only(self):
+    def test_standard_concepts_still_map_directly_and_are_not_fallback_only(self) -> None:
         assert _CASHFLOW_FIELD_MAPPING["share_based_compensation"] == "stock_based_compensation"
         assert _CASHFLOW_FIELD_MAPPING["payments_for_repurchase_of_common_stock"] == "common_stock_repurchased"
         assert "share_based_compensation" not in _SBC_BUYBACK_FALLBACK_ONLY_FIELDS
@@ -33,7 +33,7 @@ class TestSbcBuybackFallbackConceptMappings:
 
 
 class TestSbcBuybackFallbackNotOverwritingRealValue:
-    def _make_loader(self):
+    def _make_loader(self) -> SecEdgarStatementLoader:
         loader = SecEdgarStatementLoader.__new__(SecEdgarStatementLoader)
         loader.table_name = "annual_cash_flow"
         loader.period = "annual"
@@ -61,7 +61,7 @@ class TestSbcBuybackFallbackNotOverwritingRealValue:
         loader._reit_symbols = frozenset()
         return loader
 
-    def test_real_sbc_not_overwritten_by_fallback_concept(self):
+    def test_real_sbc_not_overwritten_by_fallback_concept(self) -> None:
         loader = self._make_loader()
         row = {
             "symbol": "AAPL",
@@ -74,7 +74,7 @@ class TestSbcBuybackFallbackNotOverwritingRealValue:
 
         assert transformed[0]["stock_based_compensation"] == 12_500_000_000.0
 
-    def test_fallback_concept_populates_sbc_when_standard_concept_absent(self):
+    def test_fallback_concept_populates_sbc_when_standard_concept_absent(self) -> None:
         # FIP/DC/CNA-style filer: never tags "ShareBasedCompensation", only
         # "AllocatedShareBasedCompensationExpense" - previously silently dropped.
         loader = self._make_loader()

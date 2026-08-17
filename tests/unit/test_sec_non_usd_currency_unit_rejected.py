@@ -19,26 +19,28 @@ left without a real USD fact gets an honest NULL instead of a silently wrong num
 shape and are unaffected.
 """
 
+from typing import Any
+
 from utils.external.sec_statements import get_balance_sheet
 
 
 class _FakeClient:
-    def __init__(self, facts: dict):
+    def __init__(self, facts: dict[str, Any]) -> None:
         self._facts = facts
 
     def symbol_to_cik(self, symbol: str) -> str:
         return "0000000000"
 
-    def get_company_facts(self, cik: str) -> dict:
+    def get_company_facts(self, cik: str) -> dict[str, Any]:
         return {"facts": self._facts}
 
 
-def _entry(year: int, val: float, filed: str, form: str = "20-F") -> dict:
+def _entry(year: int, val: float, filed: str, form: str = "20-F") -> dict[str, Any]:
     return {"end": f"{year}-12-31", "val": val, "filed": filed, "fp": "FY", "fy": year, "form": form}
 
 
 class TestNonUsdCurrencyUnitRejected:
-    def test_krw_only_assets_produces_no_fabricated_row(self):
+    def test_krw_only_assets_produces_no_fabricated_row(self) -> None:
         facts = {
             "us-gaap": {
                 "Assets": {"units": {"KRW": [_entry(2024, 739_764_256_000_000.0, "2025-03-01")]}},
@@ -53,7 +55,7 @@ class TestNonUsdCurrencyUnitRejected:
         # The bug: this used to be the raw KRW magnitude (739.76 trillion) masquerading as USD.
         assert 2024 not in by_year or "assets" not in by_year[2024]
 
-    def test_usd_fact_still_accepted_alongside_a_rejected_foreign_currency_fact(self):
+    def test_usd_fact_still_accepted_alongside_a_rejected_foreign_currency_fact(self) -> None:
         facts = {
             "us-gaap": {
                 "Assets": {
