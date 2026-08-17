@@ -39,8 +39,6 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, cast
@@ -64,17 +62,49 @@ def _is_data_unavailable_marker(result: Any) -> bool:
 
 
 def _call_with_timeout(fn: Callable[[], Any], timeout_sec: float = 30, retries: int = 3) -> Any:
-    """Call a function with timeout protection and automatic retry on timeout."""
+    """Call a function with timeout protection and automatic retry on timeout.
+
+    LIVE-REPRODUCED 2026-08-17: the previous implementation ran fn() via
+    `with ThreadPoolExecutor(...) as executor: future.result(timeout=timeout_sec)`.
+    When yf.download() genuinely hangs (curl_cffi stuck on a network read, no
+    socket-level timeout), future.result() raises FuturesTimeoutError as designed,
+    but that exception has to unwind through the `with` block first - and
+    ThreadPoolExecutor.__exit__ calls shutdown(wait=True), which blocks the calling
+    thread until the hung worker thread finishes. Since it never finishes, the
+    "timeout" never actually fired; the whole call just hung forever instead,
+    silently, with no timeout warning ever logged. Confirmed live: load_prices.py's
+    batch yfinance fallback hung mid-symbol (logged "Batch calling yf.download ...
+    180s timeout" and then nothing) until an external reaper killed the process
+    minutes later - the in-process retry/backoff below never got a chance to run.
+    Same daemon-thread-abandon pattern already proven for this exact bug class in
+    loaders/load_enhanced_quality_growth_metrics.py's _yfinance_call_with_timeout
+    (live-reproduced 2026-08-10) - daemon=True so an abandoned thread can't block
+    process exit, and nothing here ever waits on it to finish.
+    """
     for attempt in range(retries):
-        try:
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(fn)
-                return future.result(timeout=timeout_sec)
-        except FuturesTimeoutError:
+        result: list[Any] = [None]
+        exc: list[BaseException | None] = [None]
+
+        def _run(fn: Callable[[], Any] = fn, result: list[Any] = result, exc: list[BaseException | None] = exc) -> None:
+            try:
+                result[0] = fn()
+            except BaseException as e:
+                exc[0] = e
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout_sec)
+
+        if thread.is_alive():
             if attempt < retries - 1:
-                logger.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying...")
+                logger.warning(
+                    f"Timeout (attempt {attempt + 1}/{retries}), retrying... (abandoned thread left running)"
+                )
                 time.sleep(2**attempt)  # Exponential backoff: 1s, 2s, 4s
             continue
+        if exc[0] is not None:
+            raise exc[0]
+        return result[0]
     raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
 
 
