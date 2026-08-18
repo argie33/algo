@@ -1002,6 +1002,14 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ["EV / Revenue", num(v.stock_ev_revenue ?? v.ev_to_revenue, 2)],
     ["PEG", num(v.peg_ratio, 2)],
     [
+      "Intrinsic Value (DCF)",
+      v.stock_intrinsic_value != null ? fmtMoney(Number(v.stock_intrinsic_value)) : "—",
+    ],
+    [
+      "Margin of Safety",
+      v.stock_margin_of_safety != null ? fmtPct(Number(v.stock_margin_of_safety), 1) : "—",
+    ],
+    [
       "Dividend Yield",
       v.stock_dividend_yield != null
         ? fmtPct(Number(v.stock_dividend_yield) * 100, 2)
