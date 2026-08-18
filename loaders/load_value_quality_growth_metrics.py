@@ -796,6 +796,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: SEC dividend_data fallback failed: {e}")
 
+        # TIER 3 FALLBACK 2026-08-18 (goal: "no SEC data"/loader audit): the dividend_data
+        # table (per-share/ex-dividend-date XBRL concepts) and annual_cash_flow (the
+        # financing-activities "dividends paid" cash-flow-statement line, sourced
+        # independently by load_financial_statements.py) are two separate extractions -
+        # live-confirmed 153 universe symbols (incl. HSBC, SHEL, BHP, VOD - all real,
+        # well-known dividend payers) had a real, recent, positive annual_cash_flow.
+        # dividends_paid figure while dividend_data had no usable row, so the reason logic
+        # below fell through to "non_dividend_paying_stock" - a factually wrong
+        # classification for a company that demonstrably paid a real dividend, not just a
+        # missing-data label. Aggregate yield = total dividends paid / market cap is a
+        # standard, real approximation (no per-share/shares-outstanding intermediate
+        # needed - both cancel out), same "recover a real value instead of a misleading
+        # non-payer label" precedent as the dividend_data TIER 2 fallback above.
+        if dividend_yield is None and market_cap is not None and market_cap > 0:
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT dividends_paid FROM annual_cash_flow
+                        WHERE symbol = %s AND dividends_paid IS NOT NULL AND dividends_paid > 0
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    cf_div_row = cur.fetchone()
+                    if cf_div_row:
+                        dividend_yield = float(cf_div_row[0]) / float(market_cap)
+                        logger.debug(
+                            f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
+                            f"aggregate yield: {dividend_yield:.2%}"
+                        )
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback failed: {e}")
+
         # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
         # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
         # yfinance-sourced forward-EPS consensus, since SEC filings never carry forward estimates).
