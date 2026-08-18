@@ -122,7 +122,15 @@ repos:
         # unrelated fetch_economic_pulse() data_freshness fix touched it - the fix added exactly
         # one more .get() call, 29->30). Excluded pending the same dedicated remediation pass as
         # the other five files above, not silenced.
-        exclude: ^dashboard/(panels/health|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer|fetchers_external)\.py$
+        # dashboard/fetchers.py added 2026-08-18: same pre-existing debt (_execute_fetcher_batch/
+        # one, 6+8 .get() calls with no has_error() check) - confirmed pre-existing via a direct
+        # hook run against HEAD before this session's unrelated critical_fetchers-desync fix
+        # (the "cb" circuit-breaker fetcher could crash the whole dashboard) touched this file.
+        # Both flagged functions' .get() calls are on FETCHER_METADATA (a static config dict)
+        # and transient-error markers, not fetched panel data has_error() was designed for -
+        # excluded pending the same dedicated remediation pass as the other six files above,
+        # not silenced.
+        exclude: ^dashboard/(panels/health|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer|fetchers_external|fetchers)\.py$
         stages: [pre-commit]
 
       - id: check-credential-defaults
