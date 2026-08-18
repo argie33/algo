@@ -29,6 +29,21 @@ logger = logging.getLogger(__name__)
 # module docstring for the CAD/GBP/EUR/AUD/CHF/JPY-only fix this backs.
 _fx_rate_cache = FxRateCache()
 
+
+def _extract_currency_code(unit: str) -> str:
+    """Return the bare currency code from an XBRL unit string.
+
+    Per-share concepts (BasicEarningsLossPerShare etc.) use compound units like
+    "CAD/shares", not a bare "CAD" - the currency-rejection/conversion guard below
+    only ever matched bare 3-letter units, so foreign filers' EPS silently passed
+    through unconverted (and un-rejected) regardless of currency. Splitting on "/"
+    first makes "CAD/shares" -> "CAD" (subject to the same reject-or-convert rule as
+    a bare "CAD" monetary fact) while "shares"/"pure"/"USD/shares" -> "shares"/"pure"/
+    "USD" still correctly fall outside the 3-letter-uppercase-code shape.
+    """
+    return unit.split("/", 1)[0]
+
+
 _BALANCE_IFRS_ALIASES = [
     # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
     ("Assets", "assets"),
@@ -82,6 +97,19 @@ _INCOME_IFRS_ALIASES = [
     ("Revenue", "revenues"),
     ("RevenueFromContractsWithCustomers", "revenue_from_contract_with_customer_excluding_assessed_tax"),
     ("RevenueFromSaleOfGoods", "sales_revenue_net"),
+    # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): pure-play IFRS metals producers
+    # (B2Gold/BTG live-confirmed via real companyfacts JSON - CIK 1429937, ifrs-full
+    # namespace only, no us-gaap facts at all) disaggregate revenue by metal
+    # (RevenueFromSaleOfGold + RevenueFromSaleOfSilver as a byproduct credit) and never tag
+    # any of the concepts above - real total revenue only exists as a sum of per-metal
+    # dimensional facts, which this extractor doesn't aggregate. Gold is the overwhelming
+    # majority of revenue for these filers (silver is a minor byproduct), so mapping just
+    # this concept recovers most of the real figure instead of leaving revenue NULL/0 -
+    # same "partial but far better than missing" precedent as sales_revenue_goods_net below.
+    # Maps to the same fallback-only target as sales_revenue_goods_net (see
+    # load_financial_statements.py's _REVENUE_FALLBACK_ONLY_FIELDS) so it never clobbers a
+    # real total-revenue figure for filers that report one.
+    ("RevenueFromSaleOfGold", "sales_revenue_goods_net"),
     # FIXED 2026-08-01: Add IFRS alias for financial services revenue.
     # Some IFRS-reporting banks may use this concept instead of legacy "Revenue".
     ("RevenuesNetOfInterestExpense", "revenues_net_of_interest_expense"),
@@ -787,8 +815,15 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             # why volatile/emerging-market currencies are deliberately excluded. A rate
             # lookup failure still leaves the value NULL, same fail-closed discipline as
             # every other currency this guard rejects outright.
-            is_major_currency = _unit != "USD" and _unit in MAJOR_CURRENCIES
-            if _unit != "USD" and len(_unit) == 3 and _unit.isalpha() and _unit.isupper() and not is_major_currency:
+            _currency_code = _extract_currency_code(_unit)
+            is_major_currency = _currency_code != "USD" and _currency_code in MAJOR_CURRENCIES
+            if (
+                _currency_code != "USD"
+                and len(_currency_code) == 3
+                and _currency_code.isalpha()
+                and _currency_code.isupper()
+                and not is_major_currency
+            ):
                 continue
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
@@ -920,10 +955,35 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         f"Check SEC data source or API response."
                     )
                 row_filed = row.get(f"_filed_{col}")
-                if col not in row or (row_filed is None or entry_filed > row_filed):
+                row_end = row.get(f"_end_{col}")
+                # FIXED 2026-08-18 (live-verified RIGL): instant/point-in-time balance-sheet
+                # facts (no "start" - see this loop's is_instant-equivalent comment above)
+                # for DIFFERENT periods within the same calendar year (e.g. a Q1 comparative
+                # StockholdersEquity figure re-cited in a later 10-Q's context, alongside the
+                # real FY-end figure) collide into the SAME (fiscal_year, "FY") bucket and
+                # frequently share the identical "filed" date (both facts come from the same
+                # filing). "latest filed wins" alone then picks whichever entry happened to
+                # be iterated last - arbitrary, not correctness-driven. Live-confirmed: RIGL's
+                # real FY2025 10-K/10-Q filings tag StockholdersEquity end=2025-03-31
+                # ($18.567M, a Q1 snapshot) AND end=2025-12-31 ($391.48M, the real year-end)
+                # with the SAME filed date - the Q1 value won on iteration order, producing
+                # net_income($367.0M) / equity($18.567M) = 1976.75% ROE instead of the real
+                # ~94%. For instant facts, prefer the entry whose end date is latest (closest
+                # to the true fiscal year end) before falling back to filed-date as a
+                # tiebreak; duration facts (has "start") are unaffected - their span-day
+                # filter above already narrows the field to genuine annual totals, where
+                # "most recently filed" legitimately means "most likely restated/corrected".
+                is_instant = not start_date
+                if is_instant:
+                    should_replace = col not in row or row_end is None or end_date > row_end
+                    if not should_replace and end_date == row_end:
+                        should_replace = row_filed is None or entry_filed > row_filed
+                else:
+                    should_replace = col not in row or row_filed is None or entry_filed > row_filed
+                if should_replace:
                     val = entry.get("val")
                     if is_major_currency and isinstance(val, (int, float)) and end_date:
-                        fx_rate = _fx_rate_cache.get_usd_rate(_unit, end_date)
+                        fx_rate = _fx_rate_cache.get_usd_rate(_currency_code, end_date)
                         if fx_rate is None or fx_rate == 0:
                             # No real rate available for this exact date - fail closed,
                             # never guess. Leaves this entry unset for this column, same
@@ -932,6 +992,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         val = val / fx_rate
                     row[col] = val
                     row[f"_filed_{col}"] = entry.get("filed")
+                    row[f"_end_{col}"] = end_date
 
     # Drop helper fields, return sorted (require fiscal_year for ordering)
     # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
@@ -942,7 +1003,13 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
     result = []
     for row in rows.values():
         result.append(
-            {k: v for k, v in row.items() if not k.startswith("_filed_") and k not in ("period_end", "filed", "form")}
+            {
+                k: v
+                for k, v in row.items()
+                if not k.startswith("_filed_")
+                and not k.startswith("_end_")
+                and k not in ("period_end", "filed", "form")
+            }
         )
     # Validate fiscal_year exists before sorting (critical for financial statement ordering)
     for r in result:
