@@ -1983,6 +1983,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     ni_growth = ((net_income - prior_year_net_income) / abs(prior_year_net_income)) * 100
                     if abs(ni_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["net_income_growth_yoy"] = float(round(ni_growth, 2))
+                    else:
+                        implausible_ratio_metrics.append("net_income_growth_yoy")
                 except (ValueError, TypeError, ZeroDivisionError) as e:
                     logger.warning(
                         f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
@@ -2004,6 +2006,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     ) * 100
                     if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
+                    else:
+                        implausible_ratio_metrics.append("operating_income_growth_yoy")
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -2039,8 +2043,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             gm_trend = round(curr_gm - prior_gm, 2)
                             if abs(gm_trend) < MAX_TREND_PERCENTAGE_POINTS:
                                 metrics["gross_margin_trend"] = float(gm_trend)
+                            else:
+                                implausible_ratio_metrics.append("gross_margin_trend")
                         except (ValueError, TypeError, ZeroDivisionError):
                             pass
+                    elif curr_gm is not None and prior_gm is not None:
+                        # Inputs existed but one/both margins blew past MAX_MARGIN_ABS_PCT
+                        # (e.g. cost_of_revenue exceeding revenue) - a real, if garbage,
+                        # ratio that was deliberately excluded, not a missing-data gap.
+                        implausible_ratio_metrics.append("gross_margin_trend")
 
                 # Operating Margin Trend - uses the same EBIT-approximation fallback as
                 # operating_income_growth_yoy above (see prior_year_operating_income_for_trend).
@@ -2056,8 +2067,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             om_trend = round(curr_om - prior_om, 2)
                             if abs(om_trend) < MAX_TREND_PERCENTAGE_POINTS:
                                 metrics["operating_margin_trend"] = float(om_trend)
+                            else:
+                                implausible_ratio_metrics.append("operating_margin_trend")
                         except (ValueError, TypeError, ZeroDivisionError):
                             pass
+                    else:
+                        implausible_ratio_metrics.append("operating_margin_trend")
 
                 # Net Margin Trend - only if actual prior net income available
                 if net_income is not None and prior_year_net_income is not None and prior_year_revenue > 0:
@@ -2068,8 +2083,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             nm_trend = round(curr_nm - prior_nm, 2)
                             if abs(nm_trend) < MAX_TREND_PERCENTAGE_POINTS:
                                 metrics["net_margin_trend"] = float(nm_trend)
+                            else:
+                                implausible_ratio_metrics.append("net_margin_trend")
                         except (ValueError, TypeError, ZeroDivisionError):
                             pass
+                    else:
+                        implausible_ratio_metrics.append("net_margin_trend")
 
             # Sustainable Growth Rate = ROE * Retention Ratio - only with real data
             # FIXED 2026-08-04: dividends_paid is None (not 0) for genuine non-dividend-payers,
@@ -2141,8 +2160,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         roe_trend = round(curr_roe - prior_roe, 2)
                         if abs(roe_trend) < MAX_TREND_PERCENTAGE_POINTS:
                             metrics["roe_trend"] = float(roe_trend)
+                        else:
+                            implausible_ratio_metrics.append("roe_trend")
                     except (ValueError, TypeError, ZeroDivisionError):
                         pass
+                else:
+                    implausible_ratio_metrics.append("roe_trend")
 
             # FCF Growth YoY - only if actual prior FCF available
             # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as net_income_growth_yoy above -
@@ -2152,6 +2175,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     fcf_growth = ((free_cash_flow - prior_year_free_cash_flow) / abs(prior_year_free_cash_flow)) * 100
                     if abs(fcf_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
+                    else:
+                        implausible_ratio_metrics.append("fcf_growth_yoy")
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -2167,6 +2192,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     ) * 100
                     if abs(ocf_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
+                    else:
+                        implausible_ratio_metrics.append("ocf_growth_yoy")
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -2176,6 +2203,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     asset_growth = ((total_assets - prior_year_total_assets) / abs(prior_year_total_assets)) * 100
                     if abs(asset_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
+                    else:
+                        implausible_ratio_metrics.append("asset_growth_yoy")
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -2188,9 +2217,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # _unavailable_reason, unlike sustainable_growth_rate/quarterly_growth_momentum below
             # which already do this. Live-confirmed: growth_metrics.operating_margin_trend alone
             # had 324 NULL rows with no reason set (of 2395 total NULLs). These reasons also
-            # mirror into growth_metrics via the _SHARED_TREND_FIELDS copy below. Uses the same
-            # "insufficient_prior_year_data" reason already wired into the frontend's
-            # reasonMap/tooltips for exactly this situation.
+            # mirror into growth_metrics via the _SHARED_TREND_FIELDS copy below.
+            #
+            # FIXED 2026-08-18 ("no SEC data"/loader-failure audit goal): this loop used to
+            # blanket-assign "insufficient_prior_year_data" to any still-None field, collapsing
+            # two other distinct causes into a misleading "the loader is missing data" label:
+            # (1) gross_margin_trend for insurers/banks/REITs that structurally never report
+            # cost_of_revenue/gross_profit at all (no_gross_profit_concept, same root cause
+            # already correctly labeled "reit_special_entity" for the base gross_margin field
+            # above) - live-confirmed 1397 of 2183 gross_margin_trend "insufficient_prior_year_
+            # data" rows (64%) are this case, e.g. HIG; (2) any of the 9 fields whose inputs
+            # WERE present but got rejected by the MAX_MARGIN_ABS_PCT/MAX_TREND_PERCENTAGE_POINTS
+            # bound (implausible_ratio_metrics, appended in each block above) - a real value
+            # deliberately excluded as garbage, not a missing one (live-confirmed e.g. RDZN,
+            # where cost_of_revenue exceeds revenue and blows the margin bound). Both are
+            # legitimate-gap or garbage-data cases, not evidence of a loader fetch failure -
+            # only fall through to "insufficient_prior_year_data" once both are ruled out.
             for _trend_field in (
                 "net_income_growth_yoy",
                 "operating_income_growth_yoy",
@@ -2203,7 +2245,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "asset_growth_yoy",
             ):
                 if metrics.get(_trend_field) is None:
-                    metrics[f"{_trend_field}_unavailable_reason"] = "insufficient_prior_year_data"
+                    if _trend_field == "gross_margin_trend" and no_gross_profit_concept:
+                        metrics[f"{_trend_field}_unavailable_reason"] = "reit_special_entity"
+                    elif _trend_field in implausible_ratio_metrics:
+                        metrics[f"{_trend_field}_unavailable_reason"] = "implausible_ratio"
+                    else:
+                        metrics[f"{_trend_field}_unavailable_reason"] = "insufficient_prior_year_data"
 
             # Quarterly Metrics (Session 74+)
             quarterly_metrics = self._compute_quarterly_metrics(symbol)
@@ -2236,36 +2283,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if field not in metrics:
                     metrics[field] = None
 
-            # TREND FIELD REASONS: every guard above follows "if X and prior_year_X:
-            # compute" (calculation errors are caught separately, above) - so a NULL
-            # result here always means the prior fiscal year's row was missing that
-            # specific input, never a math failure. Surface that instead of leaving the
-            # frontend with no reason code (renders as the ambiguous, unlabeled "No data"
-            # badge instead of an explained one). quarterly_growth_momentum excluded: it's
-            # computed from quarterly (not prior-year annual) data in
-            # _compute_quarterly_metrics(), which sets its own reason (FIXED 2026-08-09: that
-            # function previously left it - and 3 sibling quarterly fields - unset with no
-            # reason when >=4 quarters existed but the growth-rate list still came out empty;
-            # a stale comment here previously called it a "dead field", which is wrong and led
-            # to a real bug: _insert_quality_metrics() hardcoded its DB column to None instead
-            # of reading the computed reason - fixed alongside this).
-            # sustainable_growth_rate excluded from this blanket loop: FIXED 2026-08-04 -
-            # unlike every other field here it uses NO prior-year data at all (see its own
-            # computation above), so "insufficient_prior_year_data" was always a factually
-            # wrong label for it. It gets its own explicit sgr_reason instead.
-            for field in (
-                "net_income_growth_yoy",
-                "operating_income_growth_yoy",
-                "gross_margin_trend",
-                "operating_margin_trend",
-                "net_margin_trend",
-                "roe_trend",
-                "fcf_growth_yoy",
-                "ocf_growth_yoy",
-                "asset_growth_yoy",
-            ):
-                if metrics.get(field) is None:
-                    metrics[f"{field}_unavailable_reason"] = "insufficient_prior_year_data"
+            # sustainable_growth_rate reason: unlike the 9 trend fields above (handled by the
+            # blanket loop before _compute_quarterly_metrics()), it uses NO prior-year data at
+            # all (see its own computation above), so it gets its own explicit sgr_reason
+            # instead of "insufficient_prior_year_data".
             if metrics.get("sustainable_growth_rate") is None:
                 metrics["sustainable_growth_rate_unavailable_reason"] = sgr_reason or "missing_sec_data"
 
