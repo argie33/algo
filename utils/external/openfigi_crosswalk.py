@@ -92,6 +92,52 @@ _CORP_SUFFIXES = {
     "HOLDINGS", "HOLDING", "GROUP", "THE", "CLASS", "A", "B", "SA", "NV", "AG",
 }  # fmt: skip
 
+# Bloomberg/OpenFIGI systematically abbreviates common words in closed-end fund and
+# trust names (vowel-dropping style: "FLTNG" for "FLOATING", "TR" for "TRUST") in a way
+# SEC's own entity_name never does. FIXED 2026-08-18 (goal session, "which factor
+# inputs are missing the most" audit): names_plausibly_match's >=50% token-overlap
+# threshold was rejecting dozens of genuinely-correct CUSIP resolutions purely because
+# of this abbreviation gap - live-confirmed via institutional_holdings_13f rows stuck on
+# "no_resolved_13f_holdings" despite the crosswalk already holding the right CUSIP, e.g.
+# EFT (Eaton Vance Floating-Rate Income Trust) resolved to OpenFIGI's "EATON VANCE
+# FLTNG RT INC TR" - zero overlap on FLTNG/RT/TR vs FLOATING/RATE/TRUST until expanded.
+# Every key here was observed in a real mismatch, not guessed - each maps to the same
+# canonical value its own full-word form (and common plural, where seen) also maps to,
+# so a full-word name and an abbreviated name land on the identical token regardless of
+# which one uses the short form.
+_ABBREVIATION_EXPANSIONS = {
+    "TR": "TRUST", "TRST": "TRUST", "TST": "TRUST", "TRS": "TRUST", "TRUST": "TRUST",
+    "ALT": "ALTERNATIVE", "ALTERNATIVE": "ALTERNATIVE",
+    "INTL": "INTERNATIONAL", "INTERNATIONAL": "INTERNATIONAL",
+    "TRGT": "TARGET", "TARGET": "TARGET",
+    "TRM": "TERM", "TERM": "TERM",
+    "GRD": "GRADE", "GRADE": "GRADE",
+    "MUNI": "MUNICIPAL", "MUNICIPAL": "MUNICIPAL", "MUNICIPALS": "MUNICIPAL",
+    "GLB": "GLOBAL", "GLBL": "GLOBAL", "GLOBAL": "GLOBAL",
+    "NTRL": "NATURAL", "NATURAL": "NATURAL",
+    "RES": "RESOURCES", "RESOURCE": "RESOURCES", "RESOURCES": "RESOURCES",
+    "UTIL": "UTILITIES", "UTILITY": "UTILITIES", "UTILITIES": "UTILITIES",
+    "PWR": "POWER", "POWER": "POWER",
+    "HLTH": "HEALTH", "HEALTH": "HEALTH",
+    "SCI": "SCIENCE", "SCIENCE": "SCIENCE", "SCIENCES": "SCIENCE",
+    "FLTNG": "FLOATING", "FLT": "FLOATING", "FLOATING": "FLOATING",
+    "RT": "RATE", "RTE": "RATE", "RATE": "RATE",
+    "DUR": "DURATION", "DURAT": "DURATION", "DURATION": "DURATION",
+    "MTG": "MORTGAGE", "MORTGAGE": "MORTGAGE",
+    "AGRIC": "AGRICULTURAL", "AGRICULTURAL": "AGRICULTURAL", "AGRICULTURE": "AGRICULTURAL",
+    "ADV": "ADVANTAGE", "ADVANTAGE": "ADVANTAGE",
+    "SPON": "SPONSORED", "SPN": "SPONSORED", "SP": "SPONSORED", "SPONSORED": "SPONSORED",
+    "TEL": "TELEPHONE", "TELEPHONE": "TELEPHONE",
+    "CL": "CLASS",
+    "OPPS": "OPPORTUNITY", "OPPOR": "OPPORTUNITY", "OPP": "OPPORTUNITY",
+    "OPPORTUNITY": "OPPORTUNITY", "OPPORTUNITIES": "OPPORTUNITY", "OPPORTUNISTIC": "OPPORTUNITY",
+    "EQTY": "EQUITY", "EQUITY": "EQUITY",
+    "PRIV": "PRIVATE", "PRIVATE": "PRIVATE",
+    "ENRGY": "ENERGY", "ENERGY": "ENERGY",
+    "INV": "INVESTMENT", "INVEST": "INVESTMENT", "INVESTMENT": "INVESTMENT", "INVESTMENTS": "INVESTMENT",
+    "CIA": "COMPANY", "COMPANIA": "COMPANY",
+}  # fmt: skip
+
 
 def fetch_cusip_tickers(
     cusips: list[str],
@@ -253,8 +299,9 @@ def name_tokens(name: str | None) -> frozenset[str]:
     """
     if not name:
         return frozenset()
-    cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ").replace("'", "")
-    return frozenset(w for w in cleaned.split() if w not in _CORP_SUFFIXES)
+    cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ").replace("&", " ").replace("'", "")
+    expanded = (_ABBREVIATION_EXPANSIONS.get(w, w) for w in cleaned.split())
+    return frozenset(w for w in expanded if w not in _CORP_SUFFIXES)
 
 
 def names_plausibly_match(figi_name: str | None, local_name: str | None) -> bool:

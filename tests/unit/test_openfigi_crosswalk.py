@@ -237,6 +237,25 @@ def test_names_plausibly_match_strips_apostrophes_from_possessive_names():
     assert names_plausibly_match("LOWES COMPANIES INC", "LOWE'S COS INC") is True
 
 
+def test_names_plausibly_match_expands_bloomberg_fund_abbreviations():
+    """FIXED 2026-08-18 (goal session, "which factor inputs are missing the most"
+    audit continued): Bloomberg/OpenFIGI systematically abbreviates common words in
+    closed-end fund/trust names (vowel-dropping style - "FLTNG" for "FLOATING", "TR"
+    for "TRUST") in a way SEC's own entity_name never does. This silently rejected
+    dozens of genuinely-correct CUSIP resolutions purely on token-overlap, e.g. real
+    tracked symbol EFT (Eaton Vance Floating-Rate Income Trust) via its own real
+    CUSIP - live-confirmed against sec_13f_cusip_crosswalk. Each case here is a real
+    observed mismatch, not synthetic."""
+    assert names_plausibly_match("EATON VANCE FLTNG RT INC TR", "Eaton Vance Floating-Rate Income Trust") is True
+    assert names_plausibly_match("BLACKROCK SCI & TECH TRM TR", "BlackRock Science & Technology Term Trust") is True
+    assert names_plausibly_match("ALBANY INTL CORP-CL A", "ALBANY INTERNATIONAL CORP /DE/") is True
+    assert names_plausibly_match("XAI FLTNG RTE&ALT INC TRS-UI", "XAI Floating Rate & Alternative Income Trust") is True
+    # Genuinely different entities must still be rejected - the abbreviation
+    # expansion must not widen the match into a wrong-entity false positive.
+    assert names_plausibly_match("TECHTARGET", "Eaton Vance Floating-Rate Income Trust") is False
+    assert names_plausibly_match("SITKA GOLD CORP", "SIGNET JEWELERS LTD") is False
+
+
 class TestEntityNameIndex:
     """FIXED 2026-08-18 (goal session, institutional ownership audit): OpenFIGI's
     ticker field for a CUSIP is sometimes wrong even when resolved_name is right -
