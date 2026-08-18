@@ -30,7 +30,7 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 
-def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150) -> None:
+def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 30) -> None:
     """Raise if buy_sell_daily shows unexpected signal degradation over 3-day rolling window.
 
     TWO-LEVEL CHECK:
@@ -42,28 +42,38 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
     - Single-day check caught immediate failures but missed slow 3-day degradation
     - New median check catches both: sudden drops AND sustained drift over multiple days
 
-    This prevents false positives from 1-2 bad days while catching real degradation patterns.
+    BUY-ONLY, RE-BASED 2026-08-18: Phase 7 (phase7_signal_generation.py) only ever consumes
+    `signal = 'BUY'` rows - SELL rows in this table are never read by entry execution. This
+    check used to count BUY+SELL combined against a 150 floor justified by "Phase 7 requires
+    minimum ~300 signals/day", which mixed in signal volume Phase 7 never uses.
+    Separately, BuySignalGenerator.run() used to emit a new row every single day a symbol
+    remained beyond its pivot instead of once on the crossover bar (fixed same day) - so the
+    combined count was inflated ~3x over genuine new signals. Live audit before the edge-trigger
+    fix (2026-08-10 through 2026-08-17, 6 trading days): real fresh-crossover BUY volume ranged
+    99-217/day (min 99). This floor (30) sits well below that observed minimum, on purpose -
+    it exists to catch an actual collapse (e.g. upstream data pipeline failure), not everyday
+    volume noise; the 3-day relative-degradation check below is what catches slow drift.
     """
-    cur.execute("SELECT MAX(date) FROM buy_sell_daily")
+    cur.execute("SELECT MAX(date) FROM buy_sell_daily WHERE signal = 'BUY'")
     result = cur.fetchone()
     latest_signal_date = result[0] if result else None
     if latest_signal_date is None:
         return
 
     # Check absolute minimum on latest day
-    cur.execute("SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s", (latest_signal_date,))
+    cur.execute("SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal = 'BUY'", (latest_signal_date,))
     result = cur.fetchone()
     latest_day_signals = result[0] if result else 0
 
     if latest_day_signals < min_signals_per_day_threshold:
         raise RuntimeError(
             f"[SIGNAL_DEGRADATION_DETECTED] buy_sell_daily's most recent date "
-            f"({latest_signal_date}) has only {latest_day_signals} signals "
+            f"({latest_signal_date}) has only {latest_day_signals} BUY signals "
             f"(expected >= {min_signals_per_day_threshold}). This indicates either: "
             f"(1) Pivot detection logic is too strict, (2) Price/technical data quality "
             f"is poor, (3) upstream price_daily/technical_data_daily coverage collapsed, "
             f"or (4) this run silently failed to advance the watermark. "
-            f"Phase 7 requires minimum ~300 signals/day to function. "
+            f"Phase 7 only consumes BUY signals from this table. "
             f"OPERATOR ACTION: Check BuySignalGenerator logic and price_daily coverage. "
             f"Do NOT accept this as normal - investigate immediately."
         )
@@ -76,7 +86,7 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
         WITH recent_days AS (
             SELECT date, COUNT(*) as signal_count
             FROM buy_sell_daily
-            WHERE date > %s - INTERVAL '10 days'
+            WHERE date > %s - INTERVAL '10 days' AND signal = 'BUY'
             GROUP BY date
             ORDER BY date DESC
             LIMIT 3
@@ -95,8 +105,8 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
         if latest_day_signals < degradation_threshold:
             raise RuntimeError(
                 f"[SIGNAL_DEGRADATION_DETECTED] buy_sell_daily showing sustained degradation. "
-                f"Latest day ({latest_signal_date}): {latest_day_signals} signals. "
-                f"3-day rolling median: {median_3day:.0f} signals. "
+                f"Latest day ({latest_signal_date}): {latest_day_signals} BUY signals. "
+                f"3-day rolling median: {median_3day:.0f} BUY signals. "
                 f"Threshold: {degradation_threshold:.0f} (50% of median). "
                 f"This indicates sustained upstream loader failure (not a single-day anomaly). "
                 f"OPERATOR ACTION: Check technical_data_daily and price_daily loaders for partial failures. "
@@ -753,6 +763,8 @@ class SignalsDailyLoader(OptimalLoader):
             #
             # Removed: watermark filtering (if since is not None: filter signals)
 
+            self._reconcile_stale_signal_rows(symbol, start, end, signals)
+
             return signals
 
         except Exception as e:
@@ -770,6 +782,42 @@ class SignalsDailyLoader(OptimalLoader):
                     "reason_type": "loader_failed",
                 }
             ]
+
+    def _reconcile_stale_signal_rows(self, symbol: str, start: date, end: date, signals: list[dict[str, Any]]) -> None:
+        """Delete existing buy_sell_daily rows this fresh recompute no longer produces.
+
+        The write path (BulkInsertManager) is upsert-only: INSERT ... ON CONFLICT (symbol,
+        date) DO UPDATE. A date that no longer yields a signal on this recompute - e.g.
+        because BuySignalGenerator's edge-trigger fix means a stock sitting beyond an
+        already-broken pivot no longer re-fires every day - simply isn't in `signals` at
+        all, so the upsert never touches it and a stale row from a prior run (or a prior
+        code version, like the pre-fix persistent-fire bug) sits in the table forever.
+        Concretely: LECO showed BUY every day 2026-08-04 through 2026-08-17 at the same
+        pivot price - 14 stale repeats of one real breakout - and the upsert alone would
+        never have cleaned that up even after the fix landed.
+
+        Since [start, end] is already treated as a fully authoritative recompute for this
+        symbol (see fetch_incremental's watermark-filtering comment), delete any existing
+        row in that window that isn't part of the fresh result.
+        """
+        real_signal_dates = [sig["date"] for sig in signals if not sig.get("data_unavailable", False)]
+        with DatabaseContext("write") as cur:
+            if real_signal_dates:
+                cur.execute(
+                    "DELETE FROM buy_sell_daily WHERE symbol = %s AND date >= %s AND date <= %s "
+                    "AND date::text != ALL(%s)",
+                    (symbol, start, end, real_signal_dates),
+                )
+            else:
+                cur.execute(
+                    "DELETE FROM buy_sell_daily WHERE symbol = %s AND date >= %s AND date <= %s",
+                    (symbol, start, end),
+                )
+            if cur.rowcount:
+                logger.info(
+                    f"[BUY_SELL_DAILY] {symbol}: reconciled {cur.rowcount} stale row(s) in {start}..{end} "
+                    f"no longer produced by the current signal logic"
+                )
 
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.

@@ -378,7 +378,7 @@ const DeepValueStocksContent = () => {
                       : "—",
                   ],
                   [
-                    "Discount to Intrinsic Value",
+                    "Intrinsic Value (DCF)",
                     fmtPct(stock.margin_of_safety_pct),
                     stock.margin_of_safety_pct >= 0 ? "#22c55e" : "#ef4444",
                   ],
@@ -1157,7 +1157,7 @@ const DeepValueStocksContent = () => {
                     }}
                     onClick={() => handleSort("margin_of_safety_pct")}
                   >
-                    Disc. to Intrinsic
+                    Intrinsic Value (DCF)
                   </th>
                   <th style={{ textAlign: "right" }}>RevYoY%</th>
                   <th style={{ textAlign: "right" }}>OpM Trend</th>

@@ -195,3 +195,64 @@ class TestComputeValuationsWiring:
         assert result["margin_of_safety_pct"] is None
         assert result["pe_ratio"] == 5.0
         assert result["data_unavailable"] is False
+
+
+class TestAvgFcfFallback:
+    """A single negative-FCF year (capex-heavy/cyclical) shouldn't unconditionally kill the
+    DCF when the company is normally FCF-positive - see load_sec_valuations.py's 2026-08-18
+    'coverage' fix. avg_fcf_fallback (the 3yr-average FCF) only kicks in when the latest
+    year's own FCF is unusable, and only if the average itself is positive."""
+
+    def _base_kwargs(self) -> dict:
+        return {
+            "symbol": "TESTCO",
+            "current_price": 5.0,
+            "shares_out": 10.0,
+            "ttm_eps": 1.0,
+            "ttm_revenue": 200.0,
+            "book_value": 50.0,
+            "ocf": 10.0,
+            "capex": 50.0,  # latest-year FCF = 10 - 50 = -40 (unusable alone)
+            "prior_year_eps": 1.0,
+            "dividends_paid": None,
+            "total_debt": None,
+            "total_cash": None,
+            "ebitda": None,
+        }
+
+    def test_positive_average_recovers_intrinsic_value(self) -> None:
+        loader = _make_loader()
+        kwargs = self._base_kwargs()
+        kwargs["avg_fcf_fallback"] = 100.0
+        result = loader._compute_valuations(**kwargs)
+        # Same fcf=100.0 case as test_positive_fcf_populates_intrinsic_value above.
+        assert result["intrinsic_value_per_share"] == 122.77
+        assert result["margin_of_safety_pct"] == 95.93
+
+    def test_negative_average_still_leaves_intrinsic_value_none(self) -> None:
+        loader = _make_loader()
+        kwargs = self._base_kwargs()
+        kwargs["avg_fcf_fallback"] = -10.0
+        result = loader._compute_valuations(**kwargs)
+        assert result["intrinsic_value_per_share"] is None
+        assert result["margin_of_safety_pct"] is None
+
+    def test_fallback_not_used_when_latest_year_already_positive(self) -> None:
+        """A positive latest-year FCF must win over the average, not be overridden by it."""
+        loader = _make_loader()
+        kwargs = self._base_kwargs()
+        kwargs["ocf"] = 100.0
+        kwargs["capex"] = 0.0  # latest-year FCF = 100.0, already usable
+        kwargs["avg_fcf_fallback"] = 1.0  # would produce a very different (tiny) result
+        result = loader._compute_valuations(**kwargs)
+        assert result["intrinsic_value_per_share"] == 122.77
+        assert result["margin_of_safety_pct"] == 95.93
+
+    def test_fcf_yield_unaffected_by_fallback(self) -> None:
+        """fcf_yield must stay based on the latest year only, never the smoothed average."""
+        loader = _make_loader()
+        kwargs = self._base_kwargs()
+        kwargs["avg_fcf_fallback"] = 100.0
+        result = loader._compute_valuations(**kwargs)
+        # latest-year fcf = -40, market_cap = 5.0 * 10.0 = 50 -> fcf_yield = -80%, within bounds.
+        assert result["fcf_yield"] == -80.0

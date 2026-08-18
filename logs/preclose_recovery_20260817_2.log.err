@@ -1,0 +1,1077 @@
+INFO:scripts.load_credentials:[CREDS] Alpaca credentials already in environment
+INFO:algo.infrastructure.config.main:[AlgoConfig] __init__ starting
+WARNING:algo.infrastructure.config.main:[AlgoConfig] Schema/defaults consistency warnings:
+  market_open_exclusion_enabled: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)
+  market_open_exclusion_minutes: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)
+INFO:algo.infrastructure.config.main:[AlgoConfig] defaults loaded in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] _load_from_database() starting
+INFO:utils.db.connection:[DB_POOL] Connection pool initialized (minconn=5, maxconn=40) with idle connection cleanup (max_idle=300s, check every 60s). Configure via DB_POOL_MIN_CONNECTIONS and DB_POOL_MAX_CONNECTIONS environment variables.
+INFO:algo.infrastructure.config.main:[AlgoConfig] database connection took 0.26s
+INFO:algo.infrastructure.config.main:[AlgoConfig] loaded 246 config rows from DB
+INFO:algo.infrastructure.config.main:[AlgoConfig] _load_from_database() completed in 0.26s
+INFO:algo.infrastructure.config.main:[AlgoConfig] database loaded in 0.26s, total 0.26s
+INFO:algo.infrastructure.config.main:[AlgoConfig] Config load summary: 245 from database, 18 defaults, total 263
+INFO:algo.infrastructure.config.main:[AlgoConfig] critical threshold validation completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] Interdependency validation passed
+INFO:algo.infrastructure.config.main:[AlgoConfig] interdependency validation completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] SOURCES: 245 from database, 18 using defaults, 0 fallback-to-default (invalid DB values), 0 fail-closed-defaults (critical safety gates)
+INFO:algo.infrastructure.config.main:[AlgoConfig] CRITICAL SAFETY THRESHOLDS (startup verification):
+INFO:algo.infrastructure.config.main:  base_risk_pct                            =            0.75 [0.01, 5.0] (source: database        safe_default: 0.5)
+INFO:algo.infrastructure.config.main:  earnings_blackout_days_after             =               1 [1, 30] (source: database        safe_default: 3)
+INFO:algo.infrastructure.config.main:  earnings_blackout_days_before            =               2 [1, 30] (source: database        safe_default: 7)
+INFO:algo.infrastructure.config.main:  halt_drawdown_pct                        =           -10.0 [-100.0, -5.0] (source: database        safe_default: -20.0)
+INFO:algo.infrastructure.config.main:  max_daily_loss_pct                       =             2.0 [0.1, 50.0] (source: database        safe_default: 2.0)
+INFO:algo.infrastructure.config.main:  max_position_size_pct                    =            4.75 [0.1, 15.0] (source: database        safe_default: 5.0)
+INFO:algo.infrastructure.config.main:  min_avg_daily_dollar_volume              =        500000.0 [1.0, 100000000.0] (source: database        safe_default: 500000.0)
+INFO:algo.infrastructure.config.main:  min_completeness_score                   =              70 [1, 100] (source: database        safe_default: 70)
+INFO:algo.infrastructure.config.main:  min_signal_quality_score                 =              75 [1, 100] (source: database        safe_default: 60)
+INFO:algo.infrastructure.config.main:  min_volume_ma_50d                        =          300000 [1, 10000000] (source: database        safe_default: 300000)
+INFO:algo.infrastructure.config.main:  sector_drawdown_halt_pct                 =           -12.0 [-100.0, -1.0] (source: database        safe_default: -12.0)
+INFO:algo.infrastructure.config.main:  vix_max_threshold                        =            35.0 [20.0, 100.0] (source: database        safe_default: 35.0)
+INFO:algo.infrastructure.config.main:[CONFIG SET] execution_mode = paper (was paper), actor=system
+WARNING:algo.config.environment_validation:[ORCHESTRATOR] Optional environment variables not set: ['LOG_LEVEL', 'BACKFILL_DAYS', 'MAX_RUNTIME_SECONDS', 'DATA_FRESHNESS_THRESHOLD_MINUTES']. Using defaults.
+INFO:algo.orchestration.orchestrator:[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: paper
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Using filesystem locks at C:\Users\arger\AppData\Local\Temp\algo-locks (duration=300s)
+INFO:algo.orchestration.orchestrator:[STARTUP] Orchestrator ready. Alpaca credentials will be validated in Phase 4.
+INFO:algo.orchestration.orchestrator:
+######################################################################
+INFO:algo.orchestration.orchestrator:#   ALGO ORCHESTRATOR - 2026-08-17  (PAPER)
+INFO:algo.orchestration.orchestrator:#   run_id: LOCAL-PRECLOSE-20260817-190748-101606
+INFO:algo.orchestration.orchestrator:#   START TIME: 2026-08-17T23:07:48.384034+00:00
+INFO:algo.orchestration.orchestrator:######################################################################
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Using filesystem locks at C:\Users\arger\AppData\Local\Temp\algo-locks (duration=300s)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Lock acquired (atomic): orchestrator-run-lock.lock
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PRE-FLIGHT CHECKS (before Phase 1)
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestration.orchestrator:[CRITICAL] Checking market calendar...
+INFO:algo.orchestration.orchestrator:[OK] Monday is a trading day - proceeding with orchestration
+INFO:algo.orchestration.orchestrator:[MARKET_HOURS_GUARD] Checking: allow_outside_hours=True, now_et=19:07:48.386648, market_open=09:30:00, window_close=16:00:00
+WARNING:algo.orchestration.orchestrator:[MARKET_HOURS_GUARD] BYPASSED via ALLOW_OUTSIDE_MARKET_HOURS=true: current time 19:07:48.386648 is OUTSIDE the allowed window (09:30:00-16:00:00 ET). Proceeding anyway because the guard was explicitly overridden.
+INFO:algo.orchestration.orchestrator:[CRITICAL] Running critical data checks...
+INFO:algo.orchestration.orchestrator:[TABLE-CHECK] All 6 required tables exist [OK] - price_daily, trend_template_data, sector_ranking...
+INFO:algo.orchestration.orchestrator:[OK] All pre-flight checks passed
+INFO:algo.orchestration.orchestrator:
+[CHECK] Database connectivity...
+INFO:algo.orchestration.orchestrator:[OK] Database connectivity check passed
+INFO:algo.orchestration.orchestrator:
+[CHECK] Monitoring RDS connection pool...
+INFO:algo.orchestration.orchestrator:
+[CHECK] Validating startup configuration...
+INFO:algo.orchestration.orchestrator:[STARTUP VALIDATION] Checking required configuration...
+INFO:algo.orchestration.orchestrator:[OK] OrchestratorConfig validated: True
+INFO:algo.orchestration.orchestrator:[OK] execution_mode validated: paper \u2192 Paper trading (Alpaca sandbox endpoint)
+INFO:algo.orchestration.orchestrator:[OK] Paper trading mode - Alpaca credentials not required
+WARNING:algo.orchestration.orchestrator:[STARTUP] WARNING: Test/fake Alpaca credentials detected in database (alpaca_api_key starts with 'PK'). System is in paper mode now, but these credentials will FAIL when switching to 'auto' mode for production trading. To prepare for production: Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api and set APCA_API_KEY_ID + APCA_API_SECRET_KEY environment variables.
+INFO:algo.orchestration.orchestrator:[OK] All critical config keys present
+INFO:algo.orchestration.orchestrator:[OK] Database schema validation passed: algo_positions table exists
+INFO:algo.orchestration.orchestrator:
+[CHECK] Killing long-running analytics loaders...
+INFO:botocore.credentials:Found credentials in shared credentials file: ~/.aws/credentials
+WARNING:algo.orchestration.orchestrator:[OOM_PREVENTION] Could not check/kill long-running loaders: An error occurred (UnrecognizedClientException) when calling the ListTasks operation: The security token included in the request is invalid.
+INFO:algo.orchestration.orchestrator:
+[CHECK] Cleaning up expired loader locks...
+INFO:algo.orchestration.orchestrator:
+[HEALTH CHECK] System diagnostics before Phase 1:
+INFO:algo.orchestration.database_health_monitor:  Table Freshness Status:
+INFO:algo.orchestration.database_health_monitor:    [0d old] Prices              : 2026-08-17
+INFO:algo.orchestration.database_health_monitor:    [0d old] Market health       : 2026-08-17
+INFO:algo.orchestration.database_health_monitor:    [0d old] Market exposure     : 2026-08-17
+INFO:algo.orchestration.database_health_monitor:    [0d old] Buy/sell signals (Phase 5): 2026-08-17
+INFO:algo.orchestration.database_health_monitor:    [0d old] Trend template      : 2026-08-17
+INFO:algo.orchestration.database_health_monitor:    [0d old] Sector ranking      : 2026-08-17
+INFO:algo.orchestration.database_health_monitor:  Loader Status:
+INFO:algo.orchestration.database_health_monitor:    buy_sell_daily           : COMPLETED  (updated 2026-08-17 22:27:03.212943)
+INFO:algo.orchestration.database_health_monitor:    market_exposure_daily    : COMPLETED  (updated 2026-08-17 22:48:20.702980)
+INFO:algo.orchestration.database_health_monitor:    market_health_daily      : COMPLETED  (updated 2026-08-17 22:48:20.700619)
+INFO:algo.orchestration.database_health_monitor:    price_daily              : COMPLETED  (updated 2026-08-17 22:44:19.383000)
+INFO:algo.orchestration.orchestrator:
+[LOADER CHECK] Verifying critical loaders have run recently...
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] market_exposure_daily OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] market_health_daily OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] technical_data_daily OK (99.4%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] etf_price_monthly OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] etf_price_weekly OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] price_monthly OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] price_weekly OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] etf_price_daily OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] price_daily OK (97.9%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] sector_ranking OK (100.0%)
+INFO:algo.orchestration.orchestrator:
+[PIPELINE MONITORING] Computing health for all 94 data tables...
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for algo_untracked_positions, skipping age check
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for equity_curve_daily, skipping age check
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for sec_dividends, skipping age check
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for sec_material_events, skipping age check
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for ttm_balance_sheet, skipping age check
+WARNING:algo.monitoring.pipeline_health:Error checking secondary table ttm_balance_sheet: Unknown table 'ttm_balance_sheet' (not in whitelist)
+INFO:algo.orchestration.orchestrator:[PIPELINE MONITORING] Health check complete: 78/81 tables healthy
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Using filesystem locks at C:\Users\arger\AppData\Local\Temp\algo-locks (duration=300s)
+INFO:algo.orchestration.orchestrator:[STALE_LOADER_REAPER] Checking for loaders stuck RUNNING at 0%...
+INFO:algo.orchestration.orchestrator:[STALE_LOADER_REAPER] No stale RUNNING loaders found (good)
+INFO:algo.orchestration.orchestrator:
+[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...
+INFO:algo.orchestration.orchestrator:
+[PROACTIVE WAIT] Checking for running critical loaders (max wait: 30s)...
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] All critical loaders are at 90%+ completion (target threshold)
+INFO:algo.orchestration.orchestrator:[OK] All critical loaders completed before Phase 1
+INFO:algo.orchestration.orchestrator:
+[DEADLOCK PREVENTION] Checking if halt flag needs proactive clear...
+INFO:monitoring.metrics_context:[START] orchestrator_executor
+INFO:algo.orchestrator.phase_executor:
+######################################################################
+INFO:algo.orchestrator.phase_executor:#   ORCHESTRATOR EXECUTOR START
+INFO:algo.orchestrator.phase_executor:#   Executing 9 phases
+INFO:algo.orchestrator.phase_executor:######################################################################
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 1: DATA FRESHNESS CHECK
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.position_sync:[POSITION_SYNC] Found 7 open positions in trades
+INFO:algo.orchestration.position_sync:[POSITION_SYNC] Completed: 0 inserted, 7 updated, 0 errors
+INFO:algo.orchestration.orchestrator:[POSITION_SYNC] Completed: 0 inserted, 7 updated
+INFO:algo.orchestration.position_sync:[POSITION_SYNC_VALIDATE] Positions validated: 7 symbols, 7 total positions match trades perfectly
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 1: DATA FRESHNESS CHECK
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Starting comprehensive freshness check (Pipeline: EOD, Time: 19:07:54 ET)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE DEBUG] check_and_retry_incomplete_loaders called with run_date=2026-08-17, pipeline_context=EOD
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE] LOCAL_MODE enabled - triggering local loader refresh for stale data
+WARNING:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] Found FAILED loader (will retry): etf_symbols (consecutive_failures=3, error=[REAPED] Stuck in RUNNING since 2026-08-17 19:37:25.012320+0)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] EOD - expecting same/recent trading day (2026-08-17)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] price_daily fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] etf_price_daily fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] technical_data_daily fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] stock_scores fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] buy_sell_daily fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] market_health_daily fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] trend_template_data fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] earnings_calendar fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] company_info_sec fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] company_profile fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] sec_valuations fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] annual_income_statement fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] annual_balance_sheet fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] annual_cash_flow fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] quarterly_income_statement fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] quarterly_balance_sheet fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] quarterly_cash_flow fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] earnings_calendar_sec fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] sec_segment_info fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] sec_segment_metrics fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] dividend_data fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] value_metrics fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] quality_metrics fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] analyst_earnings_estimates fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] analyst_sentiment_analysis fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] analyst_upgrade_downgrade fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] institutional_holdings_13f fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] insider_holdings_sec fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] insider_transaction_velocity fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] short_interest_finra fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] positioning_metrics fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] industry_ranking fresh and complete: 2026-08-17
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] FAILED loader etf_symbols \u2192 constituents
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] Found 1 FAILED + 0 stale loaders to refresh
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Using filesystem locks at C:\Users\arger\AppData\Local\Temp\algo-locks (duration=300s)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] Retrying FAILED loader: etf_symbols
+WARNING:utils.loaders.timeout_enforcement:[TIMEOUT] constituents: SIGALRM not available (Windows). Using threading.Timer fallback for 10m 0s
+WARNING:utils.loader_infrastructure:[CONFIG] LOADER_PARALLELISM not set in environment. Using default.
+INFO:utils.optimal_loader:[CONFIG] Batch size set to 50000 (AWS=False)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] etf_symbols: Global-mode loader, using load_global()
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Using filesystem locks at C:\Users\arger\AppData\Local\Temp\algo-locks (duration=660s)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Lock acquired (atomic): stock_symbols.lock
+INFO:utils.db.pooled_connection_manager:[stock_symbols] Acquired pooled connection (held for up to 30s)
+INFO:utils.loaders.status_manager:[STATUS] stock_symbols: RUNNING
+INFO:loaders.load_market_constituents:STEP 1/3: Fetching NASDAQ/NYSE tradable symbols
+INFO:loaders.load_market_constituents:Successfully refreshed etf_symbols table with 5611 ETF symbols
+INFO:loaders.load_market_constituents:Fetched 4854 base symbols from NASDAQ/NYSE
+INFO:loaders.load_market_constituents:STEP 2/3: Fetching S&P 500 constituents
+INFO:loaders.load_market_constituents:Fetched 503 S&P 500 constituents
+INFO:loaders.load_market_constituents:STEP 3/3: Fetching Russell 2000 constituents
+ERROR:loaders.load_market_constituents:[MARKET_CONSTITUENTS] Russell 2000 data unavailable from all sources (2 attempted). Cannot load Russell 2000 constituent data without valid source.
+WARNING:loaders.load_market_constituents:[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 (RuntimeError: [MARKET_CONSTITUENTS] Russell 2000 data unavailable from all sources (2 attempted). Cannot load Russell 2000 constituent data without valid source.). This is optional enrichment - continuing without it.
+INFO:loaders.load_market_constituents:Enriched 4854 symbols with index membership. S&P 500: 499 Russell 2000: 0
+INFO:utils.loaders.status_manager:[STATUS_MANAGER] Archived stock_symbols history record: COMPLETED
+INFO:utils.loaders.status_manager:[STATUS] stock_symbols: COMPLETED (6.6s)
+INFO:utils.db.pooled_connection_manager:[stock_symbols] Returned connection to pool (held for 6.6s)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Lock released: stock_symbols.lock
+ERROR:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] etf_symbols refresh in-process returned success but the table's own status is 'FAILED', not COMPLETED (completion_pct=0.00, error=[REAPED] Stuck in RUNNING since 2026-08-17 19:37:25.012320+00:00 (>0.2h ago, exceeds 600s timeout + 25% margin). No owning process alive - auto-marked FAILED.). Not reporting as recovered.
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Failsafe retry check: incomplete=1 retried=1 recovered=0 still_failing=1 halt_required=False
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM annual_income_statement", "params": "None", "error_type": "UndefinedColumn", "error_message": "column \"date\" does not exist\nLINE 1: SELECT MAX(date) FROM annual_income_statement /* correlation...\n                   ^\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM annual_income_statement
+  Params: None
+  Error: UndefinedColumn: column "date" does not exist
+LINE 1: SELECT MAX(date) FROM annual_income_statement /* correlation...
+                   ^
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.UndefinedColumn: column "date" does not exist
+LINE 1: SELECT MAX(date) FROM annual_income_statement /* correlation...
+                   ^
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency annual_income_statement: column "date" does not exist
+LINE 1: SELECT MAX(date) FROM annual_income_statement /* correlation...
+                   ^
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM annual_balance_sheet", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM annual_balance_sheet
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency annual_balance_sheet: current transaction is aborted, commands ignored until end of transaction block
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(computed_at)::date FROM sec_valuations", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(computed_at)::date FROM sec_valuations
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency sec_valuations: current transaction is aborted, commands ignored until end of transaction block
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM sec_segment_info", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM sec_segment_info
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency sec_segment_info: current transaction is aborted, commands ignored until end of transaction block
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM institutional_holdings_13f", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM institutional_holdings_13f
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency institutional_holdings_13f: current transaction is aborted, commands ignored until end of transaction block
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM insider_holdings_sec", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM insider_holdings_sec
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency insider_holdings_sec: current transaction is aborted, commands ignored until end of transaction block
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM value_metrics", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM value_metrics
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency value_metrics: current transaction is aborted, commands ignored until end of transaction block
+
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "SELECT MAX(date) FROM stability_metrics", "params": "None", "error_type": "InFailedSqlTransaction", "error_message": "current transaction is aborted, commands ignored until end of transaction block\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: SELECT MAX(date) FROM stability_metrics
+  Params: None
+  Error: InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Could not check dependency stability_metrics: current transaction is aborted, commands ignored until end of transaction block
+
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Dependency freshness check: OK
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Pre-flight: stock_symbols table OK (4,955 active symbols)
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Symbol list verified: 4955 active symbols
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Grace period expired (> 4:30 PM): requiring 2026-08-17 data
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] PASS - PIPELINE DATA FRESH
+INFO:algo.orchestrator.phase1_data_freshness:  - Prices: 2026-08-17 (4827 symbols, 97.4%)
+INFO:algo.orchestrator.phase1_data_freshness:  - All pipeline tables (market_health, trend_template, market_exposure) fresh
+INFO:algo.orchestrator.phase1_data_freshness:  - Check completed in 9.5s
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Validating upstream metric loaders ready for stock_scores...
+WARNING:utils.loader_infrastructure:[CONFIG] LOADER_PARALLELISM not set in environment. Using default.
+INFO:utils.optimal_loader:[CONFIG] Batch size set to 50000 (AWS=False)
+INFO:loaders.load_stock_scores:[STOCK_SCORES] Pre-flight validation passed: upstream metric loaders ready. Proceeding with stock score computation.
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Metric loaders validation: PASS - All metric loaders ready
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Stock scores completeness: 98.2% avg (4701/4701 available symbols >= 70%)
+INFO:algo.orchestration.orchestrator:
+-> Phase 1 success: All critical tables fresh: prices=2026-08-17, coverage=97.4%
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Validating prices for 7 portfolio symbols (using latest available)
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] All 7 portfolio symbols have prices (latest available)
+INFO:algo.orchestration.orchestrator:[PHASE1_DYNAMODB] LOCAL_MODE=True, env=true
+INFO:algo.orchestration.halt_flag_manager:[HALT_FLAG_CLEARED] Phase 1 verified data is fresh at 2026-08-17T23:08:03.851807+00:00 (via RDS fallback)
+INFO:algo.orchestrator.phase_executor:
+-> Phase 1 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 2: CIRCUIT BREAKERS
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 2: CIRCUIT BREAKERS
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Daily Loss Limit Exceeded               : Daily -0.01%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Portfolio Drawdown Limit                : Drawdown 5.80%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Drawdown Recovery Period                : Re-engagement approved: recovered to 5.8%, 33d elapsed, market Stage 2
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Consecutive Losses Limit                : 0 losses
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Total Open Risk Limit                   : Risk 1.76%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Market Volatility Spike                 : VIX 15.2
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Market Stage Break                      : Stage 2 (sideways)
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Weekly Loss Limit Exceeded              : Weekly -0.16%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Sector Concentration Warning            : All sectors within limits (max 8 per sector)
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Sector Drawdown Halt                    : Worst sector (Consumer Cyclical) at -1.70%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Market Instability (Prior-Day Drop)     : SPY prior day -0.47%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Win Rate Floor Breached                 : Win rate 40.0%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Daily Profit Target Reached             : Daily profit -0.01% vs cap 2.0%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Data Staleness Check                    : 0d old
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'daily_loss'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'drawdown'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'drawdown_re_engagement'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'consecutive_losses'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'total_risk'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'vix_spike'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'market_stage'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'weekly_loss'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'sector_concentration'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'sector_drawdown'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'intraday_market_health'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'win_rate_floor'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'daily_profit_cap'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'data_freshness'}
+INFO:algo.orchestration.orchestrator:
+-> Phase 2 success: all clear
+INFO:algo.orchestrator.phase_executor:
+-> Phase 2 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 3: POSITION MONITOR
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 3: POSITION MONITOR
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3] Paper mode: updating position prices only
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3] Found 7 open positions to update
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] review_positions: cursor acquired
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] Calling check_sector_concentration with shared cursor (cursor lifecycle fix)
+INFO:algo.monitoring.position_monitor:
+======================================================================
+INFO:algo.monitoring.position_monitor:POSITION MONITOR - 2026-08-17
+INFO:algo.monitoring.position_monitor:======================================================================
+INFO:algo.monitoring.position_monitor:Reviewing 7 open position(s)
+
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] EAT: days_held=4, flags=['TIME_DECAY_NO_PROGRESS'] (need 2 for exit), stop=233.68->233.68, unrealized=-1.7%, r_multiple=-0.34
+INFO:algo.monitoring.position_monitor:  EAT     qty=13    price=$ 241.71  R=-0.34  P&L=-1.70%  days=4   hits=0  flags=TIME_DECAY_NO_PROGRESS
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] CAE: days_held=4, flags=['TIME_DECAY_NO_PROGRESS'] (need 2 for exit), stop=25.64->25.64, unrealized=-2.5%, r_multiple=-0.25
+INFO:algo.monitoring.position_monitor:  CAE     qty=74    price=$  26.98  R=-0.25  P&L=-2.55%  days=4   hits=0  flags=TIME_DECAY_NO_PROGRESS
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] IOSP: Entered on 2026-08-17 (>= monitoring date 2026-08-17). Position too new for peak gain analysis - returning 0%.
+INFO:algo.monitoring.position_monitor:  IOSP    qty=27    price=$  98.17  R=+0.40  P&L=+4.63%  days=0   hits=0  flags=none
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] ISSC: Entered on 2026-08-17 (>= monitoring date 2026-08-17). Position too new for peak gain analysis - returning 0%.
+INFO:algo.monitoring.position_monitor:  ISSC    qty=136   price=$  24.63  R=-0.13  P&L=-0.59%  days=0   hits=0  flags=none
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] LPG: Entered on 2026-08-17 (>= monitoring date 2026-08-17). Position too new for peak gain analysis - returning 0%.
+INFO:algo.monitoring.position_monitor:  LPG     qty=36    price=$  48.42  R=+0.00  P&L=+0.00%  days=0   hits=0  flags=none
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] VCTR: Entered on 2026-08-17 (>= monitoring date 2026-08-17). Position too new for peak gain analysis - returning 0%.
+INFO:algo.monitoring.position_monitor:  VCTR    qty=28    price=$ 118.81  R=+0.00  P&L=+0.00%  days=0   hits=0  flags=none
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.monitoring.position_monitor:[POSITION_MONITOR] GEN: days_held=10, flags=['TIME_DECAY_NO_PROGRESS'] (need 2 for exit), stop=28.12->28.12, unrealized=-2.8%, r_multiple=-0.20
+INFO:algo.monitoring.position_monitor:  GEN     qty=73    price=$  28.34  R=-0.20  P&L=-2.83%  days=10  hits=0  flags=TIME_DECAY_NO_PROGRESS
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3] Paper mode generated 7 recommendations: 0 early exits, 3 stop raises
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3 RAISE_STOP] IOSP: new_stop=$93.98, reason=Trail stop $82.88 -> $93.98
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3 RAISE_STOP] ISSC: new_stop=$23.68, reason=Trail stop $23.68 -> $23.68
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3 RAISE_STOP] LPG: new_stop=$44.47, reason=Trail stop $40.16 -> $44.47
+INFO:algo.orchestration.orchestrator:
+-> Phase 3 success: 7 positions updated with current prices, 7 recommendations generated
+INFO:algo.orchestrator.phase_executor:
+-> Phase 3 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 4: RECONCILIATION
+INFO:algo.orchestrator.phase_executor:======================================================================
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of Alpaca credential/API availability, so it never treats the unrelated real broker account as ground truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). Orchestrator will continue with signal generation and exit execution.
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION PAPER MODE] Found 7 open positions, baseline: $71144.96, realized P&L today: $-39.72, unrealized P&L change: $+127.14 (now $-69.14), portfolio value: $71232.38
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: About to write snapshot for 2026-08-17 with 7 positions
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: DatabaseContext opened, role=write
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT params - date=2026-08-17, positions=7, portfolio_value=71232.38, cash=52953.920000000006
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT executed successfully
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] VERIFICATION: position_count=7 (expected=7) - MATCH=True
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count=7
+INFO:algo.orchestrator.phase4_reconciliation:[PHASE 4] Paper mode: broker unavailable, skipping partial fill validation
+INFO:algo.orchestrator.phase4_reconciliation:[PHASE 4] Recording NULL match_pct in audit (check skipped - no broker (paper mode))
+INFO:algo.orchestration.orchestrator:
+-> Phase 4 success: 7 positions verified
+INFO:algo.orchestrator.phase_executor:
+-> Phase 4 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 5: EXPOSURE POLICY ACTIONS
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 5: EXPOSURE POLICY ACTIONS
+INFO:algo.orchestration.orchestrator:======================================================================
+CRITICAL:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS for halt flag read
+INFO:algo.orchestrator.phase5_exposure_policy:  Exposure: 74.6% (confirmed_uptrend)
+INFO:algo.orchestrator.phase5_exposure_policy:  Tier: confirmed_uptrend - Confirmed bull market - full deployment
+INFO:algo.orchestrator.phase5_exposure_policy:    risk_mult=1.0, max_new/day=4, min_composite=50.0, halt_entries=False
+INFO:algo.orchestrator.phase5_exposure_policy:  No exposure-policy actions
+INFO:algo.orchestration.orchestrator:
+-> Phase 5 success: tier=confirmed_uptrend, no actions
+INFO:algo.orchestrator.phase_executor:
+-> Phase 5 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 6: EXIT EXECUTION
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6] Validating Phase 3 position monitor data (mode=paper)
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6 POSITION_SIZE] Using config max_position_size_pct=4.75% (individual position limit)
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6 CONCENTRATION] Using snapshot from 2026-08-17 (portfolio value: $71,232.38)
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6] Found 0 oversized positions to force-exit
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6] Paper trading mode active (execution_mode=paper, alpaca_paper_trading=True). Exit orders will execute against paper account.
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.orchestrator.phase6_exit_execution:  RAISED STOP IOSP: $82.88 -> $93.98
+INFO:algo.orchestrator.phase6_exit_execution:  RAISED STOP ISSC: $23.68 -> $23.68
+INFO:algo.orchestrator.phase6_exit_execution:  RAISED STOP LPG: $40.16 -> $44.47
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:
+======================================================================
+INFO:algo.trading.exit_engine:EXIT ENGINE CHECK - 2026-08-17
+INFO:algo.trading.exit_engine:======================================================================
+
+INFO:algo.trading.exit_engine:  GEN: STOP - STOP hit: $27.41 <= $28.12 (hard capital preservation - not subject to min_hold_days)
+INFO:algo.trading.exit_engine:      (exit 100%)
+ERROR:algo.trading.exit_engine:      -> FAILED: Position already closed (idempotency guard)
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:  EAT: hold (cur $241.71, stop $233.68, t1 $276.42, day 4, hits 0)
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:  CAE: hold (cur $27.14, stop $25.64, t1 $34.60, day 4, hits 0)
+INFO:algo.trading.exit_engine:  IOSP: STOP - STOP hit: $93.83 <= $93.98 (hard capital preservation - not subject to min_hold_days)
+INFO:algo.trading.exit_engine:      (exit 100%)
+INFO:algo.reporting.notifications:[NOTIF] Saved to DB: EXIT: IOSP
+ERROR:algo.reporting.alerts:Email failed: [WinError 10061] No connection could be made because the target machine actively refused it
+ERROR:algo.trading.executor_exit_handler:[EXIT_HANDLER] Failed to send exit notification for IOSP trade TRD-5881C12CCF (non-blocking, exit already committed): ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:algo.trading.exit_engine:      -> Exited 27.0sh of IOSP @ $93.98 - +0.16%, +0.01R
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:  ISSC: hold (cur $24.78, stop $23.68, t1 $27.54, day 0, hits 0)
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:  LPG: hold (cur $48.42, stop $44.47, t1 $69.06, day 0, hits 0)
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:  VCTR: hold (cur $118.81, stop $114.37, t1 $129.91, day 0, hits 0)
+INFO:algo.trading.exit_engine:
+======================================================================
+INFO:algo.trading.exit_engine:Exits executed: 1/7 positions (0 stop-raises, 0 errors, 0 forced_closes_no_price)
+INFO:algo.trading.exit_engine:======================================================================
+
+INFO:algo.orchestration.orchestrator:
+-> Phase 6 ok: 1 exits, 3 stop-raises, 0 forced_closes_no_price, 0 errors
+INFO:algo.orchestrator.phase_executor:
+-> Phase 6 ok: check logs for details
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)
+INFO:utils.db.local_file_lock:[FILE_LOCK] Using filesystem locks at C:\Users\arger\AppData\Local\Temp\algo-locks (duration=300s)
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 7: SIGNAL GENERATION & RANKING
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7 TUNING] Using regime-based min_composite_score=50 (tier=confirmed_uptrend, exposure=74.6%)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Starting signal generation
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Dynamic anomaly threshold: 176 (median_30d=530/3). Will halt if signals drop below 176 on any day.
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] buy_sell_daily freshness OK: latest from 2026-08-17 (32025 signals in table)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Today's signal_quality_scores already computed (962 rows exist)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Skipping signal quality score loader (today's scores already available)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Signal quality scores computed: 0 symbols
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Backfilling quality scores for orphaned loader-created signals
+CRITICAL:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS for halt flag read
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Market regime: confirmed_uptrend exposure=75% entry_allowed=True
+INFO:algo.infrastructure.config.main:[AlgoConfig] __init__ starting
+WARNING:algo.infrastructure.config.main:[AlgoConfig] Schema/defaults consistency warnings:
+  market_open_exclusion_enabled: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)
+  market_open_exclusion_minutes: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)
+INFO:algo.infrastructure.config.main:[AlgoConfig] defaults loaded in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] _load_from_database() starting
+INFO:algo.infrastructure.config.main:[AlgoConfig] database connection took 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] loaded 246 config rows from DB
+INFO:algo.infrastructure.config.main:[AlgoConfig] _load_from_database() completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] database loaded in 0.00s, total 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] Config load summary: 245 from database, 18 defaults, total 263
+INFO:algo.infrastructure.config.main:[AlgoConfig] critical threshold validation completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] Interdependency validation passed
+INFO:algo.infrastructure.config.main:[AlgoConfig] interdependency validation completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] SOURCES: 245 from database, 18 using defaults, 0 fallback-to-default (invalid DB values), 0 fail-closed-defaults (critical safety gates)
+INFO:algo.infrastructure.config.main:[AlgoConfig] CRITICAL SAFETY THRESHOLDS (startup verification):
+INFO:algo.infrastructure.config.main:  base_risk_pct                            =            0.75 [0.01, 5.0] (source: database        safe_default: 0.5)
+INFO:algo.infrastructure.config.main:  earnings_blackout_days_after             =               1 [1, 30] (source: database        safe_default: 3)
+INFO:algo.infrastructure.config.main:  earnings_blackout_days_before            =               2 [1, 30] (source: database        safe_default: 7)
+INFO:algo.infrastructure.config.main:  halt_drawdown_pct                        =           -10.0 [-100.0, -5.0] (source: database        safe_default: -20.0)
+INFO:algo.infrastructure.config.main:  max_daily_loss_pct                       =             2.0 [0.1, 50.0] (source: database        safe_default: 2.0)
+INFO:algo.infrastructure.config.main:  max_position_size_pct                    =            4.75 [0.1, 15.0] (source: database        safe_default: 5.0)
+INFO:algo.infrastructure.config.main:  min_avg_daily_dollar_volume              =        500000.0 [1.0, 100000000.0] (source: database        safe_default: 500000.0)
+INFO:algo.infrastructure.config.main:  min_completeness_score                   =              70 [1, 100] (source: database        safe_default: 70)
+INFO:algo.infrastructure.config.main:  min_signal_quality_score                 =              75 [1, 100] (source: database        safe_default: 60)
+INFO:algo.infrastructure.config.main:  min_volume_ma_50d                        =          300000 [1, 10000000] (source: database        safe_default: 300000)
+INFO:algo.infrastructure.config.main:  sector_drawdown_halt_pct                 =           -12.0 [-100.0, -1.0] (source: database        safe_default: -12.0)
+INFO:algo.infrastructure.config.main:  vix_max_threshold                        =            35.0 [20.0, 100.0] (source: database        safe_default: 35.0)
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] CP: Signal generated with incomplete scoring data (missing 1/4 components). quality=70.64, growth=None, momentum=75.7, rs=76.82. Position sizing should account for reduced signal quality.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] CNQ: Signal generated with incomplete scoring data (missing 1/4 components). quality=77.16, growth=None, momentum=86.21, rs=92.21. Position sizing should account for reduced signal quality.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] STVN: Signal generated with incomplete scoring data (missing 1/4 components). quality=82.22, growth=None, momentum=75.44, rs=76.48. Position sizing should account for reduced signal quality.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] IMO: Signal generated with incomplete scoring data (missing 1/4 components). quality=71.3, growth=None, momentum=83.34, rs=88.51. Position sizing should account for reduced signal quality.
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] 100 candidates from buy_sell_daily + stock_scores (lookback: 2026-08-14 to 2026-08-17, SQL filters: trend & close_quality applied at query level)
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] EHLD: Degraded trend template data for 2026-08-17. Minervini=None, Weinstein=None. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] BNY: Degraded trend template data for 2026-08-17. Minervini=None, Weinstein=None. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] RCMT: Degraded trend template data for 2026-08-17. Minervini=None, Weinstein=2. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] LIFE: Degraded trend template data for 2026-08-17. Minervini=None, Weinstein=None. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] IBAC: Degraded trend template data for 2026-08-17. Minervini=None, Weinstein=None. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] BDL: Degraded trend template data for 2026-08-17. Minervini=None, Weinstein=4. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] HAE: Degraded trend template data for 2026-08-14. Minervini=None, Weinstein=2. Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). Allowing signal to pass with quality degradation. Check trend_template_data loader schedule.
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Wrote 100 signal_quality_scores to buy_sell_daily
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Liquidity check completed: 17 passed, 0 skipped (timeout)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Liquidity check: 20 checked, 17 passed. 80 unchecked candidates dropped.
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Top 10 qualified signals (source=buysell_breakout):
+INFO:algo.orchestrator.phase7_signal_generation:  1. IOSP   sqs=95.0 composite=74.0 momentum=80.3 rs_pct=83.7 stage=Stage 2 buylevel=87.82 signal_date=2026-08-14
+INFO:algo.orchestrator.phase7_signal_generation:  2. AII    sqs=95.0 composite=64.7 momentum=79.7 rs_pct=82.9 stage=Stage 2 buylevel=21.25 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  3. DAC    sqs=95.0 composite=65.5 momentum=80.6 rs_pct=84.2 stage=Stage 2 buylevel=145.31 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  4. NEM    sqs=95.0 composite=71.5 momentum=90.7 rs_pct=96.6 stage=Stage 1 buylevel=112.18 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  5. PDEX   sqs=95.0 composite=63.7 momentum=84.6 rs_pct=90.2 stage=Stage 2 buylevel=68.79 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  6. MORN   sqs=95.0 composite=63.1 momentum=81.3 rs_pct=85.3 stage=Stage 1 buylevel=204.32 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  7. STT    sqs=95.0 composite=63.0 momentum=84.8 rs_pct=90.5 stage=Stage 2 buylevel=192.51 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  8. FRPT   sqs=95.0 composite=63.3 momentum=87.0 rs_pct=93.2 stage=Stage 1 buylevel=74.04 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  9. WTBA   sqs=95.0 composite=63.0 momentum=86.6 rs_pct=92.9 stage=Stage 2 buylevel=28.80 signal_date=2026-08-17
+INFO:algo.orchestrator.phase7_signal_generation:  10. SFST   sqs=95.0 composite=62.9 momentum=78.4 rs_pct=80.9 stage=Stage 2 buylevel=65.02 signal_date=2026-08-14
+INFO:algo.orchestration.orchestrator:
+-> Phase 7 success: 17 signals qualified from 100 candidates
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7 DEBUG] Top 5 qualified trades signal_quality_score values:
+INFO:algo.orchestrator.phase7_signal_generation:  1. IOSP: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase7_signal_generation:  2. AII: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase7_signal_generation:  3. DAC: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase7_signal_generation:  4. NEM: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase7_signal_generation:  5. PDEX: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase_executor:
+-> Phase 7 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 8: ENTRY EXECUTION
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Starting entry execution
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 MARKET HOURS CHECK] Current time: 2026-08-17 19:08:14 EDT ET, is_market_open=False, test_mode=False, allow_outside_hours=True
+WARNING:algo.orchestrator.phase8_entry_execution:[PHASE 8 MARKET HOURS GUARD] BYPASSED via ALLOW_OUTSIDE_MARKET_HOURS=true: current time 19:08:14 ET is outside market hours. Proceeding anyway because the guard was explicitly overridden.
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 PENDING ORDERS GUARD] Skipping in paper mode (no real broker orders)
+INFO:algo.risk.stale_signal_circuit_breaker:Signals FRESH: based on latest price data (2026-08-17)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 PRICE CHECK] price_daily is current: max(date)=2026-08-17 >= expected=2026-08-17 (context: EOD)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Retrieved 17 signals from Phase 7
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DEBUG] Top 5 received signals signal_quality_score values:
+INFO:algo.orchestrator.phase8_entry_execution:  1. IOSP: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase8_entry_execution:  2. AII: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase8_entry_execution:  3. DAC: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase8_entry_execution:  4. NEM: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase8_entry_execution:  5. PDEX: sqs=95, trend=25, base_q=moderate
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Retrieved exposure constraints from Phase 5: ['halt_new_entries', 'max_new_positions_today', 'max_concentration_pct', 'regime', 'tier_name', 'description', 'risk_multiplier', 'min_composite_score', 'as_of_date', 'exposure_pct', 'halt_reason']
+INFO:algo.orchestrator.phase8_entry_execution:[PERSIST SIGNALS] Inserted 17 signals for 2026-08-17
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Persisted 17/17 signals to database
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DIAGNOSTIC] Exposure constraints status: has 11 fields, requires 3. Fields present: ['halt_new_entries', 'max_new_positions_today', 'max_concentration_pct', 'regime', 'tier_name', 'description', 'risk_multiplier', 'min_composite_score', 'as_of_date', 'exposure_pct', 'halt_reason']
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 AUDIT] Constraint validation passed [confirmed_uptrend]: halt_new_entries=False, max_new_positions=4, max_concentration=28.0%, regime=confirmed_uptrend
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Processing 17 qualified signals (cap: 4/day)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Paper trading mode active (execution_mode=paper, alpaca_paper_trading=True). Trades will execute against paper account.
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Position sizer: max_concentration_pct=28% (from tier)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Portfolio value: $71,232 (from latest snapshot, date=2026-08-17)
+INFO:algo.config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Alpaca credentials loaded successfully
+INFO:algo.orchestrator.phase8_entry_execution:[RISK CHECK] Total open risk: 1.13% (6 positions), Available capacity: 6.87% (limit: 8.0%)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] IOSP: Technical data validated (ATR=2.32, SMA_50=85.20)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] AII: Technical data validated (ATR=1.07, SMA_50=19.15)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] DAC: Technical data validated (ATR=4.52, SMA_50=132.12)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] NEM: Technical data validated (ATR=4.37, SMA_50=99.33)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] PDEX: Technical data validated (ATR=3.66, SMA_50=61.62)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] MORN: Technical data validated (ATR=7.97, SMA_50=177.24)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] STT: Technical data validated (ATR=4.14, SMA_50=177.97)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] FRPT: Technical data validated (ATR=3.63, SMA_50=58.59)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] WTBA: Technical data validated (ATR=0.62, SMA_50=26.88)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] SFST: Technical data validated (ATR=1.46, SMA_50=61.42)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] IDCC: Technical data validated (ATR=14.80, SMA_50=286.91)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] NLY: Technical data validated (ATR=0.36, SMA_50=22.61)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] MRK: Technical data validated (ATR=3.24, SMA_50=125.80)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] CP: Technical data validated (ATR=2.06, SMA_50=89.89)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] DINO: Technical data validated (ATR=3.73, SMA_50=79.66)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] INSW: Technical data validated (ATR=3.70, SMA_50=87.56)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DATA QUALITY] TTE: Technical data validated (ATR=1.61, SMA_50=83.28)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 DEDUP_PREVIOUS_RUN] IOSP: Already entered today (1 existing trade). Skipping re-execution to prevent duplicate.
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 CONCENTRATION] 7 of 17 signals processed (concentration limit: 28%). Total would be: 26.4%. Proceeding with 7 highest-quality signals. (Skipped: already_entered_today:1, exceeds_limit:9)
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] NEM: position $3369.24, portfolio $71232.38, BUY order approved
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] NEM: BUY entry=$120.33 stop=$115.08 risk=4.4% shares=28 value=$3,369 composite=71.48 rs_pct=96.59 sqs=95 trend=25
+INFO:algo.trading.executor_entry_handler:[ENTRY_HANDLER] execute_entry() called for NEM
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] NEM: position $3369.24, portfolio $71232.38, BUY order approved
+INFO:algo.trading.executor_entry_handler:[POSITION DEDUP] NEM: Checking for existing position created today (open or closed)...
+WARNING:algo.trading.executor:[VALIDATION LOOP] Check 'reentry' FAILED - returning early with error: NEM: only 4d since stop-out; require 5d before re-entry (reset period)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] NEM: SKIPPED (policy) - NEM: only 4d since stop-out; require 5d before re-entry (reset period) (status=reentry_cooldown)
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] DAC: position $2194.20, portfolio $71232.38, BUY order approved
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] DAC: BUY entry=$146.28 stop=$127.59 risk=12.8% shares=15 value=$2,194 composite=65.48 rs_pct=84.19 sqs=95 trend=25
+INFO:algo.trading.executor_entry_handler:[ENTRY_HANDLER] execute_entry() called for DAC
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] DAC: position $2194.20, portfolio $71232.38, BUY order approved
+INFO:algo.trading.executor_entry_handler:[POSITION DEDUP] DAC: Checking for existing position created today (open or closed)...
+INFO:algo.trading.executor:[ENTRY] DAC: PAPER mode - creating LOCAL order TRD-5E26AB29AC
+WARNING:algo.trading.executor:[ENTRY] DAC: NOT TRADING LIVE - execution_mode is paper (not 'auto')
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT DEBUG] DAC: sqs=95 trend=25 base_type=None base_quality=moderate
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT] DAC: SUCCEEDED with trade_id=TRD-5E26AB29AC status=open position_id=9ffc4d37-7e21-4d64-8385-076cd6014257
+INFO:algo.trading.executor_entry_handler:[POSITION INSERT] Successfully inserted position for DAC (position_id=9ffc4d37-7e21-4d64-8385-076cd6014257, trade_id=TRD-5E26AB29AC)
+INFO:algo.reporting.notifications:[NOTIF] Saved to DB: ENTRY: DAC
+ERROR:algo.reporting.alerts:Email failed: [WinError 10061] No connection could be made because the target machine actively refused it
+ERROR:algo.trading.executor_entry_handler:[ENTRY_HANDLER] Failed to send entry notification for DAC trade TRD-5E26AB29AC (non-blocking, trade already committed): ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] DAC: ENTERED trade_id=TRD-5E26AB29AC alpaca_order_id=LOCAL-TRD-5E26AB29AC status=open
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] AII: position $3376.35, portfolio $71232.38, BUY order approved
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] AII: BUY entry=$25.01 stop=$23.72 risk=5.1% shares=135 value=$3,376 composite=64.72 rs_pct=82.91 sqs=95 trend=25
+INFO:algo.trading.executor_entry_handler:[ENTRY_HANDLER] execute_entry() called for AII
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] AII: position $3376.35, portfolio $71232.38, BUY order approved
+INFO:algo.trading.executor_entry_handler:[POSITION DEDUP] AII: Checking for existing position created today (open or closed)...
+INFO:algo.trading.executor:[ENTRY] AII: PAPER mode - creating LOCAL order TRD-313426C1FA
+WARNING:algo.trading.executor:[ENTRY] AII: NOT TRADING LIVE - execution_mode is paper (not 'auto')
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT DEBUG] AII: sqs=95 trend=25 base_type=None base_quality=moderate
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT] AII: SUCCEEDED with trade_id=TRD-313426C1FA status=open position_id=5a372397-30c7-466a-913d-987246fc1176
+INFO:algo.trading.executor_entry_handler:[POSITION INSERT] Successfully inserted position for AII (position_id=5a372397-30c7-466a-913d-987246fc1176, trade_id=TRD-313426C1FA)
+INFO:algo.reporting.notifications:[NOTIF] Saved to DB: ENTRY: AII
+ERROR:algo.reporting.alerts:Email failed: [WinError 10061] No connection could be made because the target machine actively refused it
+ERROR:algo.trading.executor_entry_handler:[ENTRY_HANDLER] Failed to send entry notification for AII trade TRD-313426C1FA (non-blocking, trade already committed): ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] AII: ENTERED trade_id=TRD-313426C1FA alpaca_order_id=LOCAL-TRD-313426C1FA status=open
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] PDEX: position $2148.80, portfolio $71232.38, BUY order approved
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] PDEX: BUY entry=$67.15 stop=$57.96 risk=13.7% shares=32 value=$2,149 composite=63.69 rs_pct=90.16 sqs=95 trend=25
+INFO:algo.trading.executor_entry_handler:[ENTRY_HANDLER] execute_entry() called for PDEX
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] PDEX: position $2148.80, portfolio $71232.38, BUY order approved
+INFO:algo.trading.executor_entry_handler:[POSITION DEDUP] PDEX: Checking for existing position created today (open or closed)...
+INFO:algo.trading.executor:[ENTRY] PDEX: PAPER mode - creating LOCAL order TRD-3197813AFA
+WARNING:algo.trading.executor:[ENTRY] PDEX: NOT TRADING LIVE - execution_mode is paper (not 'auto')
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT DEBUG] PDEX: sqs=95 trend=25 base_type=Consolidation base_quality=moderate
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT] PDEX: SUCCEEDED with trade_id=TRD-3197813AFA status=open position_id=42690449-e794-4edb-b64d-edc18e33239e
+INFO:algo.trading.executor_entry_handler:[POSITION INSERT] Successfully inserted position for PDEX (position_id=42690449-e794-4edb-b64d-edc18e33239e, trade_id=TRD-3197813AFA)
+INFO:algo.reporting.notifications:[NOTIF] Saved to DB: ENTRY: PDEX
+ERROR:algo.reporting.alerts:Email failed: [WinError 10061] No connection could be made because the target machine actively refused it
+ERROR:algo.trading.executor_entry_handler:[ENTRY_HANDLER] Failed to send entry notification for PDEX trade TRD-3197813AFA (non-blocking, trade already committed): ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] PDEX: ENTERED trade_id=TRD-3197813AFA alpaca_order_id=LOCAL-TRD-3197813AFA status=open
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] FRPT: position $3341.90, portfolio $71232.38, BUY order approved
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] FRPT: BUY entry=$72.65 stop=$68.30 risk=6.0% shares=46 value=$3,342 composite=63.29 rs_pct=93.2 sqs=95 trend=25
+INFO:algo.trading.executor_entry_handler:[ENTRY_HANDLER] execute_entry() called for FRPT
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.pretrade_checks:[PRE-TRADE] FRPT: position $3341.90, portfolio $71232.38, BUY order approved
+INFO:algo.trading.executor_entry_handler:[POSITION DEDUP] FRPT: Checking for existing position created today (open or closed)...
+INFO:algo.trading.executor:[ENTRY] FRPT: PAPER mode - creating LOCAL order TRD-AFD7C8F504
+WARNING:algo.trading.executor:[ENTRY] FRPT: NOT TRADING LIVE - execution_mode is paper (not 'auto')
+INFO:algo.trading.position_sizer:[PORTFOLIO] Using live Alpaca value: $71,232.38
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT DEBUG] FRPT: sqs=95 trend=25 base_type=None base_quality=moderate
+INFO:algo.trading.executor_entry_handler:[TRADE INSERT] FRPT: SUCCEEDED with trade_id=TRD-AFD7C8F504 status=open position_id=bf2cd930-40b3-44f8-99ac-4fb9800f8bae
+INFO:algo.trading.executor_entry_handler:[POSITION INSERT] Successfully inserted position for FRPT (position_id=bf2cd930-40b3-44f8-99ac-4fb9800f8bae, trade_id=TRD-AFD7C8F504)
+INFO:algo.reporting.notifications:[NOTIF] Saved to DB: ENTRY: FRPT
+ERROR:algo.reporting.alerts:Email failed: [WinError 10061] No connection could be made because the target machine actively refused it
+ERROR:algo.trading.executor_entry_handler:[ENTRY_HANDLER] Failed to send entry notification for FRPT trade TRD-AFD7C8F504 (non-blocking, trade already committed): ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] FRPT: ENTERED trade_id=TRD-AFD7C8F504 alpaca_order_id=LOCAL-TRD-AFD7C8F504 status=open
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Reached max_new_positions_today=4, stopping
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Done in 16.6s: 4 executed, 1 skipped, 0 failed
+INFO:algo.orchestration.orchestrator:
+-> Phase 8 ok: 4 trades executed, 0 failed
+INFO:algo.orchestrator.phase_executor:
+-> Phase 8 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 9: RECONCILIATION & SNAPSHOT
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 9: RECONCILIATION & SNAPSHOT
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9 MAINTENANCE] No orphaned positions found (quantity=0 with status='open')
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] No corrupted trades found with missing exit_price
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of Alpaca credential/API availability, so it never treats the unrelated real broker account as ground truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of Alpaca credential/API availability, so it never treats the unrelated real broker account as ground truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). Orchestrator will continue with signal generation and exit execution.
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION PAPER MODE] Found 10 open positions, baseline: $71144.96, realized P&L today: $-35.67, unrealized P&L change: $+9.82 (now $-186.46), portfolio value: $71119.11
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: About to write snapshot for 2026-08-17 with 10 positions
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: DatabaseContext opened, role=write
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT params - date=2026-08-17, positions=10, portfolio_value=71119.11000000002, cash=44430.13000000002
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT executed successfully
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] VERIFICATION: position_count=10 (expected=10) - MATCH=True
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count=10
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Portfolio $71,119.11, 10 positions, unrealized P&L $-186.46
+WARNING:algo.orchestrator.phase9_reconciliation:[PHASE 9 P&L] Paper mode: broker unavailable, skipping P&L validation
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: Paper mode - no broker account
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9 AUDIT] All exit prices reconciled properly
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Portfolio snapshot created by DailyReconciliation (reconciliation_succeeded=True)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: snapshot created by reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:No closed positions found for exit recording
+INFO:algo.signals.trade_performance:Populated 1 closed trades to signal_trade_performance
+INFO:algo.orchestrator.phase9_reconciliation:Signal trade performance: Inserted 1 trades, computed IC for 0 components
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 1 trades processed
+INFO:algo.orchestrator.phase9_reconciliation:Signal attribution: IC computed for 7 components (deprecated feature - data unavailable is EXPECTED, not an error)
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] setup_quality IC unavailable: swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] trend_quality IC unavailable: swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] momentum_rs IC unavailable: swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] volume IC unavailable: swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] fundamentals IC unavailable: swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] sector_industry IC unavailable: swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] multi_timeframe IC unavailable: swing_components_deprecated - skipping
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: 0/7 components available (feature deprecated)
+INFO:algo.orchestration.weight_optimizer:Insufficient trades (0 < 20) for weight optimization on 2026-08-17 - skipping optimization, keeping current weights.
+INFO:algo.orchestration.weight_optimizer:Weight optimization skipped for 2026-08-17: insufficient trade history. Keeping current weights unchanged.
+INFO:algo.orchestrator.phase9_reconciliation:Weight optimization: no changes (insufficient trades or weights stable)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 weight changes
+INFO:algo.reporting.daily_report:[DAILY_REPORT] No component attribution data available for 2026-08-17. Expected if running before end-of-day loaders complete.
+INFO:algo.reporting.daily_report:Daily report generated for 2026-08-17
+INFO:algo.orchestrator.phase9_reconciliation:
+======================================================================
+DAILY FINANCE REPORT - 2026-08-17 | Regime: confirmed_uptrend
+======================================================================
+Portfolio: $71,119 | Daily P&L: -0.04% | YTD: -5.72%
+Risk: VaR 0.6% | Beta 0.11 | Sharpe -1.1
+
+Strategy (last 50 trades):
+  Win rate: 38% | Profit factor: N/A | Expectancy: N/A
+
+Component IC (alpha contribution):
+  setup_quality        r=N/A        MISSING
+  trend_quality        r=N/A        MISSING
+  momentum_rs          r=N/A        MISSING
+  volume               r=N/A        MISSING
+  fundamentals         r=N/A        MISSING
+  sector_industry      r=N/A        MISSING
+  multi_timeframe      r=N/A        MISSING
+
+Today: 407 BUY signals -> 20 tier-passed -> 8 entries
+======================================================================
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Portfolio $71,119, P&L -0.04%
+INFO:algo.reporting.performance:Generating daily performance report for 2026-08-17
+WARNING:algo.reporting.performance:  Performance warning: Live Sharpe (-1.11) below 70% of backtest (1.42)
+INFO:algo.reporting.performance:[OK] Performance report persisted: sharpe=-1.11, sortino=-1.393, calmar=-0.672, wr=39.58%, max_dd=7.35%
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Sharpe -1.11, Win rate 39.58%, Expectancy -0.0971 - Live Sharpe (-1.11) below 70% of backtest (1.42)
+INFO:algo.risk.var:Generating daily risk report for 2026-08-17
+INFO:algo.risk.var:[OK] Risk report persisted: var=0.621%, cvar=0.851%, svar=1.886%, beta=0.13, conc=23.3%
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: VaR 0.621%, Conc 23.3%, beta=0.13
+INFO:algo.orchestrator.phase9_reconciliation:Updated algo_metrics_daily: 105 actions, 8 entries, 9 exits
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 105 actions, 8 entries, 9 exits
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: no missing trade_ids_arr
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Synced quantity for 4 open positions (quantity = entry_quantity)
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Verification PASSED: All 4 positions synced correctly
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: synced 4 open positions
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "REFRESH MATERIALIZED VIEW algo_positions_with_risk", "params": "None", "error_type": "InsufficientPrivilege", "error_message": "permission denied for materialized view algo_positions_with_risk\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: REFRESH MATERIALIZED VIEW algo_positions_with_risk
+  Params: None
+  Error: InsufficientPrivilege: permission denied for materialized view algo_positions_with_risk
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File "C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InsufficientPrivilege: permission denied for materialized view algo_positions_with_risk
+
+WARNING:algo.orchestrator.phase9_reconciliation:[PHASE 9] Cannot refresh algo_positions_with_risk (permission denied - expected in LOCAL_MODE). View will use cached data; next proper execution with elevated privileges will refresh it.
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warning: skipped (permission denied - expected in LOCAL_MODE)
+INFO:loaders.compute_circuit_breakers:Computing circuit breaker metrics for 2026-08-17
+INFO:loaders.compute_circuit_breakers:Circuit breaker metrics computed for 2026-08-17: 0 triggered, any_triggered=False
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Circuit breaker metrics written: 0 triggered, any_triggered=False
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 circuit breakers triggered
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 ok: Portfolio state: 71119.11000000002 | Status: ok
+INFO:algo.orchestrator.phase_executor:
+-> Phase 9 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+######################################################################
+INFO:algo.orchestrator.phase_executor:#   ORCHESTRATOR EXECUTOR COMPLETE
+INFO:algo.orchestrator.phase_executor:#   9/9 phases succeeded
+INFO:algo.orchestrator.phase_executor:######################################################################
+WARNING:monitoring.metrics_context:[SLOW] orchestrator_executor          | 37372.6ms
+WARNING:monitoring.metrics_context:[METRICS] AWS credentials unavailable; CloudWatch metrics skipped
+INFO:monitoring.metrics_context:================================================================================
+INFO:monitoring.metrics_context:PERFORMANCE METRICS SUMMARY
+INFO:monitoring.metrics_context:================================================================================
+INFO:monitoring.metrics_context:orchestrator_executor          | count=  1 | avg=37372.6ms | min=37372.6ms | max=37372.6ms | slow= 1/1 (100.0%)
+INFO:monitoring.metrics_context:================================================================================
+INFO:algo.orchestration.orchestrator:
+[TOTAL] Orchestrator run completed in 43.95s
+INFO:algo.orchestration.orchestrator:[END TIME] 2026-08-17T23:08:32.338391+00:00
+INFO:algo.reporting.metrics:metrics.dry_run metric=LoaderDurationSeconds value=43.954880237579346 unit=Seconds dims={'Loader': 'orchestrator_run'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=eod_pipeline_seconds value=43.954880237579346 unit=Seconds dims=None
+INFO:algo.orchestration.orchestrator:
+######################################################################
+INFO:algo.orchestration.orchestrator:#   FINAL REPORT - LOCAL-PRECLOSE-20260817-190748-101606
+INFO:algo.orchestration.orchestrator:######################################################################
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 1: all_tables_fresh       - All critical tables fresh: prices=2026-08-17, coverage=97.4%
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 2: circuit_breakers       - all clear
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 3: position_monitor       - 7 positions updated with current prices, 7 recommendations generated
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 4: reconciliation         - 7 positions verified
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 5: exposure_policy        - tier=confirmed_uptrend, no actions
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 6: exit_execution         - 1 exits, 3 stop-raises, 0 forced_closes_no_price, 0 errors
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 7: signal_generation      - 17 signals qualified from 100 candidates
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 8: entry_execution        - 4 trades executed, 0 failed
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 9: reconciliation         - Portfolio state: 71119.11000000002 | Status: ok
+INFO:algo.orchestration.orchestrator:######################################################################
+
+INFO:utils.logging.execution_tracker:[EXECUTION_LOG] Saved run LOCAL-PRECLOSE-20260817-190748-101606: success
+INFO:algo.reporting.metrics:metrics.dry_run metric=OrchestratorSuccess value=1 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=OrchestratorFailure value=0 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '1'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '1'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '2'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '2'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '3'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '3'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '4'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '4'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '5'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '5'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '6'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '6'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '7'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '7'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '8'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '8'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '9'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '9'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=SignalsGenerated value=17 unit=Count dims={'SignalType': 'BUY'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=TradesExecuted value=4 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=OpenPositions value=10 unit=Count dims=None
+INFO:utils.db.local_file_lock:[FILE_LOCK] Lock released: orchestrator-run-lock.lock

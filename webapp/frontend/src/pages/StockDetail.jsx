@@ -1002,7 +1002,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ["EV / Revenue", num(v.stock_ev_revenue ?? v.ev_to_revenue, 2)],
     ["PEG", num(v.peg_ratio, 2)],
     [
-      "Discount to Intrinsic Value (DCF)",
+      "Intrinsic Value (DCF)",
       v.stock_margin_of_safety != null ? fmtPct(Number(v.stock_margin_of_safety), 1) : "—",
     ],
     [

@@ -376,21 +376,35 @@ class SecValuationsLoader(OptimalLoader):
                 # Get latest cash flow (for FCF - optional, may not exist for all companies)
                 # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
                 # See the fiscal_year IS NOT NULL comment on the balance sheet query above.
+                # FIXED 2026-08-18 (goal: DCF/margin-of-safety coverage): also fetch the prior
+                # 2 fiscal years' OCF/CapEx so the DCF can fall back to a 3-year average FCF
+                # when the latest year alone is negative - a single capex-heavy or cash-flow-
+                # lumpy year (common for cyclical/capital-intensive real businesses) was
+                # unconditionally killing the DCF even when the company is normally FCF-
+                # positive. Live-confirmed: of the 2,305 universe symbols with
+                # margin_of_safety_unavailable_reason='negative_free_cash_flow', 443 have a
+                # positive 3yr-average FCF despite a negative latest year. fcf_yield (below)
+                # deliberately keeps using only the latest year - that metric is meant to
+                # reflect current cash generation, not a smoothed figure; only the DCF's
+                # normalization changes.
                 cur.execute(
                     """
-                    SELECT
-                        operating_cash_flow,
-                        capex,
-                        dividends_paid
+                    SELECT operating_cash_flow, capex, dividends_paid
                     FROM annual_cash_flow
                     WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY fiscal_year DESC LIMIT 1
+                    ORDER BY fiscal_year DESC LIMIT 3
                     """,
                     (symbol,),
                 )
-                cash_row = cur.fetchone()
-                ocf, capex, dividends_paid = cash_row if cash_row else (None, None, None)
+                cash_rows = cur.fetchall()
+                ocf, capex, dividends_paid = cash_rows[0] if cash_rows else (None, None, None)
                 # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
+                yearly_fcfs = [
+                    float(row_ocf) - float(row_capex)
+                    for row_ocf, row_capex, _ in cash_rows
+                    if row_ocf is not None and row_capex is not None
+                ]
+                avg_fcf_fallback = sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 2 else None
 
                 # Get debt and cash from balance sheet (for Enterprise Value)
                 # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
@@ -531,6 +545,7 @@ class SecValuationsLoader(OptimalLoader):
                     float(total_debt) if total_debt else None,
                     float(total_cash) if total_cash else None,
                     float(ebitda) if ebitda else None,
+                    avg_fcf_fallback,
                 )
             ]
 
@@ -629,6 +644,7 @@ class SecValuationsLoader(OptimalLoader):
         total_debt: float | None,
         total_cash: float | None,
         ebitda: float | None,
+        avg_fcf_fallback: float | None = None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data."""
         result: dict[str, Any] = {
@@ -789,7 +805,17 @@ class SecValuationsLoader(OptimalLoader):
         # definition, and the same YoY EPS growth basis peg_ratio uses (see
         # _compute_dcf_intrinsic_value for why a missing/unusable growth rate defaults to flat
         # 0%/yr here instead of blocking the DCF the way peg_ratio is blocked).
+        # FIXED 2026-08-18 (coverage): a single negative-FCF year (capex-heavy or cash-flow-
+        # lumpy, common for real capital-intensive/cyclical businesses) used to zero out the
+        # DCF outright even when the company is normally FCF-positive. Standard DCF practice
+        # normalizes FCF over multiple years for exactly this reason - fall back to the
+        # 3-year average FCF (fetch_incremental's avg_fcf_fallback) only when the latest
+        # year alone is unusable and the multi-year average is positive; fcf_yield above is
+        # deliberately left on the latest year only (it's meant to reflect current cash
+        # generation, not a smoothed figure).
         fcf_base = ocf - capex if ocf and capex is not None else None
+        if (fcf_base is None or fcf_base <= 0) and avg_fcf_fallback is not None and avg_fcf_fallback > 0:
+            fcf_base = avg_fcf_fallback
         eps_growth_pct = None
         if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
             eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100

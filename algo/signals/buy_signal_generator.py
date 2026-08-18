@@ -78,6 +78,15 @@ class BuySignalGenerator:
             )
 
         signals = []
+        # Edge-trigger state: Pine Script's plotted BUY/SELL markers fire once, on the bar
+        # where price first crosses the pivot (ta.crossover/crossunder semantics) - they don't
+        # replot every subsequent bar the stock merely remains beyond that level. Without this,
+        # a stock sitting beyond its swing high/low for two weeks emits a signal every single
+        # day, which is what actually broke Pine-matching (not the pivot math itself): live
+        # audit on 2026-08-17 showed 73% of that day's BUY rows and 64% of its SELL rows were
+        # re-fires of a condition already true the day before, not fresh crossovers.
+        prev_buy_active = False
+        prev_sell_active = False
 
         for i, row in enumerate(rows):
             # Extract indicator values - explicit key checking (no silent .get() fallbacks)
@@ -110,8 +119,9 @@ class BuySignalGenerator:
             recent_swing_high, swing_high_sma50 = self._find_swing_high(symbol, rows, i)
             recent_swing_low = self._find_swing_low(symbol, rows, i)
 
-            # Phase 2: Generate signal from pivots
-            signal_type, strength, reason, buylevel, stoplevel = self._generate_signal(
+            # Phase 2: Generate signal from pivots (edge-triggered: only on the bar the
+            # condition first becomes true, matching Pine's crossover/crossunder markers)
+            signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active = self._generate_signal(
                 symbol,
                 close,
                 high,
@@ -119,7 +129,10 @@ class BuySignalGenerator:
                 recent_swing_high,
                 swing_high_sma50,
                 recent_swing_low,
+                prev_buy_active,
+                prev_sell_active,
             )
+            prev_buy_active, prev_sell_active = buy_active, sell_active
 
             # Phase 3: Compute metrics if signal generated
             if signal_type:
@@ -383,17 +396,34 @@ class BuySignalGenerator:
         recent_swing_high: float | None,
         swing_high_sma50: float | None,
         recent_swing_low: float | None,
-    ) -> tuple[str | None, float, str, float | None, float | None]:
-        """Generate BUY/SELL signal from swing pivots."""
+        prev_buy_active: bool,
+        prev_sell_active: bool,
+    ) -> tuple[str | None, float, str, float | None, float | None, bool, bool]:
+        """Generate BUY/SELL signal from swing pivots.
+
+        Edge-triggered: signal_type is only set on the bar where the breakout/breakdown
+        condition transitions from false to true (like Pine's ta.crossover/ta.crossunder),
+        not on every subsequent bar the price merely remains beyond the pivot. The two
+        returned booleans are the raw (non-edge-triggered) condition state for this bar,
+        which the caller carries forward as prev_buy_active/prev_sell_active for the next bar.
+        """
         signal_type = None
         strength = 0.0
         reason = ""
         buylevel = None
         stoplevel = None
 
+        buy_active = bool(
+            recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50
+        )
+        sell_active = bool(recent_swing_low and low < recent_swing_low)
+
         # BUY: Breakout above swing high where swing_high > SMA50
-        if recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50:
+        if buy_active and not prev_buy_active:
             signal_type = "BUY"
+            # buy_active's definition guarantees both are non-None (mypy can't narrow through
+            # the bool() wrapper the way it could narrow the old inline condition directly).
+            assert recent_swing_high is not None and swing_high_sma50 is not None
             if recent_swing_high <= 0:
                 raise RuntimeError(
                     f"[SIGNAL_GENERATION] Invalid recent_swing_high={recent_swing_high} for {symbol}: "
@@ -422,8 +452,10 @@ class BuySignalGenerator:
             stoplevel = float(Decimal(str(recent_swing_low)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
 
         # SELL: Breakdown below swing low (stop loss)
-        elif recent_swing_low and low < recent_swing_low:
+        elif sell_active and not prev_sell_active:
             signal_type = "SELL"
+            # sell_active's definition guarantees this is non-None (see BUY-branch comment above).
+            assert recent_swing_low is not None
             if recent_swing_low <= 0:
                 raise RuntimeError(
                     f"[SIGNAL_GENERATION] Invalid recent_swing_low={recent_swing_low} for {symbol}: "
@@ -443,7 +475,7 @@ class BuySignalGenerator:
                 (Decimal(str(close)) * Decimal("1.08")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
             )
 
-        return signal_type, strength, reason, buylevel, stoplevel
+        return signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active
 
     def _compute_volume_surge(
         self, volume: float | None, rows: list[dict[str, Any]], i: int
