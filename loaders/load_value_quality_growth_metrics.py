@@ -1718,7 +1718,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 operating_income,
                 anchor_interest_expense_for_roic,
             )
-            if income_tax_expense is None or pretax_income is None:
+            # FIX 2026-08-18 (live: ABCB/Ameris Bancorp): the comment above claims this was
+            # already fixed for filers whose anchor year has tax+pretax but lacks
+            # OperatingIncomeLoss - but the guard below only ran the rescue search when tax
+            # or pretax was ITSELF missing. A real class of filers (banks especially) has
+            # tax+pretax in the anchor year but NEITHER operating_income NOR interest_expense
+            # that same year (both untagged), so roic_operating_income/roic_interest_expense
+            # stayed None with no rescue attempted even though an older 10-K has a fully
+            # self-consistent tax/pretax/operating_income-or-interest_expense row. Live audit:
+            # 828 of 1884 universe symbols marked roic_pct missing_sec_data have exactly this
+            # recoverable row somewhere in their filing history.
+            if (
+                income_tax_expense is None
+                or pretax_income is None
+                or (operating_income is None and anchor_interest_expense_for_roic is None)
+            ):
                 with DatabaseContext("read") as cur:
                     # First try: tax+pretax together in recent history (3 years). Prefer a
                     # row that also has operating_income or interest_expense (either lets

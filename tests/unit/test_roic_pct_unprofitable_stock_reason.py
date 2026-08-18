@@ -42,6 +42,38 @@ def _make_loader(monkeypatch):
     return ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
 
 
+class _FakeCursorReturning:
+    def __init__(self, row):
+        self._row = row
+
+    def execute(self, query, params=None):
+        pass
+
+    def fetchall(self):
+        return []
+
+    def fetchone(self):
+        return self._row
+
+
+class _FakeDatabaseContextReturning:
+    def __init__(self, row):
+        self._row = row
+
+    def __enter__(self):
+        return _FakeCursorReturning(self._row)
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _make_loader_with_fallback_row(monkeypatch, fallback_row):
+    import loaders.load_value_quality_growth_metrics as mod
+
+    monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContextReturning(fallback_row))
+    return ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+
+
 def _quality_row(
     stockholders_equity=None,
     revenue=None,
@@ -184,3 +216,28 @@ class TestRoicPctUnprofitableStockReason:
 
         assert metrics["roic_pct"] is None
         assert metrics["roic_pct_unavailable_reason"] == "implausible_ratio"
+
+    def test_anchor_has_tax_pretax_but_no_operating_income_or_interest_expense_rescues_from_history(self, monkeypatch):
+        # FIX 2026-08-18 (live: ABCB/Ameris Bancorp, 828 universe symbols): the fallback
+        # search below only ran when the anchor year ITSELF lacked income_tax_expense or
+        # pretax_income. Banks (and other filers that never tag OperatingIncomeLoss) commonly
+        # have an anchor year with real tax+pretax data but NEITHER operating_income NOR
+        # interest_expense - the fallback query never fired, leaving roic_pct permanently
+        # unavailable even though an older 10-K has a fully self-consistent row. Must now
+        # search history and compute a real roic_pct.
+        fallback_row = (7_000_000.0, 28_000_000.0, None, 12_000_000.0)  # tax, pretax, op_income, interest_expense
+        loader = _make_loader_with_fallback_row(monkeypatch, fallback_row)
+        row = _quality_row(
+            stockholders_equity=200_000_000.0,
+            long_term_debt=50_000_000.0,
+            cash_and_equivalents=10_000_000.0,
+            operating_income=None,
+            income_tax_expense=8_000_000.0,
+            pretax_income=32_000_000.0,
+            interest_expense=None,
+        )
+
+        metrics = loader._compute_quality_metrics("BANKCO", row, ev_metrics=None)
+
+        assert metrics["roic_pct"] is not None
+        assert metrics["roic_pct_unavailable_reason"] is None
