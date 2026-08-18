@@ -32,30 +32,45 @@ def _make_loader() -> SecValuationsLoader:
 
 class _RecordingCursor:
     """Sequential fetchone/fetchall stand-in (same shape as the sibling total_debt test's
-    _FakeCursor) that also records every executed query's SQL text for inspection."""
+    _FakeCursor) that also records every executed query's SQL text for inspection.
+
+    FIXED 2026-08-18 (missing factor inputs audit, continued): see the sibling total_debt
+    test's _FakeCursor docstring - fetchall() must be sequential (income_rows first, then
+    the DCF 3-year-average-FCF fallback's cash_rows) since load_sec_valuations.py added a
+    second fetchall() call on 2026-08-18. The single static response this class used to
+    return crashed `ocf, capex, dividends_paid = cash_rows[0]` on the second call with
+    "too many values to unpack (expected 3)" for every real symbol.
+    """
 
     def __init__(self, fetchone_results: list[tuple[Any, ...]]) -> None:
         self._fetchone_results = list(fetchone_results)
         self._fetchone_idx = 0
         self.executed_sql: list[str] = []
+        self._fetchall_results = [
+            [
+                (
+                    1_000_000_000.0,  # revenue
+                    100_000_000.0,  # net_income
+                    2.0,  # earnings_per_share
+                    150_000_000.0,  # operating_income
+                    120_000_000.0,  # pretax_income
+                    10_000_000.0,  # depreciation_expense
+                    5_000_000.0,  # amortization_expense
+                    1_000_000_000.0,  # shares_outstanding_basic
+                    20_000_000.0,  # income_tax_expense
+                )
+            ],
+            [(80_000_000.0, 10_000_000.0, None)],  # cash_rows: ocf, capex, dividends_paid
+        ]
+        self._fetchall_idx = 0
 
     def execute(self, query: str, *args: object, **kwargs: object) -> None:
         self.executed_sql.append(query)
 
     def fetchall(self) -> list[tuple[Any, ...]]:
-        return [
-            (
-                1_000_000_000.0,  # revenue
-                100_000_000.0,  # net_income
-                2.0,  # earnings_per_share
-                150_000_000.0,  # operating_income
-                120_000_000.0,  # pretax_income
-                10_000_000.0,  # depreciation_expense
-                5_000_000.0,  # amortization_expense
-                1_000_000_000.0,  # shares_outstanding_basic
-                20_000_000.0,  # income_tax_expense
-            )
-        ]
+        result = self._fetchall_results[self._fetchall_idx]
+        self._fetchall_idx += 1
+        return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
         result = self._fetchone_results[self._fetchone_idx]
@@ -82,7 +97,6 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (50.0,),  # price_daily.close
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
-            (80_000_000.0, 10_000_000.0, None),  # annual_cash_flow: ocf, capex, dividends_paid
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
         ]
@@ -106,7 +120,6 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (50.0,),
             (500_000_000.0,),
-            (80_000_000.0, 10_000_000.0, None),
             (30_000_000.0,),
             (None, 0.0, 59_642_000.0, None),  # debt_row
         ]
@@ -126,7 +139,6 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (50.0,),
             (500_000_000.0,),
-            (80_000_000.0, 10_000_000.0, None),
             (55_911_000_000.0,),  # cash_and_equivalents - real, current-year figure
             (None, 0.0, None, None),  # debt_row - GOOGL-FY2026-shaped: long_term_debt NULL
         ]

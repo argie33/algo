@@ -152,7 +152,11 @@ class TestRoicEbitFallback:
     def test_fallback_year_ebit_approximation_via_db_lookup(self, monkeypatch):
         # Anchor year lacks tax/pretax entirely; the fallback-year DB query must also
         # apply the EBIT approximation when that year lacks operating_income too.
-        fallback_row = (200_000_000.0, 800_000_000.0, None, 50_000_000.0)
+        # 5th element (net_income) added 2026-08-18 alongside the never-tagged-pretax-income
+        # roic_pct fallback - see load_value_quality_growth_metrics.py's roic_net_income.
+        # Unused by this test's assertion (pretax_income is present, so that branch never
+        # fires) but must exist so the tuple index doesn't go out of range.
+        fallback_row = (200_000_000.0, 800_000_000.0, None, 50_000_000.0, 600_000_000.0)
         loader = _make_loader(monkeypatch, fallback_row=fallback_row)
         row = _quality_row(operating_income=None, interest_expense=None, pretax_income=None, income_tax_expense=None)
 

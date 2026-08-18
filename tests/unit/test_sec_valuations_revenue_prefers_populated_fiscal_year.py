@@ -26,16 +26,24 @@ def _make_loader() -> SecValuationsLoader:
 
 
 class _FakeCursor:
+    """FIXED 2026-08-18 (missing factor inputs audit, continued): see
+    test_sec_valuations_total_debt_not_total_liabilities.py's _FakeCursor docstring -
+    fetchall() must be sequential (income_rows first, then the DCF 3-year-average-FCF
+    fallback's cash_rows), not a single static response reused for both calls."""
+
     def __init__(self, income_rows: list[tuple[Any, ...]], fetchone_results: list[tuple[Any, ...]]) -> None:
-        self._income_rows = income_rows
         self._fetchone_results = list(fetchone_results)
         self._fetchone_idx = 0
+        self._fetchall_results = [income_rows, [(80_000_000.0, 10_000_000.0, None)]]
+        self._fetchall_idx = 0
 
     def execute(self, query: str, *args: object, **kwargs: object) -> None:
         pass
 
     def fetchall(self) -> list[tuple[Any, ...]]:
-        return self._income_rows
+        result = self._fetchall_results[self._fetchall_idx]
+        self._fetchall_idx += 1
+        return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
         result = self._fetchone_results[self._fetchone_idx]
@@ -57,12 +65,12 @@ def _run_fetch_incremental(
 
 
 # Downstream fetchone() calls after the income_rows fetchall(), in order: price_daily.close,
-# stockholders_equity, cash_flow (ocf, capex, dividends_paid), cash_and_equivalents, debt_row -
-# same shape as test_sec_valuations_debt_query_prefers_populated_fiscal_year.py's fixture.
+# stockholders_equity, cash_and_equivalents, debt_row - same shape as
+# test_sec_valuations_debt_query_prefers_populated_fiscal_year.py's fixture (cash_flow ocf/
+# capex/dividends_paid is a fetchall(), not a fetchone() - see _FakeCursor above).
 _DOWNSTREAM_FETCHONE = [
     (50.0,),
     (500_000_000.0,),
-    (80_000_000.0, 10_000_000.0, None),
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
 ]

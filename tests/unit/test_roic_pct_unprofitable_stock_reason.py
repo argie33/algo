@@ -226,7 +226,16 @@ class TestRoicPctUnprofitableStockReason:
         # interest_expense - the fallback query never fired, leaving roic_pct permanently
         # unavailable even though an older 10-K has a fully self-consistent row. Must now
         # search history and compute a real roic_pct.
-        fallback_row = (7_000_000.0, 28_000_000.0, None, 12_000_000.0)  # tax, pretax, op_income, interest_expense
+        # 5th element (net_income) added 2026-08-18 alongside the never-tagged-pretax-income
+        # roic_pct fallback - unused here (pretax_income is present) but required so the
+        # tuple index doesn't go out of range.
+        fallback_row = (
+            7_000_000.0,
+            28_000_000.0,
+            None,
+            12_000_000.0,
+            21_000_000.0,
+        )  # tax, pretax, op_income, interest_expense, net_income
         loader = _make_loader_with_fallback_row(monkeypatch, fallback_row)
         row = _quality_row(
             stockholders_equity=200_000_000.0,

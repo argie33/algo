@@ -336,6 +336,18 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # of which tag plain "LongTermDebt").
         "long_term_debt_noncurrent",
         "long_term_debt_and_capital_lease_obligations",
+        # FIXED 2026-08-18 (missing factor inputs audit, roic_pct/total_debt follow-up):
+        # net-lease REITs (ADC/Agree Realty live-confirmed via real SEC companyfacts
+        # JSON) stop tagging "LongTermDebt" mid-history (ADC's last real fact under that
+        # concept is 2022-03-31) and switch to reporting debt only via
+        # "DebtInstrumentCarryingAmount" going forward (ADC FY2022-2025: $1.96B/$2.43B/
+        # $2.81B/$3.32B, a clean sum roughly matching SecuredDebt+UnsecuredDebt+
+        # SeniorNotes reported the same years) - not debt-free, just a taxonomy switch.
+        # Without this fallback, load_sec_valuations.py's total_debt fell back to summing
+        # only ADC's tiny lease liabilities (~$25M) instead of its real ~$3B+ debt load,
+        # producing a wildly understated invested_capital for roic_pct (and any other
+        # consumer of total_debt/long_term_debt).
+        "debt_instrument_carrying_amount",
     }
 )
 
@@ -402,6 +414,10 @@ _BALANCE_FIELD_MAPPING = {
     # _DEBT_FALLBACK_ONLY_FIELDS comment above (CAT/SLB/XOM live evidence).
     "long_term_debt_noncurrent": "long_term_debt",
     "long_term_debt_and_capital_lease_obligations": "long_term_debt",
+    # FIXED 2026-08-18 (missing factor inputs audit): see _DEBT_FALLBACK_ONLY_FIELDS
+    # comment above (ADC/net-lease-REIT live evidence - taxonomy switch mid-history, not
+    # a genuine debt-free filer).
+    "debt_instrument_carrying_amount": "long_term_debt",
     # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
     # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
     # alone (the only debt concept fetched before this fix) misses commercial paper/short-term

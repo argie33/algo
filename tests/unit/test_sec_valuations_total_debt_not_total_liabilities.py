@@ -30,31 +30,58 @@ def _make_loader() -> SecValuationsLoader:
 class _FakeCursor:
     """Sequential fetchone/fetchall stand-in matching fetch_incremental's real query order
     for a symbol with a directly-usable reported share count (skips every shares_out fallback
-    query branch)."""
+    query branch).
 
-    def __init__(self, fetchone_results: list[tuple[Any, ...]]) -> None:
+    FIXED 2026-08-18 (missing factor inputs audit, continued): fetchall() used to be a single
+    static response reused for every call, correct only for the FIRST fetchall() (income_rows).
+    The 2026-08-18 DCF 3-year-average-FCF fallback (load_sec_valuations.py) added a SECOND
+    fetchall() call (cash_rows: up to 3 years of operating_cash_flow/capex/dividends_paid) -
+    live-confirmed this reused the same 9-column income_rows tuple for that call too, so
+    `ocf, capex, dividends_paid = cash_rows[0]` crashed with "too many values to unpack
+    (expected 3)" on every real symbol (caught by the loader's own ValueError handler, silently
+    turning every fetch_incremental() call into a data_invalid marker - this test's assertions
+    were never actually exercising the real code path). Made fetchall() sequential like
+    fetchone() so the second call gets cash_rows-shaped data instead.
+    """
+
+    def __init__(
+        self,
+        fetchone_results: list[tuple[Any, ...]],
+        cash_rows: list[tuple[Any, ...]] | None = None,
+    ) -> None:
         self._fetchone_results = list(fetchone_results)
         self._fetchone_idx = 0
+        # income_rows: (revenue, net_income, eps, operating_income, pretax_income,
+        # depreciation_expense, amortization_expense, shares_outstanding_basic, income_tax_expense)
+        income_rows = [
+            (
+                1_000_000_000.0,
+                100_000_000.0,
+                2.0,
+                150_000_000.0,
+                120_000_000.0,
+                10_000_000.0,
+                5_000_000.0,
+                1_000_000_000.0,  # shares_outstanding_basic (> MIN_PLAUSIBLE_SHARES_OUTSTANDING)
+                20_000_000.0,
+            )
+        ]
+        # cash_rows: (operating_cash_flow, capex, dividends_paid) x up to 3 fiscal years -
+        # defaults to the same single-year figures the old hardcoded fetchone "cash_row" used,
+        # so callers that don't care about the 3-year DCF average keep the same effective values.
+        self._fetchall_results = [
+            income_rows,
+            cash_rows if cash_rows is not None else [(80_000_000.0, 10_000_000.0, None)],
+        ]
+        self._fetchall_idx = 0
 
     def execute(self, *args: object, **kwargs: object) -> None:
         pass
 
     def fetchall(self) -> list[tuple[Any, ...]]:
-        # income_rows: (revenue, net_income, eps, operating_income, pretax_income,
-        # depreciation_expense, amortization_expense, shares_outstanding_basic, income_tax_expense)
-        return [
-            (
-                1_000_000_000.0,  # revenue
-                100_000_000.0,  # net_income
-                2.0,  # earnings_per_share
-                150_000_000.0,  # operating_income
-                120_000_000.0,  # pretax_income
-                10_000_000.0,  # depreciation_expense
-                5_000_000.0,  # amortization_expense
-                1_000_000_000.0,  # shares_outstanding_basic (> MIN_PLAUSIBLE_SHARES_OUTSTANDING)
-                20_000_000.0,  # income_tax_expense
-            )
-        ]
+        result = self._fetchall_results[self._fetchall_idx]
+        self._fetchall_idx += 1
+        return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
         result = self._fetchone_results[self._fetchone_idx]
@@ -68,13 +95,12 @@ class TestTotalDebtNotTotalLiabilities:
 
         # Order matches fetch_incremental's real query sequence once shares_out resolves from
         # the first income_rows fetchall (no fallback queries triggered): price, balance_row
-        # (stockholders_equity), cash_row (ocf, capex, dividends_paid), cash_row2
-        # (cash_and_equivalents, queried separately from debt as of 2026-08-17), debt_row
-        # (long_term_debt, short_term_debt, operating_lease_liability, finance_lease_liability).
+        # (stockholders_equity), [cash_rows is a fetchall(), not a fetchone() - see _FakeCursor],
+        # cash_row2 (cash_and_equivalents, queried separately from debt as of 2026-08-17),
+        # debt_row (long_term_debt, short_term_debt, operating_lease_liability, finance_lease_liability).
         fetchone_results = [
             (50.0,),  # price_daily.close
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
-            (80_000_000.0, 10_000_000.0, None),  # annual_cash_flow: ocf, capex, dividends_paid
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt - real debt
@@ -110,7 +136,6 @@ class TestTotalDebtNotTotalLiabilities:
         fetchone_results = [
             (50.0,),
             (500_000_000.0,),
-            (80_000_000.0, 10_000_000.0, None),
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt
@@ -140,7 +165,6 @@ class TestTotalDebtNotTotalLiabilities:
         fetchone_results = [
             (50.0,),
             (500_000_000.0,),
-            (80_000_000.0, 10_000_000.0, None),
             (30_000_000.0,),  # cash_and_equivalents
             (None, None, None, None),  # debt_row: nothing reported
         ]

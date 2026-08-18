@@ -1338,6 +1338,48 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_tax_concept_symbols_cache = result
         return result
 
+    def _get_never_tagged_pretax_income_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported pretax_income in any of their 3 most recent
+        fiscal years, REGARDLESS of whether they tag income_tax_expense.
+
+        Distinct from _get_no_tax_concept_symbols() above, which requires BOTH concepts
+        absent (the fully tax-exempt case: 0% rate, no approximation needed). This
+        covers the class that still falls through the cracks: REITs/mortgage trusts
+        (ADC, AAT, ABR live-confirmed via real annual_income_statement rows) whose
+        10-Ks go straight from revenue to net income with no distinct "income before
+        tax" subtotal line to tag at all (REIT pass-through income is structurally not
+        the thing being taxed), but DO carry a small, real income_tax_expense most years
+        (built-in-gains tax on a taxable REIT subsidiary, state tax, etc.) - live-
+        confirmed 165 universe symbols fit this exact profile, 122 of them blocking
+        roic_pct on "missing_sec_data". Since there's no pretax_income concept AT ALL
+        to be missing, the effective_tax_rate branch below uses (net_income +
+        income_tax_expense) as an approximation of the SAME fiscal year's pretax base -
+        see that branch's comment for why this narrow use is safe despite the general
+        net_income-derivation approach being rejected elsewhere in this file. Cached for
+        the life of this loader instance.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_pretax_income_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, pretax_income,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_income_statement
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(pretax_income) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_pretax_income_symbols_cache = result
+        return result
+
     def _get_no_recent_interest_expense_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported interest_expense in any of their 3 most recent fiscal years.
 
@@ -2023,11 +2065,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             anchor_interest_expense_for_roic = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense_roic_anchor", allow_none=True)
             )
-            roic_tax_expense, roic_pretax_income, roic_operating_income, roic_interest_expense = (
+            roic_tax_expense, roic_pretax_income, roic_operating_income, roic_interest_expense, roic_net_income = (
                 income_tax_expense,
                 pretax_income,
                 operating_income,
                 anchor_interest_expense_for_roic,
+                net_income,
             )
             # FIX 2026-08-18 (live: ABCB/Ameris Bancorp): the comment above claims this was
             # already fixed for filers whose anchor year has tax+pretax but lacks
@@ -2052,7 +2095,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # unblocks effective_tax_rate even if NOPAT itself later fails.
                     cur.execute(
                         """
-                        SELECT income_tax_expense, pretax_income, operating_income, interest_expense
+                        SELECT income_tax_expense, pretax_income, operating_income, interest_expense, net_income
                         FROM annual_income_statement
                         WHERE symbol = %s AND income_tax_expense IS NOT NULL
                           AND pretax_income IS NOT NULL
@@ -2069,7 +2112,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if not fallback_tax_row:
                         cur.execute(
                             """
-                            SELECT income_tax_expense, pretax_income, operating_income, interest_expense
+                            SELECT income_tax_expense, pretax_income, operating_income, interest_expense, net_income
                             FROM annual_income_statement
                             WHERE symbol = %s AND income_tax_expense IS NOT NULL
                               AND pretax_income IS NOT NULL
@@ -2093,6 +2136,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     )
                     roic_interest_expense = self._nan_to_none(
                         safe_float(fallback_tax_row[3], f"{symbol}.interest_expense_fallback_year", allow_none=True)
+                    )
+                    roic_net_income = self._nan_to_none(
+                        safe_float(fallback_tax_row[4], f"{symbol}.net_income_fallback_year", allow_none=True)
                     )
 
             if roic_operating_income is None and roic_pretax_income is not None and roic_interest_expense is not None:
@@ -2162,6 +2208,40 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # tax_expense=0/pretax_income=NULL combination in their most-recent-available
                 # income statement row.
                 effective_tax_rate = 0.0
+            elif (
+                roic_pretax_income is None
+                and roic_tax_expense is not None
+                and roic_tax_expense != 0
+                and roic_net_income is not None
+                and (roic_net_income + roic_tax_expense) > 0
+                and symbol in self._get_never_tagged_pretax_income_symbols()
+            ):
+                # FIX 2026-08-18 (missing factor inputs audit, continued): see
+                # _get_never_tagged_pretax_income_symbols - REITs/mortgage trusts
+                # (ADC/AAT/ABR-class filers) never tag a distinct pretax_income concept
+                # at all (their 10-Ks have no "income before tax" subtotal line), but do
+                # report a real, usually small, income_tax_expense most years. The
+                # general "derive pretax_income from net_income+tax_expense" approach is
+                # already rejected elsewhere in this file (25% deviation vs real reported
+                # pretax_income across 50,261 rows, from NCI/discontinued-ops noise) -
+                # but that rejection was measured across the WHOLE population including
+                # large diversified filers where tax is a material fraction of income.
+                # Here the same approximation is scoped narrowly: only fires for filers
+                # confirmed to have zero pretax_income concept in 3+ years (so there is no
+                # better source to prefer), same fiscal-year net_income (never mixes
+                # years - see roic_net_income's fallback-row tracking above), and still
+                # passes the same [-0.60, 0.60] plausibility bound as every other branch
+                # here. When tax_expense is this small relative to net_income (the common
+                # case for this REIT/trust class - live-confirmed ADC ~0.85%, AAT ~1.1%),
+                # even a materially wrong pretax base still yields a small implied rate,
+                # bounding NOPAT's distortion - unlike using this approximation for a
+                # filer with a large tax bill, where the same NCI/discontinued-ops noise
+                # could swing the rate by many points.
+                candidate_rate = roic_tax_expense / (roic_net_income + roic_tax_expense)
+                if -0.60 <= candidate_rate <= 0.60:
+                    effective_tax_rate = candidate_rate
+                else:
+                    implausible_ratio_metrics.append("roic_pct")
 
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
             # Use total_debt_ev (from sec_valuations, 81% available) as primary source
