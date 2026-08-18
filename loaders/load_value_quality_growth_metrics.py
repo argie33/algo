@@ -1269,6 +1269,46 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_interest_expense_symbols_cache = result
         return result
 
+    def _get_no_recent_debt_components_symbols(self) -> frozenset[str]:
+        """Symbols with NO debt component (long_term_debt, short_term_debt,
+        operating_lease_liability, finance_lease_liability) reported in any of their 3 most
+        recent fiscal years - i.e. sec_valuations.total_debt is structurally None for them, not
+        a loader gap.
+
+        Live audit 2026-08-18 ("no SEC data" goal): 440 of the universe's total_debt
+        "missing_sec_data" rows are this case. Unlike current_ratio/quick_ratio (dominated by
+        banks/REITs), this bucket is a genuine mixed bag - SPACs ("Blank Checks", 127), pre-
+        revenue pharma/biotech (90), and small tech/services companies (~70) alongside a smaller
+        bank/REIT contingent (~40) - most of these companies simply carry no debt at all, not a
+        different accounting model for a specific entity type. Same "3 most recent years, not
+        all-time history" windowing as the sibling checks above. Cached for the life of this
+        loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_debt_components_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, long_term_debt, short_term_debt,
+                           operating_lease_liability, finance_lease_liability,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(long_term_debt) = 0 AND COUNT(short_term_debt) = 0
+                   AND COUNT(operating_lease_liability) = 0 AND COUNT(finance_lease_liability) = 0
+                   AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_debt_components_symbols_cache = result
+        return result
+
     def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
@@ -2682,7 +2722,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["operating_cash_flow_unavailable_reason"] = (
                 "missing_sec_data" if "operating_cash_flow" in failed_metrics else None
             )
-            metrics["total_debt_unavailable_reason"] = "missing_sec_data" if "total_debt" in failed_metrics else None
+            metrics["total_debt_unavailable_reason"] = (
+                (
+                    "total_debt_not_itemized"
+                    if symbol in self._get_no_recent_debt_components_symbols()
+                    else "missing_sec_data"
+                )
+                if "total_debt" in failed_metrics
+                else None
+            )
             metrics["total_cash_unavailable_reason"] = "missing_sec_data" if "total_cash" in failed_metrics else None
             metrics["cash_per_share_unavailable_reason"] = (
                 "missing_sec_data" if "cash_per_share" in failed_metrics else None
