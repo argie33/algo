@@ -864,9 +864,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # filter, `fetchone() is not None` matched those marker rows too, so 3586 of the
             # universe's genuine non-dividend-payers (93% of this reason's NULLs) were
             # mislabeled "missing_sec_data" instead of "non_dividend_paying_stock".
+            #
+            # FIXED 2026-08-18: "has ever paid, at any point in history" also wrongly caught
+            # symbols that discontinued their dividend years ago - e.g. ENVA last paid in 2016
+            # (10 years of real payments on file, none since) but got "missing_sec_data" because
+            # `fetchone() is not None` only asked "ever", not "recently". Added a 2-year recency
+            # window on ex_dividend_date so a discontinued payer reads as the same "not a data
+            # gap, a stock characteristic" case as a company that never paid at all. Live-
+            # confirmed 260 of 824 universe "missing_sec_data" dividend_yield rows are this case.
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1", (symbol,)
+                    """
+                    SELECT 1 FROM dividend_data
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                      AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
+                    LIMIT 1
+                    """,
+                    (symbol,),
                 )
                 has_dividend_history = cur.fetchone() is not None
 
@@ -1965,9 +1979,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if dividends_paid is not None and net_income is not None and net_income <= 0:
                     payout_ratio_reason = "unprofitable_stock"
                 else:
+                    # FIXED 2026-08-18: same "ever, not recently" gap as dividend_yield_reason
+                    # above - a symbol that discontinued its dividend years ago (e.g. ENVA, last
+                    # paid 2016) has real history on file but isn't a current data gap. Match the
+                    # same 2-year recency window used there.
                     with DatabaseContext("read") as cur:
                         cur.execute(
-                            "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
+                            """
+                            SELECT 1 FROM dividend_data
+                            WHERE symbol = %s AND data_unavailable = FALSE
+                              AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
+                            LIMIT 1
+                            """,
                             (symbol,),
                         )
                         has_real_dividend_history = cur.fetchone() is not None
@@ -2183,9 +2206,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and net_income is not None
                 and stockholders_equity > 0
             ):
+                # FIXED 2026-08-18: same "ever, not recently" gap as dividend_yield_reason/
+                # payout_ratio_reason above - a symbol that discontinued its dividend years ago
+                # (e.g. ENVA, last paid 2016) has real history on file but isn't a current data
+                # gap. Match the same 2-year recency window used there.
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
+                        """
+                        SELECT 1 FROM dividend_data
+                        WHERE symbol = %s AND data_unavailable = FALSE
+                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
+                        LIMIT 1
+                        """,
                         (symbol,),
                     )
                     has_real_dividend_history = cur.fetchone() is not None
