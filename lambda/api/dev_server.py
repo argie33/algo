@@ -35,6 +35,18 @@ if __name__ == "__main__":
     if "ALLOW_DEV_TOKENS_TEST" not in os.environ:
         os.environ["ALLOW_DEV_TOKENS_TEST"] = "true"
         print("[DEV_SERVER] AUTO: Setting ALLOW_DEV_TOKENS_TEST=true for dev token auth", flush=True)
+
+    # For dev_server: Allow the local frontend dev server (Vite localhost:5173 / CRA
+    # localhost:3000) as a CORS origin. Without this, lambda_function.py's strict
+    # origin whitelist (get_cors_headers) rejects every browser request from the local
+    # frontend dev server - the backend still computes and returns a real 200 response,
+    # but with no Access-Control-Allow-Origin header, so the browser blocks the frontend
+    # from reading it. Looks like a data/loader problem in the UI; is actually this env
+    # var never being set. Not documented anywhere - live-confirmed via
+    # logs/dev_server_restart_20260817_4.log's repeated [CORS_REJECTED] warnings.
+    if "ALLOW_LOCALHOST_CORS" not in os.environ:
+        os.environ["ALLOW_LOCALHOST_CORS"] = "true"
+        print("[DEV_SERVER] AUTO: Setting ALLOW_LOCALHOST_CORS=true for local frontend dev", flush=True)
 else:
     # If this module is imported (not run directly), fail-safe to prevent security bypass
     if os.getenv("ALLOW_DEV_TOKENS_TEST", "").lower() == "true":
