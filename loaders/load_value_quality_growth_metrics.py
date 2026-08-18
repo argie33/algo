@@ -1133,14 +1133,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         return metrics
 
     def _get_unclassified_balance_sheet_symbols(self) -> frozenset[str]:
-        """Symbols that have NEVER reported current_assets in any fiscal year on file.
+        """Symbols that have NOT reported current_assets in any of their 3 most recent fiscal years.
 
         REITs/banks/insurers file an unclassified balance sheet (no current/non-current split)
         as a permanent accounting-model difference, not a data gap. A single fiscal year missing
         current_assets can also just be an ordinary extraction/timing gap for an otherwise normal
-        filer - checking history across every fiscal year on file is what actually distinguishes
-        the two, rather than guessing from one row. Cached for the life of this loader instance;
-        this query runs once per pipeline run, not once per symbol.
+        filer - requiring 3 consecutive missing years is what actually distinguishes the two,
+        rather than guessing from one row.
+
+        FIXED 2026-08-18: originally required COUNT(current_assets) = 0 across EVERY fiscal year
+        ever filed, not just recent ones. That misses symbols that switched accounting presentation
+        partway through their filing history - e.g. ENVA reported a classified balance sheet in
+        FY2013-2014 (pre spin-off from Cash America) but has filed unclassified every year since
+        (FY2015-2026, 12 straight years); the old query saw the two ancient non-null years and
+        fell through to the generic "missing_sec_data" label, which reads as a loader bug rather
+        than the permanent accounting-model difference it actually is. Live-confirmed 49 symbols
+        in this "used to report classified, now doesn't" bucket. Cached for the life of this
+        loader instance; this query runs once per pipeline run, not once per symbol.
         """
         cached: frozenset[str] | None = getattr(self, "_unclassified_balance_sheet_symbols_cache", None)
         if cached is not None:
@@ -1148,10 +1157,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WITH recent AS (
+                    SELECT symbol, current_assets,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
                 GROUP BY symbol
-                HAVING COUNT(current_assets) = 0
+                HAVING COUNT(current_assets) = 0 AND COUNT(*) = 3
                 """
             )
             result = frozenset(row[0] for row in cur.fetchall())

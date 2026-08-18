@@ -68,7 +68,7 @@ class _FakeCursor:
         # _get_unclassified_balance_sheet_symbols()'s history check - only reached when both
         # current_assets/current_liabilities are absent (see the `and` short-circuit in
         # _compute_quality_metrics), i.e. only by the "both fields absent" test below. Report
-        # TRNO as having never reported current_assets in any fiscal year on file.
+        # TRNO as having never reported current_assets in its 3 most recent fiscal years on file.
         if "HAVING COUNT(current_assets) = 0" in self._last_query:
             return [("TRNO",)]
         return []
@@ -124,3 +124,33 @@ class TestReitBankUnclassifiedBalanceSheet:
         assert metrics["current_ratio"] == 1.5
         assert metrics["current_ratio_unavailable_reason"] is None
         assert metrics["quick_ratio_unavailable_reason"] is None
+
+    def test_classification_query_checks_recent_years_not_all_history(self, monkeypatch):
+        # FIXED 2026-08-18: the old query was `GROUP BY symbol HAVING COUNT(current_assets) = 0`
+        # with no windowing - a company that reported a classified balance sheet years ago and
+        # switched to unclassified since (e.g. ENVA: classified FY2013-2014, unclassified every
+        # year FY2015-2026) never satisfied "zero ever", so it fell through to the generic
+        # "missing_sec_data" label instead of "reit_special_entity". The fixed query must window
+        # to each symbol's most recent fiscal years via ROW_NUMBER()/rn <= 3, not scan all history.
+        import loaders.load_value_quality_growth_metrics as mod
+
+        captured = {}
+
+        class _CapturingCursor(_FakeCursor):
+            def execute(self, query, params=None):
+                captured["query"] = query
+                super().execute(query, params)
+
+        class _CapturingDatabaseContext:
+            def __enter__(self):
+                return _CapturingCursor()
+
+            def __exit__(self, *exc):
+                return False
+
+        monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _CapturingDatabaseContext())
+        fresh_loader = ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+        fresh_loader._get_unclassified_balance_sheet_symbols()
+
+        assert "ROW_NUMBER()" in captured["query"]
+        assert "rn <= 3" in captured["query"]
