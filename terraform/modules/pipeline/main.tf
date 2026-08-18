@@ -1617,9 +1617,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # Failure handling: Non-blocking (fail-open) if financial loader timeout. Quality/growth
       # metrics have graceful degradation for missing data.
       FinancialDataLoaders = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 15000
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIX 2026-08-18: was 15000s (250min), synced to the ECS task-def's corrected 32400s
+        # (financial_statements Python budget) + 300s SFN margin. See loaders/main.tf's
+        # financials_all comment for the full drift history.
+        TimeoutSeconds = 32700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

@@ -74,6 +74,11 @@ def get_loader_timeouts() -> dict[str, int]:
         # SESSION 99 FIX: All increased by 30-50% for SEC rate limiting
         "valuations": 90 * 60,  # 90 min - Session 99: increased from 60m (50% margin for SEC 2req/sec)
         "financial_statements": 540 * 60,  # 540 min (9h) - Session 99: increased from 360m for SEC XBRL parsing
+        # FIX 2026-08-18: terraform's ECS task-def key for this loader is "financials_all", not
+        # "financial_statements" - same name-mismatch blind spot as stock_prices_daily, which
+        # let terraform's timeout drift to 14400s (44% of this budget) undetected by the
+        # regression test.
+        "financials_all": 540 * 60,  # Alias for financial_statements (terraform ECS task-def key)
         # Individual financial statement tables (SESSION 94 FIX: prevent registry mismatch)
         # These are output tables from financial_statements loader, MUST use parent timeout
         # SESSION 100 FIX: All statement tables share the same 540m loader execution budget
@@ -166,6 +171,15 @@ def get_loader_timeouts() -> dict[str, int]:
         # never checked the most critical (CRITICAL LOADER, FAIL-CLOSED) loader in the pipeline.
         # Confirmed live: terraform had 54000s (15h) vs this loader's real 86400s (24h) budget.
         "stock_prices_daily": 1440 * 60,  # Alias for prices (terraform ECS task-def key)
+        # FIX 2026-08-18: remaining terraform ECS task-def keys with no Python config match
+        # (audited individually - each terraform value is already >= the real budget below,
+        # so none of these were live drift risks, but registering them closes the same
+        # name-mismatch blind spot for future changes).
+        "market_constituents": 10 * 60,  # Alias for constituents (terraform ECS task-def key)
+        "market_status_daily": 15 * 60,  # Alias for market_status (terraform ECS task-def key)
+        "sector_industry_daily": 15 * 60,  # Alias for sector_industry (terraform ECS task-def key)
+        "value_quality_growth_metrics": 40 * 60,  # Alias for value_quality_growth (terraform ECS task-def key)
+        "enhanced_quality_growth_metrics": 300 * 60,  # Alias for enhanced_quality_growth (terraform ECS task-def key)
         "stock_symbols": 10 * 60,  # Alias for constituents
         "etf_symbols": 10 * 60,  # Alias for constituents
         "economic_data": 10 * 60,  # Alias for economic

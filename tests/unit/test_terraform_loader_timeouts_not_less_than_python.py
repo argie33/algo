@@ -61,6 +61,25 @@ def _parse_terraform_all_loaders_timeouts() -> dict[str, int]:
     return timeouts
 
 
+def test_every_terraform_loader_key_has_a_python_timeout_entry() -> None:
+    """Regression test (2026-08-18): stock_prices_daily and financials_all both drifted
+    (15h vs 24h, 4h vs 9h real budget) undetected because their terraform ECS task-def key
+    doesn't match any Python config name, so the sibling test's name-intersection silently
+    never checked them. A terraform-only name is exactly the blind spot that let both bugs
+    survive the 2026-08-17/18 sweeps - fail loudly instead of skipping silently.
+    """
+    python_timeouts = get_loader_timeouts()
+    terraform_timeouts = _parse_terraform_all_loaders_timeouts()
+
+    terraform_only = set(terraform_timeouts) - set(python_timeouts)
+    assert not terraform_only, (
+        "These terraform ECS task-def keys have no matching entry (or alias) in "
+        "loaders/loader_timeout_config.py, so their timeout is never checked against the real "
+        "Python budget - register an alias even if the current terraform value looks safe:\n"
+        + "\n".join(f"  {name}" for name in sorted(terraform_only))
+    )
+
+
 def test_no_terraform_loader_timeout_is_less_than_python_timeout() -> None:
     python_timeouts = get_loader_timeouts()
     terraform_timeouts = _parse_terraform_all_loaders_timeouts()

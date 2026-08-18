@@ -692,8 +692,16 @@ locals {
 
     # Financial statements (SEC EDGAR, all 8 statement/period combos in single task)
     # Session 92: per-symbol incremental loading @ 2 req/sec SEC API = ~40 min base + overhead
-    # Timeout: 14400s (240 min / 4 hours) for full financial_statements workload
-    "financials_all" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 1 }
+    # FIX 2026-08-18 (terraform-vs-python drift sweep): was 14400s (4h) - same drift-class bug
+    # as stock_prices_daily/trend_template_data (this session) and the 9-loader sweep
+    # (77ef78971): load_financial_statements.py self-enforces via
+    # get_loader_timeout("financial_statements") = 32400s (540m/9h, Session 99, raised for SEC
+    # rate limiting on full-universe backfill runs) - this container-level ceiling would kill
+    # the ECS task at 44% of that budget before the loader's own logic ever got a chance.
+    # Incremental runs measure 20-31min (logs/load_financial_statements_*.log 2026-08-17),
+    # matching the "~16m" comment below, but a cold/backfill full-universe run is the scenario
+    # the 9h Python budget exists for - same class as the 19+h "prices" backfill case.
+    "financials_all" = { cpu = 512, memory = 1024, timeout = 32400, parallelism = 1 }
 
     # Signals & algo metrics
     "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
