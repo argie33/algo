@@ -68,6 +68,7 @@ const formatReasonDisplay = (reason) => {
     ad_rating_not_available: "A/D rating not available",
     no_dividend_paying_stock: "Non-dividend payer",
     reit_special_entity: "REIT/bank/insurer - different accounting",
+    interest_expense_not_itemized: "Interest expense not itemized",
     foreign_20f_filer: "Foreign 20-F filer - XBRL data limited",
     bank_special_reporting: "Financial institution - alternative metrics",
     insufficient_prior_year_data: "Prior fiscal year data unavailable",
@@ -98,6 +99,8 @@ const reasonTooltips = {
   institutional_data_not_available: "Institutional holding data not available for this stock",
   reit_special_entity:
     "REITs, banks, and insurers report an unclassified balance sheet (no current/non-current split) or omit gross profit as a permanent feature of their accounting model, not a data gap - traditional ratio metrics don't apply",
+  interest_expense_not_itemized:
+    "This company hasn't reported interest expense as its own line item in its 3 most recent fiscal years - either it carries no debt, or it nets interest into other income/expense instead of breaking it out, not a data extraction gap",
   foreign_20f_filer: "Foreign companies filing 20-F use different XBRL data structure; full metrics extraction limited",
   bank_special_reporting: "Banks and financial institutions use specialized accounting; different metrics apply",
   insufficient_prior_year_data: "This company's prior fiscal year filing doesn't report the comparison figure needed for this trend/growth calculation",

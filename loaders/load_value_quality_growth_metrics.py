@@ -1187,6 +1187,43 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._unclassified_balance_sheet_symbols_cache = result
         return result
 
+    def _get_no_recent_interest_expense_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported interest_expense in any of their 3 most recent fiscal years.
+
+        Live audit 2026-08-18 ("no SEC data" goal): 927 of 1525 universe interest_coverage
+        "missing_sec_data" rows are this case - not a loader gap. Two distinct real causes land
+        in the same bucket: (1) a genuinely debt-free company that never had an interest expense
+        line to report, and (2) a company that stopped itemizing interest expense as its own
+        line - live-confirmed on AAPL, which reported real interest_expense every year through
+        FY2023 ($3.9B) but has netted it into "other income/(expense)" starting FY2024, so its 3
+        most recent fiscal years (2024-2026) are structurally NULL despite being a real, large,
+        indebted borrower. Same "3 most recent years, not all-time history" windowing as
+        _get_unclassified_balance_sheet_symbols() above, for the same reason: a company can
+        permanently change what it itemizes partway through its filing history. Cached for the
+        life of this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_interest_expense_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, interest_expense,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_income_statement
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(interest_expense) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_interest_expense_symbols_cache = result
+        return result
+
     def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
@@ -1541,6 +1578,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 current_assets is None
                 and current_liabilities is None
                 and symbol in self._get_unclassified_balance_sheet_symbols()
+            )
+
+            # Same "3 most recent fiscal years, not one row" distinction as
+            # unclassified_balance_sheet above, applied to interest_expense: a company that
+            # hasn't itemized it in years (debt-free, or netted into other income/expense -
+            # live-confirmed on AAPL since FY2024) isn't a current data gap.
+            no_recent_interest_expense = (
+                interest_expense is None and symbol in self._get_no_recent_interest_expense_symbols()
             )
 
             # Interest Coverage = Operating Income / Interest Expense. Higher is better
@@ -2509,7 +2554,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["interest_coverage_unavailable_reason"] = (
-                ("implausible_ratio" if "interest_coverage" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "interest_coverage" in implausible_ratio_metrics
+                    else "interest_expense_not_itemized"
+                    if no_recent_interest_expense
+                    else "missing_sec_data"
+                )
                 if "interest_coverage" in failed_metrics
                 else None
             )
