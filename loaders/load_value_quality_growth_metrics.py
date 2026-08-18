@@ -68,6 +68,32 @@ def get_loader_timestamp() -> str:
     return _LOADER_RUN_TIMESTAMP
 
 
+def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
+    """Given the two most recent (fiscal_year, earnings_per_share) rows (newest first, both
+    non-NULL EPS), decide why peg_ratio is unavailable when pe_ratio IS present.
+
+    FIXED 2026-08-18 (live audit, "no SEC data" follow-up): this branch was hardcoded
+    "missing_sec_data" regardless of cause. load_sec_valuations.py only computes peg_ratio
+    when growth_rate = (ttm_eps - prior_year_eps) / |prior_year_eps| is > 0 (declining or
+    newly-profitable earnings make PEG not meaningful, same "not applicable" class as
+    unprofitable_stock/non_dividend_paying_stock elsewhere in this file). Live audit: 1273 of
+    1282 universe rows in this exact state (pe present, peg NULL, "missing_sec_data") have
+    declining or newly-positive EPS - only 8 are genuine missing-prior-year-EPS gaps.
+
+    Args:
+        eps_rows: 0-2 (fiscal_year, earnings_per_share) tuples, already filtered to non-NULL
+            EPS and ordered fiscal_year DESC (i.e. exactly what the caller's DB query returns).
+    """
+    if len(eps_rows) < 2:
+        return "missing_sec_data"
+    ttm_eps_for_growth, prior_eps_for_growth = eps_rows[0][1], eps_rows[1][1]
+    if prior_eps_for_growth is None or prior_eps_for_growth <= 0:
+        return "negative_earnings_growth"
+    if ttm_eps_for_growth is not None and ttm_eps_for_growth <= prior_eps_for_growth:
+        return "negative_earnings_growth"
+    return "missing_sec_data"
+
+
 # GOVERNANCE: quality/growth metrics previously stamped updated_at=today() regardless of
 # how old the underlying SEC fiscal-year data was - verified live examples scoring stocks
 # off 13-17 year old financials as if freshly updated (LPL/SID fiscal_year 2009-2012). The
@@ -854,9 +880,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             latest_eps = eps_row[0] if eps_row else None
             pe_ratio_reason = "unprofitable_stock" if latest_eps is not None and latest_eps <= 0 else "missing_sec_data"
 
-        peg_ratio_reason = (
-            pe_ratio_reason if peg is None and pe is None else ("missing_sec_data" if peg is None else None)
-        )
+        peg_ratio_reason: str | None
+        if peg is None and pe is not None:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT fiscal_year, earnings_per_share FROM annual_income_statement
+                    WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                    ORDER BY fiscal_year DESC LIMIT 2
+                    """,
+                    (symbol,),
+                )
+                eps_rows = cur.fetchall()
+            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows)
+        else:
+            peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else None
 
         # Track which fields are unavailable (Session 389). No yfinance fallback remains
         # (removed 2026-08-17 - see comment above data_source_peg/data_source_dividend), so
