@@ -70,7 +70,18 @@ class TestIfrsDividendsPaidFinancingActivitiesAlias:
 
         assert 2025 not in by_year or by_year[2025].get("payments_of_dividends") is None
 
-    def test_non_usd_dividends_paid_rejected_by_currency_guard(self) -> None:
+    def test_non_usd_dividends_paid_converted_via_major_currency_fx_rate(self, monkeypatch) -> None:
+        # AEM (a real Canadian issuer) reports in CAD in some fiscal years. CAD is on the
+        # MAJOR_CURRENCIES whitelist (utils/external/fx_rates.py, 2026-08-17) precisely so
+        # real dividend data like this converts to USD instead of being dropped - the same
+        # "SEC data not available" bug this alias test file exists to catch in the first
+        # place would resurface for any AEM fiscal year reported in CAD if this were still
+        # rejected outright. See test_sec_non_usd_currency_unit_rejected.py for the still-
+        # active reject case (exotic/volatile currencies not on the whitelist, e.g. KRW).
+        import utils.external.sec_statements as sec_statements_mod
+
+        monkeypatch.setattr(sec_statements_mod._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 1.386)
+
         facts = {
             "us-gaap": {},
             "ifrs-full": {
@@ -84,4 +95,4 @@ class TestIfrsDividendsPaidFinancingActivitiesAlias:
         rows = get_cash_flow(client, "AEM", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
-        assert 2025 not in by_year or by_year[2025].get("payments_of_dividends") is None
+        assert by_year[2025]["payments_of_dividends"] == 1_000_000_000.0 / 1.386

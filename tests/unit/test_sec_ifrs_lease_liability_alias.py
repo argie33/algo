@@ -52,10 +52,15 @@ class TestIfrsLeaseLiabilityAlias:
         assert by_year[2025]["operating_lease_liability"] == 1_586_000_000.0
         assert "finance_lease_liability" not in by_year[2025]
 
-    def test_non_usd_lease_liabilities_rejected_by_currency_guard(self) -> None:
-        # A EUR-denominated filer (e.g. E/Eni) must not fabricate a USD figure - this is
-        # the same non-USD guard tested in test_sec_non_usd_currency_unit_rejected.py,
-        # confirmed here to also cover the new IFRS lease alias.
+    def test_non_usd_lease_liabilities_converted_via_major_currency_fx_rate(self, monkeypatch) -> None:
+        # EUR is on the MAJOR_CURRENCIES whitelist (utils/external/fx_rates.py, 2026-08-17),
+        # so a EUR-denominated filer (e.g. E/Eni) gets a real converted USD figure instead of
+        # a fabricated one or a dropped one - see test_sec_non_usd_currency_unit_rejected.py
+        # for the still-active reject case (exotic/volatile currencies not on the whitelist).
+        import utils.external.sec_statements as sec_statements_mod
+
+        monkeypatch.setattr(sec_statements_mod._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 1.05)
+
         facts = {
             "us-gaap": {},
             "ifrs-full": {
@@ -67,4 +72,4 @@ class TestIfrsLeaseLiabilityAlias:
         rows = get_balance_sheet(client, "E", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
-        assert 2025 not in by_year or "operating_lease_liability" not in by_year[2025]
+        assert by_year[2025]["operating_lease_liability"] == 5_700_000_000.0 / 1.05
