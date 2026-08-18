@@ -28,7 +28,7 @@ def _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=No
     doesn't take its "every core metric is None -> whole row unavailable" early exit
     (index 6/7) - everything else is left None so only the SGR computation under test has
     real inputs."""
-    row = [None] * 33
+    row = [None] * 34
     row[0] = stockholders_equity
     row[3] = net_income
     row[6] = 500.0  # current_assets
