@@ -26,8 +26,9 @@ def _quality_row(
     gross_profit=None,
     prior_year_revenue=None,
     prior_year_cost_of_revenue=None,
+    prior_year_gross_profit=None,
 ):
-    # Same 33-column shape as test_current_quick_ratio_reit_special_entity_reason.py's fixture.
+    # 34-column shape (33 + prior_year_gross_profit added 2026-08-18).
     return (
         500_000_000.0,  # 0 stockholders_equity
         200_000_000.0,  # 1 total_liabilities
@@ -62,6 +63,7 @@ def _quality_row(
         None,  # 30 prior_year_stockholders_equity
         None,  # 31 prior_year_pretax_income
         None,  # 32 prior_year_interest_expense
+        prior_year_gross_profit,  # 33
     )
 
 
@@ -120,6 +122,29 @@ def test_implausible_margin_gets_implausible_ratio_not_generic_reason(monkeypatc
 
     assert metrics["gross_margin_trend"] is None
     assert metrics["gross_margin_trend_unavailable_reason"] == "implausible_ratio"
+
+
+def test_gross_profit_present_without_cost_of_revenue_computes_trend(monkeypatch):
+    # FIXED 2026-08-18: live-confirmed via ENVA (Enova International) - gross_profit is present
+    # every fiscal year on file (2021-2025) but cost_of_revenue is NULL every year (ENVA never
+    # tags a separate CostOfRevenue concept). This is NOT the reit_special_entity case
+    # (gross_profit concept IS reported, just not cost_of_revenue) and not an implausible-ratio
+    # rejection either - the trend is fully computable from gross_profit/prior_year_gross_profit
+    # directly, the same source the base gross_margin metric already falls back to.
+    loader = _make_loader(monkeypatch)
+    row = _quality_row(
+        revenue=3_151_653_000.0,
+        cost_of_revenue=None,
+        gross_profit=1_830_241_000.0,
+        prior_year_revenue=2_657_800_000.0,
+        prior_year_cost_of_revenue=None,
+        prior_year_gross_profit=1_529_449_000.0,
+    )
+
+    metrics = loader._compute_quality_metrics("ENVA", row, ev_metrics=None)
+
+    assert metrics["gross_margin_trend"] is not None
+    assert metrics.get("gross_margin_trend_unavailable_reason") is None
 
 
 def test_normal_trend_still_computes_and_reason_is_none(monkeypatch):
