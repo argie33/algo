@@ -571,6 +571,8 @@ const VALUE_SCHEMA = [
   { key: 'peg_ratio', label: 'PEG', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '8%' },
   { key: 'fcf_yield', label: 'FCF Yield', fmt: v => pct(v, 2), used: true, weight: '12%' },
+  { key: 'stock_intrinsic_value', label: 'Intrinsic Value (DCF)', fmt: v => v == null ? '—' : `$${num(v, 2)}`, used: false },
+  { key: 'stock_margin_of_safety', label: 'Margin of Safety', fmt: v => pct(v, 1), used: true, weight: '20%' },
 ];
 
 const GROWTH_SCHEMA = [

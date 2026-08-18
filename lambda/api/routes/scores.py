@@ -156,6 +156,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     vm.ev_revenue,
                     vm.market_cap,
                     vm.market_cap_unavailable_reason,
+                    vm.intrinsic_value_per_share,
+                    vm.intrinsic_value_unavailable_reason,
+                    vm.margin_of_safety_pct,
+                    vm.margin_of_safety_unavailable_reason,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
@@ -592,6 +596,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "fcf_yield_unavailable_reason": data.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": data.get("dividend_yield"),
                 "stock_dividend_yield_unavailable_reason": data.get("dividend_yield_unavailable_reason"),
+                "stock_intrinsic_value": data.get("intrinsic_value_per_share"),
+                "stock_intrinsic_value_unavailable_reason": data.get("intrinsic_value_unavailable_reason"),
+                "stock_margin_of_safety": data.get("margin_of_safety_pct"),
+                "stock_margin_of_safety_unavailable_reason": data.get("margin_of_safety_unavailable_reason"),
             }
 
             # Growth Inputs
@@ -953,6 +961,10 @@ def _get_stock_scores(  # noqa: C901
                     vm.ev_revenue,
                     vm.market_cap,
                     vm.market_cap_unavailable_reason,
+                    vm.intrinsic_value_per_share,
+                    vm.intrinsic_value_unavailable_reason,
+                    vm.margin_of_safety_pct,
+                    vm.margin_of_safety_unavailable_reason,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
@@ -1380,6 +1392,10 @@ def _get_stock_scores(  # noqa: C901
                 "fcf_yield_unavailable_reason": d.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": d.get("dividend_yield"),
                 "stock_dividend_yield_unavailable_reason": d.get("dividend_yield_unavailable_reason"),
+                "stock_intrinsic_value": d.get("intrinsic_value_per_share"),
+                "stock_intrinsic_value_unavailable_reason": d.get("intrinsic_value_unavailable_reason"),
+                "stock_margin_of_safety": d.get("margin_of_safety_pct"),
+                "stock_margin_of_safety_unavailable_reason": d.get("margin_of_safety_unavailable_reason"),
             }
 
             # Growth Inputs: Revenue and EPS growth
