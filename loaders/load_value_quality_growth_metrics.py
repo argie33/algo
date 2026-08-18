@@ -1344,6 +1344,44 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_debt_components_symbols_cache = result
         return result
 
+    def _get_no_recent_revenue_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported revenue in any of their 3 most recent fiscal years -
+        i.e. structurally pre-revenue, not a loader gap.
+
+        Live audit 2026-08-18 ("no SEC data" goal): ebitda_margin can be None even when ebitda
+        itself is a real, computed value (e.g. a real negative EBITDA), because ebitda_margin =
+        ebitda / revenue has no fallback denominator (unlike operating_margin, which falls back
+        to total_assets) - live-confirmed 511 universe symbols with ebitda present but
+        ebitda_margin "missing_sec_data"; of those, 69 have genuinely never reported revenue in
+        their 3 most recent fiscal years (dominated by SPACs and pre-revenue clinical-stage
+        biotech/pharma, e.g. ABVX/Abivax). The remaining ~440 have real revenue on file in a
+        different fiscal year than the one quality_row's balance-sheet anchor selected (e.g.
+        AFYA/AIB/AKTS) - a distinct fiscal-year-anchor-selection gap, not this "structurally no
+        revenue" case, so deliberately NOT covered by this windowed check. Cached for the life
+        of this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_revenue_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, revenue,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_income_statement
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(revenue) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_revenue_symbols_cache = result
+        return result
+
     def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
@@ -2731,7 +2769,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["ebitda_margin_unavailable_reason"] = (
-                ("implausible_ratio" if "ebitda_margin" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "ebitda_margin" in implausible_ratio_metrics
+                    else "no_revenue_reported"
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    else "missing_sec_data"
+                )
                 if "ebitda_margin" in failed_metrics
                 else None
             )
