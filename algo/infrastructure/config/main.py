@@ -1319,6 +1319,19 @@ class AlgoConfig:
             "Retry count for database migrations",
             "Database",
         ),
+        # Market Open Entry Exclusion
+        "market_open_exclusion_enabled": (
+            "false",
+            "bool",
+            "Block Phase 8 entries for N minutes after market open (high false-breakout rate)",
+            "Risk Management",
+        ),
+        "market_open_exclusion_minutes": (
+            "30",
+            "int",
+            "Minutes after 9:30 AM ET market open to block entries (0=disabled, 30=default)",
+            "Risk Management",
+        ),
         # Exit Strategy Configuration
         "exit_on_minervini_break": (
             "false",
