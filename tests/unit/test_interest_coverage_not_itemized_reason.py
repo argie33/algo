@@ -16,7 +16,8 @@ from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsL
 
 
 def _quality_row(operating_income=-17_841_919.0, interest_expense=None):
-    # Same 33-column shape as test_quality_metrics_implausible_ratio_reason.py's fixture.
+    # 34-column shape (index 33 = prior_year_gross_profit, added after
+    # test_quality_metrics_implausible_ratio_reason.py's 33-column fixture was written).
     row = [None] * 34
     row[0] = 500_000_000.0  # stockholders_equity
     row[1] = 200_000_000.0  # total_liabilities

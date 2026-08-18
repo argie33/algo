@@ -23,7 +23,8 @@ def _make_loader():
 
 
 def _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=None):
-    """31-element quality_row matching _compute_quality_metrics' index layout. current_assets/
+    """34-element quality_row (index 33 = prior_year_gross_profit, added after this fixture was
+    written) matching _compute_quality_metrics' index layout. current_assets/
     current_liabilities are always populated so current_ratio computes and the function
     doesn't take its "every core metric is None -> whole row unavailable" early exit
     (index 6/7) - everything else is left None so only the SGR computation under test has

@@ -22,8 +22,9 @@ def _make_loader():
 
 
 def _quality_row(net_income=100.0, dividends_paid=None):
-    """34-element quality_row - see test_sustainable_growth_rate_dividend_reason.py's identical
-    helper for the index map."""
+    """34-element quality_row (index 33 = prior_year_gross_profit, added after this fixture was
+    written) - see test_sustainable_growth_rate_dividend_reason.py's identical helper for the
+    index map."""
     row = [None] * 34
     row[0] = 1000.0  # stockholders_equity
     row[3] = net_income
