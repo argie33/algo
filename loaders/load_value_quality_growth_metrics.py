@@ -677,8 +677,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         f"is {quality_age} years old (max allowed {MAX_FISCAL_YEAR_AGE_YEARS})"
                     )
                     logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: {stale_reason}")
-                    quality_dict = self._unavailable_marker("quality_metrics", symbol)
-                    quality_dict["reason"] = stale_reason
+                    quality_dict = self._stale_quality_marker(symbol, quality_dict, stale_reason)
 
             if growth_fiscal_year is not None and not growth_dict.get("data_unavailable"):
                 growth_age = current_year - int(growth_fiscal_year)
@@ -3153,6 +3152,37 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_stability_unavailable_reason"),
             ),
         )
+
+    def _stale_quality_marker(self, symbol: str, quality_dict: dict[str, Any], stale_reason: str) -> dict[str, Any]:
+        """Build the quality_metrics unavailable marker for a stale annual_balance_sheet,
+        while preserving the fields that don't actually depend on that stale table.
+
+        FIXED 2026-08-18 (goal: "no SEC data" audit): total_debt/total_cash/ebitda/
+        cash_per_share are computed purely from `ev_metrics` (the separately-fetched,
+        ungated sec_valuations row - see total_debt_ev/total_cash_ev/ebitda_ev in
+        fetch_incremental), not from quality_row_db/annual_balance_sheet - the table whose
+        staleness this marker is actually about. Previously the caller wholesale-replaced
+        quality_dict with the fully-blanked _unavailable_marker(), throwing these 4 real,
+        current fields away too. Live-confirmed 103 symbols (e.g. UBS $231B cash, APA
+        $444M cash, AEG $2.7B cash) had fresh sec_valuations data nulled out to a
+        misleading "missing_sec_data" purely because their annual_balance_sheet lagged.
+        """
+        # Copy value+reason together (not "only if not None") so a real value's reason
+        # is correctly cleared to None instead of being left at the marker's default
+        # "missing_sec_data" - the value/reason pair reflects quality_dict's own already-
+        # correct availability logic for these 4 EV-sourced fields, whatever it concluded.
+        ev_sourced_fields = (
+            "total_debt",
+            "total_cash",
+            "ebitda",
+            "cash_per_share",
+        )
+        marker = self._unavailable_marker("quality_metrics", symbol)
+        marker["reason"] = stale_reason
+        for field in ev_sourced_fields:
+            marker[field] = quality_dict.get(field)
+            marker[f"{field}_unavailable_reason"] = quality_dict.get(f"{field}_unavailable_reason")
+        return marker
 
     def _unavailable_marker(self, table: str, symbol: str) -> dict[str, Any]:
         """Return data_unavailable marker for a table.
