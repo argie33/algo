@@ -1548,7 +1548,7 @@ class PriceLoader(OptimalLoader):
         # This was the REAL bug causing price_daily to fail at 92% - batch processing stopped at 3h mark
         # (This fix was claimed in commit 7dd40e491 but not actually implemented - fixing now)
         try:
-            task_timeout_sec = get_loader_timeout("prices")  # Should be 54000s (900m = 15h)
+            task_timeout_sec = get_loader_timeout("prices")  # Should be 86400s (1440m = 24h)
         except RuntimeError as e:
             logger.error(f"[TIMEOUT_CONFIG] CRITICAL: {e}")
             raise

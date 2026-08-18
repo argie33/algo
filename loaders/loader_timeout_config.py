@@ -160,6 +160,12 @@ def get_loader_timeouts() -> dict[str, int]:
         # 15*60 despite the Alias-for comment (Session 98 copy-paste slip). No live-timeout
         # risk either way (real measured runtime ~5s), fixed for config-consistency.
         "trend_template_data": 15 * 60,  # Alias for trend_analysis
+        # FIX 2026-08-18: terraform/modules/loaders/main.tf's ECS task-def key for the prices
+        # loader is "stock_prices_daily", not "prices" - test_terraform_loader_timeouts_not_
+        # less_than_python.py matches by name intersection, so without this alias it silently
+        # never checked the most critical (CRITICAL LOADER, FAIL-CLOSED) loader in the pipeline.
+        # Confirmed live: terraform had 54000s (15h) vs this loader's real 86400s (24h) budget.
+        "stock_prices_daily": 1440 * 60,  # Alias for prices (terraform ECS task-def key)
         "stock_symbols": 10 * 60,  # Alias for constituents
         "etf_symbols": 10 * 60,  # Alias for constituents
         "economic_data": 10 * 60,  # Alias for economic

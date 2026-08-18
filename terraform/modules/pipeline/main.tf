@@ -312,8 +312,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             StartAt = "TrendTemplate"
             States = {
               TrendTemplate = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                Type     = "Task"
+                Resource = "arn:aws:states:::ecs:runTask.sync"
                 # FIX 2026-08-18: was 5400s (matching pre-fix ECS timeout) - synced to
                 # 1200s (900s ECS timeout + 300s SFN margin). Real measured runtime ~5s.
                 TimeoutSeconds = 1200
@@ -1299,13 +1299,19 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # (derive_aggregate_prices in loaders/load_prices.py) — no interval is fetched from
       # yfinance besides 1d anywhere.
       # parallelism=1 (serial to prevent yfinance 429 rate limit errors); runtime varies 60-180 min with 5000+ symbols
-      # Timeout: 6 hours (21600s), matching EOD pipeline. Morning pipeline runs 2:00-9:30 AM (450 min available).
+      # FIX 2026-08-18 (terraform-vs-python drift sweep): this separate morning_prep_pipeline state
+      # machine was missed by the earlier EodBulkPrices/9-loader sweep (77ef78971) since it lives in
+      # a different aws_sfn_state_machine resource. Was 21600s (6h) - already known insufficient once
+      # (see FIXED 2026-07-14 below) and now stale against the Python price_daily timeout (1440m/24h,
+      # Session 99) the same yfinance-rate-limiting slowdown that forced EodBulkPrices to 24h can also
+      # hit this 1d-only variant. Synced to Python timeout + 300s SFN margin, same convention as
+      # EodBulkPrices/current_reports_8k/dividend_data.
       # FIXED 2026-07-14: Increased from 4h to 6h. Previous 4h timeout was insufficient in production, causing pipeline
       # halts every morning. Production runtime consistently exceeds 4 hours due to yfinance rate limiting and data volume.
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 21600
+        TimeoutSeconds = 86700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1414,9 +1420,12 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
             StartAt = "MorningTrendTemplate"
             States = {
               MorningTrendTemplate = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 5400
+                Type     = "Task"
+                Resource = "arn:aws:states:::ecs:runTask.sync"
+                # FIX 2026-08-18: was 5400s, stale vs Python trend_analysis timeout (900s) - synced to
+                # 1200s (900s + 300s SFN margin), matching the EOD TrendTemplate step in this same file.
+                # Real measured runtime ~5s (verified via logs/load_trend_analysis_*.log).
+                TimeoutSeconds = 1200
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
