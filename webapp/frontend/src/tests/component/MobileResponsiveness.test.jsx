@@ -631,9 +631,13 @@ describe("Mobile Responsiveness Tests", () => {
       expect(screen.getByText("Device: desktop")).toBeInTheDocument();
     });
 
-    test.skip("should sync preferences across devices", () => {
-      // localStorage test isolation issue - fix by 2026-08-17
-      // Test environment has cross-test localStorage pollution preventing proper isolation
-    });
+    // REMOVED 2026-08-18 (loader-health review, cheats/bypasses sweep): this test.skip had
+    // an empty body - just two comments blaming "localStorage test isolation" for a "fix by
+    // 2026-08-17" that never happened. There was never a real test here to be flaky/blocked -
+    // no localStorage or preferences code exists anywhere else in this file. A skipped test
+    // with a misleading "will be fixed" comment and zero actual assertions provides no
+    // regression coverage while implying otherwise. Removed rather than left as a stale
+    // placeholder; a real cross-device-preference-sync test should be added against the
+    // actual preferences/localStorage hook once one exists to test.
   });
 });
