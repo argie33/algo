@@ -91,8 +91,33 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
         assert len(debt_queries) == 1
         debt_sql = debt_queries[0]
-        assert "CASE WHEN long_term_debt IS NOT NULL THEN 0 ELSE 1 END" in debt_sql
+        assert "CASE WHEN long_term_debt IS NOT NULL" in debt_sql
         assert "fiscal_year DESC" in debt_sql
+
+    def test_debt_query_prefers_any_debt_component_not_just_long_term_debt(self) -> None:
+        # FIXED 2026-08-18 (goal: "no SEC data" audit, roic_pct/total_debt follow-up):
+        # live-confirmed via ANET (Arista Networks) - long_term_debt is NULL in every fiscal
+        # year on file, but FY2024 reports a real operating_lease_liability ($59.6M). The old
+        # CASE tier only checked long_term_debt specifically, so a filer that never tags it at
+        # all (regardless of what other debt components it does report) fell through to plain
+        # `fiscal_year DESC`, picking a more recent year with ALL FOUR components NULL over an
+        # older year with a real, usable component. 522 of the universe's 1,060 NULL total_debt
+        # symbols have this shape.
+        fetchone_results = [
+            (50.0,),
+            (500_000_000.0,),
+            (80_000_000.0, 10_000_000.0, None),
+            (30_000_000.0,),
+            (None, 0.0, 59_642_000.0, None),  # debt_row
+        ]
+        _, cursor = _run_fetch_incremental("ANET", fetchone_results)
+
+        debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
+        assert len(debt_queries) == 1
+        debt_sql = debt_queries[0]
+        assert "short_term_debt IS NOT NULL" in debt_sql
+        assert "operating_lease_liability IS NOT NULL" in debt_sql
+        assert "finance_lease_liability IS NOT NULL" in debt_sql
 
     def test_cash_is_queried_separately_from_debt(self) -> None:
         # The cash query must not be coupled to the debt-prioritization ORDER BY - it should

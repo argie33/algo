@@ -440,6 +440,20 @@ class SecValuationsLoader(OptimalLoader):
                 # above) so its freshness isn't coupled to debt-field completeness - GOOGL's
                 # FY2026 cash figure is real and shouldn't be held back a year just because
                 # that year's debt tags aren't filed yet.
+                #
+                # FIXED 2026-08-18 (goal: "no SEC data" audit, roic_pct/total_debt follow-up):
+                # the CASE tier above only checked long_term_debt specifically - a filer that
+                # NEVER tags long_term_debt in any fiscal year (real, debt-light companies that
+                # only carry short-term/lease liabilities) fell through to plain `fiscal_year
+                # DESC`, picking the latest year even when an older year has a real component
+                # this query would otherwise use. Live-confirmed: ANET (Arista Networks) has
+                # long_term_debt NULL in every fiscal year on file, but FY2024 reports a real
+                # operating_lease_liability ($59.6M) - the old query picked FY2026/FY2025
+                # (all four components NULL, both being more recent) over FY2024, producing
+                # total_debt=None for a symbol with a real, computable debt figure. 522 of the
+                # universe's 1,060 NULL total_debt symbols have this same "some year has a real
+                # component, just not long_term_debt, and not the latest year" shape. Widened
+                # the CASE tier to prefer any year with any of the four components present.
                 cur.execute(
                     """
                     SELECT cash_and_equivalents
@@ -461,7 +475,10 @@ class SecValuationsLoader(OptimalLoader):
                         finance_lease_liability
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY (CASE WHEN long_term_debt IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    ORDER BY (CASE WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
+                                    OR operating_lease_liability IS NOT NULL
+                                    OR finance_lease_liability IS NOT NULL
+                                   THEN 0 ELSE 1 END), fiscal_year DESC
                     LIMIT 1
                     """,
                     (symbol,),
