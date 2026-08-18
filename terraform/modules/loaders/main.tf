@@ -518,7 +518,12 @@ locals {
     # CRITICAL FIX (Session 97): Timeout was 5400s (90m) but prices actually needs 900m (54000s)
     # Session 92-93 measured actual runtime 761m; Session 93 fix set Python config to 54000s
     # but Terraform was never updated. This caused prices to timeout at 90m every run.
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 54000, parallelism = 1 }
+    # FIX 2026-08-18 (terraform-vs-python drift sweep): Session 99 raised the Python
+    # config prices timeout to 1440m (24h) after live-measuring 19+h actual runtime
+    # under yfinance rate-limiting slowdown - Terraform was never updated for that
+    # raise, same drift pattern already fixed for current_reports_8k/dividend_data
+    # in 18d0d2021.
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 86400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced from 4096 to 1024 (actual peak ~300MB, 3-4x headroom sufficient)
     # FIXED (2026-07-13): memory=1024 is not a valid Fargate combo for cpu=1024 (min is 2048) -
     # ECS RegisterTaskDefinition rejected this outright, blocking every terraform apply.
@@ -527,7 +532,9 @@ locals {
     # bug), this task had a multi-day backlog to recompute in one run and was OOM-killed
     # (exit 137) twice in a row at 2048MB. Bumped to 4096MB for backlog-catch-up headroom.
     "technical_data_daily" = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
-    "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    # FIX 2026-08-18: was 5400s, mirroring a Python-side copy-paste slip in
+    # loader_timeout_config.py (fixed to 900s to match trend_analysis) - synced here.
+    "trend_template_data" = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 1 }
     # DEPRECATED (Session 276): market_exposure_daily consolidated into market_status_daily (Phase 2 consolidation)
     # No longer run as separate task; outputs produced atomically by market_status_daily
     # "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
