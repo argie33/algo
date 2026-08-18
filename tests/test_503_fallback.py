@@ -80,6 +80,7 @@ def test_optional_fetcher_skips_retry_on_503():
             one_func=lambda name, fn, timeout: (name, fn(None)),
             fetcher_timeout_dict={"exp_factors": 3.0},
             batch_name="test",
+            critical_fetchers=set(),
         )
 
         # Should have called the fetcher, got 503, and NOT retried

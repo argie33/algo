@@ -148,24 +148,24 @@ def _execute_fetcher_batch(
     one_func: Callable[..., tuple[str, Any]],
     fetcher_timeout_dict: dict[str, float],
     batch_name: str,
+    critical_fetchers: set[str],
 ) -> dict[str, Any]:
-    """Execute a batch of fetchers with thread pool and timeout handling."""
+    """Execute a batch of fetchers with thread pool and timeout handling.
+
+    FIX (2026-08-18): this used to hardcode its own `critical_fetchers` set internally,
+    duplicating (and silently diverging from) load_all()'s categorization. Commit 52260089b
+    (2026-07-11) moved "cb" (circuit breakers) from load_all()'s critical set to its optional
+    set specifically because the circuit-breaker Lambda endpoint routinely returns 503 with a
+    12+ second exponential retry backoff and "is not required for dashboard function; panels
+    handle missing data gracefully" - but never updated this function's own hardcoded copy,
+    which still listed "cb" as critical. Since "cb" is dispatched through the *optional*
+    batch call, this function's own (still-critical) set caught it and raised a fatal
+    RuntimeError on every 503/timeout, taking down the ENTIRE dashboard (data unavailable)
+    instead of just the circuit-breaker panel - exactly the failure mode the 07-11 fix set
+    out to prevent, silently reintroduced by this leftover duplicate. Now takes the caller's
+    critical set explicitly instead of re-deriving its own.
+    """
     out: dict[str, Any] = {}
-    critical_fetchers = {
-        "run",
-        "cfg",
-        "mkt",
-        "port",
-        "perf",
-        "pos",
-        "trades",
-        "sig",
-        "health",
-        "cb",
-        "risk",
-        "exp_factors",
-        "scores",
-    }
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
         logger.info(f"[FETCHERS] Starting {batch_name} batch: {list(items.keys())}")
@@ -444,7 +444,7 @@ def load_all() -> dict[str, Any]:
     # Reduce workers from 15 to 6 to prevent database connection pool exhaustion
     # when many fetchers run concurrently and all hit the RDS database
     critical_out = _execute_fetcher_batch(
-        critical_fetchers, 6, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
+        critical_fetchers, 6, critical_batch_timeout, one, fetcher_timeout_seconds, "critical", critical_fetchers
     )
 
     # Log critical fetcher failures loudly, but degrade per-panel rather than
@@ -484,6 +484,7 @@ def load_all() -> dict[str, Any]:
         one,
         fetcher_timeout_seconds,
         "optional",
+        set(),  # nothing in the optional batch should ever raise - degrade per-panel instead
     )
 
     optional_elapsed = time.monotonic() - optional_start_time
