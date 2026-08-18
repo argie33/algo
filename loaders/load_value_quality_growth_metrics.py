@@ -1074,6 +1074,32 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         return metrics
 
+    def _get_unclassified_balance_sheet_symbols(self) -> frozenset[str]:
+        """Symbols that have NEVER reported current_assets in any fiscal year on file.
+
+        REITs/banks/insurers file an unclassified balance sheet (no current/non-current split)
+        as a permanent accounting-model difference, not a data gap. A single fiscal year missing
+        current_assets can also just be an ordinary extraction/timing gap for an otherwise normal
+        filer - checking history across every fiscal year on file is what actually distinguishes
+        the two, rather than guessing from one row. Cached for the life of this loader instance;
+        this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_unclassified_balance_sheet_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(current_assets) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._unclassified_balance_sheet_symbols_cache = result
+        return result
+
     def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
@@ -1403,11 +1429,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # REITs/banks file unclassified balance sheets and never report
             # AssetsCurrent/LiabilitiesCurrent at all - that's not a data gap, it's a
-            # different accounting model. Distinguish that case (both fields absent) from
-            # a real missing-data gap so the frontend's existing "reit_special_entity"
-            # reason (already defined but never populated) shows instead of the generic
-            # "SEC data not available".
-            unclassified_balance_sheet = current_assets is None and current_liabilities is None
+            # different accounting model. Distinguish that permanent case from an ordinary
+            # filer's one-year extraction/timing gap (which should keep the generic
+            # "missing_sec_data" label, not be mislabeled as a REIT) by checking whether this
+            # symbol has EVER reported current_assets in any fiscal year on file, not just
+            # this row. Short-circuited so the DB-backed lookup only runs for rows that could
+            # possibly qualify.
+            unclassified_balance_sheet = (
+                current_assets is None
+                and current_liabilities is None
+                and symbol in self._get_unclassified_balance_sheet_symbols()
+            )
 
             # Interest Coverage = Operating Income / Interest Expense. Higher is better
             # (ability to service debt from operating earnings). Column existed on
@@ -1506,6 +1538,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     elif fallback_cost_of_revenue is not None and fallback_revenue is not None:
                         gross_profit_used = fallback_revenue - fallback_cost_of_revenue
                         gross_profit_revenue = fallback_revenue
+
+            # If gross_profit_used is STILL None here, both the current-year read above AND
+            # the full-history fallback query just above found nothing - this symbol has never
+            # once reported gross_profit or cost_of_revenue on file, not just this fiscal year.
+            # Same "structural gap, not a data gap" class as the current_ratio/quick_ratio REIT
+            # fix (reit_special_entity): banks, insurers, and service/REIT filers legitimately
+            # don't break out a COGS line at all. Live-confirmed against this DB (2026-08-17,
+            # "no SEC data" audit goal): 2092/2170 (96%) of gross_margin_unavailable_reason=
+            # 'missing_sec_data' symbols fall in this never-reported bucket - a much cleaner
+            # signal than for operating_margin/interest_coverage (~25-44% never-reported there),
+            # which is why only gross_margin gets this treatment here.
+            no_gross_profit_concept = gross_profit_used is None
 
             if gross_profit_used is not None and gross_profit_revenue is not None and gross_profit_revenue != 0:
                 # CRITICAL FIX 2026-08-09: bound the ratio - same near-zero-denominator garbage-
@@ -2241,7 +2285,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             # Phase 3 Expansion (Session 357+): New metrics - initialize their _unavailable_reason fields
             metrics["gross_margin_unavailable_reason"] = (
-                "missing_sec_data" if "gross_margin" in failed_metrics else None
+                ("reit_special_entity" if no_gross_profit_concept else "missing_sec_data")
+                if "gross_margin" in failed_metrics
+                else None
             )
             metrics["ebitda_margin_unavailable_reason"] = (
                 "missing_sec_data" if "ebitda_margin" in failed_metrics else None

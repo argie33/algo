@@ -22,13 +22,40 @@ STAGING_TABLE_UUID_LENGTH = 12
 class BulkInsertManager:
     """Manages bulk inserts with staging tables, constraint checking, and schema validation."""
 
-    def __init__(self, table_name: str, primary_key: Sequence[str], chunk_size: int = 10_000):
+    def __init__(
+        self,
+        table_name: str,
+        primary_key: Sequence[str],
+        chunk_size: int = 10_000,
+        preserve_on_missing_fields: frozenset[str] = frozenset(),
+    ):
         self.table_name = table_name
         self.primary_key = primary_key
         self.chunk_size = chunk_size
         self._schema_cols_cache: set[str] | None = None
         self._constraint_checked = False
         self._session_tz_cache: ZoneInfo | None = None
+        # BUG CLASS FIX (2026-08-17, PRI net_income live-confirmed): `columns` below is the
+        # union of dict keys across ALL rows in one bulk_insert() batch (deliberately, per the
+        # comment at that union loop - so one row's real data for a column isn't dropped just
+        # because rows[0] lacked it). For a per-symbol multi-fiscal-year batch (financial
+        # statements: one bulk_insert() call = one symbol's own fiscal years), that union
+        # backfires: if fiscal year A has a mapped field (e.g. net_income) but fiscal year B's
+        # fetch this run didn't produce that key at all (a concept genuinely absent from that
+        # filing, OR a transient fetch gap, OR - live-confirmed for PRI FY2025 - a run using
+        # code that predates a field_mapping fix), `columns` still includes it (because A has
+        # it), so B's row gets CSV-written as an empty field, forced to SQL NULL via `COPY ...
+        # FORCE_NULL`, and `ON CONFLICT DO UPDATE SET col = EXCLUDED.col` overwrites B's
+        # PREVIOUSLY-CORRECT value with that NULL. For fields that represent an immutable
+        # historical fact once real SEC/XBRL data exists (a filed fiscal year's reported net
+        # income doesn't change on its own - only a restatement would, and that arrives with a
+        # real new value, not silence), erasing a real value because one particular re-fetch
+        # didn't include it is a straight data-loss bug, not intended "full replace" semantics.
+        # Callers opt specific columns into COALESCE-preserve (falls back to the existing
+        # value instead of NULLing it) via this frozenset - empty by default, so every other
+        # loader's behavior (including legitimate "this really did become NULL" cases, e.g.
+        # a technical indicator that can't be computed today) is completely unchanged.
+        self.preserve_on_missing_fields = preserve_on_missing_fields
 
     def _session_timezone(self, cur: Any) -> ZoneInfo:
         """Session timezone Postgres uses to interpret naive `timestamp` values.
@@ -203,9 +230,23 @@ class BulkInsertManager:
                 buf,
             )
 
-            # Build ON CONFLICT clause
+            # Build ON CONFLICT clause. Columns in preserve_on_missing_fields use COALESCE so a
+            # row whose batch-mate pulled this column into `columns` (see __init__ docstring)
+            # but which itself has no real value for it keeps the EXISTING value instead of
+            # being overwritten with NULL - see the PRI net_income bug class documented there.
             update_parts = [
-                psycopg2.sql.SQL("{} = EXCLUDED.{}").format(psycopg2.sql.Identifier(c), psycopg2.sql.Identifier(c))
+                (
+                    psycopg2.sql.SQL("{} = COALESCE(EXCLUDED.{}, {}.{})").format(
+                        psycopg2.sql.Identifier(c),
+                        psycopg2.sql.Identifier(c),
+                        psycopg2.sql.Identifier(self.table_name),
+                        psycopg2.sql.Identifier(c),
+                    )
+                    if c in self.preserve_on_missing_fields
+                    else psycopg2.sql.SQL("{} = EXCLUDED.{}").format(
+                        psycopg2.sql.Identifier(c), psycopg2.sql.Identifier(c)
+                    )
+                )
                 for c in columns
                 if c not in self.primary_key
             ]

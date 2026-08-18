@@ -910,8 +910,25 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     # predates the Session 94 in-process rewrite of this block and was never
                     # re-verified against it until now - confirmed live-relevant since price_daily
                     # and siblings are still showing stale on the dashboard's Phase 1 self-heal.
-                    # Force main() path for financial_statements/prices even though they also have Loader classes
-                    if loader_key in ("financial_statements", "prices") or (
+                    # BUG FIX (2026-08-17): etf_symbols reaped FAILED forever despite real success,
+                    # same regression class as "prices" above. `4261cd620` fixed the NORMAL scheduled
+                    # path by adding `output_tables = ["etf_symbols"]` to MarketConstituentsLoader -
+                    # but that only helps when the loader runs through loaders/runner.py's global-mode
+                    # branch (`main(MarketConstituentsLoader, global_mode=True)`), which is the ONLY
+                    # place that copies the primary table's mark_completed() onto output_tables (see
+                    # runner.py lines ~254-263/275-283). MarketConstituentsLoader IS an OptimalLoader
+                    # subclass, so the "not any(... OptimalLoader subclass)" heuristic below is False
+                    # for it too - same fall-through as "prices" originally hit - and this in-process
+                    # retry path instantiated the class directly and called load_global(), which only
+                    # marks its OWN table (stock_symbols) COMPLETED and never touches etf_symbols at
+                    # all. Live-reproduced 2026-08-17 repeatedly (consecutive_failures climbing to 3+
+                    # across multiple verification runs, all AFTER `4261cd620` landed): loader logged
+                    # "Successfully refreshed etf_symbols table with 5611 ETF symbols" every time, but
+                    # etf_symbols' own data_loader_status row stayed FAILED from the original reap,
+                    # so this retry loop kept reporting "not recovered" and re-queuing it forever even
+                    # though the data was correct on every single attempt.
+                    # Force main() path for financial_statements/prices/constituents even though they also have Loader classes
+                    if loader_key in ("financial_statements", "prices", "constituents") or (
                         hasattr(loader_module, "main")
                         and callable(loader_module.main)
                         and not any(

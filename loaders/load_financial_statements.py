@@ -1269,6 +1269,24 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
 
         self._watermark = WatermarkManager(f"financial_statements_{statement_type}_{period}", self.table_name)
 
+        # BUG CLASS FIX (2026-08-17, PRI net_income live-confirmed - see
+        # utils/bulk_insert_manager.py's preserve_on_missing_fields docstring for the full
+        # mechanism): a symbol's fiscal years going through bulk_insert() as one batch means
+        # any single fiscal year whose fetch this run didn't produce a given mapped field
+        # (transient concept-fetch gap, or - as live-confirmed for PRI FY2025 - a run using
+        # code predating a field_mapping fix) gets that column force-NULLed via COPY
+        # FORCE_NULL and overwrites a previously-correct value on ON CONFLICT DO UPDATE.
+        # SEC-audited financial statement fields are immutable historical facts once real
+        # data exists for a fiscal year (a restatement would arrive with a new value, not
+        # silence), so preserving the existing value instead of NULLing it on a sparse
+        # re-fetch is the correct semantics here - opt in every mapped data column except the
+        # "why is this unavailable" governance markers, which must always reflect the CURRENT
+        # run's assessment, never a stale one.
+        self._bulk_insert_mgr.preserve_on_missing_fields = frozenset(config["field_mapping"].values()) - {
+            "data_unavailable",
+            "reason",
+        }
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         return super().fetch_incremental(symbol, since)
 

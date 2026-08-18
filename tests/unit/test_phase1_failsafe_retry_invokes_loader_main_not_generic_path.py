@@ -61,6 +61,14 @@ class _StaleOnlyCursor:
             return (self._stale,)
         return (self._fresh,)
 
+    def fetchall(self):
+        # The FAILED/ERROR/TIMEOUT pre-check (added after this test was written) queries
+        # data_loader_status before any staleness check runs - report no FAILED loaders so
+        # only the staleness path below (the thing this test actually exercises) fires.
+        if "FROM data_loader_status" in self._last_query:
+            return []
+        return []
+
 
 class _StaleOnlyDatabaseContext:
     def __init__(self, cursor):
@@ -102,16 +110,28 @@ def _run_with_stale_etf(monkeypatch, mock_import_module, mock_status_mgr_factory
 class TestFailsafeRetryInvokesLoaderMainDirectly:
     def test_invokes_loader_module_directly_not_run_loader_generic_path(self, monkeypatch):
         fake_module = _make_fake_loader_module(main_return=0)
-        mock_import = MagicMock(return_value=fake_module)
+
+        # FIXED (2026-08-17): `importlib.import_module` is patched globally below, which also
+        # intercepts unrelated lazy imports elsewhere in the retry path (e.g. `certifi`, pulled
+        # in by SSL/URL validation code added since this test was written) - a bare
+        # `MagicMock(return_value=fake_module)` made `call_count` count those too, live-broken
+        # to 4 calls instead of 1 on current `main` HEAD, unrelated to this test's actual
+        # subject. Only match on the specific module name this test cares about.
+        def mock_import(name, *a, **kw):
+            if name == "loaders.load_prices":
+                return fake_module
+            return MagicMock()
+
+        mock_import_spy = MagicMock(side_effect=mock_import)
         mock_status_mgr = MagicMock()
         mock_status_mgr.get_status.return_value = {"status": "COMPLETED", "completion_pct": 100.0}
 
-        _run_with_stale_etf(monkeypatch, mock_import, lambda table: mock_status_mgr)
+        _run_with_stale_etf(monkeypatch, mock_import_spy, lambda table: mock_status_mgr)
 
-        assert mock_import.call_count == 1
-        assert mock_import.call_args.args[0] == "loaders.load_prices", (
+        prices_calls = [c for c in mock_import_spy.call_args_list if c.args[0] == "loaders.load_prices"]
+        assert len(prices_calls) == 1, (
             f"must import the loader module for the etf_price_daily table's loader_key "
-            f"('prices' -> loaders.load_prices) - got {mock_import.call_args.args}"
+            f"('prices' -> loaders.load_prices) exactly once - got calls: {mock_import_spy.call_args_list}"
         )
         assert fake_module.main.call_count == 1, (
             "must invoke the loader module's own main() directly - the only path that "
