@@ -1317,6 +1317,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             }
 
             failed_metrics: list[str] = []
+            # Metrics suppressed by the |ratio| > 1000 garbage-value bound below (see each
+            # site's own comment - originally added to catch near-zero-denominator extraction
+            # artifacts like KARO's 3545% operating_margin). Tracked separately from
+            # failed_metrics because "we computed a real ratio and threw it away as implausible"
+            # is a materially different situation from "SEC never reported the inputs at all" -
+            # live audit (2026-08-17 "no SEC data" goal) found this bound firing on real, if
+            # extreme, values for legitimately near-zero-revenue filers (pre-revenue biotechs,
+            # SPACs) roughly as often as on genuine garbage, and every one of those was labeled
+            # with the same "missing_sec_data" reason as an actual SEC extraction gap - reading
+            # to an operator/user as "our loader failed" when the loader worked fine and a
+            # deliberate suppression happened instead. See "implausible_ratio" below, the same
+            # reason string payout_ratio already uses for its own bound.
+            implausible_ratio_metrics: list[str] = []
 
             # ROE = Net Income / Shareholders' Equity
             if net_income is not None and stockholders_equity is not None and stockholders_equity != 0:
@@ -1363,6 +1376,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # near-zero-revenue root cause as its gross_margin/ebitda_margin blowup).
                     if abs(computed_operating_margin) > 1000:
                         failed_metrics.append("operating_margin")
+                        implausible_ratio_metrics.append("operating_margin")
                     else:
                         metrics["operating_margin"] = float(computed_operating_margin)
             else:
@@ -1386,6 +1400,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # net_margin=2531.50% from the same near-zero-revenue root cause).
                     if abs(computed_net_margin) > 1000:
                         failed_metrics.append("net_margin")
+                        implausible_ratio_metrics.append("net_margin")
                     else:
                         metrics["net_margin"] = float(computed_net_margin)
             else:
@@ -1463,6 +1478,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # for" principle the interest_expense > 0 check above already applies.
                 if abs(computed_interest_coverage) > 1000:
                     failed_metrics.append("interest_coverage")
+                    implausible_ratio_metrics.append("interest_coverage")
                 else:
                     metrics["interest_coverage"] = float(computed_interest_coverage)
             else:
@@ -1561,6 +1577,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 computed_gross_margin = (gross_profit_used / gross_profit_revenue) * 100
                 if abs(computed_gross_margin) > 1000:
                     failed_metrics.append("gross_margin")
+                    implausible_ratio_metrics.append("gross_margin")
                 else:
                     metrics["gross_margin"] = float(computed_gross_margin)
             else:
@@ -1573,6 +1590,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 computed_ebitda_margin = (ebitda_ev / revenue) * 100
                 if abs(computed_ebitda_margin) > 1000:
                     failed_metrics.append("ebitda_margin")
+                    implausible_ratio_metrics.append("ebitda_margin")
                 else:
                     metrics["ebitda_margin"] = float(computed_ebitda_margin)
             else:
@@ -1758,6 +1776,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 computed_roic_pct = (nopat / invested_capital) * 100
                 if abs(computed_roic_pct) > 1000:
                     failed_metrics.append("roic_pct")
+                    implausible_ratio_metrics.append("roic_pct")
                 else:
                     metrics["roic_pct"] = float(computed_roic_pct)
             else:
@@ -2261,9 +2280,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["roe_unavailable_reason"] = "missing_sec_data" if "roe" in failed_metrics else None
             metrics["roa_unavailable_reason"] = "missing_sec_data" if "roa" in failed_metrics else None
             metrics["operating_margin_unavailable_reason"] = (
-                "missing_sec_data" if "operating_margin" in failed_metrics else None
+                ("implausible_ratio" if "operating_margin" in implausible_ratio_metrics else "missing_sec_data")
+                if "operating_margin" in failed_metrics
+                else None
             )
-            metrics["net_margin_unavailable_reason"] = "missing_sec_data" if "net_margin" in failed_metrics else None
+            metrics["net_margin_unavailable_reason"] = (
+                ("implausible_ratio" if "net_margin" in implausible_ratio_metrics else "missing_sec_data")
+                if "net_margin" in failed_metrics
+                else None
+            )
             metrics["debt_to_equity_unavailable_reason"] = (
                 "missing_sec_data" if "debt_to_equity" in failed_metrics else None
             )
@@ -2278,21 +2303,35 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["interest_coverage_unavailable_reason"] = (
-                "missing_sec_data" if "interest_coverage" in failed_metrics else None
+                ("implausible_ratio" if "interest_coverage" in implausible_ratio_metrics else "missing_sec_data")
+                if "interest_coverage" in failed_metrics
+                else None
             )
             metrics["debt_to_assets_unavailable_reason"] = (
                 "missing_sec_data" if "debt_to_assets" in failed_metrics else None
             )
             # Phase 3 Expansion (Session 357+): New metrics - initialize their _unavailable_reason fields
             metrics["gross_margin_unavailable_reason"] = (
-                ("reit_special_entity" if no_gross_profit_concept else "missing_sec_data")
+                (
+                    "reit_special_entity"
+                    if no_gross_profit_concept
+                    else "implausible_ratio"
+                    if "gross_margin" in implausible_ratio_metrics
+                    else "missing_sec_data"
+                )
                 if "gross_margin" in failed_metrics
                 else None
             )
             metrics["ebitda_margin_unavailable_reason"] = (
-                "missing_sec_data" if "ebitda_margin" in failed_metrics else None
+                ("implausible_ratio" if "ebitda_margin" in implausible_ratio_metrics else "missing_sec_data")
+                if "ebitda_margin" in failed_metrics
+                else None
             )
-            metrics["roic_pct_unavailable_reason"] = "missing_sec_data" if "roic_pct" in failed_metrics else None
+            metrics["roic_pct_unavailable_reason"] = (
+                ("implausible_ratio" if "roic_pct" in implausible_ratio_metrics else "missing_sec_data")
+                if "roic_pct" in failed_metrics
+                else None
+            )
             metrics["fcf_to_net_income_unavailable_reason"] = (
                 "missing_sec_data" if "fcf_to_net_income" in failed_metrics else None
             )
