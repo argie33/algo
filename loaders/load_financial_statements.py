@@ -1199,28 +1199,43 @@ def get_conflict_target(primary_key: tuple[str, ...]) -> str:
 
 
 class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
-    """Unified loader for all financial statements (income, balance, cashflow x annual/quarterly/ttm).
+    """Unified loader for all financial statements (income, balance, cashflow x annual/quarterly).
 
     Consolidates 8 separate loaders into one, parametrized by:
     - LOADER_STATEMENT_TYPE env var: 'income', 'balance', or 'cashflow'
-    - LOADER_PERIOD env var: 'annual', 'quarterly', or 'ttm'
+    - LOADER_PERIOD env var: 'annual' or 'quarterly'
 
     This eliminates redundant ECS task definitions and reduces scheduler complexity.
+
+    NOTE: 'ttm' is not a supported LOADER_PERIOD - get_all_statement_configs() dropped the
+    ("income", "ttm")/("balance", "ttm")/("cashflow", "ttm") combos 2026-07-13 (see that
+    function's docstring: SecEdgarStatementLoader never accepted period='ttm', both combos
+    crashed on init every run). ttm_income_statement/ttm_cash_flow are real tables but have
+    been frozen since 2026-05-22 with no active writer (see loader_registry.py's exclusion
+    comment); ttm_balance_sheet was never created by any migration at all - balance sheet is
+    a point-in-time snapshot, not a trailing-twelve-month aggregate, so it was never a
+    coherent concept. None belong in output_tables below.
     """
 
     # SESSION 113 FIX: Declare all output tables so runner.py marks them all COMPLETED/FAILED
-    # When running with LOADER_STATEMENT_TYPE="all", all 9 tables are processed.
-    # runner.py will mark all 9 tables based on this class-level attribute.
+    # When running with LOADER_STATEMENT_TYPE="all", all 6 tables are processed.
+    # runner.py will mark all 6 tables based on this class-level attribute.
+    # FIXED 2026-08-18: previously listed 9 tables including ttm_income_statement/
+    # ttm_cash_flow/ttm_balance_sheet - none of which this loader has written to since the
+    # 2026-07-13 removal of ttm combos (see class docstring). That made runner.py mark all
+    # three COMPLETED/100% on every run regardless, live-confirmed in data_loader_status
+    # (execution_started 2026-08-18 00:04, all three COMPLETED/100.00%) even though
+    # ttm_balance_sheet doesn't exist as a table (dashboard's data-status endpoint hit
+    # UndefinedTable querying it) and the other two have been frozen since 2026-05-22.
+    # pipeline_health.py and loader_registry.py already carried workaround exclusions for
+    # this exact drift; this is the root-cause fix those comments deferred.
     output_tables = [
         "annual_income_statement",
         "quarterly_income_statement",
-        "ttm_income_statement",
         "annual_balance_sheet",
         "quarterly_balance_sheet",
-        "ttm_balance_sheet",
         "annual_cash_flow",
         "quarterly_cash_flow",
-        "ttm_cash_flow",
     ]
 
     max_fail_rate = 15.0  # Some stocks (foreign, delisted, recently-IPO'd) lack annual reports
