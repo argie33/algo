@@ -43,6 +43,29 @@ class TestDataQualityEnrichment:
         enriched = enrich_health_item_with_data_quality(health_item)
         assert enriched["quality_status"] == "unknown"  # No data to check
 
+    def test_enrich_skips_deprecated_tables(self) -> None:
+        """Skip quality checks for DEPRECATED-status tables.
+
+        FIX 2026-08-18: DEPRECATED tables (e.g. ttm_balance_sheet - never created by any
+        migration, its loader stopped declaring it in output_tables) were still querying
+        `SELECT ... FROM "<table>"` and crashing with UndefinedTable on every dashboard
+        health-panel load, live-confirmed as 51 occurrences of the same crash across
+        logs/*.log. Caught by the broad except in enrich_health_item_with_data_quality (so it
+        never propagated), but only after a lower-level DB wrapper already logged it at ERROR
+        - pure noise on every single load. "DEPRECATED" status must skip the query entirely,
+        same as "empty"/"error", not just be caught after the fact.
+        """
+        health_item = {
+            "tbl": "ttm_balance_sheet",
+            "st": "DEPRECATED",
+            # Nonzero on purpose: proves the DEPRECATED branch itself skips the query,
+            # not the pre-existing row_count==0 branch.
+            "row_count": 5,
+        }
+
+        enriched = enrich_health_item_with_data_quality(health_item)
+        assert enriched["quality_status"] == "unknown"  # No data to check - never queried the table
+
     def test_handles_missing_table_name(self) -> None:
         """Gracefully handle health items without table name."""
         health_item = {"st": "ok"}

@@ -57,7 +57,15 @@ def enrich_health_item_with_data_quality(health_item: dict[str, Any], cur: Any =
 
     # Only run quality checks for tables that exist and have data
     item_status = health_item.get("st") or health_item.get("status")
-    if item_status in ("empty", "error") or health_item.get("row_count") == 0:
+    # FIX 2026-08-18: DEPRECATED tables (e.g. ttm_balance_sheet - never created by any
+    # migration, its loader stopped declaring it in output_tables 2026-08-18) were still
+    # querying `SELECT ... FROM "<table>"` below and crashing with UndefinedTable on every
+    # dashboard health-panel load - caught here but only after a lower-level DB wrapper
+    # already logged it at ERROR, live-confirmed as 51 occurrences of the same crash across
+    # logs/*.log. "DEPRECATED" is already treated as healthy/no-op elsewhere in this codebase
+    # (e.g. lambda/api/routes/algo_handlers/monitoring.py's healthy_loader_statuses) - skip
+    # quality checks the same way, not just the pass/fail status.
+    if item_status in ("empty", "error", "DEPRECATED") or health_item.get("row_count") == 0:
         health_item["quality_status"] = "unknown"  # No data to check
         return health_item
 
