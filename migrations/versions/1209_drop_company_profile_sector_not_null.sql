@@ -1,0 +1,33 @@
+-- Migration 1209: Drop company_profile.sector NOT NULL constraint
+--
+-- Loader-health review (2026-08-18): migration 033 added this NOT NULL constraint to fix
+-- a positions/sectors JOIN that "allowed NULL values, causing missing sectors in results" -
+-- but its own fix for the handful of then-existing NULL rows was to silently default them
+-- to 'Industrials' (its own comment: "most common sector"), a fabricated value with no
+-- factual basis. That directly contradicts this loader's own documented governance
+-- ("Per GOVERNANCE.md line 77-79: Add explicit data quality gate, then ALLOW the
+-- data_unavailable marker" / "Don't silently default to 'Other' sector for unmapped SIC
+-- codes" - see loaders/load_company_profile.py's SIC-to-GICS mapping comments).
+--
+-- Live-confirmed 2026-08-18: this constraint is now actively data-destructive, not just
+-- philosophically wrong. load_company_profile.py's two data_unavailable rows (no SIC code
+-- at all, or a SIC code whose GICS mapping is genuinely unmapped - both intentionally
+-- fail-closed rather than guess a sector) omit the "sector" key entirely, which
+-- bulk_insert_manager.py's COPY FORCE_NULL semantics correctly map to SQL NULL - but the
+-- NOT NULL constraint added here then rejects the whole row with a DB error. Live run
+-- 2026-08-17 23:12 UTC: 1293/4934 symbols (26.2%) failed to load for exactly this reason
+-- every single run, silently losing all their other company_profile fields too (name,
+-- industry, currency_code, etc.) since bulk_insert() has no partial-row fallback.
+--
+-- Every real consumer of company_profile.sector already defensively filters NULL rather
+-- than relying on this constraint (confirmed via grep across lambda/api/routes/):
+-- lambda/api/routes/market.py lines 1325/1336/1652 and sectors.py line 332 all explicitly
+-- check "sector IS NOT NULL" or "sector != ''" before using it - so this constraint has
+-- been redundant (as well as actively harmful) for as long as those filters have existed.
+--
+-- Deliberately does NOT re-fabricate a sector value for the 3 rows migration 033 set to
+-- 'Industrials' - those symbols should re-resolve to their real SIC-derived sector (or a
+-- genuine data_unavailable NULL) the next time load_company_profile.py runs for them,
+-- same as every other symbol.
+
+ALTER TABLE company_profile ALTER COLUMN sector DROP NOT NULL;
