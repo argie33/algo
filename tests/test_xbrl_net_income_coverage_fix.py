@@ -48,50 +48,45 @@ class TestNetIncomeCoverageFix:
         net_incomes = [s.get("net_income_loss") for s in statements]
         assert any(v is not None for v in net_incomes), "EE should have net_income in at least some statements"
 
-    def test_onon_on_holding_ifrs_filer_has_no_usd_net_income(self, client):
-        """ONON (On Holding) - IFRS-only filer, CHF-denominated - correctly excluded.
+    def test_onon_on_holding_ifrs_filer_has_fx_converted_usd_net_income(self, client):
+        """ONON (On Holding) - IFRS-only filer, CHF-denominated - FX-converted to USD.
 
-        SUPERSEDED 2026-08-17 by the non-USD currency guard in _aggregate_concepts
-        (utils/external/sec_statements.py): this test originally (2026-08-01) asserted
-        ONON's ProfitLossAttributableToOwnersOfParent alias populated net_income_loss.
-        Live-confirmed via ONON's real companyfacts JSON: ALL 31 of its
-        ProfitLossAttributableToOwnersOfParent entries are tagged unit="CHF" - it has
-        no USD-denominated net income fact anywhere (only one incidental USD concept
-        in its entire ifrs-full taxonomy: CashAndCashEquivalents). The currency guard
-        now correctly skips these CHF facts rather than writing Swiss-franc magnitudes
-        into a column documented as USD - same "no reliable per-filer FX rate, don't
-        fabricate" reasoning as the rejected NumberOfSharesOutstanding IFRS alias and
-        the SHG/MUFG/SMFG non-USD Assets exclusions in the same file. Restoring the old
-        assertion would require reverting that guard, reintroducing a real ~magnitude
-        data-quality bug for the sake of this one test - so the test is updated to
-        assert the current, correct behavior instead.
+        SUPERSEDED AGAIN 2026-08-18 by [[currency_guard_major_currency_conversion_fix_20260817]]
+        (`162fdddfc`, utils/external/fx_rates.py's MAJOR_CURRENCIES): the "correctly
+        excluded" assertion below this docstring replaced (2026-08-17) was itself
+        superseded the same day by a real FX-rate conversion path for CAD/GBP/EUR/
+        AUD/CHF/JPY - CHF is one of the six, so _aggregate_concepts no longer rejects
+        ONON's ProfitLossAttributableToOwnersOfParent facts, it converts them via
+        FxRateCache.get_usd_rate() instead. Live-confirmed 2026-08-18: 7 annual
+        statements now come back with plausible USD-equivalent net income (e.g. FY2024
+        ~$267M, consistent with On Holding's real scale) - not fabricated magnitudes,
+        a real conversion. Zero-rows was correct for the old reject-only guard; it is
+        stale now that the guard actively recovers this data instead of discarding it.
         """
         statements = get_income_statement(client, "ONON", period="annual")
-        # ONON has no us-gaap facts at all and its only income-statement-relevant IFRS
-        # concepts (revenue, profit) are CHF-only, so once the currency guard correctly
-        # excludes them, _aggregate_concepts has nothing left to build a row from -
-        # zero rows, not rows with a None net_income_loss.
-        assert statements == [], (
-            f"ONON has no USD-denominated income-statement concepts (all CHF) - expected "
-            f"zero rows, got {len(statements)}"
-        )
-
-    def test_athe_athena_ifrs_filer_has_no_usd_net_income(self, client):
-        """ATHE (Athena) - IFRS-only filer, AUD-denominated - correctly excluded.
-
-        SUPERSEDED 2026-08-17, same root cause and reasoning as
-        test_onon_on_holding_ifrs_filer_has_no_usd_net_income above. Live-confirmed via
-        ATHE's real companyfacts JSON: its ComprehensiveIncome fallback concept is
-        tagged unit="AUD" (Australian dollars), not USD.
-        """
-        statements = get_income_statement(client, "ATHE", period="annual")
-        assert len(statements) > 0, "ATHE should still have annual income statement rows (from its us-gaap facts)"
+        assert len(statements) > 0, "ONON should have annual income statements (FX-converted from CHF)"
 
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert not any(v is not None for v in net_incomes), (
-            "ATHE's only net-income concept (ComprehensiveIncome) is AUD-denominated with "
-            "no USD equivalent - net_income_loss should stay None rather than silently "
-            "treat AUD as USD"
+        assert any(v is not None for v in net_incomes), (
+            "ONON's CHF-denominated net income should now be FX-converted to USD, not dropped"
+        )
+
+    def test_athe_athena_ifrs_filer_has_fx_converted_usd_net_income(self, client):
+        """ATHE (Athena) - IFRS-only filer, AUD-denominated - FX-converted to USD.
+
+        SUPERSEDED AGAIN 2026-08-18, same root cause as
+        test_onon_on_holding_ifrs_filer_has_fx_converted_usd_net_income above: AUD is
+        also in MAJOR_CURRENCIES, so ATHE's ComprehensiveIncome fallback concept is now
+        FX-converted rather than rejected. Live-confirmed 2026-08-18: 10 annual
+        statements with small, consistent multi-million-dollar losses each year -
+        plausible for this filer, not a magnitude bug.
+        """
+        statements = get_income_statement(client, "ATHE", period="annual")
+        assert len(statements) > 0, "ATHE should have annual income statement rows"
+
+        net_incomes = [s.get("net_income_loss") for s in statements]
+        assert any(v is not None for v in net_incomes), (
+            "ATHE's AUD-denominated net income should now be FX-converted to USD, not dropped"
         )
 
     def test_rani_aytu_has_net_income(self, client):
