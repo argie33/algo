@@ -63,6 +63,23 @@ def test_404_no_filings_gets_honest_label_not_generic_fetch_error() -> None:
     assert records[0]["data_unavailable_reason"] == "no_xbrl_filings"
 
 
+def test_cik_not_found_gets_honest_label_and_is_not_treated_as_transient() -> None:
+    """FIXED 2026-08-18: symbol_to_cik() raises ValueError when a ticker isn't resolvable to a
+    CIK via any lookup method - a PERMANENT condition (e.g. HIFS - Hingham Institution for
+    Savings - reports to the FDIC under Exchange Act Section 12(i), never has an SEC CIK at
+    all). This used to fall into the generic `except Exception` branch, get wrapped as
+    TransientAPIError, and waste 3 OptimalLoader retries redoing a lookup that can never
+    succeed before finally surfacing as an opaque "fetch_error:RuntimeError". Must resolve
+    immediately to a real "cik_not_found" record, no retry."""
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("Symbol HIFS not found in SEC ticker cache")
+
+    records = loader.fetch_incremental("HIFS", since=None)
+
+    assert len(records) == 1
+    assert records[0]["data_unavailable_reason"] == "cik_not_found"
+
+
 def test_unexpected_parse_bug_still_written_as_fetch_error_not_silently_retried_forever(monkeypatch) -> None:
     """A genuinely unexpected error in this loader's OWN parsing logic (not the SEC client call,
     which _fetch_sec_data_with_timeout now treats as transient by design - see that method's

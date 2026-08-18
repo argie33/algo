@@ -280,6 +280,19 @@ class DividendDataLoader(SecLoaderBase):
             # This is a real, permanent absence, not a fetch failure - preserve the type so
             # fetch_incremental can label it honestly instead of a scary "fetch_error".
             raise
+        except ValueError:
+            # FIXED 2026-08-18 (goal: "no SEC data" audit): symbol_to_cik() raises ValueError
+            # ("Symbol X not found in SEC ticker cache") when a ticker isn't resolvable via
+            # any of the 3 lookup methods (bulk file, dash-substitution, browse-edgar) - a
+            # PERMANENT condition (SEC's own systems don't recognize the ticker at all, e.g.
+            # AEP/HIFS/TOWN-class gaps - see sec_ticker_cache.py's ValueError call sites,
+            # all "not found"/"missing" cases, never transient network noise). This used to
+            # fall through to the generic `except Exception` below and get wrapped as
+            # TransientAPIError, wasting 3 full OptimalLoader retries (each redoing the same
+            # 3-method lookup that can never succeed) before finally surfacing as an opaque
+            # "fetch_error:RuntimeError" - indistinguishable from a real bug. Same permanent-
+            # error treatment as the FileNotFoundError case just above.
+            raise
         except Exception as e:
             # Everything else reaching here is _get_json's own already-exhausted-8-retry
             # RuntimeError (429/502/503/504 or network errors that kept recurring) - transient
@@ -367,6 +380,18 @@ class DividendDataLoader(SecLoaderBase):
             elapsed = time.time() - start_time
             logger.debug(f"[{symbol}] No XBRL filings on file (404) after {elapsed:.1f}s.")
             return [self._unavailable_record(symbol, now_et, "no_xbrl_filings")]
+        except ValueError:
+            # FIXED 2026-08-18 (goal: "no SEC data" audit): ticker not resolvable to a CIK via
+            # any lookup method - permanent (see _fetch_sec_data_with_timeout's matching
+            # except ValueError). Live-confirmed real cases: small bank/thrift filers (e.g.
+            # HIFS - Hingham Institution for Savings) that report to the FDIC under Exchange
+            # Act Section 12(i) instead of registering with the SEC, so they have no SEC CIK
+            # at all, ever - not a gap this loader (SEC-only by design) can close. Honest,
+            # distinct label instead of the misleading "fetch_error:RuntimeError" this used to
+            # produce after 3 wasted retries.
+            elapsed = time.time() - start_time
+            logger.debug(f"[{symbol}] Ticker not resolvable to a CIK after {elapsed:.1f}s.")
+            return [self._unavailable_record(symbol, now_et, "cik_not_found")]
         except Exception as e:
             elapsed = time.time() - start_time
             # ALWAYS log at WARNING level - this is an operator-visible issue
