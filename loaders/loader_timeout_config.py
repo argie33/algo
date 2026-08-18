@@ -115,7 +115,15 @@ def get_loader_timeouts() -> dict[str, int]:
         "earnings_calendar": 120 * 60,  # 120 min - Session 99: increased from 75m (100% margin over 54.84m measured)
         "earnings_calendar_sec": 150 * 60,  # 150 min - Session 99: increased from 90m for SEC rate limiting
         "earnings_sec": 150 * 60,  # 150 min - Session 99: increased from 90m (SEC heavy, 41m base + margin)
-        "sec_reports": 120 * 60,  # 120 min - Session 99: increased from 60m (8-K report scanning, SEC rate-limited)
+        # FIX 2026-08-17: was 120m (Session 99), never revisited after that pass. Live run
+        # 2026-08-17 hard-timeout-killed at exactly 120m having reached only 2100/4930 symbols
+        # (42.6%) at a measured ~17.5 symbols/min average (rate visibly degraded through the
+        # run: ~130/min for the first 1500 symbols, dropping to ~6/min by the back half under
+        # sustained SEC EDGAR load) - extrapolates to ~282m for the full universe, so the back
+        # half of the alphabet silently lost 8-K data every run. 300m covers the extrapolated
+        # full-universe runtime with margin, matching segment_info/sec_segment_info's existing
+        # 540m for similarly SEC-XBRL-heavy work.
+        "sec_reports": 300 * 60,  # 300 min - 8-K report scanning, SEC rate-limited
         "segment_info": 540 * 60,  # 540 min (9h) - SESSION 99: increased from 360m; SEC XBRL parsing very slow
         "sec_segment_info": 540 * 60,  # 540 min - Alias for segment_info (XBRL parsing is heavyweight)
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
@@ -165,7 +173,7 @@ def get_loader_timeouts() -> dict[str, int]:
         "sector_ranking": 15 * 60,  # Output of sector_industry loader
         "industry_ranking": 15 * 60,  # Output of sector_industry loader
         "sector_performance": 15 * 60,  # Output of sector_industry loader
-        "current_reports_8k": 120 * 60,  # Alias for sec_reports (Session 99: 120m)
+        "current_reports_8k": 300 * 60,  # Alias for sec_reports (2026-08-17 fix: 300m)
     }
 
 

@@ -683,14 +683,21 @@ locals {
 
     # SEC Current Reports & Dividend Data (Session 444: XBRL expansion)
     # 8-K: Form 8-K current reports (material events, SEC API calls + text parsing)
-    # Typical run ~5-15 min for 5k symbols + text extraction, lightweight (~100MB)
-    "current_reports_8k" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    # FIX 2026-08-17: was 1200s (20m)/parallelism=2, badly out of sync with the Python-side
+    # timeout (loaders/loader_timeout_config.py's "sec_reports"), which had already been raised
+    # to 120m by Session 99 and is now 300m after a live run hard-timeout-killed at 120m having
+    # reached only 42.6% of the universe under sustained SEC EDGAR rate limiting. parallelism=2
+    # was also fighting that same rate limit (this loader is SEC-rate-limited exactly like
+    # dividend_data below, which already correctly uses parallelism=1) - dropped to 1.
+    "current_reports_8k" = { cpu = 256, memory = 512, timeout = 18000, parallelism = 1 }
 
     # Dividends: Ex-dates, payment dates, yields (XBRL + 8-K extraction)
-    # Typical run ~5-10 min for 5k symbols, lightweight (~100MB)
     # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 3600s (60m)
     # yfinance rate-limiting for full symbol universe
-    "dividend_data" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    # FIX 2026-08-17: was still 3600s (60m), out of sync with the Python-side "dividend_data"
+    # timeout raised to 150m the same day (live run hard-timeout-killed at 60m having reached
+    # only 58.8% of the universe under SEC rate limiting - see loader_timeout_config.py).
+    "dividend_data" = { cpu = 256, memory = 512, timeout = 9000, parallelism = 1 }
 
     # Analyst upgrade/downgrade ratings: per-symbol yfinance call across the universe,
     # same shape/sizing as dividend_data (per-symbol external API, not bulk).

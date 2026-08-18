@@ -2527,7 +2527,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         # of the ~21%/day the loader's own 120min timeout allows. Live-measured local throughput
         # tonight: ~1000/4922 symbols in 116min (SEC EDGAR rate-limited full-text 8-K fetches
         # are the bottleneck, not a hang - see logs/load_current_reports_8k_1786923820.log).
-        TimeoutSeconds = 7200
+        # FIX 2026-08-17: 7200s (120min) itself proved insufficient - a fuller live run the same
+        # night hard-timeout-killed at exactly 120min having reached only 2100/4930 (42.6%)
+        # under sustained SEC rate-limit degradation. Raised the Python-side timeout to 300min;
+        # matching here with a 5min startup/network margin to keep the two in sync.
+        TimeoutSeconds = 18300
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2575,9 +2579,15 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # FIX 2026-07-28: same never-wired-at-all gap as CurrentReports8k above - registered in
       # the task-def catalog and critical_loaders, never had a Step Functions state.
       DividendData = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIX 2026-08-17: was 1800s (30min) - never updated when loaders/loader_timeout_config.py's
+        # "dividend_data" was raised to 3600s (Session 97) and, same night, to 9000s (150min)
+        # after a live run hard-timeout-killed at 60m having reached only 58.8% of the universe
+        # under SEC rate limiting. Same terraform-must-match-python-timeout gap as CurrentReports8k
+        # above - Step Functions would have killed the ECS task at 30min regardless of the
+        # loader's own (much larger) budget. Matching with a 5min startup/network margin.
+        TimeoutSeconds = 9300
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
