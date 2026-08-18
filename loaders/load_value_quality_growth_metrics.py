@@ -991,13 +991,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "value_score": None,  # Computed in load_stock_scores, copied here for convenience
             "pe_ratio_unavailable_reason": pe_ratio_reason,
             "pb_ratio_unavailable_reason": "missing_sec_data" if pb is None else None,
-            "ps_ratio_unavailable_reason": "missing_sec_data" if ps is None else None,
+            "ps_ratio_unavailable_reason": (
+                ("no_revenue_reported" if symbol in self._get_no_recent_revenue_symbols() else "missing_sec_data")
+                if ps is None
+                else None
+            ),
             "peg_ratio_unavailable_reason": peg_ratio_reason,
             "dividend_yield_unavailable_reason": dividend_yield_reason,
             "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
             "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
-            "ev_revenue_unavailable_reason": "missing_sec_data" if ev_revenue is None else None,
+            "ev_revenue_unavailable_reason": (
+                ("no_revenue_reported" if symbol in self._get_no_recent_revenue_symbols() else "missing_sec_data")
+                if ev_revenue is None
+                else None
+            ),
             "market_cap_unavailable_reason": "missing_sec_data" if market_cap is None else None,
             "intrinsic_value_unavailable_reason": intrinsic_value_reason,
             "margin_of_safety_unavailable_reason": margin_of_safety_reason,
