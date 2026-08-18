@@ -188,3 +188,15 @@ def test_names_plausibly_match_rejects_the_live_verified_xom_mismatch():
 def test_names_plausibly_match_handles_missing_names():
     assert names_plausibly_match(None, "Apple Inc.") is False
     assert names_plausibly_match("APPLE INC", None) is False
+
+
+def test_names_plausibly_match_strips_apostrophes_from_possessive_names():
+    """FIXED 2026-08-18 (goal session, institutional ownership audit): a possessive
+    entity name like SEC's "BRINK'S CO/THE" tokenized the apostrophe-attached word
+    as "BRINK'S", which never equals OpenFIGI's non-possessive "BRINKS" - a false
+    "wrong entity" rejection of a correct CUSIP resolution. Live-confirmed on 8 real
+    tracked symbols including MCD (McDonald's) and LOW (Lowe's), both falling back
+    to institutional_ownership_pct=NULL purely because of this apostrophe mismatch."""
+    assert names_plausibly_match("BRINKS CO", "BRINK'S CO/THE") is True
+    assert names_plausibly_match("MCDONALDS CORP", "MCDONALD'S CORP") is True
+    assert names_plausibly_match("LOWES COMPANIES INC", "LOWE'S COS INC") is True

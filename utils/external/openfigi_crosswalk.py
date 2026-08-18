@@ -231,7 +231,18 @@ def names_plausibly_match(figi_name: str | None, local_name: str | None) -> bool
         # false negative otherwise: OpenFIGI's "AMAZON.COM INC" would merge into
         # one "AMAZONCOM" token that never matches SEC's own space-separated
         # "AMAZON COM INC" entity_name.
-        cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ")
+        #
+        # Apostrophes are the opposite case: they must be deleted outright, not
+        # turned into a separator. FIXED 2026-08-18 (goal session, institutional
+        # ownership audit): a possessive name like SEC's "BRINK'S CO/THE" vs
+        # OpenFIGI's "BRINKS CO" tokenized to {"BRINK'S", "CO"} vs {"BRINKS", "CO"} -
+        # the possessive token never matches its non-possessive counterpart, so
+        # names_plausibly_match wrongly rejected a correct CUSIP resolution as a
+        # "wrong entity". Live-confirmed on 8 real symbols including MCD (McDonald's)
+        # and LOW (Lowe's) - large, liquid, heavily-institutionally-held stocks that
+        # were falling back to institutional_ownership_pct=NULL
+        # ("no_resolved_13f_holdings") purely because of this apostrophe mismatch.
+        cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ").replace("'", "")
         return {w for w in cleaned.split() if w not in _CORP_SUFFIXES}
 
     a, b = tokens(figi_name), tokens(local_name)
