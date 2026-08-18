@@ -10,8 +10,30 @@ from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
+_LAMBDA_API_ROOT = Path(__file__).parent.parent.parent / "lambda" / "api"
+sys.path.insert(0, str(_LAMBDA_API_ROOT))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+
+def _get_dispatch_branch_source(relative_path: str, path_literal: str) -> str:
+    """Extract one `elif path == "...":` branch's body from a route dispatcher's source.
+
+    Scoped extraction (not a whole-file check) because dispatcher modules like algo.py
+    legitimately call check_admin_access for many OTHER paths in the same elif chain -
+    only this specific branch's body should be asserted clean.
+    """
+    source = (Path(__file__).parent.parent.parent / relative_path).read_text(encoding="utf-8")
+    marker = f"elif path == {path_literal}:"
+    start = source.index(marker)
+    body_start = start + len(marker)
+    # Branch ends at the next line with the same or lesser indentation that starts a new
+    # elif/else/statement - approximated here by the next "\n    elif " or "\n    else"
+    # at the same 4-space indent used throughout this dispatcher's elif chain.
+    next_branch = min(
+        (idx for idx in (source.find("\n    elif ", body_start), source.find("\n    else", body_start)) if idx != -1),
+        default=len(source),
+    )
+    return source[body_start:next_branch]
 
 
 class TestAdminEndpointProtection:
@@ -167,51 +189,49 @@ class TestPublicEndpointAccess:
         assert result is not None, "Health endpoint should return response even with no JWT"
 
     def test_api_algo_markets_allows_all(self):
-        """Public markets endpoint should allow all authenticated users."""
-        # /api/algo/markets does not call _check_admin_access
-        trader_claims = {
-            "sub": "test-trader-user",
-            "cognito:groups": ["trader"],
-        }  # Non-admin user
-        from auth_utils import check_admin_access
+        """Public markets endpoint should allow all authenticated users.
 
-        # Verify check_admin_access is NOT called for this endpoint
-        # by checking that trader claims don't grant access
-        # (if the endpoint called check_admin_access, this would fail access)
-        check_admin_access(trader_claims)
-        # For markets endpoint, we don't care about authorization check
-        # The endpoint itself doesn't enforce admin-only access
-        assert True, "/api/algo/markets is public (verified by code review)"
+        FIXED 2026-08-18 (loader-health review, cheats/bypasses sweep): this test used to
+        call check_admin_access(trader_claims) and then unconditionally `assert True`,
+        discarding the return value - it could never fail regardless of what the real
+        /api/algo/markets dispatch branch in lambda/api/routes/algo.py actually does, giving
+        false confidence about a security-relevant claim (this endpoint being intentionally
+        public). Now statically verifies the actual dispatch branch's source, scoped
+        precisely to that elif block (not the whole file, which legitimately calls
+        check_admin_access for many other paths) so a future accidental admin-gate addition
+        to this specific path fails the test.
+        """
+        source = _get_dispatch_branch_source("lambda/api/routes/algo.py", '"/api/algo/markets"')
+        assert "check_admin_access" not in source, (
+            "/api/algo/markets dispatch branch now calls check_admin_access - "
+            "if intentional, update this test; if accidental, this is a regression"
+        )
 
     def test_api_scores_allows_all(self):
-        """Public scores endpoint should allow all authenticated users."""
-        # /api/scores does not call _check_admin_access
-        trader_claims = {
-            "sub": "test-trader-user",
-            "cognito:groups": ["trader"],
-        }  # Non-admin user
-        from auth_utils import check_admin_access
+        """Public scores endpoint should allow all authenticated users.
 
-        # Scores endpoint is public - doesn't require admin check
-        check_admin_access(trader_claims)
-        # For scores endpoint, authorization check doesn't apply
-        # The endpoint itself doesn't enforce admin-only access
-        assert True, "/api/scores is public (verified by code review)"
+        FIXED 2026-08-18: see test_api_algo_markets_allows_all's docstring for why this
+        replaced a vacuous `assert True`. scores.py has zero check_admin_access references
+        anywhere (unlike algo.py's multi-branch dispatcher), so a whole-file check is safe.
+        """
+        source = Path(_LAMBDA_API_ROOT / "routes" / "scores.py").read_text(encoding="utf-8")
+        assert "check_admin_access" not in source, (
+            "routes/scores.py now references check_admin_access - "
+            "if intentional, update this test; if accidental, this is a regression"
+        )
 
     def test_api_prices_allows_all(self):
-        """Public prices endpoint should allow all authenticated users."""
-        # /api/prices does not call _check_admin_access
-        trader_claims = {
-            "sub": "test-trader-user",
-            "cognito:groups": ["trader"],
-        }  # Non-admin user
-        from auth_utils import check_admin_access
+        """Public prices endpoint should allow all authenticated users.
 
-        # Prices endpoint is public - doesn't require admin check
-        check_admin_access(trader_claims)
-        # For prices endpoint, authorization check doesn't apply
-        # The endpoint itself doesn't enforce admin-only access
-        assert True, "/api/prices is public (verified by code review)"
+        FIXED 2026-08-18: see test_api_algo_markets_allows_all's docstring for why this
+        replaced a vacuous `assert True`. prices.py has zero check_admin_access references
+        anywhere, so a whole-file check is safe.
+        """
+        source = Path(_LAMBDA_API_ROOT / "routes" / "prices.py").read_text(encoding="utf-8")
+        assert "check_admin_access" not in source, (
+            "routes/prices.py now references check_admin_access - "
+            "if intentional, update this test; if accidental, this is a regression"
+        )
 
 
 class TestLiveEndpointAccess:
