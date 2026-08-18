@@ -19,7 +19,15 @@ import datetime
 import logging
 from typing import Any
 
+from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
+
 logger = logging.getLogger(__name__)
+
+# FIXED 2026-08-17 (goal: "no SEC data" audit): module-level so the (currency, date)
+# rate cache is shared and its persistent file cache reused across every symbol
+# processed in a run, not just within one _aggregate_concepts call. See fx_rates.py's
+# module docstring for the CAD/GBP/EUR/AUD/CHF/JPY-only fix this backs.
+_fx_rate_cache = FxRateCache()
 
 _BALANCE_IFRS_ALIASES = [
     # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
@@ -489,6 +497,22 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # live-confirmed AAPL/MSFT both report ONLY the newer variant for fiscal years after
         # ~2012). List the deprecated concept first so the current one wins on overwrite,
         # same convention as the RevenuesNetOfInterestExpense ordering above.
+        #
+        # FIXED 2026-08-17 (goal: "no SEC data" audit, CNX live-confirmed): neither variant
+        # above exists at all for some filers (CNX Resources - E&P, SIC 1311 - has zero
+        # entries for either, confirmed via real companyfacts JSON) - they tag
+        # "...BeforeIncomeTaxesDomestic" instead. Listed FIRST (not last) because, unlike the
+        # two concepts above, "Domestic" only covers US operations for a genuinely
+        # multinational filer - for a filer that also reports one of the fuller concepts
+        # above, that more complete figure must win on overwrite. Live-verified for CNX
+        # FY2023: this concept's value ($2,222,925,000) exactly equals net_income
+        # ($1,720,716,000) + income_tax_expense ($502,209,000) already in our DB for that
+        # year - confirming it IS the real total pretax income for this filer, not a partial
+        # figure. (A sibling concept, "ResultsOfOperationsIncomeBeforeIncomeTaxes", was
+        # checked and rejected - CNX FY2023 value $2,317,918,000 does NOT match, it's the
+        # ASC 932 oil-and-gas-producing-activities supplementary disclosure, not consolidated
+        # pretax income - do not add it here.)
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
     ]
@@ -737,7 +761,20 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             # per-share figures) don't match this 3-letter-uppercase-currency-code shape
             # and are unaffected. A filer left without a real USD fact gets an honest
             # NULL, not a silently wrong number 2-4 orders of magnitude off.
-            if _unit != "USD" and len(_unit) == 3 and _unit.isalpha() and _unit.isupper():
+            #
+            # FIXED 2026-08-17 (goal: "no SEC data" audit): that blanket rule also caught
+            # CAD/GBP/EUR/AUD/CHF/JPY filers (CP, ASML, BBVA, BCS, BAP, BCE and 270+ more
+            # live-confirmed via DB scan) whose currencies are NOT a 100-1000x magnitude
+            # mismatch like KRW/JPY's original unit-scale bug - these are liquid,
+            # developed-market currencies within roughly a 2x band of USD historically.
+            # fx_rates.py fetches a REAL historical ECB rate for the filing's own period-
+            # end date (never a guessed/current-day rate applied retroactively, never a
+            # fallback value) - see that module's docstring for the full rationale and
+            # why volatile/emerging-market currencies are deliberately excluded. A rate
+            # lookup failure still leaves the value NULL, same fail-closed discipline as
+            # every other currency this guard rejects outright.
+            is_major_currency = _unit != "USD" and _unit in MAJOR_CURRENCIES
+            if _unit != "USD" and len(_unit) == 3 and _unit.isalpha() and _unit.isupper() and not is_major_currency:
                 continue
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
@@ -870,7 +907,16 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     )
                 row_filed = row.get(f"_filed_{col}")
                 if col not in row or (row_filed is None or entry_filed > row_filed):
-                    row[col] = entry.get("val")
+                    val = entry.get("val")
+                    if is_major_currency and isinstance(val, (int, float)) and end_date:
+                        fx_rate = _fx_rate_cache.get_usd_rate(_unit, end_date)
+                        if fx_rate is None or fx_rate == 0:
+                            # No real rate available for this exact date - fail closed,
+                            # never guess. Leaves this entry unset for this column, same
+                            # as if the whole currency had been rejected outright.
+                            continue
+                        val = val / fx_rate
+                    row[col] = val
                     row[f"_filed_{col}"] = entry.get("filed")
 
     # Drop helper fields, return sorted (require fiscal_year for ordering)
