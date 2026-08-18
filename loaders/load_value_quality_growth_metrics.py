@@ -156,7 +156,10 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion - no real company
 
 # Computed once in _compute_quality_metrics (needs balance-sheet data _compute_growth_metrics
 # doesn't have), then mirrored into growth_dict in fetch_incremental - see that call site for
-# why quality_metrics and growth_metrics each carry their own copy of the same 11 values.
+# why quality_metrics and growth_metrics each carry their own copy of the same values.
+# These are computed from quarterly data in _compute_quarterly_metrics() (which is called
+# from _compute_quality_metrics), and must be propagated to growth_metrics via this list
+# to avoid dropping quarterly-derived metrics that growth_metrics doesn't compute on its own.
 _SHARED_TREND_FIELDS = (
     "net_income_growth_yoy",
     "operating_income_growth_yoy",
@@ -3472,6 +3475,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              net_income_growth_yoy, operating_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability,
+             earnings_surprise_avg, earnings_beat_rate,
              data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
              eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason,
@@ -3479,8 +3483,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason, roe_trend_unavailable_reason,
              sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
              ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
-             consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
+             earnings_surprise_avg_unavailable_reason, earnings_beat_rate_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -3502,6 +3507,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
                 earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg,
                 eps_growth_stability = EXCLUDED.eps_growth_stability,
+                earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
+                earnings_beat_rate = EXCLUDED.earnings_beat_rate,
                 revenue_growth_1y_unavailable_reason = EXCLUDED.revenue_growth_1y_unavailable_reason,
                 revenue_growth_3y_unavailable_reason = EXCLUDED.revenue_growth_3y_unavailable_reason,
                 revenue_growth_5y_unavailable_reason = EXCLUDED.revenue_growth_5y_unavailable_reason,
@@ -3522,6 +3529,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 consecutive_positive_quarters_unavailable_reason = EXCLUDED.consecutive_positive_quarters_unavailable_reason,
                 earnings_growth_4q_avg_unavailable_reason = EXCLUDED.earnings_growth_4q_avg_unavailable_reason,
                 eps_growth_stability_unavailable_reason = EXCLUDED.eps_growth_stability_unavailable_reason,
+                earnings_surprise_avg_unavailable_reason = EXCLUDED.earnings_surprise_avg_unavailable_reason,
+                earnings_beat_rate_unavailable_reason = EXCLUDED.earnings_beat_rate_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -3549,6 +3558,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("consecutive_positive_quarters"),
                 row.get("earnings_growth_4q_avg"),
                 row.get("eps_growth_stability"),
+                row.get("earnings_surprise_avg"),
+                row.get("earnings_beat_rate"),
                 row["data_unavailable"],
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
@@ -3573,6 +3584,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("consecutive_positive_quarters_unavailable_reason"),
                 row.get("earnings_growth_4q_avg_unavailable_reason"),
                 row.get("eps_growth_stability_unavailable_reason"),
+                row.get("earnings_surprise_avg_unavailable_reason"),
+                row.get("earnings_beat_rate_unavailable_reason"),
             ),
         )
 
