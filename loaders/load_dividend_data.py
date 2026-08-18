@@ -31,6 +31,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.transient_errors import TransientAPIError
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
@@ -259,13 +260,32 @@ class DividendDataLoader(SecLoaderBase):
             result = future.result(timeout=timeout_sec)
             return result
         except FuturesTimeoutError as e:
-            raise RuntimeError(
+            # BUG FIX (2026-08-17, "no SEC data" audit): a slow/rate-limited SEC response is
+            # transient, not permanent - it must NOT be raised as a plain RuntimeError, which
+            # fetch_incremental below (pre-fix) caught and wrote straight to the DB as a
+            # permanent fetch_error unavailable record with zero real retry.
+            # TransientAPIError lets it propagate through fetch_incremental to
+            # OptimalLoader.load_symbol() (utils/optimal_loader.py), which retries transient
+            # errors 3x with its own exponential backoff - giving the underlying SEC client's
+            # own 8-attempt retry/backoff (utils/external/sec_edgar_client.py's _get_json,
+            # worst case minutes) multiple fresh 20s windows to actually recover in, instead of
+            # being permanently killed by the first one.
+            raise TransientAPIError(
                 f"[{symbol}] SEC API call exceeded {timeout_sec}s timeout. "
-                f"This indicates a slow SEC server or network issue. "
-                f"Treating as data unavailable to prevent loader hang."
+                f"This indicates a slow SEC server or network issue - retrying."
             ) from e
+        except FileNotFoundError:
+            # 404 = CIK has no XBRL filings at all (mutual funds, shells, etc. - see
+            # sec_statements.py's companyfacts 404 handling for the same permanent case).
+            # This is a real, permanent absence, not a fetch failure - preserve the type so
+            # fetch_incremental can label it honestly instead of a scary "fetch_error".
+            raise
         except Exception as e:
-            raise RuntimeError(f"[{symbol}] SEC API error: {type(e).__name__}: {e}") from e
+            # Everything else reaching here is _get_json's own already-exhausted-8-retry
+            # RuntimeError (429/502/503/504 or network errors that kept recurring) - transient
+            # in nature (temporary SEC-side rate limiting/outage), not a permanent absence or a
+            # programming bug. Same TransientAPIError treatment as the timeout case above.
+            raise TransientAPIError(f"[{symbol}] SEC API error: {type(e).__name__}: {e}") from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol from SEC XBRL companyfacts.
@@ -335,6 +355,18 @@ class DividendDataLoader(SecLoaderBase):
             # No dividend data found in XBRL
             return [self._unavailable_record(symbol, now_et, "no_dividend_xbrl_concepts")]
 
+        except TransientAPIError:
+            # Must NOT be caught here as a permanent unavailable marker - propagate so
+            # OptimalLoader.load_symbol()'s retry-with-backoff (utils/optimal_loader.py) gets
+            # a chance to recover from what SEC-side rate limiting/timeout made look like a
+            # failure. See _fetch_sec_data_with_timeout's docstring for the full mechanism.
+            raise
+        except FileNotFoundError:
+            # CIK has no XBRL filings at all - permanent and legitimate (mutual funds, shells),
+            # not a loader failure. Honest label instead of the alarming generic fetch_error.
+            elapsed = time.time() - start_time
+            logger.debug(f"[{symbol}] No XBRL filings on file (404) after {elapsed:.1f}s.")
+            return [self._unavailable_record(symbol, now_et, "no_xbrl_filings")]
         except Exception as e:
             elapsed = time.time() - start_time
             # ALWAYS log at WARNING level - this is an operator-visible issue
