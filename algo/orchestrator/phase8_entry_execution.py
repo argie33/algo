@@ -1127,12 +1127,17 @@ def run(
     # This prevents ALL market-open entries regardless of when orchestrator runs
     market_open_exclusion_enabled = config.get("market_open_exclusion_enabled", False)
     if market_open_exclusion_enabled and not test_mode and not allow_outside_hours:
-        market_open_end = dt_time(10, 30)  # 10:30 AM ET
+        exclusion_minutes = config.get("market_open_exclusion_minutes", 30)
+        market_open_start = dt_time(9, 30)  # 9:30 AM ET market open
+        market_open_end = (
+            datetime.combine(now_dt.date(), market_open_start) + timedelta(minutes=exclusion_minutes)
+        ).time()
         if now_et < market_open_end:
             msg = (
                 f"[PHASE 8 MARKET-OPEN EXCLUSION] Blocking entries during high-volatility market open window. "
                 f"Current time: {now_et.strftime('%H:%M:%S')} ET. "
-                f"Entries allowed only after 10:30 AM ET (60-minute window after 9:30 AM market open). "
+                f"Entries allowed only after {market_open_end.strftime('%H:%M')} AM ET "
+                f"({exclusion_minutes}-minute window after 9:30 AM market open). "
                 f"Reason: Market-open false breakouts cause 62.5% loss rate within 3 hours."
             )
             logger.warning(msg)
@@ -2132,23 +2137,12 @@ def run(
             data_quality_failures[symbol or "unknown"] = "missing_symbol"
             continue
 
-        # CRITICAL FIX (Session 27 + Session 31): Block all entries before 10:30 AM ET
-        # Root cause: Pre-market and early market entries (09:03-09:04 AM) caused 75% losses
-        # Analysis: Pre-market signals are stale (from yesterday's EOD), market open 9:30-10:30 AM is high-volatility
-        # Solution: Enforce absolute 10:30 AM ET minimum - no entries anytime before then
-        from datetime import time as dt_time
-
-        current_time_et = datetime.now(_EASTERN_TZ).time()
-        earliest_entry_time = dt_time(10, 30)  # 10:30 AM ET - MINIMUM entry time
-
-        if current_time_et < earliest_entry_time:
-            logger.info(
-                f"[PHASE 8 EARLY MARKET EXCLUSION] {symbol}: Skipping entry at {current_time_et}. "
-                f"Pre-market and early market (before 10:30 AM ET) entries cause high losses due to stale signals "
-                f"and false breakouts. Entries allowed only after 10:30 AM ET."
-            )
-            data_quality_failures[symbol] = "early_market_open_exclusion"
-            continue
+        # NOTE (Session 27+31 original, superseded by Session 32's phase-level guard above):
+        # this per-symbol check used to unconditionally re-block entries before a hardcoded
+        # 10:30 AM ET regardless of `market_open_exclusion_enabled`/`market_open_exclusion_minutes`,
+        # so disabling the config flag had no actual effect and the configured minutes value was
+        # never honored. The phase-level guard above (which runs before this loop and returns
+        # early when it blocks) is now the single, config-driven source of truth for this check.
 
         tech = merged_technical_data.get(str(symbol))
         if not tech:
