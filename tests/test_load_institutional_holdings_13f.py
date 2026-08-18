@@ -290,11 +290,84 @@ def test_crosswalk_to_tickers_currency_suffix_strip_still_rejects_wrong_entity(m
     assert result == {}
 
 
-def test_crosswalk_to_tickers_ignores_a_resolved_ticker_outside_our_universe(monkeypatch):
+def test_crosswalk_to_tickers_normalizes_slash_share_class_to_our_dot_convention(monkeypatch):
+    """Live-verified 2026-08-18: OpenFIGI resolves Brown-Forman's Class A CUSIP
+    (115637100) to ticker "BF/A" (Bloomberg-style share-class slash), not "BF.A" -
+    the NYSE-listed dot convention our own stock_symbols uses (same for HEI/A, LEN/B,
+    MOG/A, WSO/B, ... - 19 currently-tracked dot-suffixed tickers all hit this). The
+    exact-match check alone silently dropped every one of these as
+    "no_resolved_13f_holdings" despite CUSIP and name both being a genuine match.
+    Normalizing the slash to a dot (still gated by names_plausibly_match) must
+    recover it."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("115637100", "BF/A", "BROWN-FORMAN CORP-CLASS A")],
+        local_name_rows=[("BF.A", "BROWN-FORMAN CORP-CLASS A")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["BF.A"]
+    )
+
+    result, _manager_result = loader._crosswalk_to_tickers({"115637100": 4_567_890})
+
+    assert result == {"BF.A": 4_567_890}
+
+
+def test_crosswalk_to_tickers_slash_normalize_still_rejects_wrong_entity(monkeypatch):
+    """The slash-to-dot normalization must not bypass the name-plausibility guard -
+    a ticker that happens to contain a slash but whose base form is a different
+    entity must still be rejected."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("999999999", "BF/A", "SOME OTHER COMPANY INC")],
+        local_name_rows=[("BF.A", "BROWN-FORMAN CORP-CLASS A")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["BF.A"]
+    )
+
+    result, _manager_result = loader._crosswalk_to_tickers({"999999999": 999})
+
+    assert result == {}
+
+
+def test_crosswalk_to_tickers_recovers_a_resolved_ticker_outside_our_universe_via_name(monkeypatch):
     """Live-verified 2026-07-27: the real Exxon Mobil Corp CUSIP (30231G102) resolves
     via OpenFIGI to ticker 'EXMOC', not 'XOM' - a real Bloomberg-side ticker variant.
-    A resolved ticker that isn't in our tracked universe at all must be silently
-    skipped, not treated as an error."""
+
+    FIXED 2026-08-18 (goal: "no SEC data" loader audit): a resolved ticker outside our
+    tracked universe used to be silently skipped outright, discarding real, resolved
+    13F holdings for dozens of megacaps (this exact XOM case among them - see
+    EntityNameIndex's docstring). Now falls back to matching resolved_name against our
+    own tracked universe's entity_name before giving up - since resolved_name here
+    ("EXXON MOBIL CORP") unambiguously matches XOM's own entity_name, the holdings must
+    be recovered under XOM rather than discarded."""
     loader = _make_loader()
 
     cursor = _FakeCrosswalkCursor(
@@ -317,4 +390,4 @@ def test_crosswalk_to_tickers_ignores_a_resolved_ticker_outside_our_universe(mon
 
     result, _manager_result = loader._crosswalk_to_tickers({"30231G102": 5720000000})
 
-    assert result == {}
+    assert result == {"XOM": 5720000000}

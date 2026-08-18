@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from utils.external.openfigi_crosswalk import fetch_cusip_tickers, names_plausibly_match
+from utils.external.openfigi_crosswalk import EntityNameIndex, fetch_cusip_tickers, names_plausibly_match
 
 
 class _FakeResponse:
@@ -235,3 +235,54 @@ def test_names_plausibly_match_strips_apostrophes_from_possessive_names():
     assert names_plausibly_match("BRINKS CO", "BRINK'S CO/THE") is True
     assert names_plausibly_match("MCDONALDS CORP", "MCDONALD'S CORP") is True
     assert names_plausibly_match("LOWES COMPANIES INC", "LOWE'S COS INC") is True
+
+
+class TestEntityNameIndex:
+    """FIXED 2026-08-18 (goal session, institutional ownership audit): OpenFIGI's
+    ticker field for a CUSIP is sometimes wrong even when resolved_name is right -
+    live-verified two ways. (1) Exxon Mobil's real CUSIP resolves to ticker "EXMOC"
+    (not "XOM"), which isn't in our tracked universe at all, so the old code gave up
+    before ever checking the name. (2) Verizon's real CUSIP resolves to ticker "BAC"
+    (Bank of America's real ticker) - passes the "ticker is in our universe" check
+    but names_plausibly_match correctly rejects it, and the old code had no fallback,
+    silently discarding Verizon's own real 13F data. EntityNameIndex recovers both by
+    searching our own tracked universe's names for an unambiguous match instead of
+    trusting the crosswalk's ticker field."""
+
+    def test_resolves_a_ticker_not_in_the_tracked_universe_via_name(self):
+        index = EntityNameIndex({"XOM": "EXXON MOBIL CORP", "CVX": "CHEVRON CORP"})
+        assert index.find("EXXON MOBIL CORP") == "XOM"
+
+    def test_resolves_a_ticker_that_collides_with_a_different_tracked_symbol(self):
+        """The crosswalk's ticker field says "BAC" but the resolved_name is
+        Verizon's - the index must find VZ by name, not trust the wrong ticker."""
+        index = EntityNameIndex({"BAC": "BANK OF AMERICA CORP", "VZ": "VERIZON COMMUNICATIONS INC"})
+        assert index.find("VERIZON COMMUNICATIONS INC") == "VZ"
+
+    def test_tolerates_the_same_naming_variants_as_names_plausibly_match(self):
+        """The reverse lookup must accept the same real-world name variance
+        (punctuation, possessives) already handled on the forward direction."""
+        index = EntityNameIndex({"MCD": "MCDONALDS CORP", "LOW": "LOWES COMPANIES INC"})
+        assert index.find("MCDONALD'S CORP") == "MCD"
+        assert index.find("AMAZON.COM INC") is None  # not in this index at all
+
+    def test_returns_none_when_no_tracked_symbol_matches(self):
+        index = EntityNameIndex({"XOM": "EXXON MOBIL CORP"})
+        assert index.find("SOME UNRELATED COMPANY INC") is None
+
+    def test_returns_none_on_missing_or_empty_name(self):
+        index = EntityNameIndex({"XOM": "EXXON MOBIL CORP"})
+        assert index.find(None) is None
+        assert index.find("") is None
+
+    def test_returns_none_when_ambiguous_between_two_tracked_symbols(self):
+        """Never guess: if resolved_name plausibly matches more than one tracked
+        symbol's name, the same wrong-entity risk this module exists to prevent
+        applies in reverse too - refuse rather than pick one."""
+        index = EntityNameIndex(
+            {
+                "AAA": "GLOBAL HOLDINGS GROUP INC",
+                "BBB": "GLOBAL HOLDINGS GROUP LLC",
+            }
+        )
+        assert index.find("GLOBAL HOLDINGS GROUP CORP") is None

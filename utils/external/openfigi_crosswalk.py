@@ -78,6 +78,7 @@ import logging
 import time
 import urllib.error
 import urllib.request
+from collections import defaultdict
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,35 @@ def _post_mapping_batch(cusips: list[str]) -> list[dict[str, Any]] | None:
     return None
 
 
+def name_tokens(name: str | None) -> frozenset[str]:
+    """Normalize an entity name into a comparable token set.
+
+    Extracted from names_plausibly_match (2026-08-18) so EntityNameIndex's reverse
+    lookup shares the exact same normalization - keeping both directions of the
+    wrong-entity defense in sync instead of two copies drifting apart.
+
+    Treat punctuation as a separator, not noise to delete - live-verified false
+    negative otherwise: OpenFIGI's "AMAZON.COM INC" would merge into one
+    "AMAZONCOM" token that never matches SEC's own space-separated
+    "AMAZON COM INC" entity_name.
+
+    Apostrophes are the opposite case: they must be deleted outright, not turned
+    into a separator. FIXED 2026-08-18 (goal session, institutional ownership
+    audit): a possessive name like SEC's "BRINK'S CO/THE" vs OpenFIGI's
+    "BRINKS CO" tokenized to {"BRINK'S", "CO"} vs {"BRINKS", "CO"} - the
+    possessive token never matches its non-possessive counterpart, so
+    names_plausibly_match wrongly rejected a correct CUSIP resolution as a
+    "wrong entity". Live-confirmed on 8 real symbols including MCD (McDonald's)
+    and LOW (Lowe's) - large, liquid, heavily-institutionally-held stocks that
+    were falling back to institutional_ownership_pct=NULL
+    ("no_resolved_13f_holdings") purely because of this apostrophe mismatch.
+    """
+    if not name:
+        return frozenset()
+    cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ").replace("'", "")
+    return frozenset(w for w in cleaned.split() if w not in _CORP_SUFFIXES)
+
+
 def names_plausibly_match(figi_name: str | None, local_name: str | None) -> bool:
     """Loose sanity check that two entity names plausibly refer to the same company.
 
@@ -237,30 +267,73 @@ def names_plausibly_match(figi_name: str | None, local_name: str | None) -> bool
     safety net on top of the real correctness guarantee (the CUSIP/FIGI join itself),
     never as the primary matching mechanism.
     """
-    if not figi_name or not local_name:
-        return False
-
-    def tokens(name: str) -> set[str]:
-        # Treat punctuation as a separator, not noise to delete - live-verified
-        # false negative otherwise: OpenFIGI's "AMAZON.COM INC" would merge into
-        # one "AMAZONCOM" token that never matches SEC's own space-separated
-        # "AMAZON COM INC" entity_name.
-        #
-        # Apostrophes are the opposite case: they must be deleted outright, not
-        # turned into a separator. FIXED 2026-08-18 (goal session, institutional
-        # ownership audit): a possessive name like SEC's "BRINK'S CO/THE" vs
-        # OpenFIGI's "BRINKS CO" tokenized to {"BRINK'S", "CO"} vs {"BRINKS", "CO"} -
-        # the possessive token never matches its non-possessive counterpart, so
-        # names_plausibly_match wrongly rejected a correct CUSIP resolution as a
-        # "wrong entity". Live-confirmed on 8 real symbols including MCD (McDonald's)
-        # and LOW (Lowe's) - large, liquid, heavily-institutionally-held stocks that
-        # were falling back to institutional_ownership_pct=NULL
-        # ("no_resolved_13f_holdings") purely because of this apostrophe mismatch.
-        cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ").replace("'", "")
-        return {w for w in cleaned.split() if w not in _CORP_SUFFIXES}
-
-    a, b = tokens(figi_name), tokens(local_name)
+    a, b = name_tokens(figi_name), name_tokens(local_name)
     if not a or not b:
         return False
     overlap = a & b
     return len(overlap) / min(len(a), len(b)) >= 0.5
+
+
+class EntityNameIndex:
+    """Reverse lookup: given a resolved entity name, find which tracked symbol it
+    plausibly refers to - the inverse of names_plausibly_match's usual direction
+    (ticker already known, name checked as a sanity gate).
+
+    FIXED 2026-08-18 (goal session, "which factor inputs are missing the most"
+    audit): OpenFIGI's ticker field for a CUSIP is sometimes simply wrong for our
+    purposes even though resolved_name is correct - live-confirmed two distinct
+    ways: (1) a resolved ticker that isn't in our tracked universe at all (real
+    Exxon Mobil CUSIP 30231G102 resolves to ticker "EXMOC", a Bloomberg-side
+    variant, not "XOM" - previously documented in this module as accepted "honest
+    non-coverage", but the same pattern turned out to affect dozens of other
+    megacaps: CVX, MS, C, PM, HON, MCD, LOW, ACN, LIN, and more). (2) a resolved
+    ticker that collides with a DIFFERENT real tracked symbol - Verizon's real
+    equity CUSIP 92343V104 resolves to ticker "BAC" (Bank of America's ticker),
+    which passes the "ticker in our universe" check but is correctly rejected by
+    names_plausibly_match (VERIZON COMMUNICATIONS INC vs BANK OF AMERICA CORP
+    share no tokens) - previously that rejection was a dead end with no fallback,
+    silently discarding Verizon's own real 13F data. This second failure mode is
+    NOT fixed by the exchCode="US" preference in fetch_cusip_tickers() above -
+    it's a wrong-company mapping, not a wrong-listing one.
+
+    In both cases resolved_name (VERIZON COMMUNICATIONS INC / EXXON MOBIL CORP)
+    matches our own SEC-sourced entity_name for the RIGHT symbol almost exactly -
+    this index finds that symbol by searching our own tracked universe's names
+    instead of trusting the crosswalk's ticker field. Same safety bar as the
+    forward direction: only returns a match when names_plausibly_match's >=50%
+    token-overlap threshold is met, and only when EXACTLY ONE tracked symbol
+    qualifies - an ambiguous or zero-candidate result returns None rather than
+    guessing, the same "never fabricate" governance as the rest of this module.
+    """
+
+    def __init__(self, local_names: dict[str, str]) -> None:
+        self._local_tokens: dict[str, frozenset[str]] = {
+            symbol: name_tokens(name) for symbol, name in local_names.items()
+        }
+        self._token_index: dict[str, set[str]] = defaultdict(set)
+        for symbol, tokens in self._local_tokens.items():
+            for token in tokens:
+                self._token_index[token].add(symbol)
+
+    def find(self, resolved_name: str | None) -> str | None:
+        """Symbol whose local entity name plausibly matches resolved_name, or None
+        if zero or more than one tracked symbol qualifies."""
+        candidate_tokens = name_tokens(resolved_name)
+        if not candidate_tokens:
+            return None
+        candidates: set[str] = set()
+        for token in candidate_tokens:
+            candidates |= self._token_index.get(token, set())
+
+        matches = []
+        for symbol in candidates:
+            local = self._local_tokens[symbol]
+            if not local:
+                continue
+            overlap = candidate_tokens & local
+            if len(overlap) / min(len(candidate_tokens), len(local)) >= 0.5:
+                matches.append(symbol)
+                if len(matches) > 1:
+                    return None  # ambiguous - bail without scanning the rest
+
+        return matches[0] if len(matches) == 1 else None

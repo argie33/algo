@@ -59,7 +59,7 @@ from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
-from utils.external.openfigi_crosswalk import fetch_cusip_tickers, names_plausibly_match
+from utils.external.openfigi_crosswalk import EntityNameIndex, fetch_cusip_tickers, names_plausibly_match
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
@@ -440,6 +440,13 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         symbols = set(get_active_symbols(exclude_etfs=True))
         local_names = self._fetch_local_entity_names(symbols)
         manager_holdings_by_cusip = manager_holdings_by_cusip or {}
+        # FIXED 2026-08-18 (goal: "no SEC data" loader audit): OpenFIGI's ticker field for a
+        # CUSIP is sometimes simply wrong for our purposes even when resolved_name is right -
+        # see EntityNameIndex's docstring for the two live-confirmed failure modes (megacap
+        # resolves to a non-tracked ticker variant e.g. XOM->EXMOC; or collides with a
+        # DIFFERENT tracked symbol's ticker e.g. Verizon's CUSIP -> "BAC"). Used as a
+        # last-resort fallback below, never as the primary match.
+        name_index = EntityNameIndex(local_names)
 
         holdings_by_ticker: dict[str, int] = defaultdict(int)
         # {ticker: {accession_number: shares}} - merges across CUSIPs that resolve to the
@@ -451,18 +458,56 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             if not ticker:
                 continue
             if ticker not in symbols:
-                for suffix in _CURRENCY_TICKER_SUFFIXES:
-                    if ticker.endswith(suffix) and len(ticker) > len(suffix) and ticker[: -len(suffix)] in symbols:
-                        ticker = ticker[: -len(suffix)]
-                        break
+                # FIXED 2026-08-18 (goal: "no SEC data" loader audit): OpenFIGI/Bloomberg use
+                # "TICKER/A" for multi-class share tickers (see sec_13f_cusip_crosswalk:
+                # "BF/A", "HEI/A", "MOG/A") while our own listings use the NYSE/NASDAQ
+                # "TICKER.A" dot convention - the exact-match check below silently skipped
+                # every dot-suffixed share class (BF.A, BF.B, HEI.A, LEN.B, MOG.A, MOG.B,
+                # WSO.B, ...) even though OpenFIGI had already resolved real 13F holdings for
+                # them. Live-confirmed: all 19 dot-suffixed tickers in the active universe hit
+                # "no_resolved_13f_holdings" this way. Tried before the currency-suffix
+                # fallback since a share-class slash and a currency suffix never co-occur.
+                dotted = ticker.replace("/", ".")
+                if dotted in symbols:
+                    ticker = dotted
                 else:
-                    continue
+                    for suffix in _CURRENCY_TICKER_SUFFIXES:
+                        if ticker.endswith(suffix) and len(ticker) > len(suffix) and ticker[: -len(suffix)] in symbols:
+                            ticker = ticker[: -len(suffix)]
+                            break
+                    else:
+                        # None of the ticker-based checks matched - before giving up, check
+                        # whether resolved_name unambiguously identifies one of our own
+                        # tracked symbols anyway (EntityNameIndex, see its docstring).
+                        name_match = name_index.find(resolved_name)
+                        if name_match:
+                            logger.debug(
+                                f"[13F] CUSIP {cusip}: crosswalk ticker '{ticker}' isn't in our "
+                                f"tracked universe, but resolved_name '{resolved_name}' unambiguously "
+                                f"matches {name_match} - using that instead"
+                            )
+                            ticker = name_match
+                        else:
+                            continue
             if not names_plausibly_match(resolved_name, local_names.get(ticker)):
-                logger.debug(
-                    f"[13F] {ticker} (CUSIP {cusip}): OpenFIGI name '{resolved_name}' doesn't plausibly "
-                    f"match our own entity_name '{local_names.get(ticker)}' - skipping to avoid a wrong-entity join"
-                )
-                continue
+                # The candidate ticker IS one of ours, but its own name doesn't match - a
+                # real crosswalk collision (e.g. Verizon's CUSIP resolving to ticker "BAC"),
+                # not just a missing-from-universe case. Same name-index fallback: only
+                # accept if resolved_name unambiguously points elsewhere in our universe.
+                name_match = name_index.find(resolved_name)
+                if name_match and name_match != ticker:
+                    logger.debug(
+                        f"[13F] CUSIP {cusip}: crosswalk ticker '{ticker}' resolved to a name "
+                        f"that doesn't match {ticker}'s own entity_name, but resolved_name "
+                        f"'{resolved_name}' unambiguously matches {name_match} instead - using that"
+                    )
+                    ticker = name_match
+                else:
+                    logger.debug(
+                        f"[13F] {ticker} (CUSIP {cusip}): OpenFIGI name '{resolved_name}' doesn't plausibly "
+                        f"match our own entity_name '{local_names.get(ticker)}' - skipping to avoid a wrong-entity join"
+                    )
+                    continue
             holdings_by_ticker[ticker] += shares
             for accession, mgr_shares in manager_holdings_by_cusip.get(cusip, {}).items():
                 manager_holdings_by_ticker[ticker][accession] += mgr_shares
