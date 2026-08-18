@@ -65,3 +65,31 @@ class TestCapexAlternateConceptFallback:
         )
         # The alias target_key must itself be mapped through to the real capex column.
         assert _CASHFLOW_FIELD_MAPPING["payments_to_acquire_property_plant_and_equipment"] == "capex"
+
+    def test_payments_to_acquire_other_productive_assets_maps_to_capex(self):
+        # FIXED 2026-08-18: VZ (Verizon) - a major US domestic 10-K filer whose capex is
+        # one of its most closely-watched public metrics - had NULL capex across EVERY
+        # historical fiscal year (2021-2026) despite real operating_cash_flow every year.
+        # Live-confirmed via SEC companyfacts: VZ tags capex ONLY under this concept
+        # ($17.011B FY2025, $17.090B FY2024 - matching VZ's publicly reported capex).
+        target_key = _to_snake("PaymentsToAcquireOtherProductiveAssets")
+        assert target_key == "payments_to_acquire_other_productive_assets"
+        assert _CASHFLOW_FIELD_MAPPING[target_key] == "capex"
+
+    def test_payments_to_acquire_other_property_plant_and_equipment_maps_to_capex(self):
+        # FIXED 2026-08-18 (same investigation): LLY (Eli Lilly) and ADP - both major US
+        # domestic 10-K filers - had NULL capex every historical year despite real
+        # operating_cash_flow. Live-confirmed via SEC companyfacts: LLY $7.841B (FY2025),
+        # ADP $196.6M (FY2026) tagged only under this concept.
+        target_key = _to_snake("PaymentsToAcquireOtherPropertyPlantAndEquipment")
+        assert target_key == "payments_to_acquire_other_property_plant_and_equipment"
+        assert _CASHFLOW_FIELD_MAPPING[target_key] == "capex"
+
+    def test_other_productive_assets_and_other_ppe_concepts_are_fetched(self):
+        import inspect
+
+        from utils.external import sec_statements
+
+        source = inspect.getsource(sec_statements.get_cash_flow)
+        assert "PaymentsToAcquireOtherProductiveAssets" in source
+        assert "PaymentsToAcquireOtherPropertyPlantAndEquipment" in source

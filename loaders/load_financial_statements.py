@@ -444,6 +444,12 @@ _CASHFLOW_FIELD_MAPPING = {
     # filers) switched from PaymentsToAcquireProductiveAssets to this tag starting FY2023,
     # with zero overlap between the two, so capex was silently NULL for 3+ years.
     "payments_to_acquire_machinery_and_equipment": "capex",
+    # FIXED 2026-08-18 (goal: "missing factor inputs" audit continuation): see
+    # sec_statements.py's get_cash_flow() comments on these 2 concepts - VZ tags capex
+    # ONLY under "OtherProductiveAssets" (NULL every year 2021-2026 despite real OCF);
+    # LLY/ADP tag it ONLY under "OtherPropertyPlantAndEquipment" (same failure shape).
+    "payments_to_acquire_other_productive_assets": "capex",
+    "payments_to_acquire_other_property_plant_and_equipment": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but

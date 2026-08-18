@@ -717,6 +717,24 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # being populated every year. Same target key "capex" as the concepts above -
         # see load_financial_statements.py's field_mapping comment.
         "PaymentsToAcquireMachineryAndEquipment",
+        # FIXED 2026-08-18 (goal: "missing factor inputs" audit continuation): live-
+        # confirmed via VZ (Verizon) - a major US domestic 10-K filer whose capex is one
+        # of its most closely-watched public metrics - NULL across EVERY historical
+        # fiscal year (2021-2026) in our DB despite operating_cash_flow being fully
+        # populated. VZ tags its real capex ONLY under this concept, never any of the
+        # 3 above: real SEC values $17.011B (FY2025)/$17.090B (FY2024) match VZ's
+        # publicly reported capex almost exactly. Also live-confirmed on QCOM (which
+        # already has a working fallback via PaymentsToAcquireProductiveAssets, so this
+        # is an additional/redundant concept for QCOM specifically, not its primary
+        # gap-closer).
+        "PaymentsToAcquireOtherProductiveAssets",
+        # FIXED 2026-08-18 (same investigation): live-confirmed via LLY (Eli Lilly) and
+        # ADP - both major US domestic 10-K filers, NULL across every historical year
+        # despite real operating_cash_flow. Real SEC values: LLY $7.841B (FY2025)/
+        # $5.058B (FY2024, plausible big-pharma capex); ADP $196.6M (FY2026, plausible
+        # for a payroll/HR-services company with light physical footprint) - both
+        # confirmed via direct live SEC companyfacts lookup, not guessed.
+        "PaymentsToAcquireOtherPropertyPlantAndEquipment",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
         # same reasoning as InterestExpense above - foreign filers get NULL instead of a
         # guessed value.
