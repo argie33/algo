@@ -172,12 +172,29 @@ class PositioningMetricsLoader(OptimalLoader):
                 # that no loader had ever populated) with no new data source needed.
                 # NOTE: Removed data_unavailable = FALSE filter to allow processing
                 # even if upstream FINRA loader hasn't marked data available yet
+                #
+                # FIX 2026-08-18 (goal: "which factor inputs are missing the most" audit):
+                # plain "settlement_date DESC" picks a data_unavailable marker row over real
+                # data whenever the most recent settlement period simply wasn't reported for
+                # this symbol (FINRA short-interest coverage is intermittent for
+                # lower-liquidity issues, not every symbol reports every period) - the marker
+                # settlement_date sorts as "latest" the same as a real row would, permanently
+                # masking real short-interest data from an earlier period underneath. Live-
+                # confirmed: 162 of 690 positioning_metrics "missing_finra_data" symbols (e.g.
+                # GV: 2026-07-31 is a bare finra_data_unavailable marker, but 2026-07-15 and
+                # 2026-06-30 both have real short_pct on file) have exactly this masking. Same
+                # bug class as [[marker_masks_real_data_in_event_log_tables_bug_class_20260818]]
+                # (analyst_upgrade_downgrade/analyst_sentiment_analysis) - here fixed on the
+                # read side (prefer real rows, tie-broken by recency) rather than the write
+                # side, since an unreported settlement period is itself real/legitimate FINRA
+                # state worth keeping on file, not a spurious marker to suppress writing.
                 cur.execute(
                     """
                     SELECT short_pct, short_shares, settlement_date, days_to_cover, avg_daily_volume
                     FROM short_interest_finra
                     WHERE symbol = %s
-                    ORDER BY settlement_date DESC LIMIT 2
+                    ORDER BY (CASE WHEN short_pct IS NOT NULL THEN 0 ELSE 1 END), settlement_date DESC
+                    LIMIT 2
                     """,
                     (symbol,),
                 )
