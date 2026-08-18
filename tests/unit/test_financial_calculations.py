@@ -300,13 +300,24 @@ class TestValueAtRisk:
         assert "5.00%" in interpretation
         assert "95% confident" in interpretation
 
-    def test_insufficient_data_raises_error(self):
-        """Verify VaR calculation fails with insufficient data."""
-        returns = [-0.01, -0.02]
-        if len(returns) < 5:
+    def test_insufficient_data_raises_error(self, var_calculator):
+        """FIX 2026-08-18: this test reimplemented historical_var()'s own "insufficient
+        data" branch inline and asserted that reimplementation against itself - it never
+        called the real method, so it could never catch a regression in the actual code.
+        Now calls the real historical_var() against a mocked 2-row snapshot history."""
+        from unittest.mock import MagicMock, patch
+
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = [
+            (date(2026, 8, 1), 100000.0),
+            (date(2026, 8, 2), 101000.0),
+        ]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
             with pytest.raises(RuntimeError, match="Insufficient"):
-                if len(returns) < 5:
-                    raise RuntimeError(f"Insufficient historical data for VaR (only {len(returns)} snapshots, need 5+)")
+                var_calculator.historical_var()
 
     def test_var_dollars_calculation(self):
         """Verify VaR dollars calculation."""
@@ -315,11 +326,51 @@ class TestValueAtRisk:
         var_dollars = current_value * abs(var_percentile)
         assert var_dollars == Decimal("5000")
 
-    def test_zero_return_portfolio(self):
-        """Verify VaR handling when portfolio value is zero."""
-        current_value = Decimal("0")
-        if current_value == 0:
-            pytest.skip("Cannot calculate VaR for zero portfolio value")
+    def test_zero_portfolio_value_raises_error(self, var_calculator):
+        """FIX 2026-08-18: this test unconditionally skipped itself - `current_value =
+        Decimal("0")` then `if current_value == 0: pytest.skip(...)` is always true, so
+        this never once executed a real assertion, regardless of what the real code did.
+        Now calls the real historical_var() against a mocked snapshot history where one
+        row has adjusted_equity=0 (real historical_var() rejects any value <= 0, see the
+        `if val <= 0` check right after the row loop starts)."""
+        from unittest.mock import MagicMock, patch
+
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = [
+            (date(2026, 8, 1), 100000.0),
+            (date(2026, 8, 2), 101000.0),
+            (date(2026, 8, 3), 0.0),
+            (date(2026, 8, 4), 99000.0),
+            (date(2026, 8, 5), 102000.0),
+        ]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            with pytest.raises(RuntimeError, match="must be positive"):
+                var_calculator.historical_var()
+
+    def test_negative_portfolio_value_raises_error(self, var_calculator):
+        """FIX 2026-08-18: companion to test_zero_portfolio_value_raises_error - the
+        original test_negative_portfolio_value_rejection (TestFinancialMathEdgeCases)
+        had the identical unconditional-skip bug for the negative-value case. Same real
+        code path: historical_var()'s `if val <= 0` check rejects negative values too."""
+        from unittest.mock import MagicMock, patch
+
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = [
+            (date(2026, 8, 1), 100000.0),
+            (date(2026, 8, 2), 101000.0),
+            (date(2026, 8, 3), -50000.0),
+            (date(2026, 8, 4), 99000.0),
+            (date(2026, 8, 5), 102000.0),
+        ]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            with pytest.raises(RuntimeError, match="must be positive"):
+                var_calculator.historical_var()
 
 
 class TestPerformanceMetrics:
@@ -448,11 +499,11 @@ class TestFinancialMathEdgeCases:
         except ZeroDivisionError:
             pass  # Expected
 
-    def test_negative_portfolio_value_rejection(self):
-        """Verify rejection of negative portfolio values."""
-        negative_value = Decimal("-50000")
-        if negative_value < 0:
-            pytest.skip("Negative portfolio values should be rejected at data loading layer")
+    # test_negative_portfolio_value_rejection moved to TestValueAtRisk as
+    # test_negative_portfolio_value_raises_error (2026-08-18 fix) - the original here
+    # unconditionally skipped itself (`if negative_value < 0` on a hardcoded -50000 is
+    # always true) and never called any real code; the replacement calls the real
+    # historical_var() and asserts its actual rejection behavior.
 
     def test_very_small_position_sizing(self):
         """Verify handling of very small position sizes."""
