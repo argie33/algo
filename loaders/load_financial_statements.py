@@ -981,6 +981,32 @@ def _run_symbol_pass(
                     "Halting loader."
                 ) from health_err
 
+            # DASHBOARD ACCURACY FIX 2026-08-18 (loader-health review): this loop tracked
+            # loader._stats.increment("symbols_processed"/"symbols_failed") in memory every
+            # symbol, but never called _status_manager.update_progress() - so
+            # data_loader_status.completion_pct stayed frozen at the 0 mark_running() set it
+            # to, for this loader's entire run (up to the 540m/9h SLA), indistinguishable
+            # from a hang. Live-confirmed: a run 22 minutes in already showed real row_count
+            # (66K-163K rows across the combo tables) while completion_pct still read 0.00 -
+            # same "frozen at 0%" bug class already fixed for other loaders this week (e.g.
+            # load_enhanced_quality_growth_metrics.py's own DASHBOARD ACCURACY FIX). Reuses
+            # the existing every-50-symbols cadence (health check above) rather than adding a
+            # new one - each `active` loader gets its own row updated since each combo/table
+            # has independent status tracking.
+            completion_pct = round(100.0 * i / len(symbols), 2)
+            for progress_loader in active:
+                try:
+                    progress_loader._status_manager.update_progress(
+                        symbols_loaded=i, symbol_count=len(symbols), completion_pct=completion_pct
+                    )
+                except Exception as progress_err:
+                    # Progress reporting is diagnostic, not load-bearing - never let a
+                    # transient status-table write failure abort real data loading.
+                    logger.warning(
+                        f"[FINANCIAL_STATEMENTS ALL MODE] Failed to update progress for "
+                        f"{progress_loader.table_name} at symbol {i}/{len(symbols)}: {progress_err}"
+                    )
+
         # The first combo's fetch downloads this symbol's companyfacts JSON;
         # the shared client's LRU serves the remaining combos from memory.
         # Use timeout for each symbol to prevent single stuck symbol from halting entire run.
