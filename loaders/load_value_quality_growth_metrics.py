@@ -1696,6 +1696,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # NOL/credit swing) would distort NOPAT worse than marking unavailable. A prior
             # session reintroduced 0.21/0.25 fallback assumptions here - reverted, they are
             # exactly the kind of fabricated-data-source problem migration 1178 fixed.
+            # FIXED 2026-08-18 (goal: "no SEC data" audit, roic_pct follow-up): a real
+            # reported pretax loss (roic_pretax_income <= 0) makes effective_tax_rate
+            # undefined in the usual sense (real filers report all sorts of tax expense/
+            # benefit against a loss - valuation allowances, NOL carrybacks - not a
+            # meaningful "rate"), but that is a genuine business-state fact (unprofitable
+            # that year), not an absent SEC concept. Same distinction already made for
+            # pe_ratio/ev_ebitda/payout_ratio via "unprofitable_stock" above - roic_pct's
+            # generic "missing_sec_data" reason was conflating the two.
+            roic_pct_unprofitable = roic_pretax_income is not None and roic_pretax_income <= 0
             effective_tax_rate = None
             if roic_tax_expense is not None and roic_pretax_income is not None and roic_pretax_income > 0:
                 candidate_rate = roic_tax_expense / roic_pretax_income
@@ -2328,7 +2337,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["roic_pct_unavailable_reason"] = (
-                ("implausible_ratio" if "roic_pct" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "roic_pct" in implausible_ratio_metrics
+                    else ("unprofitable_stock" if roic_pct_unprofitable else "missing_sec_data")
+                )
                 if "roic_pct" in failed_metrics
                 else None
             )
