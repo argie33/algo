@@ -14,11 +14,13 @@ Run:
 """
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -207,7 +209,22 @@ class CompanyProfileLoader(OptimalLoader):
             row = cur.fetchone()
 
         if row is None:
-            return [{"ticker": symbol, "data_unavailable": True, "reason": f"No data in company_info_sec for {symbol}"}]
+            # WATERMARK FIX (2026-08-17, live-reproduced - 1296 symbols/run in
+            # reference_then_morning_after_signals.log): this dict is missing this loader's
+            # own watermark_field ("updated_at"), which utils/optimal_loader.py's
+            # watermark_from_rows() requires on every row - raises ValueError, and this
+            # symbol's write is rejected outright instead of landing the intended
+            # data_unavailable marker. No source row exists to carry a real updated_at
+            # through (unlike the two sic_code cases below), so stamp "now": this row IS the
+            # first real fact about this symbol's company_profile state as of this run.
+            return [
+                {
+                    "ticker": symbol,
+                    "data_unavailable": True,
+                    "reason": f"No data in company_info_sec for {symbol}",
+                    "updated_at": datetime.now(EASTERN_TZ),
+                }
+            ]
 
         (
             sym,
@@ -234,6 +251,10 @@ class CompanyProfileLoader(OptimalLoader):
                     "ticker": symbol,
                     "data_unavailable": True,
                     "reason": "no_sic_code_available",
+                    # WATERMARK FIX (2026-08-17) - see the `row is None` branch above for the
+                    # full story; this row has a real source updated_at to carry through (row
+                    # exists in company_info_sec, matching the success path's own convention).
+                    "updated_at": updated_at,
                 }
             ]
 
@@ -260,6 +281,9 @@ class CompanyProfileLoader(OptimalLoader):
                     "ticker": symbol,
                     "data_unavailable": True,
                     "reason": f"sic_code_unmapped:{sic_code}",
+                    # WATERMARK FIX (2026-08-17) - see the `row is None` branch above for the
+                    # full story; this row has a real source updated_at to carry through.
+                    "updated_at": updated_at,
                 }
             ]
 

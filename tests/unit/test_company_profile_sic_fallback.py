@@ -88,3 +88,55 @@ class TestFetchIncrementalUsesFallback:
         assert result is not None
         assert result[0]["data_unavailable"] is True
         assert result[0]["reason"] == "sic_code_unmapped:8742"
+        # WATERMARK FIX regression (2026-08-17): this dict must carry the loader's own
+        # watermark_field ("updated_at") - utils/optimal_loader.py's watermark_from_rows()
+        # raises ValueError on any row missing it, which live-reproduced as 1296 symbols/run
+        # failing outright (never even landing their intended data_unavailable marker)
+        # instead of being cleanly marked unavailable. See the two sibling tests below for
+        # the other two "unavailable" record paths in this same method.
+        assert "updated_at" in result[0]
+
+
+class TestUnavailableRecordsCarryWatermarkField:
+    """Every data_unavailable early-return in fetch_incremental must include this loader's
+    watermark_field ("updated_at") - see WATERMARK FIX regression comment above."""
+
+    def test_no_row_in_company_info_sec_carries_updated_at(self):
+        loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = None
+
+        with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            result = loader.fetch_incremental("NOPROFILE", None)
+
+        assert result is not None
+        assert result[0]["data_unavailable"] is True
+        assert "updated_at" in result[0]
+        assert result[0]["updated_at"] is not None
+
+    def test_missing_sic_code_carries_updated_at(self):
+        loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = (
+            "NOSIC",  # symbol
+            "No SIC Corp",  # entity_name
+            None,  # sic_code
+            None,  # sic_description
+            None,  # shares_outstanding
+            None,  # created_at
+            "2026-07-27",  # updated_at
+            False,  # data_unavailable
+            None,  # reason
+        )
+
+        with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            result = loader.fetch_incremental("NOSIC", None)
+
+        assert result is not None
+        assert result[0]["data_unavailable"] is True
+        assert result[0]["reason"] == "no_sic_code_available"
+        assert "updated_at" in result[0]
