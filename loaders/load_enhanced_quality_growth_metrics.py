@@ -359,6 +359,20 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 if key in metric_dict and metric_dict[key] is not None:
                     update_fields.append(f"{key} = %s")
                     values.append(metric_dict[key])
+                    # BUG FIX 2026-08-18 (goal: "no SEC data" loader audit): this UPDATE
+                    # used to only ever SET the value column, never the paired
+                    # {key}_unavailable_reason column - so a symbol whose baseline
+                    # load_value_quality_growth_metrics.py pass set e.g.
+                    # "no_analyst_estimates" kept that stale reason forever even after
+                    # this loader computed and wrote a real value here. Live-confirmed on
+                    # quality_metrics: AAPL/MSFT/CMS/D/TNDM all had real non-NULL
+                    # estimate_revision_direction/revision_activity_30d/estimate_momentum_60d/
+                    # estimate_momentum_90d/revision_trend_score values while their
+                    # _unavailable_reason columns still read "no_analyst_estimates" -
+                    # 3,750/4,959 active-universe symbols affected on
+                    # estimate_revision_direction alone. Clear the reason whenever a real
+                    # value lands.
+                    update_fields.append(f"{key}_unavailable_reason = NULL")
 
             if update_fields:
                 # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
@@ -436,6 +450,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 if key in metric_dict and metric_dict[key] is not None:
                     update_fields.append(f"{key} = %s")
                     values.append(metric_dict[key])
+                    # BUG FIX 2026-08-18: see matching growth_fields comment above - same
+                    # stale-reason bug, same fix (clear {key}_unavailable_reason whenever a
+                    # real value is written here).
+                    update_fields.append(f"{key}_unavailable_reason = NULL")
 
             if update_fields:
                 # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
