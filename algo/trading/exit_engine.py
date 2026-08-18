@@ -1297,13 +1297,37 @@ class ExitEngine:
             # Same slippage bug class as position_monitor.py's STOP_LOSS_HIT path
             # (see exit_halt_stress_test_20260809) and this file's own init_stop branch -
             # just never applied to this active_stop (trailing/raised-stop) branch.
+            #
+            # FIX 2026-08-18 (goal: find/fix real algo issues, live-reproduced on PDEX):
+            # unlike the init_stop branch above (always below entry_price by construction -
+            # a real stop-loss), active_stop is the RUNNING stop and gets raised as targets
+            # are hit, so it can end up ABOVE entry_price after real gains. When that happens
+            # this same code path fires a legitimate trailing-stop exit that locks in a big
+            # profit (live: PDEX entry $67.15, active_stop raised to $103.99 near target_3,
+            # exit_r_multiple=+4.01, +54.86% P&L) - but the old message unconditionally said
+            # "STOP hit... hard capital preservation", which reads as a loss-cutting event to
+            # anyone reading algo_trades.exit_reason directly (SQL, dashboard, or the trade-exit
+            # Slack/email notification in algo/reporting/notifications.py, which surfaces this
+            # exact string as "Reason:"). The stage/mechanism (unconditional, bypasses
+            # min_hold_days, exit_price_override=active_stop_dec) is correct either way - only
+            # the wording was wrong. Word it accurately based on which side of entry_price the
+            # triggering stop level actually sits on.
+            entry_price_dec = Decimal(str(entry_price)) if not isinstance(entry_price, Decimal) else entry_price
+            if active_stop_dec >= entry_price_dec:
+                reason = (
+                    f"Trailing stop hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
+                    f"(locked-in gain, stop raised above entry ${float(entry_price_dec):.2f} - "
+                    "not subject to min_hold_days)"
+                )
+            else:
+                reason = (
+                    f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
+                    "(hard capital preservation - not subject to min_hold_days)"
+                )
             return {
                 "stage": "stop",
                 "fraction": 1.0,
-                "reason": (
-                    f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
-                    "(hard capital preservation - not subject to min_hold_days)"
-                ),
+                "reason": reason,
                 "exit_price_override": float(active_stop_dec),
             }
 
