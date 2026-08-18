@@ -26,6 +26,8 @@ class TestDebtFallbackConceptMappings:
             "LongTermNotesPayable",
             "ConvertibleNotesPayable",
             "ConvertibleLongTermNotesPayable",
+            "LongTermDebtNoncurrent",
+            "LongTermDebtAndCapitalLeaseObligations",
         ):
             target_key = _to_snake(concept)
             assert _BALANCE_FIELD_MAPPING[target_key] == "long_term_debt"
@@ -49,6 +51,8 @@ class TestDebtFallbackNotOverwritingRealLongTermDebt:
             "convertible_notes_payable": "long_term_debt",
             "convertible_long_term_notes_payable": "long_term_debt",
             "notes_payable_related_parties_noncurrent": "long_term_debt",
+            "long_term_debt_noncurrent": "long_term_debt",
+            "long_term_debt_and_capital_lease_obligations": "long_term_debt",
             "data_unavailable": "data_unavailable",
             "reason": "reason",
         }
@@ -97,3 +101,32 @@ class TestDebtFallbackNotOverwritingRealLongTermDebt:
         transformed = loader.transform([row])
 
         assert transformed[0]["long_term_debt"] == 1_259_096_000.0
+
+    def test_long_term_debt_noncurrent_fallback_populates_debt(self) -> None:
+        # CAT/SLB-style filer: real, material debt tagged only under LongTermDebtNoncurrent,
+        # never plain LongTermDebt.
+        loader = self._make_loader()
+        row = {
+            "symbol": "CAT",
+            "fiscal_year": 2025,
+            "long_term_debt_noncurrent": 30_696_000_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 30_696_000_000.0
+
+    def test_long_term_debt_and_capital_lease_obligations_fallback_populates_debt(self) -> None:
+        # XOM-style filer: real, material debt tagged only under
+        # LongTermDebtAndCapitalLeaseObligations (no "IncludingCurrentMaturities" suffix,
+        # distinct from the JPM fallback), never plain LongTermDebt.
+        loader = self._make_loader()
+        row = {
+            "symbol": "XOM",
+            "fiscal_year": 2025,
+            "long_term_debt_and_capital_lease_obligations": 34_241_000_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 34_241_000_000.0

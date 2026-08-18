@@ -310,6 +310,12 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # has been the shared "balance-sheet fallback-only fields" bucket since the JPM
         # entry above; both annual/quarterly balance configs reference it directly.
         "stockholders_equity_including_portion_attributable_to_noncontrolling_interest",
+        # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): CAT/SLB-style and
+        # XOM-style fallbacks - see sec_statements.py's get_balance_sheet() comment for the
+        # live evidence (CAT FY2025 $30.696B, SLB FY2025 $9.742B, XOM FY2025 $34.241B, none
+        # of which tag plain "LongTermDebt").
+        "long_term_debt_noncurrent",
+        "long_term_debt_and_capital_lease_obligations",
     }
 )
 
@@ -372,6 +378,10 @@ _BALANCE_FIELD_MAPPING = {
     # _DEBT_FALLBACK_ONLY_FIELDS comment above (DKNG/DASH live evidence).
     "convertible_long_term_notes_payable": "long_term_debt",
     "long_term_debt_and_capital_lease_obligations_including_current_maturities": "long_term_debt",
+    # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): see
+    # _DEBT_FALLBACK_ONLY_FIELDS comment above (CAT/SLB/XOM live evidence).
+    "long_term_debt_noncurrent": "long_term_debt",
+    "long_term_debt_and_capital_lease_obligations": "long_term_debt",
     # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
     # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
     # alone (the only debt concept fetched before this fix) misses commercial paper/short-term
