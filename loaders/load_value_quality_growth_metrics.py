@@ -1836,8 +1836,49 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         safe_float(fallback_bs_row[1], f"{symbol}.cash_and_equivalents_fallback_year", allow_none=True)
                     )
 
+            # FIX 2026-08-18 (live: ABCB/Ameris Bancorp, 110 universe symbols): unlike
+            # stockholders_equity/cash_and_equivalents just above, long_term_debt_bs never got
+            # a same-year-substitute fallback search. Banks often tag deposits/FHLB advances/
+            # subordinated debentures under concepts this pipeline doesn't map to
+            # "long_term_debt" for the current fiscal year, even though an older 10-K (still
+            # within the 3-year lookback) reports a real long_term_debt figure.
+            # total_debt_ev has no fiscal-year dimension (sec_valuations is a single
+            # latest-snapshot row), so only long_term_debt_bs can be rescued this way - only
+            # search when total_debt_ev is also absent (it remains the primary source below).
+            roic_long_term_debt = long_term_debt_bs
+            if total_debt_ev is None and long_term_debt_bs is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT long_term_debt
+                        FROM annual_balance_sheet
+                        WHERE symbol = %s AND long_term_debt IS NOT NULL
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_debt_row = cur.fetchone()
+
+                    if not fallback_debt_row:
+                        cur.execute(
+                            """
+                            SELECT long_term_debt
+                            FROM annual_balance_sheet
+                            WHERE symbol = %s AND long_term_debt IS NOT NULL
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_debt_row = cur.fetchone()
+
+                if fallback_debt_row:
+                    roic_long_term_debt = self._nan_to_none(
+                        safe_float(fallback_debt_row[0], f"{symbol}.long_term_debt_fallback_year", allow_none=True)
+                    )
+
             invested_capital = None
-            debt_for_roic = total_debt_ev if total_debt_ev is not None else long_term_debt_bs
+            debt_for_roic = total_debt_ev if total_debt_ev is not None else roic_long_term_debt
 
             if (
                 roic_stockholders_equity is not None
@@ -3136,7 +3177,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "dividend_yield_unavailable_reason": "missing_sec_data",
                 "fcf_yield_unavailable_reason": "missing_sec_data",
                 "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings",
-                "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded",
+                # FIXED 2026-08-18 (goal: "no SEC data" audit): this is the fully-unavailable
+                # fallback for symbols with NO SEC valuation data at all - every sibling reason
+                # here says "missing_sec_data" for exactly that case, but this one was still
+                # hardcoded to the specific (and usually false) claim
+                # "depreciation_amortization_not_loaded" from before the real per-symbol
+                # ev_ebitda_reason logic above (~line 800) was rewritten to distinguish
+                # unprofitable_stock/ebitda_not_extracted/missing_sec_data by actual cause.
+                # 441 rows universe-wide carried this stale, misleading label.
+                "ev_ebitda_unavailable_reason": "missing_sec_data",
                 "ev_revenue": None,
                 "ev_revenue_unavailable_reason": "missing_sec_data",
                 "market_cap": None,
