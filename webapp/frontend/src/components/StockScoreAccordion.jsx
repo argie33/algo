@@ -76,6 +76,7 @@ const formatReasonDisplay = (reason) => {
     interest_expense_not_itemized: "Interest expense not itemized",
     total_debt_not_itemized: "No debt reported (or not itemized)",
     no_revenue_reported: "Pre-revenue company",
+    stockholders_equity_not_reported: "Shareholders' equity not reported",
     foreign_20f_filer: "Foreign 20-F filer - XBRL data limited",
     bank_special_reporting: "Financial institution - alternative metrics",
     insufficient_prior_year_data: "Prior fiscal year data unavailable",
@@ -117,6 +118,8 @@ const reasonTooltips = {
     "This company hasn't reported any debt line item (long-term debt, short-term debt, or lease liabilities) in its 3 most recent fiscal years - most likely it simply carries no debt, not a data extraction gap",
   no_revenue_reported:
     "This company hasn't reported revenue in its 3 most recent fiscal years - typically a SPAC or a pre-revenue clinical-stage company, not a data extraction gap",
+  stockholders_equity_not_reported:
+    "This company hasn't reported shareholders' equity as its own line item in its 3 most recent fiscal years, not a data extraction gap",
   foreign_20f_filer: "Foreign companies filing 20-F use different XBRL data structure; full metrics extraction limited",
   bank_special_reporting: "Banks and financial institutions use specialized accounting; different metrics apply",
   insufficient_prior_year_data: "This company's prior fiscal year filing doesn't report the comparison figure needed for this trend/growth calculation",

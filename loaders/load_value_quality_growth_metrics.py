@@ -1382,6 +1382,40 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_revenue_symbols_cache = result
         return result
 
+    def _get_no_recent_stockholders_equity_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported stockholders_equity in any of their 3 most recent
+        fiscal years - i.e. debt_to_equity is structurally None for them, not a loader gap.
+
+        Live audit 2026-08-18 ("no SEC data" goal): 156 of 1,048 universe debt_to_equity
+        "missing_sec_data" rows are this case. A genuine mixed bag (unlike current_ratio's
+        bank/REIT-dominated bucket) - pharma (9), REITs (7), utilities (6), investment advice
+        (6), real estate (5) - no single entity type dominates, so this gets its own reason
+        string rather than reit_special_entity. Same "3 most recent years, not all-time
+        history" windowing as the sibling checks above. Cached for the life of this loader
+        instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_stockholders_equity_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, stockholders_equity,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(stockholders_equity) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_stockholders_equity_symbols_cache = result
+        return result
+
     def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
@@ -2730,7 +2764,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["debt_to_equity_unavailable_reason"] = (
-                "missing_sec_data" if "debt_to_equity" in failed_metrics else None
+                (
+                    "stockholders_equity_not_reported"
+                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    else "missing_sec_data"
+                )
+                if "debt_to_equity" in failed_metrics
+                else None
             )
             metrics["current_ratio_unavailable_reason"] = (
                 ("reit_special_entity" if unclassified_balance_sheet else "missing_sec_data")
