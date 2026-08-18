@@ -230,6 +230,27 @@ class CurrentReports8KLoader(SecLoaderBase):
 
                 results.append(record)
 
+            # FIX 2026-08-18 (goal: find/fix real algo+loader issues): a symbol with valid SEC
+            # submissions but zero Form 8-K filings among them (foreign private issuers file
+            # Form 6-K instead - live-confirmed on AEM/AEG/AGRO/AER/ACB, all real companies with
+            # real CIKs and real submissions) used to fall through to a bare `return results`
+            # (empty list) here, indistinguishable from "not checked yet". No row ever gets
+            # written for that symbol, so it has no watermark and gets re-fetched from scratch
+            # on every single run forever - live-confirmed via data_loader_status_history:
+            # this loader FAILED every run since 2026-08-16 (0%->12%->20%->43%->49%->83.04%
+            # completion over 2+ days, ~5h/run), and 837/4934 universe symbols have zero rows
+            # in current_reports_8k despite the loader successfully querying valid SEC data for
+            # them every time. This loader already has an _unavailable_record() mechanism built
+            # exactly for "ETF/foreign-issuer symbol with no SEC 8-K coverage" (see its own
+            # docstring) but never actually called it in this case. Only fires on `since is
+            # None` (this symbol's genuinely first-ever check, no existing watermark) so it
+            # writes the marker once, advances the watermark, and never re-marks on later
+            # incremental runs - same "before writing the marker, check for prior real coverage
+            # first" precedent as the analyst-coverage marker-masking fix
+            # (marker_masks_real_data_in_event_log_tables_bug_class_20260818).
+            if not results and since is None:
+                return self._unavailable_record(symbol, now_et, "no_8k_filings_in_recent_submissions")
+
             return results
 
         except RuntimeError:

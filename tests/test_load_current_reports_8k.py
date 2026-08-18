@@ -81,6 +81,64 @@ def test_get_filing_plaintext_called_with_dashed_accession_number() -> None:
     assert records[0]["accession_number"] == "000119312526000111"
 
 
+def test_foreign_private_issuer_with_no_8k_filings_gets_unavailable_marker_on_first_check() -> None:
+    """FIX 2026-08-18: a symbol with valid SEC submissions but zero Form 8-K filings among
+    them (foreign private issuers file Form 6-K instead, not 8-K - live-confirmed on
+    AEM/AEG/AGRO/AER/ACB, all real companies with real CIKs/submissions) used to return a
+    bare empty list here, indistinguishable from "not checked yet". No row ever got written,
+    so the symbol never got a watermark and was re-fetched from scratch every single run
+    forever - confirmed live via data_loader_status_history: this loader FAILED every run
+    since 2026-08-16, completion climbing 0%->83% over 2+ days without ever reaching the 98%
+    threshold, because 837/4934 universe symbols (mostly foreign private issuers) could never
+    accumulate a row. On the symbol's first-ever check (since=None, no existing watermark),
+    a checked-and-empty result must now write a real marker row instead.
+    """
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["6-K", "20-F", "6-K"],
+                "filingDate": ["2026-01-15", "2025-11-01", "2025-08-01"],
+                "accessionNumber": ["0001-26-000111", "0001-25-000222", "0001-25-000333"],
+            }
+        }
+    }
+
+    records = loader.fetch_incremental("AEM", since=None)
+
+    assert len(records) == 1
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "no_8k_filings_in_recent_submissions"
+    assert records[0]["accession_number"] == "UNAVAILABLE"
+
+
+def test_no_new_8k_since_existing_watermark_stays_empty_not_remarked() -> None:
+    """Companion to the first-check case above: once a symbol already has a watermark
+    (since is a real date, not None - meaning it was already checked before, whether that
+    produced a real filing or the unavailable marker above), a run that still finds no new
+    8-K must return a plain empty list, not write another marker every run. Same "before
+    writing the marker, check for prior coverage first" precedent as
+    marker_masks_real_data_in_event_log_tables_bug_class_20260818 - re-marking on every
+    incremental run would pollute the table without adding information.
+    """
+    from datetime import date
+
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["6-K"],
+                "filingDate": ["2025-08-01"],
+                "accessionNumber": ["0001-25-000333"],
+            }
+        }
+    }
+
+    records = loader.fetch_incremental("AEM", since=date(2026, 1, 1))
+
+    assert records == []
+
+
 def test_unavailable_marker_accession_number_is_not_empty_string() -> None:
     """LIVE-REPRODUCED 2026-08-16: accession_number is NOT NULL (part of the composite PK
     with symbol). BulkInsertManager's COPY path applies FORCE_NULL to every column and
