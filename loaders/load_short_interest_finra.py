@@ -24,7 +24,7 @@ import time
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
@@ -38,6 +38,27 @@ from utils.loaders.status_manager import LoaderStatusManager  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+
+def _lookup_finra_row(finra_data: dict[str, Any], symbol: str) -> dict[str, Any] | None:
+    """Look up a symbol's FINRA row, falling back to a separator-stripped alias.
+
+    FIX 2026-08-18 (goal: "no SEC data"/loader audit): FINRA's own symbolCode strips
+    class-share separators entirely instead of using our "." convention - live-confirmed
+    via the real FINRA Consolidated Short Interest API: Berkshire Hathaway Class B is
+    reported as "BRKB", not "BRK.B" (also verified for BF.B->"BFB", HEI.A->"HEIA",
+    TAP.A->"TAPA"). A plain dict lookup on our canonical "BRK.B"-style symbol always
+    missed, marking all 23 dot-suffix dual/multi-class tickers in the universe
+    (BRK.A/BRK.B, BF.A/BF.B, HEI.A, MOG.A/MOG.B, TAP.A, ...) finra_data_unavailable even
+    though FINRA reports real short-interest data for every one of them under the
+    separator-stripped form.
+    """
+    if symbol in finra_data:
+        return cast(dict[str, Any], finra_data[symbol])
+    if "." not in symbol:
+        return None
+    stripped = symbol.replace(".", "")
+    return cast(dict[str, Any], finra_data[stripped]) if stripped in finra_data else None
 
 
 class ShortInterestFinraLoader(OptimalLoader):
@@ -143,7 +164,7 @@ class ShortInterestFinraLoader(OptimalLoader):
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
-                    finra_row = finra_data.get(symbol)
+                    finra_row = _lookup_finra_row(finra_data, symbol)
                     outstanding = shares_outstanding.get(symbol)
                     record_date = settlement_date or existing_marker_dates.get(symbol, run_date)
 
