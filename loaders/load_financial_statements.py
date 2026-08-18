@@ -197,6 +197,9 @@ _INCOME_FIELD_MAPPING = {
     # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
     # above these concepts for the live-verification note).
     "income_tax_expense_benefit": "income_tax_expense",
+    # CNX-class filers (E&P/domestic-only) report pretax income under this concept instead -
+    # see sec_statements.py's get_income_statement() comment for the live-verification note.
+    "income_loss_from_continuing_operations_before_income_taxes_domestic": "pretax_income",
     "income_loss_from_continuing_operations_before_income_taxes_minority_interest_and_income_loss_from_equity_method_investments": "pretax_income",
     "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest": "pretax_income",
     **_MARKER_FIELDS,
@@ -1362,6 +1365,18 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     # Has required metrics - data is valid even if optional fields are NULL
                     row["data_unavailable"] = False
                     row["reason"] = None
+                    # FIXED 2026-08-18 (goal: "no SEC data" audit, REX American Resources
+                    # live-confirmed): filers that never tag "Liabilities" directly but do
+                    # report total_assets/stockholders_equity can have total_liabilities
+                    # derived from the balance-sheet identity Assets = Liabilities +
+                    # StockholdersEquity - not a legitimate gap, just an untagged concept.
+                    if (
+                        self.statement_type == "balance"
+                        and row.get("total_liabilities") is None
+                        and row.get("total_assets") is not None
+                        and row.get("stockholders_equity") is not None
+                    ):
+                        row["total_liabilities"] = row["total_assets"] - row["stockholders_equity"]
                 result.append(row)
 
         return result
