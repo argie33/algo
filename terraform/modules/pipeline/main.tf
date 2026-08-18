@@ -1899,7 +1899,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
               Name = "algo-analyst_earnings_estimates"
               Environment = [
                 { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
+                # FIX 2026-08-18: was 2, violating the established LOADER_PARALLELISM=1 rule for
+                # yfinance-based loaders (yfinance blocks/rate-limits at parallelism>=2). This
+                # loader is yfinance-based (Ticker.earnings_estimate, per its module docstring).
+                # The ECS task-def default (terraform/modules/loaders/main.tf) already correctly
+                # said parallelism=1 - this SFN override was silently defeating it.
+                { Name = "LOADER_PARALLELISM", Value = "1" }
               ]
             }]
           }
@@ -2050,7 +2055,13 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
               Name = "algo-enhanced_quality_growth_metrics"
               Environment = [
                 { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
+                # FIX 2026-08-18: was 2, violating the established LOADER_PARALLELISM=1 rule for
+                # yfinance-based loaders (yfinance blocks/rate-limits at parallelism>=2). This
+                # loader makes real yfinance calls (see _yfinance_call_with_timeout in
+                # loaders/load_enhanced_quality_growth_metrics.py). The ECS task-def default
+                # (terraform/modules/loaders/main.tf) already correctly said parallelism=1 -
+                # this SFN override was silently defeating it.
+                { Name = "LOADER_PARALLELISM", Value = "1" }
               ]
             }]
           }
@@ -2299,10 +2310,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       EarningsCalendar = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
-        # FIXED 2026-08-18: was 1200s (20m) - never synced with the ECS task-def timeout
-        # (terraform/modules/loaders/main.tf's "earnings_calendar", also just fixed to 7200s/
-        # 120m) or the Python-side timeout it must exceed. Matching with a 5min margin.
-        TimeoutSeconds = 7500
+        # FIXED 2026-08-18: was 1200s (20m), then 7500s (matching the pre-raise 120m Python
+        # config). Python timeout raised to 180m (see loaders/loader_timeout_config.py) after
+        # two real runs measured at 63.9m/75.3m eroded the old margin to 1.59x - re-synced
+        # here to 11100s (180m + 5min margin), same convention as the other SFN timeouts.
+        TimeoutSeconds = 11100
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2313,7 +2325,15 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
               Name = "algo-earnings_calendar"
               Environment = [
                 { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
+                # FIX 2026-08-18: was 2, violating the established LOADER_PARALLELISM=1 rule
+                # for yfinance-based loaders (yfinance blocks/rate-limits at parallelism>=2 -
+                # see MEMORY.md's analyst_loaders_reloaded_and_local_parallelism_ban_20260810).
+                # load_earnings_calendar.py is yfinance-based (Ticker.earnings_dates, per its
+                # module docstring) - confirmed local runs already correctly use
+                # LOADER_PARALLELISM=1 (scripts/local_loader_scheduler.py doesn't read this
+                # terraform-only override), so this was a dormant AWS-deploy-only landmine,
+                # not a currently-active bug (deploy is blocked by a separate AWS IAM issue).
+                { Name = "LOADER_PARALLELISM", Value = "1" }
               ]
             }]
           }

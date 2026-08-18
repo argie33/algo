@@ -612,9 +612,11 @@ locals {
     # Restored 2026-08-04 - per-symbol yfinance calls (4900 symbols @ ~0.75s/symbol = 60+ min)
     # Session 93 audit: measured 54.84 min actual, was 45m configured (9.8m shortfall)
     # Timeout: 4500s (75 min) to accommodate variance and retry overhead
-    # FIXED 2026-08-18: loader_timeout_config.py's "earnings_calendar" had since been raised
-    # to 7200s (120m) - re-synced.
-    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 7200, parallelism = 1 }
+    # FIXED 2026-08-18: loader_timeout_config.py's "earnings_calendar" raised again to
+    # 10800s (180m) after two real runs measured 63.9m/75.3m eroded the prior margin - re-synced.
+    # (parallelism=1 here was already correct - the bug was pipeline/main.tf's Step Functions
+    # override injecting LOADER_PARALLELISM=2 on top of this, fixed separately.)
+    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 1 }
 
     # ============================================================
     # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)

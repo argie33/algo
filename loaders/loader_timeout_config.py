@@ -117,7 +117,15 @@ def get_loader_timeouts() -> dict[str, int]:
         "insider_transaction_velocity": 45 * 60,  # 45 min - Alias for insider_velocity
         # Earnings calendar & SEC data
         # SESSION 99 FIX: All increased by 25-100% for SEC rate limiting
-        "earnings_calendar": 120 * 60,  # 120 min - Session 99: increased from 75m (100% margin over 54.84m measured)
+        # FIX 2026-08-18: was 120m (Session 99, based on 54.84m measured + 100% margin).
+        # Live-confirmed via logs/load_earnings_calendar_*.log: two real recent full-universe
+        # runs took 63.9m and 75.3m - the loader's OWN internal SLA monitor already flagged
+        # the 75.3m run as CRITICAL ("75.3 min elapsed (10 expected, warn at 30 min)"). Margin
+        # over the 120m timeout has eroded from Session 99's 2.19x down to 1.59x as real-world
+        # yfinance rate limiting has gotten worse over time - same trend that already forced
+        # increases on current_reports_8k (120m->300m) and dividend_data (60m->150m). Raised
+        # to 180m (2.4x margin over the worst observed run) before this one times out too.
+        "earnings_calendar": 180 * 60,  # 180 min
         "earnings_calendar_sec": 150 * 60,  # 150 min - Session 99: increased from 90m for SEC rate limiting
         "earnings_sec": 150 * 60,  # 150 min - Session 99: increased from 90m (SEC heavy, 41m base + margin)
         # FIX 2026-08-17: was 120m (Session 99), never revisited after that pass. Live run
