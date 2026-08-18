@@ -1187,6 +1187,48 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._unclassified_balance_sheet_symbols_cache = result
         return result
 
+    def _get_no_tax_concept_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported pretax_income or income_tax_expense in any of
+        their 3 most recent fiscal years.
+
+        Same "3 consecutive years missing a concept = permanent accounting-model
+        difference, not a data gap" pattern as _get_unclassified_balance_sheet_symbols
+        above (REIT/bank/insurer unclassified balance sheets). Here the structural
+        difference is a real corporate-tax exemption: Marshall-Islands/Bermuda-
+        incorporated shipping companies under IRC Section 883's tonnage-tax exemption
+        (live-confirmed: GASS/ESEA/DSX and 13 more "Marine Shipping" symbols, all
+        Greek-operated) and REITs under Subchapter M pass-through status never tag
+        IncomeTaxExpenseBenefit/pretax-income concepts because there is no income tax
+        line to report - not because the data is missing. roic_pct's effective_tax_rate
+        logic (FIXED 2026-08-09 to stop assuming a synthetic 21%/25% rate) correctly
+        refuses to guess a rate when tax concepts are absent, but that left these
+        genuinely-zero-tax filers permanently unavailable instead of computing a real
+        NOPAT = operating_income (0% effective rate) - the same "genuine business-state
+        fact, not an absent SEC concept" distinction already applied to
+        roic_pct_unprofitable just below. Cached for the life of this loader instance.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_tax_concept_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, pretax_income, income_tax_expense,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_income_statement
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(pretax_income) = 0 AND COUNT(income_tax_expense) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_tax_concept_symbols_cache = result
+        return result
+
     def _get_no_recent_interest_expense_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported interest_expense in any of their 3 most recent fiscal years.
 
@@ -1872,6 +1914,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     effective_tax_rate = candidate_rate
                 else:
                     implausible_ratio_metrics.append("roic_pct")
+            elif (
+                roic_tax_expense is None and roic_pretax_income is None and symbol in self._get_no_tax_concept_symbols()
+            ):
+                # FIX 2026-08-18 (country/industry SEC audit): see
+                # _get_no_tax_concept_symbols - a filer that has never once tagged a tax
+                # concept is structurally tax-exempt (Marine Shipping tonnage-tax filers,
+                # REITs), not missing data. NOPAT = operating_income * (1 - 0%).
+                effective_tax_rate = 0.0
 
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
             # Use total_debt_ev (from sec_valuations, 81% available) as primary source
