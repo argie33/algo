@@ -258,18 +258,33 @@ class CompanyInfoSECLoader(SecLoaderBase):
         pure_values = units["shares"]
         if not pure_values:
             return None
-        # Get most recent (most recent has latest end date)
-        latest = sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True)[0]
-        raw_val = latest.get("val")
-        # ROOT-CAUSE FIX 2026-08-16: SEC's companyfacts JSON doesn't guarantee an integer
-        # for this fact - live-confirmed CBK returns val=13701269.5, which psycopg2's COPY
-        # sends verbatim as text and Postgres's bigint parser then rejects outright
-        # ("invalid input syntax for type bigint"), crashing the whole loader run (not just
-        # skipping CBK) since the error surfaces from the COPY/upsert, well past this fetch
-        # method's own try/except. The filing-text fallback below already guards this same
-        # bigint column with int(max(plausible)) - this is the same bug class, just on the
-        # primary (non-fallback) path.
-        return round(raw_val) if raw_val is not None else None
+        # Most recent first (latest end date wins), but skip any entry below the same
+        # plausibility floor the filing-text fallback already enforces (see
+        # _MIN_PLAUSIBLE_SHARES_OUTSTANDING). FIXED 2026-08-18 (goal: "no SEC data" loader
+        # audit): FOXA's real companyfacts JSON has exactly ONE
+        # dei:EntityCommonStockSharesOutstanding entry in its entire history -
+        # {"end": "2019-03-18", "val": 1} - a real bad tag at the SEC source (should be
+        # ~570M), not a parsing bug on our side. Blindly taking values[0] accepted this
+        # garbage outlier instead of falling through to the us-gaap fallback or filing-text
+        # fallback, which would find a real value. Live-confirmed the same pattern for FOXA
+        # /FOX (val=1), HQ (val=1), QNTM (val=12), RFL (val=100) via
+        # short_interest_finra.reason='shares_outstanding_invalid'.
+        for candidate in sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True):
+            raw_val: float | int | None = candidate.get("val")
+            if raw_val is None:
+                continue
+            # ROOT-CAUSE FIX 2026-08-16: SEC's companyfacts JSON doesn't guarantee an integer
+            # for this fact - live-confirmed CBK returns val=13701269.5, which psycopg2's COPY
+            # sends verbatim as text and Postgres's bigint parser then rejects outright
+            # ("invalid input syntax for type bigint"), crashing the whole loader run (not just
+            # skipping CBK) since the error surfaces from the COPY/upsert, well past this fetch
+            # method's own try/except. The filing-text fallback below already guards this same
+            # bigint column with int(max(plausible)) - this is the same bug class, just on the
+            # primary (non-fallback) path.
+            rounded = round(raw_val)
+            if rounded > CompanyInfoSECLoader._MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                return rounded
+        return None
 
     def _fetch_shares_outstanding_from_filing_text(
         self, symbol: str, cik: str, submissions: dict[str, Any]

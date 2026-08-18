@@ -94,3 +94,52 @@ class TestSharesOutstandingGaapFallback:
         result = loader.fetch_incremental("GTLB", None)
 
         assert result[0]["shares_outstanding"] is None
+
+    def test_implausible_sole_dei_value_falls_through_to_us_gaap(self):
+        """Live-shaped FOXA fixture: dei:EntityCommonStockSharesOutstanding has exactly
+        ONE entry in its entire real companyfacts history - {"end": "2019-03-18", "val": 1}
+        - a real bad tag at the SEC source (should be ~570M), not a parsing bug on our
+        side. Blindly taking the latest (only) entry accepted this garbage outlier;
+        must instead skip it and fall through to us-gaap. Same live-confirmed pattern
+        for FOX (val=1), HQ (val=1), QNTM (val=12), RFL (val=100)."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "0001308161"
+        loader.sec_client.get_submissions.return_value = _submissions()
+        loader.sec_client.get_company_facts.return_value = {
+            "facts": {
+                "dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": [{"end": "2019-03-18", "val": 1}]}}},
+                "us-gaap": {
+                    "CommonStockSharesOutstanding": {"units": {"shares": [{"end": "2026-06-30", "val": 570_000_000}]}}
+                },
+            }
+        }
+
+        result = loader.fetch_incremental("FOXA", None)
+
+        assert result[0]["shares_outstanding"] == 570_000_000
+
+    def test_implausible_value_skipped_in_favor_of_older_plausible_one(self):
+        """Within a single fact's history, an implausible latest-dated entry must not
+        block recovery of an older, plausible one further back in the same fact."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "0001308161"
+        loader.sec_client.get_submissions.return_value = _submissions()
+        loader.sec_client.get_company_facts.return_value = {
+            "facts": {
+                "dei": {
+                    "EntityCommonStockSharesOutstanding": {
+                        "units": {
+                            "shares": [
+                                {"end": "2019-03-18", "val": 1},
+                                {"end": "2018-12-31", "val": 580_000_000},
+                            ]
+                        }
+                    }
+                },
+                "us-gaap": {},
+            }
+        }
+
+        result = loader.fetch_incremental("FOXA", None)
+
+        assert result[0]["shares_outstanding"] == 580_000_000
