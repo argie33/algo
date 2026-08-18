@@ -1098,6 +1098,30 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     if isinstance(fy, int) and fy == period_year - 1:
                         period_year = fy
 
+                # FIXED 2026-08-18 (goal: "no SEC data"/missing factor inputs audit): DEI
+                # cover-page facts (e.g. EntityCommonStockSharesOutstanding) are "as of the
+                # latest practicable date before filing" snapshots, not economic-activity
+                # facts - their own end date can be weeks to months AFTER the real fiscal
+                # year end. Live-confirmed via AAP: the FY2024 10-K's real revenue duration
+                # fact ends 2024-12-28 (bucketed fiscal_year=2024, correct), but its
+                # accompanying dei:EntityCommonStockSharesOutstanding cover-page fact is
+                # dated 2025-02-19 - 6 weeks later, crossing into the next calendar year.
+                # Bucketing by end-date year (the general rule above, justified for us-gaap/
+                # ifrs facts since SEC's fy tag conflates current-year and comparative-year
+                # data within one filing - see the "Use period end year..." comment above)
+                # created a phantom fiscal_year=2025 bucket containing ONLY this one DEI
+                # fact, sandwiched between the real FY2024 and FY2026 buckets - and every
+                # prior-year lookback in load_value_quality_growth_metrics.py keys strictly
+                # off fiscal_year-1, so this phantom bucket silently blocked EVERY
+                # *_growth_yoy/*_trend metric for the symbol (live DB scan: 120 active
+                # symbols have this exact sandwiched-incomplete-year signature). Unlike
+                # us-gaap/ifrs facts, DEI cover-page facts don't carry historical
+                # comparative-year entries (one "as of" value per filing, not a multi-year
+                # table), so entry['fy'] IS reliably the filing's real fiscal year for this
+                # source - trust it directly instead of the end-date derivation.
+                if source == "dei" and period == "annual" and isinstance(entry.get("fy"), int):
+                    period_year = entry["fy"]
+
                 key = (
                     period_year,
                     fp if period == "quarterly" else "FY",
