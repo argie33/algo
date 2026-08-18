@@ -168,11 +168,22 @@ class LoaderStatusManager:
                 # started, no data yet" signal. A fresh run has zero real progress the instant
                 # it starts; reset both fields here unconditionally so a crash before the first
                 # update_progress() call reads as 0%, not a stale echo of the last success.
+                # FIXED 2026-08-18: execution_duration_sec/symbols_per_second/http_status_code/
+                # rate_limit_quota were the last four "prior run's final stats" columns this
+                # method left untouched - same bug class already fixed above for symbols_failed/
+                # completion_pct/symbols_loaded/last_updated. Live-reproduced on current_reports_8k:
+                # a fresh RUNNING row (48.68% through, genuinely healthy) still carried
+                # symbols_per_second=409462.40 and an execution_duration_sec from whatever prior
+                # run last completed. dashboard/panels/health.py:1518-1523 renders that cell
+                # unconditionally off duration>0 with no status==RUNNING gate, so the operator
+                # dashboard showed a physically-impossible throughput for an actively-running
+                # loader. Reset all four here so a fresh run reads as "no stats yet" instead of an
+                # echo of the last one.
                 if symbol_count is not None:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW()
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW(), execution_duration_sec = NULL, symbols_per_second = NULL, http_status_code = NULL, rate_limit_quota = NULL
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, symbol_count, self.table_name),
@@ -181,7 +192,7 @@ class LoaderStatusManager:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW()
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW(), execution_duration_sec = NULL, symbols_per_second = NULL, http_status_code = NULL, rate_limit_quota = NULL
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, self.table_name),

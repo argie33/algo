@@ -1025,6 +1025,16 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
                 # diagnosable from the log file, not just a bare exit code). Writing the command
                 # and start time immediately - before blocking on the child's output - guarantees
                 # every log file carries at least that much, even for a near-instant death.
+                # FIXED 2026-08-18: log_file.write(line) below was never followed by a flush, so
+                # open()'s default ~8KB block buffering held every line in memory until the file
+                # closed at process exit. Live-reproduced on current_reports_8k: 53+ minutes into
+                # a genuinely healthy, actively-progressing run (48.68% done per
+                # data_loader_status), its per-run log file on disk still showed only the header
+                # line - indistinguishable from a hung/dead process to anyone tailing it mid-run,
+                # which defeats the whole point of writing "the full stream to a per-run log file"
+                # (2026-08-17 comment above) for live monitoring, not just post-mortem. Flush per
+                # line - these are loader progress lines (seconds-to-minutes apart), not a hot
+                # loop, so the extra syscall per line is immaterial.
                 with open(log_path, "w", encoding="utf-8") as log_file:
                     log_file.write(header)
                     log_file.flush()
@@ -1032,6 +1042,7 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
                         sys.stdout.write(line)
                         sink.append(line.rstrip("\n"))
                         log_file.write(line)
+                        log_file.flush()
                 pipe.close()
 
             assert proc.stdout is not None
