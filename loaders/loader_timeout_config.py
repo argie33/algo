@@ -109,7 +109,15 @@ def get_loader_timeouts() -> dict[str, int]:
         # Holdings & positioning
         "positioning": 30 * 60,  # 30 min - multi-source aggregation
         "positioning_metrics": 30 * 60,  # 30 min - Alias for positioning (table name in database)
-        "institutional": 15 * 60,  # 15 min - SEC Schedule 13G parsing
+        # FIX 2026-08-18: was 15*60 (900s), 3x below the real budget. "institutional" and
+        # "institutional_holdings_13f" (below) are the SAME script (loader_registry.py maps
+        # "institutional" -> load_institutional_holdings_13f.py) and the ECS task-def timeout
+        # for it is 2700s/45min (terraform/modules/loaders/main.tf), matching
+        # institutional_holdings_13f's value here - but this shorthand name (the one actually
+        # used by local_loader_scheduler.py's "reference" pipeline loader list) was never
+        # synced to it, so every run through the shorthand enforced only a 900s Python-level
+        # timeout regardless of the real 2700s budget.
+        "institutional": 45 * 60,  # 45 min - SEC Form 13F institutional holdings parsing
         "insider_holdings": 45 * 60,  # 45 min - Session 92+ fix: SEC Form 4/5 bulk downloads + backoff
         "insider_holdings_sec": 45 * 60,  # 45 min - Alias for insider_holdings
         "short_interest": 10 * 60,  # 10 min - FINRA data
