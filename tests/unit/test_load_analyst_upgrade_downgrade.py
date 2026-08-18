@@ -28,7 +28,10 @@ def _row(action_date: date, firm: str = "Some Firm") -> dict:
 class TestFetchIncremental:
     def test_no_coverage_returns_data_unavailable_marker(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
-        with patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None):
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=False),
+        ):
             result = loader.fetch_incremental("ZZZZ", since=None)
         assert len(result) == 1
         assert result[0]["symbol"] == "ZZZZ"
@@ -44,11 +47,31 @@ class TestFetchIncremental:
         'action_date'" the moment migration 1201 stopped a separate missing-governance-
         column bug from masking it first."""
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
-        with patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None):
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=False),
+        ):
             result = loader.fetch_incremental("ZZZZ", since=None)
         for key in AnalystUpgradeDowngradeLoader.primary_key:
             assert key in result[0], f"marker missing primary_key field '{key}'"
             assert result[0][key] is not None, f"marker has None for primary_key field '{key}'"
+
+    def test_empty_fetch_for_already_covered_symbol_skips_the_marker(self):
+        """FIX 2026-08-18 (goal session, "which factor inputs are missing the most" audit):
+        a symbol with real historical rows already on record (e.g. NVDA, 308 real rows) got
+        an empty fetch_analyst_actions() result on some run days - almost certainly transient
+        yfinance flakiness, not a genuine loss of coverage. Writing a fresh
+        "no_analyst_coverage" marker (action_date=today) in that case permanently wins any
+        "latest row per symbol" read since it postdates every real historical action_date,
+        wrongly making a fully-covered symbol look data-unavailable. Must return [] instead -
+        leaving the real historical rows as the visible truth - not manufacture a marker."""
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=True),
+        ):
+            result = loader.fetch_incremental("NVDA", since=date(2026, 8, 11))
+        assert result == []
 
     def test_since_none_returns_all_rows(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)

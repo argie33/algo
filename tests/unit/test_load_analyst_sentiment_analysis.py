@@ -30,13 +30,29 @@ class TestFetchIncremental:
     def test_no_coverage_returns_data_unavailable_marker(self):
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
         today = datetime.now(EASTERN_TZ).date()
-        with patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=None):
+        with (
+            patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=False),
+        ):
             result = loader.fetch_incremental("ZZZZ", since=None)
         assert len(result) == 1
         assert result[0]["symbol"] == "ZZZZ"
         assert result[0]["date"] == today
         assert result[0]["data_unavailable"] is True
         assert result[0]["data_unavailable_reason"] == "no_analyst_coverage"
+
+    def test_empty_fetch_for_already_covered_symbol_skips_the_marker(self):
+        """FIX 2026-08-18 (goal session): same masking bug class as
+        load_analyst_upgrade_downgrade.py - a symbol with a real snapshot already on record
+        getting an empty fetch today is more likely a transient hiccup than a genuine loss of
+        coverage. Must return [] instead of overwriting the "latest row" with a marker."""
+        loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
+        with (
+            patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=True),
+        ):
+            result = loader.fetch_incremental("AAPL", since=date(2020, 1, 1))
+        assert result == []
 
     def test_since_none_fetches_todays_snapshot(self):
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)

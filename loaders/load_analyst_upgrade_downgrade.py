@@ -24,6 +24,7 @@ from datetime import date
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
 from utils.external.yfinance_analyst_ratings import fetch_analyst_actions
 from utils.optimal_loader import OptimalLoader
 
@@ -78,6 +79,24 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
             rows = None
 
         if not rows:
+            # FIX 2026-08-18 (goal session, "which factor inputs are missing the most" audit):
+            # an empty fetch_analyst_actions() result used to ALWAYS write a fresh
+            # "no_analyst_coverage" marker (action_date=today), even for symbols with a long
+            # real history already in this table. Since this is an append-only event log, a
+            # marker's action_date=today() is virtually guaranteed to be >= every real
+            # historical action_date, so it permanently wins any "latest row per symbol" read
+            # (e.g. scripts/audit_unavailable_reasons.py) - live-confirmed 3,507 of 4,678
+            # "no_analyst_coverage" symbols already had real rows, including NVDA (308 real
+            # rows, continuously covered) intermittently showing an empty yfinance response on
+            # specific run days (2026-08-12/13/16) - almost certainly transient upstream
+            # flakiness, not NVDA losing analyst coverage. A symbol that has EVER had a real
+            # row is overwhelmingly more likely mid-transient-hiccup than newly uncovered, so
+            # skip the marker write for it (this run simply found nothing new - already a
+            # normal, expected outcome per this loader's own docstring) and only mark
+            # data_unavailable for symbols that have NEVER had real coverage.
+            if self._has_prior_real_coverage(symbol):
+                return []
+
             # No analyst coverage for this symbol (legitimate case, not a fetch failure)
             # None return from fetch_analyst_actions indicates no coverage
             #
@@ -108,6 +127,16 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
             rows = [r for r in rows if r["action_date"] >= since]
 
         return rows
+
+    @staticmethod
+    def _has_prior_real_coverage(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) row on record."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM analyst_upgrade_downgrade WHERE symbol = %s AND data_unavailable = false LIMIT 1",
+                (symbol,),
+            )
+            return cur.fetchone() is not None
 
 
 def main() -> int:

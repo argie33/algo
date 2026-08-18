@@ -22,6 +22,7 @@ from datetime import date, datetime
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
 from utils.external.yfinance_analyst_ratings import fetch_analyst_sentiment
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -69,6 +70,15 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
             summary = None
 
         if summary is None:
+            # FIX 2026-08-18 (goal session, "which factor inputs are missing the most" audit):
+            # same masking bug class as load_analyst_upgrade_downgrade.py - a symbol that
+            # already has real historical snapshots is overwhelmingly more likely to be a
+            # transient today-only yfinance hiccup than a genuine loss of coverage. Writing a
+            # marker for today() still overwrites the "latest row per symbol" read even though
+            # yesterday's real snapshot is untouched underneath - don't manufacture a
+            # misleading "no coverage" state for an already-covered symbol.
+            if self._has_prior_real_coverage(symbol):
+                return []
             # No analyst coverage for this symbol (legitimate case)
             return [
                 {
@@ -81,6 +91,16 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
 
         summary["date"] = today
         return [summary]
+
+    @staticmethod
+    def _has_prior_real_coverage(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) row on record."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM analyst_sentiment_analysis WHERE symbol = %s AND data_unavailable = false LIMIT 1",
+                (symbol,),
+            )
+            return cur.fetchone() is not None
 
 
 def main() -> int:
