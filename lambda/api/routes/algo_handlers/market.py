@@ -423,6 +423,40 @@ def _reaped_recently(row: dict[str, Any], now_utc: datetime) -> bool:
     return (now_utc - started) <= REAPED_SELF_HEAL_GRACE
 
 
+# Tables written directly by orchestrator phases (not by any loader). data_loader_status
+# rows for these names (where they exist at all) come from a one-time seed or a historical
+# standalone script run and are never updated again by the phases that actually own these
+# tables now - so data_loader_status is fundamentally not authoritative for freshness here,
+# regardless of whether its last_updated/row_count happen to be non-NULL. See
+# _get_data_status's use of this mapping for the bug this fixed (2026-08-18): a stale-but-
+# present data_loader_status row silently overrode a genuinely fresh table for 30+ hours.
+ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS = {
+    "algo_positions": "entry_date",
+    "algo_trades": "entry_date",
+    "algo_reconciliation_log": "reconciliation_date",
+    "algo_signals": "signal_date",
+    "circuit_breaker_status": "updated_at",  # DATE-only check_date caused up to 24h imprecision
+    "algo_performance_daily": "report_date",
+    "algo_portfolio_snapshots": "snapshot_date",
+    "algo_risk_daily": "report_date",
+    "algo_metrics_daily": "report_date",
+    "equity_curve_daily": "date",
+    "growth_metrics": "report_date",
+    "algo_orchestrator_runs": "updated_at",
+}
+
+
+def _row_needs_live_refresh(row: dict[str, Any]) -> bool:
+    """True if a data_loader_status row must be re-queried against the live table
+    before being trusted for freshness - either because it's missing values outright,
+    or because it's for a table data_loader_status is never authoritative for."""
+    return (
+        row.get("row_count") is None
+        or row.get("last_updated") is None
+        or row.get("table_name") in ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS
+    )
+
+
 @db_route_handler("fetch data status")
 @validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
@@ -615,31 +649,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # data_loader_status.row_count/last_updated are populated by loaders on run, but orchestrator-generated
         # tables (algo_positions, algo_trades, etc.) never have their counts updated by loaders.
         # This causes false "empty" status. Query actual counts and timestamps to fix display.
+        #
+        # SECOND BUG FIXED HERE (see _row_needs_live_refresh/ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS
+        # above): the above comment's premise ("NULL row_count/last_updated") isn't the only way
+        # this goes wrong. algo_trades and circuit_breaker_status both had *non-NULL but frozen*
+        # data_loader_status rows (last_updated stuck at a date-old snapshot, e.g. from a one-time
+        # seed/historical standalone run) that were never touched again because Phase 6-9 write
+        # these tables directly and never update data_loader_status. Live-confirmed 2026-08-18:
+        # circuit_breaker_status's data_loader_status row said last_updated=2026-08-17 00:00
+        # (reported "30.1h stale", tripping the critical_stale gate) while the real table had a
+        # row from 7 minutes ago.
         enriched_rows = []
         for row in loader_rows:
             tbl_name = row.get("table_name")
-            needs_refresh = row.get("row_count") is None or row.get("last_updated") is None
+            needs_refresh = _row_needs_live_refresh(row)
 
             if needs_refresh and tbl_name:
                 try:
-                    # Query timestamp column name - varies by table
-                    ts_columns = {
-                        "algo_positions": "entry_date",
-                        "algo_trades": "entry_date",
-                        "algo_reconciliation_log": "reconciliation_date",
-                        "algo_signals": "signal_date",
-                        "circuit_breaker_status": "check_date",
-                        "algo_performance_daily": "report_date",
-                        "algo_portfolio_snapshots": "snapshot_date",
-                        "algo_risk_daily": "report_date",
-                        "algo_metrics_daily": "report_date",
-                        "equity_curve_daily": "date",
-                        "growth_metrics": "report_date",
-                        "algo_orchestrator_runs": "updated_at",
-                    }
                     # Default to updated_at for tables that track update timestamps
                     # Many tables use updated_at instead of created_at
-                    ts_col = ts_columns.get(tbl_name, "updated_at")
+                    ts_col = ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS.get(tbl_name, "updated_at")
 
                     cur.execute(
                         psycopg2.sql.SQL("SELECT COUNT(*) AS cnt, MAX({}) AS last_ts FROM {}").format(
