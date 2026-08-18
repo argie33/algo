@@ -67,7 +67,7 @@ const formatReasonDisplay = (reason) => {
     short_float_data_not_calculated: "Short float metrics not calculated",
     ad_rating_not_available: "A/D rating not available",
     no_dividend_paying_stock: "Non-dividend payer",
-    reit_special_entity: "REIT/special entity - different accounting",
+    reit_special_entity: "REIT/bank/insurer - different accounting",
     foreign_20f_filer: "Foreign 20-F filer - XBRL data limited",
     bank_special_reporting: "Financial institution - alternative metrics",
     insufficient_prior_year_data: "Prior fiscal year data unavailable",
@@ -92,7 +92,8 @@ const reasonTooltips = {
   unprofitable_stock: "Metric is undefined when company has negative earnings",
   missing_price_data: "Historical price data not yet available",
   institutional_data_not_available: "Institutional holding data not available for this stock",
-  reit_special_entity: "REITs and special entities use different accounting; traditional financial metrics may not apply",
+  reit_special_entity:
+    "REITs, banks, and insurers report an unclassified balance sheet (no current/non-current split) or omit gross profit as a permanent feature of their accounting model, not a data gap - traditional ratio metrics don't apply",
   foreign_20f_filer: "Foreign companies filing 20-F use different XBRL data structure; full metrics extraction limited",
   bank_special_reporting: "Banks and financial institutions use specialized accounting; different metrics apply",
   insufficient_prior_year_data: "This company's prior fiscal year filing doesn't report the comparison figure needed for this trend/growth calculation",
