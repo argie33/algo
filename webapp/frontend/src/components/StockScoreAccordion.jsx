@@ -469,6 +469,7 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
 };
 
 export default StockScoreAccordion;
+export { QUALITY_SCHEMA, STABILITY_SCHEMA };
 
 // ─── Input Schemas ──────────────────────────────────────────────────────────
 // Ground-truthed against loaders/load_stock_scores.py and
@@ -520,7 +521,7 @@ const QUALITY_SCHEMA = [
   { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'interest_coverage',              label: 'Interest Coverage',        fmt: v => num(v, 2), used: true, weight: '~17%' },
-  { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v, 1), used: true, weight: '~17%' },
+  { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v == null ? null : v * 100, 1), used: true, weight: '~17%' },
   { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2), used: true, weight: '±3 adj' },
   { key: 'current_ratio',                  label: 'Current Ratio',            fmt: v => num(v, 2), used: true, weight: '±3 adj' },
   { key: 'quick_ratio',                    label: 'Quick Ratio',              fmt: v => num(v, 2), used: true, weight: '±3 adj' },
@@ -630,13 +631,20 @@ const POSITIONING_SCHEMA = [
 // concentration, not price-volatility/risk-of-loss signals. The debt/liquidity/cash
 // metrics moved to the Quality tab (see QUALITY_SCHEMA above); revenue_concentration_hhi
 // was dropped from scoring entirely (not a stability signal) per user request.
+// volatility_12m/60d/30d and downside_volatility_252d/60d/30d are raw fractions in the DB
+// (load_risk_metrics_daily.py's _calculate_volatility/_calculate_downside_volatility return
+// daily_std * sqrt(252), e.g. 0.15 for 15% - _score_stability's own 0.15/0.30/0.60 thresholds
+// in load_stock_scores.py confirm this), same convention as debt_to_assets above, so they need
+// the same *100 scaling pct() doesn't do itself. max_drawdown_1y is the odd one out here -
+// _calculate_max_drawdown already multiplies by 100 (returns e.g. -25.5), so it's passed
+// through as-is like the loader-pre-scaled *_pct fields in QUALITY_SCHEMA.
 const STABILITY_SCHEMA = [
-  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '40%' },
-  { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '20%' },
-  { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '15%' },
+  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '40%' },
+  { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '20%' },
+  { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '15%' },
   { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2), used: true, weight: '15%' },
-  { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2), used: true, weight: '8%' },
-  { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2), used: true, weight: '5%' },
+  { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '15%' },
+  { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '8%' },
+  { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '5%' },
   { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2), used: true, weight: '10%' },
 ];
