@@ -634,7 +634,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SectorIndustryDaily = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
+        TimeoutSeconds = 2100  # FIX 2026-08-18: synced to ECS timeout (1800s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -739,7 +739,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       NaaimSentiment = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 300
+        TimeoutSeconds = 900  # FIX 2026-08-18: synced to ECS timeout (600s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -787,7 +787,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       AaiiSentiment = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 300
+        # FIX 2026-08-18: was 300s (5m) - lower than the aaii_sentiment ECS task-def timeout
+        # itself (terraform/modules/loaders/main.tf, 600s), so this would kill the task before
+        # ECS's own timeout ever got a chance to fire. Synced to ECS timeout + 300s SFN margin.
+        TimeoutSeconds = 900  # FIX 2026-08-18: synced to ECS timeout (600s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -971,7 +974,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       MarketStatusDaily = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        TimeoutSeconds = 2100  # FIX 2026-08-18: synced to ECS timeout (1800s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1022,7 +1025,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       InsiderTransactionVelocity = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 600
+        # FIX 2026-08-18: was 600s (10m) - lower than the insider_transaction_velocity ECS
+        # task-def timeout itself (terraform/modules/loaders/main.tf, 2700s), so this would
+        # kill the task before ECS's own timeout ever got a chance to fire. Synced to ECS
+        # timeout + 300s SFN margin.
+        TimeoutSeconds = 3000  # FIX 2026-08-18: synced to ECS timeout (2700s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1396,7 +1403,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               MorningMarketStatusDaily = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 1200
+                TimeoutSeconds = 2100  # FIX 2026-08-18: synced to ECS timeout (1800s) + 300s SFN margin
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -1529,7 +1536,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       MorningSectorIndustryDaily = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
+        TimeoutSeconds = 2100  # FIX 2026-08-18: synced to ECS timeout (1800s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1672,7 +1679,10 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       SecValuations = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        # FIX 2026-08-18: was 1800s (30m) - lower than the sec_valuations ECS task-def timeout
+        # itself (terraform/modules/loaders/main.tf, 3600s), so this would kill the task before
+        # ECS's own timeout ever got a chance to fire. Synced to ECS timeout + 300s SFN margin.
+        TimeoutSeconds = 3900  # FIX 2026-08-18: synced to ECS timeout (3600s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2025,7 +2035,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       EnhancedQualityGrowthMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        # FIX 2026-08-18: was 1200s (20m) - drastically lower than the
+        # enhanced_quality_growth_metrics ECS task-def timeout itself
+        # (terraform/modules/loaders/main.tf, 18000s/300m), so this would kill the task after
+        # 6.7% of its real budget. Synced to ECS timeout + 300s SFN margin.
+        TimeoutSeconds = 18300  # FIX 2026-08-18: synced to ECS timeout (18000s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2405,7 +2419,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       InstitutionalHoldings13F = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        TimeoutSeconds = 3000  # FIX 2026-08-18: synced to ECS timeout (2700s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2455,7 +2469,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       InsiderHoldingsSec = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        # FIX 2026-08-18: was 1800s (30m) - lower than the insider_holdings_sec ECS task-def
+        # timeout itself (terraform/modules/loaders/main.tf, 2700s), so this would kill the
+        # task before ECS's own timeout ever got a chance to fire. Synced to ECS timeout +
+        # 300s SFN margin.
+        TimeoutSeconds = 3000  # FIX 2026-08-18: synced to ECS timeout (2700s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2513,7 +2531,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       InsiderTransactionVelocity = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        TimeoutSeconds = 3000  # FIX 2026-08-18: synced to ECS timeout (2700s) + 300s SFN margin
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
