@@ -623,10 +623,25 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         with DatabaseContext("read") as cur:
             for ticker, inst_shares in holdings_by_ticker.items():
                 try:
-                    # Get shares outstanding for this ticker
+                    # Get shares outstanding for this ticker. FIXED 2026-08-18 (missing
+                    # factor inputs audit, continued): closed-end funds/trusts (EFT, BGT,
+                    # BSTZ, XFLT - live-confirmed the exact CEF/trust population the
+                    # openfigi_crosswalk abbreviation-matching fix above just unblocked)
+                    # never populate company_info_sec.shares_outstanding (DEI cover-page
+                    # concept these funds don't tag the same way operating companies do),
+                    # but DO have a real, current share count in sec_valuations - live-
+                    # confirmed all 4 have real values there (12.4M-72.3M shares) despite
+                    # NULL here. Without this fallback these funds newly resolve via the
+                    # crosswalk fix only to immediately fail on this separate, unrelated
+                    # blocker instead of computing a real ownership percentage.
                     cur.execute(
-                        "SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s",
-                        (ticker,),
+                        """
+                        SELECT COALESCE(
+                            (SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s),
+                            (SELECT shares_outstanding FROM sec_valuations WHERE symbol = %s)
+                        )
+                        """,
+                        (ticker, ticker),
                     )
                     row = cur.fetchone()
 
