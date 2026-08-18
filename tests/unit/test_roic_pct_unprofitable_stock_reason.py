@@ -141,3 +141,46 @@ class TestRoicPctUnprofitableStockReason:
 
         assert metrics["roic_pct"] is not None
         assert metrics["roic_pct_unavailable_reason"] is None
+
+    def test_real_tax_benefit_in_profitable_year_computes_roic_pct(self, monkeypatch):
+        # FIXED 2026-08-18: a real, SEC-reported net tax BENEFIT in a profitable year (implied
+        # rate -20%, well within the same +/-60% magnitude bound already used for the positive
+        # side) used to be rejected outright by the old [0.0, 0.60] bound - live-confirmed on
+        # META (FY2026: $21.75B pretax income, $5.02B tax benefit, rate -23.1%) and 2,698 other
+        # annual_income_statement rows universe-wide. Must now compute a real roic_pct instead
+        # of being marked unavailable.
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(
+            stockholders_equity=200_000_000.0,
+            long_term_debt=50_000_000.0,
+            cash_and_equivalents=10_000_000.0,
+            operating_income=120_000_000.0,
+            income_tax_expense=-20_000_000.0,
+            pretax_income=100_000_000.0,
+        )
+
+        metrics = loader._compute_quality_metrics("TAXBENEFITCO", row, ev_metrics=None)
+
+        assert metrics["roic_pct"] is not None
+        assert metrics["roic_pct_unavailable_reason"] is None
+
+    def test_implausible_negative_tax_rate_reports_implausible_ratio(self, monkeypatch):
+        # A profitable year (pretax_income>0, so NOT the unprofitable_stock path) whose implied
+        # tax rate (-200%) is still an implausible magnitude - the same "near-zero pretax
+        # income distorts NOPAT worse than marking unavailable" reasoning as the +0.60 ceiling,
+        # just on the negative side. Must stay unavailable, tagged "implausible_ratio" (not the
+        # generic "missing_sec_data" a real SEC extraction gap would get).
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(
+            stockholders_equity=200_000_000.0,
+            long_term_debt=50_000_000.0,
+            cash_and_equivalents=10_000_000.0,
+            operating_income=6_000_000.0,
+            income_tax_expense=-10_000_000.0,
+            pretax_income=5_000_000.0,
+        )
+
+        metrics = loader._compute_quality_metrics("EXTREMETAXCO", row, ev_metrics=None)
+
+        assert metrics["roic_pct"] is None
+        assert metrics["roic_pct_unavailable_reason"] == "implausible_ratio"

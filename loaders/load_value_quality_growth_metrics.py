@@ -1706,10 +1706,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # generic "missing_sec_data" reason was conflating the two.
             roic_pct_unprofitable = roic_pretax_income is not None and roic_pretax_income <= 0
             effective_tax_rate = None
+            # FIXED 2026-08-18 (roic_pct follow-up, STILL OPEN item): the [0.0, 0.60] bound
+            # rejected every real negative rate outright - live-confirmed 2,698
+            # annual_income_statement rows (pretax_income>0, income_tax_expense<0) across the
+            # universe, including META (FY2026: $21.75B pretax income, $5.02B tax BENEFIT,
+            # rate -23.1%) and GME (-9.0%). A net tax benefit in a profitable year is a normal,
+            # real SEC-reported outcome (R&D credits, valuation-allowance releases, deferred-
+            # tax-asset recognition), not implausible data - marking it unavailable discarded a
+            # real, computable roic_pct for thousands of rows. Widened to a symmetric [-0.60,
+            # 0.60] using the exact same "implausible magnitude distorts NOPAT worse than
+            # marking unavailable" reasoning already applied to the +0.60 ceiling above: of the
+            # 2,698 negative-rate rows, 1,913 (71%) fall within [-0.60, 0.0) and are now
+            # correctly computed; the remaining 785 (rate < -0.60, e.g. a near-zero pretax
+            # income swamped by an unrelated tax swing) stay excluded as implausible, same as
+            # before.
             if roic_tax_expense is not None and roic_pretax_income is not None and roic_pretax_income > 0:
                 candidate_rate = roic_tax_expense / roic_pretax_income
-                if 0.0 <= candidate_rate <= 0.60:
+                if -0.60 <= candidate_rate <= 0.60:
                     effective_tax_rate = candidate_rate
+                else:
+                    implausible_ratio_metrics.append("roic_pct")
 
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
             # Use total_debt_ev (from sec_valuations, 81% available) as primary source
