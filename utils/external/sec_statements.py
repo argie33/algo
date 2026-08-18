@@ -708,6 +708,15 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # at all). Target key "payments_to_acquire_productive_assets" maps to the same
         # "capex" column - see load_financial_statements.py's field_mapping comment.
         "PaymentsToAcquireProductiveAssets",
+        # FIXED 2026-08-18 (goal: "missing SEC data" scores audit, AAON live-confirmed):
+        # AAON tagged "PaymentsToAcquireProductiveAssets" through FY2023 Q3 (2023-09-30)
+        # then switched to this concept for FY2023 Q4/10-K onward with no overlap -
+        # FY2023-FY2026 real capex ($104.3M/$195.7M/$190.6M and counting) was never
+        # fetched at all, leaving capex/free_cash_flow/fcf_yield/fcf_to_net_income NULL
+        # ("missing_sec_data") for 3+ straight fiscal years despite operating_cash_flow
+        # being populated every year. Same target key "capex" as the concepts above -
+        # see load_financial_statements.py's field_mapping comment.
+        "PaymentsToAcquireMachineryAndEquipment",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
         # same reasoning as InterestExpense above - foreign filers get NULL instead of a
         # guessed value.

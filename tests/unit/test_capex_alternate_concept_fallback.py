@@ -27,6 +27,30 @@ class TestCapexAlternateConceptFallback:
         assert target_key == "payments_to_acquire_productive_assets"
         assert _CASHFLOW_FIELD_MAPPING[target_key] == "capex"
 
+    def test_payments_to_acquire_machinery_and_equipment_maps_to_capex(self):
+        # FIXED 2026-08-18: AAON tagged "PaymentsToAcquireProductiveAssets" (the fallback
+        # above) only through FY2023 Q3, then switched to this concept for FY2023 Q4/10-K
+        # onward with zero overlap - live-confirmed via SEC companyfacts real capex
+        # ($104.3M FY2023, $195.7M FY2024, $190.6M FY2025). Neither capex concept was
+        # fetched, so free_cash_flow/fcf_yield/fcf_to_net_income were NULL
+        # ("missing_sec_data") for 3+ straight fiscal years despite a real, complete
+        # operating_cash_flow every year.
+        target_key = _to_snake("PaymentsToAcquireMachineryAndEquipment")
+        assert target_key == "payments_to_acquire_machinery_and_equipment"
+        assert _CASHFLOW_FIELD_MAPPING[target_key] == "capex"
+
+    def test_payments_to_acquire_machinery_and_equipment_is_fetched(self):
+        # A field_mapping entry alone is not enough - get_cash_flow()'s concept list must
+        # actually request the concept from SEC or the mapping never fires (the exact
+        # "mapped but unfetched" bug class test_financial_statements_field_mapping_
+        # completeness.py guards more generally).
+        import inspect
+
+        from utils.external import sec_statements
+
+        source = inspect.getsource(sec_statements.get_cash_flow)
+        assert "PaymentsToAcquireMachineryAndEquipment" in source
+
     def test_standard_capex_concept_still_maps_to_capex(self):
         # Guards against the new fallback accidentally replacing, rather than
         # supplementing, the original (and still far more common) concept.

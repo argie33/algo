@@ -439,6 +439,11 @@ _CASHFLOW_FIELD_MAPPING = {
     # the filer didn't report capex, it was NULL because this loader only looked for one
     # of two real capex tags. See sec_statements.py's get_cash_flow() concept list.
     "payments_to_acquire_productive_assets": "capex",
+    # FIXED 2026-08-18 (goal: "missing SEC data" scores audit, AAON live-confirmed): see
+    # sec_statements.py's get_cash_flow() comment on this concept - AAON (and likely other
+    # filers) switched from PaymentsToAcquireProductiveAssets to this tag starting FY2023,
+    # with zero overlap between the two, so capex was silently NULL for 3+ years.
+    "payments_to_acquire_machinery_and_equipment": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but
