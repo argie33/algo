@@ -75,8 +75,9 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
             # already has real historical snapshots is overwhelmingly more likely to be a
             # transient today-only yfinance hiccup than a genuine loss of coverage. Writing a
             # marker for today() still overwrites the "latest row per symbol" read even though
-            # yesterday's real snapshot is untouched underneath - don't manufacture a
-            # misleading "no coverage" state for an already-covered symbol.
+            # yesterday's real snapshot is untouched underneath - skip the write entirely (this
+            # run simply found nothing new, same normal outcome as the sibling loader) and only
+            # write a data_unavailable marker below for symbols that have NEVER had coverage.
             if self._has_prior_real_coverage(symbol):
                 return []
             # No analyst coverage for this symbol (legitimate case)
