@@ -968,6 +968,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         else:
             peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else None
 
+        # Fetch held_percent fields from positioning_metrics (FIXED 2026-08-18)
+        (
+            held_percent_insiders,
+            held_percent_insiders_reason,
+            held_percent_institutions,
+            held_percent_institutions_reason,
+        ) = self._fetch_positioning_metrics(symbol)
+
         # Track which fields are unavailable (Session 389). No yfinance fallback remains
         # (removed 2026-08-17 - see comment above data_source_peg/data_source_dividend), so
         # this is always "sec_audited" now regardless of which individual field is populated.
@@ -1009,8 +1017,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "market_cap_unavailable_reason": "missing_sec_data" if market_cap is None else None,
             "intrinsic_value_unavailable_reason": intrinsic_value_reason,
             "margin_of_safety_unavailable_reason": margin_of_safety_reason,
-            "held_percent_insiders_unavailable_reason": None,  # In positioning_metrics, not here
-            "held_percent_institutions_unavailable_reason": None,  # In positioning_metrics, not here
+            "held_percent_insiders": held_percent_insiders,
+            "held_percent_insiders_unavailable_reason": held_percent_insiders_reason
+            if held_percent_insiders is None
+            else None,
+            "held_percent_institutions": held_percent_institutions,
+            "held_percent_institutions_unavailable_reason": held_percent_institutions_reason
+            if held_percent_institutions is None
+            else None,
             "data_unavailable": False,
             "data_source": overall_data_source,
             "updated_at": get_loader_timestamp(),
@@ -1022,6 +1036,52 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if value is not None and isinstance(value, float) and isnan(value):
             return None
         return value
+
+    def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None, float | None, str | None]:
+        """Fetch held_percent fields from positioning_metrics.
+
+        Returns tuple of (held_percent_insiders, held_percent_insiders_reason,
+                         held_percent_institutions, held_percent_institutions_reason)
+        """
+        held_percent_insiders = None
+        held_percent_insiders_reason = None
+        held_percent_institutions = None
+        held_percent_institutions_reason = None
+
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT insider_ownership_pct, insider_ownership_pct_unavailable_reason,
+                           institutional_ownership_pct, institutional_ownership_pct_unavailable_reason
+                    FROM positioning_metrics
+                    WHERE symbol = %s
+                    ORDER BY updated_at DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                pos_row = cur.fetchone()
+
+            if pos_row:
+                held_percent_insiders = self._nan_to_none(
+                    safe_float(pos_row[0], f"{symbol}.insider_ownership_pct", allow_none=True)
+                )
+                held_percent_insiders_reason = pos_row[1]
+                held_percent_institutions = self._nan_to_none(
+                    safe_float(pos_row[2], f"{symbol}.institutional_ownership_pct", allow_none=True)
+                )
+                held_percent_institutions_reason = pos_row[3]
+        except Exception as e:
+            logger.debug(f"[VALUE_METRICS] {symbol}: Failed to fetch positioning_metrics: {e}")
+            held_percent_insiders_reason = "positioning_metrics_unavailable"
+            held_percent_institutions_reason = "positioning_metrics_unavailable"
+
+        return (
+            held_percent_insiders,
+            held_percent_insiders_reason,
+            held_percent_institutions,
+            held_percent_institutions_reason,
+        )
 
     def _get_analyst_forward_eps(self, symbol: str) -> float | None:
         """Fetch latest analyst forward EPS estimate for symbol from analyst_earnings_estimates table.
