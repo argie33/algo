@@ -168,3 +168,102 @@ class TestMortgageBondAndTrustCertificateExclusionPatterns:
         """A real mortgage REIT's plain common stock must not be caught by the new
         "mortgage bonds" pattern - it doesn't contain the literal phrase "mortgage bonds"."""
         assert not should_exclude("Annaly Capital Management, Inc. Common Stock")
+
+
+class TestAmericanDepositarySharesNotExcluded:
+    """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit): the
+    bare `\\bdepositary shares?\\b`/`\\bdep shs?\\b` patterns (added 2026-08-03 to catch
+    real preferred-stock "X% Series Y Depositary Shares" notation like ATH$D/BAC$E/
+    EQH$A) were never scoped to exclude "American Depositary Shares"/"American
+    Depositary Receipts" - the standard listing terminology for ANY foreign company's
+    US-exchange common stock (ADRs). Live-confirmed 272 real, liquid, large-cap common
+    stocks (BABA, JD, ERIC, GRFS, IQ, FUTU, HIMX, BHP, SHEL, VOD, GSK, UL, ARM, NTES,
+    PDD, SONY, and more) were silently excluded/`active=false`, starving them from the
+    entire metrics/loader pipeline. Fix: DEPOSITARY_SHARES_PATTERN/
+    AMERICAN_DEPOSITARY_PATTERN two-signal check (same shape as CORP_SPONSOR_PATTERN/
+    SPAC_SHARE_CLASS_PATTERN) - exclude only when "depositary shares" is NOT immediately
+    preceded by "American", since every confirmed real preferred depositary-share name in
+    the local DB (ATH$*, BAC$E, EQH$A, FITB$I, MET$E, MS$F, RNR$F) omits that word.
+    """
+
+    def test_alibaba_adr_not_excluded(self):
+        assert not should_exclude(
+            "Alibaba Group Holding Limited American Depositary Shares each representing eight Ordinary share"
+        )
+
+    def test_ericsson_adr_not_excluded(self):
+        assert not should_exclude("Ericsson - American Depositary Shares each representing 1 underlying Class B share")
+
+    def test_bhp_adr_not_excluded(self):
+        assert not should_exclude(
+            "BHP Group Limited American Depositary Shares (Each representing two Ordinary Shares)"
+        )
+
+    def test_lowercase_american_depositary_shares_not_excluded(self):
+        assert not should_exclude(
+            "Himax Technologies, Inc. - American depositary shares, each of which represents two ordinary shares."
+        )
+
+    def test_real_preferred_depositary_shares_still_excluded(self):
+        """EQH$A has zero "preferred"/"series"/"%" language in its stored name at all -
+        the ONLY distinguishing signal available is the absence of "American" before
+        "Depositary Shares"."""
+        assert should_exclude("Equitable Holdings, Inc. Depositary Shares")
+
+    def test_real_preferred_dep_shs_abbreviation_still_excluded(self):
+        assert should_exclude("Morgan Stanley Dep Shs Rpstg 1/1000th Int Prd Ser F Fxd to Flag")
+
+    def test_real_preferred_with_preference_share_language_still_excluded(self):
+        assert should_exclude(
+            "Athene Holding Ltd. Depositary Shares, Each Representing a 1/1,000th Interest in a "
+            "4.875% Fixed-Rate Perpetual Non-Cumulative Preference Share, Series D"
+        )
+
+    def test_american_international_group_not_falsely_matched(self):
+        """ "American" appearing elsewhere in a preferred-stock issuer's legal name (not
+        immediately adjacent to "Depositary Shares") must not accidentally exempt a real
+        preferred security - AMERICAN_DEPOSITARY_PATTERN requires strict adjacency."""
+        assert should_exclude("American International Group, Inc. Depositary Shares, Series A")
+
+    def test_global_depositary_shares_not_excluded(self):
+        """Global Depositary Shares (GDS/GDR) is the same foreign-listing mechanism as
+        ADRs under a different regional name - live-confirmed on IRS (IRSA Inversiones Y
+        Representaciones, a real $11.4B Argentine real-estate company)."""
+        assert not should_exclude(
+            "IRSA Inversiones Y Representaciones S.A. Global Depositary Shares "
+            "(Each representing ten shares of Common Stock)"
+        )
+
+
+class TestRightToReceiveAdrRatioNotExcluded:
+    """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit): the
+    bare `\\brights?\\b` EXCLUSION_PATTERNS entry (intended for real SPAC-rights
+    instruments like "... - Rights") also matched ordinary ADR-ratio prose describing the
+    underlying-share conversion ("American Depositary Shares... each representing the
+    RIGHT TO RECEIVE 20 Series B Shares"). Live-confirmed 3 real common stocks (AMX/
+    America Movil, RLX/RLX Technology, WDH/Waterdrop) wrongly excluded this way. A real
+    rights-offering ticker's name never says "right(s) to receive" - negative lookahead
+    excludes just that phrasing, not the instrument type.
+    """
+
+    def test_america_movil_adr_not_excluded(self):
+        assert not should_exclude(
+            "America Movil, S.A.B. de C.V. American Depositary Shares (each representing the right "
+            "to receive twenty (20) Series B Shares"
+        )
+
+    def test_rlx_adr_not_excluded(self):
+        assert not should_exclude(
+            "RLX Technology Inc. American Depositary Shares, each representing the right to receive one"
+        )
+
+    def test_waterdrop_adr_not_excluded(self):
+        assert not should_exclude(
+            "Waterdrop Inc. American Depositary Shares (each representing the right to receive 10 Class"
+        )
+
+    def test_real_spac_rights_suffix_still_excluded(self):
+        assert should_exclude("Artius II Acquisition Inc. - Rights")
+
+    def test_real_spac_right_singular_suffix_still_excluded(self):
+        assert should_exclude("Calisa Acquisition Corp - Right")

@@ -76,3 +76,62 @@ class TestDeactivateStaleExcludedSymbols:
 
             # Only the read call happened - DatabaseContext("write") never entered.
             assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+
+class TestReactivateNoLongerExcludedSymbols:
+    """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit):
+    the reverse direction of TestDeactivateStaleExcludedSymbols above. Once a pattern is
+    corrected to no longer match a symbol (e.g. the American-Depositary-Shares
+    false-positive fix), that symbol's `active=false` row was never revisited - excluded
+    symbols are omitted from fetch_global()'s `rows` list entirely, so the bulk-insert
+    write path's ON CONFLICT SET clause (dynamically built from row-dict keys, which
+    never include `active`) can never flip it back to true on a normal re-run.
+    """
+
+    def test_no_longer_excluded_row_gets_reactivated(self):
+        loader = _make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [
+                (
+                    "BABA",
+                    "Alibaba Group Holding Limited American Depositary Shares each representing eight Ordinary share",
+                ),
+                ("EQH$A", "Equitable Holdings, Inc. Depositary Shares"),
+            ]
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur]
+
+            loader._reactivate_no_longer_excluded_symbols()
+
+            mock_write_cur.execute.assert_called_once()
+            sql, params = mock_write_cur.execute.call_args[0]
+            assert "UPDATE stock_symbols" in sql
+            assert "active = true" in sql
+            assert params == (["BABA"],)
+
+    def test_no_recovered_matches_skips_write(self):
+        loader = _make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [("EQH$A", "Equitable Holdings, Inc. Depositary Shares")]
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._reactivate_no_longer_excluded_symbols()
+
+            # Only the read call happened - DatabaseContext("write") never entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_read_query_scoped_to_naming_pattern_reason(self):
+        """Must never touch active=false rows excluded for an unrelated, still-valid
+        reason (e.g. genuinely delisted) - only rows this loader itself deactivated."""
+        loader = _make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._reactivate_no_longer_excluded_symbols()
+
+            sql = mock_read_cur.execute.call_args[0][0]
+            assert "data_unavailable_reason = 'excluded_by_naming_pattern'" in sql

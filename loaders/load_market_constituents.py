@@ -103,10 +103,16 @@ EXCLUSION_PATTERNS = [
     # these instrument types at all). Verified against Bank Nova Scotia's known-tricky
     # "...Pfd 3 Ordinary Shares" and Apple/McCormick "...Common Stock" security_names to
     # confirm none of these new patterns false-positive on real common equity.
-    r"\brights?\b",
+    # GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): the bare
+    # \brights?\b above matched real SPAC-rights instruments ("... - Rights", "... -
+    # Right", "... Series B Right") correctly, but ALSO matched ordinary ADR-ratio prose
+    # describing the underlying-share conversion ("American Depositary Shares... each
+    # representing the RIGHT TO RECEIVE 20 Series B Shares") - live-confirmed 3 real
+    # common stocks (AMX/America Movil, RLX/RLX Technology, WDH/Waterdrop) wrongly
+    # excluded this way. A real rights-offering ticker's name never says "right(s) to
+    # receive" - negative lookahead excludes just that phrasing, not the instrument type.
+    r"\brights?\b(?!\s+to\s+receive\b)",
     r"\bwhen-issued\b",
-    r"\bdepositary shares?\b",
-    r"\bdep shs?\b",
     r"\bpfd\b.{0,20}\bser\b",
     r"\d+(\.\d+)?%\s+series\s+[a-z]\b",
     # GOVERNANCE 2026-08-18 (goal: "no SEC data"/loader-failure audit): utility first-
@@ -178,11 +184,38 @@ CORP_SPONSOR_PATTERN = re.compile(
 )
 SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.IGNORECASE)
 
+# GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): a bare
+# \bdepositary shares?\b/\bdep shs?\b pattern used to sit in EXCLUSION_PATTERNS above,
+# added 2026-08-03 to catch preferred-stock "X% Series Y Depositary Shares" notation
+# (e.g. ATH$D, BAC$E, EQH$A, FITB$I, MET$E, MS$F, RNR$F). It was never scoped to exclude
+# "American Depositary Shares"/"American Depositary Receipts" - the standard listing
+# terminology for ANY foreign company's US-exchange common stock (ADRs) - so it also
+# silently excluded 272 real, liquid, large-cap common stocks (BABA, JD, ERIC, GRFS, IQ,
+# FUTU, HIMX, BHP, SHEL, VOD, GSK, UL, ARM, NTES, PDD, SONY, and more), starving them
+# from the entire metrics/loader pipeline (data_unavailable_reason='excluded_by_naming_
+# pattern', active=false). Checked every confirmed real preferred depositary-share name
+# in the local DB (ATH$*, BAC$E, EQH$A, FITB$I, MET$E, MS$F, RNR$F): none say "American"
+# immediately before "Depositary Shares" - that word marks the ADR mechanism
+# specifically (a foreign company's shares held by a US depositary bank), distinct from
+# a US company issuing depositary shares representing its own preferred/preference
+# stock. Two-signal check (same shape as CORP_SPONSOR_PATTERN/SPAC_SHARE_CLASS_PATTERN
+# above): exclude on "depositary shares" only when NOT immediately preceded by
+# "American".
+DEPOSITARY_SHARES_PATTERN = re.compile(r"\bdepositary shares?\b|\bdep shs?\b", re.IGNORECASE)
+# Covers "Global Depositary Shares/Receipts" (GDR/GDS) too - the same foreign-listing
+# mechanism under a different regional name, live-confirmed on IRS (IRSA Inversiones Y
+# Representaciones, a real $11.4B Argentine real-estate company). Same reasoning as
+# "American" above: no real preferred depositary-share name in the local DB says
+# "Global" either.
+AMERICAN_DEPOSITARY_PATTERN = re.compile(r"\b(american|global)\s+depositary\s+(shares?|receipts?)\b", re.IGNORECASE)
+
 
 def should_exclude(name: str) -> bool:
     if any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS):
         return True
     if CORP_SPONSOR_PATTERN.search(name) and SPAC_SHARE_CLASS_PATTERN.search(name):
+        return True
+    if DEPOSITARY_SHARES_PATTERN.search(name) and not AMERICAN_DEPOSITARY_PATTERN.search(name):
         return True
     return False
 
@@ -243,6 +276,55 @@ class MarketConstituentsLoader(OptimalLoader):
                 (stale,),
             )
 
+    def _reactivate_no_longer_excluded_symbols(self) -> None:
+        """Reverse of `_deactivate_stale_excluded_symbols` - re-apply should_exclude() to
+        already-`active=false, data_unavailable_reason='excluded_by_naming_pattern'` rows
+        and flip any that a LOOSENED pattern no longer matches.
+
+        GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): the
+        deactivation direction above was already handled, but nothing handled the
+        opposite direction - once a symbol is excluded, its row is permanently omitted
+        from fetch_global()'s `rows` list (same mechanism the docstring above describes),
+        so the bulk-insert write path never touches it again even after a pattern is
+        corrected to no longer match it. Live-confirmed: the `\\bdepositary shares?\\b`
+        over-broad-pattern fix (see DEPOSITARY_SHARES_PATTERN/AMERICAN_DEPOSITARY_PATTERN
+        above) alone would NOT reactivate the 272 real ADR common stocks (BABA, JD, ERIC,
+        GRFS, IQ, FUTU, HIMX, BHP, SHEL, VOD, GSK, UL, ARM, NTES, PDD, ...) it wrongly
+        excluded - `active` is never a key in any row dict this loader produces, so
+        BulkInsertManager's dynamically-built ON CONFLICT SET clause never includes it,
+        meaning a normal re-run's UPDATE path silently can't touch the column at all.
+        Scoped to `data_unavailable_reason = 'excluded_by_naming_pattern'` specifically
+        (not blanket `active = false`) so this never touches symbols inactive for an
+        unrelated, still-valid reason (e.g. genuinely delisted).
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol, security_name FROM stock_symbols
+                WHERE active = false AND data_unavailable_reason = 'excluded_by_naming_pattern'
+                """
+            )
+            excluded_rows = cur.fetchall()
+
+        recovered = [symbol for symbol, name in excluded_rows if name and not should_exclude(name)]
+        if not recovered:
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Reactivating {len(recovered)} symbol(s) that no longer "
+            f"match should_exclude() under current patterns: {recovered[:10]}"
+            + (f" ...and {len(recovered) - 10} more" if len(recovered) > 10 else "")
+        )
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE stock_symbols
+                SET active = true, data_unavailable = false, data_unavailable_reason = NULL
+                WHERE symbol = ANY(%s)
+                """,
+                (recovered,),
+            )
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
 
@@ -259,6 +341,7 @@ class MarketConstituentsLoader(OptimalLoader):
 
         try:
             self._deactivate_stale_excluded_symbols()
+            self._reactivate_no_longer_excluded_symbols()
 
             # STEP 1: Fetch NASDAQ/NYSE symbols
             logger.info("STEP 1/3: Fetching NASDAQ/NYSE tradable symbols")
