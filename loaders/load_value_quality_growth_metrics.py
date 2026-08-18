@@ -2146,6 +2146,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # concept is structurally tax-exempt (Marine Shipping tonnage-tax filers,
                 # REITs), not missing data. NOPAT = operating_income * (1 - 0%).
                 effective_tax_rate = 0.0
+            elif roic_tax_expense == 0 and roic_pretax_income is None:
+                # FIX 2026-08-18 (missing factor inputs audit): live-confirmed on RZLT/PASG/
+                # AKTS-class filers (simple loss-making biotechs/small-caps) - they explicitly
+                # tag IncomeTaxExpenseBenefit=$0 every year but never tag any of the three
+                # pretax_income concepts sec_statements.py maps (no separate "before tax" line
+                # since with $0 tax there's nothing to reconcile). This is NOT the
+                # net_income+tax_expense approximation rejected elsewhere (verified against
+                # 50,261 rows with all three fields present: only ~75% agreement, 25% deviate
+                # due to noncontrolling interest/discontinued-ops adjustments - too imprecise
+                # to derive pretax_income itself). But effective_tax_rate = tax/pretax needs no
+                # such approximation when tax is EXACTLY 0: 0/x = 0 for any nonzero x,
+                # regardless of x's untagged value - exact algebra, not a fabricated rate.
+                # 289 universe symbols with roic_pct missing_sec_data have exactly this
+                # tax_expense=0/pretax_income=NULL combination in their most-recent-available
+                # income statement row.
+                effective_tax_rate = 0.0
 
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
             # Use total_debt_ev (from sec_valuations, 81% available) as primary source
