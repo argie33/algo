@@ -56,6 +56,20 @@ SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 # manual DB patch. Add future confirmed upstream misclassifications here.
 KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL"}
 
+# GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): same class of
+# problem as KNOWN_ETF_MISCLASSIFICATIONS above - the upstream NASDAQ/NYSE symbol
+# directory's security_name text hasn't been cleaned up since these symbols' respective
+# corporate-action settlement, so `\bwhen-issued\b` (a real, correct pattern for
+# genuinely-still-when-issued shares) keeps excluding them long after the fact.
+# Live-confirmed against TODAY's actual feed (not a cached copy): both still say
+# "...Common Stock When-Issued" despite being large, long-established, actively-traded
+# common stocks - SNDK (Sandisk Corp, spun off from Western Digital Feb 2025) and CEG
+# (Constellation Energy Corp, spun off from Exelon Feb 2022) are both far past any
+# realistic when-issued settlement window; SEC's own live submissions data
+# (data.sec.gov/submissions) registers both under their plain names with no
+# when-issued qualifier at all. Add future confirmed upstream misclassifications here.
+KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS = {"SNDK", "CEG"}
+
 EXCLUSION_PATTERNS = [
     r"\bpreferred\b",
     r"\bwarrant(s)?\b",
@@ -220,6 +234,15 @@ def should_exclude(name: str) -> bool:
     return False
 
 
+def _is_excluded(symbol: str, name: str) -> bool:
+    """should_exclude() plus the KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS override - the
+    single source of truth for exclusion decisions used by fetch_global's initial
+    write path AND both deactivate/reactivate reconciliation methods, so a symbol-level
+    override applies consistently everywhere `should_exclude` would otherwise be called
+    directly on stored/fetched text alone."""
+    return should_exclude(name) and symbol not in KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS
+
+
 class MarketConstituentsLoader(OptimalLoader):
     """Load all tradable symbols and mark S&P 500 / Russell 2000 membership."""
 
@@ -256,7 +279,7 @@ class MarketConstituentsLoader(OptimalLoader):
             cur.execute("SELECT symbol, security_name FROM stock_symbols WHERE active = true")
             active_rows = cur.fetchall()
 
-        stale = [symbol for symbol, name in active_rows if name and should_exclude(name)]
+        stale = [symbol for symbol, name in active_rows if name and _is_excluded(symbol, name)]
         if not stale:
             return
 
@@ -306,7 +329,7 @@ class MarketConstituentsLoader(OptimalLoader):
             )
             excluded_rows = cur.fetchall()
 
-        recovered = [symbol for symbol, name in excluded_rows if name and not should_exclude(name)]
+        recovered = [symbol for symbol, name in excluded_rows if name and not _is_excluded(symbol, name)]
         if not recovered:
             return
 
@@ -574,7 +597,7 @@ class MarketConstituentsLoader(OptimalLoader):
                         seen_symbols.add(sym)
                         continue
 
-                    if should_exclude(name):
+                    if _is_excluded(sym, name):
                         continue
                     if r["Test Issue"].upper() == "Y":
                         continue

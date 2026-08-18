@@ -20,7 +20,7 @@ turned out to be the more common SPAC-sponsor naming convention and its base
 
 from unittest.mock import MagicMock, patch
 
-from loaders.load_market_constituents import MarketConstituentsLoader, should_exclude
+from loaders.load_market_constituents import MarketConstituentsLoader, _is_excluded, should_exclude
 
 
 def _make_loader():
@@ -135,3 +135,33 @@ class TestReactivateNoLongerExcludedSymbols:
 
             sql = mock_read_cur.execute.call_args[0][0]
             assert "data_unavailable_reason = 'excluded_by_naming_pattern'" in sql
+
+
+class TestKnownWhenIssuedMisclassificationOverride:
+    """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit): SNDK
+    (Sandisk Corp, spun off from Western Digital Feb 2025) and CEG (Constellation Energy
+    Corp, spun off from Exelon Feb 2022) are both real, large, long-established common
+    stocks - live-confirmed against TODAY's actual NASDAQ feed (not a cached copy) that
+    it still says "...Common Stock When-Issued" for both, well past any realistic
+    when-issued settlement window (SEC's own live submissions data registers both under
+    their plain names with no when-issued qualifier). `\\bwhen-issued\\b` is a correct
+    pattern for genuinely-still-when-issued shares - this is an upstream feed data-quality
+    issue, same class as the existing KNOWN_ETF_MISCLASSIFICATIONS override, not a regex
+    bug to fix generally.
+    """
+
+    def test_sndk_when_issued_text_would_normally_be_excluded(self):
+        """Sanity check that the underlying pattern still fires - the override is what
+        exempts these specific symbols, not a change to the pattern itself."""
+        assert should_exclude("Sandisk Corporation - Common Stock When-Issued")
+
+    def test_sndk_exempted_via_known_override(self):
+        assert not _is_excluded("SNDK", "Sandisk Corporation - Common Stock When-Issued")
+
+    def test_ceg_exempted_via_known_override(self):
+        assert not _is_excluded("CEG", "Constellation Energy Corporation - Common Stock When-Issued")
+
+    def test_other_when_issued_symbols_still_excluded(self):
+        """The override is scoped to the specific known-misclassified symbols, not a
+        blanket exemption for the when-issued pattern."""
+        assert _is_excluded("XYZ", "Resideo Technologies, Inc. Common Stock When-Issued")
