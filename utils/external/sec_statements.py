@@ -345,6 +345,20 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # before "LongTermDebt" (least-preferred position, same convention as the other
         # fallbacks here) so a filer reporting the standard concept always keeps that value.
         "ConvertibleLongTermNotesPayable",
+        # FIXED 2026-08-18 (concurrent goal-session continuation): completes a mapping-only
+        # change already landed in load_financial_statements.py's _BALANCE_FIELD_MAPPING/
+        # _DEBT_FALLBACK_ONLY_FIELDS (and its regression test) that was missing the matching
+        # entry here - without a concept string in THIS list, SecEdgarClient never fetches it
+        # from SEC at all, so the mapping/test alone can never actually populate long_term_debt
+        # (same "wiring half-landed" class as the DCF branch collision, see
+        # dcf_margin_of_safety_scoring_restored_20260818 in memory). Live-confirmed via real SEC
+        # companyfacts JSON: neither CAT, SLB, nor XOM ever tags plain "LongTermDebt" - CAT
+        # reports LongTermDebtNoncurrent ($30.696B FY2025), XOM reports
+        # LongTermDebtAndCapitalLeaseObligations (distinct concept from the "...Including
+        # CurrentMaturities" JPM variant below - no "IncludingCurrentMaturities" suffix).
+        # Both fallback-only, same convention as the rest of this block.
+        "LongTermDebtNoncurrent",
+        "LongTermDebtAndCapitalLeaseObligations",
         # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM (the largest US bank by assets)
         # stopped tagging the plain "LongTermDebt" concept after FY2013 - live-confirmed
         # via its real companyfacts JSON, last "LongTermDebt" fact is 2013-12-31, every
