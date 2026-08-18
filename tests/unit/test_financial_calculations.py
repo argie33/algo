@@ -101,21 +101,26 @@ class TestPositionSizer:
         assert max_positions > 0
 
     @patch("utils.db.DatabaseContext")
-    def test_get_portfolio_value_none_config(self, mock_db, config):
-        """Verify portfolio value calculation with valid data."""
+    def test_get_portfolio_value_falls_back_to_snapshot_when_alpaca_unavailable(self, mock_db, config):
+        """FIX 2026-08-18: this test built the exact right mock scaffold (no live Alpaca
+        equity, DB falls back to a fresh portfolio snapshot) but its body was just `pass` -
+        it never actually called get_portfolio_value() or asserted anything, so it could
+        never fail regardless of what the real method did. Same "test that verifies
+        nothing" pattern as this file's tautological-skip VaR tests (see
+        TestValueAtRisk below)."""
         from algo.trading.position_sizer import PositionSizer
 
         sizer = PositionSizer(config)
 
-        # Mock alpaca equity fetch
         with patch.object(sizer, "_fetch_live_alpaca_equity", return_value=None):
             with patch.object(
                 sizer,
                 "_with_cursor",
                 return_value=(Decimal("100000"), date.today()),
             ):
-                # This would normally call the database, mocked to return fresh snapshot
-                pass
+                result = sizer.get_portfolio_value()
+
+        assert result == Decimal("100000")
 
 
 class TestPositionSizingAudit:
