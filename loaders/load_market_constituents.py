@@ -109,6 +109,25 @@ EXCLUSION_PATTERNS = [
     r"\bdep shs?\b",
     r"\bpfd\b.{0,20}\bser\b",
     r"\d+(\.\d+)?%\s+series\s+[a-z]\b",
+    # GOVERNANCE 2026-08-18 (goal: "no SEC data"/loader-failure audit): utility first-
+    # mortgage bonds and synthetic trust-certificate/repackaged-note instruments that
+    # aren't caught by any pattern above (no "preferred"/"debenture"/"subordinated"/
+    # "notes...due" in the name) - live-confirmed 14 already-active symbols in the local
+    # DB (ELC/EMP/ENJ/ENO/EAI Entergy "First Mortgage Bonds...Series due <date>"; GJH/
+    # GJO/GJP/GJR/GJS/GJT "Synthetic Fixed-Income Securities...STRATS...Certificates";
+    # KTN "...CorTS...Corporate Backed Trust Securities"; JBK "Lehman ABS...Adjustable
+    # Corp Backed Tr Certs"; PYT "PPlus Tr...Tr Ctf") flowing through
+    # value/quality/growth_metrics as if they were common equity - none of these are
+    # operating companies, so every SEC-derived factor for them was permanently
+    # "missing_sec_data" (misleadingly implying a loader bug) rather than correctly
+    # excluded. Checked against the full live active-universe security_name feed
+    # (4,932 symbols): these 6 patterns match exactly those 14 and zero others.
+    r"\bmortgage bonds?\b",
+    r"\bstrats\b",
+    r"\bcorts\b",
+    r"\bpplus\b",
+    r"\bbacked tr\.? certs?\b",
+    r"\bsynthetic fixed-income securities\b",
 ]
 
 # GOVERNANCE 2026-08-03: a bare `\binvestment corp\b` pattern used to sit in

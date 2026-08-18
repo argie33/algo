@@ -128,3 +128,43 @@ class TestInvestmentCorpSpacVsRealCompany:
 
     def test_spac_units_still_excluded(self):
         assert should_exclude("NewHold Investment Corp III - Units")
+
+
+class TestMortgageBondAndTrustCertificateExclusionPatterns:
+    """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit): utility
+    first-mortgage bonds and synthetic trust-certificate/repackaged-note instruments -
+    live-confirmed 14 already-active symbols (Entergy ELC/EMP/ENJ/ENO/EAI, GJH/GJO/GJP/
+    GJR/GJS/GJT, KTN, JBK, PYT) flowing through value/quality/growth_metrics as common
+    equity, each permanently reporting "missing_sec_data" (which reads as a loader bug)
+    instead of being excluded like every other non-equity instrument type above. None of
+    these are operating companies with SEC financial statements to fetch in the first place.
+    """
+
+    def test_entergy_first_mortgage_bonds_excluded(self):
+        assert should_exclude("Entergy Mississippi, LLC First Mortgage Bonds, 4.90% Series Due October 1, 2066")
+
+    def test_entergy_collateral_trust_mortgage_bonds_excluded(self):
+        assert should_exclude(
+            "Entergy Louisiana, Inc. Collateral Trust Mortgage Bonds, 4.875 % Series due September 1, 2066"
+        )
+
+    def test_strats_certificates_excluded(self):
+        assert should_exclude(
+            "Synthetic Fixed-Income Securities, Inc. on behalf of STRATS (SM) Trust for Dominion "
+            "Resources, Inc. Securities, Series 2005-6, Floating Rate Structured Repackaged "
+            "Asset-Backed Trust Securities (STRATS) Certificates"
+        )
+
+    def test_corts_excluded(self):
+        assert should_exclude("Structured Products Corp 8.205% CorTS 8.205% Corporate Backed Trust Securities (CorTS)")
+
+    def test_backed_tr_certs_excluded(self):
+        assert should_exclude("Lehman ABS 3.50 3.50% Adjustable Corp Backed Tr Certs GS Cap I")
+
+    def test_pplus_tr_excluded(self):
+        assert should_exclude("PPlus Tr GSC-2 Tr Ctf Fltg Rate")
+
+    def test_real_mortgage_reit_common_stock_not_excluded(self):
+        """A real mortgage REIT's plain common stock must not be caught by the new
+        "mortgage bonds" pattern - it doesn't contain the literal phrase "mortgage bonds"."""
+        assert not should_exclude("Annaly Capital Management, Inc. Common Stock")
