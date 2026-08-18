@@ -132,34 +132,27 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     )
                 else:
                     facts_obj = facts["facts"]
-                    if not isinstance(facts_obj, dict) or "dei" not in facts_obj:
-                        logger.warning(
-                            f"[{symbol}] SEC API facts missing 'dei' namespace. Shares outstanding unavailable."
+                    dei_facts = facts_obj.get("dei") if isinstance(facts_obj, dict) else None
+                    if isinstance(dei_facts, dict):
+                        shares_outstanding = self._latest_shares_value(
+                            dei_facts.get("EntityCommonStockSharesOutstanding")
                         )
-                    else:
-                        dei_facts = facts_obj["dei"]
-                        # EXPLICIT: Check EntityCommonStockSharesOutstanding existence
-                        if "EntityCommonStockSharesOutstanding" in dei_facts:
-                            shares_data = dei_facts["EntityCommonStockSharesOutstanding"]
-                            if shares_data and isinstance(shares_data, dict) and "units" in shares_data:
-                                units = shares_data["units"]
-                                if "shares" in units and isinstance(units["shares"], list):
-                                    pure_values = units["shares"]
-                                    if pure_values:
-                                        # Get most recent (most recent has latest end date)
-                                        latest = sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True)[0]
-                                        raw_val = latest.get("val")
-                                        # ROOT-CAUSE FIX 2026-08-16: SEC's companyfacts JSON doesn't
-                                        # guarantee an integer for this fact - live-confirmed CBK
-                                        # returns val=13701269.5, which psycopg2's COPY sends verbatim
-                                        # as text and Postgres's bigint parser then rejects outright
-                                        # ("invalid input syntax for type bigint"), crashing the whole
-                                        # loader run (not just skipping CBK) since the error surfaces
-                                        # from the COPY/upsert, well past this fetch method's own
-                                        # try/except. The filing-text fallback below already guards
-                                        # this same bigint column with int(max(plausible)) - this is
-                                        # the same bug class, just on the primary (non-fallback) path.
-                                        shares_outstanding = round(raw_val) if raw_val is not None else None
+                    # FIXED 2026-08-18 (goal: "no SEC data" loader audit): multi-class filers
+                    # (Alphabet: GOOG/GOOGL, and others) don't tag the single-class-assuming
+                    # dei:EntityCommonStockSharesOutstanding cover-page fact at all - live-
+                    # confirmed via Alphabet's real companyfacts JSON (CIK 0001652044): dei
+                    # namespace has zero share-count facts, only EntityPublicFloat. The real,
+                    # usable combined share count is reported instead under
+                    # us-gaap:CommonStockSharesOutstanding as a plain non-dimensional list
+                    # (same {end,val} shape) - live-confirmed 12,230,000,000 for Alphabet's
+                    # latest 2026-06-30 period. Falls back here only when dei had nothing,
+                    # same "most recent end date wins" selection as the primary path.
+                    if shares_outstanding is None:
+                        gaap_facts = facts_obj.get("us-gaap") if isinstance(facts_obj, dict) else None
+                        if isinstance(gaap_facts, dict):
+                            shares_outstanding = self._latest_shares_value(
+                                gaap_facts.get("CommonStockSharesOutstanding")
+                            )
             except FileNotFoundError:
                 # 404 on companyfacts specifically (not submissions, which already
                 # succeeded above) - some entities have valid submissions but no XBRL
@@ -239,12 +232,44 @@ class CompanyInfoSECLoader(SecLoaderBase):
 
     # Matches inline-XBRL <ix:nonFraction ... name="dei:EntityCommonStockSharesOutstanding"
     # ...>VALUE</ix:nonFraction> tags regardless of attribute order (real filings, e.g. PLNT's,
-    # put name= after unitRef=/contextRef=). Non-greedy tag-attribute match, then capture the
-    # numeric text content up to the closing tag.
+    # put name= after unitRef=/contextRef=) - the lookahead asserts the target name= attribute
+    # is present anywhere in the tag, while the capture group grabs ALL attributes (needed to
+    # also recover scale=, see FIXED 2026-08-18 below), then the numeric text content up to the
+    # closing tag.
     _INLINE_XBRL_SHARES_OUTSTANDING_RE = re.compile(
-        r'<ix:nonFraction\b[^>]*name="dei:EntityCommonStockSharesOutstanding"[^>]*>([\d,.]+)</ix:nonFraction>',
+        r'<ix:nonFraction\b(?=[^>]*name="dei:EntityCommonStockSharesOutstanding")([^>]*)>([\d,.]+)</ix:nonFraction>',
         re.IGNORECASE,
     )
+    _IX_SCALE_ATTR_RE = re.compile(r'scale="(-?\d+)"', re.IGNORECASE)
+
+    @staticmethod
+    def _latest_shares_value(fact: dict[str, Any] | None) -> int | None:
+        """Extract the most-recent-end-date share count from one XBRL fact's
+        {"units": {"shares": [{"end": ..., "val": ...}, ...]}} shape, or None if the
+        fact is absent/malformed. Shared by both the dei:EntityCommonStockSharesOutstanding
+        primary path and the us-gaap:CommonStockSharesOutstanding fallback below - same
+        selection rule (latest end date wins) and same bigint-safety rounding.
+        """
+        if not fact or not isinstance(fact, dict) or "units" not in fact:
+            return None
+        units = fact["units"]
+        if "shares" not in units or not isinstance(units["shares"], list):
+            return None
+        pure_values = units["shares"]
+        if not pure_values:
+            return None
+        # Get most recent (most recent has latest end date)
+        latest = sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True)[0]
+        raw_val = latest.get("val")
+        # ROOT-CAUSE FIX 2026-08-16: SEC's companyfacts JSON doesn't guarantee an integer
+        # for this fact - live-confirmed CBK returns val=13701269.5, which psycopg2's COPY
+        # sends verbatim as text and Postgres's bigint parser then rejects outright
+        # ("invalid input syntax for type bigint"), crashing the whole loader run (not just
+        # skipping CBK) since the error surfaces from the COPY/upsert, well past this fetch
+        # method's own try/except. The filing-text fallback below already guards this same
+        # bigint column with int(max(plausible)) - this is the same bug class, just on the
+        # primary (non-fallback) path.
+        return round(raw_val) if raw_val is not None else None
 
     def _fetch_shares_outstanding_from_filing_text(
         self, symbol: str, cik: str, submissions: dict[str, Any]
@@ -288,11 +313,25 @@ class CompanyInfoSECLoader(SecLoaderBase):
             return None
 
         values = []
-        for m in matches:
+        for attrs, raw_text in matches:
             try:
-                values.append(float(m.replace(",", "")))
+                raw_val = float(raw_text.replace(",", ""))
             except ValueError:
                 continue
+            # FIXED 2026-08-18 (goal: "no SEC data" loader audit): inline XBRL's scale=
+            # attribute means "value is expressed in 10^scale units" - live-confirmed on
+            # Alphabet's real 10-K, this cover-page fact is tagged scale="6" (millions):
+            # raw text "5,822" means 5,822,000,000 real shares, not 5,822. The un-scaled
+            # value silently failed the plausibility filter below (5,822 < 100,000) and was
+            # discarded as noise, leaving shares_outstanding NULL for a real mega-cap with
+            # the data sitting right there in the filing - same root cause almost certainly
+            # affects every other filer that reports this cover-page fact in millions rather
+            # than raw share counts (common for large-cap filers to keep the printed number
+            # compact). scale defaults to 0 (no scaling) when absent, preserving the existing
+            # correct behavior for filers like PLNT that already report raw units.
+            scale_match = self._IX_SCALE_ATTR_RE.search(attrs)
+            scale = int(scale_match.group(1)) if scale_match else 0
+            values.append(raw_val * (10**scale))
         plausible = [v for v in values if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING]
         if not plausible:
             return None
