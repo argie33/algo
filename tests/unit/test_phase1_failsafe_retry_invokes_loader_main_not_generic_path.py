@@ -81,6 +81,23 @@ class _StaleOnlyDatabaseContext:
         return False
 
 
+class _NoOpLockManager:
+    """Stands in for get_lock_manager()'s real return value (DynamoDBLockManager/
+    RDSLockManager/FileLockManager) for the retry loop's read-only is_locked() peek.
+
+    FIX (2026-08-18): without this, get_lock_manager() ran for real - no LOCAL_MODE env var
+    is set for pytest (tests/conftest.py doesn't set it), so it attempted a genuine network
+    call to DynamoDB (1s timeout x 3 attempts), then RDS, before falling back to
+    FileLockManager. Live-confirmed: real `[LOCK] Failed to acquire __lock_test__ after 1s
+    (3 attempts)` errors and a real 1440-minute threading.Timer (from setup_loader_timeout,
+    also unmocked) landing in this test's actual output - a "unit" test silently doing real
+    network I/O, adding multiple seconds of non-deterministic delay per run and contributing
+    to this file's flakiness in the wider suite."""
+
+    def is_locked(self, table_name: str) -> bool:
+        return False
+
+
 def _make_fake_loader_module(main_return=0):
     """A fake `loaders.load_prices`-like module exposing only main(), matching the shape
     the forced-main() special case expects (financial_statements/prices)."""
@@ -102,6 +119,7 @@ def _run_with_stale_etf(monkeypatch, mock_import_module, mock_status_mgr_factory
     monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _StaleOnlyDatabaseContext(cursor))
     monkeypatch.setattr(mod, "_get_expected_data_date", lambda **kwargs: (fresh, "EOD - test"))
     monkeypatch.setattr(mod, "LoaderStatusManager", mock_status_mgr_factory)
+    monkeypatch.setattr("utils.db.local_file_lock.get_lock_manager", lambda **kwargs: _NoOpLockManager())
 
     with patch("importlib.import_module", mock_import_module):
         return _check_and_refresh_local(run_date=fresh, pipeline_context="EOD", dry_run=False)
