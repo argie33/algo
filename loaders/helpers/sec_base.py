@@ -298,6 +298,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
         "cashflow": "get_cash_flow",
     }
 
+    # Column name is validated against a fixed literal set (not user/DB-supplied) before
+    # ever reaching an f-string SQL fragment - see the retry-set query above.
+    _CORE_FIELD_BY_STATEMENT_TYPE = {
+        "income": "net_income",
+        "balance": "stockholders_equity",
+        "cashflow": "operating_cash_flow",
+    }
+
     def __init__(
         self,
         statement_type: str,
@@ -566,6 +574,33 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     (symbol,),
                 )
                 unavailable_years = {r[0] for r in cur.fetchall() if r[0] is not None}
+
+                # FIX 2026-08-18 (goal: "no SEC data"/loader audit, AVAV live-confirmed):
+                # the data_unavailable=TRUE retry above only covers fiscal years marked a
+                # total failure - it does nothing for a DIFFERENT, more common shape of
+                # the same bug: a row that WAS written successfully (data_unavailable=
+                # FALSE) but is missing this statement's one load-bearing field because
+                # of an extraction gap (missing concept fallback, mid-year 10-Q instant
+                # stub, etc.) that a later fix might now close. AVAV's annual_balance_
+                # sheet FY2024-2026 rows are exactly this: real total_assets on file,
+                # data_unavailable=FALSE, yet stockholders_equity NULL every year - the
+                # 2026-08-18 d36598a2d mid-year-stub fix landed and a fresh full pipeline
+                # pass ran afterward, but AVAV's watermark had already advanced past
+                # FY2026 from an earlier run, so `fiscal_year > since_year` silently
+                # discarded these rows before the fix could ever be applied to them -
+                # same root mechanism as the data_unavailable=TRUE case above, just never
+                # marked TRUE in the first place because SOME fields did extract fine.
+                # `rows` here is always the symbol's FULL refetched history already
+                # sitting in memory (see comment above) - retrying costs zero extra SEC
+                # API calls, only an extra DB write for symbols that actually qualify.
+                core_field = self._CORE_FIELD_BY_STATEMENT_TYPE.get(self.statement_type)
+                if core_field:
+                    cur.execute(
+                        f"SELECT fiscal_year FROM {self.table_name} "
+                        f"WHERE symbol = %s AND data_unavailable = FALSE AND {core_field} IS NULL",
+                        (symbol,),
+                    )
+                    unavailable_years |= {r[0] for r in cur.fetchall() if r[0] is not None}
 
         try:
             since_year = int(since.year) if since else 2000
