@@ -257,6 +257,22 @@ _PRIMARY_STATEMENT_FORMS = {
     "6-K/A",
 }
 
+# Forms that represent a genuine fiscal-year-end annual report (as opposed to a 10-Q/6-K
+# interim filing). See the "FIXED 2026-08-18 (no-SEC-data audit continuation)" comment in
+# _aggregate_concepts for why instant (point-in-time) balance-sheet facts need this
+# narrower set: a 10-Q's balance sheet is a real, valid "as of" snapshot, but it's a
+# mid-year snapshot, not the fiscal year's actual year-end position.
+_ANNUAL_REPORT_FORMS = {
+    "10-K",
+    "10-K/A",
+    "10-KT",
+    "10-KT/A",
+    "20-F",
+    "20-F/A",
+    "40-F",
+    "40-F/A",
+}
+
 
 def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
     """Aggregate balance sheet rows from key concepts.
@@ -406,8 +422,49 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # instead of a guessed or partial sum.
         "OperatingLeaseLiability",
         "FinanceLeaseLiability",
+        # FIXED 2026-08-18 (no-SEC-data audit continuation, landed alongside a concurrent
+        # session's "LongTermDebtNoncurrent" fallback-only addition above - see that
+        # comment): live-confirmed via real SEC companyfacts JSON that PFE stopped tagging
+        # plain "LongTermDebt" after FY2020 and every 10-K since splits it into
+        # "LongTermDebtNoncurrent" ($61.641B FY2025) + "LongTermDebtCurrent" ($2.997B
+        # FY2025) instead - same real ~$64.6B debt load, just under different concepts. The
+        # Noncurrent-alone fallback above recovers most of this but understates real debt
+        # by the current-maturities portion (~5% for PFE, larger for filers with more debt
+        # maturing soon). Only "LongTermDebtCurrent" needs adding here - Noncurrent is
+        # already fetched. _fill_long_term_debt_from_noncurrent_current_split() below sums
+        # both into "long_term_debt" as a post-processing step (genuinely different
+        # aggregation than _aggregate_concepts' one-column "last value wins" merge, per the
+        # lease-liability comment above) and pops both raw keys before returning - so this
+        # step's more accurate sum always wins over the other session's Noncurrent-alone
+        # field_mapping fallback (load_financial_statements.py's _DEBT_FALLBACK_ONLY_FIELDS),
+        # which only ever sees "long_term_debt_noncurrent" if this function is bypassed.
+        "LongTermDebtCurrent",
     ]
-    return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
+    rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
+    _fill_long_term_debt_from_noncurrent_current_split(rows)
+    return rows
+
+
+def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: long_term_debt = LongTermDebtNoncurrent + LongTermDebtCurrent.
+
+    Only fires when the primary "long_term_debt" column (LongTermDebt /
+    LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities / the other fallback
+    concepts above, including "LongTermDebtNoncurrent" - fetched as a plain concept above,
+    not by this function) is still empty for that fiscal year - never overwrites a real
+    value. LongTermDebtCurrent defaults to 0 when absent (a filer with no current-portion
+    tag for that year, not necessarily zero, but the closer approximation to the real total
+    than leaving the whole figure NULL). Mutates rows in place and always strips both raw
+    keys, including "long_term_debt_noncurrent" (fetched above as a plain fallback concept
+    for a different, concurrent fix) - this function's sum is strictly more accurate, so it
+    always supersedes that field_mapping-level fallback rather than leaving both to race.
+    """
+    for row in rows:
+        noncurrent = row.pop("long_term_debt_noncurrent", None)
+        current = row.pop("long_term_debt_current", None)
+        if row.get("long_term_debt") is not None or noncurrent is None:
+            continue
+        row["long_term_debt"] = noncurrent + (current or 0)
 
 
 def get_income_statement(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -874,6 +931,28 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 and not is_major_currency
             ):
                 continue
+            # FIXED 2026-08-18 (no-SEC-data audit continuation): live-confirmed via GM and
+            # DIS - both file normal 10-Ks every year, yet annual_balance_sheet had a
+            # fiscal_year=2026 row (the current, not-yet-concluded fiscal year) with
+            # total_assets/stockholders_equity populated from a 10-Q's mid-year instant
+            # snapshot (e.g. GM: Assets end=2026-06-30, form=10-Q, val=$282.742B) while
+            # long_term_debt stayed NULL because no 10-Q that quarter re-tagged that
+            # concept. Real, complete FY2025 data (long_term_debt=$131.574B) already
+            # existed one row back, but every "ORDER BY fiscal_year DESC LIMIT 1" caller
+            # picked the incomplete FY2026 stub instead - this single pattern explains a
+            # large share of "missing_sec_data" across quality_metrics/value_metrics
+            # (debt_to_equity, interest_coverage, total_debt, roic_pct, ...), not a
+            # per-concept fallback gap. The instant-fact "prefer latest end date" logic
+            # below (test_sec_statements_instant_fact_prefers_latest_end_date.py) already
+            # established that only a true fiscal-year-end snapshot should win within a
+            # single bucket; this closes the related gap where a mid-year 10-Q snapshot
+            # creates an entirely NEW, premature bucket for a fiscal year whose 10-K
+            # hasn't been filed yet. Only suppresses 10-Q/6-K instant facts when this
+            # concept has a real annual-report history at all - quarterly-only reporters
+            # (no 10-K/20-F/40-F ever, e.g. EE) keep using their 10-Q instant facts as the
+            # only available annual data, same fallback-of-last-resort precedent as
+            # _PRIMARY_STATEMENT_FORMS above.
+            has_annual_report_form = any(e.get("form") in _ANNUAL_REPORT_FORMS for e in entries)
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
                 # whatever share unit the local filing uses - domestic 10-K/10-Q filers
@@ -937,6 +1016,20 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         span_days = None
                     if span_days is not None and span_days < 330:
                         continue  # Real single-quarter/partial-year data - not annual
+
+                # FIXED 2026-08-18 (no-SEC-data audit continuation): see the
+                # has_annual_report_form comment above this loop. An instant fact sourced
+                # from a 10-Q/6-K must not seed the annual bucket when this concept has
+                # real 10-K/20-F/40-F history - it's a genuine mid-year snapshot, not a
+                # fiscal-year-end position, and the fiscal year it falls in (derived from
+                # its own end date below) usually has no 10-K filed yet at all.
+                if (
+                    period == "annual"
+                    and not start_date
+                    and has_annual_report_form
+                    and entry.get("form") not in _ANNUAL_REPORT_FORMS
+                ):
+                    continue
 
                 if period == "annual":
                     if fp == "FY" or fp is None or fp in ("Q1", "Q2", "Q3", "Q4"):
