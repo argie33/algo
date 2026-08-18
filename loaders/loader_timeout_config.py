@@ -156,7 +156,10 @@ def get_loader_timeouts() -> dict[str, int]:
         "etf_price_weekly": 1440 * 60,  # Alias for prices (Session 99: 24h)
         "etf_price_monthly": 1440 * 60,  # Alias for prices (Session 99: 24h)
         "technical_data_daily": 30 * 60,  # Alias for technical
-        "trend_template_data": 90 * 60,  # Alias for trend_analysis
+        # FIX 2026-08-18 (loader-health review): was 90*60, diverging from trend_analysis
+        # 15*60 despite the Alias-for comment (Session 98 copy-paste slip). No live-timeout
+        # risk either way (real measured runtime ~5s), fixed for config-consistency.
+        "trend_template_data": 15 * 60,  # Alias for trend_analysis
         "stock_symbols": 10 * 60,  # Alias for constituents
         "etf_symbols": 10 * 60,  # Alias for constituents
         "economic_data": 10 * 60,  # Alias for economic

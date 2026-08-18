@@ -215,7 +215,16 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
       # CRITICAL LOADER (FAIL-CLOSED): Must succeed or entire pipeline halts.
       # parallelism=1, batch=100, cpu=2048: ~5.5min expected (serial execution to prevent rate limiting)
-      # Timeout hierarchy: ECS container timeout (25200=7h) < Step Functions state timeout (21600=6h)
+      # Timeout hierarchy: Step Functions state timeout (86700=24h5m) > ECS/LOADER_TIMEOUT
+      # internal self-enforcement (86400=24h) - +300s SFN margin, same convention as
+      # current_reports_8k/dividend_data (18d0d2021).
+      #
+      # FIX 2026-08-18 (terraform-vs-python drift sweep): this was 21600s (6h), stale
+      # against the Python prices timeout (raised to 1440m/24h by Session 99 after
+      # live-measuring 19+h actual runtime under yfinance rate-limiting slowdown). A
+      # real full-EOD run would get killed by this SFN timeout every attempt regardless
+      # of the container internal timeout - same drift already fixed for
+      # current_reports_8k/dividend_data.
       #
       # ISSUE #1 FIX: Removed graceful degradation. If stock_prices_daily fails after retries,
       # the entire pipeline halts loudly so we know about the failure and can fix it,
@@ -228,7 +237,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 21600
+        TimeoutSeconds = 86700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -305,7 +314,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TrendTemplate = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 5400
+                # FIX 2026-08-18: was 5400s (matching pre-fix ECS timeout) - synced to
+                # 1200s (900s ECS timeout + 300s SFN margin). Real measured runtime ~5s.
+                TimeoutSeconds = 1200
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
