@@ -94,6 +94,31 @@ def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
     return "missing_sec_data"
 
 
+def intrinsic_value_reason_from_fcf_yield(fcf_yield: float | None) -> str:
+    """Decide why intrinsic_value_per_share (the DCF result) is unavailable when it's NULL.
+
+    FIXED 2026-08-18 (goal session, value_metrics audit): this was collapsed to
+    "missing_cash_flow_data" if fcf_yield is None else "implausible_dcf_result" on the
+    assumption that fcf_yield being present implied FCF was positive - but fcf_yield only
+    requires being within [-1000%, 1000%] of market cap, not being positive, and
+    load_sec_valuations.py's _compute_dcf_intrinsic_value's very first gate is `fcf <= 0`
+    (the 2-stage FCFE model can't discount a company that burned cash that year). Live audit:
+    100% of the 2184 implausible_dcf_result rows (2177 negative + 7 zero) had fcf_yield <= 0 -
+    same "not applicable" class as unprofitable_stock/non_dividend_paying_stock elsewhere in
+    this file, not a genuinely implausible computed result.
+
+    Args:
+        fcf_yield: sec_valuations.fcf_yield for this symbol (same sign as the FCF that fed
+            the DCF, since both derive from the same ocf - capex over the same positive
+            market_cap).
+    """
+    if fcf_yield is None:
+        return "missing_cash_flow_data"
+    if fcf_yield <= 0:
+        return "negative_free_cash_flow"
+    return "implausible_dcf_result"
+
+
 # GOVERNANCE: quality/growth metrics previously stamped updated_at=today() regardless of
 # how old the underlying SEC fiscal-year data was - verified live examples scoring stocks
 # off 13-17 year old financials as if freshly updated (LPL/SID fiscal_year 2009-2012). The
@@ -790,16 +815,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         # intrinsic_value_per_share reason: sec_valuations doesn't persist raw OCF/CapEx, only
         # the fcf_yield ratio derived from them - reuse it as the same "is FCF usable" signal
-        # load_sec_valuations.py's DCF itself gates on (FCF must be positive), same educated-
-        # inference-from-an-adjacent-field pattern as ev_ebitda_reason above. A missing/
-        # unusable EPS growth rate does NOT block the DCF (_compute_dcf_intrinsic_value
-        # defaults it to flat 0%/yr), so if fcf_yield IS present but intrinsic_value_per_share
-        # is still NULL, the only remaining cause is the DCF's implausible-result rejection
-        # (e.g. a tiny share count blowing the per-share value past MAX_INTRINSIC_VALUE_PER_SHARE).
-        if intrinsic_value_per_share is None:
-            intrinsic_value_reason = "missing_cash_flow_data" if fcf_yield is None else "implausible_dcf_result"
-        else:
-            intrinsic_value_reason = None
+        # load_sec_valuations.py's DCF itself gates on, same educated-inference-from-an-
+        # adjacent-field pattern as ev_ebitda_reason above. See
+        # intrinsic_value_reason_from_fcf_yield() for the 2026-08-18 fix history.
+        intrinsic_value_reason = (
+            intrinsic_value_reason_from_fcf_yield(fcf_yield) if intrinsic_value_per_share is None else None
+        )
         if margin_of_safety_pct is None:
             margin_of_safety_reason = (
                 intrinsic_value_reason if intrinsic_value_per_share is None else "missing_sec_data"
@@ -2798,8 +2819,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              net_income_growth_yoy, operating_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              earnings_surprise_avg, eps_growth_stability, earnings_beat_rate, consecutive_positive_quarters,
-             estimate_revision_direction, revision_activity_30d, estimate_momentum_60d, estimate_momentum_90d,
-             revision_trend_score, earnings_growth_4q_avg,
+             earnings_growth_4q_avg,
              roe_unavailable_reason, roa_unavailable_reason, operating_margin_unavailable_reason, net_margin_unavailable_reason,
              debt_to_equity_unavailable_reason, current_ratio_unavailable_reason, quick_ratio_unavailable_reason,
              interest_coverage_unavailable_reason, debt_to_assets_unavailable_reason, quality_score_unavailable_reason,
@@ -2811,10 +2831,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              gross_margin_trend_unavailable_reason, operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason,
              roe_trend_unavailable_reason, sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason,
              fcf_growth_yoy_unavailable_reason, ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
-             estimate_revision_direction_unavailable_reason, revision_activity_30d_unavailable_reason,
-             estimate_momentum_60d_unavailable_reason, estimate_momentum_90d_unavailable_reason,
-             revision_trend_score_unavailable_reason, earnings_growth_4q_avg_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             earnings_growth_4q_avg_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -2843,11 +2861,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_stability = EXCLUDED.eps_growth_stability,
                 earnings_beat_rate = EXCLUDED.earnings_beat_rate,
                 consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
-                estimate_revision_direction = EXCLUDED.estimate_revision_direction,
-                revision_activity_30d = EXCLUDED.revision_activity_30d,
-                estimate_momentum_60d = EXCLUDED.estimate_momentum_60d,
-                estimate_momentum_90d = EXCLUDED.estimate_momentum_90d,
-                revision_trend_score = EXCLUDED.revision_trend_score,
                 earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg,
                 gross_margin = EXCLUDED.gross_margin,
                 roic_pct = EXCLUDED.roic_pct,
@@ -2896,11 +2909,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fcf_growth_yoy_unavailable_reason = EXCLUDED.fcf_growth_yoy_unavailable_reason,
                 ocf_growth_yoy_unavailable_reason = EXCLUDED.ocf_growth_yoy_unavailable_reason,
                 asset_growth_yoy_unavailable_reason = EXCLUDED.asset_growth_yoy_unavailable_reason,
-                estimate_revision_direction_unavailable_reason = EXCLUDED.estimate_revision_direction_unavailable_reason,
-                revision_activity_30d_unavailable_reason = EXCLUDED.revision_activity_30d_unavailable_reason,
-                estimate_momentum_60d_unavailable_reason = EXCLUDED.estimate_momentum_60d_unavailable_reason,
-                estimate_momentum_90d_unavailable_reason = EXCLUDED.estimate_momentum_90d_unavailable_reason,
-                revision_trend_score_unavailable_reason = EXCLUDED.revision_trend_score_unavailable_reason,
                 earnings_growth_4q_avg_unavailable_reason = EXCLUDED.earnings_growth_4q_avg_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
@@ -2952,11 +2960,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_stability"),
                 row.get("earnings_beat_rate"),
                 row.get("consecutive_positive_quarters"),
-                row.get("estimate_revision_direction"),
-                row.get("revision_activity_30d"),
-                row.get("estimate_momentum_60d"),
-                row.get("estimate_momentum_90d"),
-                row.get("revision_trend_score"),
                 row.get("earnings_growth_4q_avg"),
                 row.get("roe_unavailable_reason"),
                 row.get("roa_unavailable_reason"),
@@ -2993,11 +2996,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("fcf_growth_yoy_unavailable_reason"),
                 row.get("ocf_growth_yoy_unavailable_reason"),
                 row.get("asset_growth_yoy_unavailable_reason"),
-                row.get("estimate_revision_direction_unavailable_reason"),
-                row.get("revision_activity_30d_unavailable_reason"),
-                row.get("estimate_momentum_60d_unavailable_reason"),
-                row.get("estimate_momentum_90d_unavailable_reason"),
-                row.get("revision_trend_score_unavailable_reason"),
                 row.get("earnings_growth_4q_avg_unavailable_reason"),
             ),
         )

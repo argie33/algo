@@ -79,6 +79,10 @@ const formatReasonDisplay = (reason) => {
     insufficient_eps_growth_datapoints: "Not enough EPS comparisons for a trend",
     growth_undefined_sign_change: "Growth undefined (profit/loss swing)",
     implausible_ratio: "Value excluded as implausible",
+    negative_free_cash_flow: "Company burned cash (negative FCF)",
+    missing_cash_flow_data: "Cash flow data unavailable",
+    implausible_dcf_result: "Value excluded as implausible",
+    negative_earnings_growth: "Earnings growth declining or negative",
   };
   return reasonMap[reason] || reason;
 };
@@ -99,6 +103,10 @@ const reasonTooltips = {
   insufficient_prior_year_data: "This company's prior fiscal year filing doesn't report the comparison figure needed for this trend/growth calculation",
   growth_undefined_sign_change: "This company's earnings switched between profit and loss across the comparison period - a compound annual growth rate is not mathematically meaningful across a sign change, regardless of how much history is available",
   implausible_ratio: "The underlying data is present but produces a ratio far outside plausible bounds (e.g. a near-zero denominator or reporting inconsistency), so it was excluded rather than shown as a misleading number",
+  negative_free_cash_flow: "This company had negative free cash flow (operating cash flow minus capital expenditures) in its most recent fiscal year - a discounted cash flow valuation isn't meaningful for a company burning cash, so no intrinsic value is shown rather than a misleading negative one",
+  missing_cash_flow_data: "Operating cash flow or capital expenditure data required for this calculation is not available in SEC filings for this company",
+  implausible_dcf_result: "The discounted cash flow model produced a per-share value far outside plausible bounds, so it was excluded rather than shown as a misleading number",
+  negative_earnings_growth: "This company's earnings declined or went negative year-over-year, so a PEG ratio (which divides by earnings growth) is not meaningful",
 };
 
 const FACTORS = [
