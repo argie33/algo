@@ -70,14 +70,20 @@ def test_exclude_etfs_query_excludes_data_unavailable(monkeypatch) -> None:
     _reset_cache()
 
 
-def test_exclude_etfs_query_does_not_reference_nonexistent_etf_column(monkeypatch) -> None:
-    """Regression test for the 2026-08-03 fix: stock_symbols.etf was never created by any
-    migration or schema.sql, so the exclude_etfs=True branch's `(etf IS NULL OR etf = 'N')`
-    clause raised UndefinedColumn unconditionally - live-confirmed against a real DB with
-    active/data_unavailable already present. Also dead weight even where the column did
-    exist: load_market_constituents.py diverts real ETFs into a separate etf_symbols table
-    before any row reaches stock_symbols, hardcoding etf="N" for the rest - so the clause
-    could only ever evaluate true.
+def test_exclude_etfs_query_filters_on_etf_column(monkeypatch) -> None:
+    """Regression test for the 2026-08-18 fix (goal: "no SEC data"/loader audit),
+    superseding the 2026-08-03 test this replaces.
+
+    The 2026-08-03 premise - that stock_symbols.etf never holds anything but 'N', so
+    checking it is dead weight - is disproven by live data: 5 stock_symbols rows (SPY,
+    QQQ, IWM, AGG, EFA - major, heavily-followed ETFs) have etf='true', not 'N' or NULL.
+    None of their names match the security_name regex below (e.g. "SPDR S&P 500 ETF
+    Trust"), so with no etf-column check they passed straight through
+    get_active_symbols(exclude_etfs=True) and generated spurious missing_sec_data/
+    no-filing rows in loaders that need real stocks only - symbols that structurally
+    never file 10-Ks/Form 4s/13Fs. Re-added as defense-in-depth rather than extending the
+    regex - "Trust"/"Fund" are too generic and would false-positive-exclude real
+    operating companies (e.g. "Digital Realty Trust").
     """
     _reset_cache()
     fake_ctx = _FakeDatabaseContext(rows=[("AAPL",)])
@@ -87,5 +93,6 @@ def test_exclude_etfs_query_does_not_reference_nonexistent_etf_column(monkeypatc
 
     sql = fake_ctx._cursor.last_sql
     assert sql is not None
-    assert "etf" not in sql
+    assert "etf" in sql
+    assert "'true'" in sql
     _reset_cache()

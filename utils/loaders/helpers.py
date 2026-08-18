@@ -169,10 +169,28 @@ def get_active_symbols(
                         # land in stock_symbols - so the clause could only ever evaluate
                         # true. Removing it is a no-op on the result set, not a behavior
                         # change.
+                        # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): that "always
+                        # N" premise no longer holds - live-confirmed 5 stock_symbols rows
+                        # (SPY, QQQ, IWM, AGG, EFA - major, heavily-followed ETFs) with
+                        # etf='true', not 'N' or NULL (5,598 rows are 'N', 17 are NULL - these
+                        # 5 are the only non-'N' values in the whole table). Real cause not
+                        # fully traced (load_market_constituents.py's own diversion path never
+                        # writes anything but "N" for a stock_symbols row), but regardless of
+                        # how they got there, they were passing straight through this filter
+                        # since none of their names ("SPDR S&P 500 ETF Trust", "Invesco QQQ
+                        # Trust", ...) match the regex above - generating spurious
+                        # missing_sec_data/no-filing rows for symbols that structurally never
+                        # file 10-Ks/Form 4s/13Fs. Re-added the etf-column check as
+                        # defense-in-depth (cheap: it's already indexed as part of the same
+                        # row) rather than extending the regex - "Trust"/"Fund" are too
+                        # generic and would false-positive-exclude real operating companies
+                        # (e.g. "Digital Realty Trust"), the same mistake the two regex
+                        # post-mortems above already document for this exact clause.
                         sql = """
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
                               AND data_unavailable IS NOT TRUE
+                              AND (etf IS NULL OR etf != 'true')
                               AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\b'
                             ORDER BY symbol
                         """
