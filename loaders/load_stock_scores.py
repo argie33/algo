@@ -2144,13 +2144,21 @@ class StockScoresLoader(OptimalLoader):
         # MACD: sign only, not magnitude. MACD's raw value scales with the stock's price
         # level (a MACD of 2 means something different for a $10 stock vs a $500 stock), so
         # magnitude isn't comparable across symbols - use it purely as a bull/bear trend
-        # confirmation signal. Use macd_line (added Phase 1).
-        macd = metrics.get("macd_line")
-        if macd is None:
-            # Fallback for backward compatibility - log when old field is used
-            macd = metrics.get("macd")
-            if macd is not None:
-                logger.warning(f"[STOCK_SCORES] Using legacy 'macd' field for {symbol} - prefer 'macd_line'")
+        # confirmation signal.
+        #
+        # FIX 2026-08-18 (loader-health review, log-noise sweep): a prior commit speculatively
+        # preferred a "macd_line" field, anticipating a migration that never actually happened
+        # on this table - _prepare_batch_context()'s own query (~line 402-406) selects
+        # "rsi_14, macd, sma_50, sma_200, close" from technical_data_daily and nothing else,
+        # so metrics.get("macd_line") was provably always None, 100% of the time, for every
+        # symbol, every run. (technical_data_daily has no macd_line column at all - a
+        # same-named column DOES exist, but on a different table, momentum_metrics, added by
+        # an unrelated migration 119 - not the same computation, not queried here.) The
+        # resulting "legacy field" warning fired on ~4926/4930 symbols every single
+        # stock_scores run - not a rare backward-compat path, pure log noise masking real
+        # warnings, with zero effect on the actual score (this WAS already the only value
+        # ever used). Reverted to using "macd" directly.
+        macd = metrics.get("macd")
         if macd is not None:
             macd_score = 70.0 if macd > 0 else 30.0 if macd < 0 else 50.0
             weighted_sum += macd_score * 0.10
