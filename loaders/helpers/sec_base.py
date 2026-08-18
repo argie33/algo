@@ -538,13 +538,42 @@ class SecEdgarStatementLoader(SecLoaderBase):
             self.statement_type,
         )
 
+        # FIX 2026-08-18 (goal: "no SEC data"/loader audit, NVO live-confirmed): the
+        # watermark-exclusion fix (2026-08-10, see watermark_from_rows() above) stops the
+        # watermark from advancing TO a still-unavailable fiscal year, but does nothing
+        # once a LATER year succeeds and advances the watermark past it - this filter's
+        # blunt "fiscal_year > since_year" then permanently excludes every older fiscal
+        # year from ever being reprocessed again, including ones still marked
+        # data_unavailable that a later concept-list fix (IFRS alias, fallback concept,
+        # etc.) might now be able to fill. `rows` here is always the symbol's FULL
+        # refetched history (get_income_statement/get_balance_sheet/get_cash_flow don't
+        # accept a date cutoff), so the real data to retry is already present in-memory -
+        # it was just being thrown away. Live-confirmed: NVO's 2015-2021 annual_income_
+        # statement rows had real, correct revenue/net_income values already stored
+        # (from some earlier successful fetch) yet stayed data_unavailable=TRUE forever
+        # once 2022+ advanced the watermark past them - 486 rows across all 6 statement
+        # tables found in this same contradictory state (repaired directly, this fix
+        # stops the backlog from re-accumulating). Retry any fiscal year still marked
+        # unavailable in the DB regardless of the watermark cutoff, same as a fiscal year
+        # newer than the watermark.
+        unavailable_years: set[int] = set()
+        if since is not None and self.is_symbol_based:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT fiscal_year FROM {self.table_name} WHERE symbol = %s AND data_unavailable = TRUE",
+                    (symbol,),
+                )
+                unavailable_years = {r[0] for r in cur.fetchall() if r[0] is not None}
+
         try:
             since_year = int(since.year) if since else 2000
             filtered = []
             for r in rows:
                 if "fiscal_year" not in r or r["fiscal_year"] is None:
                     raise ValueError(f"Row missing required 'fiscal_year' field: {r}.")
-                if r["fiscal_year"] > since_year:
+                if r["fiscal_year"] > since_year or r["fiscal_year"] in unavailable_years:
                     filtered.append(r)
         except (ValueError, ZeroDivisionError, TypeError) as e:
             # Genuine data-integrity problem (e.g. malformed row), not the "no facts
