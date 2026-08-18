@@ -17,6 +17,18 @@ from utils.loaders.transient_errors import TransientAPIError
 if not logging.root.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=None)
 
+# yfinance logs "expected, already-handled" outcomes (e.g. "No earnings dates found, symbol
+# may be delisted") at ERROR level internally via its own logger instead of raising - our
+# loaders already treat these as normal, non-fatal outcomes via return-value checks (e.g.
+# load_earnings_calendar.py's `rows is None` -> "no_earnings_coverage", not a crash). Left
+# unsuppressed, this single message alone produced 4,210 ERROR lines in one scheduler log
+# (vs <50 for every other message combined - live-confirmed via logs/scheduler_invocations.log),
+# drowning out genuinely actionable ERROR lines (e.g. real watermark-staleness alerts) in
+# every log review. Real yfinance failures (timeouts, network errors) already raise Python
+# exceptions that our own loader code catches and logs independently - this only silences
+# yfinance's redundant internal narration of conditions we already handle.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
 logger = logging.getLogger(__name__)
 
 
