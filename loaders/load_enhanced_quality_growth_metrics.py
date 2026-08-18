@@ -180,11 +180,12 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             for symbol in symbols:
                 # Calculate since_date from backfill_days (matching parent behavior)
                 from datetime import datetime, timedelta
-                from datetime import timezone as tz
+
+                from utils.infrastructure.timezone import EASTERN_TZ
 
                 since_date = None
                 if self._backfill_days > 0:
-                    since_date = datetime.now(tz.utc).date() - timedelta(days=self._backfill_days)
+                    since_date = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
                 else:
                     # Use watermark for incremental loading
                     since_date = self._watermark.get_current_watermark(symbol=symbol)
@@ -204,7 +205,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 # Skipping symbols the watermark already shows as done today lets a same-day
                 # retry resume instead of restarting the entire universe from scratch.
                 watermark_current = (
-                    since_date is not None and self._backfill_days <= 0 and since_date >= datetime.now(tz.utc).date()
+                    since_date is not None
+                    and self._backfill_days <= 0
+                    and since_date >= datetime.now(EASTERN_TZ).date()
                 )
                 if watermark_current:
                     # PROGRESS-UPDATE FIX 2026-08-17: this branch must NOT `continue` past the
@@ -460,11 +463,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         # guard (utils/data/watermark.py) never applies here - this is a same-day completion
         # marker, not a trading-calendar date advance.
         from datetime import datetime as _datetime
-        from datetime import timezone as _timezone
 
-        self._watermark.advance_watermark(
-            new_watermark=_datetime.now(_timezone.utc).date(), symbol=symbol, rows_loaded=1
-        )
+        from utils.infrastructure.timezone import EASTERN_TZ as _EASTERN_TZ
+
+        self._watermark.advance_watermark(new_watermark=_datetime.now(_EASTERN_TZ).date(), symbol=symbol, rows_loaded=1)
 
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:  # noqa: C901
         # Pre-existing complexity debt, surfaced now that the ruff pre-commit hook actually

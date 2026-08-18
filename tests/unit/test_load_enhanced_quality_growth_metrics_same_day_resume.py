@@ -12,10 +12,11 @@ fetch_incremental, and (2) a symbol that succeeds today has its watermark advanc
 same-day retry would see it as current.
 """
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from loaders.load_enhanced_quality_growth_metrics import EnhancedQualityGrowthMetricsLoader
+from utils.infrastructure.timezone import EASTERN_TZ
 
 
 def _loader(watermarks: dict) -> EnhancedQualityGrowthMetricsLoader:
@@ -29,7 +30,7 @@ def _loader(watermarks: dict) -> EnhancedQualityGrowthMetricsLoader:
 
 class TestSameDayResume:
     def test_symbol_already_current_today_is_skipped(self) -> None:
-        today = date.today()
+        today = datetime.now(EASTERN_TZ).date()
         loader = _loader({"DONE": today, "TODO": today - timedelta(days=1), "NEVER": None})
 
         fetch_calls = []
@@ -88,5 +89,5 @@ class TestSameDayResume:
         loader._watermark.advance_watermark.assert_called_once()
         _, kwargs = loader._watermark.advance_watermark.call_args
         assert kwargs["symbol"] == "AAA"
-        assert kwargs["new_watermark"] == date.today()
+        assert kwargs["new_watermark"] == datetime.now(EASTERN_TZ).date()
         assert kwargs["rows_loaded"] == 1
