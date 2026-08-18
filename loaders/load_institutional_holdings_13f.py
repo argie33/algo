@@ -72,6 +72,20 @@ _ZIP_LINK_RE = re.compile(
     re.IGNORECASE,
 )
 
+# FIX 2026-08-18 (live-verified): OpenFIGI appends a currency-denomination suffix to the
+# ticker for CUSIPs with multiple currency-denominated trading lines (e.g. real CUSIP
+# 766559603 for Rigel Pharmaceuticals resolves to ticker "RIGLUSD", not "RIGL") - a
+# cross-listing/quote-currency artifact, not a different entity. The exact `ticker not in
+# symbols` check in _crosswalk_to_tickers silently dropped every one of these, wrongly
+# marking real, resolved 13F data as data_unavailable ("no_resolved_13f_holdings"). Found by
+# checking sec_13f_cusip_crosswalk for near-miss tickers whose suffix-stripped form matches a
+# tracked symbol: 18 currently-tracked symbols confirmed (RIGL, HON, FCEL, CRIS, ... all with
+# resolved_name token-overlap ratio 0.67-1.00 against our own entity_name - see
+# names_plausibly_match, still applied after stripping as the same wrong-entity defense).
+_CURRENCY_TICKER_SUFFIXES = (
+    "USD", "EUR", "GBP", "GBX", "CAD", "CHF", "JPY", "AUD", "HKD", "SEK", "NOK", "DKK", "ZAR", "SGD", "MXN",
+)  # fmt: skip
+
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
     """Load institutional ownership % from SEC Form 13F bulk INFOTABLE datasets.
@@ -434,8 +448,15 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         manager_holdings_by_ticker: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for cusip, shares in holdings_by_cusip.items():
             ticker, resolved_name = cached.get(cusip, (None, None))
-            if not ticker or ticker not in symbols:
+            if not ticker:
                 continue
+            if ticker not in symbols:
+                for suffix in _CURRENCY_TICKER_SUFFIXES:
+                    if ticker.endswith(suffix) and len(ticker) > len(suffix) and ticker[: -len(suffix)] in symbols:
+                        ticker = ticker[: -len(suffix)]
+                        break
+                else:
+                    continue
             if not names_plausibly_match(resolved_name, local_names.get(ticker)):
                 logger.debug(
                     f"[13F] {ticker} (CUSIP {cusip}): OpenFIGI name '{resolved_name}' doesn't plausibly "

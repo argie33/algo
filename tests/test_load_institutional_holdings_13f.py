@@ -226,6 +226,70 @@ def test_crosswalk_to_tickers_rejects_the_live_verified_xom_wrong_entity_match(m
     assert result == {}
 
 
+def test_crosswalk_to_tickers_strips_currency_suffix_from_cross_listed_ticker(monkeypatch):
+    """Live-verified 2026-08-18: OpenFIGI resolved Rigel Pharmaceuticals' real CUSIP
+    (766559603) to ticker "RIGLUSD" (a currency-denomination suffix from a
+    cross-listed/multi-currency trading line), not "RIGL" - along with 17 other
+    currently-tracked symbols. The exact-match check alone silently dropped all of
+    these as data_unavailable despite CUSIP and name both being a genuine match.
+    Stripping a known currency suffix (still gated by names_plausibly_match) must
+    recover it."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("766559603", "RIGLUSD", "RIGEL PHARMACEUTICALS INC")],
+        local_name_rows=[("RIGL", "RIGEL PHARMACEUTICALS INC")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["RIGL"]
+    )
+
+    result, _manager_result = loader._crosswalk_to_tickers({"766559603": 12_345_678})
+
+    assert result == {"RIGL": 12_345_678}
+
+
+def test_crosswalk_to_tickers_currency_suffix_strip_still_rejects_wrong_entity(monkeypatch):
+    """The currency-suffix fallback must not bypass the name-plausibility guard - a
+    ticker that happens to end in a currency code but whose base form is a different
+    entity must still be rejected."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("999999999", "XOMUSD", "SOME OTHER COMPANY INC")],
+        local_name_rows=[("XOM", "EXXON MOBIL CORP")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["XOM"])
+
+    result, _manager_result = loader._crosswalk_to_tickers({"999999999": 999})
+
+    assert result == {}
+
+
 def test_crosswalk_to_tickers_ignores_a_resolved_ticker_outside_our_universe(monkeypatch):
     """Live-verified 2026-07-27: the real Exxon Mobil Corp CUSIP (30231G102) resolves
     via OpenFIGI to ticker 'EXMOC', not 'XOM' - a real Bloomberg-side ticker variant.
