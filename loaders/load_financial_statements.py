@@ -184,6 +184,11 @@ _INCOME_FIELD_MAPPING = {
     # to "InterestExpenseNonoperating" starting FY2024.
     "interest_expense_nonoperating": "interest_expense",
     "interest_expense_debt": "interest_expense",
+    # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
+    # get_income_statement() comment for the live evidence (TXN/BA use
+    # InterestAndDebtExpense; NEE uses the cash-basis InterestPaidNet as a last resort).
+    "interest_and_debt_expense": "interest_expense",
+    "interest_paid_net": "interest_expense",
     # This mapping key was always correct - the bug was in sec_statements.py's
     # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
     # us-gaap XBRL concept - live-confirmed absent from both AAPL's and MSFT's
@@ -260,6 +265,21 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # only fills cost_of_revenue when CostOfRevenue/CostOfSales didn't already set it,
         # same as this set's existing entries, so AMZN-style filers are unaffected.
         "cost_of_goods_and_services_sold",
+        # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
+        # get_income_statement() comment for the live evidence (TXN/BA/NEE). Reusing this
+        # same "fills only an already-empty db_field" set for the same overwrite-safety
+        # reason as cost_of_goods_and_services_sold above - live-confirmed TRV reports
+        # BOTH a real "InterestExpense" ($425M FY2025) AND "InterestPaidNet" ($393M
+        # FY2025, a different, less precise cash-paid figure) for the same fiscal year, so
+        # a plain always-overwrite mapping for interest_paid_net would have silently
+        # downgraded TRV's real interest_expense on every filer that reports both (a very
+        # common combination - "cash paid for interest" is a near-universal ASC 230
+        # supplemental cash-flow disclosure). interest_and_debt_expense made fallback-only
+        # too for the same reason, even though no live overwrite case was found for it
+        # specifically - not exhaustively checked across the universe, so defaulting to
+        # the safe convention this file uses everywhere else.
+        "interest_and_debt_expense",
+        "interest_paid_net",
     }
 )
 

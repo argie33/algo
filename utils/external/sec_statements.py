@@ -622,6 +622,23 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # "last-listed wins on overwrite" convention.
         "InterestExpenseNonoperating",
         "InterestExpenseDebt",
+        # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): live-confirmed via real SEC
+        # companyfacts JSON that TXN (Texas Instruments, FY2025 $543M) and BA (Boeing,
+        # FY2025 $2,771M) tag their real income-statement interest expense only under this
+        # concept - neither has any fact under "InterestExpense",
+        # "InterestExpenseNonoperating", or "InterestExpenseDebt" above. Listed after those
+        # per this file's "last-listed wins on overwrite" convention.
+        "InterestAndDebtExpense",
+        # FIXED 2026-08-18 (same audit): CAT (Caterpillar) and NEE (NextEra Energy) tag
+        # NEITHER "InterestAndDebtExpense" nor any InterestExpense* concept above -
+        # live-confirmed their only interest-on-debt fact anywhere in companyfacts is this
+        # cash-flow-statement supplemental-disclosure concept (NEE FY2025 $3,501M; CAT has
+        # none at all, so this doesn't help CAT specifically, but recovers real data for
+        # other filers with the same reporting gap). Cash interest PAID is not identical to
+        # accrued interest EXPENSE (debt discount/premium amortization, capitalized
+        # interest), so this is intentionally the lowest-priority, last-resort fallback -
+        # listed last so any filer with a real accrual-basis concept above keeps that value.
+        "InterestPaidNet",
         # Session 398: For EBITDA calculation = OperatingIncomeLoss + Depreciation + Amortization
         # FIXED 2026-07-28: was "DepreciationExpense", which is not a real us-gaap XBRL
         # concept at all (live-confirmed absent from both AAPL's and MSFT's companyfacts) -
