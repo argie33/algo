@@ -1280,7 +1280,7 @@ jobs:
       - name: Save Dashboard Credentials to Secrets Manager
         run: |
           # Store Terraform outputs in Secrets Manager so dashboard can fetch them without AWS CLI access
-          # Dashboard script (tools/dashboard/dashboard.py) reads: algo/dashboard-config
+          # Dashboard script (dashboard/dashboard.py, run via `python -m dashboard`) reads: algo/dashboard-config
           # Keys: api_url, cognito_user_pool_id, cognito_user_pool_client_id
 
           API_URL="${{ steps.outputs.outputs.api_gateway_endpoint }}"
