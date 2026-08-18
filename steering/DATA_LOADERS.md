@@ -669,10 +669,15 @@ displayed elsewhere -
 - `working_capital` (`current_assets - current_liabilities`): the one field with no direct
   duplicate, but it's a strictly weaker, non-size-normalized version of a signal already
   covered - `quality_metrics.current_ratio`/`quick_ratio` are the same liquidity concept
-  normalized by current liabilities, already scored (`_score_current_ratio` inside
-  `_score_financial_stability`) and displayed. Wiring the raw dollar figure in as a new score
-  input would be a real modeling mistake (not comparable across mega-cap vs. small-cap
-  companies without normalization) - the "right" fix here is not to force it in.
+  normalized by current liabilities, already computed and displayed. Wiring the raw dollar
+  figure in as a new score input would be a real modeling mistake (not comparable across
+  mega-cap vs. small-cap companies without normalization) - the "right" fix here is not to
+  force it in.
+  (UPDATE 2026-08-18: `current_ratio`/`quick_ratio` themselves were later removed from
+  `_score_financial_stability` per explicit user request - "current ratio and quick ratio...
+  don't belong in our scores" - `_score_current_ratio`/`_score_quick_ratio` no longer exist.
+  They're still computed/displayed, just not scored. Doesn't change this section's
+  conclusion: `working_capital` would still be a non-normalized duplicate not worth adding.)
 
 Net effect: this loader ran, wrote real rows, cost real SEC EDGAR API calls, and produced zero
 incremental information over what already exists.

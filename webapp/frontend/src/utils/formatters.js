@@ -225,15 +225,6 @@ export const getFinancialHealthScore = (metrics) => {
     factors++;
   }
 
-  // Current ratio (higher is better)
-  if (metrics.current_ratio) {
-    if (metrics.current_ratio > 2) score += 20;
-    else if (metrics.current_ratio > 1.5) score += 15;
-    else if (metrics.current_ratio > 1) score += 10;
-    else score += 5;
-    factors++;
-  }
-
   // ROE (higher is better)
   if (metrics.return_on_equity_pct) {
     if (metrics.return_on_equity_pct > 20) score += 20;

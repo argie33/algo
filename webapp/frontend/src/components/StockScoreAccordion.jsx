@@ -533,21 +533,22 @@ export { QUALITY_SCHEMA, STABILITY_SCHEMA };
 // (_score_financial_stability), not price-volatility signals, so they belong under
 // Quality. They now feed _enhance_quality_score as a bounded +/-3 adjustment (same
 // pattern as margins/ROIC/OCF above), not a proportional weight.
+// CLEANUP 2026-08-18: gross_margin/current_ratio/quick_ratio/cash_per_share cut entirely
+// per user request - none of them belong in the factor scores anymore. gross_margin
+// dropped out of _enhance_quality_score's margin-quality average; current_ratio/
+// quick_ratio/cash_per_share dropped out of _score_financial_stability. debt_to_equity
+// stays (still a real ±3 adj input); debt_to_assets stays (still a real ~17% input).
 const QUALITY_SCHEMA = [
   { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'profit_margin_pct',              label: 'Profit Margin',            fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'operating_margin_pct',           label: 'Operating Margin',         fmt: v => pct(v, 1), used: true, weight: '~17%' },
-  { key: 'gross_margin_pct',               label: 'Gross Margin',             fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
   { key: 'ebitda_margin_pct',              label: 'EBITDA Margin',            fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
   { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'interest_coverage',              label: 'Interest Coverage',        fmt: v => num(v, 2), used: true, weight: '~17%' },
   { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v == null ? null : v * 100, 1), used: true, weight: '~17%' },
   { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2), used: true, weight: '±3 adj' },
-  { key: 'current_ratio',                  label: 'Current Ratio',            fmt: v => num(v, 2), used: true, weight: '±3 adj' },
-  { key: 'quick_ratio',                    label: 'Quick Ratio',              fmt: v => num(v, 2), used: true, weight: '±3 adj' },
-  { key: 'cash_per_share',                 label: 'Cash / Share',             fmt: v => `$${num(v, 2)}`, used: true, weight: '±3 adj' },
   // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
   // tab (earnings_surprise_avg, eps_growth_stability, earnings_beat_rate,
   // consecutive_positive_quarters, free_cashflow, operating_cashflow, total_debt,
@@ -584,6 +585,12 @@ const MOMENTUM_SCHEMA = [
 // Yield 12% not 20%), and dividend_yield (8% weight, a real input since migration 1146)
 // was displayed as a plain unweighted number despite being scored.
 // market_cap cut 20260816 (second pass) - unweighted reference field, doesn't feed value_score.
+// CLEANUP 2026-08-18: margin_of_safety_pct's 20% Value weight removed per user request -
+// it doesn't belong in the Value factor score. Dropped the separate raw-dollar
+// "Intrinsic Value (DCF)" row too (stock_intrinsic_value isn't comparable across symbols,
+// and was already used:false / display-only) - stock_margin_of_safety (the DCF % discount
+// to intrinsic value, which *is* comparable across symbols) is now the single informational
+// read for this signal, kept visible but unweighted.
 const VALUE_SCHEMA = [
   { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '45%' },
   { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2), used: true, weight: '15%' },
@@ -594,10 +601,11 @@ const VALUE_SCHEMA = [
   { key: 'peg_ratio', label: 'PEG', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '8%' },
   { key: 'fcf_yield', label: 'FCF Yield', fmt: v => pct(v, 2), used: true, weight: '12%' },
-  { key: 'stock_intrinsic_value', label: 'Intrinsic Value (DCF)', fmt: v => v == null ? '—' : `$${num(v, 2)}`, used: false },
-  { key: 'stock_margin_of_safety', label: 'Margin of Safety', fmt: v => pct(v, 1), used: true, weight: '20%' },
+  { key: 'stock_margin_of_safety', label: 'Discount to Intrinsic Value (DCF)', fmt: v => pct(v, 1), used: false },
 ];
 
+// CLEANUP 2026-08-18: gross_margin_trend cut - removed from _score_growth per user
+// request, no longer a factor-score input.
 const GROWTH_SCHEMA = [
   { key: 'revenue_growth_1y_pct',      label: 'Revenue Growth (1Y)',     fmt: v => pct(v, 2), used: true, weight: '24%' },
   { key: 'eps_growth_1y_pct',          label: 'EPS Growth (1Y)',         fmt: v => pct(v, 2), used: true, weight: '33%' },
@@ -607,7 +615,6 @@ const GROWTH_SCHEMA = [
   { key: 'eps_growth_5y_cagr',         label: 'EPS CAGR (5Y)',           fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2), used: true, weight: '8%' },
   { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2), used: true, weight: '6%' },
-  { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
   { key: 'operating_margin_trend',     label: 'Op Margin Trend',         fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
   { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
   { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2), used: true, weight: '3%' },

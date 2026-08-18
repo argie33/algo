@@ -35,12 +35,7 @@ const DeepValueStocksContent = () => {
       : rawStocks?.items || [];
     const num = (v) => (v != null ? parseFloat(v) : null);
     return stocksData.map((s) => {
-      const intrinsic = num(s.intrinsic_value_per_share);
       const current = num(s.current_price);
-      const margin_of_safety =
-        intrinsic && current && intrinsic > 0
-          ? ((intrinsic - current) / intrinsic) * 100
-          : null;
 
       return {
         ...s,
@@ -52,14 +47,12 @@ const DeepValueStocksContent = () => {
         price_to_sales: num(s.price_to_sales),
         roe_pct: num(s.roe_pct),
         op_margin_pct: num(s.op_margin_pct),
-        gross_margin_pct: num(s.gross_margin_pct),
         net_margin_pct: num(s.net_margin_pct),
         roa_pct: num(s.roa_pct),
         ev_to_ebitda: num(s.ev_to_ebitda),
         peg_ratio: num(s.peg_ratio),
         dividend_yield: num(s.dividend_yield),
         debt_to_equity: num(s.debt_to_equity),
-        current_ratio: num(s.current_ratio),
         sector_median_pe: num(s.sector_median_pe),
         market_median_pe: num(s.market_median_pe),
         discount_vs_sector_pe_pct: num(s.discount_vs_sector_pe_pct),
@@ -69,15 +62,20 @@ const DeepValueStocksContent = () => {
         low_52w: num(s.low_52w),
         drop_from_52w_high_pct: num(s.drop_from_52w_high_pct),
         drop_from_3y_high_pct: num(s.drop_from_3y_high_pct),
-        intrinsic_value_per_share: intrinsic,
-        margin_of_safety: margin_of_safety,
+        // margin_of_safety_pct: the single comparable-across-symbols DCF read (% discount
+        // to intrinsic value), computed server-side by load_sec_valuations.py with proper
+        // implausibility/negative-FCF guardrails - use it directly instead of
+        // re-deriving a naive (intrinsic - price) / intrinsic version client-side from the
+        // raw dollar figure (2026-08-18: that duplicate computation and the raw $ figure
+        // itself were both removed - not comparable across symbols and inconsistent with
+        // the backend's guarded calculation).
+        margin_of_safety_pct: num(s.margin_of_safety_pct),
         revenue_growth_3y_pct: num(s.revenue_growth_3y_pct),
         eps_growth_3y_pct: num(s.eps_growth_3y_pct),
         revenue_growth_yoy_pct: num(s.revenue_growth_yoy_pct),
         fcf_growth_yoy_pct: num(s.fcf_growth_yoy_pct),
         sustainable_growth_pct: num(s.sustainable_growth_pct),
         op_margin_trend_pp: num(s.op_margin_trend_pp),
-        gross_margin_trend_pp: num(s.gross_margin_trend_pp),
         roe_trend_pp: num(s.roe_trend_pp),
       };
     });
@@ -380,10 +378,9 @@ const DeepValueStocksContent = () => {
                       : "—",
                   ],
                   [
-                    "Intrinsic Value",
-                    stock.intrinsic_value_per_share != null
-                      ? `$${stock.intrinsic_value_per_share.toFixed(2)}`
-                      : "—",
+                    "Discount to Intrinsic Value",
+                    fmtPct(stock.margin_of_safety_pct),
+                    stock.margin_of_safety_pct >= 0 ? "#22c55e" : "#ef4444",
                   ],
                 ]}
               />
@@ -483,11 +480,6 @@ const DeepValueStocksContent = () => {
                   ],
                   ["ROA", fmtPct(stock.roa_pct)],
                   [
-                    "Gross Margin",
-                    fmtPct(stock.gross_margin_pct),
-                    stock.gross_margin_pct >= 50 ? "#22c55e" : "inherit",
-                  ],
-                  [
                     "Op Margin",
                     fmtPct(stock.op_margin_pct),
                     stock.op_margin_pct >= 20 ? "#22c55e" : "inherit",
@@ -497,11 +489,6 @@ const DeepValueStocksContent = () => {
                     "D/E",
                     fmt(stock.debt_to_equity),
                     stock.debt_to_equity < 0.5 ? "#22c55e" : "inherit",
-                  ],
-                  [
-                    "Cur Ratio",
-                    fmt(stock.current_ratio),
-                    stock.current_ratio > 2 ? "#22c55e" : "inherit",
                   ],
                 ]}
               />
@@ -599,17 +586,6 @@ const DeepValueStocksContent = () => {
                     stock.op_margin_trend_pp >= 0
                       ? "#22c55e"
                       : stock.op_margin_trend_pp > -3
-                        ? "#f97316"
-                        : "#ef4444",
-                  ],
-                  [
-                    "GM Trend",
-                    stock.gross_margin_trend_pp != null
-                      ? `${stock.gross_margin_trend_pp >= 0 ? "+" : ""}${stock.gross_margin_trend_pp.toFixed(2)}pp`
-                      : "—",
-                    stock.gross_margin_trend_pp >= 0
-                      ? "#22c55e"
-                      : stock.gross_margin_trend_pp > -3
                         ? "#f97316"
                         : "#ef4444",
                   ],
@@ -845,7 +821,7 @@ const DeepValueStocksContent = () => {
   const paginated = sorted.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const avgROE = avg(stocks, "roe_pct");
   const avgDrop = avg(stocks, "drop_from_3y_high_pct");
-  const avgMoS = avg(stocks, "margin_of_safety");
+  const avgMoS = avg(stocks, "margin_of_safety_pct");
 
   return (
     <div style={{ padding: "var(--space-6)" }}>
@@ -1031,7 +1007,6 @@ const DeepValueStocksContent = () => {
                   "Sector Disc%",
                   "Market Disc%",
                   "D/E",
-                  "Cur.Ratio",
                 ],
                 ...sorted.map((s) => [
                   s.symbol,
@@ -1044,7 +1019,6 @@ const DeepValueStocksContent = () => {
                   fmtDiscount(s.discount_vs_sector_pe_pct),
                   fmtDiscount(s.discount_vs_market_pe_pct),
                   fmt(s.debt_to_equity),
-                  fmt(s.current_ratio),
                 ]),
               ]
                 .map((r) => r.join(","))
@@ -1181,9 +1155,9 @@ const DeepValueStocksContent = () => {
                       cursor: "pointer",
                       backgroundColor: "rgba(99, 102, 241, 0.12)",
                     }}
-                    onClick={() => handleSort("intrinsic_value_per_share")}
+                    onClick={() => handleSort("margin_of_safety_pct")}
                   >
-                    Intrinsic $
+                    Disc. to Intrinsic
                   </th>
                   <th style={{ textAlign: "right" }}>RevYoY%</th>
                   <th style={{ textAlign: "right" }}>OpM Trend</th>
@@ -1332,9 +1306,7 @@ const DeepValueStocksContent = () => {
                           color: "#818cf8",
                         }}
                       >
-                        {stock.intrinsic_value_per_share != null
-                          ? `$${stock.intrinsic_value_per_share.toFixed(2)}`
-                          : "—"}
+                        {fmtPct(stock.margin_of_safety_pct)}
                       </td>
                       <td
                         style={{

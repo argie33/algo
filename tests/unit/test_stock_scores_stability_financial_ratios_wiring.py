@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test for StockScoresLoader's debt/liquidity/cash-position wiring
+"""Regression test for StockScoresLoader's debt/leverage wiring
 (loaders/load_stock_scores.py).
 
 CLEANUP 2026-08-16 moved debt_to_equity/current_ratio/quick_ratio/cash_per_share/
@@ -11,6 +11,13 @@ test_stock_scores_stability_financial_ratios_wiring assertions (which tested the
 now-removed Stability wiring) with equivalent coverage for the new Quality wiring, plus a
 guard that _get_stability_metrics no longer merges quality-cache fields in (the bug class
 from [[momentum_score_sma_dead_weight_fix_20260816]] returning the other way).
+
+CLEANUP 2026-08-18: current_ratio/quick_ratio/cash_per_share removed from
+_score_financial_stability entirely (not factor-score inputs anymore, per user request -
+"cash/share ended up popping in but that does not belong in our scores"). Updated
+TestQualityScoreFinancialStabilityWiring to exercise only the remaining
+debt_to_equity/debt_to_assets inputs, and added a guard that the three removed ratios no
+longer move the score.
 """
 
 import pytest
@@ -54,8 +61,8 @@ class TestQualityScoreFinancialStabilityWiring:
 
     def test_healthy_ratios_score_higher_than_weak_ratios(self):
         """End-to-end: with every other quality signal held absent, a symbol with healthy
-        debt/liquidity/cash ratios must get a higher enhanced quality score than one with
-        weak ratios - proving _score_financial_stability's output actually reaches
+        debt ratios must get a higher enhanced quality score than one with weak ratios -
+        proving _score_financial_stability's output actually reaches
         _enhance_quality_score's adjustment (the bug this file's predecessor guarded
         against, now on the Quality side instead of Stability)."""
         loader = StockScoresLoader()
@@ -64,17 +71,11 @@ class TestQualityScoreFinancialStabilityWiring:
             self._base_quality_metrics(),
             debt_to_equity=0.3,
             debt_to_assets=0.2,
-            current_ratio=2.5,
-            quick_ratio=2.0,
-            cash_per_share=50.0,
         )
         weak = dict(
             self._base_quality_metrics(),
             debt_to_equity=3.0,
             debt_to_assets=0.9,
-            current_ratio=0.4,
-            quick_ratio=0.2,
-            cash_per_share=0.5,
         )
 
         score_healthy = loader._enhance_quality_score(50.0, healthy, "HEALTHY")
@@ -86,3 +87,22 @@ class TestQualityScoreFinancialStabilityWiring:
         loader = StockScoresLoader()
         score = loader._enhance_quality_score(50.0, self._base_quality_metrics(), "NO_RATIOS")
         assert score == 50.0
+
+    def test_current_quick_ratio_and_cash_per_share_no_longer_move_the_score(self):
+        """current_ratio/quick_ratio/cash_per_share removed 2026-08-18 - a symbol that
+        only differs in those three fields must score identically to one without them,
+        proving _score_financial_stability no longer reads them."""
+        loader = StockScoresLoader()
+
+        base = dict(self._base_quality_metrics(), debt_to_equity=0.5, debt_to_assets=0.3)
+        with_extra_ratios = dict(
+            base,
+            current_ratio=0.1,  # would score very poorly if still wired in
+            quick_ratio=0.1,
+            cash_per_share=0.01,
+        )
+
+        score_base = loader._enhance_quality_score(50.0, base, "BASE")
+        score_with_extra = loader._enhance_quality_score(50.0, with_extra_ratios, "WITH_EXTRA")
+
+        assert score_base == score_with_extra

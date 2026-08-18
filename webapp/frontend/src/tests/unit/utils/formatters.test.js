@@ -235,15 +235,17 @@ describe("Formatters Utility", () => {
   });
 
   describe("getFinancialHealthScore", () => {
+    // 2026-08-18: current_ratio removed as a factor per user request ("current ratio...
+    // does not belong in our scores") - getFinancialHealthScore now averages over 4
+    // factors (P/E, debt/equity, ROE, revenue growth), not 5.
     it("calculates financial health scores correctly", () => {
       const goodMetrics = {
         trailing_pe: 12, // <15 = 20 points
         debt_to_equity: 0.2, // <0.3 = 20 points
-        current_ratio: 2.5, // >2 = 20 points
-        return_on_equity_pct: 18, // >15 = 15 points
-        revenue_growth_pct: 12, // >10 = 15 points
+        return_on_equity_pct: 25, // >20 = 20 points
+        revenue_growth_pct: 25, // >20 = 20 points
       };
-      // Total: 90 points / 5 factors = 18 average score
+      // Total: 80 points / 4 factors = 20 average score
 
       const result = getFinancialHealthScore(goodMetrics);
       expect(result.score).toBeGreaterThanOrEqual(18);
@@ -255,11 +257,10 @@ describe("Formatters Utility", () => {
       const poorMetrics = {
         trailing_pe: 45, // >=35 = 5 points
         debt_to_equity: 3.0, // >=1.0 = 5 points
-        current_ratio: 0.8, // <=1 = 5 points
         return_on_equity_pct: -5, // <=5 = 0 points (no condition matches)
         revenue_growth_pct: -8, // <=0 = 0 points (no condition matches)
       };
-      // Total: 15 points / 5 factors = 3 average score
+      // Total: 10 points / 4 factors = 2.5 average score
 
       const result = getFinancialHealthScore(poorMetrics);
       expect(result.score).toBeLessThan(8);
@@ -269,7 +270,7 @@ describe("Formatters Utility", () => {
 
     it("handles missing metrics", () => {
       const incompleteMetrics = {
-        current_ratio: 2.0,
+        trailing_pe: 20,
         debt_to_equity: null,
       };
 
@@ -289,11 +290,10 @@ describe("Formatters Utility", () => {
       const mediumMetrics = {
         trailing_pe: 18, // 15-25 = 15 points
         debt_to_equity: 0.5, // 0.3-0.6 = 15 points
-        current_ratio: 1.8, // 1.5-2 = 15 points
         return_on_equity_pct: 12, // 10-15 = 10 points
         revenue_growth_pct: 6, // 5-10 = 10 points
       };
-      // Total: 65 points / 5 factors = 13 average score (C grade)
+      // Total: 50 points / 4 factors = 12.5 average score (C grade)
       const resultC = getFinancialHealthScore(mediumMetrics);
       expect(resultC.score).toBeGreaterThan(10);
       expect(resultC.grade).toBe("C");
@@ -302,13 +302,13 @@ describe("Formatters Utility", () => {
       const dGradeMetrics = {
         trailing_pe: 28, // 25-35 = 10 points
         debt_to_equity: 0.8, // 0.6-1.0 = 10 points
-        current_ratio: 1.2, // 1-1.5 = 10 points
         return_on_equity_pct: 7, // 5-10 = 5 points
-        revenue_growth_pct: 3, // 0-5 = 5 points
+        revenue_growth_pct: 6, // 5-10 = 10 points
       };
-      // Total: 40 points / 5 factors = 8 average score (D grade)
+      // Total: 35 points / 4 factors = 8.75 average score (D grade)
       const resultD = getFinancialHealthScore(dGradeMetrics);
-      expect(resultD.score).toBe(8);
+      expect(resultD.score).toBeGreaterThanOrEqual(8);
+      expect(resultD.score).toBeLessThan(12);
       expect(resultD.grade).toBe("D");
     });
   });

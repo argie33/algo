@@ -1295,24 +1295,25 @@ class StockScoresLoader(OptimalLoader):
         Adjusts base score by ±10% based on margin trends and earnings growth (Phase 3).
         Keeps existing quality_score as foundation; uses new metrics for refinement.
 
-        CLEANUP 2026-08-16: Financial Stability (debt-to-equity, current/quick ratio, cash
-        per share, debt-to-assets - _score_financial_stability) moved here from Stability's
-        _score_stability, where it was a 20%-weighted sub-score. These are balance-sheet
-        fundamentals (leverage/liquidity/solvency), not price-volatility signals, so they
-        belong under Quality. debt_to_assets already feeds the base quality_score (~17%,
-        computed upstream in load_value_quality_growth_metrics.py) - this adjustment adds
-        the remaining leverage/liquidity/cash signals on top, same bounded-adjustment
-        pattern as the margin/ROIC/OCF adjustments below rather than a new proportional
-        weight slot.
+        CLEANUP 2026-08-16: Financial Stability (debt-to-equity, debt-to-assets -
+        _score_financial_stability) moved here from Stability's _score_stability, where it
+        was a 20%-weighted sub-score. These are balance-sheet fundamentals (leverage/
+        solvency), not price-volatility signals, so they belong under Quality.
+        debt_to_assets already feeds the base quality_score (~17%, computed upstream in
+        load_value_quality_growth_metrics.py) - this adjustment adds the remaining
+        leverage signal on top, same bounded-adjustment pattern as the margin/ROIC/OCF
+        adjustments below rather than a new proportional weight slot. CLEANUP 2026-08-18:
+        current_ratio/quick_ratio/cash_per_share removed from _score_financial_stability -
+        not factor-score inputs anymore.
         """
         adjustment = 0.0
 
-        # Margin quality: Higher margins + improving margins = quality boost
-        gross_margin = safe_float(metrics.get("gross_margin"), f"{symbol}.gross_margin", allow_none=True)
+        # Margin quality: Higher margins + improving margins = quality boost.
+        # gross_margin deliberately excluded 2026-08-18 - not a factor-score input.
         ebitda_margin = safe_float(metrics.get("ebitda_margin"), f"{symbol}.ebitda_margin", allow_none=True)
         net_margin = safe_float(metrics.get("net_margin"), f"{symbol}.net_margin", allow_none=True)
 
-        margins_available = [m for m in [gross_margin, ebitda_margin, net_margin] if m is not None]
+        margins_available = [m for m in [ebitda_margin, net_margin] if m is not None]
         if margins_available:
             avg_margin = sum(margins_available) / len(margins_available)
             # Premium for high-margin businesses (>25% net margin = quality companies)
@@ -1358,11 +1359,10 @@ class StockScoresLoader(OptimalLoader):
             elif ocf_to_ni < 0.7:
                 adjustment -= 2.0
 
-        # Financial stability (leverage/liquidity/cash): moved from Stability's factor
-        # score (see CLEANUP 2026-08-16 note above). _score_financial_stability blends
-        # debt_to_equity/debt_to_assets/current_ratio/quick_ratio/cash_per_share into a
-        # single 0-100 solvency read; treated as a bounded adjustment here, same shape as
-        # the other signals in this method.
+        # Financial stability (leverage): moved from Stability's factor score (see
+        # CLEANUP 2026-08-16 note above). _score_financial_stability blends
+        # debt_to_equity/debt_to_assets into a single 0-100 solvency read; treated as a
+        # bounded adjustment here, same shape as the other signals in this method.
         fin_stability_score = self._score_financial_stability(metrics, symbol)
         if fin_stability_score is not None:
             if fin_stability_score >= 70:
@@ -1511,17 +1511,13 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.05
 
         # Margin/ROE trend fields (2026-08-03): these are percentage-POINT deltas
-        # (curr - prior), not growth rates - e.g. gross_margin_trend=+2 means gross margin
-        # improved 2 points YoY. Reused _score_single_growth's [-cap,0]->[0,40],
+        # (curr - prior), not growth rates - e.g. operating_margin_trend=+2 means the
+        # margin improved 2 points YoY. Reused _score_single_growth's [-cap,0]->[0,40],
         # [0,cap]->[40,100] shape with a small cap tuned for point-deltas rather than %
         # growth (a 10-point margin swing YoY is already a large move for most companies).
-        # Small individual weights (0.03 each, 0.12 combined) since these are 4 correlated
-        # views of the same underlying margin-trend signal, not independent factors.
-        gm_trend = _score_single_growth(metrics.get("gross_margin_trend"), 10)
-        if gm_trend is not None:
-            weighted_sum += gm_trend * 0.03
-            total_weight += 0.03
-
+        # Small individual weights (0.03 each) since these are correlated views of the
+        # same underlying margin-trend signal, not independent factors.
+        # gross_margin_trend deliberately excluded 2026-08-18 - not a factor-score input.
         om_trend = _score_single_growth(metrics.get("operating_margin_trend"), 10)
         if om_trend is not None:
             weighted_sum += om_trend * 0.03
@@ -1553,9 +1549,13 @@ class StockScoresLoader(OptimalLoader):
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + PEG (15%) + FCF yield (12%)
-        + Dividend yield (8%) + Forward P/E (15%) + EV/EBITDA (12%) + EV/Revenue (10%) +
-        Margin of Safety / DCF discount to intrinsic value (20%). Peak zone for growth
-        stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
+        + Dividend yield (8%) + Forward P/E (15%) + EV/EBITDA (12%) + EV/Revenue (10%).
+        Peak zone for growth stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield.
+
+        NOTE 2026-08-18: margin_of_safety_pct (DCF discount to intrinsic value) is
+        deliberately NOT a Value input - it's the one metric we keep for cross-symbol
+        comparability, but it's displayed as an informational read (see
+        StockScoreAccordion.jsx) rather than folded into any factor score.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
@@ -1707,24 +1707,9 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += evr_score * 0.10
             total_weight += 0.10
 
-        # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
-        # migration 1208) - positive means the stock trades below its DCF intrinsic value
-        # (undervalued), negative means above (overvalued). Unlike every other field in this
-        # function, a legitimate value can be negative (a real, meaningful "overvalued"
-        # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
-        # drop this input instead of being correctly scored low.
-        if metrics.get("margin_of_safety_pct") is not None:
-            mos = metrics["margin_of_safety_pct"]
-            if mos >= 50:
-                mos_score = 100
-            elif mos >= 0:
-                mos_score = 60 + mos * 0.8  # 0% -> 60, 50% -> 100
-            elif mos >= -50:
-                mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
-            else:
-                mos_score = 0
-            weighted_sum += mos_score * 0.20
-            total_weight += 0.20
+        # margin_of_safety_pct (DCF discount to intrinsic value) is intentionally excluded
+        # from Value scoring - see docstring note above. Still computed/stored by
+        # load_sec_valuations.py and displayed informationally, just not weighted here.
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -2011,45 +1996,17 @@ class StockScoresLoader(OptimalLoader):
             return 70.0 - ((dte - 1.0) / 1.0) * 40
         return max(0, 30 - (dte - 2.0) * 15)
 
-    def _score_current_ratio(self, cr: float) -> float:
-        """Score current ratio (target > 1.5)."""
-        if cr >= 2.0:
-            return 100.0
-        if cr >= 1.5:
-            return 80.0 + ((cr - 1.5) / 0.5) * 20
-        if cr >= 1.0:
-            return 50.0 + ((cr - 1.0) / 0.5) * 30
-        if cr >= 0.5:
-            return (cr / 0.5) * 50
-        return 0.0
-
-    def _score_quick_ratio(self, qr: float) -> float:
-        """Score quick ratio (target > 1.0)."""
-        if qr >= 1.5:
-            return 100.0
-        if qr >= 1.0:
-            return 70.0 + ((qr - 1.0) / 0.5) * 30
-        if qr >= 0.5:
-            return 35.0 + ((qr - 0.5) / 0.5) * 35
-        return (qr / 0.5) * 35
-
-    def _score_cash_per_share(self, cps: float) -> float:
-        """Score cash per share (target > $10, cap at $50)."""
-        if cps >= 50:
-            return 100.0
-        if cps >= 10:
-            return 60.0 + ((cps - 10) / 40) * 40
-        return (cps / 10) * 60
-
     def _score_financial_stability(self, metrics: dict[str, Any], symbol: str) -> float | None:
-        """Score financial stability (leverage/liquidity/solvency) using Phase 3 debt metrics.
+        """Score financial stability (leverage/solvency) using Phase 3 debt metrics.
 
-        Combines: Debt-to-equity (30%) + Debt-to-assets (25%) + Liquidity (current/quick ratio, 30%)
-        + Cash position (15%). Returns None if no financial metrics available.
+        Combines: Debt-to-equity (30%) + Debt-to-assets (25%). Returns None if no
+        financial metrics available.
 
         Session 359: Phase 8 enhancement - adds financial solvency scoring. CLEANUP 2026-08-16:
         called from _enhance_quality_score (Quality) instead of _score_stability - these are
         balance-sheet fundamentals, not price-volatility signals, so they belong under Quality.
+        CLEANUP 2026-08-18: current_ratio/quick_ratio/cash_per_share (liquidity/cash
+        components) removed - not factor-score inputs anymore.
         """
         components: list[tuple[float, float]] = []  # (score, weight) pairs
 
@@ -2061,23 +2018,6 @@ class StockScoresLoader(OptimalLoader):
             dta = float(min(metrics["debt_to_assets"], 1.0))
             dta_score = max(0, 100.0 - (dta * 100.0))
             components.append((dta_score, 0.25))
-
-        liquidity_scores = []
-        if metrics.get("current_ratio") is not None:
-            cr = float(max(0, metrics["current_ratio"]))
-            liquidity_scores.append(self._score_current_ratio(cr))
-
-        if metrics.get("quick_ratio") is not None:
-            qr = float(max(0, metrics["quick_ratio"]))
-            liquidity_scores.append(self._score_quick_ratio(qr))
-
-        if liquidity_scores:
-            avg_liquidity_score = sum(liquidity_scores) / len(liquidity_scores)
-            components.append((avg_liquidity_score, 0.30))
-
-        if metrics.get("cash_per_share") is not None and metrics["cash_per_share"] > 0:
-            cps = float(metrics["cash_per_share"])
-            components.append((self._score_cash_per_share(cps), 0.15))
 
         if not components:
             return None

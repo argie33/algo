@@ -1002,11 +1002,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ["EV / Revenue", num(v.stock_ev_revenue ?? v.ev_to_revenue, 2)],
     ["PEG", num(v.peg_ratio, 2)],
     [
-      "Intrinsic Value (DCF)",
-      v.stock_intrinsic_value != null ? fmtMoney(Number(v.stock_intrinsic_value)) : "—",
-    ],
-    [
-      "Margin of Safety",
+      "Discount to Intrinsic Value (DCF)",
       v.stock_margin_of_safety != null ? fmtPct(Number(v.stock_margin_of_safety), 1) : "—",
     ],
     [
@@ -1028,10 +1024,6 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     [
       "ROA",
       q.return_on_assets_pct != null ? fmtPct(q.return_on_assets_pct, 1) : "—",
-    ],
-    [
-      "Gross Margin",
-      q.gross_margin_pct != null ? fmtPct(q.gross_margin_pct, 1) : "—",
     ],
     [
       "Op Margin",
@@ -1058,7 +1050,6 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
       q.interest_coverage != null ? num(q.interest_coverage, 2) : "—",
     ],
     ["Debt / Equity", num(q.debt_to_equity, 2)],
-    ["Current Ratio", num(q.current_ratio, 2)],
     ["Beta (12m)", num(s.beta, 2)],
     [
       "Volatility (12m)",
