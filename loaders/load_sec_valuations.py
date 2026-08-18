@@ -128,6 +128,23 @@ class SecValuationsLoader(OptimalLoader):
                     income_tax_expense,
                 ) = income_rows[0]
 
+                # FIXED 2026-08-18 (goal: "no SEC data" audit): the ORDER BY above ranks a row
+                # tier-0 if ANY of revenue/EPS/net_income is present - not specifically revenue -
+                # so a filer whose latest fiscal year has a real net_income but a not-yet-tagged
+                # revenue figure (common for a just-filed/preliminary period) wins the tiebreak
+                # over an older row that has real, complete revenue. ttm_revenue then comes back
+                # None even though a usable figure exists one row back, silently killing
+                # ev_revenue/ps_ratio. Live-confirmed CRAI (CRA International, ~$750M/year real
+                # revenue): FY2026 row has net_income=$54.8M but revenue=NULL and won tier 0,
+                # masking FY2025's real revenue=$751.58M sitting in income_rows[1]. A universe-
+                # wide scan found 723 symbols where the anchor row has this exact NULL-revenue-
+                # but-real-EPS-or-net-income shape. Only income_rows[1] (already fetched, no
+                # extra query) is checked - same small-window "same-year-substitute" fallback
+                # already used elsewhere in this codebase (e.g. roic_pct's long_term_debt
+                # fallback), not an unbounded historical search.
+                if ttm_revenue is None and len(income_rows) > 1 and income_rows[1][0] is not None:
+                    ttm_revenue = income_rows[1][0]
+
                 # FIXED 2026-08-06: Financial services companies (banks, insurance, investment firms)
                 # don't report operating_income - they report pretax_income instead. Use pretax_income
                 # as fallback for EBITDA calculation in these cases. This recovers ~22% of missing
