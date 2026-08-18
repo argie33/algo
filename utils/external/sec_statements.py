@@ -224,6 +224,20 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "AssetsCurrent",
         "Liabilities",
         "LiabilitiesCurrent",
+        # FIXED 2026-08-18 (roic_pct "missing_sec_data" audit): fallback for filers that
+        # tag total equity INCLUDING noncontrolling/minority interest instead of (or as well
+        # as) the parent-only "StockholdersEquity" concept - live-confirmed via real SEC
+        # companyfacts JSON that ADM (CIK 0000007084) has ZERO "StockholdersEquity" facts
+        # ever filed, only this concept (e.g. FY2021 $22,508,000,000). A live DB scan found
+        # 115 symbols with 2+ real (non-data_unavailable) annual_balance_sheet rows where
+        # stockholders_equity was NULL in every single one - after excluding commodity/crypto
+        # trusts and ETFs that legitimately have no XBRL company facts at all (AAAU, BAR,
+        # BITB, BITW, BNO, BDRY, ...), several (ADM, AAON among them) are ordinary profitable
+        # operating companies that should have this field. Listed BEFORE "StockholdersEquity"
+        # (same last-listed-wins convention as the cash fallbacks below) so the more precise
+        # parent-only figure always wins when a filer reports both for the same fiscal year -
+        # this only fills years/filers where the parent-only concept is absent entirely.
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
         "StockholdersEquity",
         # FIXED 2026-08-03: two fallback cash concepts added below, both mapped to the same
         # cash_and_equivalents column via field_mapping in load_financial_statements.py.

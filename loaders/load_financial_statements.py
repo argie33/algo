@@ -295,6 +295,13 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # sec_statements.py's get_balance_sheet() comment for why this concept is needed
         # (JPM has not tagged plain "LongTermDebt" since FY2013).
         "long_term_debt_and_capital_lease_obligations_including_current_maturities",
+        # FIXED 2026-08-18 (roic_pct "missing_sec_data" audit): ADM-style fallback for
+        # filers that tag total equity including noncontrolling interest instead of the
+        # parent-only "StockholdersEquity" concept - see sec_statements.py's
+        # get_balance_sheet() comment for the live evidence. Despite the set's name, this
+        # has been the shared "balance-sheet fallback-only fields" bucket since the JPM
+        # entry above; both annual/quarterly balance configs reference it directly.
+        "stockholders_equity_including_portion_attributable_to_noncontrolling_interest",
     }
 )
 
@@ -318,6 +325,13 @@ _BALANCE_FIELD_MAPPING = {
     "liabilities": "total_liabilities",
     "liabilities_current": "current_liabilities",
     "stockholders_equity": "stockholders_equity",
+    # FIXED 2026-08-18 (roic_pct "missing_sec_data" audit): fallback for filers (ADM
+    # live-confirmed, CIK 0000007084) that tag total equity including noncontrolling/minority
+    # interest instead of the parent-only concept above. Flat lookup, not a priority order -
+    # actual overwrite precedence comes from sec_statements.py's get_balance_sheet() concept
+    # list order (fallback listed before "StockholdersEquity" there), same convention as the
+    # cash fallbacks immediately below.
+    "stockholders_equity_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
     # FIXED 2026-07-28: these 6 concepts are fetched from real SEC XBRL data every run
     # (utils/external/sec_statements.py's get_balance_sheet(), GAAP + IFRS aliases both
     # present since the module was written) but had no target column here - a commit on
