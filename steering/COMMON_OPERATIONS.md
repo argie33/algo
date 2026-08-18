@@ -139,7 +139,7 @@ from utils.db.context import DatabaseContext
 
 with DatabaseContext("read") as cur:
     cur.execute("""
-        SELECT COUNT(*) as total, 
+        SELECT COUNT(*) as total,
                SUM(CASE WHEN quality_score IS NULL THEN 1 ELSE 0 END) as missing_qual,
                SUM(CASE WHEN growth_score IS NULL THEN 1 ELSE 0 END) as missing_growth
         FROM stock_scores WHERE composite_score > 0
@@ -158,8 +158,12 @@ EOF
 
 **If too many missing:**
 - Check metric loaders ran: `SELECT last_updated FROM data_loader_status`
-- Rerun loader: `python3 loaders/load_value_quality_growth_metrics.py` (corrected
-  2026-07-20 - `load_quality_metrics.py` no longer exists, consolidated into this file)
+- Rerun loader THROUGH THE SCHEDULER, not the script directly (bypassing it skips
+  dependency checks and the scheduler's lock/status tracking - see
+  [[feedback_always_use_pipeline_scheduler_for_backfills]] in memory for a live incident
+  this caused): `python scripts/local_loader_scheduler.py --now metrics --loaders
+  value_quality_growth_metrics` (loader corrected 2026-07-20 - `load_quality_metrics.py`
+  no longer exists, consolidated into `load_value_quality_growth_metrics.py`)
 - See [DATA_LOADERS.md](DATA_LOADERS.md) for troubleshooting
 
 ---
@@ -270,16 +274,22 @@ aws ec2 describe-security-groups --group-ids sg-xxxxx \
 
 **Solution:**
 
-1. Check which loader is slow:
+1. Check which loader is slow - run it through the scheduler, not the script directly
+   (see [[feedback_always_use_pipeline_scheduler_for_backfills]] in memory: a bare
+   `python loaders/load_*.py` bypasses dependency checks and the scheduler's lock/status
+   tracking, and has live-caused real data-quality incidents when done for "just this one
+   troubleshooting run"):
 ```bash
-# Run with verbose output
-python3 loaders/load_value_quality_growth_metrics.py 2>&1 | tail -50
+python scripts/local_loader_scheduler.py --now metrics --loaders value_quality_growth_metrics
 ```
 
-2. Check parallelism setting (may be too high):
-```bash
-python3 loaders/load_value_quality_growth_metrics.py --parallelism 2
-```
+2. Do NOT try `--parallelism 2` on this loader - value_quality_growth_metrics is
+   yfinance-dependent and yfinance requests share a NAT IP across ECS tasks; parallelism
+   above 1 here triggers HTTP 429 rate-limit bans (see
+   `steering/YFINANCE_PARALLELISM_INVESTIGATION.md`, which explicitly lists this loader as
+   "locked to 1"). This is enforced by `LOADER_PARALLELISM must be 1` in CLAUDE.md's Core
+   Rules - if timeouts persist, the fix is investigating the slow symbol/API call, not
+   raising parallelism.
 
 3. Check upstream data availability:
 ```bash
@@ -495,7 +505,7 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 ### Scenario 1: Orchestrator Race During Concurrent Writes
 **What happens:** Two orchestrator runs attempt to write portfolio snapshots simultaneously; non-deterministic winner means halt flags may not apply consistently.
 **Root cause:** Operational, not a code bug. PostgreSQL transaction isolation doesn't prevent concurrent-session races on business logic (halt flag writes).
-**Mitigation:** 
+**Mitigation:**
 - Run orchestrator serially (one session at a time)
 - Monitor logs for concurrent activity: `git log --oneline -10` to see if another session is working
 - Check for competing processes: `Get-CimInstance Win32_Process -Filter "Name LIKE 'python%"` (Windows)
@@ -511,7 +521,7 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 ### Scenario 3: Data Staleness False Alarms
 **What happens:** One session's halt flag (circuit breaker breach) influences another session's data freshness assessment.
 **Root cause:** `algo_portfolio_snapshots` and other shared tables are written by orchestrator; concurrent readers may see partial states.
-**Mitigation:** 
+**Mitigation:**
 - Don't rely on dashboard halt flags across concurrent sessions
 - If testing circuit breaker behavior: run orchestrator alone, then check state
 - Dashboard's "health" panel is for UI feedback, not a reliable inter-session signal
@@ -535,4 +545,3 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 | Deployment | [OPERATIONS.md](OPERATIONS.md) |
 
 ---
-
