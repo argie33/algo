@@ -42,6 +42,41 @@ def test_fetch_cusip_tickers_parses_resolved_cusips(monkeypatch):
     assert result == {"037833100": {"ticker": "AAPL", "name": "APPLE INC"}}
 
 
+def test_fetch_cusip_tickers_prefers_us_listing_over_foreign_cross_listing(monkeypatch):
+    """Live-verified via Agilent's real CUSIP (00846U101): OpenFIGI returns 100+ listings
+    across every exchange the security trades on, not primary-listing-first - data[0] was a
+    German Xetra listing ("AG8"), with the real US listing ("A") at index 8. Picking data[0]
+    unconditionally resolved a real US large-cap to the wrong ticker."""
+    payload = [
+        {
+            "data": [
+                {"ticker": "AG8", "name": "AGILENT TECHNOLOGIES INC", "exchCode": "GR"},
+                {"ticker": "AG8", "name": "AGILENT TECHNOLOGIES INC", "exchCode": "GF"},
+                {"ticker": "A", "name": "AGILENT TECHNOLOGIES INC", "exchCode": "US"},
+                {"ticker": "A", "name": "AGILENT TECHNOLOGIES INC", "exchCode": "UN"},
+            ]
+        },
+    ]
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=30: _FakeResponse(payload))
+
+    result = fetch_cusip_tickers(["00846U101"])
+
+    assert result == {"00846U101": {"ticker": "A", "name": "AGILENT TECHNOLOGIES INC"}}
+
+
+def test_fetch_cusip_tickers_falls_back_to_first_listing_when_no_us_exchange(monkeypatch):
+    """A genuinely foreign-only security (no US listing at all) must keep resolving to its
+    only available listing, not be dropped just because it lacks an exchCode "US" entry."""
+    payload = [
+        {"data": [{"ticker": "VOD", "name": "VODAFONE GROUP PLC", "exchCode": "LN"}]},
+    ]
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=30: _FakeResponse(payload))
+
+    result = fetch_cusip_tickers(["92857W209"])
+
+    assert result == {"92857W209": {"ticker": "VOD", "name": "VODAFONE GROUP PLC"}}
+
+
 def test_fetch_cusip_tickers_skips_unresolved_cusips_without_fabricating(monkeypatch):
     """OpenFIGI returns an 'error' object (no 'data' key) for CUSIPs it can't map
     (bonds, private placements, foreign-only listings) - those must simply be

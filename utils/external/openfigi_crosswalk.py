@@ -158,7 +158,21 @@ def fetch_cusip_tickers(
                 data = result.get("data")
                 if not data:
                     continue  # OpenFIGI couldn't resolve this CUSIP - honest gap, not fabricated
-                best = data[0]
+                # FIXED 2026-08-18 (goal: "no SEC data"/missing factor inputs audit): a single
+                # CUSIP resolves to 100+ listings across every exchange it trades on (primary
+                # US listing plus every foreign cross-listing/ADR venue), and OpenFIGI does NOT
+                # return them in any "primary first" order - live-confirmed via real OpenFIGI
+                # response for Agilent's CUSIP (00846U101): data[0] was a German Xetra listing
+                # (exchCode "GR", ticker "AG8"), with the real US listing (exchCode "US", ticker
+                # "A") not appearing until index 8. The old `data[0]` pick therefore resolved a
+                # real US-tracked large-cap to the WRONG ticker, which then failed the exact-match
+                # `ticker not in symbols` check in load_institutional_holdings_13f.py's
+                # _crosswalk_to_tickers and silently dropped real, resolved 13F holdings as
+                # "no_resolved_13f_holdings" (1,668 symbols showing this reason at time of fix).
+                # Prefer the entry OpenFIGI tags as the primary US composite listing (exchCode
+                # "US") when one exists; fall back to data[0] unchanged for CUSIPs with no US
+                # listing at all (genuine foreign-only securities - already correct for those).
+                best = next((d for d in data if d.get("exchCode") == "US"), data[0])
                 entry = {"ticker": best.get("ticker"), "name": best.get("name")}
                 results[cusip] = entry
                 batch_resolved[cusip] = entry
