@@ -29,6 +29,21 @@ logger = logging.getLogger(__name__)
 # module docstring for the CAD/GBP/EUR/AUD/CHF/JPY-only fix this backs.
 _fx_rate_cache = FxRateCache()
 
+
+def _extract_currency_code(unit: str) -> str:
+    """Return the bare currency code from an XBRL unit string.
+
+    Per-share concepts (BasicEarningsLossPerShare etc.) use compound units like
+    "CAD/shares", not a bare "CAD" - the currency-rejection/conversion guard below
+    only ever matched bare 3-letter units, so foreign filers' EPS silently passed
+    through unconverted (and un-rejected) regardless of currency. Splitting on "/"
+    first makes "CAD/shares" -> "CAD" (subject to the same reject-or-convert rule as
+    a bare "CAD" monetary fact) while "shares"/"pure"/"USD/shares" -> "shares"/"pure"/
+    "USD" still correctly fall outside the 3-letter-uppercase-code shape.
+    """
+    return unit.split("/", 1)[0]
+
+
 _BALANCE_IFRS_ALIASES = [
     # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
     ("Assets", "assets"),
@@ -787,8 +802,15 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             # why volatile/emerging-market currencies are deliberately excluded. A rate
             # lookup failure still leaves the value NULL, same fail-closed discipline as
             # every other currency this guard rejects outright.
-            is_major_currency = _unit != "USD" and _unit in MAJOR_CURRENCIES
-            if _unit != "USD" and len(_unit) == 3 and _unit.isalpha() and _unit.isupper() and not is_major_currency:
+            _currency_code = _extract_currency_code(_unit)
+            is_major_currency = _currency_code != "USD" and _currency_code in MAJOR_CURRENCIES
+            if (
+                _currency_code != "USD"
+                and len(_currency_code) == 3
+                and _currency_code.isalpha()
+                and _currency_code.isupper()
+                and not is_major_currency
+            ):
                 continue
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
@@ -923,7 +945,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 if col not in row or (row_filed is None or entry_filed > row_filed):
                     val = entry.get("val")
                     if is_major_currency and isinstance(val, (int, float)) and end_date:
-                        fx_rate = _fx_rate_cache.get_usd_rate(_unit, end_date)
+                        fx_rate = _fx_rate_cache.get_usd_rate(_currency_code, end_date)
                         if fx_rate is None or fx_rate == 0:
                             # No real rate available for this exact date - fail closed,
                             # never guess. Leaves this entry unset for this column, same
