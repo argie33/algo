@@ -48,6 +48,11 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
+# _compute_all_indicators_vectorized fetches ~400 calendar days of price history per symbol
+# (252 trading days for roc_252d plus MA/RSI warmup buffer) but only writes the most recent
+# this-many days to technical_indicators - see both usages below.
+OUTPUT_WINDOW_DAYS_TECH_INDICATORS = 30
+
 
 class VectorizedTechnicalLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
@@ -399,7 +404,23 @@ class VectorizedTechnicalLoader:
                 # Extreme volatility (e.g., stock dropping 50% in 1 day = -5000% ROC) should NOT crash entire loader
                 # Instead: skip this symbol, log alert, continue with others
                 # This prevents one micro-cap stock meltdown from breaking technical indicators for 5000 symbols
+                #
+                # OUTPUT-WINDOW FIX (2026-08-17, live-reproduced via reference_then_morning_after_signals.log -
+                # 20+ symbols/run hitting this): symbol_df here spans the full ~400-day fetch window (400 =
+                # 252 trading days for roc_252d + buffer), but only the last 30 days (OUTPUT_WINDOW_DAYS below,
+                # matching the `date >= now - 30 days` trim later in this function) are ever written to
+                # technical_indicators - everything older is pure MA/RSI/ROC warmup. The original check ran
+                # over the FULL window and skipped the entire symbol - including its otherwise-valid CURRENT
+                # indicators - whenever ANY single day anywhere in the ~370 days of warmup-only history had an
+                # extreme ROC (a real but long-past crash/reorg/bad tick), even though that day was never going
+                # to be written to the DB either way. Now only an exceeded value that falls inside the actual
+                # output window forces a skip; a warmup-only outlier is clipped like any other in-range warmup
+                # value (clipping a value that's never persisted can't corrupt real output - it only exists to
+                # keep pandas' rolling-window math from choking on it) and processing continues normally.
                 roc_max = 99999.9999
+                output_window_start = datetime.now(EASTERN_TZ).date() - timedelta(
+                    days=OUTPUT_WINDOW_DAYS_TECH_INDICATORS
+                )
                 for col in [
                     "roc",
                     "roc_10d",
@@ -412,17 +433,30 @@ class VectorizedTechnicalLoader:
                     exceeded_values = before[before.abs() > roc_max]
 
                     if len(exceeded_values) > 0:
+                        exceeded_dates = symbol_df.loc[exceeded_values.index, "date"].dt.date
+                        in_output_window = exceeded_dates >= output_window_start
                         max_exceeded = exceeded_values.abs().max()
-                        logger.critical(
-                            f"[ROC_OVERFLOW_SKIP] {symbol}: {len(exceeded_values)} {col} values exceed NUMERIC(14,4) range. "
-                            f"Max value: {max_exceeded:.4f}. Skipping this symbol to prevent loader crash. "
-                            f"This indicates extreme micro-cap volatility (possibly delisted/bankrupt security). "
-                            f"Examples: {exceeded_values.head(3).values}"
-                        )
-                        skipped_symbols.append(symbol)
-                        raise RuntimeError(f"[ROC_OVERFLOW_SKIP] {symbol}: extreme volatility detected")
 
-                    # Clipping is OK only for values within safe range (defensive programming)
+                        if in_output_window.any():
+                            logger.critical(
+                                f"[ROC_OVERFLOW_SKIP] {symbol}: {int(in_output_window.sum())} {col} values within "
+                                f"the {OUTPUT_WINDOW_DAYS_TECH_INDICATORS}-day output window exceed NUMERIC(14,4) "
+                                f"range. Max value: {max_exceeded:.4f}. Skipping this symbol to prevent loader crash. "
+                                f"This indicates extreme micro-cap volatility (possibly delisted/bankrupt security). "
+                                f"Examples: {exceeded_values.head(3).values}"
+                            )
+                            skipped_symbols.append(symbol)
+                            raise RuntimeError(f"[ROC_OVERFLOW_SKIP] {symbol}: extreme volatility detected")
+
+                        logger.warning(
+                            f"[ROC_OVERFLOW_CLIP] {symbol}: {len(exceeded_values)} {col} values exceed "
+                            f"NUMERIC(14,4) range, all outside the {OUTPUT_WINDOW_DAYS_TECH_INDICATORS}-day output "
+                            f"window (warmup-only history, never persisted). Max value: {max_exceeded:.4f}. "
+                            f"Clipping and continuing - does not affect any written row."
+                        )
+
+                    # Clipping is OK for values within safe range (defensive programming) and for
+                    # warmup-only exceeded values handled above (never written to the DB).
                     symbol_df[col] = symbol_df[col].clip(-roc_max, roc_max)
 
                 # Moving averages
@@ -525,9 +559,7 @@ class VectorizedTechnicalLoader:
                 symbol_df["price_data_age_days"] = 0  # Mark as current
 
                 # Keep only rows after warmup period (skip first 300 days used for MA computation)
-                symbol_df = symbol_df[
-                    symbol_df["date"].dt.date >= (datetime.now(EASTERN_TZ).date() - timedelta(days=30))
-                ]
+                symbol_df = symbol_df[symbol_df["date"].dt.date >= output_window_start]
 
                 results.append(symbol_df)
 
