@@ -828,9 +828,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # a missed run degrades the catalyst score by one of its components, not worth halting
       # the whole EOD pipeline.
       AnalystUpgradeDowngrade = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 900s (15m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "analyst_upgrade_downgrade", also just fixed to
+        # 5400s/90m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 5700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -884,9 +887,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # state in this chain uses - see the SecCashFlowMetrics/SecSegmentInfo fix earlier in
       # this file for what happens when they don't).
       AnalystSentimentAnalysis = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 900s (15m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "analyst_sentiment_analysis", also just fixed to
+        # 7200s/120m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 7500
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1710,9 +1716,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # and feeds into quality/diversification scoring.
       # Non-critical: fails open; missing segment data defaults to data_unavailable markers.
       SecSegmentInfo = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 1800s (30m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "sec_segment_info", also just fixed to 32400s/
+        # 540m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 32700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1840,9 +1849,13 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # docstring). Without this, every symbol showed
       # forward_pe_unavailable_reason="no_analyst_estimates" regardless of real coverage. ──
       AnalystEarningsEstimates = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 1200s (20m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "analyst_earnings_estimates", also just fixed to
+        # 5400s/90m) or the Python-side timeout it must exceed. Step Functions would have killed
+        # this task at 20 minutes regardless of either budget. Matching with a 5min margin.
+        TimeoutSeconds = 5700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2056,9 +2069,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # run it first so same-day data is available. Local dev already runs this exact sequence
       # in scripts/local_loader_scheduler.py's "reference" + "morning" pipelines.
       CompanyInfoSec = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 1800s (30m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "company_info_sec", also just fixed to 32400s/
+        # 540m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 32700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2119,9 +2135,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # checks) kept depending on the table it feeds. Same failure mode this comment block
       # already documents for CompanyInfoSec/EarningsCalendarSec above.
       CompanyProfile = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 900s (15m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "company_profile", also just fixed to 10800s/
+        # 180m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 11100
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2175,9 +2194,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       EarningsCalendarSec = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 1800s (30m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "earnings_calendar_sec", also just fixed to
+        # 9000s/150m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 9300
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2238,9 +2260,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # EarningsCalendarSec, which doesn't actually carry earnings dates/EPS data. See
       # loaders/load_earnings_calendar.py's module docstring. ──
       EarningsCalendar = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        # FIXED 2026-08-18: was 1200s (20m) - never synced with the ECS task-def timeout
+        # (terraform/modules/loaders/main.tf's "earnings_calendar", also just fixed to 7200s/
+        # 120m) or the Python-side timeout it must exceed. Matching with a 5min margin.
+        TimeoutSeconds = 7500
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

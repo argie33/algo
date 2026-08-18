@@ -322,9 +322,9 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 // Loaders read LOADER_PARALLELISM env var and must respect it in their run() method.
 locals {
   loader_file_map = {
-    "stock_prices_daily"    = "load_prices.py"
-    "technical_data_daily"  = "load_technical_indicators.py"
-    "trend_template_data"   = "load_trend_analysis.py"
+    "stock_prices_daily"   = "load_prices.py"
+    "technical_data_daily" = "load_technical_indicators.py"
+    "trend_template_data"  = "load_trend_analysis.py"
     # DEPRECATED (Session 275): Replaced by SEC loaders (company_info_sec, earnings_calendar_sec, institutional_holdings_13f, etc.)
     # "yfinance_snapshot"     = "load_yfinance_snapshot.py"
     # Consolidated economic data: FRED (T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA) + DXY
@@ -420,23 +420,23 @@ locals {
     "stability_metrics" = "load_risk_metrics_daily.py"
 
     # Positioning: short interest + institutional/insider holdings
-    "positioning_metrics" = "load_positioning_metrics.py"
+    "positioning_metrics"  = "load_positioning_metrics.py"
     "short_interest_finra" = "load_short_interest_finra.py"
 
     # Stock scoring: 6-factor composite
     "stock_scores" = "load_stock_scores.py"
 
     # Trading signals
-    "buy_sell_daily" = "load_buy_sell_daily.py"
-    "signal_quality_scores" = "load_signal_quality_scores.py"  # Session 307 restoration: SQS feature
-    "algo_metrics_daily" = "load_algo_metrics_daily.py"
+    "buy_sell_daily"        = "load_buy_sell_daily.py"
+    "signal_quality_scores" = "load_signal_quality_scores.py" # Session 307 restoration: SQS feature
+    "algo_metrics_daily"    = "load_algo_metrics_daily.py"
 
     # Reference data
     "market_constituents" = "load_market_constituents.py"
 
     # SEC holdings (Phase 2 complete - institutional + insider from SEC filings)
-    "institutional_holdings_13f" = "load_institutional_holdings_13f.py"
-    "insider_holdings_sec" = "load_insider_holdings_sec.py"
+    "institutional_holdings_13f"   = "load_institutional_holdings_13f.py"
+    "insider_holdings_sec"         = "load_insider_holdings_sec.py"
     "insider_transaction_velocity" = "load_insider_transaction_velocity.py"
 
     # SEC segment metrics (Session 445: XBRL segment disclosure extraction)
@@ -445,14 +445,14 @@ locals {
     # already computed by load_value_quality_growth_metrics.py into quality_metrics and already
     # scored/displayed - see steering/DATA_LOADERS.md's GAP note. Table + migration left in
     # place (existing rows are harmless), just no longer scheduled.
-    "sec_segment_info" = "load_sec_segment_info.py"  # XBRL ASC 280 segment disclosure parser (source for segment_metrics)
+    "sec_segment_info"    = "load_sec_segment_info.py" # XBRL ASC 280 segment disclosure parser (source for segment_metrics)
     "sec_segment_metrics" = "load_sec_segment_metrics.py"
 
     # SEC Current Reports (8-K) and Dividend Data (Session 444: XBRL expansion)
     # 8-K: Material events that may impact trading signals (acquisitions, bankruptcies, etc.)
     # Dividends: Ex-dates, payment dates, yields for position management
     "current_reports_8k" = "load_current_reports_8k.py"
-    "dividend_data" = "load_dividend_data.py"
+    "dividend_data"      = "load_dividend_data.py"
 
     # Analyst upgrade/downgrade ratings (Session 2026-07-27: restores a loader deleted with
     # load_yfinance_snapshot.py, see steering/DATA_LOADERS.md's GAP note). AUXILIARY tier -
@@ -564,7 +564,11 @@ locals {
     # yfinance call, no bulk endpoint) - live-tested locally at ~1-2s/symbol.
     # Analyst earnings estimates (yfinance per-symbol) - need 45m min for rate-limit backoff
     # Session 92+: increased from 30m to 45m due to yfinance circuit-breaker retries
-    "analyst_earnings_estimates"      = { cpu = 256, memory = 512, timeout = 2700, parallelism = 1 }
+    # FIXED 2026-08-18: still 2700s (45m) while loader_timeout_config.py's
+    # "analyst_earnings_estimates" had since been raised to 5400s (90m) - same
+    # terraform-must-match-python-timeout gap as current_reports_8k/dividend_data (18d0d2021),
+    # this loader just never got swept. Synced to the current Python value.
+    "analyst_earnings_estimates" = { cpu = 256, memory = 512, timeout = 5400, parallelism = 1 }
     # Enhanced quality/growth metrics (yfinance variance high, need 5h for full variance)
     # Session 92: yfinance variance high, requires long timeout buffer
     "enhanced_quality_growth_metrics" = { cpu = 256, memory = 512, timeout = 18000, parallelism = 1 }
@@ -580,22 +584,30 @@ locals {
     # Phase 5a: Company Info from SEC EDGAR (SEC API @ 2 req/sec for ~4900 symbols = 2450s base + retry overhead)
     # Timeout: 18000s (300 min) - Session 97 fix: was 10800s (180m), MISALIGNED with Python config at 300m
     # Parallelism: 1-2 (SEC API rate-limited to ~2 req/sec globally, keep under limit)
-    "company_info_sec" = { cpu = 256, memory = 512, timeout = 18000, parallelism = 2 }
+    # FIXED 2026-08-18: loader_timeout_config.py's "company_info_sec" had since been raised
+    # further to 32400s (540m) - this comment's "300m" claim went stale. Re-synced.
+    "company_info_sec" = { cpu = 256, memory = 512, timeout = 32400, parallelism = 2 }
 
     # Restored 2026-07-27: reads company_info_sec (already in RDS, no external API calls),
     # but yfinance rate-limited on 4900 symbols, needs safety margin. Session 97 fix: was 2700s (45m)
     # Timeout: 7200s (120 min) to match Python config + buffer for yfinance rate-limit retries
-    "company_profile" = { cpu = 128, memory = 256, timeout = 7200, parallelism = 2 }
+    # FIXED 2026-08-18: loader_timeout_config.py's "company_profile" had since been raised to
+    # 10800s (180m) - re-synced.
+    "company_profile" = { cpu = 128, memory = 256, timeout = 10800, parallelism = 2 }
 
     # Phase 5b: SEC filing dates (SEC API @ 2 req/sec = ~40 min base + overhead)
     # Timeout: 5400s (90 min) - Session 94 fix: was 900s, TIMEOUT every run after 15 min
     # Parallelism: 1-2 (SEC API rate-limited, keep under global limit)
-    "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 5400, parallelism = 2 }
+    # FIXED 2026-08-18: loader_timeout_config.py's "earnings_calendar_sec" had since been
+    # raised to 9000s (150m) - re-synced.
+    "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 9000, parallelism = 2 }
 
     # Restored 2026-08-04 - per-symbol yfinance calls (4900 symbols @ ~0.75s/symbol = 60+ min)
     # Session 93 audit: measured 54.84 min actual, was 45m configured (9.8m shortfall)
     # Timeout: 4500s (75 min) to accommodate variance and retry overhead
-    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 4500, parallelism = 1 }
+    # FIXED 2026-08-18: loader_timeout_config.py's "earnings_calendar" had since been raised
+    # to 7200s (120m) - re-synced.
+    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 7200, parallelism = 1 }
 
     # ============================================================
     # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)
@@ -630,7 +642,9 @@ locals {
     # Parses SEC EDGAR companyfacts and raw XBRL for segment disclosure data
     # Session 97 fix: was 14400s (240m), Python config requires 21600s (360m/6h) for full universe
     # Timeout: 21600s (360 min / 6h) to match Python config for XBRL parsing + SEC API rate limiting
-    "sec_segment_info" = { cpu = 512, memory = 1024, timeout = 21600, parallelism = 2 }
+    # FIXED 2026-08-18: loader_timeout_config.py's "sec_segment_info" had since been raised to
+    # 32400s (540m) - re-synced.
+    "sec_segment_info" = { cpu = 512, memory = 1024, timeout = 32400, parallelism = 2 }
 
     # Core Stock Scoring & Risk Metrics (ACTIVE)
     # Stock scores: 6-factor composite (quality/growth/value/momentum/positioning/stability)
@@ -675,11 +689,13 @@ locals {
     "financials_all" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 1 }
 
     # Signals & algo metrics
-    "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
+    "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     # CRITICAL FIX (Session 97): Timeout was 600s (10m) but needs 1500s (25m)
     # Signal quality scoring requires full symbol universe
     "signal_quality_scores" = { cpu = 256, memory = 512, timeout = 1500, parallelism = 1 }
-    "algo_metrics_daily"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # FIXED 2026-08-18: was 600s (10m), loader_timeout_config.py's "algo_metrics_daily" is
+    # 1200s (20m) - terraform-must-match-python-timeout gap, re-synced.
+    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
 
     # SEC Current Reports & Dividend Data (Session 444: XBRL expansion)
     # 8-K: Form 8-K current reports (material events, SEC API calls + text parsing)
@@ -703,12 +719,16 @@ locals {
     # same shape/sizing as dividend_data (per-symbol external API, not bulk).
     # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 2700s (45m)
     # yfinance rate-limiting + retry backoff requires longer timeout
-    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 2700, parallelism = 1 }
+    # FIXED 2026-08-18: was still 2700s (45m), loader_timeout_config.py's
+    # "analyst_upgrade_downgrade" had since been raised to 5400s (90m) - re-synced.
+    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 5400, parallelism = 1 }
     # Analyst sentiment analysis: two per-symbol yfinance calls (recommendations_summary +
     # analyst_price_targets) - same shape/sizing as analyst_upgrade_downgrade.
     # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 3600s (60m)
     # yfinance rate-limiting requires longer timeout
-    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    # FIXED 2026-08-18: was still 3600s (60m), loader_timeout_config.py's
+    # "analyst_sentiment_analysis" had since been raised to 7200s (120m) - re-synced.
+    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 7200, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
