@@ -735,6 +735,16 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # for a payroll/HR-services company with light physical footprint) - both
         # confirmed via direct live SEC companyfacts lookup, not guessed.
         "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+        # FIXED 2026-08-18 (missing factor inputs audit): ACGL/FRT/VSH-class filers report
+        # dividends under this concept instead of any "PaymentsOf*Dividend*" tag below - see
+        # load_financial_statements.py's _CASHFLOW_FIELD_MAPPING comment for the live
+        # evidence and the required sign normalization. Listed BEFORE the "PaymentsOf*"
+        # concepts (this file's "last-listed wins" overwrite convention) so the more
+        # standard/reliable PaymentsOf* tag stays authoritative on the rare filer that
+        # reports both - live-confirmed no overlap exists for ACGL/FRT/VSH, but there's no
+        # reason to risk it for filers not yet characterized.
+        "DividendsCommonStockCash",
+        "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
         # same reasoning as InterestExpense above - foreign filers get NULL instead of a
         # guessed value.

@@ -466,6 +466,22 @@ _CASHFLOW_FIELD_MAPPING = {
     # "PaymentsOfDividends" - see sec_statements.py's comment above these concepts.
     "payments_of_dividends_common_stock": "dividends_paid",
     "payments_of_ordinary_dividends": "dividends_paid",
+    # FIXED 2026-08-18 (missing factor inputs audit): ACGL (Arch Capital)/FRT (Federal
+    # Realty)/VSH (Vishay) - all 3 live-confirmed real, currently-paying dividend stocks
+    # (real recent ex_dividend_date on file in dividend_data) - never tag any of the 3
+    # "PaymentsOf*Dividend*" concepts above at all. They report under "DividendsCommonStockCash"
+    # instead (a genuine, well-populated concept: VSH's real values run $35M-$57M/year,
+    # 2014-2025, growing in line with a normal dividend program). 19 confirmed real payers
+    # universe-wide had NULL dividends_paid in every annual_cash_flow row before this fix.
+    # Unlike the "PaymentsOf*" family (a payments/outflow concept, standard-positive by XBRL
+    # convention), "DividendsCommonStockCash" carries a debit-balance definition and
+    # live-confirmed flips sign by filing vintage (VSH: negative 2014-2017, positive
+    # 2019-2025, for the exact same real dividend program) - see the abs() normalization in
+    # ConsolidatedFinancialStatementsLoader.transform() below, required specifically for
+    # this concept so a sign flip can't silently produce a negative payout_ratio/dividend
+    # figure downstream.
+    "dividends_common_stock_cash": "dividends_paid",
+    "dividends_common_stock": "dividends_paid",
     **_MARKER_FIELDS,
 }
 
@@ -1452,6 +1468,19 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         and row.get("stockholders_equity") is not None
                     ):
                         row["total_liabilities"] = row["total_assets"] - row["stockholders_equity"]
+                    # FIXED 2026-08-18 (missing factor inputs audit): DividendsCommonStockCash/
+                    # DividendsCommonStock (see _CASHFLOW_FIELD_MAPPING comment) carry a
+                    # debit-balance XBRL definition and live-confirmed flip sign by filing
+                    # vintage for the same real dividend program (VSH: negative 2014-2017,
+                    # positive 2019-2025) - unlike the "PaymentsOf*" concepts (standard-positive
+                    # by convention), a negative value here would silently produce a negative
+                    # payout_ratio/dividend figure downstream. dividends_paid is always a
+                    # magnitude (cash outflow), so this is a safe normalization for every
+                    # source concept, not just the new ones - the existing "PaymentsOf*"
+                    # concepts are already always positive in practice, so this is a no-op
+                    # for them.
+                    if self.statement_type == "cashflow" and row.get("dividends_paid") is not None:
+                        row["dividends_paid"] = abs(row["dividends_paid"])
                 result.append(row)
 
         return result
