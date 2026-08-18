@@ -329,12 +329,26 @@ class SecValuationsLoader(OptimalLoader):
                 # write such rows itself, but every "latest fiscal year" query reading a table
                 # another loader also writes to should not trust that no NULL key ever lands
                 # there.
+                # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): this was still a plain
+                # `ORDER BY fiscal_year DESC LIMIT 1` with no regard for whether that year's
+                # stockholders_equity was actually populated - the exact "latest year is empty"
+                # bug class already fixed in this same file for the debt/income-statement/
+                # shares_outstanding queries (see test_sec_valuations_debt_query_prefers_
+                # populated_fiscal_year.py), just never applied here. Live-confirmed: AA has real
+                # stockholders_equity=$5.157B for FY2024 but NULL for FY2025/FY2026 (in-progress/
+                # unfiled years); ADM/AAON are NULL across every year on file for a different
+                # reason (NCI-inclusive equity concept, separately fixed) but would hit this same
+                # blind-latest-year trap once backfilled. pb_ratio silently went "missing_sec_data"
+                # for 1,225 symbols as a result. Same CASE-based prioritization as the debt query:
+                # prefer a fiscal year with a real reported value, only falling back to the bare
+                # latest year (still correctly NULL) for companies with no balance sheet history.
                 cur.execute(
                     """
                     SELECT stockholders_equity
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY fiscal_year DESC LIMIT 1
+                    ORDER BY (CASE WHEN stockholders_equity IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 1
                     """,
                     (symbol,),
                 )
