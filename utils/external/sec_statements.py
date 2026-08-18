@@ -332,6 +332,19 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "NotesPayableRelatedPartiesNoncurrent",
         "LongTermNotesPayable",
         "ConvertibleNotesPayable",
+        # FIXED 2026-08-18 (goal: "no SEC data" loader audit, roic_pct missing_sec_data
+        # follow-up): live-confirmed via real SEC companyfacts JSON that DKNG (DraftKings)
+        # and DASH (DoorDash) - both large, well-known filers, not obscure micro-caps -
+        # report their real convertible debt exclusively under this concept, never plain
+        # "ConvertibleNotesPayable" or "LongTermDebt": DKNG FY2025 10-K = $1,259,096,000,
+        # DASH FY2025 10-K = $2,724,000,000. Both were silently treated as debt-free
+        # (long_term_debt NULL across every fiscal year) despite carrying material
+        # long-term debt - part of the same "2,306 symbols with real balance
+        # sheet rows but zero long_term_debt ever" gap the fallback concepts above were
+        # added for, this specific concept just wasn't in that sweep. Fallback-only, listed
+        # before "LongTermDebt" (least-preferred position, same convention as the other
+        # fallbacks here) so a filer reporting the standard concept always keeps that value.
+        "ConvertibleLongTermNotesPayable",
         # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM (the largest US bank by assets)
         # stopped tagging the plain "LongTermDebt" concept after FY2013 - live-confirmed
         # via its real companyfacts JSON, last "LongTermDebt" fact is 2013-12-31, every

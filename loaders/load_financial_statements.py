@@ -294,6 +294,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         "notes_payable_related_parties_noncurrent",
         "long_term_notes_payable",
         "convertible_notes_payable",
+        # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up, goal: "no SEC data"
+        # audit): DKNG/DASH-style fallback - see sec_statements.py's get_balance_sheet()
+        # comment for the live evidence (DKNG FY2025 $1.26B, DASH FY2025 $2.72B tagged
+        # only under this concept, never plain "ConvertibleNotesPayable"/"LongTermDebt").
+        "convertible_long_term_notes_payable",
         # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM-style bank fallback - see
         # sec_statements.py's get_balance_sheet() comment for why this concept is needed
         # (JPM has not tagged plain "LongTermDebt" since FY2013).
@@ -363,6 +368,9 @@ _BALANCE_FIELD_MAPPING = {
     "notes_payable_related_parties_noncurrent": "long_term_debt",
     "long_term_notes_payable": "long_term_debt",
     "convertible_notes_payable": "long_term_debt",
+    # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): see
+    # _DEBT_FALLBACK_ONLY_FIELDS comment above (DKNG/DASH live evidence).
+    "convertible_long_term_notes_payable": "long_term_debt",
     "long_term_debt_and_capital_lease_obligations_including_current_maturities": "long_term_debt",
     # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
     # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt

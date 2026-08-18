@@ -21,7 +21,12 @@ from utils.external.sec_statements import _to_snake
 
 class TestDebtFallbackConceptMappings:
     def test_fallback_concepts_map_to_long_term_debt(self) -> None:
-        for concept in ("NotesPayableRelatedPartiesNoncurrent", "LongTermNotesPayable", "ConvertibleNotesPayable"):
+        for concept in (
+            "NotesPayableRelatedPartiesNoncurrent",
+            "LongTermNotesPayable",
+            "ConvertibleNotesPayable",
+            "ConvertibleLongTermNotesPayable",
+        ):
             target_key = _to_snake(concept)
             assert _BALANCE_FIELD_MAPPING[target_key] == "long_term_debt"
             assert target_key in _DEBT_FALLBACK_ONLY_FIELDS
@@ -42,6 +47,7 @@ class TestDebtFallbackNotOverwritingRealLongTermDebt:
             "long_term_debt": "long_term_debt",
             "long_term_notes_payable": "long_term_debt",
             "convertible_notes_payable": "long_term_debt",
+            "convertible_long_term_notes_payable": "long_term_debt",
             "notes_payable_related_parties_noncurrent": "long_term_debt",
             "data_unavailable": "data_unavailable",
             "reason": "reason",
@@ -77,3 +83,17 @@ class TestDebtFallbackNotOverwritingRealLongTermDebt:
         transformed = loader.transform([row])
 
         assert transformed[0]["long_term_debt"] == 52_942.0
+
+    def test_convertible_long_term_notes_payable_fallback_populates_debt(self) -> None:
+        # DKNG/DASH-style filer: real, material debt tagged only under
+        # ConvertibleLongTermNotesPayable, never plain ConvertibleNotesPayable/LongTermDebt.
+        loader = self._make_loader()
+        row = {
+            "symbol": "DKNG",
+            "fiscal_year": 2025,
+            "convertible_long_term_notes_payable": 1_259_096_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 1_259_096_000.0
