@@ -218,6 +218,7 @@ class TestDownstreamFallbackDoesNotClobberSpecificReason:
         None,  # 30 prior_year_stockholders_equity
         None,  # 31 prior_year_pretax_income
         None,  # 32 prior_year_interest_expense
+        None,  # 33 prior_year_gross_profit
     )
 
     def _run(self, monkeypatch, quarters):

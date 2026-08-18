@@ -595,7 +595,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            (SELECT pretax_income FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_pretax_income,
                            (SELECT interest_expense FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_interest_expense
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_interest_expense,
+                           (SELECT gross_profit FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_gross_profit
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -614,6 +616,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     LIMIT 1
                     """,
                     (
+                        symbol,
                         symbol,
                         symbol,
                         symbol,
@@ -1358,6 +1361,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             prior_year_interest_expense = self._nan_to_none(
                 safe_float(quality_row[32], f"{symbol}.prior_year_interest_expense", allow_none=True)
+            )
+            prior_year_gross_profit = self._nan_to_none(
+                safe_float(quality_row[33], f"{symbol}.prior_year_gross_profit", allow_none=True)
             )
             # EBIT-approximation fallback for prior-year operating income, mirroring the
             # current-year operating_income_for_margin fallback below - same root cause
@@ -2124,14 +2130,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # meaningless, not just its difference.
             MAX_MARGIN_ABS_PCT = 1000.0  # noqa: N806
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
-                # Gross Margin Trend - now can compute with prior-year cost_of_revenue
-                if cost_of_revenue is not None and prior_year_cost_of_revenue is not None:
-                    curr_gm = ((revenue - cost_of_revenue) / revenue) * 100 if revenue > 0 else None
-                    prior_gm = (
-                        ((prior_year_revenue - prior_year_cost_of_revenue) / prior_year_revenue) * 100
-                        if prior_year_revenue > 0
+                # Gross Margin Trend - prefers each year's directly-reported gross_profit (same
+                # source the base gross_margin metric above already falls back to), only deriving
+                # from revenue - cost_of_revenue when a filer doesn't tag GrossProfit at all. FIXED
+                # 2026-08-18: this previously required cost_of_revenue/prior_year_cost_of_revenue
+                # unconditionally, so filers that report GrossProfit directly but never tag a
+                # separate CostOfRevenue concept (e.g. ENVA: gross_profit present every fiscal year
+                # 2021-2025, cost_of_revenue NULL every year) fell through to the generic
+                # "insufficient_prior_year_data" label even though the trend was fully computable
+                # from data already on hand - not the reit_special_entity structural-gap case
+                # (no_gross_profit_concept is False here) and not an implausible-ratio rejection
+                # either, just a real gap in what this calculation tried.
+                curr_gross_profit = (
+                    gross_profit_direct
+                    if gross_profit_direct is not None
+                    else (revenue - cost_of_revenue if cost_of_revenue is not None else None)
+                )
+                prior_gross_profit = (
+                    prior_year_gross_profit
+                    if prior_year_gross_profit is not None
+                    else (
+                        prior_year_revenue - prior_year_cost_of_revenue
+                        if prior_year_cost_of_revenue is not None
                         else None
                     )
+                )
+                if curr_gross_profit is not None and prior_gross_profit is not None:
+                    curr_gm = (curr_gross_profit / revenue) * 100 if revenue > 0 else None
+                    prior_gm = (prior_gross_profit / prior_year_revenue) * 100 if prior_year_revenue > 0 else None
                     if (
                         curr_gm is not None
                         and prior_gm is not None
