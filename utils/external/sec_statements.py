@@ -235,6 +235,28 @@ _INCOME_DEI_ALIASES = [
     ("EntityCommonStockSharesOutstanding", "entity_common_stock_shares_outstanding"),
 ]
 
+# Forms that carry audited/reviewed primary financial statements. See the
+# "FIXED 2026-08-17 (goal: 'no SEC data' audit)" comment in _aggregate_concepts for why
+# these must outrank other forms (DEF 14A Pay vs Performance tables, 8-K, S-1, etc.)
+# regardless of filing date - those forms retag figures like NetIncomeLoss without a
+# reliable guarantee of the correct XBRL scale.
+_PRIMARY_STATEMENT_FORMS = {
+    "10-K",
+    "10-K/A",
+    "10-KT",
+    "10-KT/A",
+    "10-Q",
+    "10-Q/A",
+    "10-QT",
+    "10-QT/A",
+    "20-F",
+    "20-F/A",
+    "40-F",
+    "40-F/A",
+    "6-K",
+    "6-K/A",
+}
+
 
 def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
     """Aggregate balance sheet rows from key concepts.
@@ -946,7 +968,31 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     },
                 )
                 col = target_key
-                # Keep latest filing if multiple for same period
+                # Keep latest filing if multiple for same period, EXCEPT: never let a
+                # non-primary-statement form (DEF 14A, 8-K, S-1, etc.) outrank a primary
+                # annual/quarterly-report form (10-K/10-Q and their foreign-filer
+                # equivalents) just because it was filed later.
+                #
+                # FIXED 2026-08-17 (goal: "no SEC data" audit): SEC's mandatory Pay vs
+                # Performance table (Item 402(v), required in every proxy since 2023) tags
+                # "Net Income" in XBRL using the table's display units (thousands) but
+                # numerous filers/filing agents omit the corresponding XBRL scale factor,
+                # so the tagged fact is the raw table number - 1000x too small - instead of
+                # true dollars. DEF 14A proxies are filed AFTER the 10-K for the same fiscal
+                # year, so the old date-only tie-break silently let this broken value
+                # clobber the correct 10-K NetIncomeLoss. Live-confirmed via real
+                # companyfacts JSON, filed literally today (2026-08-17): FDX FY2026 10-K
+                # NetIncomeLoss=$4,433,000,000 (filed 2026-07-20) vs its DEF 14A entry for
+                # the same period=$4,433 (filed 2026-08-17); same pattern for MDT
+                # ($4,801,000,000 vs $4,801) and MIST ($-63,058,000 vs $-63,058). Live DB
+                # scan found 154 symbols with this exact signature (net_income < $1M despite
+                # revenue > $10M) just from the current watermark, and it is actively
+                # recurring every proxy season, not a one-time historical gap. Primary forms
+                # still lose to a LATER primary form (a genuine 10-K/A restatement should
+                # still win), and a non-primary form is still accepted as a last-resort
+                # fallback when no primary-form entry exists for that period at all
+                # (preserves the 2026-07-31 DEF 14A fallback for proxy-only reporters like
+                # EE, which have no 10-K net income at all).
                 entry_filed = entry.get("filed")
                 if not entry_filed:
                     raise ValueError(
@@ -954,32 +1000,47 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         f"Cannot determine latest filing without date information. "
                         f"Check SEC data source or API response."
                     )
+                entry_form = entry.get("form")
+                entry_rank = 1 if entry_form in _PRIMARY_STATEMENT_FORMS else 0
                 row_filed = row.get(f"_filed_{col}")
                 row_end = row.get(f"_end_{col}")
-                # FIXED 2026-08-18 (live-verified RIGL): instant/point-in-time balance-sheet
-                # facts (no "start" - see this loop's is_instant-equivalent comment above)
-                # for DIFFERENT periods within the same calendar year (e.g. a Q1 comparative
-                # StockholdersEquity figure re-cited in a later 10-Q's context, alongside the
-                # real FY-end figure) collide into the SAME (fiscal_year, "FY") bucket and
-                # frequently share the identical "filed" date (both facts come from the same
-                # filing). "latest filed wins" alone then picks whichever entry happened to
-                # be iterated last - arbitrary, not correctness-driven. Live-confirmed: RIGL's
-                # real FY2025 10-K/10-Q filings tag StockholdersEquity end=2025-03-31
-                # ($18.567M, a Q1 snapshot) AND end=2025-12-31 ($391.48M, the real year-end)
-                # with the SAME filed date - the Q1 value won on iteration order, producing
-                # net_income($367.0M) / equity($18.567M) = 1976.75% ROE instead of the real
-                # ~94%. For instant facts, prefer the entry whose end date is latest (closest
-                # to the true fiscal year end) before falling back to filed-date as a
-                # tiebreak; duration facts (has "start") are unaffected - their span-day
-                # filter above already narrows the field to genuine annual totals, where
-                # "most recently filed" legitimately means "most likely restated/corrected".
-                is_instant = not start_date
-                if is_instant:
-                    should_replace = col not in row or row_end is None or end_date > row_end
-                    if not should_replace and end_date == row_end:
-                        should_replace = row_filed is None or entry_filed > row_filed
+                rank_key = f"_rank_{col}"
+                row_rank = int(row[rank_key]) if rank_key in row else 0
+                # Form-rank gates first: a primary form (10-K/10-Q) always outranks a
+                # non-primary one (DEF 14A, 8-K, S-1, etc.) regardless of end/filed date -
+                # see the 2026-08-17 DEF 14A comment above. Only when ranks tie do we fall
+                # through to the existing instant-vs-duration end-date/filed-date tiebreak.
+                if col not in row:
+                    should_replace = True
+                elif entry_rank != row_rank:
+                    should_replace = entry_rank > row_rank
                 else:
-                    should_replace = col not in row or row_filed is None or entry_filed > row_filed
+                    # FIXED 2026-08-18 (live-verified RIGL): instant/point-in-time balance-
+                    # sheet facts (no "start" - see this loop's is_instant-equivalent comment
+                    # above) for DIFFERENT periods within the same calendar year (e.g. a Q1
+                    # comparative StockholdersEquity figure re-cited in a later 10-Q's
+                    # context, alongside the real FY-end figure) collide into the SAME
+                    # (fiscal_year, "FY") bucket and frequently share the identical "filed"
+                    # date (both facts come from the same filing). "latest filed wins" alone
+                    # then picks whichever entry happened to be iterated last - arbitrary,
+                    # not correctness-driven. Live-confirmed: RIGL's real FY2025 10-K/10-Q
+                    # filings tag StockholdersEquity end=2025-03-31 ($18.567M, a Q1 snapshot)
+                    # AND end=2025-12-31 ($391.48M, the real year-end) with the SAME filed
+                    # date - the Q1 value won on iteration order, producing net_income
+                    # ($367.0M) / equity($18.567M) = 1976.75% ROE instead of the real ~94%.
+                    # For instant facts, prefer the entry whose end date is latest (closest
+                    # to the true fiscal year end) before falling back to filed-date as a
+                    # tiebreak; duration facts (has "start") are unaffected - their span-day
+                    # filter above already narrows the field to genuine annual totals, where
+                    # "most recently filed" legitimately means "most likely restated/
+                    # corrected".
+                    is_instant = not start_date
+                    if is_instant:
+                        should_replace = row_end is None or end_date > row_end
+                        if not should_replace and end_date == row_end:
+                            should_replace = row_filed is None or entry_filed > row_filed
+                    else:
+                        should_replace = row_filed is None or entry_filed > row_filed
                 if should_replace:
                     val = entry.get("val")
                     if is_major_currency and isinstance(val, (int, float)) and end_date:
@@ -993,6 +1054,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     row[col] = val
                     row[f"_filed_{col}"] = entry.get("filed")
                     row[f"_end_{col}"] = end_date
+                    row[f"_rank_{col}"] = entry_rank
 
     # Drop helper fields, return sorted (require fiscal_year for ordering)
     # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
@@ -1008,6 +1070,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 for k, v in row.items()
                 if not k.startswith("_filed_")
                 and not k.startswith("_end_")
+                and not k.startswith("_rank_")
                 and k not in ("period_end", "filed", "form")
             }
         )
