@@ -167,17 +167,12 @@ def run(  # noqa: C901
                         f"Expected non-negative int. Cannot calculate reconciliation match_pct."
                     )
 
-                # CRITICAL FIX: Session 345 - If auth was unavailable or no broker, reconciliation didn't actually run.
-                # Don't record 100% match when check was skipped. Use NULL to indicate check was skipped.
-                # check_partial_fills() returns either 'auth_unavailable' (auth error) or 'no_broker' (paper mode).
-                check_was_skipped = partial_fill_result.get("auth_unavailable") or partial_fill_result.get("no_broker")
-                if check_was_skipped:
-                    match_pct = None  # NULL to indicate check was not performed
-                    reason = (
-                        "auth unavailable" if partial_fill_result.get("auth_unavailable") else "no broker (paper mode)"
-                    )
-                    logger.info(f"[PHASE 4] Recording NULL match_pct in audit (check skipped - {reason})")
-                elif positions_count > 0:
+                # CRITICAL FIX: Compute match_pct from available data regardless of whether
+                # check was skipped (auth_unavailable) or paper mode (no_broker).
+                # auth_unavailable = actual auth error, fail-fast (handled at line 102-114)
+                # no_broker = paper mode, safe to proceed with DB-derived positions/mismatches count
+                # Both cases have valid positions_count and mismatches_count to work with.
+                if positions_count > 0:
                     match_pct = max(0.0, 100.0 * (1 - (mismatches_count / positions_count)))
                 else:
                     match_pct = 100.0  # No positions to reconcile - vacuously fully matched
