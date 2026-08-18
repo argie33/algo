@@ -1738,7 +1738,21 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                                WHEN 4 THEN 'Stage 4'
                            END AS market_stage,
                            t.weinstein_stage AS stage_number,
-                           ss.rs_percentile
+                           ss.rs_percentile,
+                           -- FIX 2026-08-18: this panel deliberately shows the full candidate
+                           -- pool, not just execution_status='executed' rows (see the
+                           -- REGRESSION FIX comment above this query) - most rejections here
+                           -- are portfolio-capacity/risk-limit blocks unrelated to signal
+                           -- quality, so showing them is correct. But execution_status/
+                           -- rejection_reason were never selected at all, so a viewer had no
+                           -- way to tell a live actionable signal apart from one the algo
+                           -- already declined - live-confirmed 2026-08-17: 14/22 signals for
+                           -- the latest date were execution_status='rejected' (e.g. IOSP:
+                           -- "concentration_prefilter: already_entered_today"), all displayed
+                           -- identically under the "ACTIVE BUY SIGNALS ★" header. Appended
+                           -- at the end of the column list (not inserted) so the positional
+                           -- row[1] signal_quality_score index used below stays correct.
+                           s.execution_status, s.rejection_reason
                     FROM algo_signals s
                     LEFT JOIN company_profile cp ON cp.symbol = s.symbol
                     LEFT JOIN LATERAL (

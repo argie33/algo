@@ -367,7 +367,18 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
         logger.debug("_build_buy_signals_table: buy_sigs is empty (no active signals)")
         return rows
 
-    rows.append(Text.from_markup(f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(buy_sigs)} with price targets)[/]"))
+    # FIX 2026-08-18: this table intentionally shows the full candidate pool, not just
+    # execution_status='executed' signals (see the REGRESSION FIX comment in
+    # lambda/api/routes/algo_handlers/dashboard.py::_get_dashboard_signals - most rejections
+    # here are portfolio-capacity/risk-limit blocks unrelated to signal quality). But with no
+    # per-row indicator, "ACTIVE BUY SIGNALS ★" reads as "the algo will act on all of these" -
+    # live-confirmed 2026-08-17: 14/22 signals for the latest date were already rejected
+    # (e.g. IOSP: "concentration_prefilter: already_entered_today"). Split the header count so
+    # a viewer isn't misled into thinking a rejected candidate is still actionable.
+    rejected_n = sum(1 for s in buy_sigs if safe_get_field(s, "execution_status") == "rejected")
+    header_suffix = f"({len(buy_sigs)} with price targets"
+    header_suffix += f", {rejected_n} already rejected)" if rejected_n else ")"
+    rows.append(Text.from_markup(f"[{G}][bold]CANDIDATE BUY SIGNALS ★[/][/] [dim]{header_suffix}[/]"))
     sig_table: Table = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
@@ -389,6 +400,7 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
 
     for sig_obj in buy_sigs:
         sym = safe_get_field(sig_obj, "symbol", "--")
+        is_rejected = safe_get_field(sig_obj, "execution_status") == "rejected"
         quality = safe_get_field(sig_obj, "signal_quality_score")
         price = safe_get_field(sig_obj, "close")
         if price is None:
@@ -425,8 +437,10 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
         setup_parts = [p for p in (base_type, market_stage.replace("Stage ", "S") if market_stage else None) if p]
         setup_s = " · ".join(setup_parts) if setup_parts else "--"
 
+        sym_text = f"{sym} ✗" if is_rejected else str(sym)
+        sym_style = f"{DIM} strike" if is_rejected else f"bold {G}"
         sig_table.add_row(
-            Text(str(sym), style=f"bold {G}"),
+            Text(sym_text, style=sym_style),
             Text(f"{quality_v:.0f}" if quality_v is not None else "⚠", style=quality_c),
             Text(f"${price_f:.2f}" if price_f is not None else "--", style="dim"),
             Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),
