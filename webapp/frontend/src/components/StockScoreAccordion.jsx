@@ -64,6 +64,11 @@ const formatReasonDisplay = (reason) => {
     missing_finra_data: "FINRA data unavailable",
     missing_price_data: "Price data unavailable",
     institutional_data_not_available: "Institutional data not available",
+    no_resolved_13f_holdings: "No 13F filer reported holding this stock",
+    shares_outstanding_unavailable: "Shares outstanding unavailable",
+    not_found_in_institutional_holdings_13f: "Not found in 13F filings",
+    no_form345_filings_in_lookback_window: "No recent insider filings",
+    shares_outstanding_unavailable_for_pct_calc: "Shares outstanding unavailable",
     short_float_data_not_calculated: "Short float metrics not calculated",
     ad_rating_not_available: "A/D rating not available",
     no_dividend_paying_stock: "Non-dividend payer",
@@ -98,6 +103,11 @@ const reasonTooltips = {
   unprofitable_stock: "Metric is undefined when company has negative earnings",
   missing_price_data: "Historical price data not yet available",
   institutional_data_not_available: "Institutional holding data not available for this stock",
+  no_resolved_13f_holdings: "No institutional 13F filer currently reports holding this stock - either genuinely low institutional ownership, or the filer's CUSIP hasn't been matched to this ticker yet",
+  shares_outstanding_unavailable: "Institutional ownership percentage requires shares outstanding, which isn't available for this stock",
+  not_found_in_institutional_holdings_13f: "This stock hasn't been processed by the 13F institutional-ownership pipeline yet",
+  no_form345_filings_in_lookback_window: "No SEC Form 4/5 insider transaction filings in the recent lookback window - typically means no insider trading activity to report, not missing data",
+  shares_outstanding_unavailable_for_pct_calc: "Insider ownership percentage requires shares outstanding, which isn't available for this stock",
   reit_special_entity:
     "REITs, banks, and insurers report an unclassified balance sheet (no current/non-current split) or omit gross profit as a permanent feature of their accounting model, not a data gap - traditional ratio metrics don't apply",
   interest_expense_not_itemized:

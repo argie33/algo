@@ -273,6 +273,14 @@ class PositioningMetricsLoader(OptimalLoader):
         else:
             institutional_source = "unavailable"
 
+        # FIXED 2026-08-18 (goal: "no SEC data" audit): institutional_holdings_13f already
+        # tracks a specific reason (no_resolved_13f_holdings, shares_outstanding_unavailable,
+        # not_found_in_institutional_holdings_13f) via the `reason` column selected above
+        # (sec_inst_row[2]) - it was fetched but never used, so every one of these real, already-
+        # diagnosed causes collapsed into the generic "institutional_data_not_available"/
+        # "missing_sec_data" instead, reading as an unexplained loader gap.
+        institutional_reason = sec_inst_row[2] if sec_inst_row else None
+
         # FIXED 2026-08-03: previously hardcoded None always ("requires enhanced 13F data
         # extraction not yet implemented") - load_institutional_holdings_13f.py now tracks
         # per-manager (ACCESSION_NUMBER) shares (bounded to CUSIPs already resolved to our
@@ -305,6 +313,12 @@ class PositioningMetricsLoader(OptimalLoader):
         else:
             insider_source = "unavailable"
 
+        # FIXED 2026-08-18 (goal: "no SEC data" audit): same propagation gap as
+        # institutional_reason above - insider_holdings_sec already tracks a specific reason
+        # (no_form345_filings_in_lookback_window, shares_outstanding_unavailable_for_pct_calc)
+        # via the `reason` column selected above (sec_insider_row[2]), never used.
+        insider_reason = sec_insider_row[2] if sec_insider_row else None
+
         # CRITICAL (Session 275+): Removed TIER 2 yfinance_snapshot fallback.
         # Governance rule: no silent fallbacks. If SEC data unavailable, report data_unavailable explicitly.
         # yfinance_snapshot is deprecated; institutional_holdings_13f and insider_holdings_sec
@@ -329,9 +343,11 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_ratio": short_ratio,
                 # Session 395+: Add unavailable_reason for each metric
                 "institutional_ownership_pct_unavailable_reason": (
-                    "missing_sec_data" if institutional_pct is None else None
+                    (institutional_reason or "missing_sec_data") if institutional_pct is None else None
                 ),
-                "insider_ownership_pct_unavailable_reason": "missing_sec_data" if insider_pct is None else None,
+                "insider_ownership_pct_unavailable_reason": (
+                    (insider_reason or "missing_sec_data") if insider_pct is None else None
+                ),
                 "short_interest_pct_unavailable_reason": "missing_finra_data" if short_interest_pct is None else None,
                 "shares_short_prior_month_unavailable_reason": (
                     "insufficient_history" if shares_short_prior_month is None else None
@@ -345,11 +361,15 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_ratio_unavailable_reason": ("missing_finra_data" if short_ratio is None else None),
                 "top_10_institutions_pct": top_10_institutions_pct,
                 "top_10_institutions_pct_unavailable_reason": (
-                    "institutional_data_not_available" if top_10_institutions_pct is None else None
+                    (institutional_reason or "institutional_data_not_available")
+                    if top_10_institutions_pct is None
+                    else None
                 ),
                 "institutional_holders_count": institutional_holders_count,
                 "institutional_holders_count_unavailable_reason": (
-                    "institutional_data_not_available" if institutional_holders_count is None else None
+                    (institutional_reason or "institutional_data_not_available")
+                    if institutional_holders_count is None
+                    else None
                 ),
                 # A/D rating from volume-weighted technical indicator
                 "ad_rating": ad_rating,
