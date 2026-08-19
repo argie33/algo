@@ -11,10 +11,13 @@ same "revenue concept silently re-tagged, freezing the whole downstream quality/
 metrics row behind a stale anchor" bug class as the AEG/UBS/XEL/DTE/OGS fixes, a
 lease-accounting-standard trigger this time.
 
-Wired as a REIT-only (SIC 6798) fallback, same precedent as the existing ASC-606
-contract-revenue REIT carve-out (test_sec_reit_lease_revenue_not_overwritten.py):
-"revenues" (when present) is the fuller total including non-lease fee income, so this
-concept should only fill "revenue" once "revenues" itself has gone empty.
+Wired via sec_base.py's "reit_exclusive_fields" (not the "reit_only_fallback_fields" used
+by the ASC-606 contract-revenue REIT carve-out in test_sec_reit_lease_revenue_not_
+overwritten.py): "revenues" (when present) is the fuller total including non-lease fee
+income, so this concept should only fill "revenue" once "revenues" itself has gone empty -
+AND, unlike the ASC-606 concepts, must never touch "revenue" for a non-REIT filer at all
+(see the 2026-08-19 bug-found comment on the non-REIT test below for why a plain
+fallback-only gate isn't strict enough for this specific concept).
 """
 
 from loaders.helpers.sec_base import SecEdgarStatementLoader
@@ -34,7 +37,8 @@ class TestReitOperatingLeaseIncomeFallback:
             "reason": "reason",
         }
         loader._fallback_only_fields = frozenset()
-        loader._reit_only_fallback_fields = frozenset({"operating_lease_lease_income"})
+        loader._reit_only_fallback_fields = frozenset()
+        loader._reit_exclusive_fields = frozenset({"operating_lease_lease_income"})
         loader._reit_symbols = reit_symbols
         return loader
 
@@ -66,7 +70,18 @@ class TestReitOperatingLeaseIncomeFallback:
 
         assert transformed[0]["revenue"] == 1_850_234_000.0
 
-    def test_non_reit_symbol_unaffected_by_carve_out(self):
+    def test_non_reit_symbol_real_revenue_not_overwritten_by_lease_income(self):
+        # BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): the REIT-only gate used
+        # to only protect REIT filers from being overwritten - for any non-REIT symbol the
+        # `symbol in reit_symbols` clause was False, so the guard fell through and wrote
+        # unconditionally, exactly backwards from "REIT-only fallback". Live-confirmed via
+        # IHRT (iHeartMedia, SIC 7812, not a REIT): its real annual "Revenues"
+        # ($3.75B/$3.85B/$3.86B for FY2023-2025) was silently clobbered by its tiny real-
+        # estate sublease income under this same concept ($2.01M/$787K/$562K - a ~1000x
+        # understatement), because iHeartMedia also happens to report minor sublease income
+        # under OperatingLeaseLeaseIncome - not the rare case the old test comment assumed.
+        # A REIT-only fallback concept must never touch "revenue" for a non-REIT filer at
+        # all, regardless of processing order.
         loader = self._make_loader(reit_symbols=frozenset({"AMH"}))
         row = {
             "symbol": "SOMECO",
@@ -77,10 +92,4 @@ class TestReitOperatingLeaseIncomeFallback:
 
         transformed = loader.transform([row])
 
-        # Non-REIT: normal priority applies - operating_lease_lease_income isn't REIT-gated
-        # away since the symbol isn't in the REIT set, so plain "last listed wins" applies.
-        # Here "operating_lease_lease_income" is iterated after "revenues" in the dict, so
-        # it would win under plain last-wins semantics - this test documents that a non-REIT
-        # symbol simply isn't protected by the carve-out (expected: this concept should
-        # essentially never appear for a non-REIT filer in practice).
-        assert transformed[0]["revenue"] == 12_000_000.0
+        assert transformed[0]["revenue"] == 500_000_000.0

@@ -360,6 +360,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
         self._reit_only_fallback_fields: frozenset[str] = cast(
             frozenset[str], cfg.get("reit_only_fallback_fields", frozenset())
         )
+        # See the transform() copy-loop comment on _reit_exclusive_fields: a stricter
+        # category for concepts (e.g. operating_lease_lease_income) that must never write
+        # their target db_field for a non-REIT symbol at all, unlike
+        # _reit_only_fallback_fields above whose "unaffected for non-REIT" behavior is
+        # correct for concepts that should also win normally via the general chain.
+        self._reit_exclusive_fields: frozenset[str] = cast(
+            frozenset[str], cfg.get("reit_exclusive_fields", frozenset())
+        )
         self._reit_symbols: frozenset[str] | None = None
 
         super().__init__()
@@ -674,6 +682,31 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     and r.get("symbol") in self._get_reit_symbols()
                 ):
                     continue  # REIT filer: real lease revenue already populated this field
+                # BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): a separate,
+                # stricter category from _reit_only_fallback_fields above. That set's
+                # "skip only when (already populated AND symbol is a REIT)" semantics is
+                # correct for concepts that should ALSO win normally for non-REIT filers
+                # via the general priority chain (e.g. the ASC-606 contract-revenue
+                # concepts - see test_sec_reit_lease_revenue_not_overwritten.py's AAPL
+                # case, where that concept legitimately supersedes "revenues" for ordinary
+                # filers too). It is NOT correct for a concept like
+                # operating_lease_lease_income, whose real-world meaning for a non-REIT
+                # filer is a completely unrelated, minor line item (real-estate sublease
+                # income) that must never touch "revenue" at all, REIT-populated-check
+                # or not. Live-confirmed via IHRT (iHeartMedia, SIC 7812, not a REIT): its
+                # real annual "Revenues" ($3.75B/$3.85B/$3.86B for FY2023-2025) was
+                # silently clobbered by its tiny sublease income under
+                # OperatingLeaseLeaseIncome ($2.01M/$787K/$562K - exact match to the
+                # corrupted DB values), a ~1000x understatement with no
+                # data_unavailable/reason flag anywhere - because that concept was lumped
+                # into the same reit_only_fallback_fields set as the ASC-606 concepts,
+                # whose "unaffected for non-REIT" behavior is correct for THEM but wrong
+                # for this one. This new set unconditionally skips (never writes) for any
+                # symbol that isn't a confirmed REIT, and behaves as fallback-only
+                # (skip if already populated) for symbols that are.
+                if sec_field in getattr(self, "_reit_exclusive_fields", frozenset()):
+                    if r.get("symbol") not in self._get_reit_symbols() or db_field in row:
+                        continue
                 if db_field not in self._schema_cols:
                     raise RuntimeError(
                         f"[{self.table_name}] Field mapping configuration error: SEC field '{sec_field}' "

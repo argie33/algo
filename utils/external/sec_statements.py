@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 # module docstring for the CAD/GBP/EUR/AUD/CHF/JPY-only fix this backs.
 _fx_rate_cache = FxRateCache()
 
+# See the "implausible fiscal_year" sanity-bound comment in _aggregate_concepts
+# (BUG FOUND 2026-08-19).
+_MIN_PLAUSIBLE_FISCAL_YEAR = 1990
+
 
 def _extract_currency_code(unit: str) -> str:
     """Return the bare currency code from an XBRL unit string.
@@ -784,6 +788,25 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         List of dicts with cash flow data keyed by fiscal year/period
     """
     concepts = [
+        # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): filers that report
+        # discontinued operations (divestitures, spinoffs - a common occurrence, not rare)
+        # tag operating cash flow under this narrower "continuing operations only" concept
+        # instead of - or, more often, ALSO instead of any year where the plain concept
+        # below goes untagged. Live-confirmed via ASH (Ashland, a normal specialty-
+        # chemicals 10-K filer): companyfacts JSON has ZERO entries under plain
+        # "NetCashProvidedByUsedInOperatingActivities" for ANY fiscal year, but real,
+        # plausible-scale figures ($134M-$703M) under this concept for every FY2014-2025 -
+        # operating_cash_flow (and everything derived from it: free_cash_flow,
+        # fcf_to_net_income, fcf_yield, intrinsic_value, margin_of_safety) was NULL for
+        # this filer's entire history, marked the generic "incomplete_sec_filing_cashflow"
+        # (the whole row - required_metrics only accepts operating_cash_flow - discarded
+        # even though investing/financing/capex data was real and present). Listed BEFORE
+        # the plain concept (this file's "last-listed wins on overwrite" convention) AND
+        # marked fallback-only in load_financial_statements.py's field_mapping
+        # (_OCF_FALLBACK_ONLY_FIELDS) - APD/ANGI (live-confirmed) report BOTH concepts for
+        # the same fiscal year, where the plain tag is the fuller total (continuing +
+        # discontinued) and must keep winning whenever it's actually present.
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInOperatingActivities",
         "NetCashProvidedByUsedInInvestingActivities",
         "NetCashProvidedByUsedInFinancingActivities",
@@ -980,6 +1003,12 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
         )
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
+    # See the "implausible fiscal_year" sanity-bound comment further below (BUG FOUND
+    # 2026-08-19). SEC XBRL history starts ~2009; 1990 is a deliberately generous floor
+    # so it never rejects a real fiscal year, only Excel-serial-style corruption
+    # (43465, 43830, ...) or a stray "0". +1 allows a company whose fiscal year hasn't
+    # calendar-ended yet to still file forward-looking amendments without tripping this.
+    _max_plausible_fiscal_year = datetime.date.today().year + 1
 
     # (xbrl_concept_name, target_key, source) triples to look up: "gaap" specs check
     # us-gaap first and fall back to ifrs-full only if us-gaap has nothing at all for
@@ -1235,6 +1264,49 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 # source - trust it directly instead of the end-date derivation.
                 if source == "dei" and period == "annual" and isinstance(entry.get("fy"), int):
                     period_year = entry["fy"]
+
+                # BUG FOUND 2026-08-19 (goal: fix today's halting/data-quality issues):
+                # SEC's own XBRL data is occasionally corrupted in ways that produce an
+                # implausible fiscal year from either derivation path above - live-confirmed
+                # two distinct patterns: (1) NAII NetIncomeLoss fact tagged end="2031-09-25"
+                # (evidently meant 2023 - fy=2022 on the same fact is correct) fed
+                # fiscal_year=2031 via the end-date derivation, writing REAL revenue/
+                # net_income into the DB under a 5-years-in-the-future fiscal year
+                # (data_unavailable=False, so it would be picked up as "latest data" by any
+                # naive ORDER BY fiscal_year DESC caller); (2) PRTH dei:
+                # EntityCommonStockSharesOutstanding facts carry fy=43465/43830 directly in
+                # SEC's JSON (an Excel-serial-like value, not a real year) - trusted verbatim
+                # by the dei-source branch above, this also broke
+                # data_loader_status's MAX(fiscal_year) -> date(fiscal_year, 12, 31) watermark
+                # write every run ("year 43830 is out of range", live-confirmed in
+                # logs/load_financial_statements_1787150329.log). Neither end_date nor fy is
+                # trustworthy in isolation, so fall back to whichever of the two is itself
+                # plausible, and skip the entry entirely (like other malformed-data skip
+                # paths in this file) only if neither is.
+                if isinstance(period_year, int) and not (
+                    _MIN_PLAUSIBLE_FISCAL_YEAR <= period_year <= _max_plausible_fiscal_year
+                ):
+                    fallback_year = entry.get("fy")
+                    end_year = int(end_date[:4]) if end_date and len(end_date) >= 4 else None
+                    candidate = fallback_year if isinstance(fallback_year, int) else None
+                    if candidate is None or not (_MIN_PLAUSIBLE_FISCAL_YEAR <= candidate <= _max_plausible_fiscal_year):
+                        candidate = end_year
+                    if candidate is not None and (
+                        _MIN_PLAUSIBLE_FISCAL_YEAR <= candidate <= _max_plausible_fiscal_year
+                    ):
+                        logger.warning(
+                            f"[SEC_STATEMENTS] {symbol}: implausible fiscal_year={period_year} "
+                            f"from concept={concept} end={end_date!r} fy={entry.get('fy')!r} - "
+                            f"using {candidate} instead"
+                        )
+                        period_year = candidate
+                    else:
+                        logger.warning(
+                            f"[SEC_STATEMENTS] {symbol}: skipping entry with implausible "
+                            f"fiscal_year={period_year} and no plausible fallback "
+                            f"(end={end_date!r} fy={entry.get('fy')!r})"
+                        )
+                        continue
 
                 key = (
                     period_year,

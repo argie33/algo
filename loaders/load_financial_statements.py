@@ -307,12 +307,25 @@ _REIT_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "revenue_from_contract_with_customer_including_assessed_tax",
         "revenue_from_contract_with_customer_excluding_assessed_tax",
-        # FIXED 2026-08-19: ASC 842 lease-revenue tag some REITs (AMH, EQR live-confirmed)
-        # switched to as "Revenues" goes silent for them around the 2019/2020 lease-
-        # standard transition - see sec_statements.py's OperatingLeaseLeaseIncome comment.
-        # Same fallback-only rationale as the two entries above: "revenues" (when present)
-        # is the fuller total including non-lease fee income, so this only fills "revenue"
-        # for the fiscal years where "revenues" itself has gone empty.
+    }
+)
+
+# BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): "operating_lease_lease_income"
+# used to live in _REIT_REVENUE_FALLBACK_ONLY_FIELDS above, but that set's "unaffected for
+# non-REIT filers" semantics is only correct for the two ASC-606 concepts (which SHOULD
+# also win normally for non-REIT filers via the general priority chain - see
+# test_sec_reit_lease_revenue_not_overwritten.py's AAPL case). OperatingLeaseLeaseIncome is
+# different: for a non-REIT filer it's an unrelated, minor line item (real-estate sublease
+# income), never a revenue analog, and must never touch "revenue" regardless of processing
+# order. Live-confirmed via IHRT (iHeartMedia, SIC 7812, not a REIT): its real annual
+# "Revenues" ($3.75B/$3.85B/$3.86B for FY2023-2025) was silently clobbered by its tiny
+# sublease income under this concept ($2.01M/$787K/$562K - exact match to the corrupted DB
+# values), a ~1000x understatement with no data_unavailable/reason flag anywhere. Wired via
+# sec_base.py's new, stricter "reit_exclusive_fields" - skip (never write) for any symbol
+# that isn't a confirmed REIT, fallback-only (skip if already populated) for symbols that
+# are.
+_REIT_EXCLUSIVE_FIELDS = frozenset(
+    {
         "operating_lease_lease_income",
     }
 )
@@ -381,6 +394,13 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "allocated_share_based_compensation_expense",
         "payments_for_repurchase_of_equity",
+        # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): see sec_statements.py's
+        # get_cash_flow() comment on "NetCashProvidedByUsedInOperatingActivities
+        # ContinuingOperations" (ASH/Ashland live-confirmed: zero entries under the plain
+        # concept, ever - real OCF stuck NULL for its entire history). Fallback-only so
+        # APD/ANGI (which report both concepts) keep the fuller plain-concept total
+        # whenever it's actually present for that fiscal year.
+        "net_cash_provided_by_used_in_operating_activities_continuing_operations",
     }
 )
 
@@ -456,6 +476,10 @@ _BALANCE_FIELD_MAPPING = {
 
 _CASHFLOW_FIELD_MAPPING = {
     "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+    # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): fallback-only, see
+    # _OCF_FALLBACK-style comment on _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above and
+    # sec_statements.py's get_cash_flow() comment for the live ASH evidence.
+    "net_cash_provided_by_used_in_operating_activities_continuing_operations": "operating_cash_flow",
     "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
     "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
     # Found 2026-07-20: this mapped to "capital_expenditures", a column that has never
@@ -561,6 +585,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
             "field_mapping": dict(_INCOME_FIELD_MAPPING),
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
+            "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -594,6 +619,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
             "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_EXTRA},
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
+            "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -628,6 +654,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
             "field_mapping": dict(_INCOME_FIELD_MAPPING),
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
+            "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
             "primary_key": ("symbol", "report_date"),
             "schema_cols": frozenset(
                 [
