@@ -668,8 +668,18 @@ class PriceLoader(OptimalLoader):
             return True
 
         # We're 0-45 minutes after market close - verify SPY data with efficient retry
+        # FIX: name whichever source PRICE_DATA_SOURCE actually routes this check to (this
+        # loop calls router.check_market_close_data_available_fast(), which itself already
+        # respects PRICE_DATA_SOURCE - see source_router.py). The messages below used to say
+        # "yfinance" unconditionally even with PRICE_DATA_SOURCE=alpaca, so a genuine Alpaca
+        # failure (live-confirmed 2026-08-18: "Error checking Alpaca market close data...")
+        # got reported as "yfinance API appears down" - misdirecting on-call to the wrong
+        # provider's status page.
+        _market_close_source = (
+            "Alpaca" if os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca" else "yfinance"
+        )
         logger.info(
-            f"[MARKET_CLOSE] {minutes_after_close:.1f}min after close at 4 PM ET, checking yfinance for SPY data..."
+            f"[MARKET_CLOSE] {minutes_after_close:.1f}min after close at 4 PM ET, checking {_market_close_source} for SPY data..."
         )
 
         start_time = time.time()
@@ -744,13 +754,13 @@ class PriceLoader(OptimalLoader):
                 consecutive_errors += 1
                 if consecutive_errors >= max_consecutive_errors:
                     logger.critical(
-                        f"[MARKET_CLOSE] {max_consecutive_errors} consecutive errors detected - yfinance appears unavailable. "
+                        f"[MARKET_CLOSE] {max_consecutive_errors} consecutive errors detected - {_market_close_source} appears unavailable. "
                         f"Last error: {last_error_type}: {last_error_msg}"
                     )
                     raise RuntimeError(
                         f"Market close data unavailable after {max_consecutive_errors} consecutive failures. "
-                        f"yfinance API appears down. Last error: {last_error_type}: {last_error_msg}. "
-                        f"Check yfinance status and network connectivity."
+                        f"{_market_close_source} API appears down. Last error: {last_error_type}: {last_error_msg}. "
+                        f"Check {_market_close_source} status and network connectivity."
                     ) from e
 
                 if is_rate_limit or is_timeout:
@@ -787,7 +797,7 @@ class PriceLoader(OptimalLoader):
             )
             raise RuntimeError(
                 f"Market close data not available after {max_attempts} attempts ({elapsed / 60:.1f}min). "
-                f"yfinance API degraded or unavailable."
+                f"{_market_close_source} API degraded or unavailable."
             )
 
         # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
@@ -807,7 +817,7 @@ class PriceLoader(OptimalLoader):
         if self._market_close_timeout_count >= 3:
             alert_msg = (
                 f"ALERT: Market close data unavailable {self._market_close_timeout_count} times in 24h. "
-                "Possible yfinance API degradation. Check status page and consider switching data provider."
+                f"Possible {_market_close_source} API degradation. Check status page and consider switching data provider."
             )
             logger.critical("[%s] %s", self._correlation_id, alert_msg)
             try:
@@ -3445,13 +3455,22 @@ def log_loader_execution(
         with DatabaseContext("write") as cur:
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
             run_date = datetime.now(EASTERN_TZ).date()
+            # FIX: started_at must be recomputed (NOW() - this run's own duration) on every
+            # write, not just the initial INSERT. Previously ON CONFLICT DO UPDATE omitted
+            # started_at, so a retried loader on the same run_date kept whatever started_at
+            # the FIRST attempt that day had - completed_at kept advancing to NOW() on each
+            # retry while started_at stayed frozen, making completed_at - started_at balloon
+            # to hours even when the loader's own measured duration_seconds was seconds.
+            # Live-confirmed on price_daily (2026-08-19 loader-health review): duration_seconds
+            # showed 39.59s for the actual run but completed_at - started_at showed 1h36m
+            # because an earlier same-day attempt's started_at was never refreshed.
             cur.execute(
                 """
                 INSERT INTO data_loader_runs (
                     loader_name, table_name, run_date, status, records_loaded, records_updated,
                     error_message, duration_seconds, started_at, completed_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    %s, %s, %s, %s, %s, %s, %s, %s, NOW() - (%s * interval '1 second'), NOW()
                 )
                 ON CONFLICT (loader_name, run_date) DO UPDATE SET
                     status = EXCLUDED.status,
@@ -3459,6 +3478,7 @@ def log_loader_execution(
                     records_updated = EXCLUDED.records_updated,
                     error_message = EXCLUDED.error_message,
                     duration_seconds = EXCLUDED.duration_seconds,
+                    started_at = EXCLUDED.started_at,
                     completed_at = NOW()
             """,
                 (
@@ -3469,6 +3489,7 @@ def log_loader_execution(
                     records_loaded,
                     records_updated,
                     error_msg,
+                    duration_seconds,
                     duration_seconds,
                 ),
             )
