@@ -148,3 +148,51 @@ class TestDeiSharesOutstandingForeignFormGuard:
         result = loader.fetch_incremental("TSM", None)
 
         assert result[0]["shares_outstanding"] == 5_186_504_904
+
+    def test_us_gaap_fallback_also_rejects_foreign_form_facts(self):
+        """FIXED 2026-08-19 (migration 1211 follow-up): the us-gaap:CommonStockSharesOutstanding
+        fallback (added for Alphabet/GOOG, a domestic 10-K filer) was assumed safe without this
+        same restriction. Live-confirmed WRONG via AEM (Agnico Eagle Mines): its only
+        us-gaap:CommonStockSharesOutstanding fact anywhere in its real companyfacts history is a
+        single, 14-year-stale value (170,880,330, filed under a 6-K in 2012) - independently
+        cross-checked against yfinance's live sharesOutstanding (506,364,864, ~3x higher, not
+        even a clean ADS-style ratio, just genuinely stale data from before a merger)."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "2809"
+        loader.sec_client.get_submissions.return_value = _submissions("40-F")
+        loader.sec_client.get_company_facts.return_value = {
+            "facts": {
+                "dei": {},
+                "us-gaap": {
+                    "CommonStockSharesOutstanding": {
+                        "units": {"shares": [{"end": "2012-03-31", "val": 170_880_330, "form": "6-K"}]}
+                    }
+                },
+            }
+        }
+        loader.sec_client.get_filing_plaintext.return_value = ""
+
+        result = loader.fetch_incremental("AEM", None)
+
+        assert result[0]["shares_outstanding"] is None
+
+    def test_us_gaap_fallback_domestic_form_still_trusted(self):
+        """Companion case: the original Alphabet/GOOG shape (a real domestic 10-K filer) must
+        still work exactly as before this fix."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "1652044"
+        loader.sec_client.get_submissions.return_value = _submissions("10-K")
+        loader.sec_client.get_company_facts.return_value = {
+            "facts": {
+                "dei": {},
+                "us-gaap": {
+                    "CommonStockSharesOutstanding": {
+                        "units": {"shares": [{"end": "2026-06-30", "val": 12_230_000_000, "form": "10-K"}]}
+                    }
+                },
+            }
+        }
+
+        result = loader.fetch_incremental("GOOGL", None)
+
+        assert result[0]["shares_outstanding"] == 12_230_000_000

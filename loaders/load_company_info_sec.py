@@ -160,11 +160,28 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     # (same {end,val} shape) - live-confirmed 12,230,000,000 for Alphabet's
                     # latest 2026-06-30 period. Falls back here only when dei had nothing,
                     # same "most recent end date wins" selection as the primary path.
+                    # FIXED 2026-08-19 (migration 1211 follow-up, goal: "no SEC data"/missing
+                    # factor inputs audit): this fallback was assumed safe without the
+                    # domestic-forms restriction ("a different, already-separately-verified
+                    # pathway" - see load_sec_valuations.py's shares_out tier-gating comment,
+                    # written before this was checked). Live-confirmed WRONG via AEM (Agnico
+                    # Eagle Mines): its only us-gaap:CommonStockSharesOutstanding fact anywhere
+                    # in its real companyfacts history is a single, 14-YEAR-STALE value
+                    # (170,880,330, filed under a 6-K in 2012 - AEM tags nothing under this
+                    # concept since, having moved fully to ifrs-full) - independently cross-
+                    # checked against yfinance's live sharesOutstanding (506,364,864, ~3x
+                    # higher, not even a clean ratio, just genuinely stale pre-merger data).
+                    # This concept isn't ADR-ratio-specific like the dei case above (some
+                    # foreign filers, e.g. AEM/SHOP/WIX, list directly with no ADS wrapper at
+                    # all, so a CURRENT foreign-form fact would actually be fine) - the real
+                    # risk demonstrated here is a stale historical fact never refreshed once a
+                    # filer stopped tagging us-gaap concepts, which the same restriction
+                    # incidentally also guards against.
                     if shares_outstanding is None:
                         gaap_facts = facts_obj.get("us-gaap") if isinstance(facts_obj, dict) else None
                         if isinstance(gaap_facts, dict):
                             shares_outstanding = self._latest_shares_value(
-                                gaap_facts.get("CommonStockSharesOutstanding")
+                                gaap_facts.get("CommonStockSharesOutstanding"), restrict_to_domestic_forms=True
                             )
             except FileNotFoundError:
                 # 404 on companyfacts specifically (not submissions, which already
