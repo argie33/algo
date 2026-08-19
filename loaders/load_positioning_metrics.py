@@ -236,6 +236,24 @@ class PositioningMetricsLoader(OptimalLoader):
                             (symbol,),
                         )
                         shares_row = cur.fetchone()
+                        if not shares_row or shares_row[0] is None or shares_row[0] <= 0:
+                            # FIXED 2026-08-19 ("no SEC data"/loader audit): company_info_sec
+                            # sources shares_outstanding from the SEC DEI cover-page concept,
+                            # which some real, actively traded filers never tag the same way
+                            # ordinary operating companies do - the identical gap already fixed
+                            # 2026-08-18/19 for load_institutional_holdings_13f.py,
+                            # load_short_interest_finra.py, and load_insider_holdings_sec.py via
+                            # the same sec_valuations fallback. Live-confirmed 303 of 389
+                            # universe symbols marked short_percent_of_float
+                            # "missing_sec_data" have a usable sec_valuations.shares_outstanding.
+                            cur.execute(
+                                """
+                                SELECT shares_outstanding FROM sec_valuations
+                                WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                                """,
+                                (symbol,),
+                            )
+                            shares_row = cur.fetchone()
 
                     if shares_row and shares_row[0] is not None and shares_row[0] > 0:
                         short_shares = float(short_rows[0][1])
