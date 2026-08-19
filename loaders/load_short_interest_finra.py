@@ -279,7 +279,20 @@ class ShortInterestFinraLoader(OptimalLoader):
 
     @staticmethod
     def _load_shares_outstanding() -> dict[str, int]:
-        """Bulk-load the latest shares_outstanding per symbol from company_info_sec."""
+        """Bulk-load the latest shares_outstanding per symbol from company_info_sec, falling
+        back to sec_valuations for symbols company_info_sec never covers.
+
+        FIXED 2026-08-19 ("no SEC data"/loader audit): company_info_sec sources
+        shares_outstanding from the SEC DEI cover-page concept, which some real, actively
+        traded filers (closed-end funds/trusts, and others - the exact same population
+        load_institutional_holdings_13f.py's identical fallback already fixed 2026-08-18)
+        never tag the same way operating companies do, leaving this loader's dict lookup
+        permanently empty for them even though sec_valuations has a real, current share
+        count from a different SEC concept. Live-confirmed 250 of 293 universe symbols
+        marked "shares_outstanding_unavailable" here (GTLB, IHRT, JD, FUTU, GGAL, NBIS and
+        others) have a usable sec_valuations.shares_outstanding. company_info_sec still
+        wins when both exist - it's the more direct, purpose-built source.
+        """
         with DatabaseContext("read") as cur:
             cur.execute("""
                 SELECT DISTINCT ON (symbol) symbol, shares_outstanding
@@ -287,7 +300,17 @@ class ShortInterestFinraLoader(OptimalLoader):
                 WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
                 ORDER BY symbol, filing_date DESC
                 """)
-            return {row[0]: row[1] for row in cur.fetchall()}
+            result = {row[0]: row[1] for row in cur.fetchall()}
+
+            cur.execute("""
+                SELECT symbol, shares_outstanding
+                FROM sec_valuations
+                WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                """)
+            for symbol, shares_outstanding in cur.fetchall():
+                result.setdefault(symbol, int(shares_outstanding))
+
+            return result
 
 
 def main() -> int:
