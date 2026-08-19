@@ -59,10 +59,41 @@ class SecSegmentInfoLoader(SecLoaderBase):
     # of this same underlying bug class.
     rotate_symbols_daily = True
 
+    # FIX 2026-08-19: segment_revenue/operating_income/assets are NUMERIC(15,2) (migration
+    # 1157) - max magnitude just under $10 trillion. XBRLSegmentParser reads whatever number
+    # is tagged under the revenue concept with no unit/currency check (see
+    # sec_xbrl_segments.py), so a foreign filer reporting in local currency (e.g.
+    # VFS/VinFast in VND) can tag a segment value in the tens of trillions, overflowing the
+    # column and crashing the whole symbol's COPY - not just that one segment, every segment
+    # plus the AGGREGATE row for that symbol, every run. Same failure mode as
+    # MAX_ABSOLUTE_DOLLAR_VALUE in load_value_quality_growth_metrics.py. Live-confirmed
+    # 2026-08-19: VFS CarSegmentMember revenue=78,861,662,000,000.0 (raw VND) blew the
+    # NUMERIC(15,2) 10^13 ceiling. No real company's segment revenue/income/assets exceeds
+    # $1 trillion USD, so this bound doubles as an implausible-value guard, not just an
+    # overflow-prevention hack.
+    _MAX_SEGMENT_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion
+
     def __init__(self) -> None:
         """Initialize loader with SEC Edgar client."""
         super().__init__()
         self.sec_client = SecEdgarClient()
+
+    def _bounded_segment_value(self, symbol: str, segment_name: str, field: str, value: float | None) -> float | None:
+        """Guard a segment dollar field against implausible/overflowing magnitudes.
+
+        Returns None (instead of the raw value) when it would overflow NUMERIC(15,2) or is
+        otherwise implausible for a real company - see class-level comment on
+        _MAX_SEGMENT_DOLLAR_VALUE for why.
+        """
+        if value is not None and abs(value) >= self._MAX_SEGMENT_DOLLAR_VALUE:
+            logger.warning(
+                f"[{symbol}] {segment_name}: {field}={value!r} exceeds "
+                f"${self._MAX_SEGMENT_DOLLAR_VALUE:,.0f} - likely an unconverted foreign-currency "
+                "XBRL fact (e.g. VND/KRW), not a real USD amount. Marking unavailable instead of "
+                "crashing the write."
+            )
+            return None
+        return value
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Extract segment info for one symbol from SEC XBRL - try aggressively.
@@ -206,6 +237,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
             # Write individual segment data
             for i, seg in enumerate(segments, 1):
+                seg_name = seg.get("name", f"Segment_{i}")
                 records.append(
                     {
                         "symbol": symbol,
@@ -214,10 +246,16 @@ class SecSegmentInfoLoader(SecLoaderBase):
                         "filing_date": filing_date,
                         "segment_count": segment_data["segment_count"],
                         "segment_type": segment_type,
-                        "segment_name": seg.get("name", f"Segment_{i}"),
-                        "segment_revenue": seg.get("revenue"),
-                        "segment_operating_income": seg.get("operating_income"),
-                        "segment_assets": seg.get("assets"),
+                        "segment_name": seg_name,
+                        "segment_revenue": self._bounded_segment_value(
+                            symbol, seg_name, "segment_revenue", seg.get("revenue")
+                        ),
+                        "segment_operating_income": self._bounded_segment_value(
+                            symbol, seg_name, "segment_operating_income", seg.get("operating_income")
+                        ),
+                        "segment_assets": self._bounded_segment_value(
+                            symbol, seg_name, "segment_assets", seg.get("assets")
+                        ),
                         "largest_segment_revenue_pct": segment_data["largest_segment_revenue_pct"],
                         "revenue_concentration_hhi": segment_data["revenue_concentration_hhi"],
                         "segment_data_available": segment_data["data_available"],

@@ -130,6 +130,52 @@ def test_falls_back_to_filing_date_when_report_date_missing() -> None:
     assert records[0]["fiscal_year"] == 2026
 
 
+_XML_WITH_UNCONVERTED_FOREIGN_CURRENCY_SEGMENT = """<?xml version="1.0"?>
+<xbrl xmlns:us-gaap="http://fasb.org/us-gaap/2024" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+  <context id="c1">
+    <entity><segment><xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">us-gaap:CarSegmentMember</xbrldi:explicitMember></segment></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c2">
+    <entity><segment><xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">us-gaap:SegBMember</xbrldi:explicitMember></segment></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <us-gaap:Revenues contextRef="c1">78861662000000</us-gaap:Revenues>
+  <us-gaap:Revenues contextRef="c2">500000</us-gaap:Revenues>
+</xbrl>"""
+
+
+def test_implausible_segment_revenue_nulled_not_crashed() -> None:
+    """A segment revenue value that overflows NUMERIC(15,2) (>= $1 trillion, e.g. an
+    unconverted foreign-currency XBRL fact like VFS/VinFast's raw VND figures) must be
+    nulled out for that one field, not left in the record to crash the whole symbol's
+    COPY at insert time. Live-confirmed 2026-08-19: VFS's CarSegmentMember revenue of
+    78,861,662,000,000 (raw VND) overflowed NUMERIC(15,2)'s 10^13 ceiling and failed
+    VFS's entire sec_segment_info write - every segment plus the AGGREGATE row, not just
+    the one bad field - on every run."""
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["10-K"],
+                "accessionNumber": ["0001193125-26-000111"],
+                "reportDate": ["2025-12-31"],
+                "filingDate": ["2026-02-10"],
+            }
+        }
+    }
+    loader.sec_client.get_filing_xml.return_value = _XML_WITH_UNCONVERTED_FOREIGN_CURRENCY_SEGMENT
+
+    records = loader.fetch_incremental("VFS", since=None)
+
+    assert len(records) == 3  # 1 aggregate + 2 segments - the write is NOT dropped
+    segment_rows = [r for r in records if r["segment_name"] != "AGGREGATE"]
+    car_segment = next(r for r in segment_rows if "Car" in r["segment_name"])
+    assert car_segment["segment_revenue"] is None
+    other_segment = next(r for r in segment_rows if "Car" not in r["segment_name"])
+    assert other_segment["segment_revenue"] == 500000
+
+
 def test_marks_unavailable_instead_of_fabricating_todays_date_when_no_date_found() -> None:
     loader = _make_loader()
     # 10-K found (so segment revenue is successfully extracted from its XML) but SEC's
