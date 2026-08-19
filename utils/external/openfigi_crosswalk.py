@@ -170,9 +170,6 @@ def fetch_cusip_tickers(
     results: dict[str, dict[str, Any]] = {}
     unique_cusips = sorted({c.strip().upper() for c in cusips if c and c.strip()})
 
-    batches_attempted = 0
-    batches_succeeded = 0
-    deadline_hit = False
     # FIXED 2026-08-19 ("no SEC data"/loader audit, institutional_holdings_13f follow-up):
     # a CUSIP whose first character is a letter is actually a CINS (CUSIP International
     # Numbering System) identifier, not a standard CUSIP - OpenFIGI requires idType
@@ -184,142 +181,119 @@ def fetch_cusip_tickers(
     # unresolved (ticker=NULL) as a result, with sec_13f_cusip_crosswalk's "stable across
     # quarters, never re-query" caching meaning it would NEVER have been retried. 3,537 of
     # 16,177 universe-wide unresolved CUSIPs start with a letter (BAWAG Group, Erste Group
-    # Bank and others confirmed resolvable this way too). Collected here and retried as a
-    # second pass below, after every primary ID_CUSIP batch - never tried first, since the
-    # vast majority of CUSIPs are standard (digit-prefixed) and resolve fine under
-    # ID_CUSIP; this only fires for the subset ID_CUSIP already failed.
-    cins_candidates: list[str] = []
+    # Bank and others confirmed resolvable this way too).
+    #
+    # FIXED 2026-08-19 (same-day follow-up, live-caught): the first version of this fix
+    # tried ID_CUSIP first for EVERY identifier (including known letter-prefixed ones) and
+    # only retried as ID_CINS on failure - doubling the request count for the entire CINS
+    # backlog, since every one of those first attempts was *guaranteed* to fail (that's
+    # the whole reason they were stuck unresolved to begin with). Live-confirmed: a real
+    # institutional_holdings_13f run against this exact 3,537-CUSIP backlog spent its
+    # entire 900s OpenFIGI time budget on the doomed first-pass ID_CUSIP attempts (3,330 of
+    # 3,537 attempted) and never reached the ID_CINS retry pass at all - 0 resolved.
+    # CINS format is unambiguous from the first character alone (that's the whole point of
+    # the letter-prefix convention), so route each identifier to its correct idType
+    # up front instead of guessing wrong first - roughly halves the request count for a
+    # CINS-heavy backlog like this one and lets real resolution happen within one run's
+    # time budget instead of never getting there.
+    cusip_ids = [c for c in unique_cusips if not c[0].isalpha()]
+    cins_ids = [c for c in unique_cusips if c[0].isalpha()]
 
-    for i in range(0, len(unique_cusips), _BATCH_SIZE):
-        if deadline is not None and time.monotonic() >= deadline:
-            deadline_hit = True
-            logger.warning(
-                f"[OpenFIGI] Time budget exhausted after {batches_attempted} batches "
-                f"({i}/{len(unique_cusips)} CUSIPs attempted) - returning partial results, "
-                f"remaining CUSIPs picked up next run."
-            )
+    batches_attempted = 0
+    batches_succeeded = 0
+    deadline_hit = False
+
+    for group, id_type in ((cusip_ids, "ID_CUSIP"), (cins_ids, "ID_CINS")):
+        if deadline_hit:
             break
+        for i in range(0, len(group), _BATCH_SIZE):
+            if deadline is not None and time.monotonic() >= deadline:
+                deadline_hit = True
+                logger.warning(
+                    f"[OpenFIGI] Time budget exhausted after {batches_attempted} batches "
+                    f"(within {id_type} group, {i}/{len(group)} attempted) - returning "
+                    f"partial results, remaining CUSIPs picked up next run."
+                )
+                break
 
-        batch = unique_cusips[i : i + _BATCH_SIZE]
-        batches_attempted += 1
-        batch_results = _post_mapping_batch(batch)
+            batch = group[i : i + _BATCH_SIZE]
+            batches_attempted += 1
+            batch_results = _post_mapping_batch(batch, id_type=id_type)
 
-        if batch_results is not None and len(batch_results) != len(batch):
-            # OpenFIGI's contract is positional (result[i] answers job[i]) - a length
-            # mismatch means that guarantee broke (API contract change, truncated
-            # response) and zip() would silently pair each cusip with the WRONG
-            # result. Discard the whole batch rather than risk fabricating a mapping.
-            # FIXED 2026-08-18 (goal session, live-caught via Hamilton Insurance Group/HG's
-            # institutional_holdings_13f gap): this branch (and the batch_results is None
-            # branch below it) used to still call on_batch_resolved() with an all-None dict
-            # for the batch - indistinguishable, to the caller, from OpenFIGI genuinely
-            # answering "no match" for every CUSIP in it. The caller
-            # (load_institutional_holdings_13f.py's _crosswalk_to_tickers) persists
-            # on_batch_resolved's output straight into sec_13f_cusip_crosswalk as a
-            # PERMANENT cache entry ("CUSIP->ticker attribution is stable... only
-            # never-seen CUSIPs cost a live OpenFIGI call" - this module's own docstring),
-            # so a transient failure (5xx, network blip, non-429 HTTP error, or an
-            # exhausted 429 retry) got cached forever as "OpenFIGI has no match for this
-            # CUSIP", identically to a real negative result, with no future retry ever
-            # happening. Live-confirmed for Hamilton's real CUSIP G42706104 (verified
-            # against its own SEC 13G/A filing) - cached NULL/NULL on 2026-08-03 despite
-            # being a real, actively 13F-held NYSE common stock. Fix: simply don't call
-            # on_batch_resolved for a batch OpenFIGI didn't actually answer - leaves those
-            # CUSIPs out of the cache entirely so the next run's "new_cusips" filter
-            # (cusip not in cached) picks them up for a fresh retry instead of treating
-            # them as permanently resolved-to-nothing.
-            logger.warning(
-                f"[OpenFIGI] Batch of {len(batch)} CUSIPs returned {len(batch_results)} "
-                f"results - response length mismatch, discarding batch to avoid "
-                f"misaligned cusip->data pairing. Leaving unresolved for retry next run."
-            )
-        elif batch_results is not None:
-            batches_succeeded += 1
-            batch_resolved: dict[str, dict[str, Any] | None] = dict.fromkeys(batch)
-            for cusip, result in zip(batch, batch_results, strict=True):
-                data = result.get("data")
-                if not data:
-                    if cusip[0].isalpha():
-                        # Might be a CINS identifier ID_CUSIP can't resolve (see the
-                        # cins_candidates comment above) - try ID_CINS in the second pass
-                        # below instead of caching this as a permanent ID_CUSIP negative.
-                        cins_candidates.append(cusip)
-                        del batch_resolved[cusip]
-                    continue  # OpenFIGI couldn't resolve this CUSIP under ID_CUSIP - honest gap otherwise
-                # FIXED 2026-08-18 (goal: "no SEC data"/missing factor inputs audit): a single
-                # CUSIP resolves to 100+ listings across every exchange it trades on (primary
-                # US listing plus every foreign cross-listing/ADR venue), and OpenFIGI does NOT
-                # return them in any "primary first" order - live-confirmed via real OpenFIGI
-                # response for Agilent's CUSIP (00846U101): data[0] was a German Xetra listing
-                # (exchCode "GR", ticker "AG8"), with the real US listing (exchCode "US", ticker
-                # "A") not appearing until index 8. The old `data[0]` pick therefore resolved a
-                # real US-tracked large-cap to the WRONG ticker, which then failed the exact-match
-                # `ticker not in symbols` check in load_institutional_holdings_13f.py's
-                # _crosswalk_to_tickers and silently dropped real, resolved 13F holdings as
-                # "no_resolved_13f_holdings" (1,668 symbols showing this reason at time of fix).
-                # Prefer the entry OpenFIGI tags as the primary US composite listing (exchCode
-                # "US") when one exists; fall back to data[0] unchanged for CUSIPs with no US
-                # listing at all (genuine foreign-only securities - already correct for those).
-                best = next((d for d in data if d.get("exchCode") == "US"), data[0])
-                entry = {"ticker": best.get("ticker"), "name": best.get("name")}
-                results[cusip] = entry
-                batch_resolved[cusip] = entry
+            if batch_results is not None and len(batch_results) != len(batch):
+                # OpenFIGI's contract is positional (result[i] answers job[i]) - a length
+                # mismatch means that guarantee broke (API contract change, truncated
+                # response) and zip() would silently pair each cusip with the WRONG
+                # result. Discard the whole batch rather than risk fabricating a mapping.
+                # FIXED 2026-08-18 (goal session, live-caught via Hamilton Insurance Group/HG's
+                # institutional_holdings_13f gap): this branch (and the batch_results is None
+                # branch below it) used to still call on_batch_resolved() with an all-None dict
+                # for the batch - indistinguishable, to the caller, from OpenFIGI genuinely
+                # answering "no match" for every CUSIP in it. The caller
+                # (load_institutional_holdings_13f.py's _crosswalk_to_tickers) persists
+                # on_batch_resolved's output straight into sec_13f_cusip_crosswalk as a
+                # PERMANENT cache entry ("CUSIP->ticker attribution is stable... only
+                # never-seen CUSIPs cost a live OpenFIGI call" - this module's own docstring),
+                # so a transient failure (5xx, network blip, non-429 HTTP error, or an
+                # exhausted 429 retry) got cached forever as "OpenFIGI has no match for this
+                # CUSIP", identically to a real negative result, with no future retry ever
+                # happening. Live-confirmed for Hamilton's real CUSIP G42706104 (verified
+                # against its own SEC 13G/A filing) - cached NULL/NULL on 2026-08-03 despite
+                # being a real, actively 13F-held NYSE common stock. Fix: simply don't call
+                # on_batch_resolved for a batch OpenFIGI didn't actually answer - leaves those
+                # CUSIPs out of the cache entirely so the next run's "new_cusips" filter
+                # (cusip not in cached) picks them up for a fresh retry instead of treating
+                # them as permanently resolved-to-nothing.
+                logger.warning(
+                    f"[OpenFIGI] Batch of {len(batch)} CUSIPs returned {len(batch_results)} "
+                    f"results - response length mismatch, discarding batch to avoid "
+                    f"misaligned cusip->data pairing. Leaving unresolved for retry next run."
+                )
+            elif batch_results is not None:
+                batches_succeeded += 1
+                batch_resolved: dict[str, dict[str, Any] | None] = dict.fromkeys(batch)
+                for cusip, result in zip(batch, batch_results, strict=True):
+                    data = result.get("data")
+                    if not data:
+                        continue  # OpenFIGI couldn't resolve this CUSIP - honest gap, not fabricated
+                    # FIXED 2026-08-18 (goal: "no SEC data"/missing factor inputs audit): a single
+                    # CUSIP resolves to 100+ listings across every exchange it trades on (primary
+                    # US listing plus every foreign cross-listing/ADR venue), and OpenFIGI does NOT
+                    # return them in any "primary first" order - live-confirmed via real OpenFIGI
+                    # response for Agilent's CUSIP (00846U101): data[0] was a German Xetra listing
+                    # (exchCode "GR", ticker "AG8"), with the real US listing (exchCode "US", ticker
+                    # "A") not appearing until index 8. The old `data[0]` pick therefore resolved a
+                    # real US-tracked large-cap to the WRONG ticker, which then failed the exact-match
+                    # `ticker not in symbols` check in load_institutional_holdings_13f.py's
+                    # _crosswalk_to_tickers and silently dropped real, resolved 13F holdings as
+                    # "no_resolved_13f_holdings" (1,668 symbols showing this reason at time of fix).
+                    # Prefer the entry OpenFIGI tags as the primary US composite listing (exchCode
+                    # "US") when one exists; fall back to data[0] unchanged for CUSIPs with no US
+                    # listing at all (genuine foreign-only securities - already correct for those).
+                    best = next((d for d in data if d.get("exchCode") == "US"), data[0])
+                    entry = {"ticker": best.get("ticker"), "name": best.get("name")}
+                    results[cusip] = entry
+                    batch_resolved[cusip] = entry
 
-            if on_batch_resolved is not None:
-                on_batch_resolved(batch_resolved)
-        else:
-            # batch_results is None: the whole batch request failed (see
-            # _post_mapping_batch - network error, non-429 HTTP error, or 429 that
-            # didn't clear after the one retry). Same fix as the length-mismatch branch
-            # above: do NOT call on_batch_resolved, so these CUSIPs stay out of the cache
-            # and get retried next run instead of being poisoned as permanent negatives.
-            logger.warning(
-                f"[OpenFIGI] Batch of {len(batch)} CUSIPs failed entirely - "
-                f"leaving unresolved for retry next run (not caching as a negative result)."
-            )
+                if on_batch_resolved is not None:
+                    on_batch_resolved(batch_resolved)
+            else:
+                # batch_results is None: the whole batch request failed (see
+                # _post_mapping_batch - network error, non-429 HTTP error, or 429 that
+                # didn't clear after the one retry). Same fix as the length-mismatch branch
+                # above: do NOT call on_batch_resolved, so these CUSIPs stay out of the cache
+                # and get retried next run instead of being poisoned as permanent negatives.
+                logger.warning(
+                    f"[OpenFIGI] Batch of {len(batch)} CUSIPs failed entirely - "
+                    f"leaving unresolved for retry next run (not caching as a negative result)."
+                )
 
-        # Always pace between batches, success or failure - a non-429 failure (network
-        # error, 5xx) doesn't sleep inside _post_mapping_batch at all, and even a 429's
-        # internal 60s retry-wait doesn't guarantee OpenFIGI's window has actually reset;
-        # skipping this sleep on failure was the original code's bug (rapid-fire retries
-        # into a still-active rate limit, worsening it).
-        time.sleep(_REQUEST_INTERVAL_SEC)
-
-    # Second pass: retry every letter-prefixed CUSIP ID_CUSIP couldn't resolve, this time
-    # as ID_CINS (see cins_candidates comment above). Same batching/pacing/failure-handling
-    # as the primary loop, minus the total-failure RuntimeError (a CINS retry batch failing
-    # outright isn't a fatal OpenFIGI-is-down signal on its own - the primary loop above
-    # already proved OpenFIGI is reachable if it got this far).
-    for i in range(0, len(cins_candidates), _BATCH_SIZE):
-        if deadline is not None and time.monotonic() >= deadline:
-            logger.warning(
-                f"[OpenFIGI] Time budget exhausted during CINS retry pass "
-                f"({i}/{len(cins_candidates)} candidates attempted) - remaining picked up next run."
-            )
-            break
-
-        batch = cins_candidates[i : i + _BATCH_SIZE]
-        batch_results = _post_mapping_batch(batch, id_type="ID_CINS")
-
-        if batch_results is not None and len(batch_results) == len(batch):
-            batch_resolved = dict.fromkeys(batch)
-            for cusip, result in zip(batch, batch_results, strict=True):
-                data = result.get("data")
-                if not data:
-                    continue  # Genuinely not a CINS identifier either - honest gap, not fabricated
-                best = next((d for d in data if d.get("exchCode") == "US"), data[0])
-                entry = {"ticker": best.get("ticker"), "name": best.get("name")}
-                results[cusip] = entry
-                batch_resolved[cusip] = entry
-            if on_batch_resolved is not None:
-                on_batch_resolved(batch_resolved)
-        else:
-            logger.warning(
-                f"[OpenFIGI] CINS retry batch of {len(batch)} CUSIPs failed or mismatched - "
-                f"leaving unresolved for retry next run (not caching as a negative result)."
-            )
-
-        time.sleep(_REQUEST_INTERVAL_SEC)
+            # Always pace between batches, success or failure - a non-429 failure (network
+            # error, 5xx) doesn't sleep inside _post_mapping_batch at all, and even a 429's
+            # internal 60s retry-wait doesn't guarantee OpenFIGI's window has actually reset;
+            # skipping this sleep on failure was the original code's bug (rapid-fire retries
+            # into a still-active rate limit, worsening it).
+            time.sleep(_REQUEST_INTERVAL_SEC)
 
     if not deadline_hit and batches_attempted > 0 and batches_succeeded == 0:
         raise RuntimeError(

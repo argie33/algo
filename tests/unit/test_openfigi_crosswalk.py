@@ -89,28 +89,29 @@ def test_fetch_cusip_tickers_skips_unresolved_cusips_without_fabricating(monkeyp
     assert result == {}
 
 
-def test_fetch_cusip_tickers_retries_letter_prefixed_cusip_as_cins(monkeypatch):
+def test_fetch_cusip_tickers_routes_letter_prefixed_cusip_to_cins(monkeypatch):
     """FIXED 2026-08-19: a CUSIP whose first character is a letter is actually a CINS
     (CUSIP International Numbering System) identifier - OpenFIGI requires idType "ID_CINS"
     for these, "ID_CUSIP" returns no match even for a real, resolvable identifier.
     Live-verified via Accenture plc's real 13F-reported identifier G1151C101 (Irish-
-    domiciled, "G"-prefix CINS): fails under ID_CUSIP, resolves to ACN under ID_CINS."""
+    domiciled, "G"-prefix CINS): fails under ID_CUSIP, resolves to ACN under ID_CINS.
+
+    FIXED 2026-08-19 (same-day follow-up): the first version of this fix tried ID_CUSIP
+    first for every identifier and only retried as ID_CINS on failure - a live run against
+    a real 3,537-CUSIP letter-prefixed backlog spent its entire time budget on the doomed
+    first-pass ID_CUSIP attempts and never reached the ID_CINS retry at all. Routes each
+    identifier to its correct idType up front instead - a letter-prefixed CUSIP must be
+    sent ONLY as ID_CINS, never first wasted as a guaranteed-failing ID_CUSIP attempt."""
     calls = []
 
     def _fake_urlopen(req, timeout=30):
         jobs = json.loads(req.data.decode("utf-8"))
         id_types = {j["idType"] for j in jobs}
         calls.append(id_types)
+        assert len(id_types) == 1, "a batch must be homogeneous in idType"
         if "ID_CINS" in id_types:
             return _FakeResponse([{"data": [{"ticker": "ACN", "name": "ACCENTURE PLC-CL A", "exchCode": "US"}]}])
-        # ID_CUSIP pass: the letter-prefixed identifier fails, the normal one succeeds
-        results = []
-        for j in jobs:
-            if j["idValue"] == "G1151C101":
-                results.append({"warning": "No identifier found."})
-            else:
-                results.append({"data": [{"ticker": "AAPL", "name": "APPLE INC", "exchCode": "US"}]})
-        return _FakeResponse(results)
+        return _FakeResponse([{"data": [{"ticker": "AAPL", "name": "APPLE INC", "exchCode": "US"}]}])
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     monkeypatch.setattr("time.sleep", lambda *_: None)
@@ -125,12 +126,15 @@ def test_fetch_cusip_tickers_retries_letter_prefixed_cusip_as_cins(monkeypatch):
     assert {"ID_CINS"} in calls
 
 
-def test_fetch_cusip_tickers_letter_prefixed_cusip_not_cached_as_negative_if_cins_also_fails(monkeypatch):
-    """A letter-prefixed CUSIP that fails BOTH ID_CUSIP and ID_CINS is a genuine, honest
-    gap (e.g. a real not-found identifier) - must resolve to nothing, not raise or fabricate."""
+def test_fetch_cusip_tickers_letter_prefixed_cusip_not_cached_as_negative_if_cins_fails(monkeypatch):
+    """A letter-prefixed CUSIP OpenFIGI can't resolve even under ID_CINS is a genuine,
+    honest gap (e.g. a real not-found identifier) - must resolve to nothing, not raise or
+    fabricate, and must never be tried under ID_CUSIP at all (see routing fix above)."""
+    calls = []
 
     def _fake_urlopen(req, timeout=30):
         jobs = json.loads(req.data.decode("utf-8"))
+        calls.append({j["idType"] for j in jobs})
         return _FakeResponse([{"warning": "No identifier found."} for _ in jobs])
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
@@ -139,11 +143,13 @@ def test_fetch_cusip_tickers_letter_prefixed_cusip_not_cached_as_negative_if_cin
     result = fetch_cusip_tickers(["ACI07W296"])
 
     assert result == {}
+    assert calls == [{"ID_CINS"}]  # never tried as ID_CUSIP - the prefix alone decides
 
 
-def test_fetch_cusip_tickers_digit_prefixed_cusip_never_triggers_cins_retry(monkeypatch):
+def test_fetch_cusip_tickers_digit_prefixed_cusip_never_routed_to_cins(monkeypatch):
     """A standard digit-prefixed CUSIP that OpenFIGI can't resolve is a genuine ID_CUSIP
-    negative - must never trigger a wasted ID_CINS retry call."""
+    negative - must never be routed to ID_CINS (that idType is reserved for letter-prefixed
+    identifiers only)."""
     calls = []
 
     def _fake_urlopen(req, timeout=30):
