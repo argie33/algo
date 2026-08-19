@@ -1555,6 +1555,36 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_revenue_symbols_cache = result
         return result
 
+    def _get_blank_check_symbols(self) -> frozenset[str]:
+        """Symbols SEC-classified as SIC 6770 "Blank Checks" - pre-merger SPAC shells.
+
+        FIX 2026-08-19 (goal: "no SEC data" audit, roic_pct/gross_margin/ebitda_margin
+        follow-up): a blank-check company has no real operating business before its
+        merger (trust-account interest income only, no product/service revenue, no
+        meaningful invested-capital deployment) - roic_pct/gross_margin/ebitda_margin
+        being unavailable for one is a genuine structural fact, same category as
+        reit_special_entity, not a loader gap. Live-confirmed: 343 universe symbols
+        carry this exact SIC classification, and 326/270/314 of them respectively were
+        mislabeled "missing_sec_data" for those three metrics - reading as a loader
+        failure instead of the correct "this entity has no operating business yet".
+
+        Deliberately uses company_info_sec.sic_description (SEC's own authoritative
+        classification) rather than extending _get_no_recent_revenue_symbols()'s 3-
+        consecutive-fiscal-year window: many SPACs are too recently IPO'd to have 3
+        years of filings yet, which would exclude them from that check even though
+        their SIC code alone already settles the question, filing history length
+        notwithstanding. Cached for the life of this loader instance; this query runs
+        once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_blank_check_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT symbol FROM company_info_sec WHERE sic_description = 'Blank Checks'")
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._blank_check_symbols_cache = result
+        return result
+
     def _get_no_recent_stockholders_equity_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported stockholders_equity in any of their 3 most recent
         fiscal years - i.e. debt_to_equity is structurally None for them, not a loader gap.
@@ -3152,6 +3182,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if no_gross_profit_concept
                     else "implausible_ratio"
                     if "gross_margin" in implausible_ratio_metrics
+                    else "no_revenue_reported"
+                    if symbol in self._get_blank_check_symbols()
                     else "missing_sec_data"
                 )
                 if "gross_margin" in failed_metrics
@@ -3162,7 +3194,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     "implausible_ratio"
                     if "ebitda_margin" in implausible_ratio_metrics
                     else "no_revenue_reported"
-                    if symbol in self._get_no_recent_revenue_symbols()
+                    if symbol in self._get_no_recent_revenue_symbols() or symbol in self._get_blank_check_symbols()
                     else "missing_sec_data"
                 )
                 if "ebitda_margin" in failed_metrics
@@ -3176,6 +3208,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if roic_pct_unprofitable
                     else "negative_invested_capital"
                     if roic_pct_negative_invested_capital
+                    else "no_revenue_reported"
+                    if symbol in self._get_blank_check_symbols()
                     else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
