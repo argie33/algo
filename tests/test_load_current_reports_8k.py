@@ -139,6 +139,56 @@ def test_no_new_8k_since_existing_watermark_stays_empty_not_remarked() -> None:
     assert records == []
 
 
+def test_prior_symbol_not_found_marker_gets_corrected_once_cik_resolves(monkeypatch) -> None:
+    """FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit, same-day follow-up
+    to the _get_cik retry fix): unlike the companion test above, a symbol whose most recent
+    stored row is itself "symbol_not_found" (a resolution-layer failure, not a legitimate
+    "checked, no new 8-Ks" state) must NOT be left with that stale wrong marker just because
+    `since` happens to be a real date - it needs correcting the moment CIK resolution
+    succeeds again, same as a genuine first-ever check. Live-confirmed: re-running this
+    loader for AEP/ELSE/FGMC/NXH/VMRK (all real, CIK-resolvable filers per a direct live
+    check) wrote nothing new before this fix, silently leaving the wrong marker in place.
+    """
+    from datetime import date
+
+    class _FakeCursor:
+        def execute(self, query, params=None):
+            pass
+
+        def fetchone(self):
+            return ("symbol_not_found",)
+
+    class _FakeDatabaseContext:
+        def __init__(self, *a, **kw):
+            pass
+
+        def __enter__(self):
+            return _FakeCursor()
+
+        def __exit__(self, *exc):
+            return False
+
+    import loaders.load_current_reports_8k as mod
+
+    monkeypatch.setattr(mod, "DatabaseContext", _FakeDatabaseContext)
+
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["6-K"],
+                "filingDate": ["2025-08-01"],
+                "accessionNumber": ["0001-25-000333"],
+            }
+        }
+    }
+
+    records = loader.fetch_incremental("AEP", since=date(2026, 1, 1))
+
+    assert len(records) == 1
+    assert records[0]["data_unavailable_reason"] == "no_8k_filings_in_recent_submissions"
+
+
 def test_unavailable_marker_accession_number_is_not_empty_string(monkeypatch) -> None:
     """LIVE-REPRODUCED 2026-08-16: accession_number is NOT NULL (part of the composite PK
     with symbol). BulkInsertManager's COPY path applies FORCE_NULL to every column and

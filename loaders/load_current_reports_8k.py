@@ -30,6 +30,7 @@ import requests
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.retry_helper import retry_with_backoff
@@ -249,7 +250,21 @@ class CurrentReports8KLoader(SecLoaderBase):
             # incremental runs - same "before writing the marker, check for prior real coverage
             # first" precedent as the analyst-coverage marker-masking fix
             # (marker_masks_real_data_in_event_log_tables_bug_class_20260818).
-            if not results and since is None:
+            # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit, same-day
+            # follow-up to the _get_cik retry fix above): `since is None` alone missed a real
+            # case - a symbol whose PRIOR run permanently wrote "symbol_not_found" (from a
+            # transient CIK-resolution failure, now fixed to retry) has a real watermark
+            # (since is NOT None), so a later run finding zero new 8-Ks just returns [] here
+            # and silently leaves that stale, wrong marker as the "latest" row forever - the
+            # CIK now resolves fine (we're past line 157, cik was truthy), but nothing ever
+            # overwrites the bad old record. Live-confirmed: re-running this loader today for
+            # AEP/ELSE/FGMC/NXH/VMRK (all live-verified as real, CIK-resolvable filers) wrote
+            # nothing new despite `since is None` returning here. A prior "symbol_not_found"
+            # is a resolution-layer failure, not a legitimate "checked, no new 8-Ks" state
+            # like every other reason this branch guards against re-marking - it must be
+            # retried until corrected, not treated as permanently settled once real CIK
+            # resolution succeeds.
+            if not results and (since is None or self._last_reason_was_symbol_not_found(symbol)):
                 return self._unavailable_record(symbol, now_et, "no_8k_filings_in_recent_submissions")
 
             return results
@@ -279,6 +294,31 @@ class CurrentReports8KLoader(SecLoaderBase):
                 f"Cannot parse SEC filing date '{date_str}': must be YYYY-MM-DD format. "
                 f"Data quality issue or format change in SEC EDGAR responses."
             ) from e
+
+    @staticmethod
+    def _last_reason_was_symbol_not_found(symbol: str) -> bool:
+        """True if this symbol's most recent stored row is a "symbol_not_found" marker.
+
+        See the fetch_incremental caller's comment: that reason means the CIK-resolution
+        layer itself failed last time, which the _get_cik retry fix above can now recover
+        from - but only if this run actually re-marks the row when there's nothing new to
+        report. A quick, targeted read (only reached when results is already empty), not a
+        per-symbol cost paid on every run.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT data_unavailable_reason FROM current_reports_8k
+                    WHERE symbol = %s ORDER BY filing_date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                return bool(row and row[0] == "symbol_not_found")
+        except Exception as e:
+            logger.debug(f"[{symbol}] Could not check prior reason: {type(e).__name__}: {e}")
+            return False
 
     def _get_cik(self, symbol: str) -> str | None:
         """Get CIK for symbol using SEC Edgar client (authoritative source).
