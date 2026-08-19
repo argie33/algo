@@ -71,6 +71,21 @@ class SecValuationsLoader(OptimalLoader):
     # micro-caps.
     MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
 
+    # FIXED 2026-08-18 (goal session, currency-poisoned-row cleanup follow-up): live-crashed
+    # via NMR (Nomura Holdings, a JPY-reporting IFRS filer - JPY is FX-CONVERTED not rejected
+    # outright, unlike KRW/VND above, since it's in MAJOR_CURRENCIES): the derived-shares-out
+    # fallback (`shares = net_income / eps`, just below) computed 2,942,280,410,000,000 shares
+    # - a currency-scale mismatch between net_income (converted) and eps (apparently not
+    # converted the same way, or converted with a different effective scale) produced an
+    # absurd ratio. NUMERIC(15,0) couldn't even hold the value, aborting the whole COPY batch
+    # (1 bad symbol out of 15 failed the whole run's 5% error threshold, rolling back all 15 -
+    # not just NMR). The existing MIN floor above catches implausibly-small outliers; nothing
+    # caught implausibly-LARGE ones. No real company (even the most share-heavy real large-caps
+    # after multiple splits) has anywhere near 100 billion shares outstanding - this ceiling is
+    # generous enough to never reject a genuine value while catching this and any similar
+    # future currency/scale-mismatch derivation error before it ever reaches the DB.
+    MAX_PLAUSIBLE_SHARES_OUTSTANDING = 100_000_000_000
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Compute SEC-derived valuations for one symbol.
 
@@ -265,7 +280,12 @@ class SecValuationsLoader(OptimalLoader):
                 # fallback tiers already guard against this class of bad data; the primary
                 # reported value needs the same guard.
                 shares_out = None
-                if reported_shares_outstanding and reported_shares_outstanding > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                if (
+                    reported_shares_outstanding
+                    and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                    < reported_shares_outstanding
+                    < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                ):
                     shares_out = float(reported_shares_outstanding)
                     logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
 
@@ -279,7 +299,11 @@ class SecValuationsLoader(OptimalLoader):
                     try:
                         # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
                         derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
-                        if derived_shares_out > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                        if (
+                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                            < derived_shares_out
+                            < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                        ):
                             shares_out = derived_shares_out
                             logger.debug(
                                 f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}"
@@ -298,10 +322,10 @@ class SecValuationsLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT shares_outstanding_basic FROM annual_income_statement
-                        WHERE symbol = %s AND shares_outstanding_basic > %s
+                        WHERE symbol = %s AND shares_outstanding_basic > %s AND shares_outstanding_basic < %s
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
-                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
                     )
                     prior_shares_row = cur.fetchone()
                     if prior_shares_row and prior_shares_row[0]:
@@ -315,10 +339,10 @@ class SecValuationsLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT shares_outstanding FROM company_info_sec
-                        WHERE symbol = %s AND shares_outstanding > %s
+                        WHERE symbol = %s AND shares_outstanding > %s AND shares_outstanding < %s
                         ORDER BY filing_date DESC LIMIT 1
                         """,
-                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
                     )
                     shares_row = cur.fetchone()
                     if shares_row and shares_row[0]:
@@ -336,10 +360,10 @@ class SecValuationsLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT shares_outstanding_diluted FROM annual_income_statement
-                        WHERE symbol = %s AND shares_outstanding_diluted > %s
+                        WHERE symbol = %s AND shares_outstanding_diluted > %s AND shares_outstanding_diluted < %s
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
-                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
                     )
                     diluted_shares_row = cur.fetchone()
                     if diluted_shares_row and diluted_shares_row[0]:
@@ -362,10 +386,10 @@ class SecValuationsLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT shares_outstanding_dei FROM annual_income_statement
-                        WHERE symbol = %s AND shares_outstanding_dei > %s
+                        WHERE symbol = %s AND shares_outstanding_dei > %s AND shares_outstanding_dei < %s
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
-                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
                     )
                     dei_shares_row = cur.fetchone()
                     if dei_shares_row and dei_shares_row[0]:
