@@ -1935,10 +1935,29 @@ def _get_scores_coverage(cur: cursor) -> Any:
             has_symbol = "symbol" in cols
             order_col = _coverage_order_col(cols)
 
+            # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): every
+            # query below used to scan {table} directly with no active-universe filter, so
+            # a symbol delisted/failed-SPAC/dropped from stock_symbols.active but never
+            # pruned from a metrics table (live-confirmed: 6-9% of rows in quality_metrics/
+            # growth_metrics/value_metrics/positioning_metrics/stability_metrics/
+            # dividend_data belong to symbols no longer active) counted as a live "gap in
+            # the real, scored universe" here - inflating every factor's numerator AND
+            # denominator, and inactive symbols are disproportionately gap-heavy (delisted
+            # shells, failed SPACs), so this wasn't just proportional noise. The actual
+            # user-facing /api/algo/scores query already joins stock_scores -> stock_symbols
+            # (stock_scores itself is 99.7% clean of inactive symbols - the scoring loader
+            # already scopes to the active universe), so this report was measuring a
+            # DIFFERENT, larger, stale-inflated population than what real users ever see.
+            # Joining to stock_symbols and filtering active=true here makes this report
+            # match that same real, live-scored universe.
+            active_join = (
+                f" JOIN stock_symbols _su ON _su.symbol = {table}.symbol AND _su.active = true" if has_symbol else ""
+            )
+
             if table not in denom_cache:
                 if has_symbol:
                     try:
-                        cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {table}")
+                        cur.execute(f"SELECT COUNT(DISTINCT {table}.symbol) FROM {table}{active_join}")
                         denom_cache[table] = cur.fetchone()[0]
                     except Exception:
                         denom_cache[table] = None
@@ -1947,22 +1966,31 @@ def _get_scores_coverage(cur: cursor) -> Any:
 
             try:
                 if has_symbol and order_col:
+                    # {table}-qualify column/order_col (not just symbol) - active_join's _su
+                    # alias is another copy of the SAME table for the stock_symbols.
+                    # data_unavailable_reason case (self-join), and stock_symbols also has
+                    # updated_at/created_at, either of which order_col can pick as the
+                    # ordering column for OTHER tables too - both would otherwise be
+                    # ambiguous between {table} and the joined _su copy.
                     query = f"""
                         SELECT reason_val, COUNT(*) FROM (
-                            SELECT DISTINCT ON (symbol) symbol, {column} AS reason_val
-                            FROM {table}
-                            ORDER BY symbol, {order_col} DESC
+                            SELECT DISTINCT ON ({table}.symbol) {table}.symbol, {table}.{column} AS reason_val
+                            FROM {table}{active_join}
+                            ORDER BY {table}.symbol, {table}.{order_col} DESC
                         ) latest
                         WHERE reason_val IS NOT NULL
                         GROUP BY reason_val
                         ORDER BY COUNT(*) DESC
                     """
                 else:
+                    # Same active-universe scoping as the has_symbol branch above, for the
+                    # rarer has_symbol-but-no-order_col case (a market-wide/no-symbol table
+                    # skips the join entirely since active_join is "" when not has_symbol).
                     query = f"""
-                        SELECT {column} AS reason_val, COUNT(*)
-                        FROM {table}
-                        WHERE {column} IS NOT NULL
-                        GROUP BY {column}
+                        SELECT {table}.{column} AS reason_val, COUNT(*)
+                        FROM {table}{active_join}
+                        WHERE {table}.{column} IS NOT NULL
+                        GROUP BY {table}.{column}
                         ORDER BY COUNT(*) DESC
                     """
                 cur.execute(query)
