@@ -429,21 +429,33 @@ def _validate_dependency_freshness(
                     logger.warning(f"[PHASE 1] Rollback after failed dependency check also failed: {rollback_err}")
 
     if failed_deps:
-        error_msg = (
-            "[PHASE 1] DEPENDENCY FRESHNESS FAILURE:\n"
+        # FIX 2026-08-18 (loader-health review): this function returned a full HALT
+        # (halted=True, status="halted") for every dependency in `dependencies` above -
+        # value_metrics, sec_segment_metrics, positioning_metrics, stock_scores - but this
+        # module's own header docstring is explicit: "Metric loaders (growth, quality,
+        # value, positioning, stability) are ENRICHMENT ONLY... Stale metrics = WARNING
+        # only, trading continues" - and stock_scores is separately documented as
+        # generated on-the-fly by Phase 5 from price_daily, not a hard dependency at all.
+        # None of price_daily/technical_data_daily/buy_sell_daily (the genuinely
+        # halt-worthy tables per that same docstring) are even checked by this function.
+        # Live-confirmed 2026-08-18: a real morning run halted entirely on
+        # value_metrics->sec_valuations being one trading day behind (structurally
+        # unavoidable pre-close, since sec_valuations values the latest CLOSED price and
+        # today's close doesn't exist yet during morning/intraday hours) - directly
+        # contradicting this file's own "trading continues" policy for exactly this class
+        # of dependency. Downgraded to a warning (log + continue), matching every other
+        # enrichment-metric staleness check in this same file - never blocks Phase 1 for
+        # data that was never meant to gate trading in the first place.
+        warning_msg = (
+            "[PHASE 1] DEPENDENCY FRESHNESS WARNING (enrichment-only, trading continues):\n"
             + "\n".join(f"  {dep}" for dep in failed_deps[:5])
             + (f"\n  ... and {len(failed_deps) - 5} more" if len(failed_deps) > 5 else "")
         )
-        logger.critical(error_msg)
-        log_phase_result_fn(1, "dependency_freshness", "halt", f"Upstream dependencies stale: {failed_deps[0]}")
-        return PhaseResult(
-            1,
-            "dependency_freshness",
-            "halted",
-            {"failed_dependencies": failed_deps},
-            True,
-            f"Upstream dependencies stale: {failed_deps[0]}",
+        logger.warning(warning_msg)
+        log_phase_result_fn(
+            1, "dependency_freshness", "warning", f"Upstream dependencies stale (non-blocking): {failed_deps[0]}"
         )
+        return None
 
     logger.info("[PHASE 1] Dependency freshness check: OK")
     return None

@@ -462,13 +462,15 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
 
             # Skip if function is Optional[T] (returns None as valid state)
             # Search backward for "def " to find function definition.
-            # Window widened from 50 to 120 lines: functions with long docstrings/retry-loop
-            # bodies (e.g. loaders/market_health_fetchers.py's _fetch_with_retries, whose
-            # `def` is 51 lines above its final `return None`) were falling outside the old
-            # 50-line window, silently disabling the Optional[T]/docstring-contract checks
-            # below for no reason related to their correctness.
+            # Window widened from 50 to 120 lines (market_health_fetchers.py's
+            # _fetch_with_retries), then 120 to 200: algo/orchestrator/phase1_data_freshness.py's
+            # _validate_dependency_freshness has a 323-line def with a large dependencies dict
+            # literal and a per-dependency validation loop before its `return None` lines land at
+            # +135/+138 - still outside the 120-line window, so its `PhaseResult | None` signature
+            # never got checked and both legitimate None returns were flagged as silent fallbacks.
+            # Same root cause as the earlier widening, just a longer function.
             func_def_line = None
-            for search_line in range(line_num - 1, max(0, line_num - 120), -1):
+            for search_line in range(line_num - 1, max(0, line_num - 200), -1):
                 if lines[search_line].strip().startswith("def "):
                     func_def_line = search_line
                     break
