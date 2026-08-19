@@ -544,6 +544,22 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # dropping their revenue.
         "RevenueFromContractWithCustomerIncludingAssessedTax",
         "RevenueFromContractWithCustomerExcludingAssessedTax",
+        # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): equity REITs (AMH/American
+        # Homes 4 Rent, EQR/Equity Residential live-confirmed via real companyfacts JSON)
+        # adopted this ASC 842 (new lease standard, effective 2019) concept as their real
+        # top-line lease-revenue tag - "Revenues" goes silent for these filers right around
+        # the same 2019/2020 transition (AMH FY2020 "Revenues"=$1.1828B is its last real
+        # entry) while OperatingLeaseLeaseIncome continues with real, growing figures for
+        # years after (AMH FY2025=$1.850B, EQR FY2025=$3.094B). Same "revenue concept
+        # silently re-tagged" bug class as the utility fixes above, REIT/lease-accounting
+        # trigger this time. Deliberately NOT a plain always-fallback mapping here - REIT
+        # revenue also includes non-lease fee income this concept excludes (AMH's own
+        # overlap year is ~99% but not exactly equal to the old "Revenues" figure), so it's
+        # wired as a REIT-only (SIC 6798) fallback in load_financial_statements.py's
+        # _REIT_REVENUE_FALLBACK_ONLY_FIELDS instead - same precedent as that set's existing
+        # RevenueFromContractWithCustomer entries, and it only ever fills an already-empty
+        # revenue rather than risking a clobber for a non-REIT filer that happens to tag it.
+        "OperatingLeaseLeaseIncome",
         # FIXED 2026-08-01: RevenuesNetOfInterestExpense for financial services companies.
         # Banks (MS, WFC, etc.) switched from reporting "Revenues" (2007-2019) to
         # "RevenuesNetOfInterestExpense" (2013+) as their primary revenue metric in 2020+.
@@ -552,6 +568,36 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # SalesRevenueNet/legacy Revenues so they don't overwrite with zero values.
         # Live-verified: MS has 2020-2026 data, WFC has 2018-2026 data.
         "RevenuesNetOfInterestExpense",
+        # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): regulated electric/gas
+        # utilities (XEL/Xcel Energy, DTE/DTE Energy, OGS/ONE Gas live-confirmed via real
+        # companyfacts JSON) switched their primary revenue tag to this utility-specific
+        # concept - "Revenues"/"RevenueFromContractWithCustomerExcludingAssessedTax" both
+        # stop updating for these filers around FY2018/2019 (ASC 606 adoption era) even
+        # though the company keeps filing real 10-Ks every year after. Confirmed via
+        # matching overlap-year values: XEL FY2017/2018 = $11.404B/$11.537B under BOTH the
+        # old "Revenues" tag and this one, exactly - then this concept alone continues with
+        # real, growing figures through FY2025 ($14.669B) while "Revenues" goes silent.
+        # This is the SAME "revenue concept silently re-tagged, freezing every downstream
+        # quality/growth metric behind a stale multi-year-old anchor" bug class as the
+        # AEG/UBS IFRS fixes (see f6baac459/a46b6378b) - just a us-gaap utility-sector
+        # trigger (ASC 606) instead of an IFRS-transition or M&A-driven one. Listed as a
+        # normal (always-processed, not fallback-only) concept per this list's usual
+        # convention: it's a combined "regulated AND unregulated" total by name/design, not
+        # a partial segment figure, so it's safe to let it win on overwrite like any other
+        # top-line revenue tag.
+        # FIXED 2026-08-19 (same session, same root cause as the concept below): pure
+        # single-segment regulated utilities with no unregulated business line (OGS/ONE
+        # Gas, a natural-gas-only distributor - live-confirmed via real companyfacts JSON)
+        # use this narrower tag instead - RegulatedAndUnregulatedOperatingRevenue doesn't
+        # exist at all for OGS. Values match "Revenues" exactly for the FY2018-2022 overlap
+        # years ($1.634B/$2.578B), then continue real and current through FY2025 ($2.427B)
+        # after "Revenues" goes silent starting FY2023. Listed BEFORE the broader
+        # And-Unregulated variant (last-listed-wins convention) so a filer that somehow
+        # tags both (unseen so far, but plausible for a utility transitioning between a
+        # regulated-only and combined segment split across years) keeps the more complete
+        # combined figure, not this narrower one.
+        "RegulatedOperatingRevenue",
+        "RegulatedAndUnregulatedOperatingRevenue",
         # FIXED 2026-08-03: mortgage REITs (AGNC, NLY live-confirmed via real companyfacts
         # JSON) have none of the revenue concepts above - their primary revenue-equivalent
         # line is gross interest income (before subtracting interest expense on their own

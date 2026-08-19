@@ -106,6 +106,11 @@ _INCOME_FIELD_MAPPING = {
     "sales_revenue_net": "revenue",
     "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
     "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
+    # FIXED 2026-08-19: equity REITs' ASC 842 lease-revenue tag - see sec_statements.py's
+    # comment on OperatingLeaseLeaseIncome for the live-verified AMH/EQR cases this
+    # recovers. REIT-gated via _REIT_REVENUE_FALLBACK_ONLY_FIELDS below, not a plain
+    # mapping - see that set's comment for why.
+    "operating_lease_lease_income": "revenue",
     # FIXED 2026-08-01: RevenuesNetOfInterestExpense for banks (2020+ data).
     # Maps to same "revenue" column - this is the standard revenue metric for
     # financial services companies since 2020. Ordering in sec_statements.py
@@ -125,6 +130,13 @@ _INCOME_FIELD_MAPPING = {
     # sec_statements.py places this after revenues_net_of_interest_expense so it only wins for
     # filers that have nothing else.
     "interest_and_dividend_income_operating": "revenue",
+    # FIXED 2026-08-19: regulated electric/gas utilities' post-ASC-606 revenue tags - see
+    # sec_statements.py's comments on RegulatedOperatingRevenue/
+    # RegulatedAndUnregulatedOperatingRevenue for the live-verified XEL/DTE/OGS cases this
+    # recovers (7+ years of real revenue that had gone silently NULL despite the company
+    # continuing to file real, current 10-Ks).
+    "regulated_operating_revenue": "revenue",
+    "regulated_and_unregulated_operating_revenue": "revenue",
     "cost_of_revenue": "cost_of_revenue",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
     # added to sec_statements.py's get_income_statement() concepts list - see that file's
@@ -295,6 +307,13 @@ _REIT_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "revenue_from_contract_with_customer_including_assessed_tax",
         "revenue_from_contract_with_customer_excluding_assessed_tax",
+        # FIXED 2026-08-19: ASC 842 lease-revenue tag some REITs (AMH, EQR live-confirmed)
+        # switched to as "Revenues" goes silent for them around the 2019/2020 lease-
+        # standard transition - see sec_statements.py's OperatingLeaseLeaseIncome comment.
+        # Same fallback-only rationale as the two entries above: "revenues" (when present)
+        # is the fuller total including non-lease fee income, so this only fills "revenue"
+        # for the fiscal years where "revenues" itself has gone empty.
+        "operating_lease_lease_income",
     }
 )
 
