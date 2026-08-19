@@ -2343,6 +2343,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and roic_cash_and_equivalents is not None
             ):
                 invested_capital = roic_stockholders_equity + debt_for_roic - roic_cash_and_equivalents
+            # FIX 2026-08-18 (goal: find/fix real loader gaps): live-confirmed ALNY (Alnylam
+            # Pharmaceuticals, a real, profitable-that-year, fully-SEC-reported biotech) -
+            # every roic_pct input (effective_tax_rate=2.9%, operating_income=$501.6M,
+            # stockholders_equity, debt, cash all real SEC figures) computed successfully, but
+            # invested_capital = equity + debt - cash came out NEGATIVE ($789.2M + $270.6M -
+            # $1,657.3M = -$597.5M) because ALNY's large cash pile (built from equity raises,
+            # common for well-capitalized biotechs) exceeds equity+debt. This then fell through
+            # to the generic "missing_sec_data" below even though nothing was missing - same
+            # "real business-state fact, not an absent SEC concept" distinction this file
+            # already makes for roic_pct_unprofitable (pretax loss -> "unprofitable_stock").
+            # Live sample of 300 universe symbols marked roic_pct missing_sec_data: 92 (~31%)
+            # hit this exact negative/zero-invested-capital shape - the single largest
+            # component of the whole missing_sec_data bucket for this field.
+            roic_pct_negative_invested_capital = invested_capital is not None and invested_capital <= 0
 
             if (
                 effective_tax_rate is not None
@@ -2990,7 +3004,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (
                     "implausible_ratio"
                     if "roic_pct" in implausible_ratio_metrics
-                    else ("unprofitable_stock" if roic_pct_unprofitable else "missing_sec_data")
+                    else "unprofitable_stock"
+                    if roic_pct_unprofitable
+                    else "negative_invested_capital"
+                    if roic_pct_negative_invested_capital
+                    else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
                 else None
