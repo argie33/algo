@@ -148,10 +148,28 @@ MAX_TREND_PERCENTAGE_POINTS = 100_000.0
 # foreign filers reporting in local currency - VND/KRW) overflowed this column, aborting
 # the entire 3-table quality/value/growth write transaction for those symbols - not just
 # the one garbage field, the whole row, same failure mode as MAX_TREND_PERCENTAGE_POINTS
-# above. Root cause not yet fixed (likely a missing currency-unit conversion for these
-# filers, same class of bug as sec_statements.py's other foreign-filer fixes) - this bound
-# only prevents the crash-and-lose-everything symptom by marking the implausible value
-# unavailable instead of writing it.
+# above.
+#
+# UPDATE 2026-08-19 (goal: factor-input-sources audit): root cause fixed upstream in
+# sec_statements.py on 2026-08-17 - KRW is now in fx_rates.py's MAJOR_CURRENCIES and gets
+# converted to USD via a real historical FX rate before it ever reaches this file (VND is
+# not a major currency, so VFS's local-currency facts are dropped to NULL rather than
+# converted - also correct, just a different resolution). Live-reverified 2026-08-19: KEP's
+# sec_valuations row (total_debt=$10.8B, ebitda=$15.1B) and annual_income_statement revenue
+# ($62.77B, matches KEPCO's real FY2024 revenue) are both now correctly USD-scaled. BUT the
+# fix only applies going forward through the normal incremental fetch - a symbol whose
+# annual_balance_sheet/annual_income_statement/annual_cash_flow rows were last written
+# BEFORE 2026-08-17 keeps the old raw-local-currency values until something re-fetches that
+# symbol (no new filing means the incremental cursor has no reason to re-pull it). Live
+# DB scan 2026-08-19: SKM/KT/SKHY/GGAL/BMA/BBAR/IBN/KSPI/TEO/SMFG/MUFG/etc. still carry
+# pre-fix raw-currency values (e.g. SKM operating_cash_flow=5,087,285,000,000, exactly the
+# raw KRW SEC fact) dated 2026-08-18 20:xx or earlier - the currently-running metrics
+# pipeline scheduler (PID 26892, started 2026-08-19T09:44 UTC per algo-scheduler.lock) is
+# progressively correcting these as it works through the symbol queue (KEP flipped to the
+# correct value at 2026-08-19 10:00 in this same run). This bound stays as a safety net
+# regardless - it only prevents the crash-and-lose-everything symptom by marking the
+# implausible value unavailable instead of writing it, and remains correct for any future
+# currency/scale bug of this shape.
 MAX_ABSOLUTE_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion - no real company in this universe exceeds this for any single one of these fields
 
 # Computed once in _compute_quality_metrics (needs balance-sheet data _compute_growth_metrics
