@@ -120,6 +120,19 @@ class CompanyInfoSECLoader(SecLoaderBase):
             recent_forms = recent_forms.get("form") or []
             has_annual_report_filing = any(f in ("10-K", "10-K/A", "20-F", "20-F/A") for f in recent_forms)
 
+            # ADDED 2026-08-19 (migration 1211, goal: "no SEC data"/missing factor inputs
+            # audit): free from the same recent_forms list computed just above. Foreign
+            # private issuers (20-F/40-F annual reports, 6-K interim/current reports) file
+            # their income-statement/share-count figures in whatever unit their home-market
+            # security uses - for ADR-structured filers (e.g. TSM, 1 ADS = 5 ordinary shares)
+            # that's a different unit than the US-registered security their price is quoted
+            # in, with no ADS-ratio conversion anywhere in XBRL. Consumed by
+            # load_sec_valuations.py to gate share-count-derived valuation math entirely for
+            # these filers, rather than risk the same unit-mismatch trap in a fallback tier
+            # nobody has separately audited - see that loader and migration 1211's own
+            # comment for the live TSM case ($10.7T market cap, ~5x too high) this prevents.
+            is_foreign_private_issuer = any(f in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K") for f in recent_forms)
+
             # Get shares outstanding from DEI facts (if available)
             shares_outstanding = None
             try:
@@ -207,6 +220,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     "entity_type": entity_type,
                     "shares_outstanding": shares_outstanding,
                     "has_annual_report_filing": has_annual_report_filing,
+                    "is_foreign_private_issuer": is_foreign_private_issuer,
                     "data_unavailable": False,
                     "reason": None,
                     "data_source": "sec_edgar_submissions",

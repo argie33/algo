@@ -108,22 +108,33 @@ class SecValuationsLoader(OptimalLoader):
                 # latest year alone. Prioritizing rows with revenue or EPS present, then by
                 # fiscal_year DESC, still returns two genuinely consecutive fiscal years for the
                 # prior_year_eps growth-rate calc below (whichever two are most recent AND usable).
+                # ADDED 2026-08-19 (migration 1211, goal: "no SEC data"/missing factor inputs
+                # audit): is_foreign_private_issuer folded in via LEFT JOIN (not a separate
+                # round-trip) so it's available on income_rows[0] without disturbing the call
+                # sequence every other query in this method relies on. See the shares_out tier
+                # gating below for the full story - foreign private issuers (20-F/40-F/6-K)
+                # report revenue/net_income/EPS/share-count figures in their home-market
+                # security's units, which for ADR-structured filers (e.g. TSM, 1 ADS = 5
+                # ordinary shares) differ from the US-registered security current_price is
+                # quoted in.
                 cur.execute(
                     """
                     SELECT
-                        fiscal_year,
-                        revenue,
-                        net_income,
-                        earnings_per_share,
-                        operating_income,
-                        pretax_income,
-                        depreciation_expense,
-                        amortization_expense,
-                        shares_outstanding_basic,
-                        income_tax_expense
-                    FROM annual_income_statement
-                    WHERE symbol = %s
-                    ORDER BY (CASE WHEN revenue IS NOT NULL OR earnings_per_share IS NOT NULL OR net_income IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                        ais.fiscal_year,
+                        ais.revenue,
+                        ais.net_income,
+                        ais.earnings_per_share,
+                        ais.operating_income,
+                        ais.pretax_income,
+                        ais.depreciation_expense,
+                        ais.amortization_expense,
+                        ais.shares_outstanding_basic,
+                        ais.income_tax_expense,
+                        cis.is_foreign_private_issuer
+                    FROM annual_income_statement ais
+                    LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
+                    WHERE ais.symbol = %s
+                    ORDER BY (CASE WHEN ais.revenue IS NOT NULL OR ais.earnings_per_share IS NOT NULL OR ais.net_income IS NOT NULL THEN 0 ELSE 1 END), ais.fiscal_year DESC
                     LIMIT 2
                     """,
                     (symbol,),
@@ -131,6 +142,12 @@ class SecValuationsLoader(OptimalLoader):
                 income_rows = cur.fetchall()
                 if not income_rows:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
+
+                # len() guard: pre-existing tests mock income_rows as plain 10-element
+                # tuples (this method's own pre-2026-08-19 shape) - default to False
+                # (unchanged prior behavior) rather than requiring every one of those
+                # fixtures to be updated for a column real production queries always return.
+                is_foreign_private_issuer = bool(income_rows[0][10]) if len(income_rows[0]) > 10 else False
 
                 (
                     ttm_fiscal_year,
@@ -143,7 +160,7 @@ class SecValuationsLoader(OptimalLoader):
                     amortization_expense,
                     reported_shares_outstanding,
                     income_tax_expense,
-                ) = income_rows[0]
+                ) = income_rows[0][:10]
 
                 # FIXED 2026-08-18 (goal: "no SEC data" audit): the ORDER BY above ranks a row
                 # tier-0 if ANY of revenue/EPS/net_income is present - not specifically revenue -
@@ -279,60 +296,80 @@ class SecValuationsLoader(OptimalLoader):
                 # produced a nonsensical ~$4,900 market cap when trusted directly. The
                 # fallback tiers already guard against this class of bad data; the primary
                 # reported value needs the same guard.
+                # FIXED 2026-08-19 (migration 1211, goal: "no SEC data"/missing factor inputs
+                # audit): live-confirmed TSM (Taiwan Semiconductor, 1 ADS = 5 ordinary
+                # shares) showed market_cap=$10.7 TRILLION and pe_ratio=304 (both ~5x too
+                # high, independently cross-checked against yfinance's live sharesOutstanding/
+                # marketCap/trailingPE) because tiers 1-3/5 below all read
+                # shares_outstanding_basic/diluted or derive a share count from net_income/EPS
+                # - for a foreign private issuer these are real, correctly-filed figures, just
+                # on the filer's home-market ordinary-share basis, not the ADS-equivalent basis
+                # current_price is quoted in. Only tiers 4 (company_info_sec) and 6
+                # (shares_outstanding_dei) are independently guarded to domestic forms only
+                # (see load_company_info_sec.py and utils/external/sec_statements.py
+                # respectively) - skip straight to those for a foreign private issuer rather
+                # than risk the same unit mismatch in a tier nobody had separately audited.
                 shares_out = None
-                if (
-                    reported_shares_outstanding
-                    and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
-                    < reported_shares_outstanding
-                    < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
-                ):
-                    shares_out = float(reported_shares_outstanding)
-                    logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
+                if not is_foreign_private_issuer:
+                    if (
+                        reported_shares_outstanding
+                        and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                        < reported_shares_outstanding
+                        < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                    ):
+                        shares_out = float(reported_shares_outstanding)
+                        logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
 
-                # Fallback: compute shares outstanding from SEC financial data: shares = net_income / eps.
-                # If both net_income and eps are available, we can compute shares directly from SEC audited data.
-                # This mathematically reconstructs whatever share count the filer itself used
-                # to compute EPS - if that was the same implausible pre-float figure rejected
-                # above (live-confirmed: AIAI's derived value is ~1000, matching its rejected
-                # reported shares_outstanding_basic exactly), the same floor must apply here too.
-                if not shares_out and ttm_eps_basic and ttm_eps_basic != 0 and _ttm_net_income and _ttm_net_income != 0:
-                    try:
-                        # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
-                        derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
-                        if (
-                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
-                            < derived_shares_out
-                            < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
-                        ):
-                            shares_out = derived_shares_out
-                            logger.debug(
-                                f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}"
-                            )
-                    except (ValueError, ZeroDivisionError):
-                        pass  # If computation fails, shares_out stays None and we fail below
+                    # Fallback: compute shares outstanding from SEC financial data: shares = net_income / eps.
+                    # If both net_income and eps are available, we can compute shares directly from SEC audited data.
+                    # This mathematically reconstructs whatever share count the filer itself used
+                    # to compute EPS - if that was the same implausible pre-float figure rejected
+                    # above (live-confirmed: AIAI's derived value is ~1000, matching its rejected
+                    # reported shares_outstanding_basic exactly), the same floor must apply here too.
+                    if (
+                        not shares_out
+                        and ttm_eps_basic
+                        and ttm_eps_basic != 0
+                        and _ttm_net_income
+                        and _ttm_net_income != 0
+                    ):
+                        try:
+                            # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
+                            derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
+                            if (
+                                self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                                < derived_shares_out
+                                < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                            ):
+                                shares_out = derived_shares_out
+                                logger.debug(
+                                    f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}"
+                                )
+                        except (ValueError, ZeroDivisionError):
+                            pass  # If computation fails, shares_out stays None and we fail below
 
-                # Fallback: the LIMIT 2 rows above are the two most recent fiscal years, but
-                # the most recent one is often a partial/estimate-stage filing with NULL
-                # shares_outstanding_basic even though an older year has the real reported
-                # value (same "latest year is empty" issue fixed for free_cash_flow in
-                # load_value_quality_growth_metrics.py - live-confirmed for GPRO/JOUT/CWH/etc,
-                # where FY2026 is NULL but FY2025 has a real share count). Search all fiscal
-                # years, not just the two most recent, before falling back to company_info_sec.
-                if not shares_out:
-                    cur.execute(
-                        """
-                        SELECT shares_outstanding_basic FROM annual_income_statement
-                        WHERE symbol = %s AND shares_outstanding_basic > %s AND shares_outstanding_basic < %s
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
-                    )
-                    prior_shares_row = cur.fetchone()
-                    if prior_shares_row and prior_shares_row[0]:
-                        shares_out = float(prior_shares_row[0])
-                        logger.debug(
-                            f"[{symbol}] Using shares_outstanding_basic from an older fiscal year: {shares_out:,.0f}"
+                    # Fallback: the LIMIT 2 rows above are the two most recent fiscal years, but
+                    # the most recent one is often a partial/estimate-stage filing with NULL
+                    # shares_outstanding_basic even though an older year has the real reported
+                    # value (same "latest year is empty" issue fixed for free_cash_flow in
+                    # load_value_quality_growth_metrics.py - live-confirmed for GPRO/JOUT/CWH/etc,
+                    # where FY2026 is NULL but FY2025 has a real share count). Search all fiscal
+                    # years, not just the two most recent, before falling back to company_info_sec.
+                    if not shares_out:
+                        cur.execute(
+                            """
+                            SELECT shares_outstanding_basic FROM annual_income_statement
+                            WHERE symbol = %s AND shares_outstanding_basic > %s AND shares_outstanding_basic < %s
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
                         )
+                        prior_shares_row = cur.fetchone()
+                        if prior_shares_row and prior_shares_row[0]:
+                            shares_out = float(prior_shares_row[0])
+                            logger.debug(
+                                f"[{symbol}] Using shares_outstanding_basic from an older fiscal year: {shares_out:,.0f}"
+                            )
 
                 # If computation didn't work, try fetching from company_info_sec as fallback
                 if not shares_out:
@@ -356,7 +393,9 @@ class SecValuationsLoader(OptimalLoader):
                 # (directly or via the company_info_sec/net_income/eps proxies) and comes up
                 # empty for these filers. Diluted is a real reported count, just not the
                 # exact same measure as basic (differs by dilutive securities outstanding).
-                if not shares_out:
+                # Gated the same as tiers 1-3 above - a foreign private issuer's diluted
+                # count carries the identical home-market-units risk.
+                if not shares_out and not is_foreign_private_issuer:
                     cur.execute(
                         """
                         SELECT shares_outstanding_diluted FROM annual_income_statement
