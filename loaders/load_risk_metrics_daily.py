@@ -112,6 +112,22 @@ class RiskMetricsLoader(OptimalLoader):
                         continue
 
                     ret_pct = ((price_new - price_old) / price_old) * 100
+                    # FIX 2026-08-19: momentum_metrics.momentum_{1m,3m,6m,12m} are NUMERIC(8,4)
+                    # (max magnitude 9999.9999). Live-confirmed DFNS crashed this loader's write
+                    # every run with "numeric field overflow" - an extreme micro-cap price move
+                    # (reverse split, near-worthless-to-recovered, etc.) over the lookback window
+                    # produces a >=10,000% return, same "extreme micro-cap volatility" failure
+                    # mode already guarded for roc_Xd via ROC_OVERFLOW_SKIP in load_prices.py.
+                    # Null out just this one implausible period instead of crashing DFNS's whole
+                    # row - the other momentum periods and technical fields are still real data.
+                    if abs(ret_pct) >= 9999.0:
+                        logger.warning(
+                            f"[RISK_METRICS] {symbol}: momentum_{period_name}={ret_pct:.2f}% exceeds "
+                            "NUMERIC(8,4) range - extreme micro-cap volatility (possibly delisted/"
+                            "reverse-split security). Marking this period unavailable."
+                        )
+                        momentum[f"momentum_{period_name}"] = None
+                        continue
                     momentum[f"momentum_{period_name}"] = round(ret_pct, 4)
 
                 if all(v is None for v in momentum.values()):
