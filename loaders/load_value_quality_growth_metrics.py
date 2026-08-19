@@ -685,13 +685,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # Get annual income statement history for growth computation (not from growth_metrics table)
                 # NOTE: Removed revenue IS NOT NULL filter - banks often have NULL revenue but valid net_income
                 # Individual growth metrics will only be calculated if their specific inputs are available
+                # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): LIMIT 10 assumed
+                # a company's most recent 10 fiscal-year rows always contain enough usable data
+                # points for a 5y CAGR (needs 6: revenue_growth_5y/eps_growth_5y use offset=5 into
+                # `revenues`/`eps_values`, which only keep years with real positive revenue / nonzero
+                # EPS - see _compute_growth_metrics below). That's false for any filer with gap years
+                # mixed into its recent history (a NULL-revenue restatement gap, or - common for
+                # early-stage biotechs - real $0 revenue years). Live-confirmed: OGEN has 8 real
+                # positive-revenue fiscal years across 2010-2023, but 5 of its most recent 10 raw rows
+                # (2025/2024 NULL, 2020/2019/2018 NULL, 2017/2016/2015 = $0) are unusable, leaving only
+                # 3 usable points in the LIMIT-10 window - real revenue data from 2010-2014 exists but
+                # was never even fetched. A DB-wide check found 2,942 symbols (over half the universe)
+                # have MORE than 10 total annual_income_statement rows, and 28 of the 2,001 symbols
+                # flagged revenue_growth_5y "insufficient_history" already have >=6 real positive-
+                # revenue years on record - this LIMIT was the only thing hiding them. Raised to 30:
+                # the real DB-wide max is 26 rows for any single symbol, so 30 covers every filer with
+                # margin while staying a small, cheap per-symbol fetch.
                 cur.execute(
                     """
                     SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC
-                    LIMIT 10
+                    LIMIT 30
                     """,
                     (symbol,),
                 )
