@@ -218,6 +218,29 @@ class TestRoicPctUnprofitableStockReason:
         assert metrics["roic_pct"] is None
         assert metrics["roic_pct_unavailable_reason"] == "implausible_ratio"
 
+    def test_negative_invested_capital_reports_dedicated_reason_not_missing_sec_data(self, monkeypatch):
+        # FIX 2026-08-18 (goal: find/fix real loader gaps): live-confirmed ALNY (Alnylam
+        # Pharmaceuticals) - every roic_pct input (tax rate, operating_income, equity, debt,
+        # cash) is real, complete SEC data, but invested_capital = equity + debt - cash comes
+        # out negative because ALNY's cash pile (built from equity raises, common for
+        # well-capitalized biotechs) exceeds equity+debt. This used to fall through to the
+        # generic "missing_sec_data" even though nothing was actually missing - same
+        # distinction this file already makes for a real pretax loss via "unprofitable_stock".
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(
+            stockholders_equity=200_000_000.0,
+            long_term_debt=50_000_000.0,
+            cash_and_equivalents=400_000_000.0,  # cash > equity + debt -> negative invested capital
+            operating_income=40_000_000.0,
+            income_tax_expense=8_000_000.0,
+            pretax_income=32_000_000.0,
+        )
+
+        metrics = loader._compute_quality_metrics("CASHRICHCO", row, ev_metrics=None)
+
+        assert metrics["roic_pct"] is None
+        assert metrics["roic_pct_unavailable_reason"] == "negative_invested_capital"
+
     def test_anchor_has_tax_pretax_but_no_operating_income_or_interest_expense_rescues_from_history(self, monkeypatch):
         # FIX 2026-08-18 (live: ABCB/Ameris Bancorp, 828 universe symbols): the fallback
         # search below only ran when the anchor year ITSELF lacked income_tax_expense or
