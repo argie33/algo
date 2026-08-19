@@ -1782,6 +1782,21 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "cik_not_found",
             "depreciation_amortization_not_loaded",
             "ebitda_not_extracted",
+            # FIXED 2026-08-19 (goal: "no SEC data" audit, same-day follow-up to the
+            # bare_reason_tables extension above): reason strings from the newly-included
+            # tables (sec_segment_info/metrics, sec_valuations, short_interest_finra) that
+            # didn't exist in this map before because those tables were entirely invisible
+            # to this report until now.
+            "no_segment_dimension_contexts_in_xbrl_xml",
+            "no_segment_revenue_in_xbrl_xml",
+            "no_segment_disclosure",
+            "no_computable_segment_metrics",
+            "no_segment_data",
+            "no_segment_count_facts_in_companyfacts",
+            "income_statement_revenue_and_eps_null",
+            "all_valuation_metrics_null",
+            "no_income_statement",
+            "finra_data_unavailable",
         },
     ),
     (
@@ -1814,7 +1829,7 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "no_insider_transactions_in_lookback",
         },
     ),
-    ("Implausible / rejected value", {"implausible_ratio"}),
+    ("Implausible / rejected value", {"implausible_ratio", "shares_outstanding_invalid"}),
     (
         "Other (errors / excluded)",
         {
@@ -1832,6 +1847,7 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "missing_price_data",
             "missing_finra_data",
             "excluded_by_naming_pattern",
+            "no_recent_price",
         },
     ),
     (
@@ -1867,6 +1883,13 @@ _TABLE_GROUP = {
     "price_weekly": "Price",
     "yfinance_snapshot": "Snapshot",
     "market_health_daily": "Market",
+    "institutional_holdings_13f": "Institutional",
+    "insider_holdings_sec": "Insider",
+    "analyst_earnings_estimates": "Analyst",
+    "sec_segment_info": "Segments",
+    "sec_segment_metrics": "Segments",
+    "short_interest_finra": "Positioning",
+    "sec_valuations": "Value",
 }
 
 
@@ -1915,6 +1938,49 @@ def _get_scores_coverage(cur: cursor) -> Any:
             ("%unavailable_reason%",),
         )
         reason_columns = [(r[0], r[1]) for r in cur.fetchall()]
+
+        # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit, same-day
+        # follow-up to the active-universe fix above): the "%unavailable_reason%" name
+        # match above misses every table whose gap-reason column is just called "reason"
+        # instead - live-confirmed this is a completely different, real blind spot, not
+        # overlap: institutional_holdings_13f, insider_holdings_sec,
+        # analyst_earnings_estimates, sec_segment_info/metrics, short_interest_finra, and
+        # sec_valuations are all genuine per-symbol data SOURCES (not just downstream
+        # computed factors) with a real, populated "reason" column - sec_segment_metrics
+        # alone had 2,067 of 5,546 rows (37%) unavailable with real, specific reasons
+        # (no_segment_dimension_contexts_in_xbrl_xml, no_segment_revenue_in_xbrl_xml, ...),
+        # 100% invisible to this report the whole time. Scoped to this specific allowlist
+        # (verified against the schema below, not a blanket "reason" scan) rather than
+        # every bare "reason" column in the DB - most of those belong to internal
+        # audit/log/algo-state tables (data_loader_status, circuit_breaker_log,
+        # algo_orchestrator_state, ...) that aren't per-symbol factor data at all, and
+        # quality_metrics/growth_metrics/value_metrics/positioning_metrics/
+        # stability_metrics/institutional_holdings_13f-consumers already have their own
+        # much more granular *_unavailable_reason columns covered above - their bare
+        # "reason" is just a coarse whole-row fallback (live-confirmed quality_metrics:
+        # only 151 rows, mostly a single generic "Insufficient SEC financial data"
+        # message) that would only add noise, not information, if included too.
+        bare_reason_tables = (
+            "institutional_holdings_13f",
+            "insider_holdings_sec",
+            "analyst_earnings_estimates",
+            "sec_segment_info",
+            "sec_segment_metrics",
+            "short_interest_finra",
+            "sec_valuations",
+        )
+        cur.execute(
+            """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE column_name = 'reason'
+              AND table_schema = 'public'
+              AND table_name = ANY(%s)
+            ORDER BY table_name
+            """,
+            (list(bare_reason_tables),),
+        )
+        reason_columns.extend((r[0], r[1]) for r in cur.fetchall())
 
         denom_cache: dict[str, int | None] = {}
         table_cols_cache: dict[str, set[str]] = {}
@@ -2014,7 +2080,10 @@ def _get_scores_coverage(cur: cursor) -> Any:
                 reasons_out.append({"reason": str(reason_val), "count": int(count), "category": cat})
 
             factor_name = re.sub(r"_?unavailable_reason$", "", column).rstrip("_")
-            if not factor_name or factor_name == "data":
+            # A bare "reason" column (the bare_reason_tables case above) doesn't match the
+            # unavailable_reason suffix at all and would otherwise show the unhelpful
+            # literal "reason" as the factor name - same fallback as the "data"/empty case.
+            if not factor_name or factor_name in ("data", "reason"):
                 factor_name = table
 
             factors.append(

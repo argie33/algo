@@ -58,6 +58,47 @@ def test_per_table_queries_join_and_filter_to_active_symbols():
         assert "active = true" in q, f"query missing active=true filter: {q}"
 
 
+def test_bare_reason_allowlisted_tables_are_included():
+    """FIXED 2026-08-19 (same-day follow-up): the "%unavailable_reason%" name match misses
+    every table whose gap-reason column is just called "reason" - live-confirmed a real,
+    separate blind spot (not overlap with the fix above): institutional_holdings_13f,
+    insider_holdings_sec, analyst_earnings_estimates, sec_segment_info/metrics,
+    short_interest_finra, and sec_valuations are genuine per-symbol data sources with a
+    real, populated "reason" column that were 100% invisible to this report - e.g.
+    sec_segment_metrics alone had 2,067 of 5,546 rows (37%) unavailable with specific real
+    reasons, never surfaced anywhere in the coverage report before this fix."""
+
+    class _BareReasonCursor(_FakeCursor):
+        def fetchall(self):
+            q = self._last_query
+            if "SELECT table_name, column_name" in q and "'reason'" not in q:
+                return []  # no *_unavailable_reason columns in this fake schema
+            if "column_name = 'reason'" in q:
+                return [("sec_segment_metrics", "reason")]
+            if "information_schema.columns" in q and "IN ('symbol','date'" in q:
+                return [("symbol",), ("updated_at",)]
+            if "sec_segment_metrics" in q and "reason_val" in q:
+                return [("no_segment_disclosure", 42)]
+            return []
+
+    cursor = _BareReasonCursor()
+    resp = scores_mod._get_scores_coverage(cursor)
+    assert resp["statusCode"] == 200
+
+    segment_queries = [q for q in cursor.queries if "sec_segment_metrics" in q]
+    assert segment_queries, "sec_segment_metrics's bare 'reason' column must be scanned"
+    for q in segment_queries:
+        if "SELECT" in q and "COUNT" in q:
+            assert "JOIN stock_symbols" in q, f"bare-reason query missing active-universe join: {q}"
+
+    body = resp["data"]
+    factor_names = [f["factor"] for f in body["factors"]]
+    # A bare "reason" column doesn't match the unavailable_reason-suffix regex, so its
+    # factor name must fall back to the table name, not the unhelpful literal "reason".
+    assert "sec_segment_metrics" in factor_names
+    assert "reason" not in factor_names
+
+
 def test_self_join_against_stock_symbols_itself_does_not_error(monkeypatch):
     """stock_symbols has its own data_unavailable_reason column, so the active-universe
     join must alias the joined copy distinctly from the table being scanned (self-join) -
