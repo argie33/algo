@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import psycopg2
@@ -58,6 +59,13 @@ def handle(
 
             return _get_incomplete_stocks(cur, limit, offset, sort_by, sort_order)
 
+        # Handle /api/scores/coverage endpoint - factor-level aggregation of which
+        # *_unavailable_reason columns are missing data, why, and how much. Mirrors
+        # scripts/audit_unavailable_reasons.py's methodology (latest row per symbol,
+        # deduplicated) but served live for the ServiceHealth "Scores Data Coverage" tab.
+        if path in ["/api/scores/coverage", "/api/algo/scores/coverage"]:
+            return _get_scores_coverage(cur)
+
         if path in [
             "/api/scores",
             "/api/scores/stockscores",
@@ -66,7 +74,11 @@ def handle(
         ] or path.startswith(
             ("/api/scores?", "/api/scores/stockscores?", "/api/algo/scores?", "/api/algo/scores/stockscores?")
         ):
-            limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=1000)
+            # max_val was 1000 - the real filtered universe is ~5000+ symbols (live-verified),
+            # so any caller requesting the default/max page size silently got capped well
+            # below the true universe size. Raised to match the other high-volume listing
+            # endpoints (signals.py, algo.py use 10000).
+            limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=1000)
             offset = safe_offset(extract_param(params, "offset") or "0")
             sort_by = extract_param(params, "sortBy") or "composite_score"
             sort_order = (extract_param(params, "sortOrder") or "desc").lower()
@@ -901,6 +913,21 @@ def _get_stock_scores(  # noqa: C901
             # This gives traders full visibility: completeness % shown for all scores >= 50%.
             where_clause += " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
 
+        # Real universe count (goal: dashboard/API were reporting "only ~1000 stocks
+        # screened" - traced to `estimated_total` below being a page-size heuristic instead
+        # of an actual count, compounded by this endpoint's limit being capped at 1000. The
+        # true filtered universe is ~5000+ symbols (live-verified). Run against the same
+        # where_clause/params_list as the page query, before LIMIT/OFFSET are appended to
+        # params_list below, so this reflects the full filtered result set, not one page.
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM stock_scores sc
+            JOIN stock_symbols ss ON ss.symbol = sc.symbol
+            {where_clause}
+        """
+        cur.execute(count_query, params_list)
+        real_total = cur.fetchone()[0]
+
         # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
         # per-symbol LATERAL lookups (price_daily/technical_data_daily) only against that
         # small row set. Previously the LATERAL joins ran against every row of stock_scores
@@ -1573,11 +1600,9 @@ def _get_stock_scores(  # noqa: C901
         # CRITICAL FIX: Return scores in standard paginated format
         # Dashboard/responseNormalizer expects {statusCode: 200, items: [...], pagination: {...}} format
         # This matches other paginated endpoints and works with frontend schema validation
-        items_count = len(items) if items else 0
-        # If we got fewer items than requested, we've hit the end of results
-        # Otherwise, we estimate there might be more results
-        is_last_page = items_count < limit
-        estimated_total = offset + items_count if is_last_page else offset + limit + 1
+        # real_total comes from the COUNT(*) query above (same where_clause), not a
+        # page-size estimate - see comment there for why the old estimate was wrong.
+        estimated_total = real_total
 
         # Compute summary metrics over ALL scores (not just this page)
         # Dashboard summary line needs these metrics for the full universe
@@ -1733,4 +1758,275 @@ def _get_incomplete_stocks(
 
     except Exception as e:
         code, error_type, message = handle_db_error(e, "get incomplete stocks")
+        return error_response(code, error_type, message)
+
+
+# Root-cause buckets for /api/scores/coverage. Order is fixed (drives the fixed color
+# assignment on the frontend) - every *_unavailable_reason value seen across the schema
+# must resolve to exactly one of these via _categorize_reason(), falling back to
+# "Other (errors / excluded)". Mirrors the categorization scripts/audit_unavailable_reasons.py
+# output was manually bucketed into for the 2026-08-19 "Scores Data Coverage" report.
+_COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
+    (
+        "Missing SEC/XBRL data",
+        {
+            "missing_sec_data",
+            "missing_cash_flow_data",
+            "no_revenue_reported",
+            "total_debt_not_itemized",
+            "interest_expense_not_itemized",
+            "stockholders_equity_not_reported",
+            "no_dividend_xbrl_concepts",
+            "no_us_gaap_facts",
+            "no_xbrl_filings",
+            "cik_not_found",
+            "depreciation_amortization_not_loaded",
+            "ebitda_not_extracted",
+        },
+    ),
+    (
+        "Insufficient history",
+        {
+            "insufficient_history",
+            "insufficient_quarterly_history",
+            "insufficient_prior_year_data",
+            "insufficient_quarterly_data",
+            "insufficient_eps_data",
+            "insufficient_eps_growth_datapoints",
+            "insufficient_revenue_data",
+            "insufficient_price_history",
+            "insufficient_quarterly_eps_history",
+        },
+    ),
+    (
+        "No analyst coverage",
+        {"no_analyst_coverage", "no_analyst_estimates", "analyst_estimates_not_in_sec_filings"},
+    ),
+    ("Stale fiscal data", {"stale_fiscal_data"}),
+    (
+        "Ownership data unresolved",
+        {
+            "no_resolved_13f_holdings",
+            "institutional_data_not_available",
+            "shares_outstanding_unavailable",
+            "shares_outstanding_unavailable_for_pct_calc",
+            "no_form345_filings_in_lookback_window",
+            "no_insider_transactions_in_lookback",
+        },
+    ),
+    ("Implausible / rejected value", {"implausible_ratio"}),
+    (
+        "Other (errors / excluded)",
+        {
+            "symbol_not_found",
+            "no_8k_filings_in_recent_submissions",
+            "fetch_error:ValueError",
+            "fetch_error:RuntimeError",
+            "data_unavailable_during_load",
+            "unable to fetch after retries",
+            "no_historical_data",
+            "fed_rate_fetcher_not_implemented",
+            "no_data_returned",
+            "no_price_data_after_validation",
+            "historical_date_enrichment_only_for_latest",
+            "missing_price_data",
+            "missing_finra_data",
+            "excluded_by_naming_pattern",
+        },
+    ),
+    (
+        "Legitimate / not applicable",
+        {
+            "non_dividend_paying_stock",
+            "unprofitable_stock",
+            "reit_special_entity",
+            "negative_free_cash_flow",
+            "negative_book_value",
+            "negative_earnings_growth",
+            "negative_invested_capital",
+            "growth_undefined_sign_change",
+        },
+    ),
+]
+_COVERAGE_CATEGORY_ORDER = [name for name, _ in _COVERAGE_CATEGORY_RULES]
+
+_TABLE_GROUP = {
+    "quality_metrics": "Quality",
+    "growth_metrics": "Growth",
+    "value_metrics": "Value",
+    "positioning_metrics": "Positioning",
+    "stability_metrics": "Stability",
+    "stock_scores": "Scoring",
+    "stock_symbols": "Universe",
+    "dividend_data": "Dividend",
+    "analyst_sentiment_analysis": "Analyst",
+    "analyst_upgrade_downgrade": "Analyst",
+    "current_reports_8k": "Filings",
+    "earnings_metrics": "Earnings",
+    "insider_transaction_velocity": "Insider",
+    "price_weekly": "Price",
+    "yfinance_snapshot": "Snapshot",
+    "market_health_daily": "Market",
+}
+
+
+def _categorize_reason(reason: str) -> str:
+    base = reason.split(":")[0].strip()
+    if reason.startswith("missing_critical_fields"):
+        return "Missing SEC/XBRL data"
+    if reason.startswith("yfinance returned no data"):
+        return "Other (errors / excluded)"
+    for cat, keys in _COVERAGE_CATEGORY_RULES:
+        if base in keys or reason in keys:
+            return cat
+    return "Other (errors / excluded)"
+
+
+def _coverage_order_col(cols: set[str]) -> str:
+    """Pick the best "latest row per symbol" ordering column available on a table.
+
+    Same candidate order/fallback contract as scripts/audit_unavailable_reasons.py's
+    select_order_col() - keep the two in sync if either changes.
+    """
+    for candidate in ("date", "fiscal_year", "updated_at", "created_at"):
+        if candidate in cols:
+            return candidate
+    return ""
+
+
+def _get_scores_coverage(cur: cursor) -> Any:
+    """Factor-level data coverage report: which *_unavailable_reason columns are
+    missing data across the universe, how much, and why - aggregated by root cause.
+
+    Powers the ServiceHealth "Scores Data Coverage" tab. Read-only, ~100+ small
+    grouped-count queries (one per *_unavailable_reason column found in the schema) -
+    not meant to be polled on a tight interval, hence no data_freshness auto-refresh
+    wiring; the frontend refetches on manual click only.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE column_name LIKE %s
+              AND table_schema = 'public'
+            ORDER BY table_name, column_name
+            """,
+            ("%unavailable_reason%",),
+        )
+        reason_columns = [(r[0], r[1]) for r in cur.fetchall()]
+
+        denom_cache: dict[str, int | None] = {}
+        table_cols_cache: dict[str, set[str]] = {}
+        factors: list[dict[str, Any]] = []
+
+        for table, column in reason_columns:
+            if table not in table_cols_cache:
+                cur.execute(
+                    """
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema='public' AND table_name=%s
+                      AND column_name IN ('symbol','date','fiscal_year','updated_at','created_at')
+                    """,
+                    (table,),
+                )
+                table_cols_cache[table] = {r[0] for r in cur.fetchall()}
+            cols = table_cols_cache[table]
+            has_symbol = "symbol" in cols
+            order_col = _coverage_order_col(cols)
+
+            if table not in denom_cache:
+                if has_symbol:
+                    try:
+                        cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {table}")
+                        denom_cache[table] = cur.fetchone()[0]
+                    except Exception:
+                        denom_cache[table] = None
+                else:
+                    denom_cache[table] = None
+
+            try:
+                if has_symbol and order_col:
+                    query = f"""
+                        SELECT reason_val, COUNT(*) FROM (
+                            SELECT DISTINCT ON (symbol) symbol, {column} AS reason_val
+                            FROM {table}
+                            ORDER BY symbol, {order_col} DESC
+                        ) latest
+                        WHERE reason_val IS NOT NULL
+                        GROUP BY reason_val
+                        ORDER BY COUNT(*) DESC
+                    """
+                else:
+                    query = f"""
+                        SELECT {column} AS reason_val, COUNT(*)
+                        FROM {table}
+                        WHERE {column} IS NOT NULL
+                        GROUP BY {column}
+                        ORDER BY COUNT(*) DESC
+                    """
+                cur.execute(query)
+                rows = cur.fetchall()
+            except Exception as col_err:
+                logger.warning(f"[SCORES_COVERAGE] Skipping {table}.{column}: {col_err}")
+                continue
+
+            if not rows:
+                continue
+
+            total_missing = sum(int(r[1]) for r in rows)
+            denom = denom_cache[table]
+            pct_missing = round(100 * total_missing / denom, 1) if denom else None
+
+            categories: dict[str, int] = {}
+            reasons_out = []
+            for reason_val, count in rows:
+                cat = _categorize_reason(str(reason_val))
+                categories[cat] = categories.get(cat, 0) + int(count)
+                reasons_out.append({"reason": str(reason_val), "count": int(count), "category": cat})
+
+            factor_name = re.sub(r"_?unavailable_reason$", "", column).rstrip("_")
+            if not factor_name or factor_name == "data":
+                factor_name = table
+
+            factors.append(
+                {
+                    "table": table,
+                    "group": _TABLE_GROUP.get(table, table),
+                    "factor": factor_name,
+                    "column": column,
+                    "total_missing": total_missing,
+                    "denom": denom,
+                    "pct_missing": pct_missing,
+                    "reasons": reasons_out,
+                    "categories": categories,
+                }
+            )
+
+        factors.sort(key=lambda f: -1 if f["pct_missing"] is None else -f["pct_missing"])
+
+        category_totals = dict.fromkeys(_COVERAGE_CATEGORY_ORDER, 0)
+        for f in factors:
+            for c, v in f["categories"].items():
+                category_totals[c] = category_totals.get(c, 0) + v
+
+        # stock_symbols is the actual universe registry - prefer it over other tables'
+        # denom counts, since a table like price_weekly can carry more distinct symbols
+        # than the live universe (delisted/historical rows never pruned), which would
+        # otherwise overstate "universe_estimate" via a naive max().
+        universe_estimate = denom_cache.get("stock_symbols") or max((d for d in denom_cache.values() if d), default=0)
+
+        result = {
+            "summary": {
+                "universe_estimate": universe_estimate,
+                "factor_count": len(factors),
+                "category_order": _COVERAGE_CATEGORY_ORDER,
+                "category_totals": category_totals,
+            },
+            "factors": factors,
+        }
+        return json_response(200, result)
+
+    except Exception as e:
+        code, error_type, message = handle_db_error(e, "get scores coverage")
         return error_response(code, error_type, message)

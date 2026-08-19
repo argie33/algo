@@ -165,7 +165,11 @@ function ScoresDashboardPage() {
     () =>
       api.get("/api/scores/stockscores", {
         params: {
-          limit: 1000,
+          // Was 1000, same as the backend's old hard cap - the real filtered universe is
+          // ~5000+ symbols (live-verified), so this page always under-reported "Total" as
+          // items.length capped at 1000 regardless of the actual universe size. Raised to
+          // match the backend's new max_val (see lambda/api/routes/scores.py).
+          limit: 10000,
           offset: 0,
           sortBy: "composite_score",
           sortOrder: "DESC",
