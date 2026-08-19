@@ -551,12 +551,24 @@ class SecValuationsLoader(OptimalLoader):
                 # universe's 1,060 NULL total_debt symbols have this same "some year has a real
                 # component, just not long_term_debt, and not the latest year" shape. Widened
                 # the CASE tier to prefer any year with any of the four components present.
+                # FIXED 2026-08-19 (pb_ratio/total_debt "latest year is empty" follow-up):
+                # was a plain `ORDER BY fiscal_year DESC LIMIT 1` with no regard for whether
+                # that year's cash_and_equivalents was actually populated - the same bug class
+                # already fixed for book_value/debt/ebitda/revenue/eps in this file, just never
+                # applied here. Live-confirmed: JACK (Jack in the Box) has real
+                # cash_and_equivalents=$68.1M for FY2025 but NULL for FY2026 (in-progress/
+                # unfiled year) - the old query picked the NULL FY2026 row and total_cash/
+                # cash_per_share silently went "missing_sec_data" for 91 universe symbols as a
+                # result. Same CASE-based prioritization as the sibling queries: prefer a fiscal
+                # year with a real reported value, only falling back to the bare latest year
+                # (still correctly NULL) for companies with no balance sheet history.
                 cur.execute(
                     """
                     SELECT cash_and_equivalents
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY fiscal_year DESC LIMIT 1
+                    ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 1
                     """,
                     (symbol,),
                 )

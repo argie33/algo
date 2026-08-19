@@ -160,9 +160,11 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         assert "THEN 0" in debt_sql
 
     def test_cash_is_queried_separately_from_debt(self) -> None:
-        # The cash query must not be coupled to the debt-prioritization ORDER BY - it should
-        # stay a plain latest-fiscal-year lookup so a fresh cash figure isn't held back just
-        # because that year's debt tags aren't filed yet.
+        # The cash query must not be coupled to the debt-prioritization ORDER BY (it uses its
+        # own independent "prefer a populated fiscal year" CASE - see
+        # test_sec_valuations_cash_query_prefers_populated_fiscal_year.py - not debt's
+        # component-sum CASE), so a fresh cash figure isn't held back just because that year's
+        # debt tags aren't filed yet.
         fetchone_results = [
             (50.0,),
             (500_000_000.0,),
@@ -175,8 +177,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             sql for sql in cursor.executed_sql if "cash_and_equivalents" in sql and "long_term_debt" not in sql
         ]
         assert len(cash_queries) == 1
-        assert "ORDER BY fiscal_year DESC" in cash_queries[0]
-        assert "CASE WHEN" not in cash_queries[0]
+        assert "COALESCE(long_term_debt, 0)" not in cash_queries[0]
 
         row = result[0]
         assert row["total_cash"] == 55_911_000_000.0
