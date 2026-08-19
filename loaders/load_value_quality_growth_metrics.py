@@ -1655,6 +1655,39 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             free_cash_flow = self._nan_to_none(safe_float(quality_row[14], f"{symbol}.free_cash_flow", allow_none=True))
             dividends_paid = self._nan_to_none(safe_float(quality_row[15], f"{symbol}.dividends_paid", allow_none=True))
+            # FIX 2026-08-18 (goal: find/fix real loader gaps): the shared query's
+            # `acf.data_unavailable = FALSE` JOIN condition discards dividends_paid whenever
+            # a fiscal year's annual_cash_flow row is flagged incomplete_sec_filing_cashflow
+            # (load_financial_statements.py marks the WHOLE row unavailable when
+            # operating_cash_flow - the one required cashflow field - is missing), even when
+            # dividends_paid itself was successfully extracted and is sitting right there in
+            # the same row. Live-confirmed DD (DuPont): FY2025 has real dividends_paid=$597M
+            # and capex=$333M but operating_cash_flow/free_cash_flow untagged that year,
+            # flagged data_unavailable=TRUE - dividends_paid came back None here despite being
+            # real, silently killing sustainable_growth_rate/payout_ratio even though nothing
+            # about dividends was actually missing. Universe-wide: 671 symbols have a real
+            # dividends_paid value trapped behind this exact flag. Recover it directly for the
+            # SAME fiscal year as the anchor row (never mixes years) - operating_cash_flow/
+            # free_cash_flow correctly stay None either way since those fields really are NULL
+            # in that row, this only rescues the one field that wasn't actually missing.
+            if dividends_paid is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT dividends_paid FROM annual_cash_flow
+                        WHERE symbol = %s AND fiscal_year = %s AND dividends_paid IS NOT NULL
+                        """,
+                        (symbol, quality_row[8]),
+                    )
+                    same_year_dividends_row = cur.fetchone()
+                if same_year_dividends_row:
+                    dividends_paid = self._nan_to_none(
+                        safe_float(
+                            same_year_dividends_row[0],
+                            f"{symbol}.dividends_paid_incomplete_row_fallback",
+                            allow_none=True,
+                        )
+                    )
             earnings_per_share = self._nan_to_none(
                 safe_float(quality_row[16], f"{symbol}.earnings_per_share", allow_none=True)
             )
