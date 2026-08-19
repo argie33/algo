@@ -119,7 +119,28 @@ class InsiderHoldingsSECLoader(OptimalLoader):
                 (symbol,),
             )
             row = cur.fetchone()
-        return int(row[0]) if row and row[0] else None
+            if row and row[0]:
+                return int(row[0])
+
+            # FIXED 2026-08-19 ("no SEC data"/loader audit): company_info_sec sources
+            # shares_outstanding from the SEC DEI cover-page concept, which some real,
+            # actively traded filers never tag the same way ordinary operating companies do -
+            # the identical gap already fixed 2026-08-18 for
+            # load_institutional_holdings_13f.py (and 2026-08-19 for
+            # load_short_interest_finra.py) via the same sec_valuations fallback. Live-
+            # confirmed 272 of 300 universe symbols marked
+            # "shares_outstanding_unavailable_for_pct_calc" have a usable
+            # sec_valuations.shares_outstanding.
+            cur.execute(
+                """
+                SELECT shares_outstanding
+                FROM sec_valuations
+                WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                """,
+                (symbol,),
+            )
+            fallback_row = cur.fetchone()
+        return int(fallback_row[0]) if fallback_row and fallback_row[0] else None
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""
