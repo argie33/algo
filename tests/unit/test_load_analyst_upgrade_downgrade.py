@@ -8,7 +8,7 @@ contract requires a list, even when empty).
 """
 
 from datetime import date, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from loaders.load_analyst_upgrade_downgrade import AnalystUpgradeDowngradeLoader
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -23,6 +23,15 @@ def _row(action_date: date, firm: str = "Some Firm") -> dict:
         "new_rating": "Buy",
         "action": "up",
     }
+
+
+def _fake_db_context():
+    """A DatabaseContext("write") stand-in that records executed queries, no real DB."""
+    cur = MagicMock()
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx, cur
 
 
 class TestFetchIncremental:
@@ -76,7 +85,11 @@ class TestFetchIncremental:
     def test_since_none_returns_all_rows(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
         rows = [_row(date(2026, 1, 1)), _row(date(2026, 6, 1))]
-        with patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows):
+        ctx, _cur = _fake_db_context()
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
+        ):
             result = loader.fetch_incremental("AAPL", since=None)
         assert result == rows
 
@@ -87,9 +100,67 @@ class TestFetchIncremental:
         # same pattern as load_current_reports_8k.py.
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
         rows = [_row(date(2026, 1, 1)), _row(date(2026, 6, 1)), _row(date(2026, 6, 2))]
-        with patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows):
+        ctx, _cur = _fake_db_context()
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
+        ):
             result = loader.fetch_incremental("AAPL", since=date(2026, 6, 1))
         assert result == [_row(date(2026, 6, 1)), _row(date(2026, 6, 2))]
+
+    def test_real_fetch_retracts_stale_marker_rows(self):
+        """FIX 2026-08-19 (follow-up to the 2026-08-18 empty-fetch fix above): the earlier
+        fix stops WRITING new markers once a symbol has real coverage, but never retracted
+        markers already written before it landed. Live-confirmed NVDA/MSFT/TSM/GOOGL - mega-
+        caps with hundreds of real rows on record - still carried an unretracted marker dated
+        more recently than any real action (a marker's action_date is always today() at
+        write time), permanently shadowing genuine coverage in any "latest row per symbol"
+        read. A successful real fetch is the strongest possible evidence any existing marker
+        for that symbol was wrong - it must be deleted."""
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        rows = [_row(date(2026, 8, 11))]
+        ctx, cur = _fake_db_context()
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx) as db_ctx,
+        ):
+            result = loader.fetch_incremental("NVDA", since=None)
+
+        assert result == rows
+        db_ctx.assert_called_once_with("write")
+        cur.execute.assert_called_once()
+        query, params = cur.execute.call_args[0]
+        assert "DELETE FROM analyst_upgrade_downgrade" in query
+        assert "data_unavailable = true" in query
+        assert params == ("NVDA",)
+
+    def test_real_fetch_retraction_runs_even_when_since_filters_out_every_row(self):
+        """A symbol with only old real history and nothing new since the last watermark must
+        still get its stale marker retracted - the raw fetch already proved coverage is
+        real, even though every row happens to be filtered out of this run's return value."""
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        rows = [_row(date(2026, 1, 1))]
+        ctx, cur = _fake_db_context()
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
+        ):
+            result = loader.fetch_incremental("NVDA", since=date(2026, 6, 1))
+
+        assert result == []
+        cur.execute.assert_called_once()
+
+    def test_no_coverage_marker_path_does_not_touch_the_db(self):
+        # The retraction DELETE must only run on the real-fetch path - the no-coverage
+        # marker path (empty fetch, never covered) has nothing to retract.
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=False),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext") as db_ctx,
+        ):
+            loader.fetch_incremental("ZZZZ", since=None)
+        db_ctx.assert_not_called()
 
     def test_table_and_key_config_matches_live_schema(self):
         assert AnalystUpgradeDowngradeLoader.table_name == "analyst_upgrade_downgrade"
