@@ -1857,14 +1857,32 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             implausible_ratio_metrics: list[str] = []
 
             # ROE = Net Income / Shareholders' Equity
+            # FIXED 2026-08-19 (goal: financial-calc accuracy audit): same near-zero-
+            # denominator garbage-value bound as operating_margin/net_margin/gross_margin/
+            # ebitda_margin/roic_pct above - this was the one base metric in that same
+            # family missing it. Live-confirmed: KWM roe=-6,832,939%, SNDA=643,445%, 83
+            # symbols system-wide with |roe| > 1000% feeding quality_score and cross-symbol
+            # comparison as extreme, uncapped outliers.
             if net_income is not None and stockholders_equity is not None and stockholders_equity != 0:
-                metrics["roe"] = float((net_income / stockholders_equity) * 100)
+                computed_roe = (net_income / stockholders_equity) * 100
+                if abs(computed_roe) > 1000:
+                    failed_metrics.append("roe")
+                    implausible_ratio_metrics.append("roe")
+                else:
+                    metrics["roe"] = float(computed_roe)
             else:
                 failed_metrics.append("roe")
 
             # ROA = Net Income / Total Assets
+            # FIXED 2026-08-19: same bound as roe above - live-confirmed 13 symbols with
+            # |roa| > 1000% from the same near-zero-total-assets extraction-artifact class.
             if net_income is not None and total_assets is not None and total_assets != 0:
-                metrics["roa"] = float((net_income / total_assets) * 100)
+                computed_roa = (net_income / total_assets) * 100
+                if abs(computed_roa) > 1000:
+                    failed_metrics.append("roa")
+                    implausible_ratio_metrics.append("roa")
+                else:
+                    metrics["roa"] = float(computed_roa)
             else:
                 failed_metrics.append("roa")
 
@@ -1932,8 +1950,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("net_margin")
 
             # Debt to Equity = Total Liabilities / Shareholders' Equity
+            # FIXED 2026-08-19 (goal: financial-calc accuracy audit): same near-zero-
+            # denominator garbage-value bound as interest_coverage below (also an unscaled
+            # raw ratio, same >1000 threshold). Live-confirmed: EROC debt_to_equity=8,508,
+            # CCII=2,901, WHLR=3,747; 60 symbols system-wide with |debt_to_equity| > 100,
+            # including real operating companies with legitimately near-zero book equity
+            # (e.g. CL at 295.65) whose value is real but not comparable/scoreable the same
+            # way a near-zero-revenue margin blowup isn't.
             if total_liabilities is not None and stockholders_equity is not None and stockholders_equity != 0:
-                metrics["debt_to_equity"] = float(total_liabilities / stockholders_equity)
+                computed_debt_to_equity = total_liabilities / stockholders_equity
+                if abs(computed_debt_to_equity) > 1000:
+                    failed_metrics.append("debt_to_equity")
+                    implausible_ratio_metrics.append("debt_to_equity")
+                else:
+                    metrics["debt_to_equity"] = float(computed_debt_to_equity)
             else:
                 failed_metrics.append("debt_to_equity")
 
@@ -1941,8 +1971,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Both inputs are already fetched above for ROA; this was previously never
             # computed even though stock_scores._score_stability has a standing 10%-weight
             # slot for it (merged in from quality_metrics.debt_to_assets).
+            # FIXED 2026-08-19: same >1000 bound as debt_to_equity above - total_assets can
+            # hit the same near-zero-denominator extraction-artifact class.
             if total_liabilities is not None and total_assets is not None and total_assets != 0:
-                metrics["debt_to_assets"] = float(total_liabilities / total_assets)
+                computed_debt_to_assets = total_liabilities / total_assets
+                if abs(computed_debt_to_assets) > 1000:
+                    failed_metrics.append("debt_to_assets")
+                    implausible_ratio_metrics.append("debt_to_assets")
+                else:
+                    metrics["debt_to_assets"] = float(computed_debt_to_assets)
             else:
                 failed_metrics.append("debt_to_assets")
 
@@ -1951,8 +1988,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # this was previously never computed even though stock_scores._score_quality's
             # fallback formula (used when quality_score itself is unavailable) has a standing
             # slot for it.
+            # FIXED 2026-08-19: same >1000 bound as the other ratios above - live-confirmed
+            # BCAR current_ratio=1056.74 from a near-zero current_liabilities artifact.
             if current_assets is not None and current_liabilities is not None and current_liabilities != 0:
-                metrics["current_ratio"] = float(current_assets / current_liabilities)
+                computed_current_ratio = current_assets / current_liabilities
+                if abs(computed_current_ratio) > 1000:
+                    failed_metrics.append("current_ratio")
+                    implausible_ratio_metrics.append("current_ratio")
+                else:
+                    metrics["current_ratio"] = float(computed_current_ratio)
             else:
                 failed_metrics.append("current_ratio")
 
@@ -1962,8 +2006,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # than failing the metric, same treatment IBD/most screeners use. Was previously
             # never computed even though quality_metrics.quick_ratio has existed since
             # migration 072 and stock_scores/load_stock_scores.py already queries it.
+            # FIXED 2026-08-19: same >1000 bound as current_ratio above (shares the same
+            # current_liabilities denominator and artifact class).
             if current_assets is not None and current_liabilities is not None and current_liabilities != 0:
-                metrics["quick_ratio"] = float((current_assets - (inventory or 0)) / current_liabilities)
+                computed_quick_ratio = (current_assets - (inventory or 0)) / current_liabilities
+                if abs(computed_quick_ratio) > 1000:
+                    failed_metrics.append("quick_ratio")
+                    implausible_ratio_metrics.append("quick_ratio")
+                else:
+                    metrics["quick_ratio"] = float(computed_quick_ratio)
             else:
                 failed_metrics.append("quick_ratio")
 
@@ -3025,8 +3076,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Initialize all *_unavailable_reason fields (Session 389)
             # These explain WHY a metric is NULL for users/operators
-            metrics["roe_unavailable_reason"] = "missing_sec_data" if "roe" in failed_metrics else None
-            metrics["roa_unavailable_reason"] = "missing_sec_data" if "roa" in failed_metrics else None
+            metrics["roe_unavailable_reason"] = (
+                ("implausible_ratio" if "roe" in implausible_ratio_metrics else "missing_sec_data")
+                if "roe" in failed_metrics
+                else None
+            )
+            metrics["roa_unavailable_reason"] = (
+                ("implausible_ratio" if "roa" in implausible_ratio_metrics else "missing_sec_data")
+                if "roa" in failed_metrics
+                else None
+            )
             metrics["operating_margin_unavailable_reason"] = (
                 ("implausible_ratio" if "operating_margin" in implausible_ratio_metrics else "missing_sec_data")
                 if "operating_margin" in failed_metrics
@@ -3039,7 +3098,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             metrics["debt_to_equity_unavailable_reason"] = (
                 (
-                    "stockholders_equity_not_reported"
+                    "implausible_ratio"
+                    if "debt_to_equity" in implausible_ratio_metrics
+                    else "stockholders_equity_not_reported"
                     if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
                     else "missing_sec_data"
                 )
@@ -3047,12 +3108,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["current_ratio_unavailable_reason"] = (
-                ("reit_special_entity" if unclassified_balance_sheet else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "current_ratio" in implausible_ratio_metrics
+                    else "reit_special_entity"
+                    if unclassified_balance_sheet
+                    else "missing_sec_data"
+                )
                 if "current_ratio" in failed_metrics
                 else None
             )
             metrics["quick_ratio_unavailable_reason"] = (
-                ("reit_special_entity" if unclassified_balance_sheet else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "quick_ratio" in implausible_ratio_metrics
+                    else "reit_special_entity"
+                    if unclassified_balance_sheet
+                    else "missing_sec_data"
+                )
                 if "quick_ratio" in failed_metrics
                 else None
             )
@@ -3068,7 +3141,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["debt_to_assets_unavailable_reason"] = (
-                "missing_sec_data" if "debt_to_assets" in failed_metrics else None
+                ("implausible_ratio" if "debt_to_assets" in implausible_ratio_metrics else "missing_sec_data")
+                if "debt_to_assets" in failed_metrics
+                else None
             )
             # Phase 3 Expansion (Session 357+): New metrics - initialize their _unavailable_reason fields
             metrics["gross_margin_unavailable_reason"] = (
