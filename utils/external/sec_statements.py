@@ -95,6 +95,31 @@ _BALANCE_IFRS_ALIASES = [
 
 _INCOME_IFRS_ALIASES = [
     ("Revenue", "revenues"),
+    # FIXED 2026-08-19 ("no SEC data"/loader audit, roic_pct/AEG follow-up): IFRS 17
+    # ("Insurance Contracts", effective FY2023 for most insurers) replaced the general
+    # "Revenue" concept with a dedicated "InsuranceRevenue" concept for insurers' income
+    # statements - the underlying figure isn't just relabeled, it's a genuinely different,
+    # narrower recognition basis than the old premium-based revenue. Live-confirmed via
+    # Aegon's (AEG) real companyfacts JSON: "Revenue" tagged through FY2022 (EUR 21.33B),
+    # then goes silent - "InsuranceRevenue" takes over from FY2023 onward (EUR 10.39B,
+    # 9.84B, 9.10B). Our anchor-fiscal-year-selection query in
+    # load_value_quality_growth_metrics.py strongly prefers a fiscal year with a non-NULL
+    # "revenues" value, so 3 straight years of real, complete balance-sheet AND income-
+    # statement data (FY2023-2025) lost out to a stale FY2022 anchor purely because
+    # "revenues" was NULL there - the stale anchor then failed the staleness gate,
+    # masking every quality_metrics field for AEG behind a generic reason (roic_pct's
+    # correctly-computed "unprofitable_stock" among them) instead of computing off real,
+    # current data. Listed right after "Revenue" (not made fallback-only via
+    # load_financial_statements.py's _REVENUE_FALLBACK_ONLY_FIELDS - tried that first,
+    # live-caught it as wrong: "revenues" is the PRIMARY revenue signal, and several
+    # weaker fields also map to the same "revenue" DB column - e.g.
+    # interest_income_operating - fallback-only would let one of THOSE populate "revenue"
+    # first and then block the real InsuranceRevenue value from ever overwriting it).
+    # _aggregate_concepts's own per-fiscal-year merge below already resolves Revenue vs.
+    # InsuranceRevenue correctly with no ambiguity - for any given fiscal year at most one
+    # of the two ever has a real entry (temporally exclusive: Revenue stops exactly when
+    # InsuranceRevenue starts), so ordinary last-listed-wins is safe here.
+    ("InsuranceRevenue", "revenues"),
     ("RevenueFromContractsWithCustomers", "revenue_from_contract_with_customer_excluding_assessed_tax"),
     ("RevenueFromSaleOfGoods", "sales_revenue_net"),
     # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): pure-play IFRS metals producers
