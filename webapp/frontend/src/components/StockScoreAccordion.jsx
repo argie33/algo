@@ -94,6 +94,7 @@ const formatReasonDisplay = (reason) => {
     negative_earnings_growth: "Earnings growth declining or negative",
     negative_book_value: "Negative shareholders' equity",
     negative_invested_capital: "Negative invested capital",
+    stale_fiscal_data: "Latest SEC filing too old",
   };
   return reasonMap[reason] || reason;
 };
@@ -133,6 +134,8 @@ const reasonTooltips = {
   negative_earnings_growth: "This company's earnings declined or went negative year-over-year, so a PEG ratio (which divides by earnings growth) is not meaningful",
   negative_book_value: "This company reports negative shareholders' equity (liabilities exceed assets - common after heavy share buybacks or an accumulated deficit), so price-to-book is not meaningful",
   negative_invested_capital: "This company's invested capital (equity plus debt minus cash) is zero or negative, so return on invested capital is not meaningful",
+  stale_fiscal_data:
+    "This company's most recent balance sheet on file is more than 3 years old (it may have stopped filing, been acquired, or gone private) - the underlying figures may be real but are too outdated to trust for a current ratio, so they're excluded rather than shown as current",
 };
 
 const FACTORS = [

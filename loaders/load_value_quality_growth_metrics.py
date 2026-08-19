@@ -3807,6 +3807,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         for field in ev_sourced_fields:
             marker[field] = quality_dict.get(field)
             marker[f"{field}_unavailable_reason"] = quality_dict.get(f"{field}_unavailable_reason")
+
+        # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): _unavailable_marker() above
+        # stamps every *_unavailable_reason field with the generic "missing_sec_data" default
+        # - correct for a symbol with genuinely no SEC data at all, but wrong here: this row's
+        # real problem is that annual_balance_sheet's newest fiscal year is stale (>
+        # MAX_FISCAL_YEAR_AGE_YEARS old), not that the loader failed to fetch anything. The
+        # row-level `reason` above already says so correctly, but every per-field reason (the
+        # one the frontend actually renders per-metric, e.g. roe_unavailable_reason,
+        # sustainable_growth_rate_unavailable_reason) was left saying "missing_sec_data" -
+        # exactly the misleading "our loader is broken" signal this whole audit exists to
+        # eliminate. Live-confirmed: APVO/ALXO/NXTC/TARA all have a real, current, non-stale
+        # stockholders_equity+net_income pair for their (stale) latest balance-sheet fiscal
+        # year - roe/sgr are fully computable, just correctly suppressed because that fiscal
+        # year itself is too old to trust for ratios. 101 universe symbols hit this path.
+        for key in marker:
+            if key.endswith("_unavailable_reason") and key not in (
+                f"{f}_unavailable_reason" for f in ev_sourced_fields
+            ):
+                if marker[key] is not None:
+                    marker[key] = "stale_fiscal_data"
         return marker
 
     def _unavailable_marker(self, table: str, symbol: str) -> dict[str, Any]:

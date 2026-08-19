@@ -46,7 +46,12 @@ def test_ev_sourced_fields_survive_stale_fiscal_data_marker():
     assert marker["cash_per_share_unavailable_reason"] is None
     # Balance-sheet-derived fields must still be blanked.
     assert marker["roe"] is None
-    assert marker["roe_unavailable_reason"] == "missing_sec_data"
+    # FIXED 2026-08-19: was "missing_sec_data" (the generic _unavailable_marker() default) -
+    # wrong for a symbol whose SEC data is real but stale, not absent. Every per-field
+    # reason (except the EV-sourced ones, which keep their own correct value) must now
+    # reflect the actual cause so the frontend doesn't tell users "SEC data not available"
+    # for a company we in fact have real, if outdated, filings for.
+    assert marker["roe_unavailable_reason"] == "stale_fiscal_data"
     assert marker["data_unavailable"] is True
     assert marker["reason"] == "stale_fiscal_data: ..."
 
