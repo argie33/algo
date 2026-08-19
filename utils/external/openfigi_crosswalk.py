@@ -90,12 +90,20 @@ _REQUEST_INTERVAL_SEC = 2.5  # stays under OpenFIGI's 25 requests/minute unauthe
 _CORP_SUFFIXES = {
     "INC", "CORP", "CORPORATION", "CO", "COMPANY", "LTD", "LIMITED", "PLC",
     "HOLDINGS", "HOLDING", "GROUP", "THE", "CLASS", "A", "B", "SA", "NV", "AG",
-    # "National Association" - the US national-bank-charter suffix (e.g. "ZIONS
-    # BANCORPORATION, NATIONAL ASSOCIATION"), the exact same kind of generic corporate-form
-    # designation as PLC/AG/SA/NV above, not identifying content. FIXED 2026-08-19: without
-    # this, a bank holding company's own abbreviated "NA" vs SEC's spelled-out "NATIONAL
-    # ASSOCIATION" counted as non-overlapping tokens on BOTH sides, undercounting overlap.
-    "NA", "NATIONAL", "ASSOCIATION",
+    # "NA" - the abbreviated US national-bank-charter suffix (e.g. "ZIONS BANCORP NA" for
+    # "...BANCORPORATION, NATIONAL ASSOCIATION"). FIXED 2026-08-19, corrected same day:
+    # the first version of this fix also suffix-filtered "NATIONAL" and "ASSOCIATION"
+    # unabbreviated, reasoning they were the same kind of generic corporate-form filler as
+    # PLC/AG/SA/NV above - live regression caught via the full local crosswalk table (5,122
+    # pairs): unlike those, "NATIONAL" is genuinely identifying content in plenty of OTHER
+    # names (Fidelity NATIONAL Information Services, NATIONAL Oilwell Varco, NATIONAL Fuel
+    # Gas...), so stripping it dropped FIS's real overlap from 2/4=0.5 (passing) to 1/3=0.33
+    # (failing) - a false negative on an already-correctly-matching pair. "NA" alone is safe
+    # to strip (it is never meaningful content on its own, only ever this bank-charter
+    # abbreviation) and is sufficient by itself: the min(len(a), len(b)) denominator in
+    # names_plausibly_match already tolerates the target's extra unmatched "NATIONAL
+    # ASSOCIATION" tokens once the shorter, abbreviated side's real tokens all match.
+    "NA",
 }  # fmt: skip
 
 # Bloomberg/OpenFIGI systematically abbreviates common words in closed-end fund and
