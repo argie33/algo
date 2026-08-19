@@ -306,16 +306,23 @@ class OptimalLoader:
                     )
                     previous_date = None
 
-                # CASE 3: Watermark is stale (>7 trading days behind)
-                # → Log warning, proceed with incremental load but orchestrator should retry
-                else:
-                    calendar_days_behind = (most_recent_trading_day - previous_date).days
-                    if calendar_days_behind > 7:
-                        logger.error(
-                            f"[{self.table_name}] {symbol}: Watermark is {calendar_days_behind} calendar days old "
-                            f"(watermark: {previous_date}, most recent trading day: {most_recent_trading_day}). "
-                            f"Loader has not run in 5+ trading days. This indicates missed runs or persistent failure."
-                        )
+                # CASE 3 REMOVED 2026-08-19 (goal: fix today's halting/data-quality issues):
+                # this used to log ERROR when a symbol's watermark (last date a row was
+                # WRITTEN for it) was >7 calendar days behind the most recent trading day.
+                # That was a correct signal of "loader didn't run" back when buy_sell_daily
+                # wrote a row for every symbol every day. Commit bc0047231 (2026-08-18)
+                # changed that: BUY/SELL now fires only on the crossover bar, so this table
+                # is event-sourced per symbol, not a daily snapshot - a healthy stock mid-
+                # trend, not currently crossing its pivot, can legitimately go weeks without
+                # a new row. Live-confirmed 2026-08-19: 4,066 distinct symbols (most of the
+                # ~5,000+ universe) logged this ERROR in one day, all of them just "haven't
+                # crossed a pivot recently," not failures - drowning any real per-symbol
+                # loader failure in noise (this check has no gate/halt effect either; Phase
+                # 7's own freshness checks already validate the loader ran, via the
+                # aggregate MAX(date) across the whole table, which this per-symbol watermark
+                # can't distinguish from a real stall anyway). See
+                # phase7_signal_generation.py's matching 2026-08-19 recalibration
+                # (f95ffea3b) for the same root cause hitting a different check.
 
             except Exception as e:
                 logger.warning(
@@ -1371,6 +1378,28 @@ class OptimalLoader:
             # aborted the data_loader_status write (though not the actual data write -
             # this only breaks the status/completeness bookkeeping row). Map it onto
             # Dec 31 of that year, matching watermark_from_rows in loaders/helpers/sec_base.py.
+            #
+            # BUG FOUND 2026-08-19 (goal: fix today's halting/data-quality issues):
+            # MAX(fiscal_year) over a SEC statement table can pick up a corrupted fiscal
+            # year (e.g. 43830, from a SEC XBRL fact whose own "fy" field was garbage -
+            # see utils/external/sec_statements.py's "implausible fiscal_year" fix for the
+            # live PRTH/NAII cases). date(43830, 12, 31) raises ValueError("year 43830 is
+            # out of range"), which propagated up as a bare "Failed to update
+            # data_loader_status" warning on every single financial_statements run
+            # (live-confirmed in logs/load_financial_statements_1787150329.log) - the
+            # underlying data write still succeeded, only this bookkeeping row silently
+            # failed each time. A plausibility bound here is defense-in-depth for any
+            # already-written legacy-corrupted row (or a future corruption pattern this
+            # fix didn't anticipate): treat an implausible year as "no valid watermark"
+            # rather than crashing the whole status update over one bad row, or - for a
+            # value that IS a legal date() year but still absurd (e.g. 2107) - silently
+            # freezing latest_date decades in the future and masking real staleness.
+            if not (1900 <= value <= date.today().year + 1):
+                logger.warning(
+                    f"[OPTIMAL_LOADER] MAX(watermark) returned implausible fiscal_year={value} - "
+                    "treating as no valid watermark rather than corrupting latest_date"
+                )
+                return None
             return date(value, 12, 31)
         return value
 
