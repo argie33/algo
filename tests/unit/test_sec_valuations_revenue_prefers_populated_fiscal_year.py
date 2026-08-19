@@ -81,8 +81,9 @@ class TestRevenuePrefersPopulatedFiscalYear:
         # CRAI-shaped: anchor row (FY2026) has net_income but NULL revenue; prior row (FY2025)
         # has real, complete revenue/net_income/EPS.
         income_rows = [
-            (None, 54_800_000.0, None, None, None, None, None, 6_600_000.0, None),  # FY2026 anchor
+            (2026, None, 54_800_000.0, None, None, None, None, None, 6_600_000.0, None),  # FY2026 anchor
             (
+                2025,
                 751_583_000.0,
                 54_782_000.0,
                 8.23,
@@ -95,7 +96,15 @@ class TestRevenuePrefersPopulatedFiscalYear:
             ),  # FY2025
         ]
 
-        result = _run_fetch_incremental("CRAI", income_rows, _DOWNSTREAM_FETCHONE)
+        # This anchor row's earnings_per_share is also NULL (same premature-stub shape as
+        # revenue), so the sibling EPS same-year-substitute fallback fires too and issues one
+        # extra fetchone() query (re-fetching a genuinely older year's EPS for PEG's
+        # growth-rate leg, since FY2025 was itself consumed as the ttm_eps substitute) before
+        # the shared downstream calls below - see load_sec_valuations.py's
+        # eps_substituted_from_row1 branch.
+        fetchone_results = [(None,), *_DOWNSTREAM_FETCHONE]
+
+        result = _run_fetch_incremental("CRAI", income_rows, fetchone_results)
 
         row = result[0]
         assert not row.get("data_unavailable")
@@ -105,8 +114,8 @@ class TestRevenuePrefersPopulatedFiscalYear:
         # Genuinely pre-revenue company (e.g. a clinical-stage biotech): neither row has
         # revenue. Must not crash and must not fabricate a value.
         income_rows = [
-            (None, -10_000_000.0, -1.0, None, None, None, None, 10_000_000.0, None),
-            (None, -8_000_000.0, -0.8, None, None, None, None, 10_000_000.0, None),
+            (2026, None, -10_000_000.0, -1.0, None, None, None, None, 10_000_000.0, None),
+            (2025, None, -8_000_000.0, -0.8, None, None, None, None, 10_000_000.0, None),
         ]
 
         result = _run_fetch_incremental("NOREV", income_rows, _DOWNSTREAM_FETCHONE)
@@ -118,8 +127,8 @@ class TestRevenuePrefersPopulatedFiscalYear:
         # A normal, complete anchor row must keep its own revenue - the fallback must only
         # fire when the anchor's revenue is actually NULL.
         income_rows = [
-            (100_000_000.0, 10_000_000.0, 1.0, 15_000_000.0, 12_000_000.0, None, None, 10_000_000.0, None),
-            (999_999_999.0, 9_000_000.0, 0.9, 14_000_000.0, 11_000_000.0, None, None, 10_000_000.0, None),
+            (2026, 100_000_000.0, 10_000_000.0, 1.0, 15_000_000.0, 12_000_000.0, None, None, 10_000_000.0, None),
+            (2025, 999_999_999.0, 9_000_000.0, 0.9, 14_000_000.0, 11_000_000.0, None, None, 10_000_000.0, None),
         ]
 
         result = _run_fetch_incremental("REALREV", income_rows, _DOWNSTREAM_FETCHONE)

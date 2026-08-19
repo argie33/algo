@@ -51,10 +51,11 @@ class _FakeCursor:
     ) -> None:
         self._fetchone_results = list(fetchone_results)
         self._fetchone_idx = 0
-        # income_rows: (revenue, net_income, eps, operating_income, pretax_income,
+        # income_rows: (fiscal_year, revenue, net_income, eps, operating_income, pretax_income,
         # depreciation_expense, amortization_expense, shares_outstanding_basic, income_tax_expense)
         income_rows = [
             (
+                2026,
                 1_000_000_000.0,
                 100_000_000.0,
                 2.0,

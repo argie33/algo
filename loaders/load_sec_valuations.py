@@ -96,6 +96,7 @@ class SecValuationsLoader(OptimalLoader):
                 cur.execute(
                     """
                     SELECT
+                        fiscal_year,
                         revenue,
                         net_income,
                         earnings_per_share,
@@ -117,6 +118,7 @@ class SecValuationsLoader(OptimalLoader):
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
                 (
+                    ttm_fiscal_year,
                     ttm_revenue,
                     _ttm_net_income,
                     ttm_eps_basic,
@@ -142,8 +144,27 @@ class SecValuationsLoader(OptimalLoader):
                 # extra query) is checked - same small-window "same-year-substitute" fallback
                 # already used elsewhere in this codebase (e.g. roic_pct's long_term_debt
                 # fallback), not an unbounded historical search.
-                if ttm_revenue is None and len(income_rows) > 1 and income_rows[1][0] is not None:
-                    ttm_revenue = income_rows[1][0]
+                if ttm_revenue is None and len(income_rows) > 1 and income_rows[1][1] is not None:
+                    ttm_revenue = income_rows[1][1]
+
+                # FIXED 2026-08-18: earnings_per_share suffers the identical "premature fiscal
+                # year stub" gap as revenue just above - same anchor row, same root cause (a
+                # filer whose latest fiscal year has real net_income but EPS not yet tagged).
+                # Live-confirmed HG (Hamilton Insurance Group): FY2026 row has real
+                # net_income=$217.032M but earnings_per_share=NULL, while FY2025 one row back
+                # has a real earnings_per_share=$5.75 - pe_ratio/peg_ratio came back "SEC data
+                # not available" even though growth_metrics elsewhere in the pipeline computes
+                # EPS growth fine from the same underlying annual_income_statement data.
+                # Track which fiscal year actually supplied ttm_eps_basic - prior_year_eps below
+                # must come from a year OLDER than that one, never the same year twice (see the
+                # PEG double-counting bug this exact shape caused once already, warned about in
+                # the comment right below).
+                ttm_eps_fiscal_year = ttm_fiscal_year
+                eps_substituted_from_row1 = False
+                if ttm_eps_basic is None and len(income_rows) > 1 and income_rows[1][3] is not None:
+                    ttm_eps_basic = income_rows[1][3]
+                    ttm_eps_fiscal_year = income_rows[1][0]
+                    eps_substituted_from_row1 = True
 
                 # FIXED 2026-08-06: Financial services companies (banks, insurance, investment firms)
                 # don't report operating_income - they report pretax_income instead. Use pretax_income
@@ -176,7 +197,23 @@ class SecValuationsLoader(OptimalLoader):
                 # anywhere in the system with no marker flagging PEG specifically as broken.
                 # A missing second fiscal year (new filer, gap) leaves it None, which
                 # _compute_valuations already handles by leaving peg_ratio NULL.
-                prior_year_eps = income_rows[1][2] if len(income_rows) > 1 else None  # Index 2 = earnings_per_share
+                if len(income_rows) > 1 and not eps_substituted_from_row1:
+                    prior_year_eps = income_rows[1][3]  # Index 3 = earnings_per_share
+                elif eps_substituted_from_row1:
+                    # income_rows[1] was itself consumed above as the ttm_eps substitute (the
+                    # premature-stub case) - re-fetch a genuinely older year rather than reuse it.
+                    cur.execute(
+                        """
+                        SELECT earnings_per_share FROM annual_income_statement
+                        WHERE symbol = %s AND fiscal_year < %s AND earnings_per_share IS NOT NULL
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol, ttm_eps_fiscal_year),
+                    )
+                    older_eps_row = cur.fetchone()
+                    prior_year_eps = older_eps_row[0] if older_eps_row else None
+                else:
+                    prior_year_eps = None
 
                 # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
                 # Allow revenue-only companies: can compute PS ratio even without EPS. Also

@@ -49,6 +49,7 @@ class _RecordingCursor:
         self._fetchall_results = [
             [
                 (
+                    2026,  # fiscal_year
                     1_000_000_000.0,  # revenue
                     100_000_000.0,  # net_income
                     2.0,  # earnings_per_share
