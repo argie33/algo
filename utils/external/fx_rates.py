@@ -23,10 +23,29 @@ never treated as "assume ~1.0" or any other guess - it returns None, and the cal
 must still leave that value NULL, same fail-closed discipline as the currency guard
 this replaces for this specific whitelist of currencies.
 
-Deliberately NOT extended to volatile/emerging-market currencies (ARS, BRL, CLP, MXN,
-PEN, KRW, TRY, and similar) - those can move far more than developed-market FX pairs
-even within a single fiscal year, and Frankfurter itself doesn't cover several of them
-at all. Those stay behind the original blanket-reject guard, unconverted.
+FIXED 2026-08-18 (goal: "no SEC data"/loader-failure audit, follow-up to the currency-
+poisoning cleanup that wiped ~428 corrupted rows for 15 KRW/CLP/COP-reporting foreign
+filers): KRW moved here from the "deliberately not extended" list below. Frankfurter
+does cover it (live-confirmed: `GET /2023-12-31?from=KRW&to=USD` returns a real rate,
+unlike CLP/COP/TWD which 404), and it's a fully convertible, actively-traded currency
+with no capital controls (South Korea is an OECD/G20 advanced economy) - not
+meaningfully more volatile than JPY, already on this list, which moved ~35% (115->160)
+over 2022-2024 vs KRW's ~25% move over the same window. Live-verified against 3 named
+still-open symbols using each one's own real historical rate for its fact's period-end
+date (never a guessed/current rate): KEP (Korea Electric Power) FY2024 revenue converts
+to ~$71B, matching KEPCO's real public-reported revenue; KB (KB Financial Group) FY2023
+~$12.5B and SHG (Shinhan Financial Group) FY2024 ~$50B both fall in the plausible range
+for Korea's largest bank holding companies - none of the 100-1000x magnitude errors the
+original blanket guard existed to catch.
+
+Deliberately NOT extended to other volatile/emerging-market currencies (ARS, BRL, CLP,
+COP, MXN, PEN, TRY, TWD, VND and similar) - those can move far more than developed-
+market FX pairs even within a single fiscal year, and Frankfurter itself doesn't cover
+several of them at all (CLP, COP, TWD live-confirmed 404). Those stay behind the
+original blanket-reject guard, unconverted. Do not add another currency to
+MAJOR_CURRENCIES without the same live-verification discipline: (1) confirm Frankfurter
+actually serves it, (2) sanity-check the converted USD figure against at least one real
+filer's known public financials.
 """
 
 import json
@@ -44,7 +63,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY"})
+MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW"})
 
 
 class FxRateCache:

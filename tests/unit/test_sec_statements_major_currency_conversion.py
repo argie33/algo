@@ -64,10 +64,23 @@ class TestFxRateCache:
         assert session.calls == 1
 
     def test_non_major_currency_never_calls_network(self):
-        session = _FakeSession(rate=1234.5)  # would be a plausible KRW-style rate
+        # CLP: still deliberately excluded (Frankfurter doesn't cover it at all, unlike
+        # KRW which moved onto MAJOR_CURRENCIES 2026-08-18 - see fx_rates.py's docstring).
+        session = _FakeSession(rate=1234.5)  # would be a plausible CLP-style rate
         cache = _isolated_cache(session)
-        assert cache.get_usd_rate("KRW", "2025-12-31") is None
+        assert cache.get_usd_rate("CLP", "2025-12-31") is None
         assert session.calls == 0
+
+    def test_krw_is_a_major_currency_and_converts_via_historical_rate(self):
+        # FIX 2026-08-18: KRW moved off the "deliberately not extended" list - see
+        # fx_rates.py's module docstring for the live-verification (KEP/KB/SHG) behind
+        # this. Frankfurter covers it and it's not meaningfully more volatile than JPY,
+        # already on this list.
+        session = _FakeSession(rate=0.00077)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("KRW", "2025-12-31")
+        assert rate == 0.00077
+        assert session.calls == 1
 
     def test_missing_historical_rate_fails_closed(self):
         session = _FakeSession(rate=None)  # simulates a 404 - date outside range

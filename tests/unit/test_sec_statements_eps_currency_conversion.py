@@ -76,6 +76,33 @@ class TestEpsCurrencyConversion:
         assert by_year[2025]["earnings_per_share_basic"] == 4.52 / 1.386
 
     def test_non_major_currency_eps_rejected_not_passed_through_raw(self) -> None:
+        # CLP: still outright rejected (Frankfurter doesn't cover it at all). KRW moved
+        # onto MAJOR_CURRENCIES 2026-08-18 - see test_krw_eps_converted_to_usd below and
+        # fx_rates.py's docstring for the live-verification behind that move.
+        facts = {
+            "us-gaap": {
+                "EarningsPerShareBasic": {"units": {"CLP/shares": [_entry(2025, 15000.0, "2026-02-15")]}},
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_income_statement(client, "BCH", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        # Pre-fix: this silently stored the raw CLP magnitude as if USD.
+        assert 2025 not in by_year or "earnings_per_share_basic" not in by_year[2025]
+
+    def test_krw_eps_converted_to_usd(self, monkeypatch) -> None:
+        # FIX 2026-08-18: KRW moved onto MAJOR_CURRENCIES (real historical-rate
+        # conversion) as a follow-up to the currency-poisoning cleanup - see
+        # fx_rates.py's docstring for the live-verification (KEP/KB/SHG) behind this.
+        from utils.external import sec_statements
+
+        monkeypatch.setattr(
+            sec_statements._fx_rate_cache, "get_usd_rate", lambda code, date: 0.00077 if code == "KRW" else None
+        )
+
         facts = {
             "us-gaap": {
                 "EarningsPerShareBasic": {"units": {"KRW/shares": [_entry(2025, 15000.0, "2026-02-15")]}},
@@ -87,8 +114,7 @@ class TestEpsCurrencyConversion:
         rows = get_income_statement(client, "SHG", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
-        # Pre-fix: this silently stored the raw KRW magnitude as if USD.
-        assert 2025 not in by_year or "earnings_per_share_basic" not in by_year[2025]
+        assert by_year[2025]["earnings_per_share_basic"] == 15000.0 / 0.00077
 
     def test_usd_per_share_unaffected(self) -> None:
         facts = {
