@@ -29,9 +29,59 @@ import math
 import socket
 from typing import Any
 
+from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
 
 logger = logging.getLogger(__name__)
+
+# FIXED 2026-08-19 (goal: A/D rating + DCF accuracy audit): unlike utils/external/
+# sec_statements.py's XBRL path, this module applied ZERO currency handling - yfinance
+# reports financial-statement DataFrames in the filer's OWN reporting currency
+# (`Ticker.info["financialCurrency"]`), not necessarily USD, and this codebase's price/
+# shares-outstanding data for the same symbol is always USD/ADR-denominated. Live-
+# confirmed via direct DB query: GGAL (Grupo Financiero Galicia, ARS reporter)'s
+# operating_cash_flow was -1.6 TRILLION for FY2025 (data_source='yfinance', raw ARS
+# stored as if it were USD); SKM/KT (Korea Telecom/KT Corp, KRW reporters) had a ~1,300x
+# jump between their sec_audited row (already correctly FX-converted via the mechanism
+# below) and their yfinance row for the very next fiscal year - same company, same
+# order-of-magnitude business, one row silently in KRW. This fed directly into
+# load_sec_valuations.py's DCF (fcf_base = ocf - capex): dividing a local-currency
+# numerator by a USD-denominated shares_out produced nonsense like $91,705/share
+# "intrinsic value" for SUPV, or -960% "margin of safety" for names whose real FCF was
+# merely modest. Reuses the same historical-date ECB rate lookup and MAJOR_CURRENCIES
+# fail-closed discipline as the SEC path: a convertible major currency gets divided by
+# that period's real rate, anything else gets rejected rather than stored unconverted.
+_fx_rate_cache = FxRateCache()
+
+# Share COUNTS, not currency amounts - must never be divided by an FX rate even when the
+# rest of the income-statement row is being converted.
+_SHARE_COUNT_FIELDS = frozenset(
+    {
+        "weighted_average_number_of_shares_outstanding_basic",
+        "weighted_average_number_of_diluted_shares_outstanding",
+    }
+)
+
+
+def _get_financial_currency(ticker: Any, symbol: str) -> str | None:
+    """Best-effort lookup of the currency yfinance reports `symbol`'s statements in.
+
+    Returns None ("unknown - assume USD, proceed unchanged") rather than raising: this is
+    an enrichment on top of the statement fetch, not a hard requirement. The vast majority
+    of symbols genuinely report in USD, and a `.info` call failing for an unrelated reason
+    (network blip, yfinance schema change) must not lose otherwise-valid USD data over
+    this alone. Only a POSITIVELY IDENTIFIED non-USD currency should change downstream
+    behavior - same "fail open on unknown, fail closed on confirmed-bad" posture already
+    used elsewhere in this codebase (e.g. has_annual_report_filing IS NOT FALSE).
+    """
+    try:
+        info = ticker.info
+        currency = info.get("financialCurrency") if isinstance(info, dict) else None
+    except Exception as e:
+        logger.debug(f"[YFINANCE_FALLBACK] {symbol}: financialCurrency lookup failed: {e}")
+        return None
+    return currency if isinstance(currency, str) else None
+
 
 _RATE_LIMIT_KEYWORDS = ("429", "rate", "too many", "invalid crumb", "unauthorized")
 
@@ -176,7 +226,8 @@ def fetch_financial_statement(
     old_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(timeout_sec)
     try:
-        df = getattr(yf.Ticker(symbol), attr)
+        ticker = yf.Ticker(symbol)
+        df = getattr(ticker, attr)
     except TimeoutError:
         raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
     except Exception as e:
@@ -191,6 +242,20 @@ def fetch_financial_statement(
     if df is None or df.empty:
         return None
 
+    # Currency guard (see module docstring above _fx_rate_cache): reject outright rather
+    # than store a confirmed non-USD, non-convertible currency's raw magnitudes as if they
+    # were USD. A currency we can't identify (financial_currency is None) falls through
+    # unconverted, same as before this fix - the common, correct case for the many
+    # domestic filers this fallback also serves.
+    financial_currency = _get_financial_currency(ticker, symbol)
+    if financial_currency and financial_currency != "USD" and financial_currency not in MAJOR_CURRENCIES:
+        logger.info(
+            f"[YFINANCE_FALLBACK] {symbol}: financialCurrency={financial_currency} has no USD conversion "
+            f"available - rejecting yfinance {statement_type} fallback rather than storing raw "
+            f"{financial_currency} magnitudes mislabeled as USD."
+        )
+        return None
+
     field_map = _FIELD_MAPS[statement_type]
     rows: list[dict[str, Any]] = []
     for period_end in df.columns:
@@ -200,6 +265,21 @@ def fetch_financial_statement(
             # Malformed/unexpected column (not a real period Timestamp) - skip rather
             # than fail the whole symbol; other columns may still be usable.
             continue
+
+        # For a confirmed major non-USD currency, convert every monetary value in this
+        # period using that period's own historical rate (never a guessed/current rate -
+        # matches sec_statements.py's discipline). If no rate is available for this exact
+        # date, skip the whole period rather than mix converted and unconverted fields.
+        fx_rate: float | None = None
+        if financial_currency and financial_currency != "USD" and financial_currency in MAJOR_CURRENCIES:
+            date_str = period_end.strftime("%Y-%m-%d")
+            fx_rate = _fx_rate_cache.get_usd_rate(financial_currency, date_str)
+            if fx_rate is None or fx_rate == 0:
+                logger.debug(
+                    f"[YFINANCE_FALLBACK] {symbol}: no USD rate for {financial_currency}/{date_str}, "
+                    f"skipping this period rather than storing unconverted {financial_currency} values"
+                )
+                continue
 
         row: dict[str, Any] = {"symbol": symbol, "fiscal_year": fiscal_year}
         if period == "quarterly":
@@ -222,6 +302,8 @@ def fetch_financial_statement(
             value = float(value)
             if target_key in _ABS_MAGNITUDE_FIELDS:
                 value = abs(value)
+            if fx_rate is not None and target_key not in _SHARE_COUNT_FIELDS:
+                value = value / fx_rate
             row[target_key] = value
             has_data = True
 

@@ -22,6 +22,13 @@ def _mock_ticker_with_df(attr: str, df):
     return mock_ticker
 
 
+def _mock_ticker_with_df_and_currency(attr: str, df, currency: str):
+    mock_ticker = MagicMock()
+    setattr(mock_ticker, attr, df)
+    mock_ticker.info = {"financialCurrency": currency}
+    return mock_ticker
+
+
 @pytest.fixture(autouse=True)
 def _patch_circuit_breaker():
     with patch("utils.external.yfinance_financials.get_circuit_breaker") as mock_get_cb:
@@ -126,6 +133,90 @@ class TestFetchFinancialStatementCashflow:
         assert rows[0]["payments_to_acquire_property_plant_and_equipment"] == 12715000000.0
         assert rows[0]["payments_of_dividends"] == 15421000000.0
         assert rows[0]["net_cash_provided_by_used_in_operating_activities"] == 20000000000.0
+
+
+class TestFetchFinancialStatementCurrencyConversion:
+    """FIXED 2026-08-19: yfinance reports statements in the filer's own reporting
+    currency (Ticker.info["financialCurrency"]), not necessarily USD - live-confirmed via
+    GGAL (ARS) landing a -1.6 TRILLION operating_cash_flow in the real DB, and SKM/KT
+    (KRW) jumping ~1,300x between their (correctly converted) sec_audited row and their
+    yfinance row for the very next fiscal year. This fed directly into the DCF's
+    intrinsic-value math since shares_out/price stay USD-denominated regardless."""
+
+    def test_usd_currency_left_unconverted(self, _patch_circuit_breaker):
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
+        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "USD")
+        with patch("yfinance.Ticker", return_value=ticker):
+            rows = fetch_financial_statement("TEST", "income", "annual")
+
+        assert rows is not None
+        assert rows[0]["revenues"] == 1000.0
+
+    def test_unknown_currency_left_unconverted(self, _patch_circuit_breaker):
+        """.info missing/failing must not nuke otherwise-valid data for the (common) case
+        where the symbol genuinely reports in USD - fail open on unknown, not closed."""
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
+        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", df)):
+            rows = fetch_financial_statement("TEST", "income", "annual")
+
+        assert rows is not None
+        assert rows[0]["revenues"] == 1000.0
+
+    def test_major_currency_converted_to_usd(self, _patch_circuit_breaker):
+        df = pd.DataFrame(
+            {
+                pd.Timestamp("2025-12-31"): {
+                    "Total Revenue": 1300.0,
+                    "Basic Average Shares": 500.0,
+                },
+            }
+        )
+        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "KRW")
+        with (
+            patch("yfinance.Ticker", return_value=ticker),
+            patch(
+                "utils.external.yfinance_financials._fx_rate_cache.get_usd_rate",
+                return_value=13.0,
+            ),
+        ):
+            rows = fetch_financial_statement("TEST", "income", "annual")
+
+        assert rows is not None
+        # Monetary field divided by the FX rate ...
+        assert rows[0]["revenues"] == pytest.approx(100.0)
+        # ... but a share COUNT must never be divided by an FX rate.
+        assert rows[0]["weighted_average_number_of_shares_outstanding_basic"] == 500.0
+
+    def test_non_major_currency_rejected_entirely(self, _patch_circuit_breaker):
+        """ARS (Argentine peso, the real GGAL case) isn't in MAJOR_CURRENCIES - fail
+        closed and reject the whole fetch rather than store raw ARS as if it were USD."""
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1_000_000_000.0}})
+        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "ARS")
+        with patch("yfinance.Ticker", return_value=ticker):
+            rows = fetch_financial_statement("GGAL", "income", "annual")
+
+        assert rows is None
+
+    def test_missing_fx_rate_skips_period_not_whole_symbol(self, _patch_circuit_breaker):
+        df = pd.DataFrame(
+            {
+                pd.Timestamp("2025-12-31"): {"Total Revenue": 1300.0},
+                pd.Timestamp("2024-12-31"): {"Total Revenue": 1200.0},
+            }
+        )
+        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "KRW")
+        with (
+            patch("yfinance.Ticker", return_value=ticker),
+            patch(
+                "utils.external.yfinance_financials._fx_rate_cache.get_usd_rate",
+                side_effect=lambda currency, date_str: None if date_str == "2025-12-31" else 13.0,
+            ),
+        ):
+            rows = fetch_financial_statement("TEST", "income", "annual")
+
+        assert rows is not None
+        assert len(rows) == 1
+        assert rows[0]["fiscal_year"] == 2024
 
 
 class TestFetchFinancialStatementErrors:
