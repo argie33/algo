@@ -563,6 +563,24 @@ class SecValuationsLoader(OptimalLoader):
                 cash_row2 = cur.fetchone()
                 total_cash = cash_row2[0] if cash_row2 else None
 
+                # FIXED 2026-08-18 (total_debt "missing_sec_data" follow-up, AA live-confirmed):
+                # the tier-0 condition above ("any component IS NOT NULL") treats a lone real
+                # `0` value as evidence a fiscal year has debt data - but an in-progress fiscal
+                # year can report a genuine `short_term_debt=0` (e.g. no new short-term
+                # borrowings filed yet) while its real long_term_debt/lease figures simply
+                # haven't been tagged yet, so it wrongly ties tier 0 with a fuller prior year
+                # and wins on `fiscal_year DESC`. Live-confirmed: AA's FY2026 row is
+                # (long_term_debt=NULL, short_term_debt=0, leases=NULL) - old query picked it
+                # over FY2025's real (long_term_debt=$2.439B, short_term_debt=$9M,
+                # operating_lease=$308M), producing a summed total_debt of exactly 0, which the
+                # `if total_debt else None` truthy check below then silently collapsed to None.
+                # 107 universe symbols DB-confirmed hit this same "selected year sums to exactly
+                # 0 despite having a real non-NULL component" shape. Added a new top tier that
+                # prefers any fiscal year whose components actually sum to something nonzero;
+                # the existing "any non-NULL component" tier now only matters as a fallback for
+                # genuinely zero-debt companies (real, all-zero-or-NULL years), and the fixed
+                # `is not None` check below preserves that legitimate total_debt=0.0 instead of
+                # coercing it to None.
                 cur.execute(
                     """
                     SELECT
@@ -572,10 +590,17 @@ class SecValuationsLoader(OptimalLoader):
                         finance_lease_liability
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY (CASE WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
-                                    OR operating_lease_liability IS NOT NULL
-                                    OR finance_lease_liability IS NOT NULL
-                                   THEN 0 ELSE 1 END), fiscal_year DESC
+                    ORDER BY (CASE
+                                WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
+                                     + COALESCE(operating_lease_liability, 0)
+                                     + COALESCE(finance_lease_liability, 0) != 0
+                                THEN 0
+                                WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
+                                     OR operating_lease_liability IS NOT NULL
+                                     OR finance_lease_liability IS NOT NULL
+                                THEN 1
+                                ELSE 2
+                              END), fiscal_year DESC
                     LIMIT 1
                     """,
                     (symbol,),
@@ -625,7 +650,11 @@ class SecValuationsLoader(OptimalLoader):
                     float(capex) if capex else 0.0,
                     float(prior_year_eps) if prior_year_eps else None,
                     float(dividends_paid) if dividends_paid else None,
-                    float(total_debt) if total_debt else None,
+                    # FIXED 2026-08-18 (AA live-confirmed): `if total_debt else None` treated a
+                    # genuine 0.0 (a real, fully zero-debt fiscal year) as falsy, silently
+                    # discarding it the same way a missing value would be - `is not None` is the
+                    # correct check here, same fix class as the SQL tier change just above.
+                    float(total_debt) if total_debt is not None else None,
                     float(total_cash) if total_cash else None,
                     float(ebitda) if ebitda else None,
                     avg_fcf_fallback,

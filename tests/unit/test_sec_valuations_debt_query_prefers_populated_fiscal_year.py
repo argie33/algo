@@ -106,7 +106,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
         assert len(debt_queries) == 1
         debt_sql = debt_queries[0]
-        assert "CASE WHEN long_term_debt IS NOT NULL" in debt_sql
+        assert "long_term_debt IS NOT NULL" in debt_sql
         assert "fiscal_year DESC" in debt_sql
 
     def test_debt_query_prefers_any_debt_component_not_just_long_term_debt(self) -> None:
@@ -132,6 +132,32 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         assert "short_term_debt IS NOT NULL" in debt_sql
         assert "operating_lease_liability IS NOT NULL" in debt_sql
         assert "finance_lease_liability IS NOT NULL" in debt_sql
+
+    def test_debt_query_prefers_nonzero_sum_over_a_lone_real_zero(self) -> None:
+        # FIXED 2026-08-18 (AA live-confirmed): the prior fix above (long_term_debt/short_term_
+        # debt/lease-liability "IS NOT NULL" tier) still let a lone real `0` value count as
+        # "this fiscal year has debt data" - AA's FY2026 row is (long_term_debt=NULL,
+        # short_term_debt=0, leases=NULL), which ties that same tier-0 bucket as FY2025's real
+        # (long_term_debt=$2.439B, short_term_debt=$9M, operating_lease=$308M) and then wins on
+        # `fiscal_year DESC`, producing a summed total_debt of exactly 0 for a company with
+        # $2.76B of real, reported debt one fiscal year back. A mocked cursor only returns the
+        # single row Postgres's ORDER BY would have already picked, so this asserts the query
+        # text contains a nonzero-sum tier ranked ahead of the plain "any non-NULL component"
+        # tier - the regression guard against reverting to the looser IS NOT NULL-only check.
+        fetchone_results = [
+            (50.0,),
+            (500_000_000.0,),
+            (30_000_000.0,),
+            (2_439_000_000.0, 9_000_000.0, 308_000_000.0, None),  # debt_row: FY2025's real figures
+        ]
+        _, cursor = _run_fetch_incremental("AA", fetchone_results)
+
+        debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
+        assert len(debt_queries) == 1
+        debt_sql = debt_queries[0]
+        assert "COALESCE(long_term_debt, 0)" in debt_sql
+        assert "!= 0" in debt_sql
+        assert "THEN 0" in debt_sql
 
     def test_cash_is_queried_separately_from_debt(self) -> None:
         # The cash query must not be coupled to the debt-prioritization ORDER BY - it should

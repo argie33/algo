@@ -181,3 +181,30 @@ class TestTotalDebtNotTotalLiabilities:
         assert len(result) == 1
         row = result[0]
         assert row["total_debt"] is None
+
+    def test_total_debt_zero_preserved_not_collapsed_to_none(self) -> None:
+        """FIXED 2026-08-18 (AA live-confirmed): a genuinely debt-free fiscal year (a real,
+        reported short_term_debt=0 with the other 3 components NULL) used to hit
+        `float(total_debt) if total_debt else None` downstream - 0.0 is falsy in Python, so
+        this silently coerced a real "this company has zero debt" answer into the same
+        "missing_sec_data" NULL as a company with no debt data at all. Must store the real 0."""
+        loader = _make_loader()
+
+        fetchone_results = [
+            (50.0,),
+            (500_000_000.0,),
+            (30_000_000.0,),  # cash_and_equivalents
+            (None, 0.0, None, None),  # debt_row: only short_term_debt reported, and it's 0
+        ]
+        fake_cursor = _FakeCursor(fetchone_results)
+
+        fake_ctx = MagicMock()
+        fake_ctx.__enter__ = MagicMock(return_value=fake_cursor)
+        fake_ctx.__exit__ = MagicMock(return_value=False)
+
+        with patch("loaders.load_sec_valuations.DatabaseContext", return_value=fake_ctx):
+            result = loader.fetch_incremental("TESTCO3", None)
+
+        assert len(result) == 1
+        row = result[0]
+        assert row["total_debt"] == 0.0
