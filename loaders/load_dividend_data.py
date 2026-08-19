@@ -61,6 +61,45 @@ _IFRS_DIVIDEND_PER_SHARE_CONCEPTS = (
     "DividendsRecognisedAsDistributionsToOwnersPerShare",
 )
 
+# FIX 2026-08-19 (goal: "no SEC data" audit - dividend_data's dominant gap): live sampling
+# of 60 random symbols marked no_dividend_xbrl_concepts despite a real, positive
+# value_metrics.dividend_yield found the SINGLE largest remaining pattern (roughly 75% of
+# that sample, once the already-fixed IFRS/currency cases were excluded) is filers that
+# tag a real cash dividend, but only as a TOTAL DOLLAR AMOUNT concept - never any per-share
+# concept at all. Confirmed live: STZ, DHR, FOXA, IR and 40+ others in the sample report
+# real dividends exclusively via PaymentsOfDividends/DividendsCommonStockCash-family
+# concepts (US GAAP) or DividendsPaid-family concepts (IFRS), with zero presence of any
+# per-share XBRL tag. Deriving a per-share figure by dividing by shares outstanding was
+# considered and rejected: several of these filers (e.g. STZ) have multi-class share
+# structures where a naive division would silently produce a wrong per-share value - worse
+# than no data for a table whose docstring purpose is precision ("position management",
+# "dividend capture strategies"). Instead these concepts are extracted as a direct,
+# unmodified XBRL fact into the existing (always-NULL until now) total_dividend_amount
+# column, with dividend_per_share left NULL rather than guessed - real total-dividend data
+# beats a false "no data" marker, without the derivation risk. Ordered most-specific-to-
+# common-shareholders first; PaymentsOfDividends/DividendsPaid are broader (may include
+# preferred/NCI at some filers) but are the ONLY concept many filers ever tag - same
+# precedent as this codebase's existing PaymentsOf*Dividend* dividends_paid handling
+# (commit 8bf6ad23e). Only tried as a fallback when zero per-share results exist for the
+# symbol (see fetch_incremental below), so a filer with real per-share data is never
+# double-counted against its own total.
+_TOTAL_DIVIDEND_CONCEPTS_GAAP = (
+    "PaymentsOfDividendsCommonStock",
+    "DividendsCommonStockCash",
+    "DividendsCommonStock",
+    "PaymentsOfDividends",
+    "PaymentsOfOrdinaryDividends",
+)
+_TOTAL_DIVIDEND_CONCEPTS_IFRS = (
+    "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities",
+    "DividendsRecognisedAsDistributionsToOwnersOfParent",
+    "DividendsPaid",
+)
+
+# DECIMAL(15,2) (migration 1155) overflows at |value| >= 10**13 - same "reject at the
+# column's own overflow line" convention as the per-share magnitude guard below.
+_MAX_PLAUSIBLE_TOTAL_DIVIDEND = 10**13
+
 
 class DividendDataLoader(SecLoaderBase):
     """Load dividend data from SEC EDGAR XBRL.
@@ -263,6 +302,127 @@ class DividendDataLoader(SecLoaderBase):
 
         return results
 
+    def _extract_total_dividends_from_xbrl_concept(
+        self, symbol: str, taxonomy: dict[str, Any], concept_name: str
+    ) -> list[dict[str, Any]]:
+        """Extract total-dollar dividend data from a specific XBRL concept.
+
+        Fallback-only counterpart to _extract_dividends_from_xbrl_concept above - see
+        _TOTAL_DIVIDEND_CONCEPTS_GAAP/_IFRS's module comment for why this exists and why it
+        populates total_dividend_amount (a direct XBRL fact) rather than deriving
+        dividend_per_share (which would require dividing by shares outstanding - rejected
+        as too error-prone for filers with multi-class share structures).
+        """
+        results: list[dict[str, Any]] = []
+
+        if concept_name not in taxonomy:
+            return results
+
+        concept_data = taxonomy[concept_name]
+        if not isinstance(concept_data, dict) or "units" not in concept_data:
+            return results
+
+        # Same earliest-filed-per-period dedup rationale as the per-share extraction above:
+        # companyfacts repeats every historical fact once per filing that carries it in a
+        # comparative table, and a later filing can restate the SAME period's value (e.g.
+        # after a divestiture reclassifies prior-period cash flows) - the earliest-filed
+        # occurrence is the figure as originally reported for that period.
+        earliest_fact_by_period: dict[str, dict[str, Any]] = {}
+        units_raw = concept_data.get("units") if "units" in concept_data else None
+        units_data: dict[str, Any] = units_raw if isinstance(units_raw, dict) else {}
+        for unit, facts_list in units_data.items():
+            # Total-dollar dividend concepts use a bare currency code as the unit (e.g.
+            # "USD", "BRL"), unlike the per-share concepts above which use "USD/shares" -
+            # there's no per-share suffix to strip.
+            if unit == "USD":
+                fx_currency = None
+            elif unit in MAJOR_CURRENCIES:
+                fx_currency = unit
+            else:
+                logger.debug(
+                    f"[{symbol}] {concept_name}: skipping unexpected XBRL unit '{unit}' "
+                    "(expected 'USD' or a major-currency code) - not treating as total_dividend_amount"
+                )
+                continue
+            if not isinstance(facts_list, list):
+                continue
+
+            for fact in facts_list:
+                if not isinstance(fact, dict):
+                    continue
+
+                value = fact.get("val")
+                if value is None or value == 0:
+                    continue  # Skip zero dividends
+
+                if fx_currency is not None:
+                    end_for_rate = fact.get("end")
+                    fx_rate = _fx_rate_cache.get_usd_rate(fx_currency, end_for_rate) if end_for_rate else None
+                    if fx_rate is None or fx_rate == 0:
+                        continue  # No real rate for this date - fail closed, never guess
+                    value = value / fx_rate
+
+                if abs(value) >= _MAX_PLAUSIBLE_TOTAL_DIVIDEND:
+                    logger.warning(
+                        f"[{symbol}] {concept_name}: skipping implausible value {value!r} "
+                        "(>= 10**13, would overflow DECIMAL(15,2) column) - filer tagging error"
+                    )
+                    continue
+
+                # Duration-only concept (a total paid/declared over a period), unlike the
+                # per-share concepts above which can legitimately be instant facts (a
+                # point-in-time declared rate) - require both bounds so a malformed/instant
+                # fact under this concept doesn't get treated as a period total.
+                filed_str = fact.get("filed")
+                start_str = fact.get("start")
+                end_str = fact.get("end")
+                if not filed_str or not start_str or not end_str:
+                    continue
+
+                existing = earliest_fact_by_period.get(end_str)
+                if existing is None or filed_str < existing["filed"]:
+                    earliest_fact_by_period[end_str] = {**fact, "val": value}
+
+        for fact in earliest_fact_by_period.values():
+            try:
+                value = fact["val"]
+                filed_str = fact["filed"]
+                end_str = fact["end"]
+
+                try:
+                    declaration_date = datetime.strptime(filed_str, "%Y-%m-%d").date()
+                    period_end = datetime.strptime(end_str, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    continue
+
+                # Same period_end + 45d ex-date anchoring convention as the per-share path
+                # above - see its comment for why this estimate is a structural necessity.
+                ex_dividend_date = period_end + timedelta(days=45)
+
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "declaration_date": declaration_date,
+                        "ex_dividend_date": ex_dividend_date,
+                        "record_date": None,
+                        "payment_date": None,
+                        "dividend_per_share": None,
+                        "dividend_yield_pct": None,
+                        "total_dividend_amount": Decimal(str(value)),
+                        "dividend_type": "regular",
+                        "currency": "USD",
+                        "data_unavailable": False,
+                        "data_unavailable_reason": None,
+                        "source": f"SEC_XBRL_TOTAL_{concept_name}",
+                    }
+                )
+
+            except (ValueError, TypeError, AttributeError, KeyError) as e:
+                logger.debug(f"[{symbol}] Error parsing XBRL fact: {e}")
+                continue
+
+        return results
+
     def _fetch_sec_data_with_timeout(self, symbol: str, timeout_sec: float = 20.0) -> dict[str, Any]:
         """Fetch SEC company facts with hard timeout enforcement.
 
@@ -392,6 +552,15 @@ class DividendDataLoader(SecLoaderBase):
 
             for ifrs_concept in _IFRS_DIVIDEND_PER_SHARE_CONCEPTS:
                 results.extend(self._extract_dividends_from_xbrl_concept(symbol, ifrs_full, ifrs_concept))
+
+            # FIX 2026-08-19: total-dollar fallback (see _TOTAL_DIVIDEND_CONCEPTS_GAAP/IFRS's
+            # module comment) - only tried when the filer has zero per-share results, so a
+            # filer with real per-share data is never double-counted against its own total.
+            if not results:
+                for gaap_concept in _TOTAL_DIVIDEND_CONCEPTS_GAAP:
+                    results.extend(self._extract_total_dividends_from_xbrl_concept(symbol, us_gaap, gaap_concept))
+                for ifrs_concept in _TOTAL_DIVIDEND_CONCEPTS_IFRS:
+                    results.extend(self._extract_total_dividends_from_xbrl_concept(symbol, ifrs_full, ifrs_concept))
 
             # Remove duplicates on the actual primary key (symbol, ex_dividend_date) - see
             # migration 1168, which established the real DB constraint (uq_dividend_event)
