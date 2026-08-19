@@ -3529,6 +3529,19 @@ def main() -> int:
     # FIXED Issue #13: Read parallelism from DynamoDB (dynamic), fallback to env var
     parallelism = get_parallelism("stock_prices_daily")
     max_symbols_limit = int(os.getenv("LOADER_MAX_SYMBOLS", "0"))  # 0 = no limit (loads all symbols)
+    # FIXED 2026-08-19 ("no SEC data"/loader audit, price-history-depth follow-up): PriceLoader.run()
+    # has always accepted a `backfill_days` parameter (its own docstring calls it "for recovery/
+    # validation"), but this env-var-driven main() never read any backfill env var and never passed
+    # one through to loader.run() below - the parameter was completely unreachable from this loader's
+    # actual entry point. Live-confirmed: LOADER_SYMBOLS correctly scopes which symbols run, but a
+    # symbol's own per-symbol incremental watermark still wins even when the intent is a deep
+    # historical re-backfill (e.g. for a recently reactivated symbol whose price_daily history was
+    # silently truncated to a thin recent window by the batch-shared watermark logic - see
+    # missing_factor_inputs_pb_cash_finra_fixes_20260819 memory for the full root-cause chain).
+    # Reads the same BACKFILL_DAYS env var name runner.py's generic --backfill-days flag already
+    # uses, for consistency - this loader just never had its own copy of that wiring.
+    backfill_days_env = os.getenv("BACKFILL_DAYS")
+    backfill_days = int(backfill_days_env) if backfill_days_env else 0
 
     # Parse comma-separated values
     intervals = [x.strip() for x in intervals_str.split(",")]
@@ -3878,7 +3891,7 @@ def main() -> int:
                             f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}, symbols={len(run_symbols)}"
                         )
                         with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
-                            stats = loader.run(run_symbols, parallelism=parallelism)
+                            stats = loader.run(run_symbols, parallelism=parallelism, backfill_days=backfill_days)
 
                         logger.info("[MAIN] Completed %s/%s: %s", asset_class, interval, stats)
                         # Validate stats dict has required keys
