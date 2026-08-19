@@ -371,6 +371,12 @@ PIPELINES = {
         "analyst_sentiment",
         "positioning",  # FIXED 2026-08-10: was "positioning_metrics" (not in registry)
         "stability_metrics",
+        # ADDED 2026-08-19 (goal: "no SEC data" audit): earnings_metrics had no loader
+        # wired into any pipeline at all - see loader_registry.py's entry for the full
+        # story (populated once by migration 1147, frozen ever since). Depends on
+        # quarterly_income_statement (financial_statements, above), same as
+        # value_quality_growth.
+        "earnings_metrics",
     ],
     "signals": [
         "prices",

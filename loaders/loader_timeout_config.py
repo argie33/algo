@@ -92,6 +92,11 @@ def get_loader_timeouts() -> dict[str, int]:
         "ttm_cash_flow": 540 * 60,  # 540 min - Part of consolidated financial_statements load
         "value_quality_growth": 40 * 60,  # 40 min - multi-source aggregation
         "enhanced_quality_growth": 300 * 60,  # 300 min (5h) - Session 92: yfinance variance high
+        # ADDED 2026-08-19: pure DB-derived metric (trailing-4-quarter EPS consistency from
+        # quarterly_income_statement, no external API calls at all) - no rate-limiting
+        # variance to budget for, generous margin still applied per this file's own
+        # "all loaders must be explicitly registered, no silent default" governance.
+        "earnings_metrics": 20 * 60,  # 20 min - pure DB query, no external API
         # Analyst data (yfinance rate-limited)
         # SESSION 99 FIX: All increased by 50-100% for yfinance rate limiting
         "analyst_earnings_estimates": 90 * 60,  # 90 min - Session 99: increased from 45m (100% margin)

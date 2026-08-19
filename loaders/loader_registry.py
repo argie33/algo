@@ -95,6 +95,12 @@ LOADER_TABLES: dict[str, list[str]] = {
     "load_dividend_data.py": ["dividend_data"],
     "load_sec_segment_info.py": ["sec_segment_info"],
     "load_sec_segment_metrics.py": ["sec_segment_metrics"],
+    # ADDED 2026-08-19 (goal: "no SEC data" audit): earnings_metrics had NO loader at all -
+    # populated once by migration 1147 and never refreshed since (every row shared the
+    # identical 2026-08-09 timestamp, confirmed live). This loader recomputes the same
+    # trailing-4-quarter EPS consistency formula that migration introduced, as a real,
+    # recurring loader instead of a frozen one-off snapshot.
+    "load_earnings_metrics.py": ["earnings_metrics"],
     # Restored 2026-07-27 (see scripts/local_loader_scheduler.py) - was previously
     # missing from this registry, which made it silently invisible to every
     # health/audit script built on LOADER_TABLES despite being flagged
@@ -235,6 +241,7 @@ SHORTHAND_TO_FILENAME: dict[str, str] = {
     # Earnings calendar & SEC data
     "earnings_calendar": "load_earnings_calendar.py",
     "earnings_sec": "load_earnings_calendar_sec.py",
+    "earnings_metrics": "load_earnings_metrics.py",
     "sec_reports": "load_current_reports_8k.py",
     "segment_info": "load_sec_segment_info.py",
     "segment_metrics": "load_sec_segment_metrics.py",
