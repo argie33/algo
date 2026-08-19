@@ -139,7 +139,7 @@ def test_no_new_8k_since_existing_watermark_stays_empty_not_remarked() -> None:
     assert records == []
 
 
-def test_unavailable_marker_accession_number_is_not_empty_string() -> None:
+def test_unavailable_marker_accession_number_is_not_empty_string(monkeypatch) -> None:
     """LIVE-REPRODUCED 2026-08-16: accession_number is NOT NULL (part of the composite PK
     with symbol). BulkInsertManager's COPY path applies FORCE_NULL to every column and
     collapses None->"" before writing the CSV buffer, so it can't tell a deliberate empty
@@ -148,6 +148,7 @@ def test_unavailable_marker_accession_number_is_not_empty_string() -> None:
     ETF/foreign-issuer symbol with no SEC 8-K coverage (AEP, AFBI, AGG, ...) failed with
     'null value in column accession_number' during a full-universe run.
     """
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
     loader = _make_loader()
     loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
 
@@ -160,3 +161,38 @@ def test_unavailable_marker_accession_number_is_not_empty_string() -> None:
     assert accession != ""
     assert accession is not None
     assert len(accession) <= 20  # DB column is varchar(20)
+
+
+def test_cik_lookup_retries_once_before_giving_up(monkeypatch) -> None:
+    """FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): a single
+    symbol_to_cik() ValueError used to be treated as permanent "not in SEC" with zero
+    retry at this layer. Live-confirmed via AEP (a real S&P 500 utility, CIK 4904,
+    explicitly documented in sec_ticker_cache.py as the canary case for tickers missing
+    from SEC's bulk ticker files) - got permanently marked "symbol_not_found" in this
+    table from what a fresh, unretried call today proves was a transient failure. One
+    retry with backoff must be given a chance to recover before writing a marker that,
+    per the incremental-scheduling test above, effectively never gets re-checked.
+    """
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = [ValueError("transient"), "0000004904"]
+
+    records = loader.fetch_incremental("AEP", since=None)
+
+    assert loader.sec_client.symbol_to_cik.call_count == 2
+    assert records
+    assert records[0].get("data_unavailable_reason") != "symbol_not_found"
+
+
+def test_cik_lookup_gives_up_as_not_found_after_retry_exhausted(monkeypatch) -> None:
+    """The retry is bounded, not infinite - a symbol that genuinely isn't in SEC (or
+    whose transient failure doesn't clear within one retry) must still resolve to the
+    honest "symbol_not_found" marker, not hang or raise."""
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+
+    records = loader.fetch_incremental("NOPE", since=None)
+
+    assert loader.sec_client.symbol_to_cik.call_count == 2
+    assert records[0]["data_unavailable_reason"] == "symbol_not_found"

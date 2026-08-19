@@ -32,6 +32,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.retry_helper import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
@@ -287,10 +288,31 @@ class CurrentReports8KLoader(SecLoaderBase):
             (Does not raise if symbol simply not found - that's a legitimate data gap)
         """
         try:
-            cik = self.sec_client.symbol_to_cik(symbol)
+            # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): a single
+            # symbol_to_cik() ValueError was treated as permanent "not in SEC" with zero
+            # retry - but that call's own last-resort path (sec_ticker_cache.py's
+            # _lookup_via_browse_edgar, a slow legacy CGI endpoint) only retries transient
+            # HTTP/network failures itself, and only twice with a few seconds' backoff -
+            # not enough margin for a longer SEC-side rate-limit/outage window. Live-
+            # confirmed: AEP (American Electric Power, a real S&P 500 utility with CIK
+            # 4904 - documented in that same module as the canary case for this exact
+            # ticker-not-in-bulk-files pattern) got permanently marked "symbol_not_found"
+            # in this table on 2026-08-17, yet resolves correctly on a fresh, unretried
+            # call today - a transient failure baked in as permanent because this loader's
+            # incremental scheduling never revisits a symbol once it has any row on file,
+            # "symbol_not_found" included. One retry with a real backoff here (not the
+            # network-only retry inside symbol_to_cik itself) gives a slow SEC response
+            # window a real chance to clear before writing a marker that effectively never
+            # gets re-checked.
+            cik = retry_with_backoff(
+                lambda: self.sec_client.symbol_to_cik(symbol),
+                context=f"{symbol} CIK lookup",
+                max_retries=1,
+                backoff_seconds=5.0,
+            )
             return str(cik).zfill(10)
         except ValueError:
-            # Symbol not found in SEC - legitimate, not an error
+            # Symbol not found in SEC even after a retry - legitimate, not an error
             logger.debug(f"[{symbol}] Symbol not found in SEC Edgar")
             return None
         except (ConnectionError, TimeoutError, requests.RequestException) as e:
