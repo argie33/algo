@@ -59,7 +59,12 @@ def handle(
                        filing_type AS fiscal_period
                 FROM earnings_calendar_sec
                 WHERE symbol = %s
-                  AND filing_type IN ('10-K', '10-Q')
+                  -- FIXED 2026-08-19: load_earnings_calendar_sec.py's loader was extended to
+                  -- recognize foreign filers' 20-F/40-F (annual) and 6-K (interim) filings
+                  -- (previously 10-K/10-Q only, silently excluding every foreign private
+                  -- issuer); this endpoint's own WHERE clause was never updated to match, so
+                  -- the loader's now-correct data was still invisible to API consumers.
+                  AND filing_type IN ('10-K', '10-Q', '20-F', '40-F', '6-K')
                   AND data_unavailable = false
                 ORDER BY filing_date DESC
                 LIMIT %s
