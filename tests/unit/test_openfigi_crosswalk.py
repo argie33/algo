@@ -180,6 +180,30 @@ def test_fetch_cusip_tickers_deadline_hit_does_not_raise_even_if_zero_succeeded(
     assert result == {}
 
 
+def test_fetch_cusip_tickers_does_not_cache_failed_batch_as_negative(monkeypatch):
+    """FIXED 2026-08-18 (goal session, live-caught via Hamilton Insurance Group/HG's
+    institutional_holdings_13f gap): a batch that fails outright (network error, 5xx,
+    exhausted 429 retry) used to still fire on_batch_resolved with an all-None dict,
+    indistinguishable from OpenFIGI genuinely answering "no match" - the caller
+    (load_institutional_holdings_13f.py) persists that straight into the permanent
+    sec_13f_cusip_crosswalk cache, poisoning a transiently-failed CUSIP as
+    unresolvable forever. on_batch_resolved must simply not fire for a batch OpenFIGI
+    never actually answered, so the caller's cache leaves those CUSIPs as "new" and
+    retries them next run."""
+
+    def _fake_urlopen(req, timeout=30):
+        raise OSError("connection reset")
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    seen_batches = []
+    with pytest.raises(RuntimeError, match="unreachable"):
+        fetch_cusip_tickers(["037833100"], on_batch_resolved=seen_batches.append)
+
+    assert seen_batches == []
+
+
 def test_fetch_cusip_tickers_discards_batch_on_response_length_mismatch(monkeypatch):
     """OpenFIGI's contract is positional (result[i] answers job[i] in the same
     order) - fetch_cusip_tickers relies on that to zip cusips to results. If a
@@ -197,8 +221,13 @@ def test_fetch_cusip_tickers_discards_batch_on_response_length_mismatch(monkeypa
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     monkeypatch.setattr("time.sleep", lambda *_: None)
 
+    seen_batches = []
     with pytest.raises(RuntimeError, match="unreachable"):
-        fetch_cusip_tickers(["037833100", "594918104"])
+        fetch_cusip_tickers(["037833100", "594918104"], on_batch_resolved=seen_batches.append)
+
+    # Same fix as the outright-failure case above: a discarded (mismatched) batch
+    # must not be cached as a negative result either.
+    assert seen_batches == []
 
 
 def test_names_plausibly_match_positive_case():

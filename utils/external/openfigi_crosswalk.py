@@ -188,19 +188,38 @@ def fetch_cusip_tickers(
         batches_attempted += 1
         batch_results = _post_mapping_batch(batch)
 
-        batch_resolved: dict[str, dict[str, Any] | None] = dict.fromkeys(batch)
         if batch_results is not None and len(batch_results) != len(batch):
             # OpenFIGI's contract is positional (result[i] answers job[i]) - a length
             # mismatch means that guarantee broke (API contract change, truncated
             # response) and zip() would silently pair each cusip with the WRONG
             # result. Discard the whole batch rather than risk fabricating a mapping.
+            # FIXED 2026-08-18 (goal session, live-caught via Hamilton Insurance Group/HG's
+            # institutional_holdings_13f gap): this branch (and the batch_results is None
+            # branch below it) used to still call on_batch_resolved() with an all-None dict
+            # for the batch - indistinguishable, to the caller, from OpenFIGI genuinely
+            # answering "no match" for every CUSIP in it. The caller
+            # (load_institutional_holdings_13f.py's _crosswalk_to_tickers) persists
+            # on_batch_resolved's output straight into sec_13f_cusip_crosswalk as a
+            # PERMANENT cache entry ("CUSIP->ticker attribution is stable... only
+            # never-seen CUSIPs cost a live OpenFIGI call" - this module's own docstring),
+            # so a transient failure (5xx, network blip, non-429 HTTP error, or an
+            # exhausted 429 retry) got cached forever as "OpenFIGI has no match for this
+            # CUSIP", identically to a real negative result, with no future retry ever
+            # happening. Live-confirmed for Hamilton's real CUSIP G42706104 (verified
+            # against its own SEC 13G/A filing) - cached NULL/NULL on 2026-08-03 despite
+            # being a real, actively 13F-held NYSE common stock. Fix: simply don't call
+            # on_batch_resolved for a batch OpenFIGI didn't actually answer - leaves those
+            # CUSIPs out of the cache entirely so the next run's "new_cusips" filter
+            # (cusip not in cached) picks them up for a fresh retry instead of treating
+            # them as permanently resolved-to-nothing.
             logger.warning(
                 f"[OpenFIGI] Batch of {len(batch)} CUSIPs returned {len(batch_results)} "
                 f"results - response length mismatch, discarding batch to avoid "
-                f"misaligned cusip->data pairing."
+                f"misaligned cusip->data pairing. Leaving unresolved for retry next run."
             )
         elif batch_results is not None:
             batches_succeeded += 1
+            batch_resolved: dict[str, dict[str, Any] | None] = dict.fromkeys(batch)
             for cusip, result in zip(batch, batch_results, strict=True):
                 data = result.get("data")
                 if not data:
@@ -224,8 +243,18 @@ def fetch_cusip_tickers(
                 results[cusip] = entry
                 batch_resolved[cusip] = entry
 
-        if on_batch_resolved is not None:
-            on_batch_resolved(batch_resolved)
+            if on_batch_resolved is not None:
+                on_batch_resolved(batch_resolved)
+        else:
+            # batch_results is None: the whole batch request failed (see
+            # _post_mapping_batch - network error, non-429 HTTP error, or 429 that
+            # didn't clear after the one retry). Same fix as the length-mismatch branch
+            # above: do NOT call on_batch_resolved, so these CUSIPs stay out of the cache
+            # and get retried next run instead of being poisoned as permanent negatives.
+            logger.warning(
+                f"[OpenFIGI] Batch of {len(batch)} CUSIPs failed entirely - "
+                f"leaving unresolved for retry next run (not caching as a negative result)."
+            )
 
         # Always pace between batches, success or failure - a non-429 failure (network
         # error, 5xx) doesn't sleep inside _post_mapping_batch at all, and even a 429's
