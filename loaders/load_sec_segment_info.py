@@ -95,7 +95,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                 facts_response = None
 
             segment_data = None
-            latest_10k = None
+            latest_annual_filing = None
             if facts_response and facts_response.get("facts"):
                 # Try companyfacts API first
                 segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
@@ -113,19 +113,19 @@ class SecSegmentInfoLoader(SecLoaderBase):
             if not segment_data or not segment_data.get("data_available"):
                 logger.info(f"[{symbol}] No segment data in companyfacts, trying raw XBRL XML")
                 try:
-                    # Get latest 10-K filing
+                    # Get latest annual filing (10-K, or 20-F/40-F for foreign filers)
                     submissions = self.sec_client.get_submissions(cik)
-                    latest_10k = self._find_latest_10k(submissions)
+                    latest_annual_filing = self._find_latest_annual_filing(submissions)
 
-                    if latest_10k:
+                    if latest_annual_filing:
                         # get_filing_xml/_get_primary_document match against SEC's
                         # dashed accessionNumber list - the stripped 'accession' key
                         # never matches, silently falling through to the except below
                         # on every call. Confirmed live: get_filing_xml requires the
                         # dashed form.
-                        accession = latest_10k["accession_formatted"]
+                        accession = latest_annual_filing["accession_formatted"]
                         try:
-                            xml_content = self.sec_client.get_filing_xml(cik, accession, "10-K")
+                            xml_content = self.sec_client.get_filing_xml(cik, accession, latest_annual_filing["form"])
                             logger.debug(f"[{symbol}] Fetched raw XBRL XML for {accession}")
                             segment_data = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, symbol)
                             # CRITICAL: Validate type before chaining .get() - extract might return non-dict
@@ -163,8 +163,8 @@ class SecSegmentInfoLoader(SecLoaderBase):
             # which can reflect a different, later filing (e.g. an interim 10-Q) than the
             # 10-K whose XBRL XML we actually parsed for segment revenue above.
             filing_date = None
-            if latest_10k:
-                filing_date = latest_10k.get("report_date") or latest_10k.get("filing_date")
+            if latest_annual_filing:
+                filing_date = latest_annual_filing.get("report_date") or latest_annual_filing.get("filing_date")
             if filing_date is None:
                 filing_date = self._extract_filing_date(facts_response) if facts_response else None
             if filing_date is None:
@@ -234,20 +234,39 @@ class SecSegmentInfoLoader(SecLoaderBase):
             logger.error(f"[{symbol}] Segment extraction failed: {type(e).__name__}: {str(e)[:300]}", exc_info=True)
             return [self._unavailable_marker(symbol, f"extraction_error:{type(e).__name__}")]
 
-    def _find_latest_10k(self, submissions: dict[str, Any]) -> dict[str, Any] | None:
-        """Find the most recent 10-K filing in the submissions list.
+    # FIXED 2026-08-19 ("no SEC data"/loader audit): _find_latest_annual_filing only ever
+    # matched the literal form "10-K", so this tier-2 raw-XBRL-XML fallback (the only source
+    # of real per-segment revenue - companyfacts strips XBRL context dimensions) silently
+    # never ran for any filer whose annual report is 20-F/40-F instead. Live-confirmed via
+    # the real SEC API: BABA and JD both already tag NumberOfReportableSegments in us-gaap
+    # (tier 1 succeeds for the segment COUNT) but file zero 10-Ks (20-F only) - tier 2 always
+    # returned None, so real, well-known filers landed on "no_computable_segment_metrics"
+    # (a real us-gaap-tagged segment count that's simply not enough data on its own) purely
+    # because the annual filing was the wrong form name. get_filing_xml's form_type
+    # parameter is "validated but not used for discovery" (see its docstring) - the raw XML
+    # discovery mechanism itself is already form-agnostic, so passing the real matched form
+    # (20-F/40-F, not a hardcoded "10-K") through to it is safe. Same annual-form set as
+    # utils/external/sec_statements.py's _ANNUAL_REPORT_FORMS. This does NOT recover IFRS-only
+    # filers (ABEV, AEG, SHEL, HSBC...) - both companyfacts (tier 1, "us-gaap" key required)
+    # and the raw-XML dimension parser (tier 2, us-gaap axis local names) are us-gaap-specific;
+    # real IFRS segment-taxonomy support is a separate, larger fix.
+    _ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
+
+    def _find_latest_annual_filing(self, submissions: dict[str, Any]) -> dict[str, Any] | None:
+        """Find the most recent annual-report filing (10-K, or 20-F/40-F for foreign
+        filers) in the submissions list.
 
         SEC filings format is columnar: {'accessionNumber': [...], 'form': [...], ...}
         where each list value at index i is one filing's data.
 
         Returns:
-            Dict with 'accession_formatted' (dashed, e.g. "0001193125-24-001234" -
-            the format SecEdgarClient's fetch methods match against), 'report_date'
-            (the filing's fiscal period end, parsed from SEC's 'reportDate' column -
-            the authoritative source for which fiscal year this 10-K covers) and
-            'filing_date' (SEC's 'filingDate' column, when the 10-K was submitted) -
-            either may be None if SEC omitted or malformed that column. Returns None
-            if no 10-K found.
+            Dict with 'form' (the matched form, e.g. "10-K"/"20-F"/"40-F"),
+            'accession_formatted' (dashed, e.g. "0001193125-24-001234" - the format
+            SecEdgarClient's fetch methods match against), 'report_date' (the filing's
+            fiscal period end, parsed from SEC's 'reportDate' column - the authoritative
+            source for which fiscal year this filing covers) and 'filing_date' (SEC's
+            'filingDate' column, when the filing was submitted) - either may be None if
+            SEC omitted or malformed that column. Returns None if no annual filing found.
         """
         # CRITICAL FIX 2026-08-02: Validate intermediate results before chaining .get() calls
         # together - a corrupted submissions structure could make an unguarded lookup chain
@@ -274,8 +293,9 @@ class SecSegmentInfoLoader(SecLoaderBase):
             return None
 
         for i, form in enumerate(forms):
-            if form == "10-K" and i < len(accessions):
+            if form in self._ANNUAL_FILING_FORMS and i < len(accessions):
                 return {
+                    "form": form,
                     "accession_formatted": accessions[i],
                     "report_date": self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
                     "filing_date": self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
