@@ -116,6 +116,11 @@ SAFE_TABLES = {
     "earnings_estimates",
     "earnings_estimate_revisions",
     "earnings_revisions",
+    # ADDED 2026-08-19: created by migration 1146, populated once by migration 1147, but
+    # never added to this allowlist - loaders/load_earnings_metrics.py (added the same day,
+    # this table's first real ongoing loader) failed its very first run with "Unknown table
+    # 'earnings_metrics' (not in whitelist)" until this entry existed.
+    "earnings_metrics",
     # Fundamental metrics
     "growth_metrics",
     "quality_metrics",
@@ -214,6 +219,10 @@ SAFE_COLUMNS = {
     # CRITICAL_TABLES entry for that table; check_table_health() rejected it with "not in
     # whitelist" despite being a real column (confirmed via information_schema).
     "snapshot_date",
+    # earnings_metrics.report_date (watermark_field) - added 2026-08-19 alongside that
+    # table's earnings_metrics SAFE_TABLES entry above, same load_earnings_metrics.py
+    # first-run gap.
+    "report_date",
     # Common columns
     "symbol",
     "count",
