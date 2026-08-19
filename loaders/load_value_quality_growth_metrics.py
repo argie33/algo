@@ -628,9 +628,33 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
-                    ORDER BY (CASE WHEN ais.revenue IS NOT NULL THEN 0
-                                    WHEN ais.symbol IS NOT NULL THEN 1
-                                    ELSE 2 END),
+                    -- FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): the
+                    -- revenue/matched-income tiers below were UNBOUNDED by recency, exactly the
+                    -- same bug class as the FCF tier had before its own 2026-08-03 bounding fix
+                    -- (see that fix's comment above) - just never applied here too. Live-confirmed
+                    -- against the real DB: 98 of 100 symbols hitting quality_metrics'
+                    -- stale_fiscal_data gate actually HAVE a real, complete balance sheet within
+                    -- MAX_FISCAL_YEAR_AGE_YEARS (e.g. ACHV has real FY2026 stockholders_equity/
+                    -- total_assets), but the anchor query picked a much older year instead purely
+                    -- because that old year's income statement had a non-NULL revenue value (often
+                    -- literally $0 for a pre-revenue clinical-stage biotech, or a real but ancient
+                    -- figure) - "has revenue" outranked "is recent" with no floor, so a technically-
+                    -- non-null revenue from 7 years ago could beat a fresh, complete balance sheet.
+                    -- Now freshness (within the same staleness window the gate below checks) is
+                    -- the PRIMARY sort key, with the old revenue/matched-income preference applied
+                    -- only as a tiebreak WITHIN the fresh tier and, separately, WITHIN the stale
+                    -- tier (preserved unchanged for genuinely-stale filers with no fresh balance
+                    -- sheet at all - picking their best available old year, preferring one with
+                    -- revenue, is still the right fallback for those).
+                    ORDER BY (CASE
+                                   WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
+                                        AND ais.revenue IS NOT NULL THEN 0
+                                   WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
+                                        AND ais.symbol IS NOT NULL THEN 1
+                                   WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s THEN 2
+                                   WHEN ais.revenue IS NOT NULL THEN 3
+                                   WHEN ais.symbol IS NOT NULL THEN 4
+                                   ELSE 5 END),
                              (CASE WHEN acf.free_cash_flow IS NOT NULL
                                     AND abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
                                     THEN 0 ELSE 1 END), abs.fiscal_year DESC
@@ -650,6 +674,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol,
                         symbol,
                         symbol,
+                        MAX_FISCAL_YEAR_AGE_YEARS,
+                        MAX_FISCAL_YEAR_AGE_YEARS,
+                        MAX_FISCAL_YEAR_AGE_YEARS,
                         MAX_FISCAL_YEAR_AGE_YEARS,
                     ),
                 )
