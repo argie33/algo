@@ -971,6 +971,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         else:
             peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else None
 
+        # pb_ratio reason: was hardcoded "missing_sec_data" regardless of cause. load_sec_
+        # valuations.py only computes pb_ratio when stockholders_equity > 0 (negative book
+        # value - common for airlines/restaurant chains/early biotechs that have bought back
+        # shares or run up an accumulated deficit - makes P/B not meaningful, same "not
+        # applicable" class as unprofitable_stock/negative_invested_capital elsewhere in this
+        # file). Live-confirmed real, non-NULL negative stockholders_equity (not a loader gap)
+        # for AAL (-$4.08B FY2026), JACK (-$936M), DBX (-$2.01B), IBRX (-$1.05B), IHRT
+        # (-$1.83B FY2025) - all large, liquid, well-covered symbols that would otherwise read
+        # as a fundamentals-loading failure. Same "prefer a fiscal year with a real reported
+        # value" CASE ordering as load_sec_valuations.py's own book_value query, so this
+        # doesn't reintroduce the "latest year is empty" trap already fixed there.
+        pb_ratio_reason = None
+        if pb is None:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT stockholders_equity
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    ORDER BY (CASE WHEN stockholders_equity IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                equity_row = cur.fetchone()
+            latest_book_value = equity_row[0] if equity_row else None
+            pb_ratio_reason = (
+                "negative_book_value"
+                if latest_book_value is not None and latest_book_value <= 0
+                else "missing_sec_data"
+            )
+
         # Fetch held_percent fields from positioning_metrics (FIXED 2026-08-18)
         (
             held_percent_insiders,
@@ -1001,7 +1033,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "margin_of_safety_pct": margin_of_safety_pct,
             "value_score": None,  # Computed in load_stock_scores, copied here for convenience
             "pe_ratio_unavailable_reason": pe_ratio_reason,
-            "pb_ratio_unavailable_reason": "missing_sec_data" if pb is None else None,
+            "pb_ratio_unavailable_reason": pb_ratio_reason,
             "ps_ratio_unavailable_reason": (
                 ("no_revenue_reported" if symbol in self._get_no_recent_revenue_symbols() else "missing_sec_data")
                 if ps is None

@@ -92,6 +92,8 @@ const formatReasonDisplay = (reason) => {
     missing_cash_flow_data: "Cash flow data unavailable",
     implausible_dcf_result: "Value excluded as implausible",
     negative_earnings_growth: "Earnings growth declining or negative",
+    negative_book_value: "Negative shareholders' equity",
+    negative_invested_capital: "Negative invested capital",
   };
   return reasonMap[reason] || reason;
 };
@@ -129,6 +131,8 @@ const reasonTooltips = {
   missing_cash_flow_data: "Operating cash flow or capital expenditure data required for this calculation is not available in SEC filings for this company",
   implausible_dcf_result: "The discounted cash flow model produced a per-share value far outside plausible bounds, so it was excluded rather than shown as a misleading number",
   negative_earnings_growth: "This company's earnings declined or went negative year-over-year, so a PEG ratio (which divides by earnings growth) is not meaningful",
+  negative_book_value: "This company reports negative shareholders' equity (liabilities exceed assets - common after heavy share buybacks or an accumulated deficit), so price-to-book is not meaningful",
+  negative_invested_capital: "This company's invested capital (equity plus debt minus cash) is zero or negative, so return on invested capital is not meaningful",
 };
 
 const FACTORS = [
