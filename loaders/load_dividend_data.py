@@ -29,6 +29,7 @@ from typing import Any
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.transient_errors import TransientAPIError
@@ -40,6 +41,25 @@ configure_socket_timeout(30)
 # ThreadPoolExecutor enforces a hard timeout at the Python level.
 # This is the only reliable way to prevent 5+ hour hangs observed 2026-08-04.
 _API_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sec-api-")
+
+# Module-level (not per-instance) so the historical-rate cache is shared across every
+# symbol processed in a run - same rationale as sec_statements.py's own _fx_rate_cache.
+_fx_rate_cache = FxRateCache()
+
+# IFRS taxonomy equivalents of the two US-GAAP per-share dividend concepts this loader
+# already checks. FIX 2026-08-18 (goal: find/fix real loader gaps): foreign private
+# issuers (20-F/40-F filers) tag dividends under ifrs-full, never us-gaap - live-confirmed
+# via ERIC (DividendsPaidOrdinarySharesPerShare, DividendsRecognisedAsDistributionsTo
+# OwnersPerShare) and TU (DividendsPaidOrdinarySharesPerShare), both real, current dividend
+# payers (per value_metrics.dividend_yield) that this loader was marking
+# no_dividend_xbrl_concepts because it only ever looked at us-gaap. "OtherShares" variants
+# (e.g. BWMX's DividendsPaidOtherSharesPerShare) deliberately excluded - that concept can
+# represent a different, non-ordinary share class, not a straightforward GAAP-concept
+# equivalent.
+_IFRS_DIVIDEND_PER_SHARE_CONCEPTS = (
+    "DividendsPaidOrdinarySharesPerShare",
+    "DividendsRecognisedAsDistributionsToOwnersPerShare",
+)
 
 
 class DividendDataLoader(SecLoaderBase):
@@ -125,18 +145,26 @@ class DividendDataLoader(SecLoaderBase):
         units_raw = concept_data.get("units") if "units" in concept_data else None
         units_data: dict[str, Any] = units_raw if isinstance(units_raw, dict) else {}
         for unit, facts_list in units_data.items():
-            # XBRL facts are organized by unit. Both concepts this method is called with
-            # ("...PerShareDeclared"/"...PerShareCashPaid") are per-share ratio concepts, whose
-            # standard US-GAAP taxonomy unit is "USD/shares" - not a plain dollar amount. SEC
-            # filers occasionally mistag facts under an unexpected unit (restatements, filer XBRL
-            # errors); blindly trusting any unit key here would silently store that filer's raw
-            # value as dividend_per_share even if it wasn't actually a per-share figure, corrupting
-            # the field with no downstream validation to catch it. Skip anything that isn't the
-            # expected per-share unit rather than guess.
-            if unit != "USD/shares":
+            # XBRL facts are organized by unit. US-GAAP per-share dividend concepts use
+            # "USD/shares"; the IFRS equivalents this loader also checks (foreign 20-F/40-F
+            # filers) use "{HOME_CURRENCY}/shares" instead, e.g. TU's "CAD/shares" - see
+            # _IFRS_DIVIDEND_PER_SHARE_CONCEPTS above. Convert non-USD major-currency units
+            # (fx_rates.py's MAJOR_CURRENCIES whitelist - liquid, developed-market currencies
+            # only) to USD via a real historical ECB rate for each fact's own period-end date,
+            # same fail-closed discipline as sec_statements.py's currency handling: a missing
+            # rate leaves that fact unset rather than guessing. Everything else (emerging-
+            # market currencies, mistagged non-per-share units) is rejected outright, same as
+            # before - blindly trusting any unit key would silently store a filer's raw local-
+            # currency or non-per-share value as if it were USD dividend_per_share.
+            currency_code = unit.split("/", 1)[0]
+            if unit == "USD/shares":
+                fx_currency = None
+            elif unit == f"{currency_code}/shares" and currency_code in MAJOR_CURRENCIES:
+                fx_currency = currency_code
+            else:
                 logger.warning(
                     f"[{symbol}] {concept_name}: skipping unexpected XBRL unit '{unit}' "
-                    "(expected 'USD/shares' for a per-share concept) - not treating as dividend_per_share"
+                    "(expected 'USD/shares' or a major-currency '.../shares') - not treating as dividend_per_share"
                 )
                 continue
             if not isinstance(facts_list, list):
@@ -149,6 +177,13 @@ class DividendDataLoader(SecLoaderBase):
                 value = fact.get("val")
                 if value is None or value == 0:
                     continue  # Skip zero dividends
+
+                if fx_currency is not None:
+                    end_for_rate = fact.get("end")
+                    fx_rate = _fx_rate_cache.get_usd_rate(fx_currency, end_for_rate) if end_for_rate else None
+                    if fx_rate is None or fx_rate == 0:
+                        continue  # No real rate for this date - fail closed, never guess
+                    value = value / fx_rate
 
                 # FIX 2026-08-17: dividend_per_share is DECIMAL(10,4) (migration 1155), so any
                 # |value| >= 10**6 overflows the column at insert time. This isn't a unit-tag
@@ -174,7 +209,12 @@ class DividendDataLoader(SecLoaderBase):
 
                 existing = earliest_fact_by_period.get(end_str)
                 if existing is None or filed_str < existing["filed"]:
-                    earliest_fact_by_period[end_str] = fact
+                    # Store a copy with the (possibly FX-converted) `value` substituted in,
+                    # not the raw `fact` dict - the loop below reads fact["val"] again to
+                    # build the final record, and companyfacts payloads may be cache-shared
+                    # across calls, so mutating `fact` in place would corrupt that cache and
+                    # double-apply the conversion on a later lookup.
+                    earliest_fact_by_period[end_str] = {**fact, "val": value}
 
         for fact in earliest_fact_by_period.values():
             try:
@@ -304,8 +344,9 @@ class DividendDataLoader(SecLoaderBase):
         """Fetch dividend data for symbol from SEC XBRL companyfacts.
 
         Uses official XBRL concepts from 10-K/10-Q filings:
-        - CommonStockDividendsPerShareDeclared
-        - CommonStockDividendsPerShareCashPaid
+        - CommonStockDividendsPerShareDeclared / CommonStockDividendsPerShareCashPaid (us-gaap)
+        - DividendsPaidOrdinarySharesPerShare / DividendsRecognisedAsDistributionsToOwnersPerShare
+          (ifrs-full - foreign private issuers filing 20-F/40-F)
 
         Returns: Dividend records extracted from XBRL, or data_unavailable marker.
 
@@ -324,10 +365,18 @@ class DividendDataLoader(SecLoaderBase):
                 return [self._unavailable_record(symbol, now_et, "no_companyfacts")]
 
             facts = facts_response["facts"]
-            if not isinstance(facts, dict) or "us-gaap" not in facts:
+            if not isinstance(facts, dict):
                 return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
-            us_gaap = facts["us-gaap"]
-            if not isinstance(us_gaap, dict) or not us_gaap:
+            us_gaap_raw = facts.get("us-gaap")
+            us_gaap: dict[str, Any] = us_gaap_raw if isinstance(us_gaap_raw, dict) else {}
+            ifrs_full_raw = facts.get("ifrs-full")
+            ifrs_full: dict[str, Any] = ifrs_full_raw if isinstance(ifrs_full_raw, dict) else {}
+            # FIX 2026-08-18 (goal: find/fix real loader gaps): this used to bail out here
+            # ("no_us_gaap_facts") whenever a filer's us-gaap taxonomy was missing/empty,
+            # before ever looking at ifrs-full - permanently blocking any all-IFRS filer
+            # (no us-gaap facts at all) from ever reaching the ifrs-full extraction added
+            # below, even though such a filer might genuinely tag real dividend data there.
+            if not us_gaap and not ifrs_full:
                 return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
 
             results = []
@@ -340,6 +389,9 @@ class DividendDataLoader(SecLoaderBase):
 
             results.extend(declared)
             results.extend(paid)
+
+            for ifrs_concept in _IFRS_DIVIDEND_PER_SHARE_CONCEPTS:
+                results.extend(self._extract_dividends_from_xbrl_concept(symbol, ifrs_full, ifrs_concept))
 
             # Remove duplicates on the actual primary key (symbol, ex_dividend_date) - see
             # migration 1168, which established the real DB constraint (uq_dividend_event)

@@ -180,6 +180,110 @@ def test_implausible_magnitude_value_is_skipped_not_treated_as_per_share() -> No
     assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)
 
 
+def test_ifrs_ordinary_shares_per_share_concept_is_extracted() -> None:
+    """FIX 2026-08-18 (goal: find/fix real loader gaps): foreign private issuers (20-F/40-F
+    filers, e.g. TU) tag dividends under ifrs-full:DividendsPaidOrdinarySharesPerShare, never
+    any us-gaap concept - this loader used to only ever check us-gaap and permanently marked
+    these real, current dividend payers no_dividend_xbrl_concepts."""
+    facts = {
+        "facts": {
+            "us-gaap": {},
+            "ifrs-full": {
+                "DividendsPaidOrdinarySharesPerShare": {
+                    "units": {"USD/shares": [{"val": 1.20, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                }
+            },
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(1.20)
+    assert records[0]["source"] == "SEC_XBRL_DividendsPaidOrdinarySharesPerShare"
+
+
+def test_ifrs_major_currency_per_share_is_converted_to_usd(monkeypatch) -> None:
+    """TU (Telus) tags DividendsPaidOrdinarySharesPerShare in 'CAD/shares', not USD/shares -
+    a real, liquid developed-market currency on fx_rates.py's MAJOR_CURRENCIES whitelist, so
+    it must be converted via a real historical rate, not rejected or stored raw as if it were
+    USD (that would silently corrupt dividend_per_share, same class of bug as the KRW/JPY
+    market-cap poisoning found live in this table's sibling loaders)."""
+    import loaders.load_dividend_data as mod
+
+    monkeypatch.setattr(mod._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 1.35)
+    facts = {
+        "facts": {
+            "us-gaap": {},
+            "ifrs-full": {
+                "DividendsPaidOrdinarySharesPerShare": {
+                    "units": {"CAD/shares": [{"val": 1.35, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                }
+            },
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(1.0)
+    assert records[0]["currency"] == "USD"
+
+
+def test_ifrs_non_major_currency_per_share_is_rejected(monkeypatch) -> None:
+    """MXN/BRL (emerging-market currencies) are deliberately excluded from fx_rates.py's
+    MAJOR_CURRENCIES whitelist - must fail closed (no record), never store the raw
+    local-currency value as if it were USD."""
+    import loaders.load_dividend_data as mod
+
+    def _fail_if_called(currency: str, date_str: str) -> float | None:
+        raise AssertionError("must not attempt an FX lookup for a non-major currency")
+
+    monkeypatch.setattr(mod._fx_rate_cache, "get_usd_rate", _fail_if_called)
+    facts = {
+        "facts": {
+            "us-gaap": {},
+            "ifrs-full": {
+                "DividendsPaidOrdinarySharesPerShare": {
+                    "units": {"MXN/shares": [{"val": 5.0, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                }
+            },
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "no_dividend_xbrl_concepts"
+
+
+def test_all_ifrs_filer_with_no_us_gaap_facts_at_all_still_extracts() -> None:
+    """Must not bail out on missing/empty us-gaap before ever checking ifrs-full - an
+    all-IFRS filer (no us-gaap facts at all) can still have real ifrs-full dividend data."""
+    facts = {
+        "facts": {
+            "ifrs-full": {
+                "DividendsPaidOrdinarySharesPerShare": {
+                    "units": {"USD/shares": [{"val": 0.5, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(0.5)
+
+
 def test_declared_and_paid_disagreeing_amount_same_period_still_collapses() -> None:
     """Live bug, confirmed 2026-08-04: the outer cross-concept dedup in fetch_incremental
     used to key on (symbol, ex_dividend_date, dividend_per_share) - a 3-column key that
