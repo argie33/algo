@@ -32,6 +32,40 @@ from utils.loaders.exception_handler import handle_exception
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
 
+# FIXED 2026-08-19 ("no SEC data"/loader audit): only "10-K"/"10-Q" were ever accepted -
+# foreign private issuers file 20-F (annual, not 10-K) and 6-K (interim, not 10-Q) instead,
+# and Canadian MJDS filers file 40-F. This is the same gap already fixed for
+# current_reports_8k.py (foreign filers use 6-K, not 8-K) and load_company_info_sec.py's
+# has_annual_report_filing check. Live-confirmed via the real SEC API: ABEV (Ambev) has 12
+# real 20-F + 863 6-K filings and zero 10-K/10-Q, AEG (Aegon) 21 20-F + 650 6-K, AG (First
+# Majestic Silver) 16 40-F + 419 6-K - all real, well-known companies that filed
+# "no_sec_filings_found" despite having a complete, real filing history. 1,203 universe
+# symbols affected. Matches the "earnings-bearing" form set already established in
+# utils/external/sec_statements.py's _PRIMARY_STATEMENT_FORMS for the identical distinction.
+_EARNINGS_BEARING_FORMS = frozenset(
+    {
+        "10-K",
+        "10-K/A",
+        "10-KT",
+        "10-KT/A",
+        "10-Q",
+        "10-Q/A",
+        "10-QT",
+        "10-QT/A",
+        "20-F",
+        "20-F/A",
+        "40-F",
+        "40-F/A",
+        "6-K",
+        "6-K/A",
+    }
+)
+
+# The annual-report subset of _EARNINGS_BEARING_FORMS above, used to prioritize an annual
+# filing over an interim one when both land on the same date (rare, but the same "prefer
+# 10-K over 10-Q" priority this loader already had before foreign forms were added).
+_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
+
 
 class EarningsCalendarSECLoader(SecLoaderBase):
     """Load earnings calendar from SEC EDGAR.
@@ -122,11 +156,11 @@ class EarningsCalendarSECLoader(SecLoaderBase):
 
             earnings_dates_dict = {}  # Key: filing_date, Value: (filing_type, record)
 
-            # Extract 10-K and 10-Q filing dates (these are the earnings-bearing
-            # filing types; the SEC submissions feed also includes unrelated forms
-            # like 8-K, S-4, and Form 4 which must be excluded here)
+            # Extract annual/quarterly-equivalent filing dates (these are the earnings-bearing
+            # filing types, domestic and foreign alike; the SEC submissions feed also includes
+            # unrelated forms like 8-K, S-4, and Form 4 which must be excluded here)
             for i, form_type in enumerate(forms):
-                if form_type not in ("10-K", "10-Q"):
+                if form_type not in _EARNINGS_BEARING_FORMS:
                     continue
                 try:
                     filing_date_str = filing_dates[i]
@@ -145,16 +179,19 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                         record = {
                             "symbol": symbol,
                             "filing_date": filing_date,
-                            "filing_type": form_type,  # 10-K or 10-Q
+                            "filing_type": form_type,  # 10-K/20-F/40-F (annual) or 10-Q/6-K (interim)
                             "data_unavailable": False,
                             "reason": None,
                             "data_source": "sec_edgar_filings",
                         }
-                        # Deduplicate by date: prefer 10-K over 10-Q (annual over quarterly)
+                        # Deduplicate by date: prefer the annual-report form over the
+                        # interim form (10-K/20-F/40-F outrank 10-Q/6-K), same "annual over
+                        # quarterly" priority as before, now covering foreign filers too.
+                        is_annual = form_type in _ANNUAL_FILING_FORMS
                         if filing_date not in earnings_dates_dict:
                             earnings_dates_dict[filing_date] = (form_type, record)
-                        elif form_type == "10-K" and earnings_dates_dict[filing_date][0] != "10-K":
-                            # Replace with 10-K (higher priority)
+                        elif is_annual and earnings_dates_dict[filing_date][0] not in _ANNUAL_FILING_FORMS:
+                            # Replace with the annual-report form (higher priority)
                             earnings_dates_dict[filing_date] = (form_type, record)
                 except IndexError as e:
                     # Array index mismatch (shouldn't happen due to earlier validation)
