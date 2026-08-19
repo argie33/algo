@@ -48,6 +48,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
+from utils.loaders.retry_helper import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -72,29 +73,48 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
         RuntimeError: on a real fetch failure (network, rate limit, parse error, timeout)
     """
     circuit_breaker = get_circuit_breaker()
-    try:
-        circuit_breaker.wait_or_raise()
-    except YFinanceStillBannedError as e:
-        raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
-
     import socket
 
     import yfinance as yf
 
-    # Set socket timeout for this request
-    old_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(timeout_sec)
+    def _do_fetch() -> Any:
+        # Re-checked on every retry attempt, not just once up front - a rate-limit hit on
+        # attempt 1 calls report_rate_limit_error() below, and this re-check is what makes
+        # attempt 2 actually respect the breaker's resulting backoff instead of hammering
+        # straight back into the same limit a few seconds later.
+        try:
+            circuit_breaker.wait_or_raise()
+        except YFinanceStillBannedError as e:
+            raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
 
-    try:
-        result = getattr(yf.Ticker(symbol), attr)
-    except TimeoutError:
-        raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
-    except Exception as e:
-        if _is_rate_limit_error(e):
-            circuit_breaker.report_rate_limit_error()
-        raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
-    finally:
-        socket.setdefaulttimeout(old_timeout)
+        # Set socket timeout for this request
+        old_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(timeout_sec)
+        try:
+            return getattr(yf.Ticker(symbol), attr)
+        except TimeoutError:
+            raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
+        except Exception as e:
+            if _is_rate_limit_error(e):
+                circuit_breaker.report_rate_limit_error()
+            raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
+        finally:
+            socket.setdefaulttimeout(old_timeout)
+
+    # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): a single failed
+    # attempt here used to propagate straight up as a permanent-looking RuntimeError, which
+    # load_analyst_upgrade_downgrade.py's caller cannot distinguish from genuine "no
+    # coverage" (same string-shaped exception either way) - live-confirmed NVDA/MSFT/TSM/
+    # GOOGL (hundreds of real analyst rows each, all four resolve fine on a fresh unretried
+    # call moments later) still carrying an un-retracted "no_analyst_coverage" marker from
+    # 2026-08-16 despite a same-day-as-this-fix run completing after it landed - that run's
+    # single attempt for these four specific symbols hit a transient hiccup with zero retry
+    # anywhere in the chain, so the 2026-08-19 retraction logic (see that loader's own
+    # fetch_incremental) never got the successful fetch it needs to fire. One retry with a
+    # real backoff here, shared by every caller of this helper (fetch_analyst_actions,
+    # fetch_analyst_sentiment, ...), gives a transient failure a real chance to clear before
+    # any caller has to decide whether it means "unavailable."
+    result = retry_with_backoff(_do_fetch, context=f"{symbol} yfinance {attr}", max_retries=1, backoff_seconds=3.0)
 
     circuit_breaker.report_success()
     return result
