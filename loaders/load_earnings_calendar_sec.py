@@ -25,6 +25,7 @@ from typing import Any
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.exception_handler import handle_exception
@@ -205,6 +206,26 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                 # Convert dict values back to list and sort by date (most recent first)
                 earnings_dates = [record for _, (_, record) in earnings_dates_dict.items()]
                 earnings_dates.sort(key=lambda x: x["filing_date"], reverse=True)
+                # FIXED 2026-08-19 ("no SEC data"/loader audit, foreign-filer-forms follow-up):
+                # a symbol that WAS genuinely unavailable in an earlier run (marker written via
+                # _unavailable_record, filing_date = the date that run happened, primary_key
+                # (symbol, filing_date) so it's a separate row from any real filing) keeps that
+                # marker forever once real data starts arriving - a normal INSERT/UPSERT of the
+                # real rows below has a different primary key and never touches it. Since the
+                # marker's filing_date is "the day the loader ran", not a real filing date, it
+                # can easily sort AFTER every real filing_date in a naive "ORDER BY filing_date
+                # DESC LIMIT 1" read, permanently masking the real data that just arrived. Live-
+                # confirmed via AEG right after the 20-F/40-F/6-K form-recognition fix landed:
+                # a stale marker dated 2026-07-21 (this loader's last pre-fix run) outranked
+                # AEG's real, correct 2026-07-01 6-K filing. 269 universe symbols hit this exact
+                # collision. Delete any leftover marker now that real data has arrived - same
+                # "clean up the now-superseded marker" principle already applied elsewhere in
+                # this codebase for event-log tables.
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        "DELETE FROM earnings_calendar_sec WHERE symbol = %s AND data_unavailable = true",
+                        (symbol,),
+                    )
                 return earnings_dates
 
             # CRITICAL FIX (Session 416): Removed yfinance fallback per GOVERNANCE fail-fast principle.
