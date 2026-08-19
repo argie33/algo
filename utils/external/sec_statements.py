@@ -120,6 +120,21 @@ _INCOME_IFRS_ALIASES = [
     # of the two ever has a real entry (temporally exclusive: Revenue stops exactly when
     # InsuranceRevenue starts), so ordinary last-listed-wins is safe here.
     ("InsuranceRevenue", "revenues"),
+    # FIXED 2026-08-19 (same-day follow-up, found by generalizing the InsuranceRevenue
+    # search): the "Revenue" concept going silent partway through a filer's history isn't
+    # insurance-specific - live-confirmed via UBS's real companyfacts JSON: "Revenue"
+    # tagged through FY2021 (USD 35.393B), then goes silent; "RevenueAndOperatingIncome"
+    # is the SAME total (FY2021 value under this concept: also USD 35.393B, exact match)
+    # and has real, continuous data straight through FY2025 (USD 49.573B) - UBS (not an
+    # insurer) simply re-tagged the identical figure under a different concept name
+    # starting FY2022, likely alongside its 2023 Credit Suisse acquisition's reporting
+    # changes. Same "stale anchor fiscal year masks everything" failure mode as AEG - UBS's
+    # revenue was NULL for 4 straight years (FY2022-2025) before this fix. Listed after
+    # "Revenue" (last-listed-wins is safe here too: verified their overlapping years, e.g.
+    # FY2021, agree exactly; where an early filing's since-restated figure differs slightly,
+    # _aggregate_concepts's own latest-filed-wins tiebreak converges both concepts to the
+    # same final restated number anyway).
+    ("RevenueAndOperatingIncome", "revenues"),
     ("RevenueFromContractsWithCustomers", "revenue_from_contract_with_customer_excluding_assessed_tax"),
     ("RevenueFromSaleOfGoods", "sales_revenue_net"),
     # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): pure-play IFRS metals producers
