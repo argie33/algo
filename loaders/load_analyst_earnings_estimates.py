@@ -22,6 +22,7 @@ from datetime import date, datetime
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
 from utils.external.yfinance_analyst_ratings import fetch_forward_eps
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -64,6 +65,22 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
 
         forward_eps = fetch_forward_eps(symbol)
         if forward_eps is None:
+            # FIX 2026-08-19 (goal: "no SEC data" audit, parity with the sibling analyst
+            # loaders' 2026-08-18 fix): this loader never got the "skip the marker write for
+            # a symbol with prior real coverage" guard its siblings
+            # (load_analyst_upgrade_downgrade.py, load_analyst_sentiment_analysis.py)
+            # already have - a transient today-only yfinance hiccup would write a fresh
+            # data_unavailable marker dated today(), which (this being a snapshot-per-day
+            # table keyed on (symbol, date)) becomes the "latest row per symbol" the moment
+            # it's written, masking real historical forward-EPS coverage for that one day.
+            # Unlike the sibling loaders this table mostly self-heals on the next successful
+            # day (the marker's date isn't artificially inflated the way the event-log
+            # table's was), but there's no reason to manufacture the false negative even for
+            # a single day when a real answer is already on record. Live-confirmed low
+            # current impact (9 symbols with real history currently masked this way) but same
+            # bug class - fixed for consistency and to stop it from growing.
+            if self._has_prior_real_coverage(symbol):
+                return []
             return [
                 {
                     "symbol": symbol,
@@ -83,6 +100,16 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
                 "reason": None,
             }
         ]
+
+    @staticmethod
+    def _has_prior_real_coverage(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) row on record."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM analyst_earnings_estimates WHERE symbol = %s AND data_unavailable = false LIMIT 1",
+                (symbol,),
+            )
+            return cur.fetchone() is not None
 
 
 def main() -> int:
