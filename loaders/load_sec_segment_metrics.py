@@ -81,6 +81,19 @@ class SecSegmentMetricsLoader(OptimalLoader):
                 # and contains parsed segment disclosures from 10-K Item 8 / 10-Q
                 # NOTE: Removed data_unavailable = FALSE filter to prevent premature early exit
                 # if upstream loader hasn't completed. Query all rows and check flags after fetching.
+                # FIXED 2026-08-19 ("no SEC data"/loader audit, "latest year is empty" bug
+                # class): was a plain `ORDER BY fiscal_year DESC LIMIT 1` with no regard for
+                # whether that year's aggregate segment fields were actually populated - the
+                # same bug class already fixed in load_sec_valuations.py for book_value/debt/
+                # ebitda/revenue/eps/cash. A symbol whose most recent fiscal year hasn't had
+                # its 10-K segment footnote parsed yet (or genuinely reports no segments that
+                # year) would fall to "no_computable_segment_metrics" even when an earlier
+                # fiscal year has real, usable segment_count/largest_segment_revenue_pct/
+                # revenue_concentration_hhi on file. Live-confirmed 39 universe symbols hit
+                # this. Same CASE-based prioritization as the sibling fixes: prefer a fiscal
+                # year with at least one populated aggregate field, only falling back to the
+                # bare latest year (still correctly empty) for symbols with no usable segment
+                # data in any fiscal year.
                 cur.execute(
                     """
                     SELECT
@@ -92,7 +105,12 @@ class SecSegmentMetricsLoader(OptimalLoader):
                         reason
                     FROM sec_segment_info
                     WHERE symbol = %s
-                    ORDER BY fiscal_year DESC LIMIT 1
+                    ORDER BY (CASE
+                                WHEN segment_count IS NOT NULL OR largest_segment_revenue_pct IS NOT NULL
+                                     OR revenue_concentration_hhi IS NOT NULL
+                                THEN 0 ELSE 1
+                              END), fiscal_year DESC
+                    LIMIT 1
                     """,
                     (symbol,),
                 )
