@@ -135,7 +135,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     dei_facts = facts_obj.get("dei") if isinstance(facts_obj, dict) else None
                     if isinstance(dei_facts, dict):
                         shares_outstanding = self._latest_shares_value(
-                            dei_facts.get("EntityCommonStockSharesOutstanding")
+                            dei_facts.get("EntityCommonStockSharesOutstanding"), restrict_to_domestic_forms=True
                         )
                     # FIXED 2026-08-18 (goal: "no SEC data" loader audit): multi-class filers
                     # (Alphabet: GOOG/GOOGL, and others) don't tag the single-class-assuming
@@ -243,12 +243,36 @@ class CompanyInfoSECLoader(SecLoaderBase):
     _IX_SCALE_ATTR_RE = re.compile(r'scale="(-?\d+)"', re.IGNORECASE)
 
     @staticmethod
-    def _latest_shares_value(fact: dict[str, Any] | None) -> int | None:
+    def _latest_shares_value(fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False) -> int | None:
         """Extract the most-recent-end-date share count from one XBRL fact's
         {"units": {"shares": [{"end": ..., "val": ...}, ...]}} shape, or None if the
         fact is absent/malformed. Shared by both the dei:EntityCommonStockSharesOutstanding
         primary path and the us-gaap:CommonStockSharesOutstanding fallback below - same
         selection rule (latest end date wins) and same bigint-safety rounding.
+
+        restrict_to_domestic_forms: FIXED 2026-08-19 (goal: "no SEC data"/missing factor
+        inputs audit). dei:EntityCommonStockSharesOutstanding is reported in whatever share
+        unit the local filing uses - domestic 10-K/10-Q filers report it in the actual
+        registered (US-traded) security's units, but foreign 20-F/40-F/6-K filers often
+        report their LOCAL/home-market ordinary-share count instead, with no ADS-ratio
+        conversion anywhere in XBRL. utils/external/sec_statements.py already restricts
+        this exact concept to domestic forms for annual_income_statement's
+        shares_outstanding_dei column (see that file's own comment - a prior session hit
+        this identical trap with SRAD via a different IFRS concept) - this loader has a
+        SEPARATE extraction of the SAME dei concept that never got the same guard.
+        Live-confirmed via TSM (Taiwan Semiconductor, 5 ordinary shares = 1 ADS): its 20-F
+        reports dei:EntityCommonStockSharesOutstanding=25,932,524,521 (the real, correctly-
+        filed LOCAL ordinary-share count - confirmed via TSM's own filing), but
+        load_sec_valuations.py multiplies this against the US ADS trading price ($413.41),
+        producing market_cap=$10.7 TRILLION and pe_ratio=304 - independently cross-checked
+        against yfinance's live sharesOutstanding (5,186,474,013, matching our raw count
+        divided by ~5.000) and marketCap ($2.14T)/trailingPE (30.9), confirming the ADS
+        ratio and that our figure was ~5x too high. The same corruption reaches
+        positioning_metrics.institutional_ownership_pct too (TSM showed 4.26%, implausibly
+        low for one of the most widely-held ADRs, vs a real ADS-share-denominator giving
+        ~21%). Only applied to the dei concept - the us-gaap:CommonStockSharesOutstanding
+        fallback below is a different, already-separately-verified pathway (see the
+        Alphabet/GOOG fix comment above its call site) and is left unrestricted.
         """
         if not fact or not isinstance(fact, dict) or "units" not in fact:
             return None
@@ -258,6 +282,10 @@ class CompanyInfoSECLoader(SecLoaderBase):
         pure_values = units["shares"]
         if not pure_values:
             return None
+        if restrict_to_domestic_forms:
+            pure_values = [v for v in pure_values if v.get("form") not in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K")]
+            if not pure_values:
+                return None
         # Most recent first (latest end date wins), but skip any entry below the same
         # plausibility floor the filing-text fallback already enforces (see
         # _MIN_PLAUSIBLE_SHARES_OUTSTANDING). FIXED 2026-08-18 (goal: "no SEC data" loader
