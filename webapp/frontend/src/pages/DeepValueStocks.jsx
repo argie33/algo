@@ -378,7 +378,10 @@ const DeepValueStocksContent = () => {
                       : "—",
                   ],
                   [
-                    "Intrinsic Value (DCF)",
+                    // Margin of Safety, not "Intrinsic Value" - this renders a %, and
+                    // labeling a % as "Intrinsic Value" reads as a dollar figure. See
+                    // StockScoreAccordion.jsx's 2026-08-19 rename comment.
+                    "Margin of Safety (DCF)",
                     fmtPct(stock.margin_of_safety_pct),
                     stock.margin_of_safety_pct >= 0 ? "#22c55e" : "#ef4444",
                   ],
@@ -1157,7 +1160,7 @@ const DeepValueStocksContent = () => {
                     }}
                     onClick={() => handleSort("margin_of_safety_pct")}
                   >
-                    Intrinsic Value (DCF)
+                    Margin of Safety (DCF)
                   </th>
                   <th style={{ textAlign: "right" }}>RevYoY%</th>
                   <th style={{ textAlign: "right" }}>OpM Trend</th>

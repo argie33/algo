@@ -1002,7 +1002,11 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ["EV / Revenue", num(v.stock_ev_revenue ?? v.ev_to_revenue, 2)],
     ["PEG", num(v.peg_ratio, 2)],
     [
-      "Intrinsic Value (DCF)",
+      // "Margin of Safety (DCF)" not "Intrinsic Value (DCF)": this renders a %, and
+      // labeling a % as "Intrinsic Value" reads as a dollar figure - see
+      // StockScoreAccordion.jsx's 2026-08-19 rename comment for the live example that
+      // surfaced this confusion ("Intrinsic Value (DCF)  -186.3%").
+      "Margin of Safety (DCF)",
       v.stock_margin_of_safety != null ? fmtPct(Number(v.stock_margin_of_safety), 1) : "—",
     ],
     [

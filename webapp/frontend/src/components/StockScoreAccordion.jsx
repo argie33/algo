@@ -598,9 +598,15 @@ const MOMENTUM_SCHEMA = [
 // and was already used:false / display-only) - stock_margin_of_safety (the DCF % discount
 // to intrinsic value, which *is* comparable across symbols) is now the single informational
 // read for this signal, kept visible but unweighted.
-// RENAMED 2026-08-18 (user request): "Discount to Intrinsic Value (DCF)" -> "Intrinsic
-// Value (DCF)" - the % discount to intrinsic value IS the margin of safety (Graham's term),
-// there's no separate "discount" concept; the old label implied two different things.
+// RENAMED 2026-08-19 (user-reported confusion): "Intrinsic Value (DCF)" -> "Margin of
+// Safety (DCF)". The 2026-08-18 rename above swapped in "Intrinsic Value (DCF)" as the
+// label for this same %, reasoning the % discount to intrinsic value IS the margin of
+// safety - true, but "Intrinsic Value" on its own reads as a dollar figure (what a share
+// is worth), not a percentage - live example that surfaced the confusion: this row
+// rendering "Intrinsic Value (DCF)  -186.3%", which looks like intrinsic value itself
+// cratered 186%, not "price sits 186% above the DCF fair value." "Margin of Safety" is
+// the standard term (Graham) for exactly this %-based comparison and doesn't collide with
+// the dollar-valued reading "Intrinsic Value" implies.
 const VALUE_SCHEMA = [
   { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '45%' },
   { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2), used: true, weight: '15%' },
@@ -611,7 +617,7 @@ const VALUE_SCHEMA = [
   { key: 'peg_ratio', label: 'PEG', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '8%' },
   { key: 'fcf_yield', label: 'FCF Yield', fmt: v => pct(v, 2), used: true, weight: '12%' },
-  { key: 'stock_margin_of_safety', label: 'Intrinsic Value (DCF)', fmt: v => pct(v, 1), used: false },
+  { key: 'stock_margin_of_safety', label: 'Margin of Safety (DCF)', fmt: v => pct(v, 1), used: false },
 ];
 
 // CLEANUP 2026-08-18: gross_margin_trend cut - removed from _score_growth per user
