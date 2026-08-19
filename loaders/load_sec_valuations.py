@@ -166,6 +166,28 @@ class SecValuationsLoader(OptimalLoader):
                     ttm_eps_fiscal_year = income_rows[1][0]
                     eps_substituted_from_row1 = True
 
+                # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
+                # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton
+                # Insurance Group): FY2026 (anchor) has BOTH operating_income=NULL and
+                # pretax_income=NULL (neither tagged yet in the premature filing), while FY2025
+                # one row back has a real pretax_income=$824.905M. Neither of the two existing
+                # operating_income fallbacks just below can help here - both depend on THIS row's
+                # own pretax_income/income_tax_expense, which are equally missing. This was
+                # previously mis-diagnosed (see missing_factor_inputs_audit_20260818 memory) as
+                # "not an independent bug, a downstream cascade of genuine per-fiscal-year gaps" -
+                # it's actually the same anchor-row-timing bug already fixed for revenue/EPS above,
+                # just not yet recognized as such. Substitute the WHOLE income_rows[1] set together
+                # (operating_income, pretax_income, D&A) rather than mixing fields from two
+                # different fiscal years, which would produce an internally inconsistent EBITDA.
+                # Only fires when BOTH anchor-row income-statement figures are missing - a filer
+                # with a real anchor-row pretax_income but genuinely no operating_income tag (the
+                # normal financial-services case the fallback below already handles) is untouched.
+                if operating_income is None and pretax_income is None and len(income_rows) > 1:
+                    operating_income = income_rows[1][4]
+                    pretax_income = income_rows[1][5]
+                    depreciation_expense = income_rows[1][6]
+                    amortization_expense = income_rows[1][7]
+
                 # FIXED 2026-08-06: Financial services companies (banks, insurance, investment firms)
                 # don't report operating_income - they report pretax_income instead. Use pretax_income
                 # as fallback for EBITDA calculation in these cases. This recovers ~22% of missing
