@@ -481,24 +481,82 @@ class SecEdgarClient:
 
         logger.debug(f"Fetching plain-text filing from: {url}")
 
-        # Fetch with retry logic
-        try:
-            self._rate_limiter.wait()
-            resp = self._session.get(url, timeout=self.timeout)
+        # ROOT-CAUSE FIX 2026-08-18 (goal: find/fix real loader gaps): this used to be a
+        # single-attempt fetch with no retry on transient errors, unlike _get_json() a few
+        # lines below it which retries 429/403/502/503/504 and connection/timeout errors up
+        # to 8x with exponential backoff. Live-confirmed: 3,664 current_reports_8k rows
+        # (and counting - actively growing, not a stale backlog) permanently marked
+        # item_extraction_failed:RuntimeError despite the exact same filing fetching fine
+        # moments later when called standalone (reproduced live for MYE) - one transient
+        # 429/connection blip during a real bulk run converted a genuinely available filing
+        # into a permanent "unavailable" marker forever, since fetch_incremental()'s
+        # watermark advances past it and it's never retried. Reuse the same retry loop
+        # _get_json() already has instead of a bare single-shot request.
+        return cast(str, self._get_with_retry(url, error_label="SEC plain-text filing").text)
+
+    def _get_with_retry(self, url: str, error_label: str = "SEC API") -> requests.Response:
+        """GET url with retry/backoff on transient errors; raises on permanent failure.
+
+        Shared retry policy for any raw (non-JSON) SEC EDGAR request. Mirrors _get_json()'s
+        retry semantics exactly: 404 fails fast (permanent), 429/403/502/503/504 and
+        connection/timeout errors retry with exponential backoff + jitter, everything else
+        raises immediately.
+        """
+        max_retries = 8
+        for attempt in range(max_retries):
+            try:
+                self._rate_limiter.wait()
+                resp = self._session.get(url, timeout=self.timeout)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt < max_retries - 1:
+                    wait_time = 4 * (2**attempt) + random.uniform(0, 2)
+                    logger.warning(
+                        f"{error_label} network error for {url}: {e}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                raise RuntimeError(f"{error_label} network error after {max_retries} retries: {e}") from e
+
             if resp.status_code == 404:
-                not_found = FileNotFoundError(f"SEC plain-text filing not found: {url}")
+                not_found = FileNotFoundError(f"{error_label} not found: {url}")
                 not_found.status_code = 404  # type: ignore[attr-defined]
                 raise not_found
-            resp.raise_for_status()
-            return cast(str, resp.text)
-        except requests.HTTPError as e:
-            http_err = RuntimeError(f"Failed to fetch SEC plain-text filing: {url}: {e}")
-            http_err.status_code = e.response.status_code if e.response is not None else None  # type: ignore[attr-defined]
-            raise http_err from e
-        except requests.ConnectionError as e:
-            raise RuntimeError(f"Connection error fetching SEC filing: {url}: {e}") from e
-        except requests.Timeout as e:
-            raise RuntimeError(f"Timeout fetching SEC filing: {url}: {e}") from e
+
+            if resp.status_code in (429, 403, 502, 503, 504):
+                if attempt < max_retries - 1:
+                    base_wait = 4 * (2**attempt)
+                    jitter = random.uniform(0, base_wait * 0.3)
+                    wait_time = base_wait + jitter
+                    status_names = {
+                        429: "rate limited (429)",
+                        403: "forbidden (403)",
+                        502: "bad gateway (502)",
+                        503: "service unavailable (503)",
+                        504: "gateway timeout (504)",
+                    }
+                    status_name = status_names.get(resp.status_code, f"transient {resp.status_code}")
+                    logger.warning(
+                        f"{error_label} {status_name} for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    exhausted = RuntimeError(
+                        f"{error_label} failed after {max_retries} retries on transient error {resp.status_code} {resp.reason}: {url}"
+                    )
+                    exhausted.status_code = resp.status_code  # type: ignore[attr-defined]
+                    raise exhausted
+
+            try:
+                resp.raise_for_status()
+            except requests.HTTPError as e:
+                api_err = RuntimeError(f"{error_label} error for {url}: {e}")
+                api_err.status_code = resp.status_code  # type: ignore[attr-defined]
+                raise api_err from e
+
+            return resp
+
+        raise RuntimeError(f"{error_label} request exhausted all retries")
 
     def _get_json(self, url: str) -> dict[str, Any]:
         """Fetch JSON from SEC API with retry logic for transient errors.

@@ -12,6 +12,8 @@ segment-revenue XBRL extraction for these loaders' entire lifetime, despite the
 filing list itself (get_submissions) working fine and masking the failure.
 """
 
+import time
+
 import pytest
 
 from utils.external.sec_edgar_client import SecEdgarClient
@@ -50,6 +52,30 @@ def test_get_filing_plaintext_uses_data_segment_and_unpadded_cik(monkeypatch) ->
     assert requested_urls[0] == (
         "https://www.sec.gov/Archives/edgar/data/789019/000119312526258667/0001193125-26-258667.txt"
     )
+
+
+def test_get_filing_plaintext_retries_transient_429_then_succeeds(monkeypatch) -> None:
+    """ROOT-CAUSE FIX 2026-08-18: previously a single 429/503/connection blip permanently
+    marked a genuinely-available filing item_extraction_failed:RuntimeError forever (no
+    retry, unlike _get_json()). Verify get_filing_plaintext now retries like _get_json does.
+    """
+    client = _client()
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    responses = iter([_FakeResponse(429, "rate limited"), _FakeResponse(200, "filing text")])
+
+    monkeypatch.setattr(client._session, "get", lambda url, timeout: next(responses))
+
+    result = client.get_filing_plaintext(CIK_PADDED, "0001193125-26-258667")
+
+    assert result == "filing text"
+
+
+def test_get_filing_plaintext_does_not_retry_404(monkeypatch) -> None:
+    client = _client()
+    monkeypatch.setattr(client._session, "get", lambda url, timeout: _FakeResponse(404, ""))
+
+    with pytest.raises(FileNotFoundError):
+        client.get_filing_plaintext(CIK_PADDED, "0001193125-26-258667")
 
 
 def test_get_filing_xml_prefers_standalone_instance_document(monkeypatch) -> None:
