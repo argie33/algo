@@ -362,6 +362,29 @@ def test_names_plausibly_match_expands_bloomberg_fund_abbreviations():
     assert names_plausibly_match("SITKA GOLD CORP", "SIGNET JEWELERS LTD") is False
 
 
+def test_names_plausibly_match_handles_slash_and_parens_as_separators():
+    """FIXED 2026-08-19 (goal session, institutional ownership audit continued):
+    live-verified via real, currently-tracked, heavily institutionally-held symbols
+    whose CUSIP was already correctly crosswalked and present with real nonzero shares
+    in the current SEC 13F bulk dataset, but were still stuck on "no_resolved_13f_holdings"
+    purely because "/" and "()" weren't treated as separators - SJM's "JM SMUCKER CO/THE"
+    left "CO/THE" fused as one non-matching token, and JBHT's "HUNT (JB) TRANSPRT SVCS INC"
+    left "(JB)" fused instead of splitting to match SEC's own "J B" spacing."""
+    assert names_plausibly_match("JM SMUCKER CO/THE", "J M SMUCKER Co") is True
+    assert names_plausibly_match("HUNT (JB) TRANSPRT SVCS INC", "HUNT J B TRANSPORT SERVICES INC") is True
+
+
+def test_names_plausibly_match_expands_common_corporate_word_abbreviations():
+    """FIXED 2026-08-19 (goal session, institutional ownership audit continued): the
+    same abbreviation-gap failure mode as the fund/trust case above, but for ordinary
+    operating-company legal names. Live-verified via real, currently-tracked symbols
+    (AIV, ZION, SNFCA) whose CUSIP was already correctly crosswalked with real nonzero
+    13F shares this run, blocked only by this token mismatch."""
+    assert names_plausibly_match("APARTMENT INVT & MGMT CO -A", "APARTMENT INVESTMENT & MANAGEMENT CO") is True
+    assert names_plausibly_match("ZIONS BANCORP NA", "ZIONS BANCORPORATION, NATIONAL ASSOCIATION /UT/") is True
+    assert names_plausibly_match("SECURITY NATL FINL CORP-CL A", "SECURITY NATIONAL FINANCIAL CORP") is True
+
+
 class TestEntityNameIndex:
     """FIXED 2026-08-18 (goal session, institutional ownership audit): OpenFIGI's
     ticker field for a CUSIP is sometimes wrong even when resolved_name is right -

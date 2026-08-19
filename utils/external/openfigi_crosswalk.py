@@ -90,6 +90,12 @@ _REQUEST_INTERVAL_SEC = 2.5  # stays under OpenFIGI's 25 requests/minute unauthe
 _CORP_SUFFIXES = {
     "INC", "CORP", "CORPORATION", "CO", "COMPANY", "LTD", "LIMITED", "PLC",
     "HOLDINGS", "HOLDING", "GROUP", "THE", "CLASS", "A", "B", "SA", "NV", "AG",
+    # "National Association" - the US national-bank-charter suffix (e.g. "ZIONS
+    # BANCORPORATION, NATIONAL ASSOCIATION"), the exact same kind of generic corporate-form
+    # designation as PLC/AG/SA/NV above, not identifying content. FIXED 2026-08-19: without
+    # this, a bank holding company's own abbreviated "NA" vs SEC's spelled-out "NATIONAL
+    # ASSOCIATION" counted as non-overlapping tokens on BOTH sides, undercounting overlap.
+    "NA", "NATIONAL", "ASSOCIATION",
 }  # fmt: skip
 
 # Bloomberg/OpenFIGI systematically abbreviates common words in closed-end fund and
@@ -136,6 +142,27 @@ _ABBREVIATION_EXPANSIONS = {
     "ENRGY": "ENERGY", "ENERGY": "ENERGY",
     "INV": "INVESTMENT", "INVEST": "INVESTMENT", "INVESTMENT": "INVESTMENT", "INVESTMENTS": "INVESTMENT",
     "CIA": "COMPANY", "COMPANIA": "COMPANY",
+    # FIXED 2026-08-19 (goal session, "no SEC data"/loader audit continued): the same
+    # abbreviation-gap failure mode as above, but for ordinary US operating-company legal
+    # names rather than fund/trust names - SEC's own entity_name and OpenFIGI's resolved
+    # name abbreviate common corporate-name words differently often enough to matter.
+    # Live-confirmed real, currently-tracked, heavily institutionally-held symbols stuck on
+    # "no_resolved_13f_holdings" despite their CUSIP already being correctly crosswalked
+    # AND appearing with real nonzero shares in the current SEC 13F bulk dataset - the ONLY
+    # blocker was names_plausibly_match's token overlap: JBHT (HUNT (JB) TRANSPRT SVCS INC
+    # vs HUNT J B TRANSPORT SERVICES INC), ZION (ZIONS BANCORP NA vs ZIONS BANCORPORATION,
+    # NATIONAL ASSOCIATION /UT/), AIV (APARTMENT INVT & MGMT CO -A vs APARTMENT INVESTMENT
+    # & MANAGEMENT CO), SNFCA (SECURITY NATL FINL CORP-CL A vs SECURITY NATIONAL FINANCIAL
+    # CORP). Each key here was observed in one of these real mismatches.
+    "INVT": "INVESTMENT",
+    "MGMT": "MANAGEMENT", "MANAGEMENT": "MANAGEMENT",
+    "NATL": "NATIONAL",
+    "FINL": "FINANCIAL", "FINANCIAL": "FINANCIAL",
+    "TRANSPRT": "TRANSPORT", "TRANSPORT": "TRANSPORT", "TRANSPORTATION": "TRANSPORT",
+    "TRANSPORTER": "TRANSPORT", "TRANSPORTADOR": "TRANSPORT",
+    "SVCS": "SERVICES", "SERVICE": "SERVICES", "SERVICES": "SERVICES",
+    "BANCORP": "BANCORPORATION", "BANCORPORATION": "BANCORPORATION",
+    "IND": "INDUSTRIAL", "INDUSTRIAL": "INDUSTRIAL",
 }  # fmt: skip
 
 
@@ -361,10 +388,21 @@ def name_tokens(name: str | None) -> frozenset[str]:
     and LOW (Lowe's) - large, liquid, heavily-institutionally-held stocks that
     were falling back to institutional_ownership_pct=NULL
     ("no_resolved_13f_holdings") purely because of this apostrophe mismatch.
+
+    "/" and parentheses joined the separator set 2026-08-19 (same audit, same failure
+    mode as the period/comma/dash cases above): SEC's own entity_name uses "/" as a
+    share-class or state-of-incorporation delimiter ("JM SMUCKER CO/THE",
+    "APARTMENT INVT & MGMT CO -A" style suffixes elsewhere use "-") and sometimes wraps a
+    parenthetical abbreviation ("HUNT (JB) TRANSPRT SVCS INC" for J.B. Hunt) - left
+    unsplit, "CO/THE" and "(JB)" survived as single garbage tokens that never matched the
+    other side's separately-spaced words, undercounting real overlap for real,
+    currently-tracked, heavily institutionally-held symbols (SJM, JBHT confirmed live).
     """
     if not name:
         return frozenset()
-    cleaned = name.upper().replace(".", " ").replace(",", " ").replace("-", " ").replace("&", " ").replace("'", "")
+    cleaned = name.upper().replace("'", "")
+    for ch in ".,-&/()":
+        cleaned = cleaned.replace(ch, " ")
     expanded = (_ABBREVIATION_EXPANSIONS.get(w, w) for w in cleaned.split())
     return frozenset(w for w in expanded if w not in _CORP_SUFFIXES)
 
