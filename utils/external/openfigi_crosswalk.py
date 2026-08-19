@@ -173,6 +173,22 @@ def fetch_cusip_tickers(
     batches_attempted = 0
     batches_succeeded = 0
     deadline_hit = False
+    # FIXED 2026-08-19 ("no SEC data"/loader audit, institutional_holdings_13f follow-up):
+    # a CUSIP whose first character is a letter is actually a CINS (CUSIP International
+    # Numbering System) identifier, not a standard CUSIP - OpenFIGI requires idType
+    # "ID_CINS" for these, "ID_CUSIP" returns "No identifier found." even for a real,
+    # correctly-formed identifier. Live-confirmed via the real OpenFIGI API: Accenture
+    # plc's real 13F-reported identifier G1151C101 (Irish-domiciled, "G"-prefix CINS)
+    # fails under ID_CUSIP but resolves cleanly to ACN under ID_CINS - and Accenture, one
+    # of the most widely institutionally-held stocks on Earth, was permanently cached as
+    # unresolved (ticker=NULL) as a result, with sec_13f_cusip_crosswalk's "stable across
+    # quarters, never re-query" caching meaning it would NEVER have been retried. 3,537 of
+    # 16,177 universe-wide unresolved CUSIPs start with a letter (BAWAG Group, Erste Group
+    # Bank and others confirmed resolvable this way too). Collected here and retried as a
+    # second pass below, after every primary ID_CUSIP batch - never tried first, since the
+    # vast majority of CUSIPs are standard (digit-prefixed) and resolve fine under
+    # ID_CUSIP; this only fires for the subset ID_CUSIP already failed.
+    cins_candidates: list[str] = []
 
     for i in range(0, len(unique_cusips), _BATCH_SIZE):
         if deadline is not None and time.monotonic() >= deadline:
@@ -223,7 +239,13 @@ def fetch_cusip_tickers(
             for cusip, result in zip(batch, batch_results, strict=True):
                 data = result.get("data")
                 if not data:
-                    continue  # OpenFIGI couldn't resolve this CUSIP - honest gap, not fabricated
+                    if cusip[0].isalpha():
+                        # Might be a CINS identifier ID_CUSIP can't resolve (see the
+                        # cins_candidates comment above) - try ID_CINS in the second pass
+                        # below instead of caching this as a permanent ID_CUSIP negative.
+                        cins_candidates.append(cusip)
+                        del batch_resolved[cusip]
+                    continue  # OpenFIGI couldn't resolve this CUSIP under ID_CUSIP - honest gap otherwise
                 # FIXED 2026-08-18 (goal: "no SEC data"/missing factor inputs audit): a single
                 # CUSIP resolves to 100+ listings across every exchange it trades on (primary
                 # US listing plus every foreign cross-listing/ADR venue), and OpenFIGI does NOT
@@ -263,6 +285,42 @@ def fetch_cusip_tickers(
         # into a still-active rate limit, worsening it).
         time.sleep(_REQUEST_INTERVAL_SEC)
 
+    # Second pass: retry every letter-prefixed CUSIP ID_CUSIP couldn't resolve, this time
+    # as ID_CINS (see cins_candidates comment above). Same batching/pacing/failure-handling
+    # as the primary loop, minus the total-failure RuntimeError (a CINS retry batch failing
+    # outright isn't a fatal OpenFIGI-is-down signal on its own - the primary loop above
+    # already proved OpenFIGI is reachable if it got this far).
+    for i in range(0, len(cins_candidates), _BATCH_SIZE):
+        if deadline is not None and time.monotonic() >= deadline:
+            logger.warning(
+                f"[OpenFIGI] Time budget exhausted during CINS retry pass "
+                f"({i}/{len(cins_candidates)} candidates attempted) - remaining picked up next run."
+            )
+            break
+
+        batch = cins_candidates[i : i + _BATCH_SIZE]
+        batch_results = _post_mapping_batch(batch, id_type="ID_CINS")
+
+        if batch_results is not None and len(batch_results) == len(batch):
+            batch_resolved = dict.fromkeys(batch)
+            for cusip, result in zip(batch, batch_results, strict=True):
+                data = result.get("data")
+                if not data:
+                    continue  # Genuinely not a CINS identifier either - honest gap, not fabricated
+                best = next((d for d in data if d.get("exchCode") == "US"), data[0])
+                entry = {"ticker": best.get("ticker"), "name": best.get("name")}
+                results[cusip] = entry
+                batch_resolved[cusip] = entry
+            if on_batch_resolved is not None:
+                on_batch_resolved(batch_resolved)
+        else:
+            logger.warning(
+                f"[OpenFIGI] CINS retry batch of {len(batch)} CUSIPs failed or mismatched - "
+                f"leaving unresolved for retry next run (not caching as a negative result)."
+            )
+
+        time.sleep(_REQUEST_INTERVAL_SEC)
+
     if not deadline_hit and batches_attempted > 0 and batches_succeeded == 0:
         raise RuntimeError(
             f"[OpenFIGI] All {batches_attempted} mapping request(s) failed - OpenFIGI "
@@ -273,11 +331,15 @@ def fetch_cusip_tickers(
     return results
 
 
-def _post_mapping_batch(cusips: list[str]) -> list[dict[str, Any]] | None:
+def _post_mapping_batch(cusips: list[str], id_type: str = "ID_CUSIP") -> list[dict[str, Any]] | None:
     """POST one batch to OpenFIGI's mapping endpoint. Returns None on failure
     (caller treats this batch as unresolved, not fatal - a handful of dropped
-    batches out of hundreds is not worth aborting a whole loader run over)."""
-    jobs = [{"idType": "ID_CUSIP", "idValue": c} for c in cusips]
+    batches out of hundreds is not worth aborting a whole loader run over).
+
+    id_type: "ID_CUSIP" for standard CUSIPs (default), "ID_CINS" for CINS identifiers
+    (letter-prefixed, used for foreign securities - see fetch_cusip_tickers's
+    cins_candidates comment for why these need a different idType entirely)."""
+    jobs = [{"idType": id_type, "idValue": c} for c in cusips]
     body = json.dumps(jobs).encode("utf-8")
 
     for attempt in range(2):  # one retry, only for 429s

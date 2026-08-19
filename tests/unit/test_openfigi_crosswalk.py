@@ -89,6 +89,77 @@ def test_fetch_cusip_tickers_skips_unresolved_cusips_without_fabricating(monkeyp
     assert result == {}
 
 
+def test_fetch_cusip_tickers_retries_letter_prefixed_cusip_as_cins(monkeypatch):
+    """FIXED 2026-08-19: a CUSIP whose first character is a letter is actually a CINS
+    (CUSIP International Numbering System) identifier - OpenFIGI requires idType "ID_CINS"
+    for these, "ID_CUSIP" returns no match even for a real, resolvable identifier.
+    Live-verified via Accenture plc's real 13F-reported identifier G1151C101 (Irish-
+    domiciled, "G"-prefix CINS): fails under ID_CUSIP, resolves to ACN under ID_CINS."""
+    calls = []
+
+    def _fake_urlopen(req, timeout=30):
+        jobs = json.loads(req.data.decode("utf-8"))
+        id_types = {j["idType"] for j in jobs}
+        calls.append(id_types)
+        if "ID_CINS" in id_types:
+            return _FakeResponse([{"data": [{"ticker": "ACN", "name": "ACCENTURE PLC-CL A", "exchCode": "US"}]}])
+        # ID_CUSIP pass: the letter-prefixed identifier fails, the normal one succeeds
+        results = []
+        for j in jobs:
+            if j["idValue"] == "G1151C101":
+                results.append({"warning": "No identifier found."})
+            else:
+                results.append({"data": [{"ticker": "AAPL", "name": "APPLE INC", "exchCode": "US"}]})
+        return _FakeResponse(results)
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    result = fetch_cusip_tickers(["G1151C101", "037833100"])
+
+    assert result == {
+        "G1151C101": {"ticker": "ACN", "name": "ACCENTURE PLC-CL A"},
+        "037833100": {"ticker": "AAPL", "name": "APPLE INC"},
+    }
+    assert {"ID_CUSIP"} in calls
+    assert {"ID_CINS"} in calls
+
+
+def test_fetch_cusip_tickers_letter_prefixed_cusip_not_cached_as_negative_if_cins_also_fails(monkeypatch):
+    """A letter-prefixed CUSIP that fails BOTH ID_CUSIP and ID_CINS is a genuine, honest
+    gap (e.g. a real not-found identifier) - must resolve to nothing, not raise or fabricate."""
+
+    def _fake_urlopen(req, timeout=30):
+        jobs = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse([{"warning": "No identifier found."} for _ in jobs])
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    result = fetch_cusip_tickers(["ACI07W296"])
+
+    assert result == {}
+
+
+def test_fetch_cusip_tickers_digit_prefixed_cusip_never_triggers_cins_retry(monkeypatch):
+    """A standard digit-prefixed CUSIP that OpenFIGI can't resolve is a genuine ID_CUSIP
+    negative - must never trigger a wasted ID_CINS retry call."""
+    calls = []
+
+    def _fake_urlopen(req, timeout=30):
+        jobs = json.loads(req.data.decode("utf-8"))
+        calls.append({j["idType"] for j in jobs})
+        return _FakeResponse([{"warning": "No identifier found."} for _ in jobs])
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    result = fetch_cusip_tickers(["000000000"])
+
+    assert result == {}
+    assert calls == [{"ID_CUSIP"}]  # no second ID_CINS call for a digit-prefixed CUSIP
+
+
 def test_fetch_cusip_tickers_raises_when_totally_unreachable(monkeypatch):
     """A resolved-zero-CUSIPs outcome is legitimate (see test above); every single
     request failing (network down, API contract changed) is a different, fatal
