@@ -78,12 +78,27 @@ def main() -> None:
             with DatabaseContext("read") as cur:
                 cols = table_columns(cur, table)
                 order_col = select_order_col(cols)
+                # FIXED 2026-08-19 (goal: "no SEC data" audit, same-day follow-up): this
+                # script scanned {table} directly with no active-universe filter, same bug
+                # as /api/algo/scores/coverage (lambda/api/routes/scores.py's
+                # _get_scores_coverage) had - live-confirmed 6-9% of rows in quality_metrics/
+                # growth_metrics/value_metrics/positioning_metrics/stability_metrics/
+                # dividend_data belong to symbols no longer active (delisted, failed SPACs,
+                # never pruned), and inactive symbols are disproportionately gap-heavy, not
+                # proportional noise. Joining to stock_symbols and filtering active=true
+                # keeps this script's output consistent with the now-fixed coverage report
+                # instead of re-introducing the same overcounting via a second tool.
+                active_join = (
+                    f" JOIN stock_symbols _su ON _su.symbol = {table}.symbol AND _su.active = true"
+                    if "symbol" in cols
+                    else ""
+                )
                 if "symbol" in cols and order_col:
                     query = f"""
                         SELECT reason_val, COUNT(*) FROM (
-                            SELECT DISTINCT ON (symbol) symbol, {column} AS reason_val
-                            FROM {table}
-                            ORDER BY symbol, {order_col} DESC
+                            SELECT DISTINCT ON ({table}.symbol) {table}.symbol, {table}.{column} AS reason_val
+                            FROM {table}{active_join}
+                            ORDER BY {table}.symbol, {table}.{order_col} DESC
                         ) latest
                         WHERE reason_val IS NOT NULL
                         GROUP BY reason_val
@@ -91,10 +106,10 @@ def main() -> None:
                     """
                 else:
                     query = f"""
-                        SELECT {column} AS reason_val, COUNT(*)
-                        FROM {table}
-                        WHERE {column} IS NOT NULL
-                        GROUP BY {column}
+                        SELECT {table}.{column} AS reason_val, COUNT(*)
+                        FROM {table}{active_join}
+                        WHERE {table}.{column} IS NOT NULL
+                        GROUP BY {table}.{column}
                         ORDER BY COUNT(*) DESC
                     """
                 cur.execute(query)
