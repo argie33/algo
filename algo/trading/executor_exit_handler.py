@@ -375,22 +375,49 @@ class ExitHandler:
         Raises:
             RuntimeError: If trade not found in database
         """
+        # BUG FOUND 2026-08-19: trade_ids_arr is meant to be 1:1 (a trade belongs to exactly
+        # one position), but position_sync.py's symbol-only "existing position" lookup can
+        # write a live trade_id onto a stale/closed position row instead of (or in addition
+        # to) the position algo_trades.position_id actually points to - live-reproduced via
+        # GEN/TRD-D9501EE6A4, which ended up in BOTH a closed position's trade_ids_arr and
+        # the real open position's. Without ORDER BY, this LEFT JOIN fans out to multiple
+        # rows for that one trade_id and plain fetchone() took whichever Postgres happened to
+        # scan first - when that was the closed position, GUARD 3 below returned "already
+        # closed" for a position that was very much still open and had just hit its stop,
+        # silently skipping the exit every run, all day, with no error surfaced anywhere
+        # (the caller logged a generic "EARLY EXIT FAILED" and moved on). Prefer the open
+        # position deterministically so a stop-loss exit is never blocked by stale linkage
+        # on an unrelated closed position.
         cur.execute(
             """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
-                WHERE t.trade_id = %s FOR UPDATE OF t""",
+                WHERE t.trade_id = %s
+                ORDER BY (p.status = 'open') DESC
+                FOR UPDATE OF t""",
             (trade_id,),
         )
-        row = cur.fetchone()
-        if row is None:
+        rows = cur.fetchall()
+        if not rows:
             raise RuntimeError(
                 f"[EXECUTOR_EXIT] Trade {trade_id} not found in database - "
                 "cannot execute exit for non-existent trade. Check if trade was properly recorded."
             )
-        return tuple(row)
+        # Don't rely solely on the SQL ORDER BY - re-sort defensively in Python so this
+        # guard holds regardless of what the DB layer (or a test double) hands back.
+        rows = sorted(rows, key=lambda r: r[8] != "open")
+        distinct_positions = {r[5] for r in rows if r[5] is not None}
+        if len(distinct_positions) > 1:
+            logger.critical(
+                f"[EXECUTOR_EXIT DATA_INTEGRITY] Trade {trade_id} is linked from trade_ids_arr "
+                f"on {len(distinct_positions)} positions: {distinct_positions}. A trade must "
+                f"belong to exactly one position - proceeding with the open one "
+                f"({rows[0][5]}, status={rows[0][8]}), but the stale linkage on the other "
+                f"position(s) needs cleanup (see position_sync.py's symbol-only lookup)."
+            )
+        return tuple(rows[0])
 
     def _validate_and_convert_trade_data(
         self, cur: PsycopgCursor[Any], trade_id: int, row: tuple[Any, ...]

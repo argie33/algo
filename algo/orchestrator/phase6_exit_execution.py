@@ -178,6 +178,7 @@ def run(
     try:
         from algo.trading import ExitEngine
         from algo.trading.executor import TradeExecutor
+        from algo.trading.exit_engine import _persist_exit_check_error
 
         # ISSUE #4 FIX: Check if paper mode is active FIRST before validating position_recs
         # In paper mode, Phase 3 intentionally skips position monitoring (it's a live-trading risk feature)
@@ -1017,6 +1018,14 @@ def run(
                                 f"Trade ID: {action.get('trade_id', 'UNKNOWN')}. "
                                 f"Position will remain open - manual intervention may be required."
                             )
+                            _persist_exit_check_error(
+                                run_date,
+                                action.get("trade_id"),
+                                action.get("position_id"),
+                                action["symbol"],
+                                "force_exit_failed",
+                                str(result.get("message", "Unknown error")),
+                            )
                             # ESCALATE on too many consecutive failures
                             if errors >= 3:
                                 raise RuntimeError(
@@ -1083,6 +1092,14 @@ def run(
                                     f"Trade ID: {action.get('trade_id', 'UNKNOWN')}. "
                                     f"Position will remain open - manual intervention may be required."
                                 )
+                                _persist_exit_check_error(
+                                    run_date,
+                                    action.get("trade_id"),
+                                    action.get("position_id"),
+                                    action["symbol"],
+                                    "partial_exit_failed",
+                                    str(result.get("message", "Unknown error")),
+                                )
                                 # ESCALATE on too many consecutive failures
                                 if errors >= 3:
                                     raise RuntimeError(
@@ -1141,6 +1158,14 @@ def run(
                                             f"  Tighten no-op for {action['symbol']}: position "
                                             f"{action['position_id']} not found (likely already closed)"
                                         )
+                                        _persist_exit_check_error(
+                                            run_date,
+                                            action.get("trade_id"),
+                                            action.get("position_id"),
+                                            action["symbol"],
+                                            "tighten_stop_noop",
+                                            "Position not found or already closed",
+                                        )
                                     else:
                                         stop_raises += 1
                                         if verbose:
@@ -1152,6 +1177,14 @@ def run(
                         except (RuntimeError, ValueError, TypeError) as e:
                             errors += 1
                             logger.error(f"  Tighten failed for {action['symbol']}: {e}")
+                            _persist_exit_check_error(
+                                run_date,
+                                action.get("trade_id"),
+                                action.get("position_id"),
+                                action["symbol"],
+                                "tighten_stop_failed",
+                                str(e),
+                            )
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 # CRITICAL: Check if this is a halt exception and re-raise without incrementing errors
                 # Halt exceptions (Too many exit failures) should not be double-counted
@@ -1172,6 +1205,14 @@ def run(
                         "Cannot safely log or recover from errors."
                     ) from e
                 logger.error(f"  Error on exposure action {action['symbol']}: {e}")
+                _persist_exit_check_error(
+                    run_date,
+                    action.get("trade_id"),
+                    action.get("position_id"),
+                    action["symbol"],
+                    "exposure_action_failed",
+                    str(e),
+                )
 
         # 4a. Apply position monitor recommendations (early exits + stop raises)
         for rec in position_recs:
@@ -1196,6 +1237,14 @@ def run(
                     logger.error(
                         f"  [PHASE 6] {rec['symbol']}: validation failed, no exit/stop coverage this run - {rec.get('error')}"
                     )
+                    _persist_exit_check_error(
+                        run_date,
+                        rec.get("trade_id"),
+                        rec.get("position_id"),
+                        rec["symbol"],
+                        "position_validation_failed",
+                        str(rec.get("error")),
+                    )
                     continue
 
                 if rec["action"] == "EARLY_EXIT":
@@ -1211,6 +1260,14 @@ def run(
                             logger.error(
                                 f"  [PHASE 6 CRITICAL] Cannot exit {rec['symbol']}: trade_id missing. "
                                 f"Position has no associated trade. Data integrity issue in algo_positions."
+                            )
+                            _persist_exit_check_error(
+                                run_date,
+                                None,
+                                rec.get("position_id"),
+                                rec["symbol"],
+                                "early_exit_missing_trade_id",
+                                "Position has no associated trade_id - data integrity issue in algo_positions",
                             )
                             continue
                         assert trade_executor is not None, "trade_executor must be initialized in non-dry-run mode"
@@ -1237,6 +1294,19 @@ def run(
                                 logger.info(f"  EARLY EXIT: {result['message']}")
                         else:
                             errors += 1
+                            logger.error(
+                                f"  EARLY EXIT FAILED: {rec['symbol']} (trade {rec['trade_id']}, "
+                                f"reason: {rec.get('action_reason')}). "
+                                f"Error: {result.get('message', 'Unknown error')}."
+                            )
+                            _persist_exit_check_error(
+                                run_date,
+                                rec.get("trade_id"),
+                                rec.get("position_id"),
+                                rec["symbol"],
+                                "early_exit_failed",
+                                str(result.get("message", "Unknown error")),
+                            )
                 elif rec["action"] == "RAISE_STOP" and rec.get("new_stop_recommended") is not None:
                     if dry_run:
                         # In dry-run, just count (don't write to DB)
@@ -1276,6 +1346,14 @@ def run(
                                             f"  Stop-raise no-op for {rec['symbol']}: position "
                                             f"{rec['position_id']} not found or no longer open"
                                         )
+                                        _persist_exit_check_error(
+                                            run_date,
+                                            rec.get("trade_id"),
+                                            rec.get("position_id"),
+                                            rec["symbol"],
+                                            "stop_raise_noop",
+                                            "Position not found or no longer open",
+                                        )
                                     else:
                                         stop_raises += 1
                                         if verbose:
@@ -1287,6 +1365,14 @@ def run(
                         except (RuntimeError, ValueError, TypeError) as e:
                             errors += 1
                             logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                            _persist_exit_check_error(
+                                run_date,
+                                rec.get("trade_id"),
+                                rec.get("position_id"),
+                                rec["symbol"],
+                                "stop_raise_failed",
+                                str(e),
+                            )
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
                 if "symbol" not in rec:
@@ -1301,6 +1387,14 @@ def run(
                         "Cannot safely log or recover from errors."
                     ) from e
                 logger.error(f"  Error on {rec['symbol']}: {e}")
+                _persist_exit_check_error(
+                    run_date,
+                    rec.get("trade_id"),
+                    rec.get("position_id"),
+                    rec["symbol"],
+                    "position_rec_failed",
+                    str(e),
+                )
 
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
         # Initialize engine results (may not execute in dry-run or if executor unavailable)
