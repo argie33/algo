@@ -23,12 +23,25 @@ from typing import Any
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.external.sec_edgar import SecEdgarClient
 from utils.external.sec_form345_transaction_velocity_cached import CachedForm345Aggregator
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
+
+# FIX 2026-08-19 (goal: "no SEC data" audit): foreign private issuers (20-F/40-F filers -
+# AMX, ASML, SHEL, BCS, VOD, SAP, NVS and more, live-confirmed among the largest symbols in
+# this bucket) are exempt from SEC Section 16 insider reporting (Form 3/4/5) under Exchange
+# Act Rule 3a12-3 - they structurally NEVER have Form 3/4/5 filings, not "genuinely zero
+# recent activity" the way a domestic filer's temporary lull would be. Both read identically
+# from Form345TransactionVelocityAggregator's perspective (empty transaction list), so
+# "no_insider_transactions_in_lookback" was conflating a permanent structural exemption with
+# a real (if unusual) data gap. Distinguished via a live SEC submissions form-type check -
+# see _is_foreign_private_issuer below - reusing the same SecEdgarClient already used by
+# load_company_info_sec.py for the equivalent has_annual_report_filing check.
+_FOREIGN_ANNUAL_FORMS = frozenset({"20-F", "20-F/A", "40-F", "40-F/A"})
 
 
 class InsiderTransactionVelocityLoader(OptimalLoader):
@@ -54,6 +67,7 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
         # for the first symbol's own fetch+write once the download completes) is
         # strictly better than giving up sooner.
         self._aggregator = CachedForm345Aggregator(lookback_quarters=12, timeout_seconds=1080)
+        self.sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         measurement_date = since or datetime.now(EASTERN_TZ).date()
@@ -77,7 +91,10 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
             return self._unavailable_record(symbol, measurement_date, "sec_form345_bulk_data_unavailable")
 
         if metrics.data_unavailable:
-            return self._unavailable_record(symbol, measurement_date, metrics.reason or "no_data")
+            reason = metrics.reason or "no_data"
+            if reason == "no_insider_transactions_in_lookback" and self._is_foreign_private_issuer(symbol):
+                reason = "foreign_private_issuer_exempt"
+            return self._unavailable_record(symbol, measurement_date, reason)
 
         confidence_30d = self._compute_confidence_score(metrics.buy_transactions_30d, metrics.sell_transactions_30d)
         confidence_90d = self._compute_confidence_score(metrics.buy_transactions_90d, metrics.sell_transactions_90d)
@@ -113,6 +130,36 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
         }
 
         return [record]
+
+    def _is_foreign_private_issuer(self, symbol: str) -> bool:
+        """Best-effort live check: does this symbol's recent SEC filing history include a
+        20-F/40-F annual report?
+
+        Only called for symbols the bulk Form 3/4/5 aggregator already found zero real
+        transactions for across its full 3-year lookback (see fetch_incremental) - not run
+        against the full universe, so this stays a bounded, occasional cost, not a per-
+        symbol-per-run network call. A 20-F/40-F filing alone is a clean, sufficient signal
+        (exclusively used by foreign private issuers/Canadian MJDS filers - a domestic 10-K
+        filer never has one); this deliberately does NOT also require a total absence of
+        Form 3/4/5 anywhere in filing history, since live-checked AMX/BCS/VOD (confirmed
+        20-F filers) each carry a handful of old/one-off Form 3/4 entries (e.g. a since-
+        departed officer's initial filing years before today) that would otherwise wrongly
+        veto the classification despite the bulk aggregator already confirming zero real
+        transactions in the last 3 years. Returns False (keep the original generic reason)
+        rather than raising on any lookup failure - this is an enrichment/relabeling pass on
+        top of an already-computed result, not a hard requirement, same "fail open on
+        unknown, fail closed on confirmed-bad" posture used elsewhere in this codebase (e.g.
+        yfinance_financials.py's _get_financial_currency).
+        """
+        try:
+            cik = self.sec_client.symbol_to_cik(symbol)
+            submissions = self.sec_client.get_submissions(cik)
+        except Exception as e:
+            logger.debug(f"[{symbol}] Foreign-private-issuer check failed, keeping generic reason: {e}")
+            return False
+        recent_forms = ((submissions or {}).get("filings") or {}).get("recent") or {}
+        recent_forms = recent_forms.get("form") or []
+        return any(f in _FOREIGN_ANNUAL_FORMS for f in recent_forms)
 
     @staticmethod
     def _compute_confidence_score(buy_count: int, sell_count: int) -> int:
