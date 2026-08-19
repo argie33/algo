@@ -1504,6 +1504,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         AFYA/AIB/AKTS) - a distinct fiscal-year-anchor-selection gap, not this "structurally no
         revenue" case, so deliberately NOT covered by this windowed check. Cached for the life
         of this loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-08-19 (pb_ratio negative_book_value follow-up): the HAVING clause was
+        `COUNT(revenue) = 0`, which only counts NULL revenue - a company that reports a real,
+        correctly-extracted $0.00 revenue for all 3 recent fiscal years (common for pre-revenue
+        clinical-stage biotechs/SPACs, e.g. DFTX/DMRA/GNPX/IMVT - the SEC filing genuinely says
+        "$0", not "not reported") is NOT NULL, so it silently fell through to the generic
+        "missing_sec_data" for ps_ratio/ev_revenue/ebitda_margin/gross_margin alike, even though
+        nothing is missing. Live-confirmed 245 universe symbols hit this exact zero-vs-null gap
+        (same bug class as the total_debt/roic_pct genuine-zero fixes elsewhere in this file).
+        Now treats NULL and real 0 as equivalent "no revenue" for this windowed check.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_revenue_symbols_cache", None)
         if cached is not None:
@@ -1520,7 +1530,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 SELECT symbol FROM recent
                 WHERE rn <= 3
                 GROUP BY symbol
-                HAVING COUNT(revenue) = 0 AND COUNT(*) = 3
+                HAVING COUNT(*) FILTER (WHERE revenue IS NOT NULL AND revenue != 0) = 0 AND COUNT(*) = 3
                 """
             )
             result = frozenset(row[0] for row in cur.fetchall())
