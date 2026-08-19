@@ -722,7 +722,14 @@ locals {
     # reached only 42.6% of the universe under sustained SEC EDGAR rate limiting. parallelism=2
     # was also fighting that same rate limit (this loader is SEC-rate-limited exactly like
     # dividend_data below, which already correctly uses parallelism=1) - dropped to 1.
-    "current_reports_8k" = { cpu = 256, memory = 512, timeout = 18000, parallelism = 1 }
+    # FIX 2026-08-18 (commit 750b5bd2f): Python-side timeout raised again, 300m->400m (24000s) -
+    # 300m had only 6% margin over the ~282min full-universe SEC latency budget, insufficient
+    # for real-world variance (3,183 rows were stuck data_unavailable=TRUE from exactly this).
+    # This ECS task-def timeout was never updated to match - test_terraform_loader_timeouts_not_
+    # less_than_python.py caught it live at 18000s (300m), 75% of the Python side, meaning
+    # production would still kill the task before the loader's own 400m timeout logic could ever
+    # apply.
+    "current_reports_8k" = { cpu = 256, memory = 512, timeout = 24000, parallelism = 1 }
 
     # Dividends: Ex-dates, payment dates, yields (XBRL + 8-K extraction)
     # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 3600s (60m)

@@ -2617,7 +2617,13 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         # night hard-timeout-killed at exactly 120min having reached only 2100/4930 (42.6%)
         # under sustained SEC rate-limit degradation. Raised the Python-side timeout to 300min;
         # matching here with a 5min startup/network margin to keep the two in sync.
-        TimeoutSeconds = 18300
+        # FIX 2026-08-18 (commit 750b5bd2f): Python-side timeout raised again, 300m->400m
+        # (24000s) - 300m had only 6% margin over the ~282min full-universe SEC latency budget.
+        # This SFN timeout (and the ECS task-def timeout in terraform/modules/loaders/main.tf)
+        # were never updated to match - test_terraform_loader_timeouts_not_less_than_python.py
+        # caught the ECS side live at 300m/75% of the Python side. Re-synced to the new ECS
+        # timeout (24000s) + the same 300s startup/network margin.
+        TimeoutSeconds = 24300
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
