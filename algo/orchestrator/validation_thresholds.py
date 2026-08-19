@@ -63,7 +63,13 @@ MIN_SIGNAL_QUALITY_SCORE = 30  # Median ~32.75, so this filters ~60% of universe
 # Minimum buy_sell_daily signal count to consider data "normal"
 # If count drops below this, Phase 7 halts (data quality issue)
 # RATIONALE: Catches upstream loader failures early
-BUY_SELL_DAILY_ANOMALY_THRESHOLD = 250  # Historical median 300-1000+
+# UPDATE 2026-08-19: the old "300-1000+" baseline this 250 was set against was inflated by
+# a signal-generation bug (commit bc0047231, 2026-08-18) where a stock re-fired the same BUY/
+# SELL every day it stayed beyond its pivot instead of only on the crossover day - live-audited
+# at 73% of a day's BUY rows and 64% of SELL rows being re-fires, not fresh signals. Now that
+# generation is correctly edge-triggered, true daily counts run ~80-250 (8/18 post-fix:
+# 105 BUY/210 total). Lowered so this doesn't halt every day on now-correct data.
+BUY_SELL_DAILY_ANOMALY_THRESHOLD = 40  # Post edge-trigger-fix baseline; see bc0047231
 
 # Maximum number of signals to run liquidity checks on
 # (Liquidity checks are expensive, so we sample top-ranked candidates)

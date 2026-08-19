@@ -135,7 +135,12 @@ def _calculate_dynamic_anomaly_threshold() -> int:
             result = cur.fetchone()
             if result and result[0] is not None:
                 median_signals = float(result[0])
-                threshold = max(100, int(median_signals / 3))  # At least 100, catch drops to 1/3 of median
+                # UPDATE 2026-08-19: floor lowered from 100 - the 45-day lookback window still
+                # mixes stale pre-fix days (re-fire-inflated, see bc0047231) with correct
+                # post-fix days (~80-250/day), so median_30d stays elevated during the
+                # transition and a 100 floor would keep tripping on legitimate quiet days once
+                # it clears. See BUY_SELL_DAILY_ANOMALY_THRESHOLD in validation_thresholds.py.
+                threshold = max(40, int(median_signals / 3))  # At least 40, catch drops to 1/3 of median
                 logger.info(
                     f"[PHASE 7] Dynamic anomaly threshold: {threshold} (median_30d={median_signals:.0f}/3). "
                     f"Will halt if signals drop below {threshold} on any day."
@@ -955,17 +960,24 @@ def _check_per_day_signal_counts(run_date: _date, log_phase_result_fn: Callable[
             if not daily_counts:
                 return True, None  # No signals at all is caught by other checks
 
-            # Check each day individually (threshold of 200 per-day to catch gaps)
-            # Historical median is 300-1000+ per day, so 200 is ~20-30% of median
+            # Check each day individually (threshold to catch gaps)
+            # UPDATE 2026-08-19: lowered from 200 - that floor (and the "300-1000+ per day"
+            # baseline it was set against) predates commit bc0047231 (2026-08-18), which fixed
+            # buy_sell_daily re-firing the same BUY/SELL every day a stock stayed beyond its
+            # pivot instead of only on the crossover day (live-audited at 73%/64% re-fires of
+            # that day's BUY/SELL rows). True per-day counts are now correctly lower
+            # (~80-250/day; 8/18 post-fix: 105 BUY/210 total) - 200 would halt on every normal
+            # day going forward. See BUY_SELL_DAILY_ANOMALY_THRESHOLD in validation_thresholds.py.
+            per_day_signal_floor = 40
             for day_row in daily_counts:
                 signal_date = day_row[0]
                 day_signal_count = day_row[1]
 
-                if day_signal_count < 200:  # Per-day threshold
+                if day_signal_count < per_day_signal_floor:  # Per-day threshold
                     msg = (
                         f"[PHASE 7 CRITICAL HALT] buy_sell_daily for {signal_date} has only {day_signal_count} signals "
-                        f"(< per-day threshold of 200). This indicates a data quality gap for that specific day. "
-                        f"Historical normal: 300-1000+ signals per day. "
+                        f"(< per-day threshold of {per_day_signal_floor}). This indicates a data quality gap for that specific day. "
+                        f"Historical normal (post edge-trigger-fix): ~80-250 signals per day. "
                         f"Check: (1) technical_data_daily status for {signal_date}, "
                         f"(2) buy_sell_daily loader execution for {signal_date}, "
                         f"(3) price_daily completeness. DO NOT accept degraded data per individual day."
@@ -1271,7 +1283,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 # Most recent trading day has 0 signals - this is anomalous
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has ZERO BUY signals. "
-                    f"Historical normal: 300-1000+ signals per trading day. "
+                    f"Historical normal (post edge-trigger-fix, see bc0047231): ~80-250 signals per trading day. "
                     f"This indicates: (1) technical_data_daily loader failed (required for buy_sell generation), "
                     f"(2) Signal generation thresholds were too strict, or "
                     f"(3) No symbols passed selection criteria. "
