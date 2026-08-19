@@ -28,12 +28,22 @@ from typing import Any
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
+from utils.external.sec_edgar import SecEdgarClient
 from utils.external.sec_form345_bulk import Form345BulkAggregator
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
+
+# FIX 2026-08-19 (goal: "no SEC data" audit, same fix already applied to the sibling
+# load_insider_transaction_velocity.py): foreign private issuers (20-F/40-F filers) are
+# exempt from SEC Section 16 insider reporting (Form 3/4/5) under Exchange Act Rule
+# 3a12-3 - they structurally NEVER appear in this SEC bulk data set, not "genuinely zero
+# recent activity" the way a domestic filer's temporary lull would be. See
+# load_insider_transaction_velocity.py's matching constant/method for the full rationale
+# and live-confirmed symbol list (AMX, ASML, SHEL, BCS, VOD, SAP, NVS, ...).
+_FOREIGN_ANNUAL_FORMS = frozenset({"20-F", "20-F/A", "40-F", "40-F/A"})
 
 
 class InsiderHoldingsSECLoader(OptimalLoader):
@@ -58,6 +68,7 @@ class InsiderHoldingsSECLoader(OptimalLoader):
         # threads in this run (thread-safe, builds exactly once - see
         # Form345BulkAggregator docstring).
         self._aggregator = Form345BulkAggregator()
+        self.sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch insider ownership from SEC's bulk Form 3/4/5 data sets.
@@ -77,6 +88,8 @@ class InsiderHoldingsSECLoader(OptimalLoader):
 
         summary = self._aggregator.get_symbol_summary(symbol)
         if summary is None:
+            if self._is_foreign_private_issuer(symbol):
+                return self._unavailable_record(symbol, now_et, "foreign_private_issuer_exempt")
             return self._unavailable_record(symbol, now_et, "no_form345_filings_in_lookback_window")
 
         shares_outstanding = self._get_shares_outstanding(symbol)
@@ -102,6 +115,22 @@ class InsiderHoldingsSECLoader(OptimalLoader):
                 "updated_at": now_et,
             }
         ]
+
+    def _is_foreign_private_issuer(self, symbol: str) -> bool:
+        """Best-effort live check: does this symbol's recent SEC filing history include a
+        20-F/40-F annual report? See load_insider_transaction_velocity.py's identical
+        method for the full rationale - only called for symbols the bulk aggregator
+        already found zero data for, so this stays a bounded, occasional cost.
+        """
+        try:
+            cik = self.sec_client.symbol_to_cik(symbol)
+            submissions = self.sec_client.get_submissions(cik)
+        except Exception as e:
+            logger.debug(f"[{symbol}] Foreign-private-issuer check failed, keeping generic reason: {e}")
+            return False
+        recent_forms = ((submissions or {}).get("filings") or {}).get("recent") or {}
+        recent_forms = recent_forms.get("form") or []
+        return any(f in _FOREIGN_ANNUAL_FORMS for f in recent_forms)
 
     @staticmethod
     def _get_shares_outstanding(symbol: str) -> int | None:
