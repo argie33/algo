@@ -147,6 +147,146 @@ SIC_TO_GICS = {
     4832: "Communication Services",  # Radio broadcasting stations
     4833: "Communication Services",  # Television broadcasting stations
     7812: "Communication Services",  # Motion picture & video production
+    # ADDED 2026-08-19 (goal: "no SEC data"/loader audit - "find the holes" pass): live
+    # DB audit of company_profile.reason found 119 distinct sic_code_unmapped:XXXX values
+    # covering 1,176 active-universe symbols - entire major SIC divisions (Real Estate 65xx,
+    # Insurance Agents/Non-depository Credit 61xx/64xx, Metal/Coal Mining 10xx/12xx,
+    # Construction 15xx-17xx, Apparel/Textiles/Furniture 22xx-25xx, Publishing 27xx, Leather
+    # 31xx, Toys/Misc Manufacturing 39xx, Wholesale Trade 50xx/51xx, Hotels/Recreation
+    # 70xx/79xx, Professional/Research Services 81xx/87xx, Agriculture 0xxx) had ZERO
+    # precedent entries in SIC_TO_GICS at all, so _build_major_group_fallback's own
+    # same-division majority vote (below) correctly had nothing to vote from and these
+    # stayed permanently unmapped - not a bug in the fallback, a genuine static coverage
+    # gap in this table. Standard SIC-division-to-GICS-sector mappings (public
+    # classification standards, not requiring live verification), covering every code the
+    # live audit surfaced.
+    # Real Estate (division 65, 67-REIT)
+    6500: "Real Estate",  # Real estate (broad)
+    6510: "Real Estate",  # Real estate operators (apartment buildings)
+    6512: "Real Estate",  # Operators of apartment buildings
+    6513: "Real Estate",  # Operators of apartment buildings
+    6519: "Real Estate",  # Lessors of real property n.e.c.
+    6531: "Real Estate",  # Real estate agents & managers
+    6552: "Real Estate",  # Land subdividers & developers
+    6798: "Real Estate",  # Real estate investment trusts (REITs)
+    # Financial Services (divisions 61, 64, 67-non-REIT)
+    6111: "Financial Services",  # Federal & federally-sponsored credit agencies
+    6141: "Financial Services",  # Personal credit institutions
+    6153: "Financial Services",  # Short-term business credit institutions
+    6159: "Financial Services",  # Federal & federally-sponsored credit agencies n.e.c.
+    6162: "Financial Services",  # Mortgage bankers & loan correspondents
+    6163: "Financial Services",  # Loan brokers
+    6199: "Financial Services",  # Finance services n.e.c.
+    6411: "Financial Services",  # Insurance agents, brokers & service
+    6792: "Financial Services",  # Oil royalty traders
+    6794: "Financial Services",  # Patent owners & lessors
+    6795: "Financial Services",  # Mineral royalty traders
+    6799: "Financial Services",  # Investors, n.e.c.
+    # Materials (metal/nonmetallic mining 10xx/14xx, wood/paper/leather 24xx/26xx/31xx)
+    1000: "Materials",  # Metal mining (broad)
+    1040: "Materials",  # Gold mining
+    1090: "Materials",  # Metal mining services
+    1400: "Materials",  # Mining & quarrying of nonmetallic minerals
+    2400: "Materials",  # Lumber & wood products
+    2421: "Materials",  # Sawmills & planing mills
+    2430: "Materials",  # Millwork, veneer, plywood
+    2451: "Materials",  # Mobile homes
+    2611: "Materials",  # Pulp mills
+    2621: "Materials",  # Paper mills
+    2631: "Materials",  # Paperboard mills
+    2650: "Materials",  # Paperboard containers & boxes
+    2670: "Materials",  # Converted paper & paperboard products
+    2673: "Materials",  # Plastics, foil & coated paper bags
+    3100: "Materials",  # Leather & leather products (broad)
+    3140: "Materials",  # Footwear except rubber
+    # Energy (coal mining, division 12)
+    1220: "Energy",  # Bituminous coal & lignite mining
+    1221: "Energy",  # Bituminous coal & lignite surface mining
+    # Consumer Cyclical (apparel/textiles/furniture/toys 22xx-25xx/39xx, homebuilding,
+    # hotels/recreation 70xx/79xx, education 82xx)
+    1520: "Consumer Cyclical",  # General building contractors - residential
+    1531: "Consumer Cyclical",  # Operative builders (homebuilders)
+    2200: "Consumer Cyclical",  # Textile mill products (broad)
+    2211: "Consumer Cyclical",  # Broadwoven fabric mills, cotton
+    2221: "Consumer Cyclical",  # Broadwoven fabric mills, manmade
+    2273: "Consumer Cyclical",  # Carpets & rugs
+    2300: "Consumer Cyclical",  # Apparel & other finished products (broad)
+    2320: "Consumer Cyclical",  # Men's & boys' furnishings
+    2330: "Consumer Cyclical",  # Women's outerwear
+    2390: "Consumer Cyclical",  # Fabricated textile products n.e.c.
+    2500: "Consumer Cyclical",  # Furniture & fixtures (broad)
+    2510: "Consumer Cyclical",  # Household furniture
+    2511: "Consumer Cyclical",  # Wood household furniture
+    2520: "Consumer Cyclical",  # Office furniture
+    2522: "Consumer Cyclical",  # Office furniture except wood
+    2531: "Consumer Cyclical",  # Public building & related furniture
+    2540: "Consumer Cyclical",  # Partitions & fixtures
+    3910: "Consumer Cyclical",  # Jewelry, silverware & plated ware
+    3942: "Consumer Cyclical",  # Dolls & stuffed toys
+    3944: "Consumer Cyclical",  # Games, toys & children's vehicles
+    3949: "Consumer Cyclical",  # Sporting & athletic goods n.e.c.
+    3990: "Consumer Cyclical",  # Manufacturing industries n.e.c.
+    7000: "Consumer Cyclical",  # Hotels, rooming houses, camps & other lodging (broad)
+    7011: "Consumer Cyclical",  # Hotels & motels
+    7500: "Consumer Cyclical",  # Automotive repair, services & parking (broad)
+    7510: "Consumer Cyclical",  # Automotive rental & leasing without drivers
+    7600: "Consumer Cyclical",  # Miscellaneous repair services
+    7900: "Consumer Cyclical",  # Amusement & recreation services (broad)
+    7948: "Consumer Cyclical",  # Racing, including track operations
+    7990: "Consumer Cyclical",  # Services-amusement & recreation n.e.c.
+    7997: "Consumer Cyclical",  # Membership sports & recreation clubs
+    8200: "Consumer Cyclical",  # Educational services (broad)
+    8351: "Consumer Cyclical",  # Child day care services
+    # Communication Services (publishing, division 27)
+    2711: "Communication Services",  # Newspapers: publishing
+    2721: "Communication Services",  # Periodicals: publishing
+    2731: "Communication Services",  # Books: publishing
+    2741: "Communication Services",  # Miscellaneous publishing
+    2750: "Communication Services",  # Commercial printing
+    2761: "Communication Services",  # Manifold business forms
+    2780: "Communication Services",  # Blankbooks & bookbinding
+    # Industrials (construction 15xx-17xx nonresidential, transportation services 46xx/47xx,
+    # wholesale trade 50xx/51xx, professional/engineering services 81xx/87xx)
+    1540: "Industrials",  # General building contractors - nonresidential
+    1600: "Industrials",  # Heavy construction other than building
+    1623: "Industrials",  # Water, sewer, pipeline construction
+    1700: "Industrials",  # Construction special trade contractors (broad)
+    1731: "Industrials",  # Electrical work
+    4610: "Industrials",  # Pipelines, except natural gas
+    4700: "Industrials",  # Transportation services (broad)
+    4731: "Industrials",  # Arrangement of transportation of freight & cargo
+    5000: "Industrials",  # Wholesale trade - durable goods (broad)
+    5010: "Industrials",  # Motor vehicles & motor vehicle parts
+    5013: "Industrials",  # Motor vehicle supplies & new parts
+    5030: "Industrials",  # Lumber & construction materials
+    5031: "Industrials",  # Lumber, plywood & millwork
+    5040: "Industrials",  # Professional & commercial equipment
+    5045: "Industrials",  # Computers & computer peripheral equipment (wholesale)
+    5047: "Industrials",  # Medical, dental & hospital equipment
+    5051: "Industrials",  # Metals service centers & offices
+    5063: "Industrials",  # Electrical apparatus & equipment
+    5064: "Industrials",  # Electrical appliances, TV & radio sets
+    5065: "Industrials",  # Electronic parts & equipment n.e.c.
+    5070: "Industrials",  # Hardware & plumbing & heating equipment (broad)
+    5072: "Industrials",  # Hardware
+    5080: "Industrials",  # Industrial machinery & equipment (broad)
+    5084: "Industrials",  # Industrial machinery & equipment
+    5090: "Industrials",  # Miscellaneous durable goods
+    5094: "Industrials",  # Jewelry, watches, precious stones & metals (wholesale)
+    5099: "Industrials",  # Durable goods n.e.c.
+    8111: "Industrials",  # Legal services
+    8700: "Industrials",  # Engineering, accounting, research, management services (broad)
+    8711: "Industrials",  # Engineering services
+    8741: "Industrials",  # Management services
+    8742: "Industrials",  # Management consulting services
+    8744: "Industrials",  # Facilities support management services
+    # Healthcare (commercial/biological research - CROs, division 87)
+    8731: "Healthcare",  # Commercial physical & biological research
+    8734: "Healthcare",  # Testing laboratories
+    # Consumer Defensive (agricultural production, division 0)
+    100: "Consumer Defensive",  # Agricultural production - crops
+    200: "Consumer Defensive",  # Agricultural production - livestock
+    900: "Consumer Defensive",  # Fishing, hunting & trapping
 }
 
 

@@ -36,10 +36,11 @@ class TestMajorGroupFallbackDerivation:
         assert 7371 not in SIC_TO_GICS
 
     def test_never_invents_a_sector_for_a_division_with_zero_precedent(self):
-        # Division 87 (engineering/management services, e.g. SIC 8742) has no exact
-        # entries anywhere in SIC_TO_GICS - must stay unmapped, not silently guessed.
-        assert all(code // 100 != 87 for code in SIC_TO_GICS)
-        assert SIC_MAJOR_GROUP_FALLBACK.get(87) is None
+        # Division 99 (SIC 9995 "Non-classifiable establishments" - a common real-world
+        # code for shell/blank-check entities) has no exact entries anywhere in
+        # SIC_TO_GICS - must stay unmapped, not silently guessed.
+        assert all(code // 100 != 99 for code in SIC_TO_GICS)
+        assert SIC_MAJOR_GROUP_FALLBACK.get(99) is None
 
     def test_every_fallback_value_is_a_real_sector_already_present_in_sic_to_gics(self):
         real_sectors = set(SIC_TO_GICS.values())
@@ -78,7 +79,7 @@ class TestFetchIncrementalUsesFallback:
     def test_unmapped_code_in_unprecedented_division_still_fails_closed(self):
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = self._mock_row(8742)  # management consulting
+        mock_cur.fetchone.return_value = self._mock_row(9995)  # non-classifiable establishment
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
@@ -87,7 +88,7 @@ class TestFetchIncrementalUsesFallback:
 
         assert result is not None
         assert result[0]["data_unavailable"] is True
-        assert result[0]["reason"] == "sic_code_unmapped:8742"
+        assert result[0]["reason"] == "sic_code_unmapped:9995"
         # WATERMARK FIX regression (2026-08-17): this dict must carry the loader's own
         # watermark_field ("updated_at") - utils/optimal_loader.py's watermark_from_rows()
         # raises ValueError on any row missing it, which live-reproduced as 1296 symbols/run
@@ -95,6 +96,53 @@ class TestFetchIncrementalUsesFallback:
         # instead of being cleanly marked unavailable. See the two sibling tests below for
         # the other two "unavailable" record paths in this same method.
         assert "updated_at" in result[0]
+
+
+class TestNewlyMappedDivisions:
+    """Regression test (2026-08-19, "no SEC data" audit "find the holes" pass): live DB
+    audit found 119 distinct sic_code_unmapped:XXXX values covering 1,176 active-universe
+    symbols, across entire SIC divisions with zero SIC_TO_GICS precedent (Real Estate 65xx,
+    non-depository credit/insurance agents 61xx/64xx, metal/coal mining 10xx/12xx,
+    construction 15xx-17xx, apparel/furniture/toys 22xx-25xx/39xx, publishing 27xx,
+    wholesale trade 50xx/51xx, hotels/recreation 70xx/79xx, professional/research services
+    81xx/87xx, agriculture 0xxx). Spot-checks a representative code from each newly-added
+    division resolves to a real GICS sector, not just presence in the dict.
+    """
+
+    def test_reit_maps_to_real_estate(self):
+        assert SIC_TO_GICS[6798] == "Real Estate"
+
+    def test_finance_services_maps_to_financial_services(self):
+        assert SIC_TO_GICS[6199] == "Financial Services"
+
+    def test_gold_mining_maps_to_materials(self):
+        assert SIC_TO_GICS[1040] == "Materials"
+
+    def test_coal_mining_maps_to_energy(self):
+        assert SIC_TO_GICS[1220] == "Energy"
+
+    def test_apparel_maps_to_consumer_cyclical(self):
+        assert SIC_TO_GICS[2300] == "Consumer Cyclical"
+
+    def test_publishing_maps_to_communication_services(self):
+        assert SIC_TO_GICS[2711] == "Communication Services"
+
+    def test_wholesale_trade_maps_to_industrials(self):
+        assert SIC_TO_GICS[5045] == "Industrials"
+
+    def test_commercial_biological_research_maps_to_healthcare(self):
+        assert SIC_TO_GICS[8731] == "Healthcare"
+
+    def test_agricultural_production_maps_to_consumer_defensive(self):
+        assert SIC_TO_GICS[100] == "Consumer Defensive"
+
+    def test_previously_unprecedented_division_87_now_resolves_via_new_precedent(self):
+        # 8742 (management consulting) is now directly mapped; a still-unlisted code in the
+        # same division (e.g. 8748, generic management services) must resolve via the
+        # major-group fallback instead of failing closed, now that division 87 has real
+        # precedent.
+        assert 8748 not in SIC_TO_GICS
+        assert SIC_MAJOR_GROUP_FALLBACK.get(87) is not None
 
 
 class TestUnavailableRecordsCarryWatermarkField:
