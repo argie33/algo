@@ -138,47 +138,12 @@ class MarketFactorCalculator:
             "term_structure": round(term_structure, 2) if term_structure else None,
         }
 
-    def _has_market_confirmation(self, eval_date: _date, cur: PsycopgCursor[Any]) -> bool:
-        """Check for volume-backed rally confirmation (hard gate).
-
-        True if: volume today > 20-day average AND price > previous close
-        """
-        try:
-            cur.execute(
-                """
-                WITH d AS (
-                    SELECT close, volume,
-                           AVG(volume) OVER (ORDER BY date ROWS BETWEEN 19 PRECEDING AND 1 PRECEDING) as avg20,
-                           LAG(close) OVER (ORDER BY date) as prev_close,
-                           symbol
-                    FROM price_daily
-                    WHERE symbol = 'SPY' AND date <= %s
-                    ORDER BY date DESC LIMIT 1
-                )
-                SELECT (volume > avg20 AND close > prev_close) FROM d
-                """,
-                (eval_date,),
-            )
-            row = cur.fetchone()
-
-            # Explicit validation: query must succeed and return a boolean result
-            if row is None:
-                logger.error("Market confirmation query failed, cannot determine market status")
-                raise RuntimeError("Market confirmation query failed, cannot determine market status")
-
-            if not isinstance(row[0], bool):
-                logger.error(
-                    f"Market confirmation has wrong type, expected boolean but got {type(row[0]).__name__}: {row[0]!r}"
-                )
-                raise ValueError("Market confirmation has wrong type, expected boolean")
-
-            return row[0]
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Market confirmation check failed: {e}", exc_info=True)
-            raise RuntimeError(
-                f"Cannot determine market confirmation status: database query failed ({e}). "
-                f"Cannot proceed with trading without valid market data."
-            ) from e
+    # REMOVED 2026-08-20 (goal: finance-accuracy audit): _has_market_confirmation was dead
+    # code - confirmed zero callers anywhere in production (MarketExposure has its own,
+    # differently-defined _has_market_confirmation, which is the actual "canonical
+    # implementation... called directly from compute()" per that method's own comment in
+    # market_exposure.py). See ad_line/credit_spread's removal comment just below for the
+    # full pattern this belongs to.
 
     # ============= Factor Implementations =============
 
@@ -514,72 +479,31 @@ class MarketFactorCalculator:
                 f"Cannot proceed without leadership confirmation."
             ) from e
 
-    def ad_line(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Advance/decline line vs SPY (critical).
-
-        Raises RuntimeError if data unavailable - A/D confirmation is key to market health check.
-        A/D line is a 6pt factor (MarketExposure.W_AD_LINE - rebalanced from 5pt, this
-        docstring wasn't updated at the time). Missing breadth direction data is a data
-        error, not a skip.
-        """
-        try:
-            cur.execute(
-                """
-                WITH ad AS (
-                    SELECT direction FROM ad_line_daily WHERE date <= %s ORDER BY date DESC LIMIT 1
-                )
-                SELECT direction FROM ad
-                """,
-                (eval_date,),
-            )
-            row = cur.fetchone()
-            if row is not None and row[0] is not None:
-                direction = row[0]
-                score = 100.0 if direction == "up" else 0.0
-                return {"direction": direction, "relation": direction, "value": direction, "score": score}
-            raise RuntimeError(
-                "[AD_LINE CRITICAL] Advance/decline line data unavailable. "
-                "Check: (1) ad_line_daily table has recent readings, (2) direction column is populated"
-            )
-        except RuntimeError:
-            raise
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[AD_LINE CRITICAL] A/D line query failed: {e}. Cannot proceed without breadth confirmation."
-            ) from e
-
-    def credit_spread(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """High-yield credit spread (HY OAS, critical).
-
-        Raises RuntimeError if data unavailable - credit stress is key systemic risk indicator.
-        Credit spread is a 10pt factor. Missing credit data is a data error, not a skip.
-        """
-        try:
-            cur.execute(
-                "SELECT hy_oas FROM credit_spreads WHERE date <= %s ORDER BY date DESC LIMIT 1",
-                (eval_date,),
-            )
-            row = cur.fetchone()
-            if row is not None and row[0] is not None:
-                oas = float(row[0])
-                if math.isnan(oas) or math.isinf(oas):
-                    raise RuntimeError(
-                        f"[CREDIT_SPREAD CRITICAL] Non-finite HY OAS value: {oas!r}. "
-                        f"Data quality issue in credit_spreads."
-                    )
-                score = max(0, min(100, 100 - (oas - 300) / 2))
-                return {"value": round(oas, 0), "score": score}
-            raise RuntimeError(
-                "[CREDIT_SPREAD CRITICAL] High-yield credit spread data unavailable. "
-                "Check: (1) credit_spreads table has recent readings, (2) hy_oas column is populated"
-            )
-        except RuntimeError:
-            raise
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[CREDIT_SPREAD CRITICAL] Credit spread query failed: {e}. "
-                f"Cannot proceed without systemic stress assessment."
-            ) from e
+    # REMOVED 2026-08-20 (goal: finance-accuracy audit): ad_line() and credit_spread() were
+    # dead code, confirmed via a repo-wide grep for any caller (zero found, including in
+    # MarketExposure.compute() itself) - a real, currently-unnoticed bug class, not a
+    # harmless duplicate:
+    #
+    # - ad_line() read `ad_line_daily.direction` - a table with NO loader anywhere in this
+    #   codebase (confirmed: no migration wires it into loader_registry.py, no Step
+    #   Functions state, no local_loader_scheduler.py entry) and only 20 rows total, frozen
+    #   at 2026-06-26 (~2 months stale as of this fix). Because this method was never
+    #   called, that staleness never actually corrupted a real exposure score - but it's
+    #   exactly the kind of frozen, unmonitored data source that WOULD have, had anything
+    #   ever wired it in without noticing the missing loader.
+    # - credit_spread() read `credit_spreads.hy_oas` - a different table entirely from the
+    #   live credit-spread signal (MarketExposure._credit_spread(), which correctly reads
+    #   the real, actively-loaded FRED series economic_data.BAMLH0A0HYM2).
+    #
+    # The REAL, live implementations MarketExposure.compute() actually calls are its own
+    # local _ad_line()/_credit_spread() methods (see the "canonical implementations... not
+    # yet migrated to MarketFactorCalculator" comment in market_exposure.py) - this class's
+    # own module docstring claiming "Calculate 12 market factors" was accurate in aggregate
+    # (10 methods here + these 2 MarketExposure-local ones = 12) but these 2 dead methods
+    # were never part of that count; they were leftover from an incomplete migration in the
+    # OPPOSITE direction (consolidating everything into this calculator class) that was
+    # abandoned after ad_line/credit_spread, leaving unreachable duplicates with their own
+    # (untested) logic and data sources that had silently drifted from the real ones.
 
     def aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII sentiment factor - contrarian at extremes (Session 361 fix).

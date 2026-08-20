@@ -1052,6 +1052,21 @@ class MarketExposure:
 
         hy = float(rows[0][0])
 
+        # FIXED 2026-08-20 (goal: finance-accuracy audit): same NaN-comparison-guard class
+        # already fixed for _ad_line()'s SPY prices on 2026-08-10 (see that fix's comment
+        # just below in this file) but never applied here - a NaN `hy` makes every tiered
+        # `hy < X` comparison below evaluate False, falling through to the WORST-case branch
+        # (score = 10.0, "severe stress") instead of this function's own fail-closed
+        # RuntimeError contract. Worse than a merely-skipped signal: a corrupted HY OAS
+        # reading would confidently score as the market's most stressed credit state
+        # (a real 10pt factor feeding position sizing) rather than raising a diagnostic error.
+        if math.isnan(hy) or math.isinf(hy):
+            raise RuntimeError(
+                f"[CREDIT SPREAD CRITICAL] Non-finite HY OAS value ({hy}) for {eval_date}. "
+                f"Cannot calculate credit spread score without a valid current reading. "
+                f"Check economic_data table for BAMLH0A0HYM2 data integrity."
+            )
+
         # CRITICAL: 20-day trend is required for credit spread signal (mean-reversion indicator)
         # Credit cycles need historical context - no fallback to 5d or current-only
         # Fail-fast: insufficient history is a data quality issue, not something to work around
@@ -1073,6 +1088,15 @@ class MarketExposure:
             )
 
         hy_20d_ago = float(rows[-1][0])
+        # Same NaN-guard class as `hy` above - a NaN here would silently make widening_1pp
+        # False (NaN comparisons always evaluate False) instead of raising, masking a real
+        # data-integrity gap in the 20-day trend anchor.
+        if math.isnan(hy_20d_ago) or math.isinf(hy_20d_ago):
+            raise RuntimeError(
+                f"[CREDIT SPREAD CRITICAL] Non-finite 20-day-ago HY OAS value ({hy_20d_ago}) for {eval_date}. "
+                f"Cannot calculate credit spread trend without a valid historical anchor. "
+                f"Check economic_data table for BAMLH0A0HYM2 data integrity."
+            )
         widening_1pp = (hy - hy_20d_ago) > 1.0
 
         if hy < 3.5:

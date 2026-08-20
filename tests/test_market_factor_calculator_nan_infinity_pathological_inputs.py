@@ -7,8 +7,19 @@ phase8_entry_execution.py, exit_engine.py, order_manager.py, and phase7_signal_g
 `max(0.0, min(100.0, ...))`-style clamps silently launder NaN into a fixed boundary value via
 Python's min()/max() short-circuit comparison behavior (`nan < x` is always False), rather than
 raising. This is the highest-leverage instance found so far: market_factor_calculator.py feeds
-every one of the ~12 factors behind MarketExposure.compute(), which gates real-money exposure
-tier / position sizing for the whole portfolio - not just a single symbol.
+10 of the 12 factors behind MarketExposure.compute() (the other 2 - ad_line, credit_spread -
+are MarketExposure's own local methods, not this calculator's, per its module docstring's
+"canonical implementations... not yet migrated to MarketFactorCalculator" comment; see
+tests/unit/test_market_exposure_nan_guards.py for their NaN-guard coverage), which gates
+real-money exposure tier / position sizing for the whole portfolio - not just a single symbol.
+
+CORRECTION (2026-08-20): this calculator ALSO had its own ad_line()/credit_spread() methods
+at the time this file was written, and the TestCreditSpreadRejectsNonFiniteOAS test below
+originally covered credit_spread()'s NaN guard - but both methods turned out to be dead code
+(confirmed zero callers anywhere, reading from an abandoned/never-loaded table and a
+different, wrong table respectively) and were removed. Coverage for the real, live
+_credit_spread()'s equivalent NaN guard (added in the same fix, since the live method had
+never had one) now lives in test_market_exposure_nan_guards.py instead.
 
 Each factor method already fails fast on NULL/missing data; these tests prove it does the same
 for NaN/Infinity, which passes every "is not None" guard silently.
@@ -94,16 +105,6 @@ class TestVixRegimeRejectsNonFiniteLevel:
         cur = _FakeCursor((date(2026, 8, 10), float("nan")))
         with pytest.raises(RuntimeError, match="Non-finite VIX level"):
             calc.vix_regime(date(2026, 8, 10), cur)
-
-
-class TestCreditSpreadRejectsNonFiniteOAS:
-    def test_nan_oas_raises_instead_of_scoring_as_low_stress(self):
-        # Without the fix: max(0, min(100, 100 - (nan - 300) / 2)) silently -> 100.0
-        # (best possible / lowest-stress score) for corrupted credit data.
-        calc = MarketFactorCalculator()
-        cur = _FakeCursor((float("nan"),))
-        with pytest.raises(RuntimeError, match="Non-finite HY OAS"):
-            calc.credit_spread(date(2026, 8, 10), cur)
 
 
 class TestAaiiRejectsNonFiniteSentiment:
