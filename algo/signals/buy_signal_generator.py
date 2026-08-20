@@ -18,7 +18,14 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Signal generation thresholds
-SWING_LOOKBACK_WINDOW_BARS = 20  # Number of bars for recent high/low fallback strategy
+# Swing high: 20-bar, swing low: 10-bar - calibrated 2026-06-03 (commit 5a4c190a4) and
+# live-verified against TradingView Pine Script (ON: Jan 30 SELL, Feb 10 BUY, Feb 27 SELL,
+# Jun 2 BUY all matched). Commit 88821b14f (2026-06-27) widened both to 50-bar to raise
+# buy_sell_daily coverage for an unrelated downstream pipeline (VCP/signal_quality_scores),
+# never re-verified against Pine - that's what actually broke Pine-matching, not the
+# edge-trigger bug fixed in bc0047231. Restored to the calibrated values here.
+SWING_HIGH_LOOKBACK_BARS = 20
+SWING_LOW_LOOKBACK_BARS = 10
 
 # Internal classify_base_type() pattern names -> display strings used by the frontend
 # (webapp/frontend/src/pages/TradingSignals.jsx BASE_TYPE_VARIANT / badges).
@@ -238,7 +245,7 @@ class BuySignalGenerator:
         swing_high_sma50 = None
 
         # STRATEGY 1: Try perfect swing (original strict logic)
-        for j in range(max(0, i - 50), i):
+        for j in range(max(0, i - SWING_HIGH_LOOKBACK_BARS), i):
             candidate = rows[j].get("high")
             if candidate is None:
                 continue
@@ -269,7 +276,7 @@ class BuySignalGenerator:
             return recent_swing_high, swing_high_sma50
 
         # STRATEGY 2: Try relative swing (high > most surrounding bars, allow 1 exception)
-        for j in range(max(0, i - 50), i):
+        for j in range(max(0, i - SWING_HIGH_LOOKBACK_BARS), i):
             candidate = rows[j].get("high")
             if candidate is None:
                 continue
@@ -300,12 +307,11 @@ class BuySignalGenerator:
         if recent_swing_high is not None:
             return recent_swing_high, swing_high_sma50
 
-        # STRATEGY 3: Recent maximum (highest price in 20-bar window)
+        # STRATEGY 3: Recent maximum (highest price in the swing-high window)
         # Valid for all market conditions, no pattern required
-        lookback_window = 20
         max_price = None
         max_sma50 = None
-        for j in range(max(0, i - lookback_window), i):
+        for j in range(max(0, i - SWING_HIGH_LOOKBACK_BARS), i):
             high = rows[j].get("high")
             if high is not None:
                 if max_price is None or high > max_price:
@@ -326,7 +332,7 @@ class BuySignalGenerator:
         recent_swing_low = None
 
         # STRATEGY 1: Try perfect swing (original strict logic)
-        for j in range(max(0, i - 50), i):
+        for j in range(max(0, i - SWING_LOW_LOOKBACK_BARS), i):
             candidate = rows[j].get("low")
             if candidate is None:
                 continue
@@ -352,7 +358,7 @@ class BuySignalGenerator:
 
         # STRATEGY 2: Try relative swing (low < most surrounding bars, allow 1 exception)
         # This handles choppy markets where perfect swings are rare
-        for j in range(max(0, i - 50), i):
+        for j in range(max(0, i - SWING_LOW_LOOKBACK_BARS), i):
             candidate = rows[j].get("low")
             if candidate is None:
                 continue
@@ -376,11 +382,10 @@ class BuySignalGenerator:
         if recent_swing_low is not None:
             return float(recent_swing_low)
 
-        # STRATEGY 3: Recent minimum (lowest price in 20-bar window)
+        # STRATEGY 3: Recent minimum (lowest price in the swing-low window)
         # Valid for all market conditions, no pattern required
-        lookback_window = 20
         min_price = None
-        for j in range(max(0, i - lookback_window), i):
+        for j in range(max(0, i - SWING_LOW_LOOKBACK_BARS), i):
             low = rows[j].get("low")
             if low is not None:
                 if min_price is None or low < min_price:
@@ -444,7 +449,7 @@ class BuySignalGenerator:
             if not recent_swing_low:
                 raise RuntimeError(
                     f"[SIGNAL_GENERATION_CRITICAL] {symbol}: BUY signal detected but cannot calculate stop loss. "
-                    f"No swing_low pivot found in 50-bar lookback. "
+                    f"No swing_low pivot found in {SWING_LOW_LOOKBACK_BARS}-bar lookback. "
                     f"Fail-fast: cannot proceed without risk level definition. "
                     f"Incomplete signal generation indicates data quality or pivot detection issue. "
                     f"Verify: (1) sufficient price history, (2) data completeness, (3) pivot detection logic."
