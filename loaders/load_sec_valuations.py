@@ -104,7 +104,19 @@ class SecValuationsLoader(OptimalLoader):
                 # Get income statement data from most recent annual filing
                 # CRITICAL: Use NULL checks instead of COALESCE(col, 0) to detect missing financial data
                 # Defaulting to 0 for revenue/EPS would cause wrong valuations (zero division, phantom metrics)
-                # NOTE: Removed data_unavailable = FALSE filter to prevent premature early exit
+                # FIXED 2026-08-20 (goal: finance-accuracy audit): the `data_unavailable = FALSE`
+                # filter removed below (see old NOTE) was dropped to stop excluding legitimate rows
+                # where the flag is simply unset - but data_unavailable=TRUE with
+                # reason='incomplete_sec_filing_income' means the filer's income-statement section
+                # is itself incomplete/inconsistent, not merely unset, and its non-NULL
+                # revenue/net_income/EPS values are known-unreliable, not just missing. Live-
+                # confirmed 113 universe symbols with a valid current_price currently computing
+                # pe_ratio/ps_ratio in the hundreds (e.g. ASBP pe_ratio=1649.85, AVLN=1535.70,
+                # BOBS=922.50, ALMR=808.37) purely from this. `data_unavailable IS NOT TRUE` (not
+                # `= FALSE`) keeps admitting NULL-flag rows exactly as before while excluding only
+                # the confirmed-bad ones, falling back to the next real fiscal year within the
+                # LIMIT 2 window (or the existing no_income_statement/*_null unavailable paths)
+                # instead of a fabricated ratio.
                 # FIXED: plain `ORDER BY fiscal_year DESC` picked the latest fiscal year even when
                 # it's a partial/estimate-stage filing with NULL revenue AND NULL EPS, while an
                 # older year has real data - same "latest year is empty" bug class as the FCF fix
@@ -139,7 +151,7 @@ class SecValuationsLoader(OptimalLoader):
                         cis.is_foreign_private_issuer
                     FROM annual_income_statement ais
                     LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
-                    WHERE ais.symbol = %s
+                    WHERE ais.symbol = %s AND ais.data_unavailable IS NOT TRUE
                     ORDER BY (CASE WHEN ais.revenue IS NOT NULL OR ais.earnings_per_share IS NOT NULL OR ais.net_income IS NOT NULL THEN 0 ELSE 1 END), ais.fiscal_year DESC
                     LIMIT 2
                     """,
@@ -290,11 +302,16 @@ class SecValuationsLoader(OptimalLoader):
                 # data_unavailable=FALSE filter) gets real values via the unavailable-marker path
                 # too, not just the full-success path. cash_per_share is unaffected - it still
                 # needs shares_outstanding and correctly stays gated.
+                # FIXED 2026-08-20 (goal: finance-accuracy audit): added data_unavailable IS NOT
+                # TRUE - same bug class as the income-statement query above. reason=
+                # 'incomplete_sec_filing_balance' rows can carry a non-NULL but unreliable
+                # cash_and_equivalents; live-confirmed 253 universe symbols with a valid
+                # current_price were picking one up as "the" cash figure.
                 cur.execute(
                     """
                     SELECT cash_and_equivalents
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
                     LIMIT 1
                     """,
@@ -320,7 +337,7 @@ class SecValuationsLoader(OptimalLoader):
                         operating_lease_liability,
                         finance_lease_liability
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY (CASE
                                 WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
                                      + COALESCE(operating_lease_liability, 0)
@@ -608,11 +625,15 @@ class SecValuationsLoader(OptimalLoader):
                 # for 1,225 symbols as a result. Same CASE-based prioritization as the debt query:
                 # prefer a fiscal year with a real reported value, only falling back to the bare
                 # latest year (still correctly NULL) for companies with no balance sheet history.
+                # FIXED 2026-08-20 (goal: finance-accuracy audit): added data_unavailable IS NOT
+                # TRUE - same bug class as the income-statement/cash/debt queries above (a
+                # reason='incomplete_sec_filing_balance' row's stockholders_equity, if non-NULL,
+                # is not reliable and was silently poisoning pb_ratio).
                 cur.execute(
                     """
                     SELECT stockholders_equity
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY (CASE WHEN stockholders_equity IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
                     LIMIT 1
                     """,
@@ -623,7 +644,6 @@ class SecValuationsLoader(OptimalLoader):
                 # Note: book_value can be None for companies without balance sheets - PB ratio will be NULL
 
                 # Get latest cash flow (for FCF - optional, may not exist for all companies)
-                # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
                 # See the fiscal_year IS NOT NULL comment on the balance sheet query above.
                 # FIXED 2026-08-18 (goal: DCF/margin-of-safety coverage): also fetch the prior
                 # 2 fiscal years' OCF/CapEx so the DCF can fall back to a 3-year average FCF
@@ -636,11 +656,28 @@ class SecValuationsLoader(OptimalLoader):
                 # deliberately keeps using only the latest year - that metric is meant to
                 # reflect current cash generation, not a smoothed figure; only the DCF's
                 # normalization changes.
+                #
+                # FIXED 2026-08-20 (goal: finance-accuracy audit): data_unavailable=TRUE rows
+                # were being read anyway (a 2026-08-xx change removed the `data_unavailable =
+                # FALSE` filter here to stop it excluding legitimate rows where the column is
+                # simply unset/NULL - see git blame). But `data_unavailable=TRUE` with
+                # reason='incomplete_sec_filing_cashflow' means the filer's cash-flow section
+                # itself is incomplete/inconsistent, not merely unset - the non-NULL numbers on
+                # those rows can be raw, unconverted foreign-currency magnitudes (e.g. KT/Korea
+                # Telecom FY2025: operating_cash_flow=4.94e12, still-untranslated KRW) or other
+                # known-bad values, and downstream has no NULL to catch since the column IS
+                # populated. Live-confirmed 13 universe symbols (BAP, DLB, PHG, GLDG, GTN,
+                # GTN.A, OLP, PAL, REA, RUM, VS, WYFI, APC) currently computing fcf_yield in the
+                # hundreds-to-thousands-of-percent range (e.g. BAP=40.81, DLB=4.80, PHG=3.52 -
+                # i.e. 4081%/480%/352%) purely from this. `data_unavailable IS NOT TRUE` (not
+                # `= FALSE`) keeps admitting NULL-flag rows exactly as before while excluding
+                # only the confirmed-bad ones, falling back to the next real fiscal year (or to
+                # the existing None-handling below) instead of a fabricated number.
                 cur.execute(
                     """
                     SELECT operating_cash_flow, capex, dividends_paid
                     FROM annual_cash_flow
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 3
                     """,
                     (symbol,),
