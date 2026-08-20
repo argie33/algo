@@ -31,16 +31,16 @@ class TestBuySignalGeneratorDecimalRounding:
         # Decimal("352.58135").quantize(4dp, ROUND_HALF_UP) == 352.5814 - the classic
         # round(2.675, 2) == 2.67 binary-representation trap, scaled to 4 decimal places.
         swing_high = 352.58135
-        signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active = gen._generate_signal(
+        signal_type, strength, reason, buylevel, stoplevel, raw_buy, raw_sell = gen._generate_signal(
             symbol="TEST",
             close=360.0,
             high=360.0,
             low=345.0,
-            recent_swing_high=swing_high,
-            swing_high_sma50=300.0,
-            recent_swing_low=300.0,
-            prev_buy_active=False,
-            prev_sell_active=False,
+            sma_50=300.0,
+            confirmed_swing_high=swing_high,
+            confirmed_swing_low=300.0,
+            stop_ref_swing_low=300.0,
+            in_position=False,
         )
         assert signal_type == "BUY"
         assert buylevel == _decimal_round(swing_high)
@@ -49,16 +49,16 @@ class TestBuySignalGeneratorDecimalRounding:
         gen = BuySignalGenerator()
         # Confirmed to diverge: round(86.51905, 4) == 86.519 vs Decimal ROUND_HALF_UP == 86.5191
         swing_low = 86.51905
-        signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active = gen._generate_signal(
+        signal_type, strength, reason, buylevel, stoplevel, raw_buy, raw_sell = gen._generate_signal(
             symbol="TEST",
             close=101.0,
             high=101.0,
             low=95.0,
-            recent_swing_high=100.0,
-            swing_high_sma50=90.0,
-            recent_swing_low=swing_low,
-            prev_buy_active=False,
-            prev_sell_active=False,
+            sma_50=90.0,
+            confirmed_swing_high=100.0,
+            confirmed_swing_low=swing_low,
+            stop_ref_swing_low=swing_low,
+            in_position=False,
         )
         assert signal_type == "BUY"
         assert stoplevel == _decimal_round(swing_low)
@@ -67,16 +67,16 @@ class TestBuySignalGeneratorDecimalRounding:
         gen = BuySignalGenerator()
         # Confirmed to diverge: round(130.96445, 4) == 130.9644 vs Decimal ROUND_HALF_UP == 130.9645
         close = 130.96445
-        signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active = gen._generate_signal(
+        signal_type, strength, reason, buylevel, stoplevel, raw_buy, raw_sell = gen._generate_signal(
             symbol="TEST",
             close=close,
             high=101.0,
             low=85.0,
-            recent_swing_high=None,
-            swing_high_sma50=None,
-            recent_swing_low=90.0,
-            prev_buy_active=False,
-            prev_sell_active=False,
+            sma_50=None,
+            confirmed_swing_high=None,
+            confirmed_swing_low=90.0,
+            stop_ref_swing_low=90.0,
+            in_position=True,  # SELL only fires while in a position (see edge-trigger tests)
         )
         assert signal_type == "SELL"
         assert buylevel == _decimal_round(close)

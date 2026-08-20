@@ -18,12 +18,16 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Signal generation thresholds
-# Swing high: 20-bar, swing low: 10-bar - calibrated 2026-06-03 (commit 5a4c190a4) and
-# live-verified against TradingView Pine Script (ON: Jan 30 SELL, Feb 10 BUY, Feb 27 SELL,
-# Jun 2 BUY all matched). Commit 88821b14f (2026-06-27) widened both to 50-bar to raise
-# buy_sell_daily coverage for an unrelated downstream pipeline (VCP/signal_quality_scores),
-# never re-verified against Pine - that's what actually broke Pine-matching, not the
-# edge-trigger bug fixed in bc0047231. Restored to the calibrated values here.
+# 2026-08-19: got the actual TradingView Pine source (user-provided) and checked it against
+# this file line by line. Pine's swing high/low (`valuewhen(pvthi_, high[pvtLenR], 0)`) has NO
+# fixed lookback window at all - ta.pivothigh/pivotlow with leftbars=rightbars=3 confirm a pivot
+# 3 bars after it forms, and that level then persists *indefinitely* (via valuewhen/fixnan)
+# until a newer pivot replaces it, no matter how many bars ago it was set. A prior fix in this
+# file (restoring a "Pine-calibrated" 20-bar/10-bar window, replacing an unverified 50-bar one)
+# was itself wrong - there is no such window in the real strategy; any fixed bar count is a
+# deviation. These constants now exist ONLY as the last-resort STRATEGY 3 fallback bound (for
+# data-quality robustness on symbols with gaps - not part of the authentic Pine logic at all);
+# STRATEGY 1/2 (the actual Pine-equivalent path) search all available history.
 SWING_HIGH_LOOKBACK_BARS = 20
 SWING_LOW_LOOKBACK_BARS = 10
 
@@ -85,15 +89,16 @@ class BuySignalGenerator:
             )
 
         signals = []
-        # Edge-trigger state: Pine Script's plotted BUY/SELL markers fire once, on the bar
-        # where price first crosses the pivot (ta.crossover/crossunder semantics) - they don't
-        # replot every subsequent bar the stock merely remains beyond that level. Without this,
-        # a stock sitting beyond its swing high/low for two weeks emits a signal every single
-        # day, which is what actually broke Pine-matching (not the pivot math itself): live
-        # audit on 2026-08-17 showed 73% of that day's BUY rows and 64% of its SELL rows were
-        # re-fires of a condition already true the day before, not fresh crossovers.
-        prev_buy_active = False
-        prev_sell_active = False
+        # Edge-trigger state, matching Pine's actual model (verified against user-provided
+        # source 2026-08-19): the study section tracks an explicit in-position flag -
+        # `inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]` - and only plots
+        # `buyStudy = buy and flat` / `sellStudy = sellSignal and inPosition`. This is a real
+        # position-state machine, NOT "did the raw condition merely change from yesterday": if
+        # price re-breaks above an already-broken pivot while still in-position (no SELL fired
+        # in between), Pine does NOT re-plot BUY - a same-bar-value comparison against the
+        # previous bar's raw condition (this file's prior approach) would incorrectly re-fire in
+        # that case. Likewise Pine never plots a bare SELL with no open position behind it.
+        in_position = False
 
         for i, row in enumerate(rows):
             # Extract indicator values - explicit key checking (no silent .get() fallbacks)
@@ -122,24 +127,39 @@ class BuySignalGenerator:
                     f"Incomplete price data indicates upstream data loading failure."
                 )
 
-            # Phase 1: Find swing pivots
-            recent_swing_high, swing_high_sma50 = self._find_swing_high(symbol, rows, i)
-            recent_swing_low = self._find_swing_low(symbol, rows, i)
+            # Phase 1: Find swing pivots. Only a *confirmed* pivot (strict 3-bar Pine-equivalent
+            # pivothigh/pivotlow, no relaxed/fallback tiers) may trigger a signal - see
+            # _find_confirmed_swing_high/_low docstrings for why. The relaxed multi-tier
+            # _find_swing_low is used only as a stop-loss reference value when a BUY has
+            # already triggered via a confirmed high but no confirmed low exists yet - Pine
+            # itself doesn't need this (it just leaves stopLevel at na), but real position
+            # sizing needs an actual numeric stop.
+            confirmed_swing_high = self._find_confirmed_swing_high(rows, i)
+            confirmed_swing_low = self._find_confirmed_swing_low(rows, i)
+            stop_ref_swing_low = (
+                confirmed_swing_low if confirmed_swing_low is not None else self._find_swing_low(symbol, rows, i)
+            )
 
-            # Phase 2: Generate signal from pivots (edge-triggered: only on the bar the
-            # condition first becomes true, matching Pine's crossover/crossunder markers)
-            signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active = self._generate_signal(
+            # Phase 2: Generate signal from pivots (in-position state machine, matching Pine's
+            # buyStudy/sellStudy exactly - see `in_position` comment above)
+            signal_type, strength, reason, buylevel, stoplevel, raw_buy, raw_sell = self._generate_signal(
                 symbol,
                 close,
                 high,
                 low,
-                recent_swing_high,
-                swing_high_sma50,
-                recent_swing_low,
-                prev_buy_active,
-                prev_sell_active,
+                sma_50,
+                confirmed_swing_high,
+                confirmed_swing_low,
+                stop_ref_swing_low,
+                in_position,
             )
-            prev_buy_active, prev_sell_active = buy_active, sell_active
+            # Update state for the NEXT bar, mirroring Pine's `buy[1]`/`sellSignal[1]` lag:
+            # this bar's raw condition (not this bar's edge-triggered signal_type) determines
+            # whether the position is considered open starting next bar.
+            if raw_buy:
+                in_position = True
+            elif raw_sell:
+                in_position = False
 
             # Phase 3: Compute metrics if signal generated
             if signal_type:
@@ -231,21 +251,78 @@ class BuySignalGenerator:
 
         return signals
 
-    def _find_swing_high(self, symbol: str, rows: list[dict[str, Any]], i: int) -> tuple[float | None, float | None]:
-        """Find recent swing high with multiple strategies.
-
-        Strategy 1: Perfect swing (high > all surrounding bars in 3-bar window) - most reliable
-        Strategy 2: Relative swing (high > most surrounding bars, allow 1 exception)
-        Strategy 3: Recent maximum (highest price in 20-bar window) - fallback for volatile markets
-
-        All strategies use actual data (no fabrication), providing mathematical
-        soundness even when perfect swing patterns unavailable in real market conditions.
+    def _find_confirmed_swing_high(self, rows: list[dict[str, Any]], i: int) -> float | None:
+        """Find the most recent Pine-confirmed swing high (strict pivothigh(3,3), unbounded
+        search) - the ONLY thing allowed to trigger a BUY. Deliberately does not fall back to
+        the relaxed/no-history-yet tiers in _find_swing_high: those exist purely to give a
+        real BUY a usable stop-loss reference when no confirmed low exists, not to invent a
+        breakout level Pine wouldn't actually have. Letting a fallback tier trigger a signal
+        was live-caught 2026-08-19: with the loader's real 120-day rolling fetch window, the
+        first ~5 bars of EVERY symbol's window lack enough surrounding data for a confirmed
+        pivot, so the old fallback (recent max within a small window) would trivially fire a
+        spurious BUY there every run - which, under the correct in-position state machine
+        (Pine only allows one open position at a time), then silently suppressed the real
+        breakout signal for the rest of that symbol's 120-day window.
         """
         recent_swing_high = None
-        swing_high_sma50 = None
+        for j in range(i):
+            candidate = rows[j].get("high")
+            if candidate is None:
+                continue
+            lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
+            # Bounded at i+1 (not len(rows)): rows extends through "today" even when scoring a
+            # pivot for an earlier bar j, since the whole window is regenerated every run.
+            # Without this bound, confirming bar j could use bars after evaluation bar i - data
+            # that did not exist yet as of the date this signal is for.
+            lookforward_bars = [
+                rows[k].get("high")
+                for k in range(j + 1, min(len(rows), i + 1, j + 4))
+                if rows[k].get("high") is not None
+            ]
+            if len(lookback_bars) < 3 or len(lookforward_bars) < 3:
+                continue
+            if all(candidate > b for b in lookback_bars) and all(candidate > b for b in lookforward_bars):
+                recent_swing_high = candidate  # most recent wins, matching Pine's valuewhen(...,0)
+        return recent_swing_high
 
-        # STRATEGY 1: Try perfect swing (original strict logic)
-        for j in range(max(0, i - SWING_HIGH_LOOKBACK_BARS), i):
+    def _find_confirmed_swing_low(self, rows: list[dict[str, Any]], i: int) -> float | None:
+        """Find the most recent Pine-confirmed swing low (strict pivotlow(3,3), unbounded
+        search) - the ONLY thing allowed to trigger a SELL. See _find_confirmed_swing_high
+        docstring for why this must not fall back to relaxed tiers.
+        """
+        recent_swing_low = None
+        for j in range(i):
+            candidate = rows[j].get("low")
+            if candidate is None:
+                continue
+            lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
+            lookforward_bars = [
+                rows[k].get("low") for k in range(j + 1, min(len(rows), i + 1, j + 4)) if rows[k].get("low") is not None
+            ]
+            if len(lookback_bars) < 3 or len(lookforward_bars) < 3:
+                continue
+            if all(candidate < b for b in lookback_bars) and all(candidate < b for b in lookforward_bars):
+                recent_swing_low = candidate  # most recent wins, matching Pine's valuewhen(...,0)
+        return recent_swing_low
+
+    def _find_swing_high(self, symbol: str, rows: list[dict[str, Any]], i: int) -> float | None:
+        """Find the most recent confirmed swing high, matching Pine's `pivothigh(high, 3, 3)`
+        + `valuewhen(...)` exactly: a 3-bar-left/3-bar-right confirmed pivot, searched back
+        through ALL available history (no fixed lookback window - Pine's valuewhen never
+        expires a level, it persists until a newer pivot replaces it).
+
+        Strategy 1: Perfect swing (high > all surrounding bars in 3-bar window) - the real Pine
+            pivothigh condition.
+        Strategy 2: Relative swing (high > most surrounding bars, allow 1 exception) - not part
+            of Pine; leniency for real-world data gaps.
+        Strategy 3: Recent maximum in a bounded window - last-resort fallback, also not part of
+            Pine; only reached when strategies 1/2 find nothing at all (e.g. insufficient
+            history for a 3-bar confirmation).
+        """
+        recent_swing_high = None
+
+        # STRATEGY 1: Perfect swing (Pine's actual pivothigh(3,3) condition) - unbounded search
+        for j in range(i):
             candidate = rows[j].get("high")
             if candidate is None:
                 continue
@@ -266,27 +343,22 @@ class BuySignalGenerator:
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
                 continue
 
-            # Validate pivot: candidate must be higher than all available lookback and lookforward bars
+            # Validate pivot: candidate must be higher than all available lookback and lookforward bars.
+            # Take the MOST RECENT confirmed pivot (largest j), matching Pine's valuewhen(..., 0)
+            # semantics - not the highest price seen, which would deviate from "most recent".
             if all(candidate > b for b in lookback_bars) and all(candidate > b for b in lookforward_bars):
-                if recent_swing_high is None or candidate > recent_swing_high:
-                    recent_swing_high = candidate
-                    swing_high_sma50 = rows[j].get("sma_50")
+                recent_swing_high = candidate
 
         if recent_swing_high is not None:
-            return recent_swing_high, swing_high_sma50
+            return float(recent_swing_high)
 
-        # STRATEGY 2: Try relative swing (high > most surrounding bars, allow 1 exception)
-        for j in range(max(0, i - SWING_HIGH_LOOKBACK_BARS), i):
+        # STRATEGY 2: Relative swing (high > most surrounding bars, allow 1 exception) - unbounded
+        for j in range(i):
             candidate = rows[j].get("high")
             if candidate is None:
                 continue
 
             lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
-            # Bounded at i+1 (not len(rows)): rows extends through "today" even when
-            # scoring a pivot for an earlier bar j, since the whole lookback window is
-            # regenerated every run. Without this bound, confirming bar j as a pivot
-            # could use bars after evaluation bar i - data that did not exist yet as of
-            # the date this signal is for.
             lookforward_bars = [
                 rows[k].get("high")
                 for k in range(j + 1, min(len(rows), i + 1, j + 4))
@@ -300,39 +372,28 @@ class BuySignalGenerator:
             lookback_higher = sum(1 for b in lookback_bars if candidate > b)
             lookforward_higher = sum(1 for b in lookforward_bars if candidate > b)
             if lookback_higher >= len(lookback_bars) - 1 and lookforward_higher >= len(lookforward_bars) - 1:
-                if recent_swing_high is None or candidate > recent_swing_high:
-                    recent_swing_high = candidate
-                    swing_high_sma50 = rows[j].get("sma_50")
+                recent_swing_high = candidate
 
         if recent_swing_high is not None:
-            return recent_swing_high, swing_high_sma50
+            return float(recent_swing_high)
 
-        # STRATEGY 3: Recent maximum (highest price in the swing-high window)
-        # Valid for all market conditions, no pattern required
+        # STRATEGY 3: Recent maximum in a bounded window - last resort, not part of Pine
         max_price = None
-        max_sma50 = None
         for j in range(max(0, i - SWING_HIGH_LOOKBACK_BARS), i):
             high = rows[j].get("high")
-            if high is not None:
-                if max_price is None or high > max_price:
-                    max_price = high
-                    max_sma50 = rows[j].get("sma_50")
-        return max_price, max_sma50
+            if high is not None and (max_price is None or high > max_price):
+                max_price = high
+        return max_price
 
     def _find_swing_low(self, symbol: str, rows: list[dict[str, Any]], i: int) -> float | None:
-        """Find recent swing low with multiple strategies.
-
-        Strategy 1: Perfect swing (low < all surrounding bars in 3-bar window) - most reliable
-        Strategy 2: Relative swing (low < most surrounding bars, allow 1 exception)
-        Strategy 3: Recent minimum (lowest price in 20-bar window) - fallback for volatile markets
-
-        All strategies use actual data (no fabrication), providing mathematical
-        soundness even when perfect swing patterns unavailable in real market conditions.
+        """Find the most recent confirmed swing low, matching Pine's `pivotlow(low, 3, 3)`
+        + `valuewhen(...)` exactly - see `_find_swing_high` docstring for the full rationale
+        (unbounded search, most-recent-not-lowest tie-breaking).
         """
         recent_swing_low = None
 
-        # STRATEGY 1: Try perfect swing (original strict logic)
-        for j in range(max(0, i - SWING_LOW_LOOKBACK_BARS), i):
+        # STRATEGY 1: Perfect swing (Pine's actual pivotlow(3,3) condition) - unbounded search
+        for j in range(i):
             candidate = rows[j].get("low")
             if candidate is None:
                 continue
@@ -344,27 +405,26 @@ class BuySignalGenerator:
                 rows[k].get("low") for k in range(j + 1, min(len(rows), i + 1, j + 4)) if rows[k].get("low") is not None
             ]
 
-            # Lenient requirement: need at least 2 lookback and 2 lookforward bars
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
                 continue
 
-            # Validate pivot: candidate must be lower than all available lookback and lookforward bars
+            # Validate pivot: candidate must be lower than all available lookback and lookforward
+            # bars. Take the MOST RECENT confirmed pivot (largest j), matching Pine's
+            # valuewhen(..., 0) semantics - not the lowest price seen.
             if all(candidate < b for b in lookback_bars) and all(candidate < b for b in lookforward_bars):
-                if recent_swing_low is None or candidate < recent_swing_low:
-                    recent_swing_low = candidate
+                recent_swing_low = candidate
 
         if recent_swing_low is not None:
             return float(recent_swing_low)
 
-        # STRATEGY 2: Try relative swing (low < most surrounding bars, allow 1 exception)
-        # This handles choppy markets where perfect swings are rare
-        for j in range(max(0, i - SWING_LOW_LOOKBACK_BARS), i):
+        # STRATEGY 2: Relative swing (low < most surrounding bars, allow 1 exception) - unbounded.
+        # This handles choppy markets where perfect swings are rare. Not part of Pine.
+        for j in range(i):
             candidate = rows[j].get("low")
             if candidate is None:
                 continue
 
             lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
-            # Bounded at i+1, not len(rows) - see matching comment in _find_swing_high.
             lookforward_bars = [
                 rows[k].get("low") for k in range(j + 1, min(len(rows), i + 1, j + 4)) if rows[k].get("low") is not None
             ]
@@ -376,20 +436,17 @@ class BuySignalGenerator:
             lookback_lower = sum(1 for b in lookback_bars if candidate < b)
             lookforward_lower = sum(1 for b in lookforward_bars if candidate < b)
             if lookback_lower >= len(lookback_bars) - 1 and lookforward_lower >= len(lookforward_bars) - 1:
-                if recent_swing_low is None or candidate < recent_swing_low:
-                    recent_swing_low = candidate
+                recent_swing_low = candidate
 
         if recent_swing_low is not None:
             return float(recent_swing_low)
 
-        # STRATEGY 3: Recent minimum (lowest price in the swing-low window)
-        # Valid for all market conditions, no pattern required
+        # STRATEGY 3: Recent minimum in a bounded window - last resort, not part of Pine
         min_price = None
         for j in range(max(0, i - SWING_LOW_LOOKBACK_BARS), i):
             low = rows[j].get("low")
-            if low is not None:
-                if min_price is None or low < min_price:
-                    min_price = low
+            if low is not None and (min_price is None or low < min_price):
+                min_price = low
         return min_price
 
     def _generate_signal(
@@ -398,19 +455,27 @@ class BuySignalGenerator:
         close: float,
         high: float,
         low: float,
-        recent_swing_high: float | None,
-        swing_high_sma50: float | None,
-        recent_swing_low: float | None,
-        prev_buy_active: bool,
-        prev_sell_active: bool,
+        sma_50: float | None,
+        confirmed_swing_high: float | None,
+        confirmed_swing_low: float | None,
+        stop_ref_swing_low: float | None,
+        in_position: bool,
     ) -> tuple[str | None, float, str, float | None, float | None, bool, bool]:
-        """Generate BUY/SELL signal from swing pivots.
+        """Generate BUY/SELL signal from swing pivots, matching Pine exactly:
 
-        Edge-triggered: signal_type is only set on the bar where the breakout/breakdown
-        condition transitions from false to true (like Pine's ta.crossover/ta.crossunder),
-        not on every subsequent bar the price merely remains beyond the pivot. The two
-        returned booleans are the raw (non-edge-triggered) condition state for this bar,
-        which the caller carries forward as prev_buy_active/prev_sell_active for the next bar.
+            buySignal = high > buyLevel
+            buy = buySignal and buyLevel > maFilter   (maFilter = sma(close, 50) on THIS bar)
+            sellSignal = low < stopLevel
+            buyStudy = buy and flat        (flat = not in_position)
+            sellStudy = sellSignal and inPosition
+
+        signal_type is only set when the in-position state machine says to (BUY only while
+        flat, SELL only while in a position) - not merely "condition changed since last bar".
+        The two returned booleans are the raw (non-edge-triggered) buy/sell condition for this
+        bar, which the caller uses to update in_position for the next bar. confirmed_swing_high/
+        low must come from a strict Pine-equivalent pivot (see _find_confirmed_swing_high/_low)
+        - only that may trigger a signal. stop_ref_swing_low may come from a relaxed fallback
+        tier and is used only as the BUY's numeric stop-loss value, never to decide triggering.
         """
         signal_type = None
         strength = 0.0
@@ -418,23 +483,28 @@ class BuySignalGenerator:
         buylevel = None
         stoplevel = None
 
-        buy_active = bool(
-            recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50
+        # MA filter compares the swing high against THIS bar's SMA50 (Pine's `maFilter` is a
+        # plain series evaluated at the current bar), not the SMA50 at the time the pivot formed.
+        raw_buy = bool(
+            confirmed_swing_high and sma_50 and high > confirmed_swing_high and confirmed_swing_high > sma_50
         )
-        sell_active = bool(recent_swing_low and low < recent_swing_low)
+        raw_sell = bool(confirmed_swing_low and low < confirmed_swing_low)
 
-        # BUY: Breakout above swing high where swing_high > SMA50
-        if buy_active and not prev_buy_active:
+        buy_active = raw_buy and not in_position
+        sell_active = raw_sell and in_position
+
+        # BUY: Breakout above swing high where swing_high > current SMA50, only while flat
+        if buy_active:
             signal_type = "BUY"
-            # buy_active's definition guarantees both are non-None (mypy can't narrow through
+            # raw_buy's definition guarantees both are non-None (mypy can't narrow through
             # the bool() wrapper the way it could narrow the old inline condition directly).
-            assert recent_swing_high is not None and swing_high_sma50 is not None
-            if recent_swing_high <= 0:
+            assert confirmed_swing_high is not None and sma_50 is not None
+            if confirmed_swing_high <= 0:
                 raise RuntimeError(
-                    f"[SIGNAL_GENERATION] Invalid recent_swing_high={recent_swing_high} for {symbol}: "
+                    f"[SIGNAL_GENERATION] Invalid confirmed_swing_high={confirmed_swing_high} for {symbol}: "
                     "swing high must be positive for BUY signal calculation."
                 )
-            breakout_pct = (high - recent_swing_high) / recent_swing_high * 100
+            breakout_pct = (high - confirmed_swing_high) / confirmed_swing_high * 100
             strength = min(0.5 + (breakout_pct / 5.0), 1.0)
             reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
             # BUG FOUND 2026-08-10: bare round() on a float, the same binary-representation
@@ -445,28 +515,28 @@ class BuySignalGenerator:
             # real entry execution - see phase7_signal_generation.py's `signal = 'BUY'`
             # filter). buylevel/stoplevel here become _calculate_entry_exit_levels()'s
             # Decimal(str(buylevel)) input, baking in any float-rounding drift permanently.
-            buylevel = float(Decimal(str(recent_swing_high)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
-            if not recent_swing_low:
+            buylevel = float(Decimal(str(confirmed_swing_high)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
+            if not stop_ref_swing_low:
                 raise RuntimeError(
                     f"[SIGNAL_GENERATION_CRITICAL] {symbol}: BUY signal detected but cannot calculate stop loss. "
-                    f"No swing_low pivot found in {SWING_LOW_LOOKBACK_BARS}-bar lookback. "
+                    f"No swing_low pivot found (confirmed or fallback). "
                     f"Fail-fast: cannot proceed without risk level definition. "
                     f"Incomplete signal generation indicates data quality or pivot detection issue. "
                     f"Verify: (1) sufficient price history, (2) data completeness, (3) pivot detection logic."
                 )
-            stoplevel = float(Decimal(str(recent_swing_low)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
+            stoplevel = float(Decimal(str(stop_ref_swing_low)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
 
-        # SELL: Breakdown below swing low (stop loss)
-        elif sell_active and not prev_sell_active:
+        # SELL: Breakdown below swing low (stop loss), only while in a position
+        elif sell_active:
             signal_type = "SELL"
             # sell_active's definition guarantees this is non-None (see BUY-branch comment above).
-            assert recent_swing_low is not None
-            if recent_swing_low <= 0:
+            assert confirmed_swing_low is not None
+            if confirmed_swing_low <= 0:
                 raise RuntimeError(
-                    f"[SIGNAL_GENERATION] Invalid recent_swing_low={recent_swing_low} for {symbol}: "
+                    f"[SIGNAL_GENERATION] Invalid confirmed_swing_low={confirmed_swing_low} for {symbol}: "
                     "swing low must be positive for SELL signal calculation."
                 )
-            breakdown_pct = (recent_swing_low - low) / recent_swing_low * 100
+            breakdown_pct = (confirmed_swing_low - low) / confirmed_swing_low * 100
             strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
             reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
             # Same bare-round() inconsistency as the BUY branch's buylevel/stoplevel above -
@@ -480,7 +550,7 @@ class BuySignalGenerator:
                 (Decimal(str(close)) * Decimal("1.08")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
             )
 
-        return signal_type, strength, reason, buylevel, stoplevel, buy_active, sell_active
+        return signal_type, strength, reason, buylevel, stoplevel, raw_buy, raw_sell
 
     def _compute_volume_surge(
         self, volume: float | None, rows: list[dict[str, Any]], i: int
