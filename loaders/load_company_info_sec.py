@@ -21,7 +21,7 @@ Run:
 import logging
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase
@@ -328,7 +328,30 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # fallback, which would find a real value. Live-confirmed the same pattern for FOXA
         # /FOX (val=1), HQ (val=1), QNTM (val=12), RFL (val=100) via
         # short_interest_finra.reason='shares_outstanding_invalid'.
+        #
+        # FIXED 2026-08-20 (goal: finance-accuracy audit): the AEM comment above ("the real
+        # risk demonstrated here is a stale historical fact never refreshed once a filer
+        # stopped tagging us-gaap concepts") was only ever addressed via
+        # restrict_to_domestic_forms - which does nothing for a DOMESTIC filer whose OWN dei
+        # concept goes stale. Live-confirmed via AI (C3.ai): its dei:
+        # EntityCommonStockSharesOutstanding history's newest entry is {"end": "2021-...",
+        # "val": 3499992} - a real, once-valid, now 5-year-stale filing (C3.ai IPO'd
+        # Dec 2020) - while annual_income_statement.shares_outstanding_basic (a different
+        # concept, refreshed every fiscal year) correctly shows 140,513,000 for FY2026, ~40x
+        # higher. This function had no notion of "the latest entry I found might itself be
+        # too old to trust" - it only ever compared candidates against EACH OTHER, never
+        # against today. The stale 3.5M value then propagated into sec_valuations (via its
+        # company_info_sec cross-check, since both agreed - the same shared-root-cause blind
+        # spot as the ONC/BeOne Medicines case) and into short_interest_finra, where it
+        # inflated short_pct to 1323% for a stock with genuinely single-digit-to-teens real
+        # short interest. A stale entry now correctly falls through to the us-gaap fallback
+        # (or ultimately shares_outstanding=None) instead of being trusted just because it
+        # was the newest entry within its own narrow concept's history.
+        staleness_cutoff = (date.today() - timedelta(days=730)).isoformat()
         for candidate in sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True):
+            end_date = candidate.get("end")
+            if not end_date or end_date < staleness_cutoff:
+                continue
             raw_val: float | int | None = candidate.get("val")
             if raw_val is None:
                 continue

@@ -120,7 +120,10 @@ class TestSharesOutstandingGaapFallback:
 
     def test_implausible_value_skipped_in_favor_of_older_plausible_one(self):
         """Within a single fact's history, an implausible latest-dated entry must not
-        block recovery of an older, plausible one further back in the same fact."""
+        block recovery of an older, plausible one further back in the same fact - as
+        long as that older entry is itself still within the staleness window (see
+        test_company_info_sec_shares_outstanding_stale_entry_rejected.py for the
+        orthogonal "even a plausible value can be too old to trust" case)."""
         loader = _loader()
         loader.sec_client.symbol_to_cik.return_value = "0001308161"
         loader.sec_client.get_submissions.return_value = _submissions()
@@ -130,8 +133,8 @@ class TestSharesOutstandingGaapFallback:
                     "EntityCommonStockSharesOutstanding": {
                         "units": {
                             "shares": [
-                                {"end": "2019-03-18", "val": 1},
-                                {"end": "2018-12-31", "val": 580_000_000},
+                                {"end": "2025-09-18", "val": 1},
+                                {"end": "2025-06-30", "val": 580_000_000},
                             ]
                         }
                     }
