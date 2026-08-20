@@ -45,7 +45,22 @@ logger = logging.getLogger(__name__)
 # currency without USD conversion - see that file's docstring for the VFS/KEP example). This
 # bound only prevents the crash symptom, same scope as that fix; the currency-conversion root
 # cause is a separate, larger fix.
-MAX_ABSOLUTE_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion - no real company exceeds this
+# FIXED 2026-08-20 (goal: finance-accuracy audit): the original $1 trillion ceiling's own
+# comment ("no real company exceeds this") was already false at the time this bound is being
+# read - live-confirmed 14 real, major, heavily-traded companies (NVDA $5.30T, AAPL $4.74T,
+# GOOGL $4.18T, GOOG $4.14T, MSFT $3.60T, AMZN $2.87T, BABA $2.65T, AVGO $1.71T, AMX $1.47T,
+# META $1.38T, BRK.A $1.23T, LLY $1.15T, TSLA $1.13T, MU $1.05T) computing a real,
+# well-formed enterprise_value that this guard was silently nulling to None, along with
+# ev_ebitda/ev_revenue for every one of them - losing EV-based ratios for exactly the stocks
+# most likely to be in any real trading universe. The true constraint is the NUMERIC(15,2)
+# column definition itself (confirmed via information_schema: precision=15, scale=2, hard
+# ceiling ~$9,999,999,999,999.99) - this guard exists to stay safely under THAT crash point,
+# not to second-guess how large a real company can get. market_cap is NUMERIC(20,2), a much
+# larger column, which is why market_cap itself was never affected by this bug.
+MAX_ABSOLUTE_DOLLAR_VALUE = 9_000_000_000_000.0  # $9 trillion - stays safely under the real
+# NUMERIC(15,2) column overflow point (~$10T) with margin for continued real-world growth,
+# while still catching genuine data errors (the original NMR/BBAR-class currency-scale bugs
+# this guard was built for produced values in the hundreds of trillions to quadrillions).
 
 
 class SecValuationsLoader(OptimalLoader):
