@@ -586,7 +586,34 @@ class DividendDataLoader(SecLoaderBase):
             if unique_results:
                 return unique_results
 
-            # No dividend data found in XBRL
+            # FIX 2026-08-19 (goal session continuation - "Scores Data Coverage" dashboard
+            # showed dividend_data as the single largest "Missing SEC/XBRL data" gap, 2,549
+            # active symbols / 55% of the table, all "no_dividend_xbrl_concepts"). Live-sampled
+            # 8 of these (AADX, AAOI, AARD, ...) directly against SEC's real companyfacts: every
+            # one has a substantive us-gaap taxonomy (113-475 concepts, real NetIncomeLoss facts
+            # on file) yet zero facts under ANY of the 9 dividend concepts (2 us-gaap per-share +
+            # 2 ifrs per-share + 5 us-gaap/ifrs total-dollar) this loader already checks above -
+            # not a case of SEC having the data under some 10th untried concept, but a company
+            # that has genuinely never declared a shareholder dividend. Downstream consumers
+            # (load_value_quality_growth_metrics.py's payout_ratio/dividend_yield reasons) already
+            # treat this exact situation as "non_dividend_paying_stock", a legitimate business
+            # fact bucketed separately from real data gaps - but they derive that label by
+            # querying this same table's own output, so dividend_data mislabeling itself as a
+            # generic (gap-implying) "no_dividend_xbrl_concepts" was the root of the mislabel, not
+            # an independent confirmation downstream. NetIncomeLoss/ProfitLoss presence is the
+            # gate: a filer thin enough to have no real income-statement facts at all genuinely
+            # can't be distinguished from "we just don't have their data" and keeps the honest
+            # generic reason.
+            has_real_income_statement_facts = bool(
+                (us_gaap.get("NetIncomeLoss") or {}).get("units")
+                or (ifrs_full.get("ProfitLoss") or {}).get("units")
+                or (ifrs_full.get("ProfitLossFromContinuingOperations") or {}).get("units")
+            )
+            if has_real_income_statement_facts:
+                return [self._unavailable_record(symbol, now_et, "non_dividend_paying_stock")]
+
+            # No dividend data found in XBRL, and no real income-statement facts either -
+            # genuinely can't tell whether this is a non-payer or a thin/unavailable filer.
             return [self._unavailable_record(symbol, now_et, "no_dividend_xbrl_concepts")]
 
         except TransientAPIError:

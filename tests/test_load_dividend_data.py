@@ -263,6 +263,41 @@ def test_ifrs_non_major_currency_per_share_is_rejected(monkeypatch) -> None:
     assert records[0]["data_unavailable_reason"] == "no_dividend_xbrl_concepts"
 
 
+def test_real_filer_with_zero_dividend_concepts_is_labeled_non_payer_not_gap() -> None:
+    """A filer with a real, substantive income statement (NetIncomeLoss present) but zero
+    facts under any of the 9 dividend concepts this loader checks has genuinely never
+    declared a shareholder dividend - a legitimate business fact, not a data gap. Must not
+    get the generic (gap-implying) "no_dividend_xbrl_concepts" label."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "NetIncomeLoss": {"units": {"USD": [{"val": 1_000_000, "filed": "2023-01-30", "end": "2022-12-31"}]}},
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "non_dividend_paying_stock"
+
+
+def test_thin_filer_with_no_income_statement_facts_keeps_generic_gap_label() -> None:
+    """A filer with essentially no us-gaap/ifrs-full facts at all (no NetIncomeLoss/
+    ProfitLoss) can't be confidently called a confirmed non-payer - keep the honest,
+    can't-tell "no_dividend_xbrl_concepts" label rather than guessing non-payer status."""
+    facts = {"facts": {"us-gaap": {"SomeUnrelatedConcept": {"units": {"USD": []}}}}}
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "no_dividend_xbrl_concepts"
+
+
 def test_all_ifrs_filer_with_no_us_gaap_facts_at_all_still_extracts() -> None:
     """Must not bail out on missing/empty us-gaap before ever checking ifrs-full - an
     all-IFRS filer (no us-gaap facts at all) can still have real ifrs-full dividend data."""
