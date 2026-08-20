@@ -1873,6 +1873,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # file Form 8-K (they use 6-K instead) - same permanent-exemption distinction as
             # above, for current_reports_8k. See load_current_reports_8k.py.
             "foreign_private_issuer_no_8k_filings",
+            # ADDED 2026-08-19 (same session, live-caught after backfilling): a PRE-EXISTING
+            # reason string (load_insider_holdings_sec.py/load_insider_transaction_velocity.py,
+            # predates this session) was never wired into this categorization at all - every
+            # symbol using it fell through to "Other (errors / excluded)" instead of this
+            # bucket. Live-confirmed: backfilling those two loaders' already-correct FPI
+            # distinction relabeled 1,052 symbols to this reason, and "Other" visibly jumped
+            # by exactly that amount on the live dashboard before this fix - the same
+            # permanent-exemption fact as the two reasons above, just for Form 3/4/5 insider
+            # filings (foreign private issuers are exempt from Section 16 reporting).
+            "foreign_private_issuer_exempt",
         },
     ),
 ]
