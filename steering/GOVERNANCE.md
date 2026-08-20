@@ -94,7 +94,7 @@ All fail-fast patterns are enforced. See git log for remediation commits: `git l
 
 **Three layers of gates** (all hot-reloadable via `algo_config` table):
 
-1. **Entry quality:** Signal quality score ≥60 (`min_signal_quality_score`), completeness ≥70% (`min_completeness_score`), volume ≥300k (`min_volume_ma_50d`), dollar volume ≥$500k (`min_avg_daily_dollar_volume`). Swing score is retired (migration 103) - trading logic is composite_score-only.
+1. **Entry quality:** Signal quality score ≥75 (`min_signal_quality_score` - drifted stale here as 60, verified live 2026-08-20), completeness ≥70% (`min_completeness_score`), volume ≥300k (`min_volume_ma_50d`), dollar volume ≥$500k (`min_avg_daily_dollar_volume`). Swing score is retired (migration 103) - trading logic is composite_score-only.
 2. **Earnings blackout:** 7 days before, 3 days after
 3. **Quality gates (warn-only):** RS slope, volume decay
 
@@ -110,7 +110,7 @@ All fail-fast patterns are enforced. See git log for remediation commits: `git l
 Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_registry.py`:
 
 1. **Data Freshness Check** — Validates upstream loader data freshness; halts if >1 trading day stale.
-2. **Circuit Breakers** — Runs all 14 checks in `algo/risk/circuit_breaker.py`'s `_check_registry` (not 8, not 13 - both stale counts; sector_drawdown (CB9) was added in commit `f20b6e42a` without a steering update, closing a real gap where `sector_drawdown_halt_pct` was seeded/admin-editable config with no enforcing check). Halting checks: drawdown ≥20%, drawdown re-engagement (post-halt: equity must recover + N days elapse + optional Follow-Through Day before resuming), daily loss ≥2%, loss streak ≥3, open risk ≥8% (`max_total_risk_pct` - bumped from a stale-doc'd 4%, see commit referenced in `_check_total_risk`'s own "CRITICAL FIX 2026-08-06: Use config value to stay in sync with Phase 8 and circuit breaker"; verified live 2026-08-10), VIX spike ≥35, market stage break, weekly loss ≥5%, win rate <30% (`min_win_rate_pct`, not the previously-doc'd 40% - verified live 2026-08-10) (rolling ~30 trades, closed + open unrealized), data freshness (stale price data), intraday market health (SPY fell >2% the prior day), **sector drawdown** (cost-basis-weighted per-sector unrealized P&L ≤ `sector_drawdown_halt_pct`, e.g. -12%). Advisory-only (warn, don't halt): sector concentration, daily profit cap. Sets halt flag on any halting check.
+2. **Circuit Breakers** — Runs all 14 checks in `algo/risk/circuit_breaker.py`'s `_check_registry` (not 8, not 13 - both stale counts; sector_drawdown (CB9) was added in commit `f20b6e42a` without a steering update, closing a real gap where `sector_drawdown_halt_pct` was seeded/admin-editable config with no enforcing check). Halting checks: drawdown ≥10% (`halt_drawdown_pct` - code default is 20%, but this dev environment's admin-editable config has been tightened to -10%, verified live 2026-08-20; don't assume the code-level default without checking the live value), drawdown re-engagement (post-halt: equity must recover + N days elapse + optional Follow-Through Day before resuming), daily loss ≥2%, loss streak ≥3, open risk ≥8% (`max_total_risk_pct` - bumped from a stale-doc'd 4%, see commit referenced in `_check_total_risk`'s own "CRITICAL FIX 2026-08-06: Use config value to stay in sync with Phase 8 and circuit breaker"; verified live 2026-08-10), VIX spike ≥35, market stage break, weekly loss ≥5%, win rate <30% (`min_win_rate_pct`, not the previously-doc'd 40% - verified live 2026-08-10) (rolling ~30 trades, closed + open unrealized), data freshness (stale price data), intraday market health (SPY fell >2% the prior day), **sector drawdown** (cost-basis-weighted per-sector unrealized P&L ≤ `sector_drawdown_halt_pct`, e.g. -12%). Advisory-only (warn, don't halt): sector concentration, daily profit cap. Sets halt flag on any halting check.
 3. **Position Monitor** — Reviews open positions, checks against risk limits, validates data integrity. `always_run=True`.
 4. **Reconciliation** — Reconciles broker positions vs. algo_trades table.
 5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess.
@@ -172,7 +172,11 @@ Separately, phases 4/5/7 also carry `skip_if_halted=True`, which independently s
 
 **Local:** PostgreSQL setup + `DB_HOST=localhost DB_USER=stocks DB_PASSWORD=stocks DB_NAME=stocks python migrations/run.py apply --all` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
 
-**Production:** `git push main` → deploy-all-infrastructure.yml (auto)
+**Production:** `git push main` → deploy-all-infrastructure.yml (auto) — **this file does not exist**
+(verified 2026-08-20: no `.github/workflows/` content of any kind existed before this date, on any
+branch, in this repo's full git history). Nothing currently auto-deploys on push. Until a real
+deploy pipeline is built and verified, treat any production deployment as manual and confirm the
+actual mechanism before relying on this line.
 
 **Rotation:** Quarterly (first Monday), immediately if leaked. No `.env` files ever.
 
@@ -180,7 +184,7 @@ Separately, phases 4/5/7 also carry `skip_if_halted=True`, which independently s
 
 ## Rule Enforcement & Audit
 
-See "Code Cleanliness" section above for protected rules. Enforcement is per-commit via pre-commit hooks and CI (`.github/workflows/ci.yml`).
+See "Code Cleanliness" section above for protected rules. Enforcement is per-commit via pre-commit hooks and CI (`.github/workflows/ci.yml` — added 2026-08-20; this claim was false before that date, see `[[ci_cd_pipeline_never_existed_20260820]]` in memory). CI runs ruff/mypy/pylint/pytest/bandit/trufflehog (Python) and eslint/prettier/vitest (frontend) on every push/PR to `main` — it does not deploy anything.
 
 ---
 
