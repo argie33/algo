@@ -43,7 +43,22 @@ LOADER_SLA_TARGETS = {
     "buy_sell_daily": (30 * 60, 120 * 60, 180 * 60),
     "sector_ranking": (15 * 60, 20 * 60, 30 * 60),
     # Supporting loaders
-    "earnings_calendar": (10 * 60, 30 * 60, 60 * 60),
+    # FIXED 2026-08-20 (goal: finance-accuracy audit): the old (10, 30, 60)-minute targets
+    # were stale - live-confirmed via logs/scheduler_invocations.log: 8 real runs over
+    # 2026-08-16 through 2026-08-20 (every day sampled) took 62.3-75.3 min (avg 66.3 min),
+    # firing a false "CRITICAL: exceeded 60 min SLA" alert on literally every single run,
+    # not a genuine hang/failure - loader_timeout_config.py's own earnings_calendar entry
+    # was already recalibrated to a generous 180 min hard timeout for this same real
+    # measured duration (see that file's Session 93 audit comment), but this separate
+    # alerting threshold was never updated to match, so every real, successful run still
+    # crossed this file's "CRITICAL" line ~5-15 min into its own normal completion window.
+    # An alert that fires on every single normal run stops functioning as a signal - it
+    # trains whoever's watching to ignore "CRITICAL" for this loader, which is exactly the
+    # condition under which a genuine hang would go unnoticed. Recalibrated to the real
+    # observed range with headroom: expected near the observed median, warn above the
+    # observed max (75.3 min), critical well below the 180 min hard timeout so a real alert
+    # still fires before the loader would actually be killed.
+    "earnings_calendar": (70 * 60, 100 * 60, 150 * 60),
     "company_profile": (30 * 60, 120 * 60, 240 * 60),
     "sp500_constituents": (5 * 60, 10 * 60, 20 * 60),
     "russell2000_constituents": (5 * 60, 10 * 60, 20 * 60),
