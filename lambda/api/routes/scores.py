@@ -1869,6 +1869,10 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # live-confirmed CHKP/FVRR case this distinguishes from genuine
             # "insufficient_quarterly_history".
             "foreign_private_issuer_no_quarterly_filings",
+            # ADDED 2026-08-19 (same session): foreign private issuers structurally never
+            # file Form 8-K (they use 6-K instead) - same permanent-exemption distinction as
+            # above, for current_reports_8k. See load_current_reports_8k.py.
+            "foreign_private_issuer_no_8k_filings",
         },
     ),
 ]

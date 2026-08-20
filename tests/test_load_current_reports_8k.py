@@ -92,6 +92,13 @@ def test_foreign_private_issuer_with_no_8k_filings_gets_unavailable_marker_on_fi
     threshold, because 837/4934 universe symbols (mostly foreign private issuers) could never
     accumulate a row. On the symbol's first-ever check (since=None, no existing watermark),
     a checked-and-empty result must now write a real marker row instead.
+
+    FIXED 2026-08-19 (goal session continuation): this fix's own docstring already
+    identified foreign private issuers as the root cause, but still wrote the same generic,
+    gap-implying "no_8k_filings_in_recent_submissions" reason used for a genuinely quiet
+    domestic filer. A 20-F/40-F filer in `forms` (this fixture's AEM case) now gets the
+    distinct "foreign_private_issuer_no_8k_filings" reason instead - see
+    test_domestic_filer_with_no_8k_filings_keeps_generic_reason below for the companion case.
     """
     loader = _make_loader()
     loader.sec_client.get_submissions.return_value = {
@@ -108,8 +115,30 @@ def test_foreign_private_issuer_with_no_8k_filings_gets_unavailable_marker_on_fi
 
     assert len(records) == 1
     assert records[0]["data_unavailable"] is True
-    assert records[0]["data_unavailable_reason"] == "no_8k_filings_in_recent_submissions"
+    assert records[0]["data_unavailable_reason"] == "foreign_private_issuer_no_8k_filings"
     assert records[0]["accession_number"] == "UNAVAILABLE"
+
+
+def test_domestic_filer_with_no_8k_filings_keeps_generic_reason() -> None:
+    """Companion case to the FPI test above: a domestic filer (10-K/10-Q forms, no 20-F/40-F)
+    with genuinely zero 8-Ks in its recent submissions must keep the original generic reason -
+    this fix must not become a blanket relabel."""
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["10-K", "10-Q", "4"],
+                "filingDate": ["2026-01-15", "2025-11-01", "2025-08-01"],
+                "accessionNumber": ["0001-26-000111", "0001-25-000222", "0001-25-000333"],
+            }
+        }
+    }
+
+    records = loader.fetch_incremental("DOMESTICCO", since=None)
+
+    assert len(records) == 1
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "no_8k_filings_in_recent_submissions"
 
 
 def test_no_new_8k_since_existing_watermark_stays_empty_not_remarked() -> None:

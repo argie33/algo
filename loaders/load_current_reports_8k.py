@@ -38,6 +38,13 @@ from utils.loaders.retry_helper import retry_with_backoff
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
 
+# Same convention as load_insider_transaction_velocity.py/load_insider_holdings_sec.py's
+# identical constant - foreign private issuers file Form 20-F/40-F annual reports instead of
+# 10-K, and structurally never file Form 8-K at all (they use 6-K for current/interim reports
+# instead - a different form this loader doesn't parse). Only the annual-report forms are
+# checked here, not 6-K, matching the sibling loaders' convention for this exact signal.
+_FOREIGN_ANNUAL_FORMS = frozenset({"20-F", "20-F/A", "40-F", "40-F/A"})
+
 
 class CurrentReports8KLoader(SecLoaderBase):
     """Load SEC Form 8-K Current Reports.
@@ -265,6 +272,18 @@ class CurrentReports8KLoader(SecLoaderBase):
             # retried until corrected, not treated as permanently settled once real CIK
             # resolution succeeds.
             if not results and (since is None or self._last_reason_was_symbol_not_found(symbol)):
+                # FIXED 2026-08-19 (goal session continuation - "which factor inputs are
+                # missing the most" audit): this fix's own comment above already identifies
+                # foreign private issuers (20-F/40-F filers, which use Form 6-K instead of
+                # 8-K for current reports) as the live-confirmed root cause of "zero 8-Ks in
+                # submissions" for real, valid filers - but still wrote the same generic,
+                # gap-implying "no_8k_filings_in_recent_submissions" reason for them as for a
+                # genuinely quiet domestic filer. `forms` (already fetched above, no extra SEC
+                # call needed) directly answers whether this symbol is a 20-F/40-F filer -
+                # same distinction load_insider_transaction_velocity.py/
+                # load_insider_holdings_sec.py already make for their own "zero data" cases.
+                if any(f in _FOREIGN_ANNUAL_FORMS for f in forms):
+                    return self._unavailable_record(symbol, now_et, "foreign_private_issuer_no_8k_filings")
                 return self._unavailable_record(symbol, now_et, "no_8k_filings_in_recent_submissions")
 
             return results
