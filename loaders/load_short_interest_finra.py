@@ -344,11 +344,31 @@ class ShortInterestFinraLoader(OptimalLoader):
         wins when both exist - it's the more direct, purpose-built source.
         """
         with DatabaseContext("read") as cur:
+            # FIXED 2026-08-20 (goal: finance-accuracy audit): sec_valuations' own
+            # shares_outstanding cross-check (added earlier this session) already flags
+            # symbols where company_info_sec's value disagrees sharply with an independent
+            # source and is likely mis-scaled (reason='shares_outstanding_scale_mismatch').
+            # This loader had no equivalent guard, so it used the same suspect value anyway.
+            # Live-confirmed via GPUS (Hyperscale Data, Inc.): company_info_sec.
+            # shares_outstanding=1,529,995 is a real filed value, but stale relative to this
+            # company's own extreme dilution pace (real share count grew ~30,000 ->
+            # ~380,730,000 across FY2022-FY2026, per annual_income_statement) - recent enough
+            # to pass the load_company_info_sec.py staleness fix (also 2026-08-20) but still
+            # 1000x+ out of date for THIS filer's velocity. short_pct = short_shares /
+            # outstanding * 100 then computed 3939.62% for a stock with genuinely single-
+            # digit-to-low-triple-digit real short interest. Rather than clamp short_pct
+            # itself (this file's own comment already correctly rejects that - it would mask
+            # genuine >100% squeeze readings), exclude the specific symbols sec_valuations
+            # has already determined are untrustworthy, so this loader falls through to its
+            # own honest "shares_outstanding_unavailable" path instead of reusing data
+            # sec_valuations' more rigorous, multi-source check has already rejected.
             cur.execute("""
-                SELECT DISTINCT ON (symbol) symbol, shares_outstanding
-                FROM company_info_sec
-                WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
-                ORDER BY symbol, filing_date DESC
+                SELECT DISTINCT ON (cis.symbol) cis.symbol, cis.shares_outstanding
+                FROM company_info_sec cis
+                LEFT JOIN sec_valuations sv ON sv.symbol = cis.symbol
+                WHERE cis.shares_outstanding IS NOT NULL AND cis.shares_outstanding > 0
+                  AND (sv.reason IS NULL OR sv.reason != 'shares_outstanding_scale_mismatch')
+                ORDER BY cis.symbol, cis.filing_date DESC
                 """)
             result = {row[0]: row[1] for row in cur.fetchall()}
 
@@ -356,6 +376,7 @@ class ShortInterestFinraLoader(OptimalLoader):
                 SELECT symbol, shares_outstanding
                 FROM sec_valuations
                 WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                  AND (reason IS NULL OR reason != 'shares_outstanding_scale_mismatch')
                 """)
             for symbol, shares_outstanding in cur.fetchall():
                 result.setdefault(symbol, int(shares_outstanding))
