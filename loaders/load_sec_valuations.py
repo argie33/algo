@@ -703,6 +703,18 @@ class SecValuationsLoader(OptimalLoader):
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
             # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
+            # FIXED 2026-08-20 (goal: finance-accuracy audit): ocf/capex were still using the
+            # `if x else 0.0` pattern this same comment warns against - the exact "AA
+            # live-confirmed" bug class fixed for total_debt just below, never applied here.
+            # `_compute_valuations` already has a correct `if ocf and capex is not None:` guard
+            # (skip fcf_yield when capex is genuinely unknown) but it never saw a real None:
+            # capex=NULL (not yet tagged for the latest fiscal year - common when a filer's OCF
+            # posts before its capex line is separately broken out) was coerced to 0.0 here,
+            # producing a fake "free cash flow" = full OCF with nothing deducted. Live-confirmed:
+            # AAL (American Airlines) FY2026 operating_cash_flow=$4.694B, capex=NULL -> computed
+            # fcf_yield=51.32% (vs a real few-percent figure); same pattern hit HMY, CSAN, DXC,
+            # GT, WD and others. Preserving None lets the existing guard correctly skip fcf_yield
+            # for that year instead of fabricating one from an implicit zero-capex assumption.
             return [
                 self._compute_valuations(
                     symbol,
@@ -711,8 +723,8 @@ class SecValuationsLoader(OptimalLoader):
                     float(ttm_eps_basic) if ttm_eps_basic else None,
                     float(ttm_revenue) if ttm_revenue else None,  # Changed from 0.0 to None
                     float(book_value) if book_value else None,
-                    float(ocf) if ocf else 0.0,
-                    float(capex) if capex else 0.0,
+                    float(ocf) if ocf is not None else None,
+                    float(capex) if capex is not None else None,
                     float(prior_year_eps) if prior_year_eps else None,
                     float(dividends_paid) if dividends_paid else None,
                     # FIXED 2026-08-18 (AA live-confirmed): `if total_debt else None` treated a
@@ -894,8 +906,8 @@ class SecValuationsLoader(OptimalLoader):
         ttm_eps: float | None,
         ttm_revenue: float | None,
         book_value: float | None,
-        ocf: float,
-        capex: float,
+        ocf: float | None,
+        capex: float | None,
         prior_year_eps: float | None,
         dividends_paid: float | None,
         total_debt: float | None,
