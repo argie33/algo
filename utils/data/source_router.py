@@ -759,7 +759,9 @@ class DataSourceRouter:
 
     # ============== MARKET CLOSE DATA CHECK ==============
 
-    def check_market_close_data_available_fast(self, symbol: str = "SPY", timeout_sec: int = 15) -> bool:
+    def check_market_close_data_available_fast(
+        self, symbol: str = "SPY", timeout_sec: int = 15, force_source: str | None = None
+    ) -> bool:
         """Quick check if market close data is available (short timeout).
 
         Used by the EOD pipeline as a go/no-go gate before starting the daily price
@@ -775,11 +777,16 @@ class DataSourceRouter:
         Args:
             symbol: Which symbol to check (default 'SPY')
             timeout_sec: Timeout for the API call (default 15s)
+            force_source: bypass PRICE_DATA_SOURCE and use this source directly
+                ('yfinance' or 'alpaca') - used by load_prices.py's readiness-check
+                circuit breaker to fall back to yfinance after repeated Alpaca
+                failures, without touching the actual fetch path's source selection.
 
         Returns:
             True if data available, False if timeout/error
         """
-        if os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
+        source = force_source or os.getenv("PRICE_DATA_SOURCE", "yfinance").lower()
+        if source == "alpaca":
             return self._check_alpaca_market_close_data_available(symbol, timeout_sec)
 
         from datetime import datetime, timedelta

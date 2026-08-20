@@ -757,6 +757,29 @@ class PriceLoader(OptimalLoader):
                         f"[MARKET_CLOSE] {max_consecutive_errors} consecutive errors detected - {_market_close_source} appears unavailable. "
                         f"Last error: {last_error_type}: {last_error_msg}"
                     )
+                    # FIX 2026-08-20: the readiness *check* had no fallback even though the
+                    # actual bar fetch does (source_router._alpaca_batch_or_none falls back to
+                    # yfinance on wholesale Alpaca failure) - a transient Alpaca outage here
+                    # killed the whole day's price load before ever reaching that resilient
+                    # path. Live-confirmed 3x in 3 days (2026-08-18/19/20): brief bursts of
+                    # nginx-level 401s from Alpaca that self-heal within the hour (the very
+                    # next scheduled run each day succeeded with the same credentials). Try
+                    # yfinance directly as a last resort before declaring the load a failure.
+                    if _market_close_source == "Alpaca":
+                        try:
+                            logger.warning(
+                                "[MARKET_CLOSE] Falling back to yfinance for readiness check after "
+                                "repeated Alpaca failures"
+                            )
+                            if self.router.check_market_close_data_available_fast(
+                                symbol="SPY",
+                                timeout_sec=short_check_timeout,
+                                force_source="yfinance",
+                            ):
+                                logger.info("[MARKET_CLOSE] yfinance fallback confirms data available")
+                                return True
+                        except Exception as fallback_e:
+                            logger.error(f"[MARKET_CLOSE] yfinance fallback also failed: {fallback_e}")
                     raise RuntimeError(
                         f"Market close data unavailable after {max_consecutive_errors} consecutive failures. "
                         f"{_market_close_source} API appears down. Last error: {last_error_type}: {last_error_msg}. "
