@@ -877,6 +877,17 @@ def _get_stock_scores(  # noqa: C901
         # Royalty Corp"), none of which have "Trust" in their name. Requiring both SIC 6221
         # AND a commodity-Trust name pattern together matched only BAR across the entire
         # scored universe, zero false positives against the SIC-6221 operating companies above.
+        #
+        # ETN FILTERING (goal: "scores still including ETFs", 2026-08-20): GRN ("iPath Series B
+        # Carbon Exchange-Traded Notes") ranked in the score leaderboard despite every filter
+        # above - not in etf_symbols (ETNs are debt notes, not '40 Act funds), sic_code=6029
+        # ("Commercial Banks") not 6770/6792/6189, and has_annual_report_filing=TRUE, because
+        # an ETN's SEC filer is the issuing BANK (Barclays Bank PLC here), which has its own
+        # real filing history and SIC code unrelated to the note's actual structure. No usable
+        # SIC/has_annual_report_filing signal exists for this case - same root cause as
+        # utils/loaders/helpers.py::get_active_symbols(exclude_etfs=True), see that function's
+        # 2026-08-20 comment for the live investigation. Name-based catch, verified against the
+        # live active universe to match only GRN.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
@@ -892,6 +903,7 @@ def _get_stock_scores(  # noqa: C901
                 ss.security_name !~* '(Rights?|Warrants?)$'
                 AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
                 AND ss.security_name !~* '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'
+                AND ss.security_name !~* '(ETNs?|Exchange[- ]Traded Notes?)'
             ))
             """
         params_list: list[Any] = []

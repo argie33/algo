@@ -186,13 +186,100 @@ def get_active_symbols(
                         # generic and would false-positive-exclude real operating companies
                         # (e.g. "Digital Realty Trust"), the same mistake the two regex
                         # post-mortems above already document for this exact clause.
+                        #
+                        # FIXED 2026-08-20 (goal: "scores still including ETFs"): neither the
+                        # etf column nor the name regex catch closed-end funds (CEFs), BDCs, or
+                        # ETNs whose names don't contain a blocklisted word - e.g. ASA ("ASA
+                        # Gold & Precious Metals Ltd"), BSTZ/FINS ("...Term Trust" - bare
+                        # "Trust" is deliberately not blocklisted, see comment above), GAM/TY/
+                        # SOR ("...Investors"/"...Corporation"). Live-confirmed 88 such symbols
+                        # had polluted stock_scores rows as of 2026-08-20 (composite/quality/
+                        # value scores computed from nonsensical fund-level financials - e.g.
+                        # GRN, an ETN, showed $13B "revenue"). Existing rows cleaned by
+                        # migration 1213.
+                        #
+                        # Fix: join company_info_sec and additionally exclude symbols with NO
+                        # real SIC classification (sic_code NULL or 0 - EDGAR never assigned an
+                        # industry because the filer isn't an operating company) AND an
+                        # entity_type of 'other' or 'investment' (SEC's own non-operating-
+                        # company signal). Verified against the live local DB: this combination
+                        # catches 124 confirmed fund/BDC/CEF symbols and produces exactly ONE
+                        # false positive across the whole active universe - OZK (Bank OZK), a
+                        # real, large, actively-filing bank whose company_info_sec row
+                        # currently has sic_code=NULL/entity_type='other' for reasons unrelated
+                        # to fund structure (unconfirmed EDGAR submissions-API quirk, not stale
+                        # data - filing_date was current the same day this was investigated).
+                        # Genuine foreign operating companies (AZN, AEM, BAP, GLBE, IBN, ...)
+                        # all had real non-null sic_codes despite also being entity_type='other',
+                        # so they're unaffected. OZK is force-included below rather than folded
+                        # into the regex, since a name-based fix can't generalize to it.
+                        #
+                        # Also widened the ETN pattern to `ETNs?|Exchange[- ]Traded Notes?`:
+                        # GRN's actual name ("iPath Series B Carbon Exchange-Traded Notes") used
+                        # a hyphen and the plural "Notes", neither of which the old literal
+                        # "Exchange Traded Note" (space, singular) matched - and GRN isn't
+                        # caught by the sic_code/entity_type check above either, since its SEC
+                        # filer is the issuing bank (Barclays Bank PLC), which carries its own
+                        # real sic_code (6029, "Commercial Banks").
+                        #
+                        # ALSO FOUND while chasing GRN, and a much bigger deal: `\b` in
+                        # PostgreSQL's regex engine is NOT a word-boundary assertion - it's a
+                        # literal backspace character (0x08), same as POSIX bracket-expression
+                        # `\b`. The real word-boundary escape is `\y` (`\m`/`\M` for one-sided).
+                        # That means the "word-boundary regex" the 2026-07-22 post-mortem above
+                        # believed it had shipped has never matched anything in production -
+                        # `security_name !~* '\b(...)\b'` is always true (no security_name
+                        # contains a backspace byte), so every single token in this list
+                        # (Warrant/Unit/SPAC/Preferred/Debenture/Bitcoin/...) has been silent
+                        # dead weight since that fix landed, not an active filter. It happened
+                        # to still "fix" the CW/CZWI substring collisions the post-mortem
+                        # describes, but only as a side effect of disabling the whole clause,
+                        # not because the boundary logic worked.
+                        # Switched to `\y` to actually enable it, then verified every token
+                        # against the live active universe before trusting it: with real
+                        # boundaries, "Right" and "Bitcoin" turn out to be genuinely collision-
+                        # prone against real operating-company names still active today -
+                        # "Right" matches ADS boilerplate ("shares each representing the right
+                        # to receive...") on AMX/RLX/WDH, and "Bitcoin" matches ABTC (American
+                        # Bitcoin Corp, a real bitcoin-mining operating company, confirmed
+                        # entity_type='operating'/sic_code=6199 in company_info_sec, not a
+                        # fund). Both dropped from the list rather than repeat the Trust/Fund
+                        # over-exclusion mistake; the entity_type/sic_code check above is the
+                        # correct place to catch any real crypto trust/ETF product (none is in
+                        # the active universe today). Every other token had zero matches against
+                        # the live active universe before this change (i.e. flipping \b -> \y
+                        # is a pure bug fix here, not a behavior change) except
+                        # "Acquisition Corp" (correctly newly excludes 3 live SPACs: EWAV, IBAC,
+                        # SDHI) and the ETN pattern above (GRN).
+                        #
+                        # `COALESCE(c.entity_type, 'operating')` below is load-bearing, not
+                        # decorative: without it, any symbol whose entity_type is unknown -
+                        # either no company_info_sec row at all, or (more common, live-confirmed
+                        # for ~18 real, unrelated companies: HIFS, TOWN, NBN, FRBA, SSBI, RCBC,
+                        # AXIA, BNZI, BRNX, GRAF, GV, IA, NUR, NUTR, PHOS, QMMM - mostly recent
+                        # IPOs/listings load_company_info_sec.py has a row for but hasn't
+                        # resolved SEC EDGAR classification for yet) a row WITH entity_type
+                        # explicitly NULL - gets wrongly excluded here. Reason: `NULL IN
+                        # ('other','investment')` evaluates to NULL (not false) in SQL's three-
+                        # valued logic, which propagates through the AND chain and makes the
+                        # whole NOT(...) NULL - and WHERE treats NULL the same as false, silently
+                        # dropping the row. Defaulting an unknown entity_type to 'operating'
+                        # (which fails the IN check) forces that conjunct to a definite false
+                        # instead, so "we haven't classified this symbol yet" now correctly means
+                        # "don't exclude it" rather than "treat it as a fund."
                         sql = """
-                            SELECT symbol FROM stock_symbols
-                            WHERE active = true
-                              AND data_unavailable IS NOT TRUE
-                              AND (etf IS NULL OR etf != 'true')
-                              AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\b'
-                            ORDER BY symbol
+                            SELECT s.symbol FROM stock_symbols s
+                            LEFT JOIN company_info_sec c ON c.symbol = s.symbol
+                            WHERE s.active = true
+                              AND s.data_unavailable IS NOT TRUE
+                              AND (s.etf IS NULL OR s.etf != 'true')
+                              AND s.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
+                              AND NOT (
+                                    COALESCE(c.sic_code, 0) = 0
+                                    AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
+                                    AND s.symbol != 'OZK'
+                              )
+                            ORDER BY s.symbol
                         """
                     else:
                         # For price/market data loaders: include both stocks and ETFs.

@@ -96,3 +96,57 @@ def test_exclude_etfs_query_filters_on_etf_column(monkeypatch) -> None:
     assert "etf" in sql
     assert "'true'" in sql
     _reset_cache()
+
+
+def test_exclude_etfs_query_joins_company_info_sec_for_fund_detection(monkeypatch) -> None:
+    """Regression test for the 2026-08-20 fix (goal: "scores still including ETFs").
+
+    Neither the etf column nor the security_name regex catch closed-end funds (CEFs), BDCs,
+    or ETNs whose names don't contain a blocklisted word - e.g. ASA ("ASA Gold & Precious
+    Metals Ltd"), BSTZ/FINS ("...Term Trust" - bare "Trust" is deliberately not blocklisted).
+    Live-confirmed 88 such symbols had polluted stock_scores rows as of 2026-08-20. Fix:
+    join company_info_sec and additionally exclude symbols with no real SIC classification
+    (sic_code NULL/0) and a non-operating entity_type ('other'/'investment'), with an
+    explicit carve-out for OZK (Bank OZK - the one confirmed false positive in the live
+    universe, a real bank whose company_info_sec row happens to share this same profile).
+    """
+    _reset_cache()
+    fake_ctx = _FakeDatabaseContext(rows=[("AAPL",)])
+    monkeypatch.setattr(helpers_module, "DatabaseContext", fake_ctx)
+
+    get_active_symbols(exclude_etfs=True)
+
+    sql = fake_ctx._cursor.last_sql
+    assert sql is not None
+    assert "LEFT JOIN company_info_sec" in sql
+    assert "c.sic_code" in sql
+    assert "c.entity_type" in sql
+    assert "'OZK'" in sql
+    _reset_cache()
+
+
+def test_exclude_etfs_query_uses_word_boundary_not_backspace(monkeypatch) -> None:
+    """Regression test for the 2026-08-20 fix (goal: "scores still including ETFs").
+
+    `\\b` in PostgreSQL's regex engine is a literal backspace character, not a word-boundary
+    assertion - `\\y` is. The old `!~* '\\b(...)\\b'` clause was silently dead code: no
+    security_name contains a real backspace byte, so the clause always evaluated true (no
+    match), meaning every token in the list (Warrant/Unit/SPAC/Preferred/.../Bitcoin) never
+    actually excluded anything. Also drops "Right" and "Bitcoin" from the blocklist -
+    live-verified collision-prone against real operating companies once word-boundary
+    matching actually works (AMX/RLX/WDH's ADS boilerplate "the right to receive...", and
+    ABTC "American Bitcoin Corp.", a real bitcoin-mining operating company).
+    """
+    _reset_cache()
+    fake_ctx = _FakeDatabaseContext(rows=[("AAPL",)])
+    monkeypatch.setattr(helpers_module, "DatabaseContext", fake_ctx)
+
+    get_active_symbols(exclude_etfs=True)
+
+    sql = fake_ctx._cursor.last_sql
+    assert sql is not None
+    assert r"\y(" in sql
+    assert r"\b(" not in sql
+    assert "Right|" not in sql
+    assert "|Bitcoin|" not in sql
+    _reset_cache()
