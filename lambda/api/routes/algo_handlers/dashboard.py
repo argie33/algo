@@ -1649,46 +1649,45 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 @db_route_handler("fetch dashboard signals")
 @validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
-    """Get dashboard-specific signal data from algo_signals table.
+    """Get dashboard signal data - the Pine-matched technical scan, with the algo's decision
+    on each signal overlaid.
 
-    Queries algo_signals (the orchestrator Phase 8 qualified/active signal list - source of
-    truth for which signals are "active") for the active-signal roster, grade distribution,
-    near-miss signals, and 7-day trend, then enriches each buy_sig with entry/target/exit and
-    technical fields from buy_sell_daily (populated daily by Phase 7 / algo/signals/
-    buy_signal_generator.py - this is NOT legacy, Phase 7 halts if it's empty or stale) and
-    market stage from trend_template_data. This mirrors what lambda/api/routes/signals.py
-    (`/api/signals/stocks`, used by the web Trading Signals page) already returns, so the CLI
-    dashboard's signals panel can show the same entry-zone/targets/technicals data.
+    REWRITTEN 2026-08-20 (goal: dashboard signal-source confusion): previously sourced its
+    entire roster from algo_signals (the orchestrator Phase 8 curated subset the algo actually
+    considered for capital allocation - ~15-75/day), while lambda/api/routes/signals.py's
+    /api/signals/stocks (backing the web Trading Signals page) sourced from buy_sell_daily
+    (the full Pine-matched buy_signal_generator.py scan - ~130+/day, live-confirmed 134 BUY
+    signals on 2026-08-19). Both are legitimate concepts, but nothing distinguished them for a
+    viewer - the CLI dashboard's "ALGO SIGNALS" panel and the web page's "Trading Signals" page
+    showed different-sized, mostly non-overlapping rosters with no indication one was a subset
+    of the other, which reads as the data being wrong/inconsistent rather than "the algo only
+    acts on a fraction of what Pine flags". Now sources the base roster from buy_sell_daily
+    directly (same universe, same numbers as the web page - the actual Pine output) and LEFT
+    JOINs algo_signals only to *annotate* which of those Pine signals the algo picked up as a
+    candidate and what happened to it (executed/rejected/not selected at all, via
+    execution_status - NULL means Pine flagged it but the algo never considered it). One
+    canonical signal list instead of two.
+
+    Queries buy_sell_daily (populated daily by Phase 7 / algo/signals/buy_signal_generator.py,
+    the clean-room Pine-matched implementation - see tests/unit/pine_reference_impl.py's
+    cross-check test) for the day's BUY roster, grade distribution, near-miss signals, and
+    7-day trend, enriched with market stage from trend_template_data and RS percentile from
+    stock_scores.
     """
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Fetch candidate signals from algo_signals (source of truth from orchestrator Phase 8).
-        # REGRESSION FIX (2026-08-03): A same-day change filtered every query below down to
-        # execution_status='executed' only, on the theory that signal_active=true was
-        # confusingly showing rejected signals as "active". But this panel's job is to grade
-        # the algo's *candidate* signals (A/B/C/D distribution, top picks, active buy signals
-        # with entry/target/stop) - most rejections here are portfolio-capacity/risk-limit
-        # blocks (sizer_blocked, duplicate_position, pretrade_check) unrelated to signal
-        # quality, not "this wasn't a real signal". Narrowing to executed-only collapsed a
-        # ~200/week candidate pool down to ~35 (whatever fit in the day's position/risk
-        # budget), which read as "all our signal data disappeared". execution_status is still
-        # useful info (added 9998_add_execution_status_to_algo_signals.sql) - just excluding
-        # 'expired' (signals >7d old Phase 8 never resolved) instead of requiring 'executed'
-        # restores the original candidate-pool visibility while still dropping genuinely stale
-        # rows, which is what the original migration's stated goal (dashboard confusion around
-        # signal_active never being unset) was actually about.
-        cur.execute("""
-            SELECT COUNT(*) AS n, MAX(signal_date) AS d
-            FROM algo_signals
-            WHERE execution_status != 'expired' AND signal_date >= CURRENT_DATE - 7
-        """)
-        sig = cur.fetchone()
-        if sig is not None:
-            sig = safe_dict_convert(sig)
-        if sig is None or sig.get("n") is None or sig.get("n") == 0:
+        from utils.market_symbols_config import MarketSymbolsConfig
+
+        buy_sell_filter = MarketSymbolsConfig.buy_sell_only_where_clause("b")
+
+        cur.execute("SELECT MAX(date) FROM buy_sell_daily")
+        latest_row = cur.fetchone()
+        latest_date = latest_row[0] if latest_row else None
+
+        if latest_date is None:
             # No signals available - return empty response instead of error
-            logger.info("[DASHBOARD SIGNALS] No active signals found in last 7 days")
+            logger.info("[DASHBOARD SIGNALS] buy_sell_daily is empty")
             sig_response: dict[str, Any] = {
                 "n": 0,
                 "total": 0,
@@ -1703,172 +1702,186 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             # Ensure empty response is also JSON-serializable
             sig_response = safe_json_serialize(sig_response)
         else:
-            total_n = int(sig["n"])
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS n
+                FROM buy_sell_daily b
+                WHERE b.signal = 'BUY' AND b.date = %s
+                {buy_sell_filter}
+                """,
+                (latest_date,),
+            )
+            total_row = cur.fetchone()
+            total_n = int(total_row[0]) if total_row and total_row[0] is not None else 0
 
-            # Top active signals with quality scores - cast date to text at source.
-            # LATERAL-join the latest buy_sell_daily row per symbol for entry/target/exit and
-            # technical fields (algo_signals itself only tracks symbol/price/quality-score).
+            # Full BUY roster for the latest date, straight from buy_sell_daily (the Pine-
+            # matched source) - LEFT JOINed to algo_signals so each row can be annotated with
+            # what the algo decided to do about it (execution_status/rejection_reason both NULL
+            # if the algo never picked this signal up as a candidate at all, distinct from
+            # 'rejected' - the algo considered it and passed).
             #
-            # RS% FIX (2026-08-03): this query never selected any relative-strength field, so
-            # the dashboard's RS% column was unconditionally blank for every signal regardless
-            # of data availability. stock_scores.rs_percentile is the real IBD-style RS
-            # percentile (verified live-populated, ~98% coverage). There's also a
-            # buy_sell_daily.rs_rating column meant to carry a copy of it (backfilled by
-            # load_signal_quality_scores.py's _sync_scores_to_buy_sell), but that copy is
-            # timing-fragile - it only fills NULL rows, and today it ran (09:39) before
-            # load_buy_sell_daily.py inserted today's rows (16:14), so it copied 0 rows.
-            # Join stock_scores directly instead of depending on that copy's timing.
-            cur.execute("""
-                SELECT * FROM (
-                    SELECT DISTINCT ON (s.symbol)
-                           s.symbol, s.signal_quality_score,
-                           cp.sector, cp.industry, s.entry_price,
-                           s.signal_date::text as signal_date,
-                           b.close, b.buylevel, b.stoplevel,
-                           b.buy_zone_start, b.buy_zone_end, b.pivot_price,
-                           b.initial_stop, b.trailing_stop,
-                           b.profit_target_8pct, b.profit_target_20pct, b.profit_target_25pct,
-                           b.exit_trigger_1_price, b.exit_trigger_2_price,
-                           b.rsi, b.adx, b.atr, b.volume_surge_pct, b.risk_reward_ratio,
-                           b.base_type, b.base_length_days,
-                           CASE t.weinstein_stage
-                               WHEN 1 THEN 'Stage 1'
-                               WHEN 2 THEN 'Stage 2 - Markup'
-                               WHEN 3 THEN 'Stage 3 - Topping'
-                               WHEN 4 THEN 'Stage 4'
-                           END AS market_stage,
-                           t.weinstein_stage AS stage_number,
-                           ss.rs_percentile,
-                           -- FIX 2026-08-18: this panel deliberately shows the full candidate
-                           -- pool, not just execution_status='executed' rows (see the
-                           -- REGRESSION FIX comment above this query) - most rejections here
-                           -- are portfolio-capacity/risk-limit blocks unrelated to signal
-                           -- quality, so showing them is correct. But execution_status/
-                           -- rejection_reason were never selected at all, so a viewer had no
-                           -- way to tell a live actionable signal apart from one the algo
-                           -- already declined - live-confirmed 2026-08-17: 14/22 signals for
-                           -- the latest date were execution_status='rejected' (e.g. IOSP:
-                           -- "concentration_prefilter: already_entered_today"), all displayed
-                           -- identically under the "ACTIVE BUY SIGNALS ★" header. Appended
-                           -- at the end of the column list (not inserted) so the positional
-                           -- row[1] signal_quality_score index used below stays correct.
-                           s.execution_status, s.rejection_reason
-                    FROM algo_signals s
-                    LEFT JOIN company_profile cp ON cp.symbol = s.symbol
-                    LEFT JOIN LATERAL (
-                        SELECT close, buylevel, stoplevel, buy_zone_start, buy_zone_end, pivot_price,
-                               initial_stop, trailing_stop, profit_target_8pct, profit_target_20pct,
-                               profit_target_25pct, exit_trigger_1_price, exit_trigger_2_price,
-                               rsi, adx, atr, volume_surge_pct, risk_reward_ratio,
-                               base_type, base_length_days, date
-                        FROM buy_sell_daily
-                        WHERE symbol = s.symbol
-                        ORDER BY date DESC
-                        LIMIT 1
-                    ) b ON TRUE
-                    LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
-                    LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
-                    WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
-                        -- Exclude signals with no buy_sell_daily match at all: these have been
-                        -- active (signal_active=true, never flipped off - nothing in the codebase
-                        -- ever deactivates an algo_signals row) for days after the symbol dropped
-                        -- out of buy_sell_daily entirely, so every entry/target/exit/technical
-                        -- column would render blank. A "buy signal" with no buy level, stop, or
-                        -- target isn't actionable; showing it in this table (titled "with price
-                        -- targets") as a wall of "--" reads as broken data, not as a real signal.
-                        -- They still count in n/total/grades/top_a (separate queries, symbol-only).
-                        AND b.close IS NOT NULL
-                    -- DISTINCT ON (s.symbol) collapses re-triggers of the same symbol on different
-                    -- days within the 7-day active window down to its most recent signal (one row
-                    -- of the same 15-slot table was 8 EPRT duplicates before this fix) - pick the
-                    -- newest signal_date per symbol, tie-broken by quality.
-                    ORDER BY s.symbol, s.signal_date DESC, s.signal_quality_score DESC NULLS LAST
-                ) deduped
-                ORDER BY signal_quality_score DESC NULLS LAST
-            """)
+            # RS% FIX (2026-08-03, preserved from the prior algo_signals-based query): join
+            # stock_scores.rs_percentile directly rather than relying on buy_sell_daily's own
+            # rs_rating copy, which is timing-fragile (backfilled by a separate sync step that
+            # can run before or after the day's buy_sell_daily insert).
+            #
+            # ALGO OVERLAY JOIN: symbol-only (+ recent window), NOT symbol+date. Live-checked
+            # 2026-08-20: algo_signals.signal_date is stamped with the orchestrator's run_date
+            # (see phase8_entry_execution.py::_persist_signals), which is NOT the same date as
+            # the buy_sell_daily row that qualified the symbol as a candidate - e.g. JLL and
+            # HALO were both execution_status='executed' on signal_date=2026-08-19, but their
+            # only buy_sell_daily BUY row on file is from 2026-06-26 and 2026-06-25
+            # respectively (54-55 days earlier). Joining on an exact date match (as first
+            # written) found zero matches for any of that day's 23 algo_signals rows - the
+            # overlay was silently empty. A separate concern (worth its own investigation: why
+            # Phase 7's candidate query, which filters buy_sell_daily to a ~1-2 trading day
+            # lookback, is producing candidates for symbols whose only on-file BUY row is
+            # months old) - not fixed here, this join just needs to surface whatever the algo
+            # actually did with this symbol recently regardless of which exact date lines up.
+            #
+            # Capped at 40 for terminal readability - the web Trading Signals page has no cap
+            # and is the place to browse the full roster - highest-quality first.
+            cur.execute(
+                f"""
+                SELECT
+                    b.symbol, b.signal_quality_score,
+                    cp.sector, cp.industry, b.entry_price,
+                    b.date::text as signal_date,
+                    b.close, b.buylevel, b.stoplevel,
+                    b.buy_zone_start, b.buy_zone_end, b.pivot_price,
+                    b.initial_stop, b.trailing_stop,
+                    b.profit_target_8pct, b.profit_target_20pct, b.profit_target_25pct,
+                    b.exit_trigger_1_price, b.exit_trigger_2_price,
+                    b.rsi, b.adx, b.atr, b.volume_surge_pct, b.risk_reward_ratio,
+                    b.base_type, b.base_length_days,
+                    CASE t.weinstein_stage
+                        WHEN 1 THEN 'Stage 1'
+                        WHEN 2 THEN 'Stage 2 - Markup'
+                        WHEN 3 THEN 'Stage 3 - Topping'
+                        WHEN 4 THEN 'Stage 4'
+                    END AS market_stage,
+                    t.weinstein_stage AS stage_number,
+                    ss.rs_percentile,
+                    s.execution_status, s.rejection_reason
+                FROM buy_sell_daily b
+                LEFT JOIN company_profile cp ON cp.symbol = b.symbol
+                LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
+                LEFT JOIN stock_scores ss ON ss.symbol = b.symbol
+                LEFT JOIN LATERAL (
+                    SELECT execution_status, rejection_reason
+                    FROM algo_signals
+                    WHERE symbol = b.symbol AND signal_date >= %s - 7
+                    ORDER BY signal_date DESC
+                    LIMIT 1
+                ) s ON TRUE
+                WHERE b.signal = 'BUY' AND b.date = %s
+                {buy_sell_filter}
+                ORDER BY b.signal_quality_score DESC NULLS LAST
+                LIMIT 40
+                """,
+                (latest_date, latest_date),
+            )
             buy_sigs_rows = cur.fetchall()
             buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in buy_sigs_rows]
 
             # CRITICAL AUDIT: Track NULL signal_quality_score (COALESCE default usage)
-            null_quality_count = sum(
-                1 for row in buy_sigs_rows if row and row[1] is None
-            )  # column 1 = signal_quality_score
+            null_quality_count = sum(1 for row in buy_sigs if row.get("signal_quality_score") is None)
             if null_quality_count > 0:
                 logger.warning(
-                    f"[DASHBOARD AUDIT] {null_quality_count}/{len(buy_sigs_rows)} signals have NULL quality_score. "
+                    f"[DASHBOARD AUDIT] {null_quality_count}/{len(buy_sigs)} signals have NULL quality_score. "
                     f"These are defaulting to 0 in ranking (COALESCE fallback). If > 10%, check signal quality scorer."
                 )
 
-            # Grade distribution (A/B/C/D by signal_quality_score from algo_signals)
-            cur.execute("""
+            # Grade distribution (A/B/C/D by signal_quality_score, full buy_sell_daily roster
+            # for the latest date - not the capped 40-row display list above)
+            cur.execute(
+                f"""
                 SELECT
-                    COUNT(*) FILTER (WHERE s.signal_quality_score >= 80) AS a,
-                    COUNT(*) FILTER (WHERE s.signal_quality_score >= 60 AND s.signal_quality_score < 80) AS b,
-                    COUNT(*) FILTER (WHERE s.signal_quality_score >= 40 AND s.signal_quality_score < 60) AS c,
-                    COUNT(*) FILTER (WHERE s.signal_quality_score < 40 OR s.signal_quality_score IS NULL) AS d,
+                    COUNT(*) FILTER (WHERE b.signal_quality_score >= 80) AS a,
+                    COUNT(*) FILTER (WHERE b.signal_quality_score >= 60 AND b.signal_quality_score < 80) AS b,
+                    COUNT(*) FILTER (WHERE b.signal_quality_score >= 40 AND b.signal_quality_score < 60) AS c,
+                    COUNT(*) FILTER (WHERE b.signal_quality_score < 40 OR b.signal_quality_score IS NULL) AS d,
                     COUNT(*) AS total
-                FROM algo_signals s
-                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
-            """)
+                FROM buy_sell_daily b
+                WHERE b.signal = 'BUY' AND b.date = %s
+                {buy_sell_filter}
+                """,
+                (latest_date,),
+            )
             grades_r = cur.fetchone()
             if grades_r is None:
                 raise RuntimeError(
-                    "[DASHBOARD] Grade distribution query returned no result. Database connection lost or algo_signals table missing. "
+                    "[DASHBOARD] Grade distribution query returned no result. Database connection lost or buy_sell_daily table missing. "
                     "Cannot fetch grade distribution."
                 )
             grades = safe_json_serialize(safe_dict_convert(grades_r))
 
             # Near-misses: signals with decent scores (55-69 range)
-            cur.execute("""
-                SELECT s.symbol, s.signal_quality_score AS score, cp.sector
-                FROM algo_signals s
-                LEFT JOIN company_profile cp ON cp.symbol = s.symbol
-                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
-                  AND s.signal_quality_score BETWEEN 55 AND 69
-                ORDER BY s.signal_quality_score DESC NULLS LAST
+            cur.execute(
+                f"""
+                SELECT b.symbol, b.signal_quality_score AS score, cp.sector
+                FROM buy_sell_daily b
+                LEFT JOIN company_profile cp ON cp.symbol = b.symbol
+                WHERE b.signal = 'BUY' AND b.date = %s
+                {buy_sell_filter}
+                  AND b.signal_quality_score BETWEEN 55 AND 69
+                ORDER BY b.signal_quality_score DESC NULLS LAST
                 LIMIT 15
-            """)
+                """,
+                (latest_date,),
+            )
             near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Top A-grade signals (score >= 80)
-            cur.execute("""
-                SELECT s.symbol, s.signal_quality_score AS score
-                FROM algo_signals s
-                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
-                  AND s.signal_quality_score >= 80
-                ORDER BY s.signal_quality_score DESC NULLS LAST
+            cur.execute(
+                f"""
+                SELECT b.symbol, b.signal_quality_score AS score
+                FROM buy_sell_daily b
+                WHERE b.signal = 'BUY' AND b.date = %s
+                {buy_sell_filter}
+                  AND b.signal_quality_score >= 80
+                ORDER BY b.signal_quality_score DESC NULLS LAST
                 LIMIT 20
-            """)
+                """,
+                (latest_date,),
+            )
             top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Signal count trend: last 7 days - cast date to text at source
-            cur.execute("""
-                SELECT s.signal_date::text as date,
-                       COUNT(*) FILTER (WHERE s.signal_quality_score >= 60) AS buy_n,
+            cur.execute(
+                f"""
+                SELECT b.date::text as date,
+                       COUNT(*) FILTER (WHERE b.signal_quality_score >= 60) AS buy_n,
                        COUNT(*) AS total_n
-                FROM algo_signals s
-                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
-                GROUP BY s.signal_date
-                ORDER BY s.signal_date DESC
+                FROM buy_sell_daily b
+                WHERE b.signal = 'BUY' AND b.date >= %s - 7
+                {buy_sell_filter}
+                GROUP BY b.date
+                ORDER BY b.date DESC
                 LIMIT 7
-            """)
+                """,
+                (latest_date,),
+            )
             trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Count qualifying high-quality signals (score >= 70)
-            cur.execute("""
+            cur.execute(
+                f"""
                 SELECT COUNT(*) AS n
-                FROM algo_signals s
-                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
-                  AND s.signal_quality_score >= 70
-            """)
+                FROM buy_sell_daily b
+                WHERE b.signal = 'BUY' AND b.date = %s
+                {buy_sell_filter}
+                  AND b.signal_quality_score >= 70
+                """,
+                (latest_date,),
+            )
             count_row = cur.fetchone()
             if count_row is None:
                 raise RuntimeError(
-                    "[DASHBOARD] COUNT query returned no result. Database connection lost or algo_signals table missing. "
+                    "[DASHBOARD] COUNT query returned no result. Database connection lost or buy_sell_daily table missing. "
                     "Cannot fetch qualifying signal count."
                 )
-            count_row = safe_dict_convert(count_row)
-            n_value = count_row.get("n")
+            n_value = count_row[0]
             if n_value is None:
                 raise RuntimeError(
                     "[DASHBOARD] COUNT(*) returned None/NULL. This is impossible - COUNT() always returns 0+. "
@@ -1876,21 +1889,16 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 )
             qualifying_buy_count = int(n_value)
 
-            freshness = check_data_freshness(cur, "algo_signals", "signal_date", warning_days=1)
+            freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
             # Ensure freshness dict has dates as strings (check_data_freshness converts them, but be explicit)
             if freshness and "max_date" in freshness and freshness["max_date"] is not None:
                 freshness["max_date"] = str(freshness["max_date"])
             freshness = safe_json_serialize(freshness)
 
-            # Cast date to string at source
-            sig_date = None
-            if sig and sig.get("d"):
-                sig_date = str(sig["d"])
-
             sig_response = {
                 "n": qualifying_buy_count,
                 "total": total_n,
-                "date": sig_date,
+                "date": str(latest_date),
                 "buy_sigs": buy_sigs,
                 "near": near[:8] if near else [],
                 "top_a": top_a[:20] if top_a else [],

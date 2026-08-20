@@ -171,6 +171,12 @@ SAFE_TABLES = {
     "quarterly_income_statement",
     "ttm_cash_flow",
     "ttm_income_statement",
+    # ttm_balance_sheet ADDED 2026-08-20: never created by any migration (balance sheet is a
+    # point-in-time snapshot, not a trailing-twelve-month aggregate - never a coherent concept,
+    # see KNOWN_DEPRECATED_TABLES in algo/monitoring/pipeline_health.py). Without this entry,
+    # assert_safe_table() rejected it with "not in whitelist" before pipeline_health.py's
+    # deprecated-table handling (which needs to query pg_class for it) could ever run.
+    "ttm_balance_sheet",
     # Other traders
     "insider_transactions",
     # Backtest

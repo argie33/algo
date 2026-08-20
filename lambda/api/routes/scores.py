@@ -1883,6 +1883,20 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # permanent-exemption fact as the two reasons above, just for Form 3/4/5 insider
             # filings (foreign private issuers are exempt from Section 16 reporting).
             "foreign_private_issuer_exempt",
+            # ADDED 2026-08-20: same permanent-exemption class as the reasons above, for
+            # short_interest_finra's short_pct computation - FPIs have no shares_outstanding
+            # source that isn't in home-market (non-ADS) units, so short_pct is structurally
+            # uncomputable, not a data gap. See load_short_interest_finra.py's max_fail_rate
+            # comment (root-caused by load_sec_valuations.py's 2026-08-19 FPI unit-mismatch fix,
+            # commit a123cdb46).
+            "foreign_private_issuer_shares_unavailable",
+            # ADDED 2026-08-19 (same session, industry-specific nuance pass): registered
+            # investment companies (closed-end funds - the BlackRock BBN/BCAT/BGT/BIT/BKT-class
+            # trusts and similar) file under SEC's "cef"/"ffd" XBRL taxonomies instead of
+            # standard 10-K us-gaap/ifrs-full - live-confirmed those taxonomies contain zero
+            # dividend/distribution concepts (N-2 prospectus fee-table data only), a permanent
+            # structural absence, not a loader gap. See load_dividend_data.py's fetch_incremental.
+            "registered_investment_company_no_xbrl",
         },
     ),
 ]

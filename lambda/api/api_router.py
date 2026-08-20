@@ -145,6 +145,16 @@ if "diagnostics" in _AVAILABLE_ROUTES:
 else:
     logger.error("WARNING: diagnostics route module failed to import - diagnostics endpoint unavailable")
 
+# /api/algo/scores/coverage must be registered before the /api/algo/scores dashboard
+# endpoint below - matches_route() is a prefix match, so once "/api/algo/scores" is in
+# PUBLIC_HANDLERS, any deeper path under it (like .../coverage) would match that prefix
+# first (dict iteration = insertion order, first match wins) and get routed to algo.py's
+# _get_dashboard_scores, which has no case for the suffix -> 404. Registering the more
+# specific path first ensures it wins the match instead. See routes/scores.py's
+# _get_scores_coverage for the actual handler.
+if "scores" in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS["/api/algo/scores/coverage"] = _AVAILABLE_ROUTES["scores"]
+
 # Dashboard data endpoints (public, for analytics/monitoring - no sensitive data)
 # These endpoints return portfolio snapshots, performance metrics, and trading statistics
 # which are safe to expose publicly for dashboard consumption

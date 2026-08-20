@@ -346,7 +346,7 @@ export default function TradingSignals() {
             <div className="page-head-title">Trading Signals</div>
             <div className="page-head-sub">
               {tab === "stocks"
-                ? "Algo swing-trade candidates scored by orchestrator"
+                ? "Full technical-signal universe (not the algo's narrowed active-candidate list — see the ops dashboard for that)"
                 : "Market ETF regime signals from Weinstein stage"}
               {" · click any row for full detail"}
               {" · "}

@@ -847,7 +847,21 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # PENDING loaders haven't run yet - they should show as "blocked" if their data is about to age
             if isinstance(loader_run_status_raw, str):
                 status_lower = loader_run_status_raw.lower()
-                if status_lower == "failed":
+                if status_lower == "deprecated":
+                    # FIX 2026-08-20: data_loader_status.status='DEPRECATED' (set for tables
+                    # in pipeline_health.py's KNOWN_DEPRECATED_TABLES - deliberately retired
+                    # loaders/never-real tables like ttm_balance_sheet) was never checked here,
+                    # so this endpoint's own row_count==0/staleness logic above always won:
+                    # zero-row deprecated tables showed "empty" (ttm_balance_sheet, row_count=0,
+                    # live-confirmed), and aged-but-nonzero ones (buy_sell_weekly,
+                    # market_cap_computed, price_extremes_52week, sec_cash_flow_metrics)
+                    # showed "stale"/"critical" - the exact same-class noise pipeline_health.py's
+                    # KNOWN_DEPRECATED_TABLES and freshness_enhancements.py's quality-check skip
+                    # already fixed for their own call sites, but this dashboard-facing endpoint
+                    # was never updated to match. These tables are intentionally frozen, not
+                    # broken - treat as healthy like every other DEPRECATED consumer does.
+                    status = "ok"
+                elif status_lower == "failed":
                     status = "error"
                 elif status_lower == "pending":
                     # Loader is queued but not started - will show as warning if data is aging

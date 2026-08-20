@@ -661,11 +661,22 @@ class MarketFactorCalculator:
             ) from e
 
     def naaim(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """NAAIM exposure (contrarian positioning, critical). Uses most recent weekly reading.
+        """NAAIM exposure (contrarian positioning, 5pt factor - OPTIONAL enrichment since 2026-08-20).
 
-        Raises RuntimeError if data unavailable - professional positioning is key contrarian signal.
-        NAAIM is a 5pt factor (MarketExposure.W_NAAIM - rebalanced from 3pt, this docstring
-        wasn't updated at the time). Missing positioning data is a data error, not a skip condition.
+        Returns explicit data_unavailable marker if data is missing or stale, mirroring
+        put_call_ratio's graceful-degradation pattern above. NAAIM was originally a hard-required
+        factor (raised RuntimeError on missing/stale data - "missing positioning data is a data
+        error, not a skip condition"), but the loader itself (load_naaim.py) discovered
+        2026-08-01 that NAAIM's public page transitioned to a subscription-based access model -
+        there is no free source left to fetch from, so every run since has correctly logged the
+        cause and completed as a no-op. That made the staleness check below fire *every single
+        day* from 2026-08-01 onward (confirmed live: 19 consecutive days, still failing as of
+        2026-08-20), taking the ENTIRE 12-factor market exposure/regime computation down with it
+        (avail_max < 100 -> hard RuntimeError in market_exposure.py) rather than just this one
+        5pt factor - a structurally permanent source loss, not a transient loader outage the old
+        fail-fast behavior was designed to catch. Demoted to optional, same precedent as
+        put_call_ratio (Session 291, yfinance put/call source removed) so the other 95pts of
+        signal keep informing position sizing instead of being unavailable every day.
         """
         try:
             cur.execute(
@@ -676,16 +687,21 @@ class MarketFactorCalculator:
             if row is not None and row[0] is not None:
                 # BUG FOUND 2026-08-11: same unbounded-staleness gap as aaii() above - see its
                 # comment for the full reasoning. NAAIM is also a weekly survey; same 21-day
-                # tolerance.
+                # tolerance. FIXED 2026-08-20: stale beyond tolerance now degrades gracefully
+                # (see docstring) instead of raising - AAII keeps the hard-fail behavior since
+                # its source hasn't (yet) suffered the same permanent loss.
                 reading_date = row[1]
                 staleness_days = (eval_date - reading_date).days
                 if staleness_days > 21:
-                    raise RuntimeError(
-                        f"[NAAIM CRITICAL] NAAIM exposure data is stale: most recent reading from "
-                        f"{reading_date} ({staleness_days} days before eval_date {eval_date}), "
-                        f"exceeds 21-day tolerance for a weekly survey. Check the naaim loader - "
-                        f"it may have stopped running."
-                    )
+                    return {
+                        "data_unavailable": True,
+                        "reason": (
+                            f"NAAIM exposure data is stale: most recent reading from {reading_date} "
+                            f"({staleness_days} days before eval_date {eval_date}), exceeds 21-day "
+                            f"tolerance for a weekly survey (optional sentiment enrichment - NAAIM's "
+                            f"public page has required a subscription since 2026-08-01)."
+                        ),
+                    }
                 exp = float(row[0])
                 if math.isnan(exp) or math.isinf(exp):
                     raise RuntimeError(
@@ -693,10 +709,14 @@ class MarketFactorCalculator:
                     )
                 score = min(100, max(0, 100 - exp / 2))
                 return {"value": round(exp, 1), "score": score}
-            raise RuntimeError(
-                "[NAAIM CRITICAL] NAAIM professional positioning data unavailable. "
-                "Check: (1) naaim table has recent readings, (2) naaim_number_mean column is populated"
-            )
+            return {
+                "data_unavailable": True,
+                "reason": (
+                    f"NAAIM professional positioning data unavailable on or before {eval_date} "
+                    f"(optional sentiment enrichment - NAAIM's public page has required a "
+                    f"subscription since 2026-08-01)."
+                ),
+            }
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

@@ -128,7 +128,7 @@ def _check_loader_freshness(run_type: str, now: datetime) -> None:
 
 
 def _find_todays_run(run_type: str, run_date: date) -> dict[str, Any] | None:
-    """Return the most recent orchestrator_execution_log row for this run_type/run_date, if any.
+    """Return the most recent COMPLETED orchestrator_execution_log row for this run_type/run_date, if any.
 
     CRITICAL FIX: Check DATE(started_at) instead of run_date. Runs that start late on one
     calendar day (e.g. 22:00 ET) have run_date from the PREVIOUS trading day but actually
@@ -138,6 +138,18 @@ def _find_todays_run(run_type: str, run_date: date) -> dict[str, Any] | None:
     Matches on run_id's "LOCAL-{TYPE}-" prefix (the format this script itself generates) rather
     than a dedicated run_type column, since that's what actually distinguishes morning/afternoon/
     evening runs in this table today.
+
+    FIX 2026-08-20: only matches overall_status IN ('success', 'degraded') - a prior run that
+    'halted' or 'error'ed never got past an early guard (e.g. Phase 1/7 data-freshness halt), so
+    it placed no orders and touched no reconciliation state; it is not "today's real session",
+    just a failed attempt. Previously ANY same-day row (regardless of status) satisfied the
+    dedup check, so an ad-hoc manual/debug invocation of e.g. --evening that halted immediately
+    (live-confirmed: LOCAL-EVENING-20260819-081354, halted at 8:13 AM ET investigating a
+    buy_sell_daily staleness issue) silently consumed that day's EVENING slot - the real 5:30 PM
+    scheduled Task Scheduler run later that day found this halted row, skipped without running
+    the orchestrator at all, and exited 0 (looking like success to Task Scheduler), leaving
+    algo_trades/circuit_breaker_status and every other Phase 6/9 output frozen at the prior
+    (3 PM PRECLOSE) run for the rest of the day.
     """
     try:
         from utils.db import DatabaseContext
@@ -148,6 +160,7 @@ def _find_todays_run(run_type: str, run_date: date) -> dict[str, Any] | None:
                 SELECT run_id, overall_status, started_at
                 FROM orchestrator_execution_log
                 WHERE DATE(started_at) = %s AND run_id ILIKE %s
+                  AND overall_status IN ('success', 'degraded')
                 ORDER BY started_at DESC LIMIT 1
                 """,
                 (run_date, f"LOCAL-{run_type.upper()}-%"),

@@ -95,6 +95,21 @@ class TestSustainableGrowthRateNonPayer:
         # retention_ratio = 1 - 20/100 = 0.8 -> SGR = 10% * 0.8 * 100 = 8.0
         assert metrics["sustainable_growth_rate"] == 8.0
 
+    def test_implausible_sgr_gets_implausible_ratio_not_missing_sec_data(self):
+        # Regression (2026-08-19, "no SEC data" audit continuation): a near-zero
+        # stockholders_equity base blows roe_pct up past MAX_TREND_PERCENTAGE_POINTS - a real
+        # SGR was computed and deliberately rejected as implausible, not a missing SEC concept.
+        # Same distinction every other bound-rejected field in this loader already makes
+        # (earnings_growth_yoy/revenue_growth_yoy's own MAX_TREND_PERCENTAGE_POINTS fix).
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(dividend_history_exists=False)
+            metrics = loader._compute_quality_metrics(
+                "TINYEQ", _quality_row(stockholders_equity=0.05, net_income=100.0, dividends_paid=None)
+            )
+        assert metrics["sustainable_growth_rate"] is None
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "implausible_ratio"
+
     def test_missing_stockholders_equity_still_gets_missing_sec_data_reason(self):
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:

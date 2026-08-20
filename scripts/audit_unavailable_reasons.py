@@ -41,7 +41,46 @@ def find_reason_columns(cur: Any) -> list[tuple[str, str]]:
         ORDER BY table_name, column_name
         """
     )
-    return [(r[0], r[1]) for r in cur.fetchall() if r[0] in _TABLES_WITH_ACTIVE_LOADER]
+    columns = [(r[0], r[1]) for r in cur.fetchall() if r[0] in _TABLES_WITH_ACTIVE_LOADER]
+
+    # FIXED 2026-08-19 (goal: "no SEC data" audit continuation): this only ever matched the
+    # "{field}_unavailable_reason" naming convention, completely missing a whole second
+    # convention this codebase uses - a bare "reason" column (paired with "data_unavailable")
+    # on a table's TOP-LEVEL row, not a per-field suffix. That silently blinded this tool (and
+    # the live coverage dashboard, which uses the identical pattern - see
+    # lambda/api/routes/scores.py's _get_scores_coverage) to gaps in some of the most
+    # foundational SEC tables in the whole schema: annual_income_statement,
+    # annual_balance_sheet, annual_cash_flow, quarterly_income_statement,
+    # quarterly_balance_sheet, quarterly_cash_flow, sec_valuations, company_info_sec (which
+    # has NO *_unavailable_reason column at all - it was 100% invisible before this fix).
+    # Scoped to tables that actually have BOTH "symbol" and "data_unavailable" alongside
+    # "reason" - the real per-symbol-availability contract every table above follows -
+    # rather than every bare "reason" column in the schema, which would also pull in
+    # unrelated operational/audit-log tables (circuit_breaker_log, algo_orchestrator_state,
+    # safeguard_audit_log, data_loader_status, ...) whose "reason" means something entirely
+    # different and would just be noise here.
+    cur.execute(
+        """
+        SELECT c.table_name
+        FROM information_schema.columns c
+        WHERE c.table_schema = 'public' AND c.column_name = 'reason'
+          AND EXISTS (
+            SELECT 1 FROM information_schema.columns c2
+            WHERE c2.table_schema = 'public' AND c2.table_name = c.table_name AND c2.column_name = 'symbol'
+          )
+          AND EXISTS (
+            SELECT 1 FROM information_schema.columns c3
+            WHERE c3.table_schema = 'public' AND c3.table_name = c.table_name
+              AND c3.column_name = 'data_unavailable'
+          )
+        ORDER BY c.table_name
+        """
+    )
+    seen_tables = {t for t, _ in columns}
+    columns.extend(
+        (r[0], "reason") for r in cur.fetchall() if r[0] in _TABLES_WITH_ACTIVE_LOADER and r[0] not in seen_tables
+    )
+    return columns
 
 
 def table_columns(cur: Any, table: str) -> set[str]:

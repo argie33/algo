@@ -798,6 +798,27 @@ class PositionMonitor:
             logger.critical(
                 f"[PHASE 3 CRITICAL] {symbol}: Current price ${cur_price:.2f} <= active stop ${active_stop:.2f} - IMMEDIATE EXIT REQUIRED"
             )
+            # FIXED 2026-08-20 (goal: audit trade P&L / Alpaca wiring accuracy): active_stop is
+            # a trailing stop that only ever ratchets UP (see _compute_trailing_stop above), so
+            # once a position has run enough to hit target levels it can sit ABOVE entry_price -
+            # triggering this same hard-exit condition on a pullback that still locks in a real
+            # profit, not a loss. Unconditionally labeling that "STOP LOSS HIT" reads as a
+            # loss-cutting event to anyone reading algo_trades.exit_reason (dashboard, trade
+            # history, Slack/email notifications) even though the trade closed with a real gain -
+            # live-confirmed on MRK (entry $135.97, exit $143.42, +5.48%) and CP (entry $93.92,
+            # exit $98.40, +4.77%), both worded "STOP LOSS HIT" despite closing profitable.
+            # Same bug class already fixed in exit_engine.py's active_stop branch on 2026-08-18
+            # (live-reproduced on PDEX there) but never applied to this separate, parallel
+            # "hard stop" implementation - mirrors that fix's wording split exactly.
+            active_stop_dec = Decimal(str(active_stop))
+            if active_stop_dec >= entry_price_dec:
+                action_reason = (
+                    f"Trailing stop hit: price ${cur_price:.2f} <= stop ${active_stop:.2f} "
+                    f"(locked-in gain, stop raised above entry ${entry_price:.2f})"
+                )
+            else:
+                action_reason = f"STOP LOSS HIT: price ${cur_price:.2f} <= stop ${active_stop:.2f}"
+
             return {
                 "symbol": symbol,
                 "position_id": position_id,
@@ -816,7 +837,7 @@ class PositionMonitor:
                 "flags": ["STOP_LOSS_HIT"],
                 "days_to_earnings": None,
                 "action": "EARLY_EXIT",
-                "action_reason": f"STOP LOSS HIT: price ${cur_price:.2f} <= stop ${active_stop:.2f}",
+                "action_reason": action_reason,
                 "urgent_exit": True,
                 "new_stop_recommended": None,
                 "trade_id": trade_id,

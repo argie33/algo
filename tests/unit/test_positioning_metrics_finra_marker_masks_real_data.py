@@ -72,6 +72,11 @@ class TestPositioningMetricsFinraMarkerMasksRealData:
         assert result["short_interest_pct_unavailable_reason"] is None
         assert result["shares_short_prior_month"] == 40968
         assert result["short_interest_pct_change"] is not None
+        # Real FINRA short_shares are on file here (12,823) but the fake cursor's
+        # fetchone() returns None for the company_info_sec/sec_valuations shares_outstanding
+        # lookups, so short_percent_of_float can't be computed - that's a genuine
+        # shares_outstanding gap, not a FINRA gap, so it must keep "missing_sec_data".
+        assert result["short_percent_of_float_unavailable_reason"] == "missing_sec_data"
 
     def test_symbol_with_only_a_marker_row_still_reports_missing(self, monkeypatch):
         # Control: a symbol with genuinely no real data ever must still report missing -
@@ -83,3 +88,8 @@ class TestPositioningMetricsFinraMarkerMasksRealData:
 
         assert result["short_interest_pct"] is None
         assert result["short_interest_pct_unavailable_reason"] == "missing_finra_data"
+        # Regression (2026-08-19, same audit): short_percent_of_float used to be hardcoded
+        # "missing_sec_data" here regardless of cause - even though the real blocker (no
+        # FINRA short_shares on file) is the exact same root cause short_interest_pct just
+        # above correctly labels "missing_finra_data".
+        assert result["short_percent_of_float_unavailable_reason"] == "missing_finra_data"

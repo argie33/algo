@@ -29,3 +29,23 @@ class TestUnavailableMarkerEvEbitdaReason:
         assert marker["pe_ratio_unavailable_reason"] == "missing_sec_data"
         assert marker["pb_ratio_unavailable_reason"] == "missing_sec_data"
         assert marker["ev_revenue_unavailable_reason"] == "missing_sec_data"
+
+    def test_real_reason_propagates_to_every_sibling_field(self):
+        # Regression (2026-08-19, same audit): _build_value_metrics used to always call this
+        # with no reason, discarding the real, specific cause load_sec_valuations.py already
+        # computed and stored in sec_valuations.reason (e.g. "shares_outstanding_unavailable")
+        # in favor of this generic fallback - live-confirmed 771 of 817 universe
+        # "missing_sec_data" market_cap rows were actually this specific, more actionable cause.
+        loader = _make_loader()
+
+        marker = loader._unavailable_marker("value_metrics", "TEST", reason="shares_outstanding_unavailable")
+
+        assert marker["market_cap_unavailable_reason"] == "shares_outstanding_unavailable"
+        assert marker["pe_ratio_unavailable_reason"] == "shares_outstanding_unavailable"
+        assert marker["pb_ratio_unavailable_reason"] == "shares_outstanding_unavailable"
+        assert marker["ev_ebitda_unavailable_reason"] == "shares_outstanding_unavailable"
+        assert marker["intrinsic_value_unavailable_reason"] == "shares_outstanding_unavailable"
+        assert marker["margin_of_safety_unavailable_reason"] == "shares_outstanding_unavailable"
+        # forward_pe's reason is about analyst data, not SEC valuation data - must stay
+        # unaffected by the underlying sec_valuations cause.
+        assert marker["forward_pe_unavailable_reason"] == "analyst_estimates_not_in_sec_filings"

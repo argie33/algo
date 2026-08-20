@@ -89,6 +89,11 @@ class TestEarningsRevenueGrowthYoyOverflowBound:
         metrics = loader._compute_quality_metrics("GLPI", row, ev_metrics=None)
 
         assert metrics.get("earnings_growth_yoy") is None
+        # Regression (2026-08-19, same audit): this bound-rejected case used to collapse into
+        # the same hardcoded "missing_sec_data" as a genuinely absent prior-year EPS, reading as
+        # an unexplained SEC data gap even though a real ratio was computed and deliberately
+        # rejected - same distinction the 9 sibling *_growth_yoy/*_trend fields already make.
+        assert metrics.get("earnings_growth_yoy_unavailable_reason") == "implausible_ratio"
 
     def test_near_zero_prior_year_revenue_marked_unavailable_not_crashed(self, monkeypatch):
         loader = _make_loader(monkeypatch)
@@ -97,6 +102,27 @@ class TestEarningsRevenueGrowthYoyOverflowBound:
         metrics = loader._compute_quality_metrics("GLPI", row, ev_metrics=None)
 
         assert metrics.get("revenue_growth_yoy") is None
+        assert metrics.get("revenue_growth_yoy_unavailable_reason") == "implausible_ratio"
+
+    def test_missing_prior_year_eps_reason_is_insufficient_prior_year_data(self, monkeypatch):
+        # Control: genuinely absent prior-year EPS (not a rejected implausible ratio) must keep
+        # the distinct "insufficient_prior_year_data" reason, not "implausible_ratio".
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(earnings_per_share=5.00, prior_year_eps=None)
+
+        metrics = loader._compute_quality_metrics("NOPRIORYR", row, ev_metrics=None)
+
+        assert metrics.get("earnings_growth_yoy") is None
+        assert metrics.get("earnings_growth_yoy_unavailable_reason") == "insufficient_prior_year_data"
+
+    def test_missing_prior_year_revenue_reason_is_insufficient_prior_year_data(self, monkeypatch):
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(revenue=200_000_000.0, prior_year_revenue=None)
+
+        metrics = loader._compute_quality_metrics("NOPRIORYR", row, ev_metrics=None)
+
+        assert metrics.get("revenue_growth_yoy") is None
+        assert metrics.get("revenue_growth_yoy_unavailable_reason") == "insufficient_prior_year_data"
 
     def test_normal_earnings_and_revenue_growth_still_compute(self, monkeypatch):
         loader = _make_loader(monkeypatch)

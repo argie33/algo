@@ -805,14 +805,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         Session 385: Added enterprise value and EV ratio metrics from sec_valuations.
         """
-        if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
-            return self._unavailable_marker("value_metrics", symbol)
-
         # Extract SEC-derived valuations (all from sec_valuations table)
         # Using dict access - tuple fallback violates fail-fast governance
-        row_dict = dict(sec_val_row) if hasattr(sec_val_row, "__getitem__") else {}
-        if not row_dict:
-            return self._unavailable_marker("value_metrics", symbol)
+        row_dict = dict(sec_val_row) if sec_val_row and hasattr(sec_val_row, "__getitem__") else {}
+        if not row_dict or row_dict.get("data_unavailable"):  # data_unavailable flag (was index 2)
+            # FIXED 2026-08-19 (goal: "no SEC data" audit): every value_metrics field used to
+            # get the same hardcoded generic "missing_sec_data" here whenever sec_valuations
+            # itself had no usable row, discarding the real, specific reason
+            # load_sec_valuations.py already computed and stored in its own `reason` column
+            # (e.g. "shares_outstanding_unavailable", "income_statement_revenue_and_eps_null").
+            # Live-confirmed 771 of 817 universe "missing_sec_data" market_cap rows are
+            # actually shares_outstanding_unavailable - a specific, more actionable label that
+            # was being thrown away one join away from where it was already sitting. Falls back
+            # to the generic reason only when sec_valuations has no row for this symbol at all.
+            return self._unavailable_marker("value_metrics", symbol, reason=row_dict.get("reason"))
 
         pe = row_dict.get("pe_ratio")
         pb = row_dict.get("pb_ratio")
@@ -2710,10 +2716,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("ebitda")
 
             # Cash per Share = Total Cash / Shares Outstanding
+            cash_per_share_shares_missing = False
             if total_cash_ev is not None and shares_outstanding is not None and shares_outstanding > 0:
                 metrics["cash_per_share"] = float(total_cash_ev / shares_outstanding)
             else:
                 failed_metrics.append("cash_per_share")
+                # FIXED 2026-08-19 (goal: "no SEC data" audit continuation): shares_outstanding
+                # here is sv.shares_outstanding (quality_row[11], see fetch_incremental's SELECT)
+                # - the exact same sec_valuations column already given its own specific
+                # "shares_outstanding_unavailable" reason (Ownership data unresolved category)
+                # everywhere else in this codebase. Live-confirmed 771 of 860 universe
+                # cash_per_share "missing_sec_data" rows are this exact case - a real,
+                # deterministic cause one column away, not a generic SEC extraction gap.
+                cash_per_share_shares_missing = shares_outstanding is None or shares_outstanding <= 0
 
             # Earnings Growth YoY = (Current EPS - Prior Year EPS) / Prior Year EPS * 100
             # BUG FOUND 2026-08-16: unlike every sibling *_growth_yoy field in this function
@@ -2727,6 +2742,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # NUMERIC(10,2) (max magnitude 99,999,999.99) and crashed the INSERT for the whole
             # row, losing every other metric in it too. Same fix as the sibling fields: cap and
             # mark unavailable rather than let an unbounded ratio reach the DB.
+            # FIXED 2026-08-19 (goal: "no SEC data" audit): the bound-rejected branch used to
+            # append to failed_metrics only, collapsing into the same hardcoded "missing_sec_data"
+            # reason as the "no prior-year data at all" case below - unlike every one of the 9
+            # sibling *_growth_yoy/*_trend fields (net_income_growth_yoy, fcf_growth_yoy, etc.),
+            # which already distinguish a real value rejected as implausible ("implausible_ratio")
+            # from a genuinely absent prior-year base ("insufficient_prior_year_data") - see the
+            # blanket loop below this block for those 9 fields. Live-confirmed 639 universe
+            # revenue_growth_yoy + 588 earnings_growth_yoy "missing_sec_data" rows were never split
+            # this way, reading as an unexplained SEC data gap even for symbols with a real,
+            # computed-but-rejected ratio on file. Also appended to implausible_ratio_metrics (not
+            # instead of failed_metrics, which line ~3375's summary log still relies on for both
+            # cases).
             if earnings_per_share is not None and prior_year_eps is not None and prior_year_eps != 0:
                 try:
                     yoy_growth = ((earnings_per_share - prior_year_eps) / abs(prior_year_eps)) * 100
@@ -2734,6 +2761,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         metrics["earnings_growth_yoy"] = float(round(yoy_growth, 2))
                     else:
                         failed_metrics.append("earnings_growth_yoy")
+                        implausible_ratio_metrics.append("earnings_growth_yoy")
                 except (ValueError, TypeError):
                     failed_metrics.append("earnings_growth_yoy")
             else:
@@ -2747,6 +2775,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         metrics["revenue_growth_yoy"] = float(round(yoy_growth, 2))
                     else:
                         failed_metrics.append("revenue_growth_yoy")
+                        implausible_ratio_metrics.append("revenue_growth_yoy")
                 except (ValueError, TypeError):
                     failed_metrics.append("revenue_growth_yoy")
             else:
@@ -2943,7 +2972,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         if abs(sgr) < MAX_TREND_PERCENTAGE_POINTS:
                             metrics["sustainable_growth_rate"] = float(sgr)
                         elif sgr_reason is None:
-                            sgr_reason = "missing_sec_data"
+                            # FIXED 2026-08-19 (goal: "no SEC data" audit continuation): a real
+                            # SGR was computed here and deliberately rejected as implausible (a
+                            # near-zero stockholders_equity base blowing up roe_pct, same root
+                            # cause as the growth_yoy MAX_TREND_PERCENTAGE_POINTS fix above) -
+                            # not a missing SEC concept. Same "implausible_ratio" distinction
+                            # every other bound-rejected field in this loader already makes.
+                            sgr_reason = "implausible_ratio"
+                            implausible_ratio_metrics.append("sustainable_growth_rate")
                     except (ValueError, TypeError, ZeroDivisionError):
                         if sgr_reason is None:
                             sgr_reason = "missing_sec_data"
@@ -3306,14 +3342,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             metrics["total_cash_unavailable_reason"] = "missing_sec_data" if "total_cash" in failed_metrics else None
             metrics["cash_per_share_unavailable_reason"] = (
-                "missing_sec_data" if "cash_per_share" in failed_metrics else None
+                ("shares_outstanding_unavailable" if cash_per_share_shares_missing else "missing_sec_data")
+                if "cash_per_share" in failed_metrics
+                else None
             )
             metrics["ebitda_unavailable_reason"] = "missing_sec_data" if "ebitda" in failed_metrics else None
             metrics["earnings_growth_yoy_unavailable_reason"] = (
-                "missing_sec_data" if "earnings_growth_yoy" in failed_metrics else None
+                (
+                    "implausible_ratio"
+                    if "earnings_growth_yoy" in implausible_ratio_metrics
+                    else "insufficient_prior_year_data"
+                )
+                if "earnings_growth_yoy" in failed_metrics
+                else None
             )
             metrics["revenue_growth_yoy_unavailable_reason"] = (
-                "missing_sec_data" if "revenue_growth_yoy" in failed_metrics else None
+                (
+                    "implausible_ratio"
+                    if "revenue_growth_yoy" in implausible_ratio_metrics
+                    else "insufficient_prior_year_data"
+                )
+                if "revenue_growth_yoy" in failed_metrics
+                else None
             )
 
             # Quarterly metrics unavailable reasons (Session 78+). Only fill the generic
@@ -4023,14 +4073,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     marker[key] = "stale_fiscal_data"
         return marker
 
-    def _unavailable_marker(self, table: str, symbol: str) -> dict[str, Any]:
+    def _unavailable_marker(self, table: str, symbol: str, reason: str | None = None) -> dict[str, Any]:
         """Return data_unavailable marker for a table.
 
         CRITICAL: Include all *_unavailable_reason fields (even when data is fully unavailable)
         so the database row has explicit reason codes explaining why metrics are NULL.
         Previously these were omitted, causing 600+ rows to have NULL reason codes.
+
+        reason: optional real, specific cause (value_metrics only - see call site in
+        _build_value_metrics). FIXED 2026-08-19 (goal: "no SEC data" audit): every
+        value_metrics field used to get the same hardcoded generic "missing_sec_data" here
+        regardless of cause, discarding the real, specific reason load_sec_valuations.py
+        already computed and stored in its own sec_valuations.reason column (e.g.
+        "shares_outstanding_unavailable", "income_statement_revenue_and_eps_null"). Live-
+        confirmed 771 of 817 universe "missing_sec_data" market_cap rows are actually
+        shares_outstanding_unavailable. Defaults to "missing_sec_data" (unchanged behavior)
+        when the caller has no more specific reason to pass (e.g. sec_valuations has no row
+        for this symbol at all, or a caller table other than value_metrics).
         """
         if table == "value_metrics":
+            specific_reason = reason or "missing_sec_data"
             return {
                 "symbol": symbol,
                 "pe_ratio": None,
@@ -4039,12 +4101,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "peg_ratio": None,
                 "dividend_yield": None,
                 "fcf_yield": None,
-                "pe_ratio_unavailable_reason": "missing_sec_data",
-                "pb_ratio_unavailable_reason": "missing_sec_data",
-                "ps_ratio_unavailable_reason": "missing_sec_data",
-                "peg_ratio_unavailable_reason": "missing_sec_data",
-                "dividend_yield_unavailable_reason": "missing_sec_data",
-                "fcf_yield_unavailable_reason": "missing_sec_data",
+                "pe_ratio_unavailable_reason": specific_reason,
+                "pb_ratio_unavailable_reason": specific_reason,
+                "ps_ratio_unavailable_reason": specific_reason,
+                "peg_ratio_unavailable_reason": specific_reason,
+                "dividend_yield_unavailable_reason": specific_reason,
+                "fcf_yield_unavailable_reason": specific_reason,
                 "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings",
                 # FIXED 2026-08-18 (goal: "no SEC data" audit): this is the fully-unavailable
                 # fallback for symbols with NO SEC valuation data at all - every sibling reason
@@ -4054,15 +4116,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # ev_ebitda_reason logic above (~line 800) was rewritten to distinguish
                 # unprofitable_stock/ebitda_not_extracted/missing_sec_data by actual cause.
                 # 441 rows universe-wide carried this stale, misleading label.
-                "ev_ebitda_unavailable_reason": "missing_sec_data",
+                "ev_ebitda_unavailable_reason": specific_reason,
                 "ev_revenue": None,
-                "ev_revenue_unavailable_reason": "missing_sec_data",
+                "ev_revenue_unavailable_reason": specific_reason,
                 "market_cap": None,
-                "market_cap_unavailable_reason": "missing_sec_data",
+                "market_cap_unavailable_reason": specific_reason,
                 "held_percent_insiders_unavailable_reason": None,
                 "held_percent_institutions_unavailable_reason": None,
-                "intrinsic_value_unavailable_reason": "missing_sec_data",
-                "margin_of_safety_unavailable_reason": "missing_sec_data",
+                "intrinsic_value_unavailable_reason": specific_reason,
+                "margin_of_safety_unavailable_reason": specific_reason,
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient SEC valuation data",

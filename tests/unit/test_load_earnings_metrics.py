@@ -18,15 +18,25 @@ def _make_loader() -> EarningsMetricsLoader:
 
 
 class _FakeCursor:
-    def __init__(self, rows: list[tuple]) -> None:
+    """Routes by query content: the quarterly EPS lookup (fetchall) vs. the
+    is_foreign_private_issuer lookup (fetchone) added for the <2-quarters branch."""
+
+    def __init__(self, rows: list[tuple], is_fpi: bool | None = False) -> None:
         self._rows = rows
+        self._is_fpi = is_fpi
+        self._last_query = ""
 
     def execute(self, query, params=None) -> None:
-        assert "quarterly_income_statement" in query
-        assert "LIMIT 4" in query
+        self._last_query = query
 
     def fetchall(self):
+        assert "quarterly_income_statement" in self._last_query
+        assert "LIMIT 4" in self._last_query
         return self._rows
+
+    def fetchone(self):
+        assert "is_foreign_private_issuer" in self._last_query
+        return None if self._is_fpi is None else (self._is_fpi,)
 
 
 class _FakeDatabaseContext:
@@ -43,7 +53,7 @@ class _FakeDatabaseContext:
 def test_fewer_than_two_quarters_is_honestly_unavailable(monkeypatch) -> None:
     import loaders.load_earnings_metrics as mod
 
-    cursor = _FakeCursor([(2026, 2, 1.5)])
+    cursor = _FakeCursor([(2026, 2, 1.5)], is_fpi=False)
     monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
 
     records = _make_loader().fetch_incremental("AAPL", since=None)
@@ -60,12 +70,43 @@ def test_fewer_than_two_quarters_is_honestly_unavailable(monkeypatch) -> None:
 def test_zero_quarters_is_honestly_unavailable(monkeypatch) -> None:
     import loaders.load_earnings_metrics as mod
 
-    cursor = _FakeCursor([])
+    cursor = _FakeCursor([], is_fpi=False)
     monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
 
     records = _make_loader().fetch_incremental("NOEPS", since=None)
 
     assert records[0]["data_unavailable"] is True
+    assert records[0]["unavailable_reason"] == "insufficient_quarterly_eps_history"
+
+
+def test_foreign_private_issuer_gets_specific_exemption_reason(monkeypatch) -> None:
+    # Regression (2026-08-19, same audit): a foreign private issuer (20-F/40-F filer) is
+    # exempt from quarterly 10-Q reporting - quarterly_income_statement is structurally
+    # near-empty for it, not a data gap that more loading could ever close. Live-confirmed
+    # 229 of 492 universe earnings_metrics "insufficient_quarterly_eps_history" rows are this
+    # exact case, same distinction load_value_quality_growth_metrics.py already makes for its
+    # own identical <4-quarters check.
+    import loaders.load_earnings_metrics as mod
+
+    cursor = _FakeCursor([(2026, 2, 1.5)], is_fpi=True)
+    monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+
+    records = _make_loader().fetch_incremental("CHKP", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["unavailable_reason"] == "foreign_private_issuer_no_quarterly_filings"
+
+
+def test_no_company_info_sec_row_keeps_generic_reason(monkeypatch) -> None:
+    # Control: a symbol with no company_info_sec row at all (fetchone returns None) has no
+    # way to confirm FPI status - must stay the generic reason, not crash or default to FPI.
+    import loaders.load_earnings_metrics as mod
+
+    cursor = _FakeCursor([], is_fpi=None)
+    monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+
+    records = _make_loader().fetch_incremental("UNKNOWN", since=None)
+
     assert records[0]["unavailable_reason"] == "insufficient_quarterly_eps_history"
 
 

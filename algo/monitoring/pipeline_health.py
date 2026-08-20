@@ -229,6 +229,14 @@ class PipelineHealth:
             "ttm_cash_flow",  # explicitly removed 2026-07-13 (SecEdgarStatementLoader never
             # supported period='ttm'; both combos crashed on init every run) - see
             # get_all_statement_configs() docstring in that file.
+            # ttm_balance_sheet ADDED 2026-08-20: unlike the two above, this one was never
+            # created by any migration at all (balance sheet is a point-in-time snapshot, not
+            # a trailing-twelve-month aggregate - never a coherent concept). Without this entry,
+            # check_table_health()'s `SELECT COUNT(*) FROM ttm_balance_sheet` above always hits
+            # UndefinedTable -> HealthStatus.ERROR on every live health check, live-confirmed via
+            # data_loader_status (row_count=0, status manually set to DEPRECATED as a stopgap by
+            # an earlier session, but that column isn't what this checker reads).
+            "ttm_balance_sheet",
             "buy_sell_weekly",  # No loader ever existed for weekly/monthly buy_sell aggregates -
             "buy_sell_monthly",  # load_buy_sell_daily.py is the only buy_sell_* loader, and it
             "buy_sell_daily_etf",  # deliberately excludes ETFs (exclude_etfs_from_symbols=True,
@@ -350,6 +358,18 @@ class PipelineHealth:
             )
             result = cur.fetchone()
             if result is None:
+                # pg_class has no row at all for this name - the table was never created
+                # (not just empty). For a table in KNOWN_DEPRECATED_TABLES this is expected
+                # (e.g. ttm_balance_sheet - never created by any migration, see that entry's
+                # comment) and not an incident; only the later row_count==0 branch checked
+                # KNOWN_DEPRECATED_TABLES, so this earlier "relation doesn't exist" case always
+                # won first and reported ERROR regardless, live-confirmed for ttm_balance_sheet.
+                if table_name in self.KNOWN_DEPRECATED_TABLES:
+                    health.status = HealthStatus.DEPRECATED
+                    health.error_message = (
+                        "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+                    )
+                    return health
                 logger.error(f"Pipeline health check failed for {table_name}: query returned None")
                 health.status = HealthStatus.ERROR
                 health.error_message = f"Failed to get row count for {table_name}"

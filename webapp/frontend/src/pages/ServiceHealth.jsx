@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { api } from "../services/api";
 import ErrorBoundary from "../components/ErrorBoundary";
+import ScoresDataCoverage from "../components/ScoresDataCoverage";
 
 const fmtAgo = (ts) => {
   if (!ts) return "—";
@@ -34,6 +35,7 @@ const STATUS_VARIANT = {
 };
 
 function ServiceHealthContent() {
+  const [tab, setTab] = useState("overview");
   const [patrolRunning, setPatrolRunning] = useState(false);
   const [patrolMsg, setPatrolMsg] = useState(null);
 
@@ -138,6 +140,43 @@ function ServiceHealthContent() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div
+        style={{
+          display: "flex",
+          borderBottom: "1px solid var(--border)",
+          marginBottom: "var(--space-4)",
+        }}
+      >
+        {[
+          ["overview", "Overview"],
+          ["coverage", "Scores Data Coverage"],
+        ].map(([v, lbl]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setTab(v)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: `2px solid ${tab === v ? "var(--brand)" : "transparent"}`,
+              color: tab === v ? "var(--brand-2)" : "var(--text-muted)",
+              fontWeight: tab === v ? "var(--w-semibold)" : "var(--w-medium)",
+              fontSize: "var(--t-sm)",
+              padding: "12px 16px",
+              cursor: "pointer",
+              marginBottom: -1,
+            }}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {tab === "coverage" && <ScoresDataCoverage active={tab === "coverage"} />}
+
+      {tab === "overview" && (
+        <>
       {patrolMsg && (
         <div
           className={`alert ${patrolMsg.ok ? "alert-success" : "alert-danger"}`}
@@ -439,6 +478,8 @@ function ServiceHealthContent() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

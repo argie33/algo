@@ -13,6 +13,11 @@ new-reason additions didn't cover.
 All three represent the identical underlying fact (a foreign private issuer's permanent SEC
 reporting exemption, not a data gap more loader coverage could ever close), so this test also
 guards them staying together rather than one drifting to a different bucket in a future edit.
+
+ADDED 2026-08-20: "foreign_private_issuer_shares_unavailable" (load_short_interest_finra.py) is
+the same class of permanent fact, not a reporting exemption but the same "FPI structural gap,
+not a data gap" distinction - FPIs have no shares_outstanding source that isn't in home-market
+(non-ADS) units, per load_sec_valuations.py's 2026-08-19 fix (commit a123cdb46).
 """
 
 import importlib
@@ -20,11 +25,12 @@ import importlib
 scores_mod = importlib.import_module("lambda.api.routes.scores")
 
 
-def test_all_three_foreign_private_issuer_reasons_categorize_as_legitimate():
+def test_all_foreign_private_issuer_reasons_categorize_as_legitimate():
     for reason in (
         "foreign_private_issuer_exempt",
         "foreign_private_issuer_no_quarterly_filings",
         "foreign_private_issuer_no_8k_filings",
+        "foreign_private_issuer_shares_unavailable",
     ):
         assert scores_mod._categorize_reason(reason) == "Legitimate / not applicable", (
             f"{reason!r} categorized as {scores_mod._categorize_reason(reason)!r}, not "

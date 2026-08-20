@@ -76,6 +76,24 @@ class EarningsMetricsLoader(OptimalLoader):
             rows = cur.fetchall()
 
         if len(rows) < 2:
+            # FIXED 2026-08-19 (goal: "no SEC data" audit continuation): "insufficient_
+            # quarterly_eps_history" implies "will accumulate more data over time," which is
+            # false for foreign private issuers (20-F/40-F filers) - they're exempt from
+            # mandatory quarterly (10-Q) SEC reporting, so quarterly_income_statement is
+            # structurally near-empty for them, not a data gap this loader could ever close by
+            # waiting. Same "permanent SEC exemption, not a data gap" distinction already
+            # applied to the identical quarters<4 check in
+            # load_value_quality_growth_metrics.py's _compute_quarterly_metrics (live-confirmed
+            # 229 of 492 universe earnings_metrics "insufficient_quarterly_eps_history" rows are
+            # this exact case). Reuses that same is_foreign_private_issuer lookup.
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT is_foreign_private_issuer FROM company_info_sec WHERE symbol = %s",
+                    (symbol,),
+                )
+                fpi_row = cur.fetchone()
+            is_fpi = bool(fpi_row[0]) if fpi_row else False
+            reason = "foreign_private_issuer_no_quarterly_filings" if is_fpi else "insufficient_quarterly_eps_history"
             return [
                 {
                     "symbol": symbol,
@@ -83,7 +101,7 @@ class EarningsMetricsLoader(OptimalLoader):
                     "earnings_quality_score": None,
                     "consistency_score": None,
                     "data_unavailable": True,
-                    "unavailable_reason": "insufficient_quarterly_eps_history",
+                    "unavailable_reason": reason,
                     "created_at": now,
                     "updated_at": now,
                 }

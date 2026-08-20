@@ -162,6 +162,10 @@ class PositioningMetricsLoader(OptimalLoader):
         short_interest_pct_change = None
         short_ratio = None
         short_percent_of_float = None
+        # Tracks whether FINRA even reported a short_shares figure this symbol could be
+        # divided by shares_outstanding - see short_percent_of_float_unavailable_reason
+        # below for why this needs to be distinguished from a missing shares_outstanding.
+        short_shares_reported = False
 
         try:
             with DatabaseContext("read") as cur:
@@ -223,6 +227,7 @@ class PositioningMetricsLoader(OptimalLoader):
             # so the true float-based percentage is typically higher than this value -
             # frontend labels this "Short % of Shares O/S" (not "of Float") for that reason.
             if short_rows and short_rows[0][1] is not None:  # short_shares
+                short_shares_reported = True
                 try:
                     with DatabaseContext("read") as cur:
                         # NOTE: Removed data_unavailable = FALSE filter to allow fetching
@@ -374,7 +379,20 @@ class PositioningMetricsLoader(OptimalLoader):
                     "insufficient_history" if short_interest_pct_change is None else None
                 ),
                 "short_percent_of_float_unavailable_reason": (
-                    "missing_sec_data" if short_percent_of_float is None else None
+                    (
+                        # FIXED 2026-08-19 (goal: "no SEC data" audit): this was hardcoded
+                        # "missing_sec_data" regardless of cause, even when FINRA itself never
+                        # reported a short_shares figure for this symbol this period - the
+                        # exact same root cause short_interest_pct/short_ratio right above
+                        # already label "missing_finra_data". Live-confirmed 76 of 814
+                        # universe short_percent_of_float "missing_sec_data" rows have no
+                        # short_shares on file at all, mislabeled as an SEC gap when the real
+                        # blocker is FINRA short-interest coverage, not a shares_outstanding
+                        # lookup failure.
+                        "missing_finra_data" if not short_shares_reported else "missing_sec_data"
+                    )
+                    if short_percent_of_float is None
+                    else None
                 ),
                 "short_ratio_unavailable_reason": ("missing_finra_data" if short_ratio is None else None),
                 "top_10_institutions_pct": top_10_institutions_pct,

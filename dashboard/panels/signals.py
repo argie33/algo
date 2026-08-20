@@ -351,11 +351,12 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
 
 
 def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
-    """Build active buy signals table: entry/target/exit + technicals/strength per candidate.
+    """Build the Pine BUY signals table: entry/target/exit + technicals/strength per signal.
 
-    buy_sigs items come from /api/algo/dashboard-signals, enriched (LEFT JOIN buy_sell_daily +
-    trend_template_data) with the same entry-zone/target/technical fields the web Trading
-    Signals page shows - see lambda/api/routes/algo_handlers/dashboard.py::_get_dashboard_signals.
+    buy_sigs items come from /api/algo/dashboard-signals, sourced from buy_sell_daily (the
+    Pine-matched scan - same rows the web Trading Signals page shows), LEFT JOINed to
+    algo_signals so each row can be annotated with what the algo decided to do about it - see
+    lambda/api/routes/algo_handlers/dashboard.py::_get_dashboard_signals.
 
     Validates input is list before accessing fields. Logs all validation failures.
     """
@@ -367,18 +368,27 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
         logger.debug("_build_buy_signals_table: buy_sigs is empty (no active signals)")
         return rows
 
-    # FIX 2026-08-18: this table intentionally shows the full candidate pool, not just
-    # execution_status='executed' signals (see the REGRESSION FIX comment in
-    # lambda/api/routes/algo_handlers/dashboard.py::_get_dashboard_signals - most rejections
-    # here are portfolio-capacity/risk-limit blocks unrelated to signal quality). But with no
-    # per-row indicator, "ACTIVE BUY SIGNALS ★" reads as "the algo will act on all of these" -
-    # live-confirmed 2026-08-17: 14/22 signals for the latest date were already rejected
-    # (e.g. IOSP: "concentration_prefilter: already_entered_today"). Split the header count so
-    # a viewer isn't misled into thinking a rejected candidate is still actionable.
+    # REWRITTEN 2026-08-20: this table now shows the full Pine roster (buy_sell_daily), not
+    # just the algo's candidate pool (see _get_dashboard_signals) - execution_status is NULL
+    # for any Pine signal the algo never picked up as a candidate at all, distinct from
+    # 'rejected' (the algo considered it and passed, usually a portfolio-capacity/risk-limit
+    # block unrelated to signal quality - see REGRESSION FIX comment there). Summarize all
+    # three states in the header so a viewer isn't misled into thinking every row here is
+    # actionable, or that a rejected/unreviewed row means Pine's signal itself was wrong.
+    executed_n = sum(1 for s in buy_sigs if safe_get_field(s, "execution_status") == "executed")
     rejected_n = sum(1 for s in buy_sigs if safe_get_field(s, "execution_status") == "rejected")
-    header_suffix = f"({len(buy_sigs)} with price targets"
-    header_suffix += f", {rejected_n} already rejected)" if rejected_n else ")"
-    rows.append(Text.from_markup(f"[{G}][bold]CANDIDATE BUY SIGNALS ★[/][/] [dim]{header_suffix}[/]"))
+    considered_n = sum(1 for s in buy_sigs if safe_get_field(s, "execution_status") is not None)
+    not_considered_n = len(buy_sigs) - considered_n
+    detail_parts = []
+    if executed_n:
+        detail_parts.append(f"{executed_n} executed")
+    if rejected_n:
+        detail_parts.append(f"{rejected_n} already rejected")
+    if not_considered_n:
+        detail_parts.append(f"{not_considered_n} not yet reviewed by algo")
+    header_suffix = f"({len(buy_sigs)} shown"
+    header_suffix += f" · {', '.join(detail_parts)})" if detail_parts else ")"
+    rows.append(Text.from_markup(f"[{G}][bold]PINE BUY SIGNALS[/][/] [dim]{header_suffix}[/]"))
     sig_table: Table = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
@@ -509,8 +519,14 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None) -> Panel | None:
     if not isinstance(buy_sigs, list):
         buy_sigs = []
 
+    rows: list[Text | Table | Rule] = [
+        Text.from_markup(
+            "[dim]Full Pine-matched technical scan (buy_sell_daily) — same universe as the web "
+            "Trading Signals page. ✗ marks signals the algo already declined.[/]"
+        )
+    ]
     rows_text, _, _ = _build_signal_header(sig)
-    rows: list[Text | Table | Rule] = cast(list[Text | Table | Rule], rows_text)
+    rows.extend(cast(list[Text | Table | Rule], rows_text))
     rows.extend(_build_grade_radar(sig))
     rows.append(Rule(style="dim"))
     rows.extend(_build_funnel_row(sig_eval))
@@ -595,6 +611,10 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
 
     rows: list[Text | Table | Rule] = [
         Text.from_markup(f"[{CY}][bold]SIGNAL OVERVIEW[/][/]"),
+        Text.from_markup(
+            "[dim]Full Pine-matched technical scan (buy_sell_daily) — same universe as the web "
+            "Trading Signals page. ✗ marks signals the algo already declined.[/]"
+        ),
         Text.from_markup(
             f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
             f"[{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]  "

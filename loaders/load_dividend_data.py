@@ -555,6 +555,23 @@ class DividendDataLoader(SecLoaderBase):
             # (no us-gaap facts at all) from ever reaching the ifrs-full extraction added
             # below, even though such a filer might genuinely tag real dividend data there.
             if not us_gaap and not ifrs_full:
+                # FIXED 2026-08-19 (goal: "no SEC data" audit continuation - industry-specific
+                # nuance pass): registered investment companies (closed-end funds like the
+                # BlackRock BBN/BCAT/BGT/BIT/BKT-class trusts) don't file a standard 10-K at
+                # all - live-confirmed via SEC's own companyfacts API: BBN's `facts` dict has
+                # ONLY "cef" (20 concepts) and "ffd" (5 concepts) taxonomies, no "us-gaap" or
+                # "ifrs-full" whatsoever. Inspected every "cef"/"ffd" concept name live: none
+                # is a dividend/distribution amount - the "cef" taxonomy is N-2 prospectus fee-
+                # table data (ManagementFeesPercent, ExpenseExampleYears1to10, ...), not
+                # periodic financial-statement facts. This is a genuine, permanent structural
+                # absence (SEC simply has no machine-readable distribution data for these
+                # filers), same class as reit_special_entity elsewhere in this codebase - not
+                # a loader gap our own extraction could ever close by trying harder concepts.
+                # Distinguishing it from the generic "no_us_gaap_facts" (which reads as an SEC
+                # extraction failure) so it doesn't keep showing up as a "loader is broken"
+                # signal on the coverage dashboard.
+                if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
+                    return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
                 return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
 
             results = []

@@ -571,17 +571,30 @@ class MarketExposure:
             score += aaii_pts
             logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
-            # --- 12. NAAIM professional manager exposure (contrarian at extremes) ---
+            # --- 12. NAAIM professional manager exposure (contrarian at extremes, 5pt optional) ---
+            # OPTIONAL enrichment (2026-08-20): NAAIM's public page has required a subscription
+            # since 2026-08-01 - no free source left. Factor gracefully skipped if unavailable,
+            # same pattern as put_call_ratio above (don't fail the whole 12-factor composite).
             naaim = self.calculator.naaim(eval_date, cur)
-            naaim_pts, naaim_avail = self.calculator._wt_pts(naaim, self.W_NAAIM)
-            avail_max += naaim_avail
-            factors["naaim"] = {
-                **naaim,
-                "pts": round(naaim_pts, 1),
-                "max": self.W_NAAIM,
-            }
-            score += naaim_pts
-            logger.debug(f"  NAAIM exposure: {naaim_pts:.1f} pts")
+            if naaim.get("data_unavailable"):
+                logger.info(f"[NAAIM] Unavailable (optional factor skipped): {naaim.get('reason')}")
+                avail_max += self.W_NAAIM
+                factors["naaim"] = {
+                    "data_unavailable": True,
+                    "reason": naaim.get("reason", "unknown"),
+                    "pts": 0.0,
+                    "max": self.W_NAAIM,
+                }
+            else:
+                naaim_pts, naaim_avail = self.calculator._wt_pts(naaim, self.W_NAAIM)
+                avail_max += naaim_avail
+                factors["naaim"] = {
+                    **naaim,
+                    "pts": round(naaim_pts, 1),
+                    "max": self.W_NAAIM,
+                }
+                score += naaim_pts
+                logger.debug(f"  NAAIM exposure: {naaim_pts:.1f} pts")
 
             # CRITICAL: Require COMPLETE factor data (all 12 factors, all 100 weight).
             # Missing factors cause re-normalization that artificially inflates remaining factor weights.
