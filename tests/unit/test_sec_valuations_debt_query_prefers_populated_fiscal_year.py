@@ -96,10 +96,10 @@ def _run_fetch_incremental(
 class TestDebtQueryPrefersPopulatedFiscalYear:
     def test_debt_query_orders_by_long_term_debt_populated_before_fiscal_year(self) -> None:
         fetchone_results = [
-            (50.0,),  # price_daily.close
-            (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            (50.0,),  # price_daily.close
+            (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
         ]
         _, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 
@@ -119,10 +119,10 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         # older year with a real, usable component. 522 of the universe's 1,060 NULL total_debt
         # symbols have this shape.
         fetchone_results = [
-            (50.0,),
-            (500_000_000.0,),
             (30_000_000.0,),
             (None, 0.0, 59_642_000.0, None),  # debt_row
+            (50.0,),
+            (500_000_000.0,),
         ]
         _, cursor = _run_fetch_incremental("ANET", fetchone_results)
 
@@ -145,10 +145,10 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         # text contains a nonzero-sum tier ranked ahead of the plain "any non-NULL component"
         # tier - the regression guard against reverting to the looser IS NOT NULL-only check.
         fetchone_results = [
-            (50.0,),
-            (500_000_000.0,),
             (30_000_000.0,),
             (2_439_000_000.0, 9_000_000.0, 308_000_000.0, None),  # debt_row: FY2025's real figures
+            (50.0,),
+            (500_000_000.0,),
         ]
         _, cursor = _run_fetch_incremental("AA", fetchone_results)
 
@@ -166,10 +166,10 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         # component-sum CASE), so a fresh cash figure isn't held back just because that year's
         # debt tags aren't filed yet.
         fetchone_results = [
-            (50.0,),
-            (500_000_000.0,),
             (55_911_000_000.0,),  # cash_and_equivalents - real, current-year figure
             (None, 0.0, None, None),  # debt_row - GOOGL-FY2026-shaped: long_term_debt NULL
+            (50.0,),
+            (500_000_000.0,),
         ]
         result, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 

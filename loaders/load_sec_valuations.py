@@ -269,6 +269,103 @@ class SecValuationsLoader(OptimalLoader):
                 else:
                     prior_year_eps = None
 
+                # MOVED 2026-08-19 (goal session continuation - "which factor inputs are
+                # missing the most" audit): total_debt/total_cash/ebitda used to live after the
+                # shares_outstanding and current_price gates below, even though none of the
+                # three actually depend on shares outstanding or price - they're pure balance-
+                # sheet/income-statement dollar figures. That put them behind an early `return`
+                # they had no real dependency on: any symbol failing the shares_outstanding gate
+                # (771 active symbols, overwhelmingly foreign private issuers - see
+                # load_company_info_sec.py's domestic-forms-only guard) or the price gate lost
+                # total_debt/total_cash/ebitda too, purely as a control-flow accident, not a real
+                # data gap. Computed here, before every gate below, so
+                # load_value_quality_growth_metrics.py's `SELECT total_debt, total_cash, ebitda
+                # FROM sec_valuations` (which reads these three columns directly, with no
+                # data_unavailable=FALSE filter) gets real values via the unavailable-marker path
+                # too, not just the full-success path. cash_per_share is unaffected - it still
+                # needs shares_outstanding and correctly stays gated.
+                cur.execute(
+                    """
+                    SELECT cash_and_equivalents
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                cash_row2 = cur.fetchone()
+                total_cash = cash_row2[0] if cash_row2 else None
+
+                # Debt = long_term_debt + short_term_debt + operating/finance lease liabilities
+                # (S&P/Moody's "adjusted debt" convention; NOT total_liabilities, which
+                # overstates debt ~3x by including accounts payable/deferred revenue/pensions -
+                # see git history for the AAPL/MSFT/GOOGL/F live-confirmed fix). NULL only when
+                # ALL FOUR components are absent across every fiscal year on file; a fiscal year
+                # whose components sum to a real nonzero value is preferred over one that's
+                # merely non-NULL (a lone real `short_term_debt=0` on an in-progress year must
+                # not outrank a fuller prior year), which in turn is preferred over a bare
+                # `ORDER BY fiscal_year DESC` for genuinely zero-debt companies.
+                cur.execute(
+                    """
+                    SELECT
+                        long_term_debt,
+                        short_term_debt,
+                        operating_lease_liability,
+                        finance_lease_liability
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    ORDER BY (CASE
+                                WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
+                                     + COALESCE(operating_lease_liability, 0)
+                                     + COALESCE(finance_lease_liability, 0) != 0
+                                THEN 0
+                                WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
+                                     OR operating_lease_liability IS NOT NULL
+                                     OR finance_lease_liability IS NOT NULL
+                                THEN 1
+                                ELSE 2
+                              END), fiscal_year DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                debt_row = cur.fetchone()
+                if debt_row:
+                    debt_components = debt_row
+                    if all(c is None for c in debt_components):
+                        total_debt = None
+                    else:
+                        total_debt = sum(c or 0 for c in debt_components)
+                else:
+                    total_debt = None
+
+                # EBITDA = Operating Income + Depreciation + Amortization (Session 398)
+                ebitda = None
+                oi = safe_float(operating_income, f"{symbol}.operating_income", allow_none=True)
+                if oi is not None:
+                    dep_exp = safe_float(depreciation_expense, f"{symbol}.depreciation_expense", allow_none=True)
+                    amort_exp = safe_float(amortization_expense, f"{symbol}.amortization_expense", allow_none=True)
+                    ebitda_val = oi
+                    if dep_exp:
+                        ebitda_val += dep_exp
+                    if amort_exp:
+                        ebitda_val += amort_exp
+                    ebitda = ebitda_val
+
+                # Same overflow guard _compute_valuations applies to these three below (see
+                # MAX_ABSOLUTE_DOLLAR_VALUE's module docstring - foreign ADR filers reporting
+                # balance-sheet figures in local currency without USD conversion, live-crashed
+                # NumericValueOutOfRange on BBAR/BCH/BMA/BSAC/HDB/HMC) - applied here too since
+                # the unavailable-marker return paths below use these values directly, bypassing
+                # _compute_valuations' own guard entirely.
+                if total_debt is not None and abs(total_debt) >= MAX_ABSOLUTE_DOLLAR_VALUE:
+                    total_debt = None
+                if total_cash is not None and abs(total_cash) >= MAX_ABSOLUTE_DOLLAR_VALUE:
+                    total_cash = None
+                if ebitda is not None and abs(ebitda) >= MAX_ABSOLUTE_DOLLAR_VALUE:
+                    ebitda = None
+
                 # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
                 # Allow revenue-only companies: can compute PS ratio even without EPS. Also
                 # allow net_income-only companies (live-confirmed: PFLT/PennantPark - a BDC
@@ -279,7 +376,15 @@ class SecValuationsLoader(OptimalLoader):
                 # gracefully per-field, and PB/EV/FCF-yield don't depend on either at all -
                 # the only real requirement is SOME income-statement signal to work with.
                 if ttm_revenue is None and ttm_eps_basic is None and _ttm_net_income is None:
-                    return [self._unavailable_marker(symbol, "income_statement_revenue_and_eps_null")]
+                    return [
+                        self._unavailable_marker(
+                            symbol,
+                            "income_statement_revenue_and_eps_null",
+                            total_debt=total_debt,
+                            total_cash=total_cash,
+                            ebitda=ebitda,
+                        )
+                    ]
 
                 # Prefer the real, officially-reported weighted-average basic share count
                 # (SEC XBRL WeightedAverageNumberOfSharesOutstandingBasic, migration 1171)
@@ -439,7 +544,15 @@ class SecValuationsLoader(OptimalLoader):
 
                 # Fail if still no shares outstanding available
                 if not shares_out or shares_out <= 0:
-                    return [self._unavailable_marker(symbol, "shares_outstanding_unavailable")]
+                    return [
+                        self._unavailable_marker(
+                            symbol,
+                            "shares_outstanding_unavailable",
+                            total_debt=total_debt,
+                            total_cash=total_cash,
+                            ebitda=ebitda,
+                        )
+                    ]
 
                 # Get current price for valuation computations
                 cur.execute(
@@ -452,11 +565,19 @@ class SecValuationsLoader(OptimalLoader):
                 )
                 price_row = cur.fetchone()
                 if not price_row or not price_row[0]:
-                    return [self._unavailable_marker(symbol, "no_recent_price")]
+                    return [
+                        self._unavailable_marker(
+                            symbol, "no_recent_price", total_debt=total_debt, total_cash=total_cash, ebitda=ebitda
+                        )
+                    ]
 
                 current_price = safe_float(price_row[0], f"{symbol}.close", allow_none=False)
                 if current_price <= 0:
-                    return [self._unavailable_marker(symbol, "invalid_price")]
+                    return [
+                        self._unavailable_marker(
+                            symbol, "invalid_price", total_debt=total_debt, total_cash=total_cash, ebitda=ebitda
+                        )
+                    ]
 
                 # Get latest balance sheet (book value - optional, may not exist for all companies)
                 # NOTE: Removed data_unavailable = FALSE filter to allow fallback computation
@@ -527,164 +648,6 @@ class SecValuationsLoader(OptimalLoader):
                     if row_ocf is not None and row_capex is not None
                 ]
                 avg_fcf_fallback = sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 2 else None
-
-                # Get debt and cash from balance sheet (for Enterprise Value)
-                # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
-                #
-                # FIXED 2026-08-17 (migration 1204): this query used to select total_liabilities
-                # as "total_debt" - live-confirmed against real SEC data and the local DB this
-                # was total_liabilities verbatim (AAPL FY2025: $285.5B "debt" vs real
-                # long_term_debt $90.7B, a ~3.1x overstatement; same pattern for MSFT/GOOGL/F).
-                # total_liabilities includes every non-debt liability (accounts payable,
-                # deferred revenue, accrued expenses, pensions, leases) -
-                # load_value_quality_growth_metrics.py's ROIC code already explicitly rejected
-                # a "total_liabilities - current_liabilities" debt estimate for exactly this
-                # reason, not realizing sec_valuations.total_debt (which it treats as "the real
-                # number, 81% available" and prefers over this same table's own long_term_debt
-                # column) was an even less accurate version of the same mistake. Now sums the
-                # two real debt columns instead: long_term_debt (existing) + short_term_debt
-                # (new, migration 1204 - commercial paper / short-term borrowings, not captured
-                # by long_term_debt).
-                #
-                # FIXED 2026-08-17 (migration 1205, same session): also add post-ASC 842
-                # capitalized lease liabilities - operating_lease_liability (S&P/Moody's
-                # "adjusted debt" convention - both rating agencies capitalize operating
-                # leases into adjusted debt for credit analysis) and finance_lease_liability
-                # (unambiguously debt - financed asset ownership). Neither was captured by
-                # long_term_debt/short_term_debt (live-confirmed via AAPL's real companyfacts
-                # JSON - LongTermDebt does not include either lease figure). NULL only when
-                # ALL FOUR components are absent (no fabricated $0 default - same fail-fast
-                # convention as the rest of this file); otherwise sums whichever components
-                # are present, treating a missing individual component as 0 (a filer with
-                # real long_term_debt but no leases has real total_debt, not NULL).
-                # See the fiscal_year IS NOT NULL comment on the book_value query above.
-                #
-                # FIXED 2026-08-17 (loader-review goal, continuation): plain `ORDER BY
-                # fiscal_year DESC` picked the latest fiscal year even when its long_term_debt
-                # is NULL because that year's filing is still in progress, while an older year
-                # has the real reported value - same "latest year is empty" bug class already
-                # fixed above for the income-statement/shares_outstanding queries in this file.
-                # Live-confirmed: GOOGL's FY2026 row has real stockholders_equity/
-                # total_liabilities/cash (a genuine, non-placeholder row) but long_term_debt is
-                # NULL, while FY2025 has real long_term_debt=$49.085B - short_term_debt alone
-                # being 0 (not NULL) on the FY2026 row meant the old "all four components NULL"
-                # check never caught this, silently producing total_debt=None for a symbol with
-                # 10 years of real debt history. Prioritizing fiscal years where long_term_debt
-                # is populated (same primary-signal convention as the shares_outstanding
-                # fallback chain above) before falling back to fiscal_year DESC alone. Cash is
-                # queried separately (plain latest-fiscal-year, same as book_value/cash_row
-                # above) so its freshness isn't coupled to debt-field completeness - GOOGL's
-                # FY2026 cash figure is real and shouldn't be held back a year just because
-                # that year's debt tags aren't filed yet.
-                #
-                # FIXED 2026-08-18 (goal: "no SEC data" audit, roic_pct/total_debt follow-up):
-                # the CASE tier above only checked long_term_debt specifically - a filer that
-                # NEVER tags long_term_debt in any fiscal year (real, debt-light companies that
-                # only carry short-term/lease liabilities) fell through to plain `fiscal_year
-                # DESC`, picking the latest year even when an older year has a real component
-                # this query would otherwise use. Live-confirmed: ANET (Arista Networks) has
-                # long_term_debt NULL in every fiscal year on file, but FY2024 reports a real
-                # operating_lease_liability ($59.6M) - the old query picked FY2026/FY2025
-                # (all four components NULL, both being more recent) over FY2024, producing
-                # total_debt=None for a symbol with a real, computable debt figure. 522 of the
-                # universe's 1,060 NULL total_debt symbols have this same "some year has a real
-                # component, just not long_term_debt, and not the latest year" shape. Widened
-                # the CASE tier to prefer any year with any of the four components present.
-                # FIXED 2026-08-19 (pb_ratio/total_debt "latest year is empty" follow-up):
-                # was a plain `ORDER BY fiscal_year DESC LIMIT 1` with no regard for whether
-                # that year's cash_and_equivalents was actually populated - the same bug class
-                # already fixed for book_value/debt/ebitda/revenue/eps in this file, just never
-                # applied here. Live-confirmed: JACK (Jack in the Box) has real
-                # cash_and_equivalents=$68.1M for FY2025 but NULL for FY2026 (in-progress/
-                # unfiled year) - the old query picked the NULL FY2026 row and total_cash/
-                # cash_per_share silently went "missing_sec_data" for 91 universe symbols as a
-                # result. Same CASE-based prioritization as the sibling queries: prefer a fiscal
-                # year with a real reported value, only falling back to the bare latest year
-                # (still correctly NULL) for companies with no balance sheet history.
-                cur.execute(
-                    """
-                    SELECT cash_and_equivalents
-                    FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                cash_row2 = cur.fetchone()
-                total_cash = cash_row2[0] if cash_row2 else None
-
-                # FIXED 2026-08-18 (total_debt "missing_sec_data" follow-up, AA live-confirmed):
-                # the tier-0 condition above ("any component IS NOT NULL") treats a lone real
-                # `0` value as evidence a fiscal year has debt data - but an in-progress fiscal
-                # year can report a genuine `short_term_debt=0` (e.g. no new short-term
-                # borrowings filed yet) while its real long_term_debt/lease figures simply
-                # haven't been tagged yet, so it wrongly ties tier 0 with a fuller prior year
-                # and wins on `fiscal_year DESC`. Live-confirmed: AA's FY2026 row is
-                # (long_term_debt=NULL, short_term_debt=0, leases=NULL) - old query picked it
-                # over FY2025's real (long_term_debt=$2.439B, short_term_debt=$9M,
-                # operating_lease=$308M), producing a summed total_debt of exactly 0, which the
-                # `if total_debt else None` truthy check below then silently collapsed to None.
-                # 107 universe symbols DB-confirmed hit this same "selected year sums to exactly
-                # 0 despite having a real non-NULL component" shape. Added a new top tier that
-                # prefers any fiscal year whose components actually sum to something nonzero;
-                # the existing "any non-NULL component" tier now only matters as a fallback for
-                # genuinely zero-debt companies (real, all-zero-or-NULL years), and the fixed
-                # `is not None` check below preserves that legitimate total_debt=0.0 instead of
-                # coercing it to None.
-                cur.execute(
-                    """
-                    SELECT
-                        long_term_debt,
-                        short_term_debt,
-                        operating_lease_liability,
-                        finance_lease_liability
-                    FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
-                    ORDER BY (CASE
-                                WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
-                                     + COALESCE(operating_lease_liability, 0)
-                                     + COALESCE(finance_lease_liability, 0) != 0
-                                THEN 0
-                                WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
-                                     OR operating_lease_liability IS NOT NULL
-                                     OR finance_lease_liability IS NOT NULL
-                                THEN 1
-                                ELSE 2
-                              END), fiscal_year DESC
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                debt_row = cur.fetchone()
-                if debt_row:
-                    debt_components = debt_row
-                    if all(c is None for c in debt_components):
-                        total_debt = None
-                    else:
-                        total_debt = sum(c or 0 for c in debt_components)
-                else:
-                    total_debt = None
-                # Note: None values mean EV metrics won't be computed
-
-                # Session 398: Calculate EBITDA from operating income + depreciation + amortization
-                # EBITDA = Operating Income + Depreciation + Amortization
-                # Use operating income as base; add D&A if available (even if just one of them)
-                ebitda = None
-                oi = safe_float(operating_income, f"{symbol}.operating_income", allow_none=True)
-                if oi is not None:
-                    dep_exp = safe_float(depreciation_expense, f"{symbol}.depreciation_expense", allow_none=True)
-                    amort_exp = safe_float(amortization_expense, f"{symbol}.amortization_expense", allow_none=True)
-
-                    # Start with operating income as EBITDA base
-                    ebitda_val = oi
-                    if dep_exp:
-                        ebitda_val += dep_exp
-                    if amort_exp:
-                        ebitda_val += amort_exp
-
-                    # Set EBITDA - always use it if operating income is available
-                    ebitda = ebitda_val
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
@@ -1004,22 +967,38 @@ class SecValuationsLoader(OptimalLoader):
 
         return result
 
-    def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
-        """Return data_unavailable marker for symbol."""
+    def _unavailable_marker(
+        self,
+        symbol: str,
+        reason: str,
+        total_debt: float | None = None,
+        total_cash: float | None = None,
+        ebitda: float | None = None,
+    ) -> dict[str, Any]:
+        """Return data_unavailable marker for symbol.
+
+        total_debt/total_cash/ebitda are optional overrides (2026-08-19, goal session
+        continuation): these three are pure balance-sheet/income-statement dollar figures
+        that don't need shares_outstanding or current_price to compute, unlike every other
+        field this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment for
+        why they're now computed before the gates that produce this marker. Callers that
+        genuinely have nothing yet (e.g. "no_income_statement", before any balance-sheet
+        query has even run) simply omit them and get the same all-NULL behavior as before.
+        """
         return {
             "symbol": symbol,
             "computed_at": date.today().isoformat(),
             "data_unavailable": True,
             "reason": reason,
             "data_source": "none",
-            # All metrics NULL
+            # All metrics NULL except the three overridable ones above
             "current_price": None,
             "shares_outstanding": None,
             "market_cap": None,
-            "total_debt": None,
-            "total_cash": None,
+            "total_debt": total_debt,
+            "total_cash": total_cash,
             "enterprise_value": None,
-            "ebitda": None,
+            "ebitda": ebitda,
             "pe_ratio": None,
             "pb_ratio": None,
             "ps_ratio": None,

@@ -64,15 +64,16 @@ def _run_fetch_incremental(
         return loader.fetch_incremental(symbol, None)
 
 
-# Downstream fetchone() calls after the income_rows fetchall(), in order: price_daily.close,
-# stockholders_equity, cash_and_equivalents, debt_row - same shape as
+# Downstream fetchone() calls after the income_rows fetchall(), in order: cash_and_equivalents,
+# debt_row (both MOVED 2026-08-19 to compute before the price/shares_outstanding gates), then
+# price_daily.close, stockholders_equity - same shape as
 # test_sec_valuations_debt_query_prefers_populated_fiscal_year.py's fixture (cash_flow ocf/
 # capex/dividends_paid is a fetchall(), not a fetchone() - see _FakeCursor above).
 _DOWNSTREAM_FETCHONE = [
-    (50.0,),
-    (500_000_000.0,),
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
+    (50.0,),
+    (500_000_000.0,),
 ]
 
 

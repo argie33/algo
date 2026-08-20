@@ -65,13 +65,14 @@ def _run_fetch_incremental(
         return loader.fetch_incremental(symbol, None)
 
 
-# Downstream fetchone() calls after income_rows/EPS-fallback, in order: price_daily.close,
-# stockholders_equity, cash_and_equivalents, debt_row.
+# Downstream fetchone() calls after income_rows/EPS-fallback, in order: cash_and_equivalents,
+# debt_row (both MOVED 2026-08-19 to compute before the price/shares_outstanding gates), then
+# price_daily.close, stockholders_equity.
 _DOWNSTREAM_FETCHONE = [
-    (35.26,),
-    (500_000_000.0,),
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
+    (35.26,),
+    (500_000_000.0,),
 ]
 
 

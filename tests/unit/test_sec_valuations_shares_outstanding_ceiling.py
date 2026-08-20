@@ -71,8 +71,12 @@ class TestSharesOutstandingCeiling:
             (2026, 1_000_000_000.0, 50_000_000_000.0, 0.000017, None, None, None, None, None, None),
         ]
         # No reported/older/company_info_sec/diluted/dei fallback has anything usable either -
-        # shares_out should end up None, not the absurd derived value.
+        # shares_out should end up None, not the absurd derived value. total_debt/total_cash
+        # (MOVED 2026-08-19 to compute before the shares_outstanding gate) are queried first,
+        # unconditionally, regardless of how shares_out resolves.
         fetchone_results = [
+            (None,),  # cash_and_equivalents
+            (None, None, None, None),  # debt_row
             (None,),  # older shares_outstanding_basic fallback query
             (None,),  # company_info_sec fallback query
             (None,),  # shares_outstanding_diluted fallback query
@@ -93,10 +97,10 @@ class TestSharesOutstandingCeiling:
             (2026, 1_000_000_000.0, 100_000_000.0, 2.0, None, None, None, None, None, None),
         ]
         fetchone_results = [
-            (35.26,),  # price_daily.close
-            (500_000_000.0,),  # stockholders_equity
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            (35.26,),  # price_daily.close
+            (500_000_000.0,),  # stockholders_equity
         ]
 
         result = _run_fetch_incremental("NORMALCO", income_rows, fetchone_results)

@@ -97,10 +97,10 @@ class TestForeignPrivateIssuerSharesGate:
             (2024, 88_268_000_000.0, 35_301_100_000.0, 1.36, None, None, None, None, None, None, False),
         ]
         fetchone_results = [
-            (413.41,),  # price_daily.close
-            (500_000_000_000.0,),  # stockholders_equity
             (30_000_000_000.0,),  # cash_and_equivalents
             (970_500_000.0, None, None, None),  # debt_row
+            (413.41,),  # price_daily.close
+            (500_000_000_000.0,),  # stockholders_equity
         ]
 
         result = _run_fetch_incremental("DOMESTICCO", income_rows, fetchone_results)
@@ -121,10 +121,10 @@ class TestForeignPrivateIssuerSharesGate:
             (2024, 1_000_000_000.0, 100_000_000.0, 2.0, None, None, None, None, None, None, None),
         ]
         fetchone_results = [
-            (35.26,),  # price_daily.close
-            (500_000_000.0,),  # stockholders_equity
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            (35.26,),  # price_daily.close
+            (500_000_000.0,),  # stockholders_equity
         ]
 
         result = _run_fetch_incremental("NOROWCO", income_rows, fetchone_results)

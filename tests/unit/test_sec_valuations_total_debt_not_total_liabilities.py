@@ -94,14 +94,13 @@ class TestTotalDebtNotTotalLiabilities:
     def test_total_debt_sums_all_four_real_debt_components(self) -> None:
         loader = _make_loader()
 
-        # Order matches fetch_incremental's real query sequence once shares_out resolves from
-        # the first income_rows fetchall (no fallback queries triggered): price, balance_row
-        # (stockholders_equity), [cash_rows is a fetchall(), not a fetchone() - see _FakeCursor],
-        # cash_row2 (cash_and_equivalents, queried separately from debt as of 2026-08-17),
-        # debt_row (long_term_debt, short_term_debt, operating_lease_liability, finance_lease_liability).
+        # Order matches fetch_incremental's real query sequence: total_debt/total_cash/ebitda
+        # (MOVED 2026-08-19 to compute before the shares_outstanding/price gates, since none of
+        # the three depend on shares or price) - cash_row2 (cash_and_equivalents), debt_row (long_
+        # term_debt, short_term_debt, operating_lease_liability, finance_lease_liability) - then
+        # price, balance_row (stockholders_equity). [cash_rows is a fetchall(), not a fetchone() -
+        # see _FakeCursor].
         fetchone_results = [
-            (50.0,),  # price_daily.close
-            (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt - real debt
@@ -109,6 +108,8 @@ class TestTotalDebtNotTotalLiabilities:
                 8_000_000.0,  # operating_lease_liability - real debt (S&P/Moody's adjusted-debt convention)
                 2_000_000.0,  # finance_lease_liability - real debt
             ),
+            (50.0,),  # price_daily.close
+            (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
         ]
         fake_cursor = _FakeCursor(fetchone_results)
 
@@ -135,8 +136,6 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
-            (50.0,),
-            (500_000_000.0,),
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt
@@ -144,6 +143,8 @@ class TestTotalDebtNotTotalLiabilities:
                 None,  # operating_lease_liability - not reported
                 None,  # finance_lease_liability - not reported
             ),
+            (50.0,),
+            (500_000_000.0,),
         ]
         fake_cursor = _FakeCursor(fetchone_results)
 
@@ -164,10 +165,10 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
-            (50.0,),
-            (500_000_000.0,),
             (30_000_000.0,),  # cash_and_equivalents
             (None, None, None, None),  # debt_row: nothing reported
+            (50.0,),
+            (500_000_000.0,),
         ]
         fake_cursor = _FakeCursor(fetchone_results)
 
@@ -191,10 +192,10 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
-            (50.0,),
-            (500_000_000.0,),
             (30_000_000.0,),  # cash_and_equivalents
             (None, 0.0, None, None),  # debt_row: only short_term_debt reported, and it's 0
+            (50.0,),
+            (500_000_000.0,),
         ]
         fake_cursor = _FakeCursor(fetchone_results)
 
