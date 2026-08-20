@@ -212,12 +212,18 @@ function TradesView() {
 
   // FAIL-FAST: Validate P&L fields exist before accumulation (do not silently default to 0)
   const missingOpenPnL = openPositions.filter((p) => p.unrealized_pnl == null);
-  const missingClosedPnL = closedTrades.filter((t) => t.profit_loss_dollars == null);
+  const missingClosedPnL = closedTrades.filter(
+    (t) => t.profit_loss_dollars == null
+  );
   if (missingOpenPnL.length > 0) {
-    console.warn(`[TradeTracker] ${missingOpenPnL.length} open positions missing unrealized_pnl`);
+    console.warn(
+      `[TradeTracker] ${missingOpenPnL.length} open positions missing unrealized_pnl`
+    );
   }
   if (missingClosedPnL.length > 0) {
-    console.warn(`[TradeTracker] ${missingClosedPnL.length} closed trades missing profit_loss_dollars`);
+    console.warn(
+      `[TradeTracker] ${missingClosedPnL.length} closed trades missing profit_loss_dollars`
+    );
   }
 
   const openPnL = openPositions.reduce(
@@ -225,7 +231,8 @@ function TradesView() {
     0
   );
   const closedPnL = closedTrades.reduce(
-    (s, t) => s + (t.profit_loss_dollars != null ? Number(t.profit_loss_dollars) : 0),
+    (s, t) =>
+      s + (t.profit_loss_dollars != null ? Number(t.profit_loss_dollars) : 0),
     0
   );
 

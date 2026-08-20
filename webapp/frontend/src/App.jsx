@@ -30,13 +30,9 @@ const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
 const ConfigurationViewer = React.lazy(
   () => import("./pages/ConfigurationViewer")
 );
-const PreTradeSimulator = React.lazy(
-  () => import("./pages/PreTradeSimulator")
-);
+const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
 const RiskAnalytics = React.lazy(() => import("./pages/RiskAnalytics"));
-const EarningsCalendar = React.lazy(
-  () => import("./pages/EarningsCalendar")
-);
+const EarningsCalendar = React.lazy(() => import("./pages/EarningsCalendar"));
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";

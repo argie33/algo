@@ -58,13 +58,21 @@ function EarningsCalendarContent() {
         </div>
         <div
           className="page-head-actions"
-          style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}
+          style={{
+            display: "flex",
+            gap: "var(--space-2)",
+            alignItems: "center",
+          }}
         >
           <select
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
             className="input"
-            style={{ padding: "6px 8px", fontSize: "var(--t-xs)", minWidth: "100px" }}
+            style={{
+              padding: "6px 8px",
+              fontSize: "var(--t-xs)",
+              minWidth: "100px",
+            }}
           >
             <option value={100}>Show 100</option>
             <option value={500}>Show 500</option>
@@ -80,7 +88,10 @@ function EarningsCalendarContent() {
         </div>
       </div>
 
-      <div className="card card-pad-sm" style={{ marginBottom: "var(--space-3)" }}>
+      <div
+        className="card card-pad-sm"
+        style={{ marginBottom: "var(--space-3)" }}
+      >
         <div style={{ position: "relative", maxWidth: 280 }}>
           <Search
             size={14}
@@ -152,7 +163,10 @@ function EarningsCalendarContent() {
                 {earnings.map((e, i) => (
                   <tr key={`${e.symbol}-${e.report_date}-${i}`}>
                     <td>
-                      <span className="strong" style={{ fontWeight: "var(--w-bold)" }}>
+                      <span
+                        className="strong"
+                        style={{ fontWeight: "var(--w-bold)" }}
+                      >
                         {e.symbol}
                       </span>
                     </td>

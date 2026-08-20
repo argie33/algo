@@ -157,7 +157,11 @@ function StockDetailContent() {
     { enabled: !!symbol }
   );
   const scoreRow = !scoreError
-    ? (scoreData?.data?.top?.[0] || scoreData?.top?.[0] || scoreData?.data?.items?.[0] || scoreData?.items?.[0] || null)
+    ? scoreData?.data?.top?.[0] ||
+      scoreData?.top?.[0] ||
+      scoreData?.data?.items?.[0] ||
+      scoreData?.items?.[0] ||
+      null
     : null;
 
   // Key metrics (sector/industry + market cap + ownership %)
@@ -252,9 +256,9 @@ function StockDetailContent() {
   const priceSeries = useMemo(() => {
     const priceItems = priceError
       ? []
-      : (Array.isArray(priceData)
+      : Array.isArray(priceData)
         ? priceData
-        : priceData?.items || []);
+        : priceData?.items || [];
     if (!priceItems?.length) return [];
     // Backend returns DESC; reverse for ascending.
     const rows = [...priceItems]
@@ -278,9 +282,9 @@ function StockDetailContent() {
     const sigByDate = new Map();
     const signalItems = signalsError
       ? []
-      : (Array.isArray(signalsData)
+      : Array.isArray(signalsData)
         ? signalsData
-        : signalsData?.items || signalsData || []);
+        : signalsData?.items || signalsData || [];
     (signalItems || []).forEach((s) => {
       const d = String(s.signal_triggered_date || s.date).slice(0, 10);
       sigByDate.set(d, s.signal);
@@ -314,22 +318,22 @@ function StockDetailContent() {
   const high52 = useMemo(() => {
     if (!priceSeries.length) return null;
     const window = priceSeries.slice(-252);
-    const validHighs = window.filter(p => !isNaN(p.high) && p.high > 0);
+    const validHighs = window.filter((p) => !isNaN(p.high) && p.high > 0);
     if (validHighs.length === 0) {
       console.warn("[StockDetail] No valid high prices in 52-week window");
       return null;
     }
-    return Math.max(...validHighs.map(p => p.high));
+    return Math.max(...validHighs.map((p) => p.high));
   }, [priceSeries]);
   const low52 = useMemo(() => {
     if (!priceSeries.length) return null;
     const window = priceSeries.slice(-252);
-    const validLows = window.filter(p => !isNaN(p.low) && p.low > 0);
+    const validLows = window.filter((p) => !isNaN(p.low) && p.low > 0);
     if (validLows.length === 0) {
       console.warn("[StockDetail] No valid low prices in 52-week window");
       return null;
     }
-    return Math.min(...validLows.map(p => p.low));
+    return Math.min(...validLows.map((p) => p.low));
   }, [priceSeries]);
   const distFromHigh =
     last && high52 ? ((last.close - high52) / high52) * 100 : null;
@@ -1007,7 +1011,9 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
       // StockScoreAccordion.jsx's 2026-08-19 rename comment for the live example that
       // surfaced this confusion ("Intrinsic Value (DCF)  -186.3%").
       "Margin of Safety (DCF)",
-      v.stock_margin_of_safety != null ? fmtPct(Number(v.stock_margin_of_safety), 1) : "—",
+      v.stock_margin_of_safety != null
+        ? fmtPct(Number(v.stock_margin_of_safety), 1)
+        : "—",
     ],
     [
       "Dividend Yield",
@@ -1047,7 +1053,9 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ],
     [
       "OCF / Net Income",
-      q.operating_cf_to_net_income != null ? num(q.operating_cf_to_net_income, 2) : "—",
+      q.operating_cf_to_net_income != null
+        ? num(q.operating_cf_to_net_income, 2)
+        : "—",
     ],
     [
       "Interest Coverage",
@@ -1094,14 +1102,8 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
       "# of Insiders",
       o.number_of_insiders != null ? o.number_of_insiders : "—",
     ],
-    [
-      "Recent Insider Buys (90d)",
-      o.recent_buys != null ? o.recent_buys : "—",
-    ],
-    [
-      "Business Segments",
-      o.segment_count != null ? o.segment_count : "—",
-    ],
+    ["Recent Insider Buys (90d)", o.recent_buys != null ? o.recent_buys : "—"],
+    ["Business Segments", o.segment_count != null ? o.segment_count : "—"],
     [
       "Largest Segment % Rev",
       o.largest_segment_revenue_pct != null
@@ -1232,9 +1234,7 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
     );
   }
   const d = swing.details || {};
-  const signalItems = Array.isArray(signals)
-    ? signals
-    : signals?.items || [];
+  const signalItems = Array.isArray(signals) ? signals : signals?.items || [];
   const latestSignal = signalItems[0] || {};
 
   // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
@@ -1250,11 +1250,7 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];
-    return [
-      label,
-      score != null ? Number(score) * weight : null,
-      weight * 100,
-    ];
+    return [label, score != null ? Number(score) * weight : null, weight * 100];
   });
 
   return (
@@ -1705,9 +1701,21 @@ function AnalystsTab({ data, last, error }) {
   const bearishCount = Number(metrics?.bearish ?? metrics?.bearish_count);
 
   const dist = [
-    { name: "Bullish", value: isNaN(bullishCount) ? 0 : bullishCount, color: "var(--success)" },
-    { name: "Neutral", value: isNaN(neutralCount) ? 0 : neutralCount, color: "var(--amber)" },
-    { name: "Bearish", value: isNaN(bearishCount) ? 0 : bearishCount, color: "var(--danger)" },
+    {
+      name: "Bullish",
+      value: isNaN(bullishCount) ? 0 : bullishCount,
+      color: "var(--success)",
+    },
+    {
+      name: "Neutral",
+      value: isNaN(neutralCount) ? 0 : neutralCount,
+      color: "var(--amber)",
+    },
+    {
+      name: "Bearish",
+      value: isNaN(bearishCount) ? 0 : bearishCount,
+      color: "var(--danger)",
+    },
   ];
 
   return (
@@ -1716,7 +1724,15 @@ function AnalystsTab({ data, last, error }) {
         <div className="card-head">
           <div>
             <div className="card-title">Analyst Coverage</div>
-            <div className="card-sub">Consensus · <SafeMetricValue value={totalAnalystsValue} formatter="number" fallback="0" /> analysts</div>
+            <div className="card-sub">
+              Consensus ·{" "}
+              <SafeMetricValue
+                value={totalAnalystsValue}
+                formatter="number"
+                fallback="0"
+              />{" "}
+              analysts
+            </div>
           </div>
           <div className="card-actions">
             <span
@@ -1759,7 +1775,12 @@ function AnalystsTab({ data, last, error }) {
               label="Bullish"
               value={
                 <span className="mono tnum up">
-                  <SafeMetricValue value={bullishCount} formatter="number" fallback="—" /> (
+                  <SafeMetricValue
+                    value={bullishCount}
+                    formatter="number"
+                    fallback="—"
+                  />{" "}
+                  (
                   {num(
                     metrics?.bullishPercent ?? metrics?.bullish_percent ?? null,
                     0
@@ -1772,7 +1793,12 @@ function AnalystsTab({ data, last, error }) {
               label="Neutral"
               value={
                 <span className="mono tnum">
-                  <SafeMetricValue value={neutralCount} formatter="number" fallback="—" /> (
+                  <SafeMetricValue
+                    value={neutralCount}
+                    formatter="number"
+                    fallback="—"
+                  />{" "}
+                  (
                   {num(
                     metrics?.neutralPercent ?? metrics?.neutral_percent ?? null,
                     0
@@ -1785,7 +1811,12 @@ function AnalystsTab({ data, last, error }) {
               label="Bearish"
               value={
                 <span className="mono tnum down">
-                  <SafeMetricValue value={bearishCount} formatter="number" fallback="—" /> (
+                  <SafeMetricValue
+                    value={bearishCount}
+                    formatter="number"
+                    fallback="—"
+                  />{" "}
+                  (
                   {num(
                     metrics?.bearishPercent ?? metrics?.bearish_percent ?? null,
                     0
@@ -1822,7 +1853,16 @@ function AnalystsTab({ data, last, error }) {
             />
             <Stile
               label="Coverage"
-              value={<span><SafeMetricValue value={totalAnalystsValue} formatter="number" fallback="0" /> analysts</span>}
+              value={
+                <span>
+                  <SafeMetricValue
+                    value={totalAnalystsValue}
+                    formatter="number"
+                    fallback="0"
+                  />{" "}
+                  analysts
+                </span>
+              }
               sub={
                 metrics?.date
                   ? `as of ${String(metrics.date).slice(0, 10)}`

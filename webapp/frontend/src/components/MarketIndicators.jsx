@@ -66,17 +66,24 @@ const MarketIndicators = ({ data, isLoading, error }) => {
   });
 
   const topGainers = [...latestData]
-    .filter((item) => item.change_percent !== null && item.change_percent !== undefined)
+    .filter(
+      (item) =>
+        item.change_percent !== null && item.change_percent !== undefined
+    )
     .sort((a, b) => b.change_percent - a.change_percent)
     .slice(0, 10);
 
   const topLosers = [...latestData]
-    .filter((item) => item.change_percent !== null && item.change_percent !== undefined)
+    .filter(
+      (item) =>
+        item.change_percent !== null && item.change_percent !== undefined
+    )
     .sort((a, b) => a.change_percent - b.change_percent)
     .slice(0, 10);
 
   const getChangeColor = (changePercent) => {
-    if (changePercent === null || changePercent === undefined) return theme.palette.grey[600];
+    if (changePercent === null || changePercent === undefined)
+      return theme.palette.grey[600];
     if (changePercent > 0) return theme.palette.success.main;
     if (changePercent < 0) return theme.palette.error.main;
     return theme.palette.grey[600];
@@ -252,8 +259,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                     sx={{ fontWeight: 600, color: theme.palette.success.main }}
                   >
                     {
-                      latestData.filter((s) => s.change_percent !== null && s.change_percent !== undefined && s.change_percent > 0)
-                        .length
+                      latestData.filter(
+                        (s) =>
+                          s.change_percent !== null &&
+                          s.change_percent !== undefined &&
+                          s.change_percent > 0
+                      ).length
                     }
                   </Typography>
                 </CardContent>
@@ -275,8 +286,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                     sx={{ fontWeight: 600, color: theme.palette.error.main }}
                   >
                     {
-                      latestData.filter((s) => s.change_percent !== null && s.change_percent !== undefined && s.change_percent < 0)
-                        .length
+                      latestData.filter(
+                        (s) =>
+                          s.change_percent !== null &&
+                          s.change_percent !== undefined &&
+                          s.change_percent < 0
+                      ).length
                     }
                   </Typography>
                 </CardContent>
@@ -298,8 +313,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                     sx={{ fontWeight: 600, color: theme.palette.grey[600] }}
                   >
                     {
-                      latestData.filter((s) => s.change_percent !== null && s.change_percent !== undefined && s.change_percent === 0)
-                        .length
+                      latestData.filter(
+                        (s) =>
+                          s.change_percent !== null &&
+                          s.change_percent !== undefined &&
+                          s.change_percent === 0
+                      ).length
                     }
                   </Typography>
                 </CardContent>

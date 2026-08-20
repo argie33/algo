@@ -250,7 +250,9 @@ function EconomicDashboardPage() {
       const pastEntry = claims.history.at(-27);
       // FAIL-FAST: Validate historical baseline exists (do not silently default to 0 for calculations)
       if (!pastEntry || pastEntry.value == null) {
-        console.warn("[EconomicDashboard] Missing 27-period historical baseline for jobless claims - skipping YoY calculation");
+        console.warn(
+          "[EconomicDashboard] Missing 27-period historical baseline for jobless claims - skipping YoY calculation"
+        );
         // Calculation skipped - will not create tile
       } else {
         const past = +pastEntry.value;

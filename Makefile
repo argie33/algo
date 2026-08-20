@@ -90,16 +90,21 @@ clean:
 	find . -name "*.pyc" -delete
 	@echo "✅ Cleaned up build artifacts"
 
+# FIXED 2026-08-20: pointed at webapp/lambda, which does not exist (the real JS lives in
+# webapp/frontend/ - a pre-existing repo layout drift, not a recent regression) and called
+# `npm run typecheck`, a script that has never existed in webapp/frontend/package.json (a
+# plain-JS project, no TypeScript to typecheck). Both `make lint-js` and `make ci-local`
+# (which depends on it) would have failed outright if run - verified via `git log --all -- Makefile`
+# showing no `typecheck` script was ever added anywhere.
 lint-js:
-	cd webapp/lambda && npm run lint
-	cd webapp/lambda && npm run format:check
-	cd webapp/lambda && npm run typecheck
+	cd webapp/frontend && npm run lint
+	cd webapp/frontend && npm run format:check
 
 format-js:
-	cd webapp/lambda && npm run format
+	cd webapp/frontend && npm run format
 
 audit-js:
-	cd webapp/lambda && npm audit --audit-level=high
+	cd webapp/frontend && npm audit --audit-level=high
 
 license-check:
 	@echo "Checking Python dependency licenses..."

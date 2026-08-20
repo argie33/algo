@@ -18,7 +18,7 @@ export const safeExtractData = (response, _fallback = null) => {
   if (!response) {
     throw new Error(
       "[API_HANDLER] Response is null/undefined. Cannot extract data. " +
-      "Caller must check API status before using response."
+        "Caller must check API status before using response."
     );
   }
   try {
@@ -26,15 +26,15 @@ export const safeExtractData = (response, _fallback = null) => {
     if (extracted === undefined) {
       throw new Error(
         "[API_HANDLER] Data extraction returned undefined. " +
-        "Response structure may not match expected schema."
+          "Response structure may not match expected schema."
       );
     }
     return extracted;
   } catch (error) {
     throw new Error(
       `[API_HANDLER] Data extraction failed: ${error.message}. ` +
-      "Cannot proceed with undefined data structure. " +
-      "Check API response schema."
+        "Cannot proceed with undefined data structure. " +
+        "Check API response schema."
     );
   }
 };
@@ -54,7 +54,7 @@ export const safeExtractPaginatedData = (
   if (!response) {
     throw new Error(
       "[API_HANDLER] Response is null/undefined. Cannot extract paginated data. " +
-      "Caller must check API status before using response."
+        "Caller must check API status before using response."
     );
   }
   try {
@@ -74,7 +74,7 @@ export const safeExtractPaginatedData = (
   } catch (error) {
     throw new Error(
       `[API_HANDLER] Paginated data extraction failed: ${error.message}. ` +
-      "Cannot render paginated content with missing data structure."
+        "Cannot render paginated content with missing data structure."
     );
   }
 };
@@ -91,7 +91,7 @@ export const ensureArray = (data) => {
   if (data && Array.isArray(data.data)) return data.data;
   throw new TypeError(
     `[API_HANDLER] Expected array data, got ${typeof data}. ` +
-    "Response structure does not match expected schema."
+      "Response structure does not match expected schema."
   );
 };
 
@@ -107,7 +107,7 @@ export const ensureObject = (data, defaults = {}) => {
   }
   throw new TypeError(
     `[API_HANDLER] Expected object data, got ${typeof data}. ` +
-    "Response structure does not match expected schema."
+      "Response structure does not match expected schema."
   );
 };
 

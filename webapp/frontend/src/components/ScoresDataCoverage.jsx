@@ -29,13 +29,7 @@ const CAT_COLORS = [
 const fmtInt = (n) => Number(n || 0).toLocaleString("en-US");
 
 export default function ScoresDataCoverage({ active }) {
-  const {
-    data,
-    loading,
-    error,
-    isFetching,
-    refetch,
-  } = useApiQuery(
+  const { data, loading, error, isFetching, refetch } = useApiQuery(
     ["scores-coverage"],
     () => api.get("/api/algo/scores/coverage"),
     { enabled: active, timeout: 45000, retry: 1 }
@@ -50,7 +44,8 @@ export default function ScoresDataCoverage({ active }) {
   const factors = data?.factors || [];
   const summary = data?.summary;
   const catOrder = summary?.category_order || [];
-  const catColor = (cat) => CAT_COLORS[catOrder.indexOf(cat)] || "var(--text-faint)";
+  const catColor = (cat) =>
+    CAT_COLORS[catOrder.indexOf(cat)] || "var(--text-faint)";
 
   const groups = useMemo(
     () => Array.from(new Set(factors.map((f) => f.group))).sort(),
@@ -90,8 +85,10 @@ export default function ScoresDataCoverage({ active }) {
       return true;
     });
     out = out.slice().sort((a, b) => {
-      if (sortMode === "pct_desc") return (b.pct_missing ?? -1) - (a.pct_missing ?? -1);
-      if (sortMode === "pct_asc") return (a.pct_missing ?? 999) - (b.pct_missing ?? 999);
+      if (sortMode === "pct_desc")
+        return (b.pct_missing ?? -1) - (a.pct_missing ?? -1);
+      if (sortMode === "pct_asc")
+        return (a.pct_missing ?? 999) - (b.pct_missing ?? 999);
       if (sortMode === "count_desc") return b.total_missing - a.total_missing;
       if (sortMode === "name") return a.factor.localeCompare(b.factor);
       return 0;
@@ -120,12 +117,16 @@ export default function ScoresDataCoverage({ active }) {
 
   return (
     <div>
-      <div className="flex items-center gap-3" style={{ marginBottom: "var(--space-4)" }}>
+      <div
+        className="flex items-center gap-3"
+        style={{ marginBottom: "var(--space-4)" }}
+      >
         <div style={{ flex: 1 }}>
           <div className="t-sm muted">
-            Which scoring factors are missing data across the universe, and why — aggregated
-            by root cause from every <code className="mono t-2xs">*_unavailable_reason</code>{" "}
-            column in the schema.
+            Which scoring factors are missing data across the universe, and why
+            — aggregated by root cause from every{" "}
+            <code className="mono t-2xs">*_unavailable_reason</code> column in
+            the schema.
           </div>
         </div>
         <button
@@ -139,13 +140,19 @@ export default function ScoresDataCoverage({ active }) {
       </div>
 
       {loading ? (
-        <Empty title="Loading coverage report…" desc="Scanning ~100+ factor columns, this can take 15–20s." />
+        <Empty
+          title="Loading coverage report…"
+          desc="Scanning ~100+ factor columns, this can take 15–20s."
+        />
       ) : !summary ? (
         <Empty title="No coverage data" />
       ) : (
         <>
           {/* KPI row */}
-          <div className="grid grid-4" style={{ marginBottom: "var(--space-4)" }}>
+          <div
+            className="grid grid-4"
+            style={{ marginBottom: "var(--space-4)" }}
+          >
             <div className="stile">
               <div className="stile-label">Factors Tracked</div>
               <div className="stile-value">{summary.factor_count}</div>
@@ -156,7 +163,9 @@ export default function ScoresDataCoverage({ active }) {
               <div className={`stile-value ${kpis.over50 > 0 ? "down" : "up"}`}>
                 {kpis.over50}
               </div>
-              <div className="stile-sub">{kpis.over20} factors ≥ 20% missing</div>
+              <div className="stile-sub">
+                {kpis.over20} factors ≥ 20% missing
+              </div>
             </div>
             <div className="stile">
               <div className="stile-label">Real Gap Instances</div>
@@ -169,7 +178,9 @@ export default function ScoresDataCoverage({ active }) {
                 {kpis.topCause?.[0] || "—"}
               </div>
               <div className="stile-sub">
-                {kpis.topCause ? `${fmtInt(kpis.topCause[1])} symbol-factor gaps` : ""}
+                {kpis.topCause
+                  ? `${fmtInt(kpis.topCause[1])} symbol-factor gaps`
+                  : ""}
               </div>
             </div>
           </div>
@@ -180,8 +191,8 @@ export default function ScoresDataCoverage({ active }) {
               <div>
                 <div className="card-title">Top Causes of Missing Data</div>
                 <div className="card-sub">
-                  Total symbol-factor gaps attributed to each root cause, summed across all
-                  tracked factors
+                  Total symbol-factor gaps attributed to each root cause, summed
+                  across all tracked factors
                 </div>
               </div>
             </div>
@@ -202,13 +213,19 @@ export default function ScoresDataCoverage({ active }) {
                       }}
                     >
                       <div className="flex items-center gap-2 t-sm">
-                        <span className="dot" style={{ background: catColor(cat) }} />
+                        <span
+                          className="dot"
+                          style={{ background: catColor(cat) }}
+                        />
                         {cat}
                       </div>
                       <div className="bar" style={{ height: 10 }}>
                         <div
                           className="bar-fill"
-                          style={{ width: `${(100 * val) / max}%`, background: catColor(cat) }}
+                          style={{
+                            width: `${(100 * val) / max}%`,
+                            background: catColor(cat),
+                          }}
                         />
                       </div>
                       <div className="mono t-sm num muted">{fmtInt(val)}</div>
@@ -242,7 +259,12 @@ export default function ScoresDataCoverage({ active }) {
                 style={{ paddingLeft: 32 }}
               />
             </div>
-            <select className="select" style={{ width: 160 }} value={group} onChange={(e) => setGroup(e.target.value)}>
+            <select
+              className="select"
+              style={{ width: 160 }}
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+            >
               <option value="All">All groups</option>
               {groups.map((g) => (
                 <option key={g} value={g}>
@@ -261,7 +283,10 @@ export default function ScoresDataCoverage({ active }) {
               <option value="count_desc">Sort: symbol count</option>
               <option value="name">Sort: factor name</option>
             </select>
-            <label className="flex items-center gap-2 t-sm muted" style={{ marginLeft: "auto", cursor: "pointer" }}>
+            <label
+              className="flex items-center gap-2 t-sm muted"
+              style={{ marginLeft: "auto", cursor: "pointer" }}
+            >
               <input
                 type="checkbox"
                 checked={hideLegit}
@@ -272,7 +297,13 @@ export default function ScoresDataCoverage({ active }) {
           </div>
 
           {/* Legend */}
-          <div className="flex gap-3 t-xs muted" style={{ flexWrap: "wrap", padding: "0 var(--space-2) var(--space-3)" }}>
+          <div
+            className="flex gap-3 t-xs muted"
+            style={{
+              flexWrap: "wrap",
+              padding: "0 var(--space-2) var(--space-3)",
+            }}
+          >
             {catOrder.map((cat) => (
               <span key={cat} className="flex items-center gap-2">
                 <span className="dot" style={{ background: catColor(cat) }} />
@@ -281,13 +312,19 @@ export default function ScoresDataCoverage({ active }) {
             ))}
           </div>
 
-          <div className="t-xs faint" style={{ padding: "0 var(--space-2) var(--space-2)" }}>
+          <div
+            className="t-xs faint"
+            style={{ padding: "0 var(--space-2) var(--space-2)" }}
+          >
             {rows.length} of {factors.length} factors
           </div>
 
           {/* Coverage table */}
           <div className="card">
-            <div className="card-body" style={{ padding: 0, overflowX: "auto" }}>
+            <div
+              className="card-body"
+              style={{ padding: 0, overflowX: "auto" }}
+            >
               <table className="data-table">
                 <thead>
                   <tr>
@@ -310,15 +347,22 @@ export default function ScoresDataCoverage({ active }) {
                               style={{
                                 transform: isOpen ? "rotate(90deg)" : "none",
                                 transition: "transform 140ms",
-                                color: isOpen ? "var(--brand-2)" : "var(--text-faint)",
+                                color: isOpen
+                                  ? "var(--brand-2)"
+                                  : "var(--text-faint)",
                               }}
                             />
                           </td>
                           <td>
                             <div className="dbl">
-                              <span className="dbl-main mono t-sm">{f.factor}</span>
+                              <span className="dbl-main mono t-sm">
+                                {f.factor}
+                              </span>
                               <span className="dbl-sub">
-                                <span className="badge badge-neutral" style={{ fontSize: "var(--t-2xs)" }}>
+                                <span
+                                  className="badge badge-neutral"
+                                  style={{ fontSize: "var(--t-2xs)" }}
+                                >
                                   {f.group}
                                 </span>
                               </span>
@@ -327,7 +371,9 @@ export default function ScoresDataCoverage({ active }) {
                           <td>
                             <div className="dbl">
                               <span className="dbl-main mono">
-                                {f.pct_missing != null ? `${f.pct_missing}%` : "—"}
+                                {f.pct_missing != null
+                                  ? `${f.pct_missing}%`
+                                  : "—"}
                               </span>
                               <span className="dbl-sub mono">
                                 {f.pct_missing != null
@@ -373,7 +419,13 @@ export default function ScoresDataCoverage({ active }) {
                         </tr>
                         {isOpen && (
                           <tr>
-                            <td colSpan={4} style={{ background: "var(--bg-2)", cursor: "default" }}>
+                            <td
+                              colSpan={4}
+                              style={{
+                                background: "var(--bg-2)",
+                                cursor: "default",
+                              }}
+                            >
                               {f.reasons.map((r, i) => (
                                 <div
                                   key={i}
@@ -381,17 +433,26 @@ export default function ScoresDataCoverage({ active }) {
                                   style={{
                                     padding: "5px 0 5px 34px",
                                     borderBottom:
-                                      i < f.reasons.length - 1 ? "1px dashed var(--border-soft)" : "none",
+                                      i < f.reasons.length - 1
+                                        ? "1px dashed var(--border-soft)"
+                                        : "none",
                                   }}
                                 >
-                                  <span className="dot" style={{ background: catColor(r.category) }} />
-                                  <span className="mono strong" style={{ minWidth: 56, textAlign: "right" }}>
+                                  <span
+                                    className="dot"
+                                    style={{ background: catColor(r.category) }}
+                                  />
+                                  <span
+                                    className="mono strong"
+                                    style={{ minWidth: 56, textAlign: "right" }}
+                                  >
                                     {fmtInt(r.count)}
                                   </span>
                                   <span style={{ flex: 1 }}>{r.reason}</span>
                                   {f.denom && (
                                     <span className="t-2xs faint">
-                                      {((100 * r.count) / f.denom).toFixed(1)}% of table
+                                      {((100 * r.count) / f.denom).toFixed(1)}%
+                                      of table
                                     </span>
                                   )}
                                 </div>
@@ -407,13 +468,20 @@ export default function ScoresDataCoverage({ active }) {
             </div>
           </div>
 
-          <div className="t-2xs faint" style={{ marginTop: "var(--space-3)", lineHeight: 1.6 }}>
-            "% missing" is count / distinct symbols in that factor's own table — tables have
-            slightly different populations, so this is coverage within each factor's table, not
-            always the full universe. Rows with no denominator (market-wide tables) show a raw
-            row count instead. Source:{" "}
-            <code className="mono t-2xs">scripts/audit_unavailable_reasons.py</code> methodology,
-            served live via <code className="mono t-2xs">/api/algo/scores/coverage</code>.
+          <div
+            className="t-2xs faint"
+            style={{ marginTop: "var(--space-3)", lineHeight: 1.6 }}
+          >
+            "% missing" is count / distinct symbols in that factor's own table —
+            tables have slightly different populations, so this is coverage
+            within each factor's table, not always the full universe. Rows with
+            no denominator (market-wide tables) show a raw row count instead.
+            Source:{" "}
+            <code className="mono t-2xs">
+              scripts/audit_unavailable_reasons.py
+            </code>{" "}
+            methodology, served live via{" "}
+            <code className="mono t-2xs">/api/algo/scores/coverage</code>.
           </div>
         </>
       )}

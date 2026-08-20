@@ -353,13 +353,16 @@ function PortfolioDashboardPage() {
     const sectorMap = {};
     let totalValue = 0;
 
-    positionsList.forEach(pos => {
-      if (!pos || typeof pos !== 'object') return;
+    positionsList.forEach((pos) => {
+      if (!pos || typeof pos !== "object") return;
       if (pos.position_value == null || pos.position_value <= 0) {
-        console.warn(`[SectorAllocation] Position with missing/invalid value:`, pos);
+        console.warn(
+          `[SectorAllocation] Position with missing/invalid value:`,
+          pos
+        );
         return;
       }
-      const sector = pos.sector || 'Other';
+      const sector = pos.sector || "Other";
       const value = pos.position_value;
 
       sectorMap[sector] = (sectorMap[sector] || 0) + value;
@@ -369,7 +372,7 @@ function PortfolioDashboardPage() {
     return Object.entries(sectorMap).map(([sector, value]) => ({
       sector,
       value,
-      percentage: totalValue > 0 ? (value / totalValue * 100).toFixed(1) : 0,
+      percentage: totalValue > 0 ? ((value / totalValue) * 100).toFixed(1) : 0,
     }));
   }, [positionsList]);
 
@@ -402,23 +405,32 @@ function PortfolioDashboardPage() {
   // FIXED: Validate market context data structure exists before access
   // markets endpoint should return {current: {...}, market_health: {...}}
   // If data is missing/malformed, use safe defaults
-  const currentExp = markets && typeof markets === 'object'
-    ? extractNestedValue(markets, "current", {})
-    : {};
-  const currentHealth = markets && typeof markets === 'object'
-    ? extractNestedValue(markets, "market_health", {})
-    : {};
+  const currentExp =
+    markets && typeof markets === "object"
+      ? extractNestedValue(markets, "current", {})
+      : {};
+  const currentHealth =
+    markets && typeof markets === "object"
+      ? extractNestedValue(markets, "market_health", {})
+      : {};
 
   // Validate that market objects have expected structure with safe fallbacks
   const market = {
     trend: (currentHealth && currentHealth.market_trend) || "unknown",
-    stage: (currentHealth && typeof currentHealth.market_stage === 'number') ? currentHealth.market_stage : 0,
-    vix: (currentHealth && typeof currentHealth.vix_level === 'number') ? currentHealth.vix_level : 0,
-    distribution_days: (currentExp && typeof currentExp.distribution_days_4w === 'number')
-      ? currentExp.distribution_days_4w
-      : (currentExp && typeof currentExp.distribution_days === 'number')
-        ? currentExp.distribution_days
+    stage:
+      currentHealth && typeof currentHealth.market_stage === "number"
+        ? currentHealth.market_stage
         : 0,
+    vix:
+      currentHealth && typeof currentHealth.vix_level === "number"
+        ? currentHealth.vix_level
+        : 0,
+    distribution_days:
+      currentExp && typeof currentExp.distribution_days_4w === "number"
+        ? currentExp.distribution_days_4w
+        : currentExp && typeof currentExp.distribution_days === "number"
+          ? currentExp.distribution_days
+          : 0,
   };
 
   // Compute portfolio metrics with safe calculations
@@ -447,7 +459,9 @@ function PortfolioDashboardPage() {
   // Check for stale portfolio data
   const portfolioDataFreshness = status?.data_freshness;
   const isPortfolioStale = portfolioDataFreshness?.is_stale === true;
-  const portfolioAgeHours = portfolioDataFreshness?.age_seconds ? Math.round(portfolioDataFreshness.age_seconds / 3600) : null;
+  const portfolioAgeHours = portfolioDataFreshness?.age_seconds
+    ? Math.round(portfolioDataFreshness.age_seconds / 3600)
+    : null;
 
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
@@ -520,7 +534,8 @@ function PortfolioDashboardPage() {
           style={{ marginBottom: "var(--space-4)" }}
         >
           <AlertTriangle size={16} style={{ marginRight: 8 }} />
-          <strong>Stale Portfolio Data:</strong> Last updated {portfolioAgeHours} hours ago. Run data loaders to refresh.
+          <strong>Stale Portfolio Data:</strong> Last updated{" "}
+          {portfolioAgeHours} hours ago. Run data loaders to refresh.
         </div>
       )}
       <div className="page-head">
@@ -676,11 +691,25 @@ function PortfolioDashboardPage() {
       ) : posError ? (
         <div className="card card-danger">
           <div className="card-body">
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--space-2)",
+                alignItems: "center",
+              }}
+            >
               <AlertTriangle size={20} style={{ color: "var(--danger)" }} />
               <div>
-                <div style={{ fontWeight: "var(--w-semibold)" }}>Positions Unavailable</div>
-                <div style={{ fontSize: "var(--t-sm)", color: "var(--muted)", marginTop: "var(--space-1)" }}>
+                <div style={{ fontWeight: "var(--w-semibold)" }}>
+                  Positions Unavailable
+                </div>
+                <div
+                  style={{
+                    fontSize: "var(--t-sm)",
+                    color: "var(--muted)",
+                    marginTop: "var(--space-1)",
+                  }}
+                >
                   {posError?.message || "Failed to load positions"}
                 </div>
               </div>
@@ -721,16 +750,36 @@ function PortfolioDashboardPage() {
           <SkeletonKpi />
         </div>
       ) : (perfError && !hasCachedPerf) || marketsError ? (
-        <div className="card card-danger" style={{ marginTop: "var(--space-4)" }}>
+        <div
+          className="card card-danger"
+          style={{ marginTop: "var(--space-4)" }}
+        >
           <div className="card-body">
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--space-2)",
+                alignItems: "center",
+              }}
+            >
               <AlertTriangle size={20} style={{ color: "var(--danger)" }} />
               <div>
                 <div style={{ fontWeight: "var(--w-semibold)" }}>
-                  {perfError && !hasCachedPerf ? "Performance Metrics" : "Market Data"} Unavailable
+                  {perfError && !hasCachedPerf
+                    ? "Performance Metrics"
+                    : "Market Data"}{" "}
+                  Unavailable
                 </div>
-                <div style={{ fontSize: "var(--t-sm)", color: "var(--muted)", marginTop: "var(--space-1)" }}>
-                  {perfError && !hasCachedPerf ? perfError?.message || "Failed to load performance" : marketsError?.message || "Failed to load markets"}
+                <div
+                  style={{
+                    fontSize: "var(--t-sm)",
+                    color: "var(--muted)",
+                    marginTop: "var(--space-1)",
+                  }}
+                >
+                  {perfError && !hasCachedPerf
+                    ? perfError?.message || "Failed to load performance"
+                    : marketsError?.message || "Failed to load markets"}
                 </div>
               </div>
             </div>
@@ -873,7 +922,8 @@ function PortfolioDashboardPage() {
             sub={
               perf?.win_rate_pct_adjusted !== undefined &&
               perf.win_rate_pct_adjusted !== perf.win_rate_pct
-                ? perf?.win_rate_pct != null && perf?.win_rate_pct_adjusted != null
+                ? perf?.win_rate_pct != null &&
+                  perf?.win_rate_pct_adjusted != null
                   ? `${perf.win_rate_pct}% (closed) · ${perf.win_rate_pct_adjusted}% true`
                   : "Data unavailable"
                 : perf?.win_rate_pct != null
@@ -937,10 +987,7 @@ function PortfolioDashboardPage() {
             <EquityCurve series={safeEquityCurve} loading={equityLoading} />
           </ErrorBoundary>
           <ErrorBoundary>
-            <DrawdownChart
-              series={safeEquityCurve}
-              loading={equityLoading}
-            />
+            <DrawdownChart series={safeEquityCurve} loading={equityLoading} />
           </ErrorBoundary>
         </div>
       )}
@@ -1093,7 +1140,12 @@ function PortfolioDashboardPage() {
                   label="Best Streak"
                   value={
                     <span className="mono tnum up">
-                      <SafeMetricValue value={perf?.best_win_streak} formatter="number" fallback="—" />W
+                      <SafeMetricValue
+                        value={perf?.best_win_streak}
+                        formatter="number"
+                        fallback="—"
+                      />
+                      W
                     </span>
                   }
                 />
@@ -1101,7 +1153,12 @@ function PortfolioDashboardPage() {
                   label="Worst Streak"
                   value={
                     <span className="mono tnum down">
-                      <SafeMetricValue value={perf?.worst_loss_streak} formatter="number" fallback="—" />L
+                      <SafeMetricValue
+                        value={perf?.worst_loss_streak}
+                        formatter="number"
+                        fallback="—"
+                      />
+                      L
                     </span>
                   }
                 />
@@ -1170,7 +1227,12 @@ function PortfolioDashboardPage() {
                             className="mono tnum"
                             style={{ color: "var(--amber)" }}
                           >
-                            <SafeMetricValue value={perf?.win_rate_pct_adjusted} formatter="number" fallback="—" />%
+                            <SafeMetricValue
+                              value={perf?.win_rate_pct_adjusted}
+                              formatter="number"
+                              fallback="—"
+                            />
+                            %
                           </span>
                         }
                       />
@@ -1178,7 +1240,11 @@ function PortfolioDashboardPage() {
                         label="Open Losses"
                         value={
                           <span className="mono tnum down">
-                            <SafeMetricValue value={perf?.open_losses_count} formatter="number" fallback="—" />
+                            <SafeMetricValue
+                              value={perf?.open_losses_count}
+                              formatter="number"
+                              fallback="—"
+                            />
                           </span>
                         }
                       />
@@ -1312,7 +1378,10 @@ function PortfolioDashboardPage() {
                           <Pnl value={t.exit_r_multiple} suffix="R" />
                         </td>
                         <td className="num mono tnum muted">
-                          <SafeMetricValue value={t.trade_duration_days} fallback="—" />
+                          <SafeMetricValue
+                            value={t.trade_duration_days}
+                            fallback="—"
+                          />
                         </td>
                       </tr>
                     ))}
@@ -1454,9 +1523,7 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
   }
 
   // FIXED: Remove _error check from data (errors come via queryError parameter)
-  const error =
-    queryError?.responseData?.message ||
-    queryError?.message;
+  const error = queryError?.responseData?.message || queryError?.message;
 
   if (loading) {
     return <SkeletonCircuitBreaker />;
@@ -1545,7 +1612,10 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
               // Backend reports this as a normal state (e.g. insufficient trade
               // history) via `description`, not a malformed response - don't error.
               return (
-                <div key={b.id} style={{ padding: "var(--space-2)", color: "var(--muted)" }}>
+                <div
+                  key={b.id}
+                  style={{ padding: "var(--space-2)", color: "var(--muted)" }}
+                >
                   {b.label}: {b.description || "Data unavailable"}
                 </div>
               );
@@ -1554,7 +1624,10 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
             const threshold = toSafeNumber(b.threshold, null);
             if (current == null || threshold == null) {
               return (
-                <div key={b.id} style={{ padding: "var(--space-2)", color: "var(--error)" }}>
+                <div
+                  key={b.id}
+                  style={{ padding: "var(--space-2)", color: "var(--error)" }}
+                >
                   {b.label}: Invalid data type
                 </div>
               );
@@ -1647,7 +1720,9 @@ function EquityCurve({ series, loading }) {
     const withValue = series.filter((s) => {
       const val = safeGet(s, "total_portfolio_value");
       if (val == null) {
-        console.warn(`[EquityCurve] Missing total_portfolio_value for ${safeGet(s, "snapshot_date")}`);
+        console.warn(
+          `[EquityCurve] Missing total_portfolio_value for ${safeGet(s, "snapshot_date")}`
+        );
         return false;
       }
       return true;
@@ -2304,7 +2379,13 @@ function RChip({ r }) {
 }
 
 // ─── Risk allocation pie ───────────────────────────────────────────────────
-function RiskAllocationPie({ positions, _totalValue, loading, error, onSelect }) {
+function RiskAllocationPie({
+  positions,
+  _totalValue,
+  loading,
+  error,
+  onSelect,
+}) {
   const posArray = Array.isArray(positions)
     ? positions
     : positions?.items || [];
@@ -2339,7 +2420,12 @@ function RiskAllocationPie({ positions, _totalValue, loading, error, onSelect })
       </div>
       <div className="card-body">
         {error ? (
-          <Empty title="Risk data error" desc={typeof error === "string" ? error : "Failed to load positions."} />
+          <Empty
+            title="Risk data error"
+            desc={
+              typeof error === "string" ? error : "Failed to load positions."
+            }
+          />
         ) : loading ? (
           <SkeletonChartContent />
         ) : data.length === 0 ? (
@@ -2410,7 +2496,10 @@ function SectorConcentration({ sector_allocation, loading, error }) {
       </div>
       <div className="card-body">
         {error ? (
-          <Empty title="Sector data error" desc="Failed to load sector allocation." />
+          <Empty
+            title="Sector data error"
+            desc="Failed to load sector allocation."
+          />
         ) : loading ? (
           <SkeletonChartContent />
         ) : data.length === 0 ? (
@@ -2577,7 +2666,13 @@ function PositionHealthTable({ positions, loading, onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">
-            Position Health (<SafeMetricValue value={posArray.length} formatter="number" fallback="—" />)
+            Position Health (
+            <SafeMetricValue
+              value={posArray.length}
+              formatter="number"
+              fallback="—"
+            />
+            )
           </div>
           <div className="card-sub">
             Days held · R · stop/target distance · trend posture · sector

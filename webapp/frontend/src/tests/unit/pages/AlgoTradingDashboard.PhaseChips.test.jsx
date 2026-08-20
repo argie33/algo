@@ -28,7 +28,13 @@ describe("PhaseChips", () => {
   });
 
   it("does not render a chip for a nonexistent P10", () => {
-    render(<PhaseChips phasesCompleted={["P1"]} phasesHalted={[]} phasesErrored={[]} />);
+    render(
+      <PhaseChips
+        phasesCompleted={["P1"]}
+        phasesHalted={[]}
+        phasesErrored={[]}
+      />
+    );
     expect(screen.queryByText("P10")).not.toBeInTheDocument();
   });
 });

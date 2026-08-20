@@ -82,7 +82,11 @@ const NAV_SECTIONS = [
     items: [
       { text: "Portfolio", icon: Wallet, path: "/app/portfolio" },
       { text: "Trade Tracker", icon: History, path: "/app/trades" },
-      { text: "Pre-Trade Impact", icon: AlertCircle, path: "/app/pre-trade-impact" },
+      {
+        text: "Pre-Trade Impact",
+        icon: AlertCircle,
+        path: "/app/pre-trade-impact",
+      },
       { text: "Risk Analytics", icon: Shield, path: "/app/risk-analytics" },
     ],
   },
@@ -111,9 +115,17 @@ const NAV_SECTIONS = [
       { text: "About", icon: Info, path: "/about" },
       { text: "Our Team", icon: Users, path: "/our-team" },
       { text: "Mission & Values", icon: Award, path: "/mission-values" },
-      { text: "Research & Insights", icon: Newspaper, path: "/research-insights" },
+      {
+        text: "Research & Insights",
+        icon: Newspaper,
+        path: "/research-insights",
+      },
       { text: "Investment Tools", icon: Calculator, path: "/investment-tools" },
-      { text: "Wealth Management", icon: PiggyBank, path: "/wealth-management" },
+      {
+        text: "Wealth Management",
+        icon: PiggyBank,
+        path: "/wealth-management",
+      },
       { text: "Contact", icon: Mail, path: "/contact" },
     ],
   },

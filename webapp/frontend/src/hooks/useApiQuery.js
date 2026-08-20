@@ -11,7 +11,10 @@ import {
 } from "../utils/endpointSchemas";
 import dataCache from "../services/dataCache";
 import { toFixed } from "../utils/decimalMath";
-import { getApiRetryStrategy, getApiRetryDelay } from "../services/retryStrategy";
+import {
+  getApiRetryStrategy,
+  getApiRetryDelay,
+} from "../services/retryStrategy";
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -225,8 +228,9 @@ export const useApiQuery = (
                   totalItems: result.length,
                 });
                 // Remove invalid items
-                result = result.filter((_, idx) =>
-                  !itemValidation.invalidItems.some((iv) => iv.index === idx)
+                result = result.filter(
+                  (_, idx) =>
+                    !itemValidation.invalidItems.some((iv) => iv.index === idx)
                 );
               }
             }

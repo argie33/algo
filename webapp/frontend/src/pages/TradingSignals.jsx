@@ -305,11 +305,9 @@ export default function TradingSignals() {
     }).length;
 
     // Average hold time (days) — mean age of all BUY signals
-    const buyAges = buys
-      .filter((r) => r._age != null)
-      .map((r) => r._age);
-    const avgHold = buyAges.length ?
-      (buyAges.reduce((a, b) => a + b, 0) / buyAges.length).toFixed(1)
+    const buyAges = buys.filter((r) => r._age != null).map((r) => r._age);
+    const avgHold = buyAges.length
+      ? (buyAges.reduce((a, b) => a + b, 0) / buyAges.length).toFixed(1)
       : null;
 
     // Weekly active BUYs — BUYs within last 7 days
@@ -1404,10 +1402,7 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
           SQS = Composite signal quality (from algo evaluation, shows "—" if
           algo hasn't evaluated yet)
         </span>
-        <span>
-          {" "}
-          • RS % = Relative strength percentile (0-99)
-        </span>
+        <span> • RS % = Relative strength percentile (0-99)</span>
         <span>
           {" "}
           • Gates = Algo qualification (PASS/FAIL with grade, or "—" if

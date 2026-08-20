@@ -344,7 +344,12 @@ function SentimentContent() {
       const prevBull = Number(prev.bull_percent);
       const prevBear = Number(prev.bear_percent);
       // FAIL-FAST: Reject if bull/bear percentages missing
-      if (isNaN(curBull) || isNaN(curBear) || isNaN(prevBull) || isNaN(prevBear)) {
+      if (
+        isNaN(curBull) ||
+        isNaN(curBear) ||
+        isNaN(prevBull) ||
+        isNaN(prevBear)
+      ) {
         return;
       }
       const curScore = curBull - curBear;
@@ -368,7 +373,11 @@ function SentimentContent() {
     const scoreMap = new Map();
     const scoresList = Array.isArray(scoresQ.data)
       ? scoresQ.data
-      : scoresQ.data?.data?.top || scoresQ.data?.top || scoresQ.data?.data?.items || scoresQ.data?.items || [];
+      : scoresQ.data?.data?.top ||
+        scoresQ.data?.top ||
+        scoresQ.data?.data?.items ||
+        scoresQ.data?.items ||
+        [];
     const scores = Array.isArray(scoresList) ? scoresList : [];
     scores.forEach((s) => {
       if (s && s.symbol) scoreMap.set(s.symbol, s);
@@ -704,16 +713,32 @@ function OverviewTab({
                           </span>
                         </td>
                         <td className="num mono tnum">
-                          <SafeMetricValue value={a.analyst_count} formatter="number" fallback="—" />
+                          <SafeMetricValue
+                            value={a.analyst_count}
+                            formatter="number"
+                            fallback="—"
+                          />
                         </td>
                         <td className="num mono tnum up">
-                          <SafeMetricValue value={a.bullish_count} formatter="number" fallback="—" />
+                          <SafeMetricValue
+                            value={a.bullish_count}
+                            formatter="number"
+                            fallback="—"
+                          />
                         </td>
                         <td className="num mono tnum muted">
-                          <SafeMetricValue value={a.neutral_count} formatter="number" fallback="—" />
+                          <SafeMetricValue
+                            value={a.neutral_count}
+                            formatter="number"
+                            fallback="—"
+                          />
                         </td>
                         <td className="num mono tnum down">
-                          <SafeMetricValue value={a.bearish_count} formatter="number" fallback="—" />
+                          <SafeMetricValue
+                            value={a.bearish_count}
+                            formatter="number"
+                            fallback="—"
+                          />
                         </td>
                         <td className="num mono tnum">
                           {money(a.target_price)}
@@ -895,34 +920,58 @@ function StockDetail({ stock, onClose }) {
                 <div className="stile-label">Bullish</div>
                 <div className="stile-value up">
                   <SafeMetricValue
-                    value={hasCompleteData ? ((bull / total) * 100) : null}
+                    value={hasCompleteData ? (bull / total) * 100 : null}
                     formatter="decimal2"
                     fallback="—"
-                  />%
+                  />
+                  %
                 </div>
-                <div className="stile-sub"><SafeMetricValue value={bull} formatter="number" fallback="—" /> analysts</div>
+                <div className="stile-sub">
+                  <SafeMetricValue
+                    value={bull}
+                    formatter="number"
+                    fallback="—"
+                  />{" "}
+                  analysts
+                </div>
               </div>
               <div className="stile">
                 <div className="stile-label">Neutral</div>
                 <div className="stile-value">
                   <SafeMetricValue
-                    value={hasCompleteData ? ((neut / total) * 100) : null}
+                    value={hasCompleteData ? (neut / total) * 100 : null}
                     formatter="decimal2"
                     fallback="—"
-                  />%
+                  />
+                  %
                 </div>
-                <div className="stile-sub"><SafeMetricValue value={neut} formatter="number" fallback="—" /> analysts</div>
+                <div className="stile-sub">
+                  <SafeMetricValue
+                    value={neut}
+                    formatter="number"
+                    fallback="—"
+                  />{" "}
+                  analysts
+                </div>
               </div>
               <div className="stile">
                 <div className="stile-label">Bearish</div>
                 <div className="stile-value down">
                   <SafeMetricValue
-                    value={hasCompleteData ? ((bear / total) * 100) : null}
+                    value={hasCompleteData ? (bear / total) * 100 : null}
                     formatter="decimal2"
                     fallback="—"
-                  />%
+                  />
+                  %
                 </div>
-                <div className="stile-sub"><SafeMetricValue value={bear} formatter="number" fallback="—" /> analysts</div>
+                <div className="stile-sub">
+                  <SafeMetricValue
+                    value={bear}
+                    formatter="number"
+                    fallback="—"
+                  />{" "}
+                  analysts
+                </div>
               </div>
             </div>
           </div>
@@ -939,12 +988,24 @@ function StockDetail({ stock, onClose }) {
             <div className="grid grid-3">
               <div className="stile">
                 <div className="stile-label">Target</div>
-                <div className="stile-value"><SafeMetricValue value={a.target_price} formatter="money" fallback="—" /></div>
+                <div className="stile-value">
+                  <SafeMetricValue
+                    value={a.target_price}
+                    formatter="money"
+                    fallback="—"
+                  />
+                </div>
                 <div className="stile-sub">consensus</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Current</div>
-                <div className="stile-value"><SafeMetricValue value={a.current_price} formatter="money" fallback="—" /></div>
+                <div className="stile-value">
+                  <SafeMetricValue
+                    value={a.current_price}
+                    formatter="money"
+                    fallback="—"
+                  />
+                </div>
                 <div className="stile-sub">market</div>
               </div>
               <div className="stile">
@@ -952,7 +1013,12 @@ function StockDetail({ stock, onClose }) {
                 <div
                   className={`stile-value ${isNaN(upside) || upside === null ? "" : upside > 0 ? "up" : upside < 0 ? "down" : ""}`}
                 >
-                  <SafeMetricValue value={isNaN(upside) ? null : upside} formatter="decimal2" fallback="—" format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
+                  <SafeMetricValue
+                    value={isNaN(upside) ? null : upside}
+                    formatter="decimal2"
+                    fallback="—"
+                    format={(v) => `${v > 0 ? "+" : ""}${v}%`}
+                  />
                 </div>
                 <div className="stile-sub">vs current</div>
               </div>
@@ -997,16 +1063,32 @@ function StockDetail({ stock, onClose }) {
                       </span>
                     </td>
                     <td className="num mono tnum up">
-                      <SafeMetricValue value={row.bullish_count ?? row.positive_mentions} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={row.bullish_count ?? row.positive_mentions}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td className="num mono tnum muted">
-                      <SafeMetricValue value={row.neutral_count ?? row.neutral_mentions} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={row.neutral_count ?? row.neutral_mentions}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td className="num mono tnum down">
-                      <SafeMetricValue value={row.bearish_count ?? row.negative_mentions} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={row.bearish_count ?? row.negative_mentions}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td className="num mono tnum">
-                      <SafeMetricValue value={row.analyst_count ?? row.total_mentions} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={row.analyst_count ?? row.total_mentions}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                   </tr>
                 ))}
@@ -1068,7 +1150,11 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
                             : "—"}
                         </td>
                         <td className="num mono tnum">
-                          <SafeMetricValue value={s.latestAnalyst?.analyst_count} formatter="number" fallback="—" />
+                          <SafeMetricValue
+                            value={s.latestAnalyst?.analyst_count}
+                            formatter="number"
+                            fallback="—"
+                          />
                         </td>
                       </tr>
                     );
@@ -1154,22 +1240,55 @@ function AnalystInsights({ symbol, onClose }) {
             >
               <Stile
                 label="Bullish"
-                value={<span className="up"><SafeMetricValue value={metrics.bullishPercent} formatter="decimal2" fallback="—" />%</span>}
+                value={
+                  <span className="up">
+                    <SafeMetricValue
+                      value={metrics.bullishPercent}
+                      formatter="decimal2"
+                      fallback="—"
+                    />
+                    %
+                  </span>
+                }
                 sub={`${metrics.bullish} analysts`}
               />
               <Stile
                 label="Neutral"
-                value={<span><SafeMetricValue value={metrics.neutralPercent} formatter="decimal2" fallback="—" />%</span>}
+                value={
+                  <span>
+                    <SafeMetricValue
+                      value={metrics.neutralPercent}
+                      formatter="decimal2"
+                      fallback="—"
+                    />
+                    %
+                  </span>
+                }
                 sub={`${metrics.neutral} analysts`}
               />
               <Stile
                 label="Bearish"
-                value={<span className="down"><SafeMetricValue value={metrics.bearishPercent} formatter="decimal2" fallback="—" />%</span>}
+                value={
+                  <span className="down">
+                    <SafeMetricValue
+                      value={metrics.bearishPercent}
+                      formatter="decimal2"
+                      fallback="—"
+                    />
+                    %
+                  </span>
+                }
                 sub={`${metrics.bearish} analysts`}
               />
               <Stile
                 label="Coverage"
-                value={<SafeMetricValue value={metrics.totalAnalysts} formatter="number" fallback="—" />}
+                value={
+                  <SafeMetricValue
+                    value={metrics.totalAnalysts}
+                    formatter="number"
+                    fallback="—"
+                  />
+                }
                 sub="analysts covering"
               />
             </div>
@@ -1182,7 +1301,13 @@ function AnalystInsights({ symbol, onClose }) {
             >
               <Stile
                 label="Avg Target"
-                value={<SafeMetricValue value={metrics.avgPriceTarget} formatter="money" fallback="—" />}
+                value={
+                  <SafeMetricValue
+                    value={metrics.avgPriceTarget}
+                    formatter="money"
+                    fallback="—"
+                  />
+                }
                 sub="consensus"
               />
               {metrics.priceTargetVsCurrent != null && (
@@ -1191,10 +1316,19 @@ function AnalystInsights({ symbol, onClose }) {
                   value={
                     <span
                       className={
-                        metrics.priceTargetVsCurrent > 0 ? "up" : metrics.priceTargetVsCurrent < 0 ? "down" : ""
+                        metrics.priceTargetVsCurrent > 0
+                          ? "up"
+                          : metrics.priceTargetVsCurrent < 0
+                            ? "down"
+                            : ""
                       }
                     >
-                      <SafeMetricValue value={metrics.priceTargetVsCurrent} formatter="decimal2" fallback="—" format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
+                      <SafeMetricValue
+                        value={metrics.priceTargetVsCurrent}
+                        formatter="decimal2"
+                        fallback="—"
+                        format={(v) => `${v > 0 ? "+" : ""}${v}%`}
+                      />
                     </span>
                   }
                   sub="vs current price"
@@ -1203,7 +1337,13 @@ function AnalystInsights({ symbol, onClose }) {
               {coverage && (
                 <Stile
                   label="Firms"
-                  value={<SafeMetricValue value={coverage.totalFirms} formatter="number" fallback="—" />}
+                  value={
+                    <SafeMetricValue
+                      value={coverage.totalFirms}
+                      formatter="number"
+                      fallback="—"
+                    />
+                  }
                   sub="firms covering"
                 />
               )}
@@ -1223,47 +1363,56 @@ function AnalystInsights({ symbol, onClose }) {
                   <Stile
                     label="Upgrades"
                     value={
-                      <span className="up"><SafeMetricValue value={momentum.upgrades30d} formatter="number" fallback="—" /></span>
+                      <span className="up">
+                        <SafeMetricValue
+                          value={momentum.upgrades30d}
+                          formatter="number"
+                          fallback="—"
+                        />
+                      </span>
                     }
                   />
                   <Stile
                     label="Downgrades"
                     value={
                       <span className="down">
-                        <SafeMetricValue value={momentum.downgrades30d} formatter="number" fallback="—" />
+                        <SafeMetricValue
+                          value={momentum.downgrades30d}
+                          formatter="number"
+                          fallback="—"
+                        />
                       </span>
                     }
                   />
                   <Stile
                     label="Net Momentum"
-                    value={
-                      (() => {
-                        // CRITICAL: computing upgrades-downgrades with either side defaulted
-                        // to 0 fabricates a one-sided momentum reading when only one of the
-                        // two is actually missing (e.g. downgrades30d=5 but upgrades30d never
-                        // returned - old code showed "Net Momentum: -5" as if upgrades were
-                        // confirmed zero, not unknown). Only compute when both are present.
-                        const upgrades = momentum.upgrades30d;
-                        const downgrades = momentum.downgrades30d;
-                        if (upgrades == null || downgrades == null) {
-                          return <span>—</span>;
-                        }
-                        const netMomentum = upgrades - downgrades;
-                        return (
-                          <span
-                            className={
-                              netMomentum > 0
-                                ? "up"
-                                : netMomentum < 0
-                                  ? "down"
-                                  : ""
-                            }
-                          >
-                            {netMomentum > 0 ? "+" : ""}{netMomentum}
-                          </span>
-                        );
-                      })()
-                    }
+                    value={(() => {
+                      // CRITICAL: computing upgrades-downgrades with either side defaulted
+                      // to 0 fabricates a one-sided momentum reading when only one of the
+                      // two is actually missing (e.g. downgrades30d=5 but upgrades30d never
+                      // returned - old code showed "Net Momentum: -5" as if upgrades were
+                      // confirmed zero, not unknown). Only compute when both are present.
+                      const upgrades = momentum.upgrades30d;
+                      const downgrades = momentum.downgrades30d;
+                      if (upgrades == null || downgrades == null) {
+                        return <span>—</span>;
+                      }
+                      const netMomentum = upgrades - downgrades;
+                      return (
+                        <span
+                          className={
+                            netMomentum > 0
+                              ? "up"
+                              : netMomentum < 0
+                                ? "down"
+                                : ""
+                          }
+                        >
+                          {netMomentum > 0 ? "+" : ""}
+                          {netMomentum}
+                        </span>
+                      );
+                    })()}
                   />
                 </div>
               </div>
@@ -1298,8 +1447,20 @@ function AnalystInsights({ symbol, onClose }) {
                       return (
                         <tr key={`${t.analyst_firm}-${i}`}>
                           <td>{t.analyst_firm}</td>
-                          <td className="num mono tnum"><SafeMetricValue value={cur} formatter="money" fallback="—" /></td>
-                          <td className="num mono tnum muted"><SafeMetricValue value={prev} formatter="money" fallback="—" /></td>
+                          <td className="num mono tnum">
+                            <SafeMetricValue
+                              value={cur}
+                              formatter="money"
+                              fallback="—"
+                            />
+                          </td>
+                          <td className="num mono tnum muted">
+                            <SafeMetricValue
+                              value={prev}
+                              formatter="money"
+                              fallback="—"
+                            />
+                          </td>
                           <td className="num">
                             {diff == null ? (
                               <span className="muted">—</span>
@@ -1308,7 +1469,11 @@ function AnalystInsights({ symbol, onClose }) {
                                 className={`badge ${diff > 0 ? "badge-success" : "badge-danger"}`}
                               >
                                 {diff > 0 ? "+" : ""}
-                                <SafeMetricValue value={diff} formatter="decimal2" fallback="—" />
+                                <SafeMetricValue
+                                  value={diff}
+                                  formatter="decimal2"
+                                  fallback="—"
+                                />
                               </span>
                             )}
                           </td>
@@ -1582,27 +1747,39 @@ function SocialInsights({ symbol, onClose }) {
             />
             <Stile
               label="Search Volume"
-              value={<SafeMetricValue value={metrics.search?.volume_index} formatter="number" fallback="—" />}
+              value={
+                <SafeMetricValue
+                  value={metrics.search?.volume_index}
+                  formatter="number"
+                  fallback="—"
+                />
+              }
               sub={`7d ${metrics.search?.trend_7d_direction ?? ""}${
-                metrics.search?.trend_7d_percent !== null && metrics.search?.trend_7d_percent !== undefined
-                  ? Math.abs(parseFloat(metrics.search.trend_7d_percent)).toFixed(1) + "%"
+                metrics.search?.trend_7d_percent !== null &&
+                metrics.search?.trend_7d_percent !== undefined
+                  ? Math.abs(
+                      parseFloat(metrics.search.trend_7d_percent)
+                    ).toFixed(1) + "%"
                   : "N/A"
               } · 30d ${metrics.search?.trend_30d_direction ?? ""}${
-                metrics.search?.trend_30d_percent !== null && metrics.search?.trend_30d_percent !== undefined
-                  ? Math.abs(parseFloat(metrics.search.trend_30d_percent)).toFixed(1) + "%"
+                metrics.search?.trend_30d_percent !== null &&
+                metrics.search?.trend_30d_percent !== undefined
+                  ? Math.abs(
+                      parseFloat(metrics.search.trend_30d_percent)
+                    ).toFixed(1) + "%"
                   : "N/A"
               }`}
             />
             <Stile
               label="Social Volume"
               value={`${metrics.social?.volume ?? 0} posts`}
-              sub={`Viral ${
+              sub={`Viral ${(
                 <SafeMetricValue
                   value={metrics.social?.viral_score}
                   formatter="decimal2"
                   fallback="—"
                 />
-              }`}
+              )}`}
             />
           </div>
 
@@ -1673,16 +1850,32 @@ function SocialInsights({ symbol, onClose }) {
                         <tr key={`hist-${row.date}-${i}`}>
                           <td className="t-xs muted">{fmtDate(row.date)}</td>
                           <td className="num mono tnum">
-                            <SafeMetricValue value={row.reddit_sentiment} formatter="decimal2" fallback="—" />
+                            <SafeMetricValue
+                              value={row.reddit_sentiment}
+                              formatter="decimal2"
+                              fallback="—"
+                            />
                           </td>
                           <td className="num mono tnum">
-                            <SafeMetricValue value={row.news_sentiment} formatter="decimal2" fallback="—" />
+                            <SafeMetricValue
+                              value={row.news_sentiment}
+                              formatter="decimal2"
+                              fallback="—"
+                            />
                           </td>
                           <td className="num mono tnum">
-                            <SafeMetricValue value={row.search_volume} formatter="number" fallback="—" />
+                            <SafeMetricValue
+                              value={row.search_volume}
+                              formatter="number"
+                              fallback="—"
+                            />
                           </td>
                           <td className="num mono tnum">
-                            <SafeMetricValue value={row.viral_score} formatter="decimal2" fallback="—" />
+                            <SafeMetricValue
+                              value={row.viral_score}
+                              formatter="decimal2"
+                              fallback="—"
+                            />
                           </td>
                         </tr>
                       ))}

@@ -73,10 +73,14 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           const volume = parseInt(row.volume);
 
           if (isNaN(close) || isNaN(open) || isNaN(high) || isNaN(low)) {
-            throw new Error(`Invalid OHLCV data for ${row.date}: close=${close}, open=${open}, high=${high}, low=${low}`);
+            throw new Error(
+              `Invalid OHLCV data for ${row.date}: close=${close}, open=${open}, high=${high}, low=${low}`
+            );
           }
           if (isNaN(volume)) {
-            throw new Error(`Invalid volume data for ${row.date}: volume=${volume}`);
+            throw new Error(
+              `Invalid volume data for ${row.date}: volume=${volume}`
+            );
           }
           if (!row.date) {
             throw new Error("Chart data missing date field");

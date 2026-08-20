@@ -78,15 +78,27 @@ const MarketInternals = ({ data, isLoading, error }) => {
   const maChartData = [
     {
       name: "SMA 20",
-      value: moving_average_analysis.above_sma20.percent !== null && moving_average_analysis.above_sma20.percent !== undefined ? parseFloat(moving_average_analysis.above_sma20.percent) : null,
+      value:
+        moving_average_analysis.above_sma20.percent !== null &&
+        moving_average_analysis.above_sma20.percent !== undefined
+          ? parseFloat(moving_average_analysis.above_sma20.percent)
+          : null,
     },
     {
       name: "SMA 50",
-      value: moving_average_analysis.above_sma50.percent !== null && moving_average_analysis.above_sma50.percent !== undefined ? parseFloat(moving_average_analysis.above_sma50.percent) : null,
+      value:
+        moving_average_analysis.above_sma50.percent !== null &&
+        moving_average_analysis.above_sma50.percent !== undefined
+          ? parseFloat(moving_average_analysis.above_sma50.percent)
+          : null,
     },
     {
       name: "SMA 200",
-      value: moving_average_analysis.above_sma200.percent !== null && moving_average_analysis.above_sma200.percent !== undefined ? parseFloat(moving_average_analysis.above_sma200.percent) : null,
+      value:
+        moving_average_analysis.above_sma200.percent !== null &&
+        moving_average_analysis.above_sma200.percent !== undefined
+          ? parseFloat(moving_average_analysis.above_sma200.percent)
+          : null,
     },
   ];
 
@@ -314,10 +326,16 @@ const MarketInternals = ({ data, isLoading, error }) => {
                       <TableRow key={row.name} hover>
                         <TableCell>{row.name}</TableCell>
                         <TableCell align="right">
-                          {row.data.count !== null && row.data.count !== undefined ? row.data.count : "—"}
+                          {row.data.count !== null &&
+                          row.data.count !== undefined
+                            ? row.data.count
+                            : "—"}
                         </TableCell>
                         <TableCell align="right">
-                          {row.data.total !== null && row.data.total !== undefined ? row.data.total : "—"}
+                          {row.data.total !== null &&
+                          row.data.total !== undefined
+                            ? row.data.total
+                            : "—"}
                         </TableCell>
                         <TableCell align="right">
                           {row.data.percent !== null &&

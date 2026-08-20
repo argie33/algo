@@ -188,7 +188,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.avg_correlation !== null
                       ? (() => {
-                          if (statistics.avg_correlation === null || statistics.avg_correlation === undefined) return "Unavailable";
+                          if (
+                            statistics.avg_correlation === null ||
+                            statistics.avg_correlation === undefined
+                          )
+                            return "Unavailable";
                           const num =
                             typeof statistics.avg_correlation === "number"
                               ? statistics.avg_correlation
@@ -210,7 +214,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.max_correlation?.value !== null
                       ? (() => {
-                          if (statistics.max_correlation.value === null || statistics.max_correlation.value === undefined) return "Unavailable";
+                          if (
+                            statistics.max_correlation.value === null ||
+                            statistics.max_correlation.value === undefined
+                          )
+                            return "Unavailable";
                           const num =
                             typeof statistics.max_correlation.value === "number"
                               ? statistics.max_correlation.value
@@ -241,7 +249,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.min_correlation?.value !== null
                       ? (() => {
-                          if (statistics.min_correlation.value === null || statistics.min_correlation.value === undefined) return "Unavailable";
+                          if (
+                            statistics.min_correlation.value === null ||
+                            statistics.min_correlation.value === undefined
+                          )
+                            return "Unavailable";
                           const num =
                             typeof statistics.min_correlation.value === "number"
                               ? statistics.min_correlation.value
@@ -298,7 +310,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {analysis?.diversification_score !== null
                       ? (() => {
-                          if (analysis.diversification_score === null || analysis.diversification_score === undefined) return "Unavailable";
+                          if (
+                            analysis.diversification_score === null ||
+                            analysis.diversification_score === undefined
+                          )
+                            return "Unavailable";
                           const num =
                             typeof analysis.diversification_score === "number"
                               ? analysis.diversification_score

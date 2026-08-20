@@ -130,9 +130,16 @@ function toPhaseSet(val) {
 
 function TodaysEconomicReleasesCard() {
   const today = new Date().toISOString().slice(0, 10);
-  const { data: events, loading, error } = useApiQuery(
+  const {
+    data: events,
+    loading,
+    error,
+  } = useApiQuery(
     ["economic-releases-today", today],
-    () => api.get(`/api/economic/calendar?start_date=${today}&end_date=${today}&limit=10`),
+    () =>
+      api.get(
+        `/api/economic/calendar?start_date=${today}&end_date=${today}&limit=10`
+      ),
     { refetchInterval: 1800000 }
   );
 
@@ -144,12 +151,18 @@ function TodaysEconomicReleasesCard() {
       <div className="card-head">
         <div>
           <div className="card-title">Today's Economic Releases</div>
-          <div className="card-sub">Real-time macro events · impact assessment</div>
+          <div className="card-sub">
+            Real-time macro events · impact assessment
+          </div>
         </div>
       </div>
       <div className="card-body">
-        {loading && !items.length && <div className="muted t-sm">Loading economic calendar…</div>}
-        {error && <div className="alert alert-danger t-sm">Calendar unavailable</div>}
+        {loading && !items.length && (
+          <div className="muted t-sm">Loading economic calendar…</div>
+        )}
+        {error && (
+          <div className="alert alert-danger t-sm">Calendar unavailable</div>
+        )}
         {items.length === 0 && !loading && (
           <div className="muted t-sm">No scheduled releases today</div>
         )}
@@ -164,13 +177,21 @@ function TodaysEconomicReleasesCard() {
                   gap: "var(--space-2)",
                   alignItems: "center",
                   padding: "var(--space-2) 0",
-                  borderBottom: i < items.length - 1 ? "1px solid var(--border-soft)" : "none",
+                  borderBottom:
+                    i < items.length - 1
+                      ? "1px solid var(--border-soft)"
+                      : "none",
                 }}
               >
                 <div
                   style={{
                     fontSize: "var(--t-2xs)",
-                    color: e.impact === "HIGH" ? "var(--danger)" : e.impact === "MEDIUM" ? "var(--amber)" : "var(--text-faint)",
+                    color:
+                      e.impact === "HIGH"
+                        ? "var(--danger)"
+                        : e.impact === "MEDIUM"
+                          ? "var(--amber)"
+                          : "var(--text-faint)",
                     fontWeight: "var(--w-bold)",
                     minWidth: 36,
                   }}
@@ -178,7 +199,12 @@ function TodaysEconomicReleasesCard() {
                   {e.impact || "LOW"}
                 </div>
                 <div>
-                  <div style={{ fontWeight: "var(--w-medium)", color: "var(--text)" }}>
+                  <div
+                    style={{
+                      fontWeight: "var(--w-medium)",
+                      color: "var(--text)",
+                    }}
+                  >
                     {e.name || e.event || "Release"}
                   </div>
                   {e.forecast || e.prior ? (
@@ -187,12 +213,22 @@ function TodaysEconomicReleasesCard() {
                     </div>
                   ) : null}
                 </div>
-                <div className="muted" style={{ fontSize: "var(--t-2xs)", minWidth: 40, textAlign: "right" }}>
-                  {new Date(e.date || e.release_time).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })}
+                <div
+                  className="muted"
+                  style={{
+                    fontSize: "var(--t-2xs)",
+                    minWidth: 40,
+                    textAlign: "right",
+                  }}
+                >
+                  {new Date(e.date || e.release_time).toLocaleTimeString(
+                    "en-US",
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    }
+                  )}
                 </div>
               </div>
             ))}
@@ -409,14 +445,16 @@ function AlgoTradingDashboardContent() {
     loading: healthLoading,
     error: healthError,
     refetch: refetchHealth,
-  } = useApiQuery(
-    ["algo-health"],
-    () => api.get("/api/algo/data-status"),
-    { refetchInterval: 90000 }
-  );
+  } = useApiQuery(["algo-health"], () => api.get("/api/algo/data-status"), {
+    refetchInterval: 90000,
+  });
 
   const isLoading =
-    statusLoading || statsLoading || runsLoading || breakersLoading || healthLoading;
+    statusLoading ||
+    statsLoading ||
+    runsLoading ||
+    breakersLoading ||
+    healthLoading;
 
   const refetchAll = () => {
     refetchStatus();
@@ -435,7 +473,7 @@ function AlgoTradingDashboardContent() {
   // Transform API sources into the data format LoaderHealthPanel expects
   // The API returns data via list_response, so extractData() wraps it as { items, pagination, ... }
   // where items IS the sources array (comprehensive health data with loader status)
-  const healthItems = (healthDataRaw?.items || []).map(source => ({
+  const healthItems = (healthDataRaw?.items || []).map((source) => ({
     tbl: source.name,
     st: source.status, // health status: ok, stale, empty, error
     age_hours: source.age_hours,
@@ -822,7 +860,8 @@ function AlgoTradingDashboardContent() {
           <div>
             <div className="card-title">Table & Loader Health</div>
             <div className="card-sub">
-              All tables grouped by health status · Loader status badges · Row counts & age
+              All tables grouped by health status · Loader status badges · Row
+              counts & age
             </div>
           </div>
         </div>
@@ -912,7 +951,6 @@ function AlgoTradingDashboardContent() {
           )}
         </div>
       </div>
-
     </div>
   );
 }

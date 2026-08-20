@@ -265,14 +265,17 @@ export const safePositionRisk = (position) => {
   // CRITICAL: Return null (not 0) when required fields are missing
   // Distinguish between "position has zero risk" vs "cannot calculate risk"
   if (quantity === null || stopLoss === null || entryPrice === null) {
-    console.warn("[POSITION_RISK] Missing required fields for risk calculation", {
-      symbol: safeGet(position, "symbol", "UNKNOWN"),
-      hasMissingData: {
-        quantity: quantity === null,
-        stopLoss: stopLoss === null,
-        entryPrice: entryPrice === null,
-      },
-    });
+    console.warn(
+      "[POSITION_RISK] Missing required fields for risk calculation",
+      {
+        symbol: safeGet(position, "symbol", "UNKNOWN"),
+        hasMissingData: {
+          quantity: quantity === null,
+          stopLoss: stopLoss === null,
+          entryPrice: entryPrice === null,
+        },
+      }
+    );
     return null;
   }
 
@@ -304,10 +307,13 @@ export const safeCompositionPct = (itemValue, totalValue) => {
   // CRITICAL: Return null (not 0) when data is missing
   if (item === null || total === null) {
     if (item === null || total === null) {
-      console.warn("[COMPOSITION] Missing value for portfolio composition calculation", {
-        hasItemValue: item !== null,
-        hasTotalValue: total !== null,
-      });
+      console.warn(
+        "[COMPOSITION] Missing value for portfolio composition calculation",
+        {
+          hasItemValue: item !== null,
+          hasTotalValue: total !== null,
+        }
+      );
     }
     return null;
   }

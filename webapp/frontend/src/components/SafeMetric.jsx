@@ -1,6 +1,6 @@
-import React from 'react';
-import PropTypes from 'prop-types';
-import { AlertCircle } from 'lucide-react';
+import React from "react";
+import PropTypes from "prop-types";
+import { AlertCircle } from "lucide-react";
 
 /**
  * SafeMetric component - displays a metric value safely, handling missing/invalid data.
@@ -20,17 +20,16 @@ export const SafeMetric = ({
   value,
   label = null,
   format = null,
-  fallback = '—',
+  fallback = "—",
   showError = false,
   errorMessage = null,
-  className = '',
+  className = "",
   formatter = null,
   ...props
 }) => {
   // Check if value is invalid (null, undefined, or DataError)
   const isInvalid = value === null || value === undefined;
-  const isDataError =
-    typeof value === 'object' && value?.isDataError === true;
+  const isDataError = typeof value === "object" && value?.isDataError === true;
   const hasError = showError || isDataError || isInvalid;
 
   // Determine what to display
@@ -39,20 +38,20 @@ export const SafeMetric = ({
 
   if (!hasError && value !== null && value !== undefined) {
     // Apply formatter if specified
-    if (formatter === 'percentage') {
+    if (formatter === "percentage") {
       displayValue = `${Number(value).toFixed(2)}%`;
-    } else if (formatter === 'money') {
-      displayValue = `$${Number(value).toLocaleString('en-US', {
+    } else if (formatter === "money") {
+      displayValue = `$${Number(value).toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`;
-    } else if (formatter === 'number') {
-      displayValue = Number(value).toLocaleString('en-US');
-    } else if (formatter === 'decimal2') {
+    } else if (formatter === "number") {
+      displayValue = Number(value).toLocaleString("en-US");
+    } else if (formatter === "decimal2") {
       displayValue = Number(value).toFixed(2);
-    } else if (formatter === 'decimal1') {
+    } else if (formatter === "decimal1") {
       displayValue = Number(value).toFixed(1);
-    } else if (typeof format === 'function') {
+    } else if (typeof format === "function") {
       // Apply custom format function
       displayValue = format(value);
     } else {
@@ -61,23 +60,21 @@ export const SafeMetric = ({
   }
 
   if (isDataError && !displayError) {
-    displayError = value?.message || 'Data validation error';
+    displayError = value?.message || "Data validation error";
   }
 
   // Build className
   const containerClasses = [
-    'safe-metric',
-    hasError && 'safe-metric--error',
+    "safe-metric",
+    hasError && "safe-metric--error",
     className,
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
 
   return (
     <div className={containerClasses} {...props}>
-      {label && (
-        <span className="safe-metric__label">{label}</span>
-      )}
+      {label && <span className="safe-metric__label">{label}</span>}
       <span className="safe-metric__value">
         {hasError && <AlertCircle className="safe-metric__icon" size={16} />}
         {displayValue}
@@ -98,11 +95,11 @@ SafeMetric.propTypes = {
   errorMessage: PropTypes.string,
   className: PropTypes.string,
   formatter: PropTypes.oneOf([
-    'percentage',
-    'money',
-    'number',
-    'decimal2',
-    'decimal1',
+    "percentage",
+    "money",
+    "number",
+    "decimal2",
+    "decimal1",
   ]),
 };
 
@@ -116,36 +113,36 @@ export const SafeMetricValue = ({
   value,
   formatter = null,
   format = null,
-  fallback = '—',
+  fallback = "—",
 }) => {
   if (value === null || value === undefined) {
     return fallback;
   }
 
-  if (typeof value === 'object' && value?.isDataError === true) {
+  if (typeof value === "object" && value?.isDataError === true) {
     return fallback;
   }
 
   // Apply formatter
-  if (formatter === 'percentage') {
+  if (formatter === "percentage") {
     return `${Number(value).toFixed(2)}%`;
   }
-  if (formatter === 'money') {
-    return `$${Number(value).toLocaleString('en-US', {
+  if (formatter === "money") {
+    return `$${Number(value).toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
   }
-  if (formatter === 'number') {
-    return Number(value).toLocaleString('en-US');
+  if (formatter === "number") {
+    return Number(value).toLocaleString("en-US");
   }
-  if (formatter === 'decimal2') {
+  if (formatter === "decimal2") {
     return Number(value).toFixed(2);
   }
-  if (formatter === 'decimal1') {
+  if (formatter === "decimal1") {
     return Number(value).toFixed(1);
   }
-  if (typeof format === 'function') {
+  if (typeof format === "function") {
     return format(value);
   }
 
@@ -155,11 +152,11 @@ export const SafeMetricValue = ({
 SafeMetricValue.propTypes = {
   value: PropTypes.any,
   formatter: PropTypes.oneOf([
-    'percentage',
-    'money',
-    'number',
-    'decimal2',
-    'decimal1',
+    "percentage",
+    "money",
+    "number",
+    "decimal2",
+    "decimal1",
   ]),
   format: PropTypes.func,
   fallback: PropTypes.any,
@@ -170,13 +167,13 @@ SafeMetricValue.propTypes = {
  * Combines label and value in one span.
  */
 export const SafeMetricInline = ({
-  label = '',
+  label = "",
   value,
   formatter = null,
   format = null,
-  fallback = '—',
-  separator = ': ',
-  className = '',
+  fallback = "—",
+  separator = ": ",
+  className = "",
 }) => {
   const formatted = SafeMetricValue({ value, formatter, format, fallback });
   return (
@@ -194,11 +191,11 @@ SafeMetricInline.propTypes = {
   label: PropTypes.string,
   value: PropTypes.any,
   formatter: PropTypes.oneOf([
-    'percentage',
-    'money',
-    'number',
-    'decimal2',
-    'decimal1',
+    "percentage",
+    "money",
+    "number",
+    "decimal2",
+    "decimal1",
   ]),
   format: PropTypes.func,
   fallback: PropTypes.any,

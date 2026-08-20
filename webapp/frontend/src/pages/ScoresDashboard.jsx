@@ -183,7 +183,13 @@ function ScoresDashboardPage() {
     error: dataError,
     refetch,
   } = queryResult;
-  const items = dataError ? [] : (rawData?.data?.top || rawData?.top || rawData?.data?.items || rawData?.items || []);
+  const items = dataError
+    ? []
+    : rawData?.data?.top ||
+      rawData?.top ||
+      rawData?.data?.items ||
+      rawData?.items ||
+      [];
 
   useEffect(() => {
     setPage(1);
@@ -261,9 +267,13 @@ function ScoresDashboardPage() {
           item = r.data;
         }
       } catch (err) {
-        console.debug(`[ScoresDashboard] Details endpoint not available for ${symbol}, trying stockscores`);
+        console.debug(
+          `[ScoresDashboard] Details endpoint not available for ${symbol}, trying stockscores`
+        );
         // Fallback to stockscores
-        const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
+        const r = await api.get(
+          `/api/scores/stockscores?symbol=${symbol}&limit=1`
+        );
         let result = r.data?.items?.[0];
         if (!result) {
           result = r.data?.data?.items?.[0];
@@ -280,7 +290,9 @@ function ScoresDashboardPage() {
       }
 
       if (item) {
-        console.debug(`[ScoresDashboard] Found detail item for ${symbol}, quality_inputs present: ${"quality_inputs" in item}`);
+        console.debug(
+          `[ScoresDashboard] Found detail item for ${symbol}, quality_inputs present: ${"quality_inputs" in item}`
+        );
         setDetails((d) => ({ ...d, [symbol]: item }));
       } else {
         console.warn(`[ScoresDashboard] No detail item returned for ${symbol}`);
@@ -383,7 +395,15 @@ function ScoresDashboardPage() {
         <Kpi
           label="Top Decile"
           value={
-            filtered.length > 0 ? <SafeMetricValue value={filtered[0].composite_score} formatter="decimal1" fallback="—" /> : "—"
+            filtered.length > 0 ? (
+              <SafeMetricValue
+                value={filtered[0].composite_score}
+                formatter="decimal1"
+                fallback="—"
+              />
+            ) : (
+              "—"
+            )
           }
           sub={filtered.length > 0 ? filtered[0].symbol : "—"}
           tone={filtered.length > 0 ? "up" : ""}
@@ -630,39 +650,108 @@ function RankingsTab({
                     }
                   }}
                 >
-                  <div style={{ width: 28, fontWeight: "600", fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+                  <div
+                    style={{
+                      width: 28,
+                      fontWeight: "600",
+                      fontSize: "0.9rem",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
                     {isExpanded ? "▼" : "▶"}
                   </div>
-                  <div style={{ width: 80, fontWeight: "700", fontFamily: "monospace", color: "var(--brand)" }}>
+                  <div
+                    style={{
+                      width: 80,
+                      fontWeight: "700",
+                      fontFamily: "monospace",
+                      color: "var(--brand)",
+                    }}
+                  >
                     {s.symbol}
                   </div>
-                  <div style={{ flex: 1, fontSize: "0.85rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div
+                    style={{
+                      flex: 1,
+                      fontSize: "0.85rem",
+                      color: "var(--text-secondary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {s.company_name || "—"}
                   </div>
-                  <div style={{ width: 100, textAlign: "right", fontWeight: "700", fontFamily: "monospace" }}>
+                  <div
+                    style={{
+                      width: 100,
+                      textAlign: "right",
+                      fontWeight: "700",
+                      fontFamily: "monospace",
+                    }}
+                  >
                     <span className={`badge ${scoreClass(s.composite_score)}`}>
                       {num(s.composite_score, 1)}
                     </span>
                   </div>
-                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: subScoreColor(s.growth_score) }}>
+                  <div
+                    style={{
+                      width: 70,
+                      textAlign: "right",
+                      fontFamily: "monospace",
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                      color: subScoreColor(s.growth_score),
+                    }}
+                  >
                     {num(s.growth_score, 1)}
                   </div>
-                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: subScoreColor(s.quality_score) }}>
+                  <div
+                    style={{
+                      width: 70,
+                      textAlign: "right",
+                      fontFamily: "monospace",
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                      color: subScoreColor(s.quality_score),
+                    }}
+                  >
                     {num(s.quality_score, 1)}
                   </div>
-                  <div style={{ width: 80, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: subScoreColor(s.momentum_score) }}>
+                  <div
+                    style={{
+                      width: 80,
+                      textAlign: "right",
+                      fontFamily: "monospace",
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                      color: subScoreColor(s.momentum_score),
+                    }}
+                  >
                     {num(s.momentum_score, 1)}
                   </div>
                 </div>
 
                 {/* ─── Expanded Detail Row ─── */}
                 {isExpanded && (
-                  <div style={{ padding: "var(--space-4)", borderBottom: "2px solid var(--brand)", background: "var(--surface-1)" }}>
+                  <div
+                    style={{
+                      padding: "var(--space-4)",
+                      borderBottom: "2px solid var(--brand)",
+                      background: "var(--surface-1)",
+                    }}
+                  >
                     {detail?.error ? (
                       <div className="alert alert-danger">{detail.error}</div>
                     ) : (
                       <StockScoreAccordion
-                        stocks={[detail && selectedSymbol === s.symbol && "quality_inputs" in detail ? detail : s]}
+                        stocks={[
+                          detail &&
+                          selectedSymbol === s.symbol &&
+                          "quality_inputs" in detail
+                            ? detail
+                            : s,
+                        ]}
                         marketAvgs={marketAvgs}
                         sectorAvgs={computeSectorAvgs(all, s.sector)}
                       />
@@ -718,7 +807,6 @@ function RankingsTab({
           <ChevronRight size={14} />
         </button>
       </div>
-
     </>
   );
 }
@@ -1181,37 +1269,61 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                       className="num mono tnum t-xs"
                       style={{ color: subScoreColor(s.quality_score) }}
                     >
-                      <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={s.quality_score}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: subScoreColor(s.momentum_score) }}
                     >
-                      <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={s.momentum_score}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: subScoreColor(s.value_score) }}
                     >
-                      <SafeMetricValue value={s.value_score} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={s.value_score}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: subScoreColor(s.growth_score) }}
                     >
-                      <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={s.growth_score}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: subScoreColor(s.positioning_score) }}
                     >
-                      <SafeMetricValue value={s.positioning_score} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={s.positioning_score}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: subScoreColor(s.stability_score) }}
                     >
-                      <SafeMetricValue value={s.stability_score} formatter="number" fallback="—" />
+                      <SafeMetricValue
+                        value={s.stability_score}
+                        formatter="number"
+                        fallback="—"
+                      />
                     </td>
                   </tr>
                 ))}
@@ -1687,7 +1799,9 @@ function computeSectorAvgs(items, sector) {
       .map((s) => s[f.scoreKey])
       .filter((v) => v != null)
       .map(Number);
-    o[f.key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    o[f.key] = vals.length
+      ? vals.reduce((a, b) => a + b, 0) / vals.length
+      : null;
   });
   return o;
 }

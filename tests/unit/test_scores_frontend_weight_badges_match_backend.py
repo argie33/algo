@@ -40,7 +40,14 @@ def _weight_for_score_var(source: str, score_var: str) -> float:
 
 
 def _jsx_weight_for_key(key: str) -> str:
-    match = re.search(r"key: '" + re.escape(key) + r"'.*?weight: '([^']+)'", _JSX_SOURCE)
+    # Quote-agnostic (['"]) and DOTALL: this only checks the weight *value*, not prettier's
+    # layout choices. webapp/frontend/.prettierrc enforces singleQuote=false (double quotes)
+    # and wraps an object across multiple lines once it exceeds printWidth=80 - a
+    # single-quote, single-line-only regex broke the instant this file was actually run
+    # through prettier, since format:check had been silently pointed at a nonexistent
+    # directory (webapp/lambda, not webapp/frontend) and never really enforced style here
+    # before 2026-08-20.
+    match = re.search(r"key: [\"']" + re.escape(key) + r"[\"'].*?weight: [\"']([^\"']+)[\"']", _JSX_SOURCE, re.DOTALL)
     assert match, f"expected JSX schema to have a used:true weight badge for key '{key}'"
     return match.group(1)
 

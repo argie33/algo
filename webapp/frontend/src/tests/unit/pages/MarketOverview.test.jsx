@@ -73,7 +73,9 @@ vi.mock("../../../services/api.js", () => {
       .fn()
       .mockResolvedValue({ success: true, data: [] }),
     healthCheck: vi.fn().mockResolvedValue({ success: true }),
-    getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: { market_health: "healthy" } }),
+    getMarketOverview: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { market_health: "healthy" } }),
     getMarketSentimentHistory: vi
       .fn()
       .mockResolvedValue({ success: true, data: {} }),

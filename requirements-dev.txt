@@ -1,0 +1,8 @@
+# Dev/CI tooling - pinned to match what pre-commit and the Makefile's `make ci-local`
+# actually invoke locally. Not installed by requirements.txt (the app runtime deps only).
+mypy==2.1.0
+pylint==4.0.6
+ruff==0.15.18
+pytest==9.0.3
+pytest-cov==7.1.0
+bandit==1.9.4

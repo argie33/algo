@@ -168,11 +168,14 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     const distributionDaysData_obj = distributionDaysData || {};
     // Get S&P 500 distribution days count (or fall back to first available index)
     const rawDistribution =
-      distributionDaysData_obj["^GSPC"]?.count !== null && distributionDaysData_obj["^GSPC"]?.count !== undefined
+      distributionDaysData_obj["^GSPC"]?.count !== null &&
+      distributionDaysData_obj["^GSPC"]?.count !== undefined
         ? distributionDaysData_obj["^GSPC"]?.count
-        : distributionDaysData_obj["^IXIC"]?.count !== null && distributionDaysData_obj["^IXIC"]?.count !== undefined
+        : distributionDaysData_obj["^IXIC"]?.count !== null &&
+            distributionDaysData_obj["^IXIC"]?.count !== undefined
           ? distributionDaysData_obj["^IXIC"]?.count
-          : distributionDaysData_obj["^DJI"]?.count !== null && distributionDaysData_obj["^DJI"]?.count !== undefined
+          : distributionDaysData_obj["^DJI"]?.count !== null &&
+              distributionDaysData_obj["^DJI"]?.count !== undefined
             ? distributionDaysData_obj["^DJI"]?.count
             : null;
 
@@ -220,7 +223,8 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
     // Calculate final score: base (50) + breadth + sentiment + distribution
     // Only if all required data is available
-    score = 50 + breakdown.breadth + breakdown.sentiment + breakdown.distribution;
+    score =
+      50 + breakdown.breadth + breakdown.sentiment + breakdown.distribution;
 
     // Clamp score between 0 and 100
     score = Math.max(0, Math.min(100, score));
@@ -499,12 +503,18 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
                   {exposureScore.breakdown?.breadth !== null &&
                   exposureScore.breakdown?.breadth !== undefined
                     ? (() => {
-                        if (exposureScore.breakdown.breadth === null || exposureScore.breakdown.breadth === undefined) return "Unavailable";
+                        if (
+                          exposureScore.breakdown.breadth === null ||
+                          exposureScore.breakdown.breadth === undefined
+                        )
+                          return "Unavailable";
                         const val =
                           typeof exposureScore.breakdown.breadth === "number"
                             ? exposureScore.breakdown.breadth
                             : parseFloat(exposureScore.breakdown.breadth);
-                        return isNaN(val) ? "N/A" : formatPercentageChange(val, 1);
+                        return isNaN(val)
+                          ? "N/A"
+                          : formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
                 </Typography>

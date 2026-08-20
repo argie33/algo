@@ -1,225 +1,114 @@
 name: CI
 
-# Run on every push to main and on pull requests
+# ADDED 2026-08-20: this file never existed despite steering/GOVERNANCE.md and
+# .pre-commit-config.yaml both assuming it does (GOVERNANCE.md: "Enforcement is per-commit
+# via pre-commit hooks and CI (.github/workflows/ci.yml)"; .pre-commit-config.yaml's own
+# comments: "Security scanning moved to CI... Bandit runs async in GitHub Actions instead",
+# "real enforcement is CI's own step (.github/workflows/ci.yml, uses the official
+# trufflesecurity/trufflehog Action)"). Until now there was zero server-side enforcement of
+# any of these rules - only whatever ran locally via pre-commit, skippable with --no-verify
+# or simply not installed. Mirrors exactly what Makefile's `make ci-local` already documents
+# as "matching CI" - see that file for the equivalent local commands.
+#
+# Deliberately does NOT include deployment. GOVERNANCE.md's "git push main -> deploy-all-
+# infrastructure.yml (auto)" claim is also currently false (that file doesn't exist either) -
+# left for a dedicated follow-up given the blast radius of wiring real AWS deploy credentials
+# into a workflow, which is a materially different risk category from running checks.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  PYTHON_VERSION: '3.11'
-
 jobs:
-  validate:
-    name: Lint, Type Check & Test
+  python-quality:
+    name: Python lint + type-check
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+      - name: Ruff format check
+        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+      - name: MyPy (core)
+        run: |
+          mypy algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py --show-error-codes
+      - name: MyPy (lambda/api)
+        run: cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases
+      - name: Pylint (type-safety checks only)
+        run: pylint algo/ loaders/ utils/ config/ dashboard/ monitoring/ --disable=all --enable=comparison-with-callable,unsupported-binary-operation
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install Python dependencies
+          python-version: "3.11"
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          # ruff pinned to match .pre-commit-config.yaml's rev (2026-08-16): this was
-          # unpinned, so CI always installed whatever ruff was newest - drifting from the
-          # version every local commit is actually gated on via the pre-commit hook. Caught
-          # live: a formatter rule change between 0.15.18 (local/pre-commit) and 0.16.3
-          # (latest, what CI silently picked up) made CI fail on 2 files ruff-format --check
-          # passed locally, on the exact push meant to finally get CI green again after a
-          # month of failures.
-          #
-          # mypy pinned 2026-08-16 for the identical reason, found the same day the ruff pin
-          # above landed: .pre-commit-config.yaml's mypy hooks use `language: system` (whatever
-          # mypy is on the developer's machine, not a pinned repo/rev like ruff's hook), so
-          # there was no version pin for mypy ANYWHERE in the repo - CI always installed
-          # whatever was newest on PyPI. Live-confirmed: the very next push after the ruff fix
-          # (1b879494b) failed CI with 20 "Unused type: ignore comment [unused-ignore]" errors
-          # across 6 files that mypy 2.1.0 (this repo's actual dev/pre-commit version) passes
-          # clean on the identical command - a newer mypy's stricter unused-ignore detection,
-          # not a real type error. Pin to the version these type: ignore comments were actually
-          # written/verified against; bump deliberately (and re-verify the ignores) if mypy is
-          # ever upgraded on dev machines.
-          pip install "ruff==0.15.18" "mypy==2.1.0" pytest pylint bandit pre-commit
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Run test suite
+        run: pytest tests/ -q
 
-      - name: Install project dependencies
-        run: |
-          pip install -r requirements.txt 2>/dev/null || true
-          pip install -r lambda/api/requirements.txt 2>/dev/null || true
-
-      - name: Run Ruff linter
-        run: ruff check algo/ tests/ loaders/ utils/ config/ lambda/
-
-      - name: Run Ruff formatter check
-        run: ruff format --check algo/ tests/ loaders/ utils/ config/ lambda/
-
-      - name: Run MyPy type checker
-        run: |
-          mypy algo/ utils/ config/ --ignore-missing-imports --show-error-codes
-          mypy lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py --ignore-missing-imports --show-error-codes || true
-
-      - name: Run Pylint type safety checks
-        run: |
-          pylint algo/ loaders/ utils/ config/ lambda/ \
-            --disable=all \
-            --enable=comparison-with-callable,unsupported-binary-operation \
-            2>/dev/null || true
-
-      - name: Run pre-commit validation hooks
-        run: |
-          python .pre-commit-scripts/check-strict-validation-tests.py
-          python .pre-commit-scripts/check-strict-safe-conversion.py
-          python .pre-commit-scripts/check-credential-defaults.py
-          python .pre-commit-scripts/check-silent-fallbacks.py
-
-      # NOT run in CI: validate_memory.py checks Path.home()/".claude"/.../"memory" - the
-      # local Claude Code session directory, which lives outside this git repo entirely and
-      # can never exist on a GitHub-hosted runner. Added to CI 2026-07-31 (5a20388c0) as a
-      # straight duplicate of the pre-commit hook (.pre-commit-config.yaml's "validate-memory"
-      # id, which correctly runs locally where the directory exists) - since then this step has
-      # failed on every single push (confirmed via `gh run list`), and because it has
-      # `continue-on-error: false` and runs BEFORE the actual test/security steps, it silently
-      # skipped all of them (loader-registry sync check, trading-safety-threshold verification,
-      # unit/edge/integration tests, StrictValidationError tests, Bandit, TruffleHog) on every
-      # push for 2+ weeks. Real memory safety validation still runs locally via pre-commit.
-
-      - name: Validate loader registry/Terraform/Lambda sync
-        run: |
-          python scripts/validate_loader_systems_sync.py
-        continue-on-error: false
-
-      # ADDED 2026-08-10: steering/GOVERNANCE.md's Trading Safety section has always mandated
-      # "Pre-deployment: Run python scripts/verify_safety_thresholds.py --strict before
-      # production" but nothing enforced it - it was a step a human had to remember. The
-      # script needs no DB/AWS access (verifies AlgoConfig.DEFAULTS + that the runtime safety
-      # gate fires on a mocked zero-threshold injection), so it's safe and fast to run in CI.
-      - name: Verify trading safety thresholds
-        run: |
-          python scripts/verify_safety_thresholds.py --strict
-        continue-on-error: false
-
-      - name: Run unit tests
-        run: |
-          pytest tests/ -m unit -v --tb=short
-
-      - name: Run edge case tests
-        run: |
-          pytest tests/ -m edge -v --tb=short
-
-      - name: Run integration tests
-        run: |
-          pytest tests/ -m integration -v --tb=short
-
-      - name: Run StrictValidationError detection tests
-        run: |
-          pytest tests/test_strict_validation_error_detection.py -v --tb=short
-          pytest tests/test_dashboard_panel_strict_validation.py -v --tb=short
-          pytest tests/test_fetcher_strict_validation.py -v --tb=short
-
-      - name: Run security checks (Bandit)
-        run: |
-          bandit -r algo loaders config lambda --severity-level medium --confidence-level high
-
-      - name: Run secret detection (TruffleHog)
+  python-security:
+    name: Python security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Bandit
+        run: bandit -r algo loaders config lambda --severity-level medium --confidence-level high
+      - name: TruffleHog secret scan
         uses: trufflesecurity/trufflehog@v3.63.0
         with:
-          path: ./
           extra_args: --only-verified
 
-  lint-frontend:
-    # ADDED 2026-08-10: this job never existed - CI only ever covered webapp/lambda
-    # (a separate Node backend-glue directory), never webapp/frontend (the actual React
-    # app users load). No automated lint/test ran on it on any push or PR, ever; the only
-    # workflow touching webapp/frontend at all was deploy-frontend-only.yml, which is
-    # workflow_dispatch-only (manual, not merge-triggered) and only runs `build:prod`, no
-    # lint or test. Found via a live audit that had already caught 4 real, previously-
-    # unnoticed frontend bugs (mojibake corruption, a NaN-renders-as-text bug, 2 permanently-
-    # 404ing API calls) this same session - none of which any automated check would have
-    # caught pre-merge. Both `npm run lint` and `npm run test:unit` verified clean
-    # (0 warnings, 839 passed/18 skipped) before wiring this in, so this starts CI-green,
-    # not CI-red on day one.
-    #
-    # REMOVED 2026-08-10 (later same day): the lint-js job that used to sit here covered
-    # webapp/lambda, a parallel Node/Express API implementation (own routes/handlers/tests,
-    # 148 files, real recent feature commits) that turned out to have zero production
-    # deployment path - no terraform resource, no GitHub Actions deploy step, nothing but
-    # this lint job exercised it. The actually-deployed API is lambda/api/ (Python, built by
-    # deploy-all-infrastructure.yml's "Build API Lambda" step, terraform-managed). Deleted
-    # webapp/lambda entirely rather than leave dead code that looked real enough to keep
-    # accumulating feature commits; see also package.json (main/start/dev used to point at
-    # webapp/lambda/index.js - the wrong, undeployed server).
-    name: Lint & Test Frontend
+  frontend-quality:
+    name: Frontend lint + format
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    defaults:
+      run:
+        working-directory: webapp/frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: npm
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: webapp/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
 
-      - name: Install dependencies
-        working-directory: webapp/frontend
-        run: npm ci
-
-      - name: Run ESLint
-        working-directory: webapp/frontend
-        run: npm run lint
-
-      - name: Run Vitest unit tests
-        working-directory: webapp/frontend
-        run: npm run test:unit
-
-  coverage:
-    name: Test Coverage
+  frontend-tests:
+    name: Frontend unit tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    defaults:
+      run:
+        working-directory: webapp/frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-cov
-          pip install -r requirements.txt 2>/dev/null || true
-
-      - name: Run tests with coverage
-        run: |
-          pytest tests/ \
-            --cov=algo \
-            --cov=loaders \
-            --cov=lambda \
-            --cov-report=term-missing:skip-covered \
-            -v
-
-      # NOTE: Codecov upload removed (2026-07-15) - was failing due to missing token
-      # Tests are passing, which is what matters. Codecov was non-essential for CI/CD.
-      # Can re-enable with proper token configuration if needed for monitoring coverage trends.
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: webapp/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test:unit

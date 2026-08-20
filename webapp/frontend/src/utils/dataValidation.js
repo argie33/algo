@@ -91,11 +91,21 @@ export const safeGetMarketCurrent = (markets) => {
   if (!current || typeof current !== "object") return null;
 
   return {
-    exposure_pct: current.exposure_pct !== null && current.exposure_pct !== undefined ? current.exposure_pct : null,
-    raw_score: current.raw_score !== null && current.raw_score !== undefined ? current.raw_score : null,
+    exposure_pct:
+      current.exposure_pct !== null && current.exposure_pct !== undefined
+        ? current.exposure_pct
+        : null,
+    raw_score:
+      current.raw_score !== null && current.raw_score !== undefined
+        ? current.raw_score
+        : null,
     regime: current.regime ?? "unknown",
     halt_reasons: current.halt_reasons ?? null,
-    distribution_days: current.distribution_days !== null && current.distribution_days !== undefined ? current.distribution_days : null,
+    distribution_days:
+      current.distribution_days !== null &&
+      current.distribution_days !== undefined
+        ? current.distribution_days
+        : null,
     factors:
       current.factors && typeof current.factors === "object"
         ? current.factors

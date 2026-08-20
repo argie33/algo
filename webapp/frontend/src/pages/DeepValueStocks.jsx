@@ -40,7 +40,10 @@ const DeepValueStocksContent = () => {
       return {
         ...s,
         _financial_data_unavailable: s._financial_data_unavailable === true,
-        generational_score: s.generational_score !== null && s.generational_score !== undefined ? parseFloat(s.generational_score) : null,
+        generational_score:
+          s.generational_score !== null && s.generational_score !== undefined
+            ? parseFloat(s.generational_score)
+            : null,
         current_price: current,
         trailing_pe: num(s.trailing_pe),
         price_to_book: num(s.price_to_book),

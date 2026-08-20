@@ -41,15 +41,21 @@ export const extractData = (response) => {
         console.debug("[responseNormalizer] Parsed string response as JSON");
       } else if (data.trim().startsWith("<")) {
         // HTML response detected
-        throw new Error(`Received HTML response instead of JSON: ${data.substring(0, 200)}`);
+        throw new Error(
+          `Received HTML response instead of JSON: ${data.substring(0, 200)}`
+        );
       } else {
-        throw new Error(`Received unexpected response format: ${data.substring(0, 200)}`);
+        throw new Error(
+          `Received unexpected response format: ${data.substring(0, 200)}`
+        );
       }
     } catch (parseError) {
       if (parseError.message.startsWith("Received")) {
         throw parseError; // Re-throw our custom errors
       }
-      throw new Error(`Failed to parse response as JSON: ${parseError.message}`);
+      throw new Error(
+        `Failed to parse response as JSON: ${parseError.message}`
+      );
     }
   }
 
@@ -195,7 +201,9 @@ export const extractData = (response) => {
           total,
           page: pag.page ?? data.data.page ?? 1,
           totalPages:
-            pag.totalPages ?? data.data.totalPages ?? Math.ceil(total / (limit || 1)),
+            pag.totalPages ??
+            data.data.totalPages ??
+            Math.ceil(total / (limit || 1)),
           hasNext:
             pag.hasNext !== undefined
               ? pag.hasNext
@@ -203,10 +211,14 @@ export const extractData = (response) => {
           hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
         },
         // Preserve extra fields from the API response (sector_allocation, coverage, stale_alerts, data_freshness, etc.)
-        ...(data.data.sector_allocation && { sector_allocation: data.data.sector_allocation }),
+        ...(data.data.sector_allocation && {
+          sector_allocation: data.data.sector_allocation,
+        }),
         ...(data.data.coverage && { coverage: data.data.coverage }),
         ...(data.data.stale_alerts && { stale_alerts: data.data.stale_alerts }),
-        ...(data.data.data_freshness && { data_freshness: data.data.data_freshness }),
+        ...(data.data.data_freshness && {
+          data_freshness: data.data.data_freshness,
+        }),
         ...(data.data.breakers && { breakers: data.data.breakers }),
         // /api/algo/data-status (lambda/api/routes/algo_handlers/market.py's _get_data_status)
         // sets these directly on response["data"] alongside "items" - none of them were in
@@ -217,21 +229,35 @@ export const extractData = (response) => {
         // (not `&&`) because ready_to_trade is a boolean - `false && {...}` would silently drop
         // a real "not ready" value, which is the one case that matters most here.
         ...(data.data.sources !== undefined && { sources: data.data.sources }),
-        ...(data.data.ready_to_trade !== undefined && { ready_to_trade: data.data.ready_to_trade }),
-        ...(data.data.trading_halted !== undefined && { trading_halted: data.data.trading_halted }),
+        ...(data.data.ready_to_trade !== undefined && {
+          ready_to_trade: data.data.ready_to_trade,
+        }),
+        ...(data.data.trading_halted !== undefined && {
+          trading_halted: data.data.trading_halted,
+        }),
         ...(data.data.trading_halt_reason !== undefined && {
           trading_halt_reason: data.data.trading_halt_reason,
         }),
         ...(data.data.summary !== undefined && { summary: data.data.summary }),
-        ...(data.data.critical_stale !== undefined && { critical_stale: data.data.critical_stale }),
-        ...(data.data.expected_date !== undefined && { expected_date: data.data.expected_date }),
+        ...(data.data.critical_stale !== undefined && {
+          critical_stale: data.data.critical_stale,
+        }),
+        ...(data.data.expected_date !== undefined && {
+          expected_date: data.data.expected_date,
+        }),
         ...(data.data.as_of !== undefined && { as_of: data.data.as_of }),
-        ...(data.data.execution_health !== undefined && { execution_health: data.data.execution_health }),
+        ...(data.data.execution_health !== undefined && {
+          execution_health: data.data.execution_health,
+        }),
         // Score endpoint specific fields (top, avg_composite, grades, data_health)
         ...(data.data.top !== undefined && { top: data.data.top }),
-        ...(data.data.avg_composite !== undefined && { avg_composite: data.data.avg_composite }),
+        ...(data.data.avg_composite !== undefined && {
+          avg_composite: data.data.avg_composite,
+        }),
         ...(data.data.grades !== undefined && { grades: data.data.grades }),
-        ...(data.data.data_health !== undefined && { data_health: data.data.data_health }),
+        ...(data.data.data_health !== undefined && {
+          data_health: data.data.data_health,
+        }),
         statusCode: httpStatus,
         success: true,
       };
@@ -283,12 +309,15 @@ export const extractData = (response) => {
   // Detailed logging for debugging response extraction failures
   console.error("[responseNormalizer] Failed to extract data:", {
     dataType: typeof data,
-    dataLength: typeof data === "string" ? data.length : JSON.stringify(data).length,
+    dataLength:
+      typeof data === "string" ? data.length : JSON.stringify(data).length,
     isHtml,
     preview,
     httpStatus: response.status,
     headers: response.headers,
-    axiosResponseKeys: response ? Object.keys(response).join(",") : "no response",
+    axiosResponseKeys: response
+      ? Object.keys(response).join(",")
+      : "no response",
   });
 
   throw new Error(

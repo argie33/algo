@@ -87,15 +87,15 @@ const getAuthToken = () => {
     // In production, require a valid token
     throw new Error(
       "[apiService] Auth token is null/undefined. User may not be authenticated. " +
-      "Verify Cognito authentication state and token manager configuration."
+        "Verify Cognito authentication state and token manager configuration."
     );
   } catch (error) {
     // If we can't get a token in production, fail
     if (!import.meta.env.DEV) {
       throw new Error(
         `[apiService] Failed to retrieve auth token: ${error?.message || error}. ` +
-        "Cannot proceed with unauthenticated API requests. " +
-        "Check Cognito configuration and token manager state."
+          "Cannot proceed with unauthenticated API requests. " +
+          "Check Cognito configuration and token manager state."
       );
     }
     // In dev mode, fall back to dev token

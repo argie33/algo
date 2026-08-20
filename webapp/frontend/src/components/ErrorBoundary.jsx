@@ -202,11 +202,7 @@ class ErrorBoundary extends React.Component {
                   severity="error"
                   sx={{ width: "100%", textAlign: "left" }}
                 >
-                  <Typography
-                    variant="subtitle2"
-                    fontWeight={600}
-                    gutterBottom
-                  >
+                  <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                     Error Details (Development Only):
                   </Typography>
                   <Typography
@@ -278,8 +274,8 @@ class ErrorBoundary extends React.Component {
                       </Tooltip>
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
-                      Please provide the error ID above when contacting
-                      support for faster assistance.
+                      Please provide the error ID above when contacting support
+                      for faster assistance.
                     </Typography>
                   </Stack>
                 </Alert>
@@ -309,11 +305,7 @@ class ErrorBoundary extends React.Component {
 
               {/* Support Information */}
               <Box sx={{ mt: 2 }}>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  gutterBottom
-                >
+                <Typography variant="body2" color="text.secondary" gutterBottom>
                   If this problem persists, please contact our support team:
                 </Typography>
                 <Button
@@ -372,7 +364,9 @@ class ErrorBoundary extends React.Component {
                 fontSize: "var(--t-2xs)",
               }}
             >
-              <summary style={{ cursor: "pointer", fontWeight: "var(--w-bold)" }}>
+              <summary
+                style={{ cursor: "pointer", fontWeight: "var(--w-bold)" }}
+              >
                 Details
               </summary>
               <pre

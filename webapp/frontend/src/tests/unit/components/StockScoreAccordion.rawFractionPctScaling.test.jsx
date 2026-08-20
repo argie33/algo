@@ -27,7 +27,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { QUALITY_SCHEMA, STABILITY_SCHEMA } from "../../../components/StockScoreAccordion";
+import {
+  QUALITY_SCHEMA,
+  STABILITY_SCHEMA,
+} from "../../../components/StockScoreAccordion";
 
 const field = (schema, key) => schema.find((s) => s.key === key);
 

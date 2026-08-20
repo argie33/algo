@@ -45,7 +45,10 @@ export default function PETrendChart({ sectorName, industryName }) {
     .map((item) => ({
       date: item.date ? new Date(item.date).toLocaleDateString() : "—",
       avgPrice: item.avgPrice !== null ? parseFloat(item.avgPrice) : null,
-      stockCount: item.stockCount !== null && item.stockCount !== undefined ? item.stockCount : null,
+      stockCount:
+        item.stockCount !== null && item.stockCount !== undefined
+          ? item.stockCount
+          : null,
     }))
     .filter((item) => item.avgPrice !== null);
 

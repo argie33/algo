@@ -151,7 +151,8 @@ export default function SwingCandidates() {
     const top10Score =
       top10.length === 0
         ? 0
-        : top10.reduce((s, i) => s + (i.composite_score || 0), 0) / top10.length;
+        : top10.reduce((s, i) => s + (i.composite_score || 0), 0) /
+          top10.length;
     return { total: itemsList.length, passing, gradeA, top10Score };
   }, [itemsList]);
 

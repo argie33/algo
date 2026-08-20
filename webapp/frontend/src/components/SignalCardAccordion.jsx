@@ -239,9 +239,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           fontWeight={700}
                           sx={{ fontSize: "0.9rem" }}
                         >
-                          {signal.entry_price !== undefined && signal.entry_price !== null
+                          {signal.entry_price !== undefined &&
+                          signal.entry_price !== null
                             ? formatCurrency(signal.entry_price)
-                            : signal.buylevel !== undefined && signal.buylevel !== null
+                            : signal.buylevel !== undefined &&
+                                signal.buylevel !== null
                               ? formatCurrency(signal.buylevel)
                               : "—"}
                         </Typography>

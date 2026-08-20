@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 /**
  * Hook to validate and handle data from API responses.
@@ -18,20 +18,20 @@ export const useDataValidation = (data, fieldPath = null) => {
 
     if (data === null || data === undefined) {
       result.hasError = true;
-      result.error = 'Data is null or undefined';
+      result.error = "Data is null or undefined";
       return result;
     }
 
     // Check for DataError discriminator pattern
-    if (typeof data === 'object' && data.isDataError === true) {
+    if (typeof data === "object" && data.isDataError === true) {
       result.hasError = true;
-      result.error = data.message || 'Data validation error';
+      result.error = data.message || "Data validation error";
       return result;
     }
 
     // If fieldPath specified, navigate to nested field
     if (fieldPath) {
-      const parts = fieldPath.split('.');
+      const parts = fieldPath.split(".");
       let current = data;
 
       for (const part of parts) {
@@ -44,9 +44,10 @@ export const useDataValidation = (data, fieldPath = null) => {
       }
 
       // Check if nested value is a DataError
-      if (typeof current === 'object' && current?.isDataError === true) {
+      if (typeof current === "object" && current?.isDataError === true) {
         result.hasError = true;
-        result.error = current.message || 'Data validation error in nested field';
+        result.error =
+          current.message || "Data validation error in nested field";
         return result;
       }
 
@@ -73,9 +74,9 @@ export const useDataValidationMultiple = (fields) => {
       values: {},
     };
 
-    if (!fields || typeof fields !== 'object') {
+    if (!fields || typeof fields !== "object") {
       result.isValid = false;
-      result.errors.root = 'Invalid fields object';
+      result.errors.root = "Invalid fields object";
       return result;
     }
 
@@ -83,14 +84,14 @@ export const useDataValidationMultiple = (fields) => {
       // Check for null/undefined
       if (value === null || value === undefined) {
         result.isValid = false;
-        result.errors[key] = 'Value is null or undefined';
+        result.errors[key] = "Value is null or undefined";
         continue;
       }
 
       // Check for DataError
-      if (typeof value === 'object' && value.isDataError === true) {
+      if (typeof value === "object" && value.isDataError === true) {
         result.isValid = false;
-        result.errors[key] = value.message || 'Data validation error';
+        result.errors[key] = value.message || "Data validation error";
         continue;
       }
 
@@ -108,9 +109,10 @@ export const useDataValidationMultiple = (fields) => {
  */
 export const useHasDataErrors = (response) => {
   return useMemo(() => {
-    if (!response || typeof response !== 'object') return false;
+    if (!response || typeof response !== "object") return false;
     if (response.isDataError === true) return true;
-    if (Array.isArray(response.errors) && response.errors.length > 0) return true;
+    if (Array.isArray(response.errors) && response.errors.length > 0)
+      return true;
     return false;
   }, [response]);
 };
@@ -123,7 +125,7 @@ export const useHasDataErrors = (response) => {
 export const getResponseErrors = (response) => {
   const errors = [];
 
-  if (!response || typeof response !== 'object') {
+  if (!response || typeof response !== "object") {
     return errors;
   }
 
@@ -132,7 +134,7 @@ export const getResponseErrors = (response) => {
   }
 
   if (Array.isArray(response.errors)) {
-    errors.push(...response.errors.filter(e => typeof e === 'string'));
+    errors.push(...response.errors.filter((e) => typeof e === "string"));
   }
 
   return errors;

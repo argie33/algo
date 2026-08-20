@@ -85,11 +85,14 @@ function TableRow({ tableName, health, loader, statusColor }) {
   // so a table shouldn't lose its failure reason/count just because a separate loader-status
   // fetch didn't cover it.
   const errorMsg = loader?.error_message || health?.loader_error;
-  const consecutiveFails = loader?.consecutive_failures ?? health?.consecutive_failures;
+  const consecutiveFails =
+    loader?.consecutive_failures ?? health?.consecutive_failures;
 
   const completion = loader?.completion_pct;
   const completionText =
-    completion !== null && completion !== undefined ? `${Math.round(completion)}%` : "";
+    completion !== null && completion !== undefined
+      ? `${Math.round(completion)}%`
+      : "";
 
   return (
     <div
@@ -259,7 +262,11 @@ function CategorySection({ category, tables, statusColor, maxDisplay = 5 }) {
 /**
  * LoaderHealthPanel component
  */
-export function LoaderHealthPanel({ healthData, loading = false, error = null }) {
+export function LoaderHealthPanel({
+  healthData,
+  loading = false,
+  error = null,
+}) {
   const categorized = useMemo(() => {
     const categories = {
       healthy: [],
@@ -345,7 +352,10 @@ export function LoaderHealthPanel({ healthData, loading = false, error = null })
     return categories;
   }, [healthData]);
 
-  const totalTables = Object.values(categorized).reduce((sum, cat) => sum + cat.length, 0);
+  const totalTables = Object.values(categorized).reduce(
+    (sum, cat) => sum + cat.length,
+    0
+  );
 
   if (loading) {
     return (
@@ -358,7 +368,13 @@ export function LoaderHealthPanel({ healthData, loading = false, error = null })
           color: COLORS.DIM,
         }}
       >
-        <Loader size={20} style={{ marginRight: "var(--space-2)", animation: "spin 1s linear infinite" }} />
+        <Loader
+          size={20}
+          style={{
+            marginRight: "var(--space-2)",
+            animation: "spin 1s linear infinite",
+          }}
+        />
         Loading loader health data...
       </div>
     );
@@ -375,7 +391,13 @@ export function LoaderHealthPanel({ healthData, loading = false, error = null })
           color: COLORS.RED,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-2)",
+          }}
+        >
           <XCircle size={16} />
           <span>Failed to load health data: {error}</span>
         </div>
@@ -405,7 +427,9 @@ export function LoaderHealthPanel({ healthData, loading = false, error = null })
     );
   }
   if (categorized.stale.length > 0) {
-    summaryBadges.push(`${categorized.stale.length}${STATUS_CONFIG.stale.icon}`);
+    summaryBadges.push(
+      `${categorized.stale.length}${STATUS_CONFIG.stale.icon}`
+    );
   }
   if (categorized.critical.length > 0) {
     summaryBadges.push(
@@ -413,10 +437,14 @@ export function LoaderHealthPanel({ healthData, loading = false, error = null })
     );
   }
   if (categorized.empty.length > 0) {
-    summaryBadges.push(`${categorized.empty.length}${STATUS_CONFIG.empty.icon}`);
+    summaryBadges.push(
+      `${categorized.empty.length}${STATUS_CONFIG.empty.icon}`
+    );
   }
   if (categorized.error.length > 0) {
-    summaryBadges.push(`${categorized.error.length}${STATUS_CONFIG.error.icon}`);
+    summaryBadges.push(
+      `${categorized.error.length}${STATUS_CONFIG.error.icon}`
+    );
   }
 
   return (
