@@ -146,6 +146,40 @@ class TestTotalDollarFallback:
         assert all(r["dividend_per_share"] is not None for r in results if not r.get("data_unavailable"))
         assert not any(r.get("source", "").startswith("SEC_XBRL_TOTAL_") for r in results)
 
+    def test_longest_ifrs_total_concept_source_string_fits_the_column(self):
+        # FIXED 2026-08-19 (live-crashed during a triggered backfill): dividend_data.source
+        # is VARCHAR(120) (migration 1212). "SEC_XBRL_TOTAL_" (15 chars) +
+        # DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities (67 chars) = 82
+        # chars, which fit under 120 but overflowed the previous 80-char limit (migration
+        # 1210) - live-crashed BEPC/BVN/BWLP/CAAP/DEO/ENLT/FMX/GRFS and more. This asserts the
+        # real longest known concept's constructed source string, not just the truncation
+        # helper in isolation, so a future re-narrowing of the column would be caught here too.
+        ifrs = {
+            "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities": {
+                "units": {
+                    "USD": [{"start": "2025-01-01", "end": "2025-12-31", "val": 100_000_000, "filed": "2026-01-01"}]
+                }
+            }
+        }
+        results = _loader()._extract_total_dividends_from_xbrl_concept(
+            "X", ifrs, "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities"
+        )
+        assert len(results) == 1
+        source = results[0]["source"]
+        assert len(source) <= 120
+        assert source == "SEC_XBRL_TOTAL_DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities"
+
+    def test_bounded_source_truncates_a_hypothetically_longer_future_concept(self):
+        # Defense against a future SEC concept name even longer than any known today -
+        # source is free-text provenance metadata, not a financial value, so truncating is
+        # safe (unlike every numeric bound in this file, which rejects rather than truncates).
+        from loaders.load_dividend_data import _bounded_source
+
+        hypothetical = "SEC_XBRL_TOTAL_" + "X" * 200
+        result = _bounded_source(hypothetical)
+        assert len(result) == 120
+        assert result == hypothetical[:120]
+
     def test_concept_lists_are_ordered_most_specific_first(self):
         # PaymentsOfDividendsCommonStock (common-only) must precede the broader
         # PaymentsOfDividends (may include preferred/NCI at some filers) so the dedup-by-

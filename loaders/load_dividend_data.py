@@ -100,6 +100,24 @@ _TOTAL_DIVIDEND_CONCEPTS_IFRS = (
 # column's own overflow line" convention as the per-share magnitude guard below.
 _MAX_PLAUSIBLE_TOTAL_DIVIDEND = 10**13
 
+# dividend_data.source is VARCHAR(120) (migration 1212). FIXED 2026-08-19 (live-crashed during
+# a triggered backfill, minutes after landing): migration 1210 widened this column to 80 chars
+# to cover the longest per-share concept name known at the time, but the total-dollar fallback
+# (added the same day, after 1210 was written) uses a longer "SEC_XBRL_TOTAL_" prefix -
+# DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities alone produced an 82-char
+# source string, 2 over the limit, live-crashing the COPY for BEPC/BVN/BWLP/CAAP/DEO/ENLT/FMX/
+# GRFS and more real IFRS dividend payers within minutes. Migration 1212 widened the column
+# again (120), but a hardcoded Python f-string has no way to know the column's own limit changed
+# - truncating defensively here means any FUTURE SEC concept name longer than this can never
+# crash a symbol's entire dividend row again; source is free-text provenance metadata, not a
+# financial value, so truncation is safe (unlike every other bound in this file, which rejects
+# rather than truncates).
+_SOURCE_MAX_LEN = 120
+
+
+def _bounded_source(raw_source: str) -> str:
+    return raw_source[:_SOURCE_MAX_LEN]
+
 
 class DividendDataLoader(SecLoaderBase):
     """Load dividend data from SEC EDGAR XBRL.
@@ -292,7 +310,7 @@ class DividendDataLoader(SecLoaderBase):
                         "currency": "USD",
                         "data_unavailable": False,
                         "data_unavailable_reason": None,
-                        "source": f"SEC_XBRL_{concept_name}",
+                        "source": _bounded_source(f"SEC_XBRL_{concept_name}"),
                     }
                 )
 
@@ -413,7 +431,7 @@ class DividendDataLoader(SecLoaderBase):
                         "currency": "USD",
                         "data_unavailable": False,
                         "data_unavailable_reason": None,
-                        "source": f"SEC_XBRL_TOTAL_{concept_name}",
+                        "source": _bounded_source(f"SEC_XBRL_TOTAL_{concept_name}"),
                     }
                 )
 
