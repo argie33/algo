@@ -688,155 +688,58 @@ class SignalQualityScoresLoader(OptimalLoader):
                 if not signal_type:
                     continue
 
-                # Use strategy pattern for signal-specific scoring (eliminates OO abuser switch statements)
-                from loaders.signal_quality_scorer import get_signal_scorer
-
-                scorer = get_signal_scorer(signal_type)
-                base_quality_score = scorer.calculate_base_quality_score()
-
-                # Volume confirmation score (0-20): based on MACD/RSI
                 rsi = row["rsi"] if "rsi" in row.index else None
                 macd = row["macd"] if "macd" in row.index else None
                 macd_signal = row["macd_signal"] if "macd_signal" in row.index else None
-                volume_confirmation_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-
-                # Trend template score (0-25): minervini score and stage
                 minervini = row["minervini_score"] if "minervini_score" in row.index else None
                 weinstein_stage = row["weinstein_stage"] if "weinstein_stage" in row.index else None
-                trend_template_score = scorer.calculate_trend_template_score(minervini, weinstein_stage)
-
-                if trend_template_score > 25:
-                    logger.warning(
-                        f"[SQS_CLAMP] {symbol}: Trend template score clamped from {trend_template_score} to 25. "
-                        "This indicates a trend signal stronger than designed threshold."
-                    )
-                trend_template_score = min(25, trend_template_score)
-
-                # Distance from high score (0-15): closer to 52w high = better
-                distance_from_high_score = 0
                 pct_from_high = row["percent_from_52w_high"] if "percent_from_52w_high" in row.index else None
-                if pct_from_high is not None:
-                    try:
-                        pct = float(pct_from_high)
-                        # Check for NaN and skip if found
-                        if not pd.isna(pct):
-                            if pct >= -5:  # Within 5% of 52w high
-                                distance_from_high_score = 15
-                            elif pct >= -10:
-                                distance_from_high_score = 12
-                            elif pct >= -20:
-                                distance_from_high_score = 8
-                            elif pct >= -30:
-                                distance_from_high_score = 4
-                    except (ValueError, TypeError) as e:
-                        raise ValueError(
-                            f"[SQS] Critical: Cannot parse percent_from_52w_high '{pct_from_high}' for {symbol}. "
-                            f"This field is required for accurate signal quality scoring. Raw error: {e}"
-                        ) from e
-
-                # Institutional ownership score (0-10) — None if positioning data unavailable
-                institutional_ownership_score = None
-                if institutional_ownership is not None and not pd.isna(institutional_ownership):
-                    if institutional_ownership >= 60:
-                        institutional_ownership_score = 10
-                    elif institutional_ownership >= 40:
-                        institutional_ownership_score = 8
-                    elif institutional_ownership >= 20:
-                        institutional_ownership_score = 5
-                    else:
-                        institutional_ownership_score = 2
-
-                # Market stage score (0-10): Weinstein stage 2 and 3 are best
-                market_stage_score = 0
-                if weinstein_stage is not None and not pd.isna(weinstein_stage):
-                    try:
-                        stage = int(weinstein_stage)
-                        if stage in [2, 3]:
-                            market_stage_score = 10
-                        elif stage in [1, 4]:
-                            market_stage_score = 5
-                        else:
-                            market_stage_score = 2
-                    except (ValueError, TypeError) as e:
-                        raise ValueError(
-                            f"[SQS] Critical: Cannot parse weinstein_stage '{weinstein_stage}' for {symbol}. "
-                            f"This field is required for market stage analysis. Raw error: {e}"
-                        ) from e
-
-                # VCP pattern score (0-10) — None if VCP data unavailable
-                vcp_pattern_score = None
                 vcp_strength = row["vcp_strength"] if "vcp_strength" in row.index else None
-                if vcp_strength is not None and not pd.isna(vcp_strength):
-                    try:
-                        strength = int(vcp_strength)
-                        if strength >= 8:
-                            vcp_pattern_score = 10
-                        elif strength >= 6:
-                            vcp_pattern_score = 8
-                        elif strength >= 4:
-                            vcp_pattern_score = 5
-                        else:
-                            vcp_pattern_score = 2
-                    except (ValueError, TypeError) as e:
-                        raise ValueError(
-                            f"[SQS] Critical: Cannot parse vcp_strength '{vcp_strength}' for {symbol}. "
-                            f"This field is required for VCP pattern analysis. Raw error: {e}"
-                        ) from e
+
+                try:
+                    pct_from_high = float(pct_from_high) if pct_from_high is not None else None
+                except (ValueError, TypeError) as e:
+                    raise ValueError(
+                        f"[SQS] Critical: Cannot parse percent_from_52w_high '{pct_from_high}' for {symbol}. "
+                        f"This field is required for accurate signal quality scoring. Raw error: {e}"
+                    ) from e
+
+                # Composite score: weighted sum of available raw component values over the sum
+                # of THEIR max values, scaled to 0-100. Each component's max value encodes its
+                # designed importance (base_quality's 50-point ceiling should dominate;
+                # vcp_pattern's 10-point ceiling should barely move the needle). See
+                # loaders/signal_quality_scorer.py::compute_signal_quality_components - the
+                # single source of truth shared with phase7_signal_generation.py's live scoring
+                # path, so the entry-gating score can never silently diverge from this formula
+                # again (see tests/unit/test_signal_quality_composite_weighting.py history).
+                from loaders.signal_quality_scorer import compute_signal_quality_components
+
+                scores = compute_signal_quality_components(
+                    signal_type=signal_type,
+                    rsi=rsi,
+                    macd=macd,
+                    macd_signal=macd_signal,
+                    minervini_score=minervini,
+                    weinstein_stage=weinstein_stage,
+                    percent_from_52w_high=pct_from_high,
+                    institutional_ownership=institutional_ownership,
+                    vcp_strength=vcp_strength,
+                )
+                base_quality_score = scores["base_quality_score"]
+                volume_confirmation_score = scores["volume_confirmation_score"]
+                trend_template_score = scores["trend_template_score"]
+                distance_from_high_score = scores["distance_from_high_score"]
+                institutional_ownership_score = scores["institutional_ownership_score"]
+                market_stage_score = scores["market_stage_score"]
+                vcp_pattern_score = scores["vcp_pattern_score"]
+                composite_sqs = scores["composite_sqs"]
+                data_completeness = scores["data_completeness"]
+                unavailable_components = scores["unavailable_components"]
 
                 # Distribution days and earnings proximity scores require external data
                 # If data unavailable, skip rather than using fake defaults
                 distribution_days_score = None
                 earnings_proximity_score = None
-
-                # Composite score: weighted sum of available raw component values over the
-                # sum of THEIR max values, scaled to 0-100. Each component's max value
-                # encodes its designed importance (base_quality's 50-point ceiling should
-                # dominate; vcp_pattern's 10-point ceiling should barely move the needle).
-                #
-                # GOVERNANCE-RELEVANT REGRESSION (found 2026-07-27, introduced by commit
-                # 2bd9e9433): that commit fixed a real bug (direct point-sum could exceed
-                # 100 and got lossily clamped) by normalizing each component to its OWN
-                # 0-100% first and then averaging those percentages with equal weight. That
-                # silently discarded the intended weighting entirely - institutional_ownership
-                # (max 10 raw points) ended up exactly as influential on the composite as
-                # base_quality (max 50 raw points), a 5x weighting inversion from the
-                # as-designed scale. This score is synced live into
-                # buy_sell_daily.signal_quality_score/entry_quality_score (see
-                # _sync_scores_to_buy_sell below) and had zero test coverage, so the
-                # inversion shipped silently. Fixed back to weighted-sum-over-available-maxes,
-                # which both preserves the intended per-component weighting AND avoids the
-                # original >100 clamping bug (the denominator only sums maxes for components
-                # that are actually present, so the ratio is mathematically bounded to [0, 1]
-                # without any clamp).
-                all_components = {
-                    "base_quality": base_quality_score,  # max 50
-                    "volume_confirmation": volume_confirmation_score,  # max 20
-                    "trend_template": trend_template_score,  # max 25
-                    "distance_from_high": distance_from_high_score,  # max 15
-                    "institutional_ownership": institutional_ownership_score,  # max 10
-                    "market_stage": market_stage_score,  # max 10
-                    "vcp_pattern": vcp_pattern_score,  # max 10
-                }
-                component_maxes = {
-                    "base_quality": 50,
-                    "volume_confirmation": 20,
-                    "trend_template": 25,
-                    "distance_from_high": 15,
-                    "institutional_ownership": 10,
-                    "market_stage": 10,
-                    "vcp_pattern": 10,
-                }
-
-                available_maxes = {k: component_maxes[k] for k, v in all_components.items() if v is not None}
-                unavailable_components = {k: v for k, v in all_components.items() if v is None}
-
-                total_max = sum(available_maxes.values())
-                composite_sqs = (
-                    int(sum(v for v in all_components.values() if v is not None) / total_max * 100)
-                    if total_max > 0
-                    else 0
-                )
-                data_completeness = min(99.99, round((len(available_maxes) / 7.0) * 100, 2))
 
                 date_val = row["date"] if "date" in row.index else None
                 if date_val is not None:
@@ -867,7 +770,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                             "earnings_proximity_score": earnings_proximity_score,  # None (data unavailable)
                             "composite_sqs": composite_sqs,
                             "data_completeness": data_completeness,  # % of components available
-                            "unavailable_components": list(unavailable_components.keys()),  # Track which are missing
+                            "unavailable_components": unavailable_components,  # Track which are missing
                             "buy_sell_daily_age_days": bs_age,
                             "technical_data_age_days": tech_age,
                             "trend_template_age_days": trend_age,

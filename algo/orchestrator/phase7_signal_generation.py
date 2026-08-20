@@ -230,6 +230,53 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
     return max(0.0, min(100.0, 100.0 - (atr_pct * 5)))
 
 
+def _fetch_institutional_ownership_for_scoring(symbol: str) -> float | None:
+    """Fetch institutional_ownership_pct for live signal quality scoring.
+
+    Isolated in its own DatabaseContext (own connection/transaction) rather than
+    reusing the candidate loop's shared cursor, so any failure here can never abort
+    that shared transaction for the remaining candidates in the loop (see
+    connection_pool_transaction_abort_cascade in project memory). Mirrors
+    loaders/load_signal_quality_scores.py::_fetch_positioning_data's same
+    treat-as-optional-enrichment approach. Returns None on any failure - missing
+    institutional ownership data is common (OTC, preferred, warrant securities) and
+    must degrade the composite score gracefully, not block signal generation.
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT institutional_ownership_pct FROM positioning_metrics WHERE symbol = %s",
+                (symbol,),
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0])
+    except Exception as e:
+        logger.debug(f"[PHASE 7] {symbol}: institutional_ownership unavailable for scoring: {e}")
+    return None
+
+
+def _fetch_vcp_strength_for_scoring(symbol: str, signal_date: str) -> float | None:
+    """Fetch vcp_strength for live signal quality scoring.
+
+    Same isolation rationale as _fetch_institutional_ownership_for_scoring above.
+    Returns None on any failure, including a missing vcp_patterns table/row - VCP
+    pattern data is an optional enrichment component, not a required one.
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT vcp_strength FROM vcp_patterns WHERE symbol = %s AND date = %s",
+                (symbol, signal_date),
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0])
+    except Exception as e:
+        logger.debug(f"[PHASE 7] {symbol}: vcp_strength unavailable for scoring: {e}")
+    return None
+
+
 # ISSUE #6 FIX: Define required signal fields for Phase 7 execution
 # Note: market_stage is optional (used only for logging, defaults to "unknown" if missing).
 # All other fields are critical for signal validation and execution.
@@ -684,7 +731,7 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
         # Compute signal quality scores (composite_sqs & trend_template_score) for candidates.
         # ARCHITECTURE FIX (Session 376): Batch loader fails for live signals. Compute inline instead.
         if candidates:
-            from loaders.signal_quality_scorer import get_signal_scorer
+            from loaders.signal_quality_scorer import compute_signal_quality_components
 
             with DatabaseContext("read") as cur_sqs:
                 for candidate in candidates:
@@ -709,16 +756,28 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
                             )
                         cur_sqs.execute(
                             """
+                            WITH price_window AS (
+                                SELECT date, close,
+                                       MAX(high) OVER (
+                                           ORDER BY date ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                                       ) AS high_52w
+                                FROM price_daily
+                                WHERE symbol = %s AND date <= %s
+                            )
                             SELECT
                                 t.rsi, t.macd, t.macd_signal,
                                 COALESCE(tr1.minervini_trend_score, tr2.minervini_trend_score) as minervini,
-                                COALESCE(tr1.weinstein_stage, tr2.weinstein_stage) as weinstein
+                                COALESCE(tr1.weinstein_stage, tr2.weinstein_stage) as weinstein,
+                                CASE WHEN pw.high_52w > 0
+                                     THEN (pw.close - pw.high_52w) / pw.high_52w * 100
+                                     ELSE NULL END AS percent_from_52w_high
                             FROM technical_data_daily t
                             LEFT JOIN trend_template_data tr1 ON tr1.symbol = t.symbol AND tr1.date = t.date
                             LEFT JOIN trend_template_data tr2 ON tr2.symbol = t.symbol AND tr2.date = t.date - INTERVAL '1 day'
+                            LEFT JOIN price_window pw ON pw.date = t.date
                             WHERE t.symbol = %s AND t.date = %s
                             """,
-                            (symbol, signal_date),
+                            (symbol, signal_date, symbol, signal_date),
                         )
                         tech_row = cur_sqs.fetchone()
 
@@ -738,7 +797,7 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
                                 f"(3) Phase 7 run timing vs technical loader completion."
                             )
 
-                        rsi, macd, macd_signal, minervini, weinstein = tech_row
+                        rsi, macd, macd_signal, minervini, weinstein, pct_from_52w_high = tech_row
 
                         # CRITICAL FIX: psycopg2 returns numeric columns as Decimal type
                         # Convert to float BEFORE passing to scorer (scorer uses pd.isna and float comparisons)
@@ -748,6 +807,7 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
                         macd_signal = float(macd_signal) if macd_signal is not None else None
                         minervini = float(minervini) if minervini is not None else None
                         weinstein = int(weinstein) if weinstein is not None else None
+                        pct_from_52w_high = float(pct_from_52w_high) if pct_from_52w_high is not None else None
 
                         # CRITICAL FIX: Check for missing trend_template_data after fallback attempt
                         # Queries today's trend_template_data first; if missing, falls back to yesterday's via COALESCE
@@ -765,14 +825,33 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
                             minervini = minervini or 2.0  # Conservative estimate
                             weinstein = weinstein or 1  # Conservative estimate
 
-                        # Compute scores using strategy pattern (same as batch loader)
-                        scorer = get_signal_scorer("BUY")
-                        base_score = scorer.calculate_base_quality_score()
-                        volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-                        trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
+                        # Compute scores via the single shared formula (loaders/signal_quality_scorer.py::
+                        # compute_signal_quality_components) - the SAME function the batch/EOD loader
+                        # (loaders/load_signal_quality_scores.py) uses. Previously this inline path summed
+                        # only 3 of the 7 designed components (base+volume+trend, raw sum clamped at 100)
+                        # while its own comment falsely claimed "same as batch loader" - the batch loader's
+                        # tested, weighted-sum-over-available-maxes formula never actually reached
+                        # buy_sell_daily.signal_quality_score/Phase 8's entry gate because this inline write
+                        # ran first and unconditionally. Fixed 2026-08-20: both paths now call the same
+                        # function, so the score that gates real trade entries can't silently diverge from
+                        # the documented/tested weighting again.
+                        institutional_ownership = _fetch_institutional_ownership_for_scoring(symbol)
+                        vcp_strength = _fetch_vcp_strength_for_scoring(symbol, signal_date)
 
-                        # Composite SQS = sum of components (clamped to 100)
-                        composite_sqs = min(100, int(base_score + volume_score + trend_score))
+                        scores = compute_signal_quality_components(
+                            signal_type="BUY",
+                            rsi=rsi,
+                            macd=macd,
+                            macd_signal=macd_signal,
+                            minervini_score=minervini,
+                            weinstein_stage=weinstein,
+                            percent_from_52w_high=pct_from_52w_high,
+                            institutional_ownership=institutional_ownership,
+                            vcp_strength=vcp_strength,
+                        )
+                        base_score = scores["base_quality_score"]
+                        trend_score = scores["trend_template_score"]
+                        composite_sqs = scores["composite_sqs"]
 
                         candidate["signal_quality_score"] = composite_sqs
                         candidate["trend_template_score"] = trend_score
@@ -790,6 +869,7 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
                         logger.debug(
                             f"[PHASE 7 SCORING] {symbol}: "
                             f"sqs={composite_sqs} trend={trend_score} base_quality={candidate['base_quality']} "
+                            f"data_completeness={scores['data_completeness']} "
                             f"base_type={candidate.get('base_type')}"
                         )
 
@@ -1707,10 +1787,9 @@ def run(  # noqa: C901
             backfill_rows = cur_backfill.fetchall()
 
         if backfill_rows:
-            from loaders.signal_quality_scorer import get_signal_scorer
+            from loaders.signal_quality_scorer import compute_signal_quality_components
 
             backfill_scores = []
-            scorer = get_signal_scorer("BUY")
 
             # CRITICAL FIX: Move DatabaseContext outside the for loop to prevent connection leaks
             # Opening a new context for each iteration exhausts the connection pool
@@ -1720,14 +1799,26 @@ def run(  # noqa: C901
                         # Fetch technical data AND trend template data for full score computation
                         cur_tech_shared.execute(
                             """
+                            WITH price_window AS (
+                                SELECT date, close,
+                                       MAX(high) OVER (
+                                           ORDER BY date ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                                       ) AS high_52w
+                                FROM price_daily
+                                WHERE symbol = %s AND date <= %s
+                            )
                             SELECT
                               t.rsi, t.macd, t.macd_signal,
-                              tr.minervini_trend_score, tr.weinstein_stage
+                              tr.minervini_trend_score, tr.weinstein_stage,
+                              CASE WHEN pw.high_52w > 0
+                                   THEN (pw.close - pw.high_52w) / pw.high_52w * 100
+                                   ELSE NULL END AS percent_from_52w_high
                             FROM technical_data_daily t
                             LEFT JOIN trend_template_data tr ON tr.symbol = t.symbol AND tr.date = t.date
+                            LEFT JOIN price_window pw ON pw.date = t.date
                             WHERE t.symbol = %s AND t.date = %s
                         """,
-                            (symbol, signal_date),
+                            (symbol, signal_date, symbol, signal_date),
                         )
                         tech_row = cur_tech_shared.fetchone()
 
@@ -1735,7 +1826,7 @@ def run(  # noqa: C901
                             logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
                             continue
 
-                        rsi, macd, macd_signal, minervini, weinstein = tech_row
+                        rsi, macd, macd_signal, minervini, weinstein, pct_from_52w_high = tech_row
                         # CRITICAL: Missing trend data for older dates is expected (historical backfill)
                         # Skip rather than halt, since backfill targets old signals without scores
                         # Main signal generation (for current date) will halt if trend data missing
@@ -1745,22 +1836,27 @@ def run(  # noqa: C901
                                 f"This is expected for older dates. Main signal generation will halt if trend data missing for current date."
                             )
                             continue
-                        # Compute score using same logic as inline scorer (with trend data)
+                        # Compute score via the same shared formula as the main inline scorer above
+                        # and the batch loader (loaders/signal_quality_scorer.py::
+                        # compute_signal_quality_components) - see the fix note on the main inline
+                        # scorer block for why this consolidation matters.
                         try:
-                            base_score = scorer.calculate_base_quality_score()
-                            if base_score is None or base_score < 0:
-                                raise ValueError(
-                                    f"Base score calculation failed: got {base_score} (expected 0-100 range)"
-                                )
-                            volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-                            if volume_score is None:
-                                raise ValueError(
-                                    f"Volume score calculation failed: got None for {symbol} {signal_date}"
-                                )
-                            trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
-                            if trend_score is None:
-                                raise ValueError(f"Trend score calculation failed: got None for {symbol} {signal_date}")
-                            composite_sqs = min(100, int(base_score + volume_score + trend_score))
+                            institutional_ownership = _fetch_institutional_ownership_for_scoring(symbol)
+                            vcp_strength = _fetch_vcp_strength_for_scoring(symbol, str(signal_date))
+                            scores = compute_signal_quality_components(
+                                signal_type="BUY",
+                                rsi=rsi,
+                                macd=macd,
+                                macd_signal=macd_signal,
+                                minervini_score=minervini,
+                                weinstein_stage=weinstein,
+                                percent_from_52w_high=(
+                                    float(pct_from_52w_high) if pct_from_52w_high is not None else None
+                                ),
+                                institutional_ownership=institutional_ownership,
+                                vcp_strength=vcp_strength,
+                            )
+                            composite_sqs = scores["composite_sqs"]
                             if composite_sqs < 0 or composite_sqs > 100:
                                 raise ValueError(f"Composite SQS out of range: {composite_sqs} (expected 0-100)")
                             backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
