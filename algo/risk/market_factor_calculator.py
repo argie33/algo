@@ -540,8 +540,12 @@ class MarketFactorCalculator:
                         f"exceeds 21-day tolerance for a weekly survey. Check the aaii_sentiment "
                         f"loader - it may have stopped running."
                     )
-                bull = float(row[0])
-                bear = float(row[1])
+                # aaii_sentiment.bullish/bearish are stored as fractions of 1 (e.g. 0.3470 =
+                # 34.7%), not percentage-points - confirmed live 2026-08-20 across 2036/2041
+                # rows back to 1987. The spread/±15 contrarian thresholds below are calibrated
+                # for a percentage-point scale, so convert here rather than at every call site.
+                bull = float(row[0]) * 100
+                bear = float(row[1]) * 100
                 if math.isnan(bull) or math.isinf(bull) or math.isnan(bear) or math.isinf(bear):
                     raise RuntimeError(
                         f"[AAII CRITICAL] Non-finite AAII sentiment data: bullish={bull!r}, bearish={bear!r}. "

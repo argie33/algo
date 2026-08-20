@@ -37,21 +37,25 @@ def calc():
 
 
 class TestAaiiStaleness:
+    # aaii_sentiment.bullish/bearish are stored as fractions of 1 (e.g. 0.30 = 30%), not
+    # percentage-points - aaii() converts internally (see its "confirmed live 2026-08-20"
+    # comment). Mock values below use the real fraction scale so the spread math (and the
+    # 5pp gap -> neutral expectation) matches production.
     def test_fresh_reading_within_tolerance_succeeds(self, calc):
         cur = MagicMock()
-        cur.fetchone.return_value = (30.0, 25.0, date(2026, 8, 6))
+        cur.fetchone.return_value = (0.30, 0.25, date(2026, 8, 6))
         result = calc.aaii(date(2026, 8, 11), cur)
         assert result["score"] == 50  # neutral spread
 
     def test_reading_exactly_at_boundary_succeeds(self, calc):
         cur = MagicMock()
-        cur.fetchone.return_value = (30.0, 25.0, date(2026, 7, 21))  # exactly 21 days
+        cur.fetchone.return_value = (0.30, 0.25, date(2026, 7, 21))  # exactly 21 days
         result = calc.aaii(date(2026, 8, 11), cur)
         assert result["score"] == 50
 
     def test_stale_reading_beyond_tolerance_raises(self, calc):
         cur = MagicMock()
-        cur.fetchone.return_value = (30.0, 25.0, date(2026, 7, 1))  # 41 days stale
+        cur.fetchone.return_value = (0.30, 0.25, date(2026, 7, 1))  # 41 days stale
         with pytest.raises(RuntimeError, match="stale"):
             calc.aaii(date(2026, 8, 11), cur)
 

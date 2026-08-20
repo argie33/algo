@@ -206,12 +206,9 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("[EXPOSURE] Risk factor missing: ad_line missing relation field")
             return "[yellow]⚠[/]"  # Missing relation field
         if key == "aaii_sentiment":
-            # bullish_pct/bearish_pct are already 0-100 scale (aaii_sentiment.bullish/bearish
-            # columns, confirmed via algo/risk/factors/aaii_sentiment_factor.py's
-            # spread = bullish_pct - bearish_pct compared against a +-15 threshold, which only
-            # makes sense on a percentage-point scale - AAII bullish% has never historically
-            # been <=1.0). A previous "auto-detect fraction vs percentage" heuristic here
-            # (multiply by 100 whenever <=1.0) was built on the opposite, incorrect premise.
+            # bullish_pct/bearish_pct are 0-100 scale - MarketFactorCalculator.aaii() converts
+            # from the DB's stored 0-1 fraction scale before returning (fixed 2026-08-20; the
+            # raw aaii_sentiment.bullish/bearish columns are fractions, not percentage-points).
             bull = safe_float(f.get("bullish_pct"), default=None)
             bear = safe_float(f.get("bearish_pct"), default=None)
             if bull is not None and bear is not None:

@@ -23,6 +23,7 @@ Run: python3 loaders/load_market_status_daily.py [--backfill-days N]
 """
 
 import logging
+import os
 import sys
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
@@ -529,7 +530,22 @@ class MarketStatusDailyLoader(OptimalLoader):
 
             # Delegate to MarketExposure compute logic (reuse existing computation)
             exposure = MarketExposure()
-            result = exposure.compute(eval_date, force_recompute=False)
+            # BUG FOUND 2026-08-20: MarketExposure.compute() caches one row per eval_date and
+            # never re-derives it once written (see its own docstring/cache-check) - correct
+            # for normal daily runs, but it means a same-day code change to the exposure model
+            # (a new factor, a rebalanced weight, a bugfix) can never be reflected until the
+            # date rolls over, even via `scripts/run_loader.py market_status --force-refresh`
+            # - that flag sets TECH_FULL_REFRESH=true and is the established way every other
+            # loader bypasses its own caching/watermarks, but this loader never checked it, so
+            # the flag silently did nothing here specifically. Live-confirmed the same day the
+            # exposure-model redesign landed: the morning run's pre-redesign row sat stale
+            # through the whole day with no supported way to refresh it short of calling
+            # MarketExposure.compute(force_recompute=True) directly, bypassing this loader's
+            # status/lock tracking entirely. Wiring TECH_FULL_REFRESH through here closes that
+            # gap using the existing mechanism instead of a new one-off flag.
+            tech_full_refresh = os.environ.get("TECH_FULL_REFRESH")
+            force_recompute = tech_full_refresh is not None and tech_full_refresh.lower() == "true"
+            result = exposure.compute(eval_date, force_recompute=force_recompute)
 
             if not result or result.get("data_unavailable"):
                 if not result:
