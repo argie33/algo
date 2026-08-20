@@ -682,6 +682,49 @@ class DividendDataLoader(SecLoaderBase):
                 f"[{symbol}] Dividend fetch failed after {elapsed:.1f}s: {type(e).__name__}: {e}. "
                 f"Marking as data unavailable."
             )
+            # FIXED 2026-08-20 (goal: finance-accuracy audit): _unavailable_record keys its
+            # row on (symbol, ex_dividend_date=today), the real DB unique constraint - so a
+            # transient failure (SEC rate limiting/timeout) writes a BRAND NEW permanent
+            # garbage row every time it happens, never overwriting anything, instead of
+            # updating a single "current status" record. Live-confirmed: 1,795 such rows
+            # across 1,242 symbols had accumulated, including 100+ real, active dividend
+            # payers (e.g. ADNT, ADP, AEE - confirmed via a real dividend_per_share row
+            # coexisting with a same-symbol fetch_error marker) whose complete, correct
+            # dividend history now sits in the table alongside dated "no data" noise from
+            # whatever day SEC happened to time out. Downstream consumers already guard
+            # against this (every payout_ratio/dividend_yield/SGR query in
+            # load_value_quality_growth_metrics.py filters `data_unavailable = FALSE`), so
+            # this was never live-scoring-corrupting - but it's unbounded, meaningless table
+            # growth and it does affect the coverage dashboard's "reason" cross-tab, which
+            # counts a symbol's raw history rather than a fixed one-row-per-symbol status.
+            # A symbol with resolved, real dividend history is not made "more true" by also
+            # recording that today's re-check happened to fail - so skip writing the marker
+            # for those, same as OptimalLoader already treats an empty return (no real rows,
+            # no marker) as "nothing new since watermark, skip" rather than an error.
+            try:
+                from utils.db import DatabaseContext
+
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT 1 FROM dividend_data WHERE symbol = %s AND dividend_per_share IS NOT NULL LIMIT 1",
+                        (symbol,),
+                    )
+                    has_real_history = cur.fetchone() is not None
+            except Exception as lookup_err:
+                logger.debug(f"[{symbol}] Could not check existing dividend history: {lookup_err}")
+                has_real_history = False
+
+            if has_real_history:
+                logger.debug(
+                    f"[{symbol}] Fetch failed but real dividend history is already on file - "
+                    "not writing a spurious data_unavailable marker row."
+                )
+                # Not a silent fallback: this symbol's real dividend_per_share rows already
+                # represent its current, correct state - a transient re-check failure has
+                # nothing new to report. OptimalLoader.load_symbol() treats an empty list the
+                # same as "no new data since watermark" and skips, exactly as intended here.
+                return []
+
             return [self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")]
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> dict[str, Any]:
