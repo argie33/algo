@@ -263,7 +263,7 @@ class TestMarketExposureWeights:
             "new_highs_lows": 7,
             "ad_line": 6,
             "breadth_50": 6,
-            "naaim": 5,
+            "positioning": 5,
             "aaii": 3,
         }
         assert sum(weights.values()) == 100, f"Weights sum to {sum(weights.values())}"

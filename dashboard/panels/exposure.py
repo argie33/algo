@@ -218,10 +218,10 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 return f" B:{bull:.0f}%/Be:{bear:.0f}%"
             logger.warning("[EXPOSURE] Risk factor missing: aaii_sentiment unavailable (bull=%s, bear=%s)", bull, bear)
             return "[yellow]⚠[/]"  # Missing sentiment data
-        if key == "naaim":
+        if key == "positioning":
             v = safe_float(f.get("value"), default=None)
             if v is None:
-                logger.warning("[EXPOSURE] Risk factor missing: naaim unavailable")
+                logger.warning("[EXPOSURE] Risk factor missing: positioning unavailable")
             return f" {v:.0f}" if v is not None else "[yellow]⚠[/]"
         if key == "distribution_days":
             cnt = safe_float(f.get("count"), default=None)
@@ -244,7 +244,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         ("new_highs_lows", "New Hi vs Lo", 7),
         ("ad_line", "Adv/Dec Line", 6),
         ("breadth_50dma", "Breadth 50 MA", 6),
-        ("naaim", "NAAIM Alloc", 5),
+        ("positioning", "Positioning", 5),
         ("aaii_sentiment", "AAII Survey", 3),
     ]
 
@@ -290,6 +290,8 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
 
     sr = None
     eco = None
+    xasset = None
+    fq = None
     if factors and isinstance(factors, dict):
         sr_raw = factors.get("sector_rotation")
         if isinstance(sr_raw, dict):
@@ -307,9 +309,17 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 "[EXPOSURE] economic_overlay not available or invalid type: %s",
                 type(eco_raw).__name__ if eco_raw is not None else "None",
             )
+        xasset_raw = factors.get("cross_asset_confirmation")
+        if isinstance(xasset_raw, dict):
+            xasset = xasset_raw
+        fq_raw = factors.get("fundamental_quality")
+        if isinstance(fq_raw, dict):
+            fq = fq_raw
 
     sr_pen = None
     eco_pen = None
+    xasset_pen = None
+    fq_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
@@ -328,6 +338,16 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 eco_pen = safe_float(eco_pts_raw, None, field_name="economic_overlay_pts")
             except StrictValidationError as e:
                 logger.error("[EXPOSURE] economic_overlay pts conversion failed: %s", e)
+    if xasset:
+        try:
+            xasset_pen = safe_float(xasset.get("pts"), None, field_name="cross_asset_confirmation_pts")
+        except StrictValidationError as e:
+            logger.error("[EXPOSURE] cross_asset_confirmation pts conversion failed: %s", e)
+    if fq:
+        try:
+            fq_pen = safe_float(fq.get("pts"), None, field_name="fundamental_quality_pts")
+        except StrictValidationError as e:
+            logger.error("[EXPOSURE] fundamental_quality pts conversion failed: %s", e)
     if sr_pen is not None and sr_pen < 0 and sr:
         sig = sr.get("signal")
         sig_display = sig.replace("_", " ")[:18] if isinstance(sig, str) else ""
@@ -342,6 +362,14 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]"
             + (f" [dim]{eco_err_display}[/]" if eco_err_display else "")
         )
+    if xasset_pen is not None and xasset_pen < 0 and xasset:
+        sigs = xasset.get("risk_off_signals")
+        sig_display = ", ".join(sigs)[:24] if isinstance(sigs, list) and sigs else ""
+        items.append(f"[dim]Cross-Asset:[/] [{R}]{xasset_pen:+.0f}[/] [dim]{sig_display}[/]")
+    if fq_pen is not None and fq_pen < 0 and fq:
+        fscore = fq.get("fundamental_score")
+        fscore_display = f"score {fscore:.0f}" if isinstance(fscore, (int, float)) else ""
+        items.append(f"[dim]Fundamental Qual:[/] [{R}]{fq_pen:+.0f}[/] [dim]{fscore_display}[/]")
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -467,7 +495,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         ("new_highs_lows", "New Highs vs Lows", 7, "NYSE new highs minus lows"),
         ("ad_line", "Advance/Decline", 6, "Breadth momentum direction"),
         ("breadth_50dma", "Breadth 50 DMA", 6, "% stocks above 50DMA"),
-        ("naaim", "NAAIM Exposure", 5, "Active manager allocation"),
+        ("positioning", "Positioning & Flows", 5, "Insider buying breadth + short interest trend"),
         ("aaii_sentiment", "AAII Sentiment", 3, "Retail investor bull/bear"),
     ]
 
@@ -608,9 +636,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 val_s = f"Bull:{bull:.0f}% Bear:{bear:.0f}%"
             else:
                 val_s = "--"
-        elif key == "naaim":
+        elif key == "positioning":
             v = f.get("value")
-            val_s = f"{v:.0f}% allocated" if v is not None else "--"
+            val_s = f"{v:.0f} blended" if v is not None else "--"
         elif key == "distribution_days":
             cnt = f.get("count")
             rg = f.get("regime")
@@ -631,6 +659,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     # Penalty/bonus adjustments
     sr = None
     eco = None
+    xasset = None
+    fq = None
+    sahm = None
     if factors and isinstance(factors, dict) and not error_boundary.has_error(factors):
         sr_raw = factors.get("sector_rotation")
         if isinstance(sr_raw, dict) and not error_boundary.has_error(sr_raw):
@@ -648,9 +679,20 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 "[EXPOSURE_EXPANDED_ADJ] economic_overlay not available or invalid type: %s",
                 type(eco_raw).__name__ if eco_raw is not None else "None",
             )
+        xasset_raw = factors.get("cross_asset_confirmation")
+        if isinstance(xasset_raw, dict) and not error_boundary.has_error(xasset_raw):
+            xasset = xasset_raw
+        fq_raw = factors.get("fundamental_quality")
+        if isinstance(fq_raw, dict) and not error_boundary.has_error(fq_raw):
+            fq = fq_raw
+        sahm_raw = factors.get("sahm_rule")
+        if isinstance(sahm_raw, dict) and not error_boundary.has_error(sahm_raw):
+            sahm = sahm_raw
 
     sr_pen = None
     eco_pen = None
+    xasset_pen = None
+    fq_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
@@ -673,7 +715,17 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 eco_pen = safe_float(eco_pts_raw, field_name="economic_overlay_pts")
             except StrictValidationError as e:
                 logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay pts conversion failed: %s", e)
-    if sr_pen is not None or eco_pen is not None:
+    if xasset:
+        try:
+            xasset_pen = safe_float(xasset.get("pts"), field_name="cross_asset_confirmation_pts")
+        except StrictValidationError as e:
+            logger.error("[EXPOSURE_EXPANDED_ADJ] cross_asset_confirmation pts conversion failed: %s", e)
+    if fq:
+        try:
+            fq_pen = safe_float(fq.get("pts"), field_name="fundamental_quality_pts")
+        except StrictValidationError as e:
+            logger.error("[EXPOSURE_EXPANDED_ADJ] fundamental_quality pts conversion failed: %s", e)
+    if sr_pen is not None or eco_pen is not None or xasset_pen is not None or fq_pen is not None or sahm is not None:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
         if sr_pen is not None and sr:
@@ -702,6 +754,29 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         elif eco:
             logger.debug("[EXPOSURE_EXPANDED_ADJ] economic_overlay present but pts field missing")
             rows.append(Text.from_markup("  [dim]Economic Overlay:[/] [red]✗ pts calculation failed[/]"))
+        if xasset_pen is not None and xasset:
+            sigs = xasset.get("risk_off_signals")
+            sig_display = "; ".join(sigs) if isinstance(sigs, list) and sigs else "no disagreement"
+            xc = R if xasset_pen < 0 else G
+            rows.append(
+                Text.from_markup(
+                    f"  [dim]Cross-Asset Confirmation:[/] [{xc}]{xasset_pen:+.0f} pts[/]  [dim]{sig_display}[/]"
+                )
+            )
+        if fq_pen is not None and fq:
+            fscore = fq.get("fundamental_score")
+            fscore_display = f"fundamental score {fscore:.0f}/100" if isinstance(fscore, (int, float)) else ""
+            fc = R if fq_pen < 0 else G
+            rows.append(
+                Text.from_markup(f"  [dim]Fundamental Quality:[/] [{fc}]{fq_pen:+.0f} pts[/]  [dim]{fscore_display}[/]")
+            )
+        if sahm is not None:
+            sahm_val = sahm.get("value")
+            sahm_triggered = sahm.get("triggered")
+            sc = R if sahm_triggered else G
+            val_display = f"{sahm_val:.2f}pp" if isinstance(sahm_val, (int, float)) else "--"
+            trig_display = "TRIGGERED (recession signal)" if sahm_triggered else "not triggered"
+            rows.append(Text.from_markup(f"  [dim]Sahm Rule:[/] [{sc}]{val_display}[/]  [dim]{trig_display}[/]"))
 
     timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""

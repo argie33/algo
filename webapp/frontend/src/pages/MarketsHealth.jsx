@@ -213,7 +213,8 @@ function MarketsHealthPage() {
 
   // Check for data availability issues
   const hasDataUnavailability = marketsData?.data_error || !m?.market_health;
-  const dataUnavailabilityMessage = marketsData?.message || "Market health data unavailable";
+  const dataUnavailabilityMessage =
+    marketsData?.message || "Market health data unavailable";
 
   if (isPrimaryLoading && !m) {
     return (
@@ -229,10 +230,15 @@ function MarketsHealthPage() {
   if (hasDataUnavailability && !marketsLoading) {
     return (
       <div className="main-content">
-        <div className="alert alert-danger" style={{ margin: "var(--space-4)" }}>
+        <div
+          className="alert alert-danger"
+          style={{ margin: "var(--space-4)" }}
+        >
           <AlertTriangle size={16} style={{ marginRight: 8 }} />
           <strong>Market Health Data Unavailable</strong>
-          <p style={{ marginTop: 8, marginBottom: 0 }}>{dataUnavailabilityMessage}</p>
+          <p style={{ marginTop: 8, marginBottom: 0 }}>
+            {dataUnavailabilityMessage}
+          </p>
         </div>
       </div>
     );
@@ -564,7 +570,11 @@ function RegimeBanner({ markets }) {
                 lineHeight: 1,
               }}
             >
-              <SafeMetricValue value={exposure} formatter="decimal2" fallback="—" />
+              <SafeMetricValue
+                value={exposure}
+                formatter="decimal2"
+                fallback="—"
+              />
               <span
                 style={{
                   fontSize: "var(--t-lg)",
@@ -606,7 +616,11 @@ function RegimeBanner({ markets }) {
               marginTop: 4,
             }}
           >
-            <SafeMetricValue value={tier?.risk_mult} formatter="decimal2" fallback="—" />
+            <SafeMetricValue
+              value={tier?.risk_mult}
+              formatter="decimal2"
+              fallback="—"
+            />
           </div>
         </div>
 
@@ -620,7 +634,11 @@ function RegimeBanner({ markets }) {
               marginTop: 4,
             }}
           >
-            <SafeMetricValue value={tier?.max_new} formatter="number" fallback="—" />
+            <SafeMetricValue
+              value={tier?.max_new}
+              formatter="number"
+              fallback="—"
+            />
           </div>
         </div>
 
@@ -807,7 +825,7 @@ function ExposureFactors({ markets }) {
     ["new_highs_lows", "NEW HIGHS - LOWS", 7],
     ["ad_line", "A/D LINE CONFIRMATION", 6],
     ["breadth_50dma", "BREADTH (% > 50-DMA)", 6],
-    ["naaim", "NAAIM PROFESSIONAL EXPOSURE", 5],
+    ["positioning", "POSITIONING & FLOWS", 5],
     ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 3],
   ];
 
@@ -821,6 +839,18 @@ function ExposureFactors({ markets }) {
       : macroStress != null && macroStress >= 40
         ? C.amber
         : C.success;
+
+  // Cross-asset confirmation + fundamental quality modifiers, and the Sahm Rule veto
+  // (added 2026-08-20, exposure-model redesign) - all three are penalty-only modifiers
+  // applied post-score, not scored factors, mirroring the economic overlay card above.
+  const xasset = factors?.cross_asset_confirmation;
+  const xassetPenalty = xasset?.pts;
+  const xassetSignals = Array.isArray(xasset?.risk_off_signals)
+    ? xasset.risk_off_signals
+    : [];
+  const fq = factors?.fundamental_quality;
+  const fqPenalty = fq?.pts;
+  const sahm = factors?.sahm_rule;
 
   return (
     <div className="card">
@@ -874,7 +904,12 @@ function ExposureFactors({ markets }) {
                 >
                   <span className="eyebrow">{label}</span>
                   <span className="mono tnum t-xs strong">
-                    <SafeMetricValue value={f.pts} formatter="decimal2" fallback="0" /> / {f.max || max}
+                    <SafeMetricValue
+                      value={f.pts}
+                      formatter="decimal2"
+                      fallback="0"
+                    />{" "}
+                    / {f.max || max}
                   </span>
                 </div>
                 <div className="bar">
@@ -939,8 +974,123 @@ function ExposureFactors({ markets }) {
               </div>
             )}
             <div className="t-2xs muted" style={{ marginTop: 4 }}>
-              Yield curve · HY credit trend · jobless claims — post-score macro
-              adjustment
+              Yield curve (T10Y2Y + T10Y3M) · IG/HY credit trend · jobless
+              claims · ANFCI · CFNAI — post-score macro adjustment
+            </div>
+          </div>
+        )}
+
+        {/* Cross-Asset Confirmation modifier */}
+        {xasset && (
+          <div
+            style={{
+              marginTop: "var(--space-3)",
+              padding: "var(--space-3) var(--space-4)",
+              borderRadius: "var(--r-sm)",
+              background: `${xassetPenalty < 0 ? C.danger : C.success}12`,
+              border: `1px solid ${xassetPenalty < 0 ? C.danger : C.success}40`,
+            }}
+          >
+            <div
+              className="flex items-center justify-between"
+              style={{ marginBottom: 6 }}
+            >
+              <span
+                className="eyebrow"
+                style={{ color: xassetPenalty < 0 ? C.danger : C.success }}
+              >
+                CROSS-ASSET CONFIRMATION
+              </span>
+              <span
+                className="mono tnum t-xs"
+                style={{ color: xassetPenalty < 0 ? C.danger : C.success }}
+              >
+                {xassetPenalty < 0 ? `${xassetPenalty} pts` : "no disagreement"}
+              </span>
+            </div>
+            {xassetSignals.length > 0 ? (
+              <div className="t-2xs muted">{xassetSignals.join(" · ")}</div>
+            ) : (
+              <div className="t-2xs muted">
+                Gold/bonds/USD agree with the equity trend
+              </div>
+            )}
+            <div className="t-2xs muted" style={{ marginTop: 4 }}>
+              Gold vs. SPY · long bonds vs. SPY · USD strength (20d) —
+              discount-only, no bonus for agreement
+            </div>
+          </div>
+        )}
+
+        {/* Fundamental Quality of the Rally modifier */}
+        {fq && (
+          <div
+            style={{
+              marginTop: "var(--space-3)",
+              padding: "var(--space-3) var(--space-4)",
+              borderRadius: "var(--r-sm)",
+              background: `${fqPenalty < 0 ? C.danger : C.success}12`,
+              border: `1px solid ${fqPenalty < 0 ? C.danger : C.success}40`,
+            }}
+          >
+            <div
+              className="flex items-center justify-between"
+              style={{ marginBottom: 6 }}
+            >
+              <span
+                className="eyebrow"
+                style={{ color: fqPenalty < 0 ? C.danger : C.success }}
+              >
+                FUNDAMENTAL QUALITY OF THE RALLY
+              </span>
+              <span
+                className="mono tnum t-xs"
+                style={{ color: fqPenalty < 0 ? C.danger : C.success }}
+              >
+                {fqPenalty < 0 ? `${fqPenalty} pts` : "confirmed"}
+                {fq.fundamental_score != null
+                  ? ` · score ${num(fq.fundamental_score, 0)}`
+                  : ""}
+              </span>
+            </div>
+            <div className="t-2xs muted">
+              Analyst revision breadth
+              {fq.revision_breadth_pct != null
+                ? ` ${num(fq.revision_breadth_pct, 0)}%`
+                : ""}{" "}
+              · insider buying breadth
+              {fq.insider_buying_breadth_pct != null
+                ? ` ${num(fq.insider_buying_breadth_pct, 0)}%`
+                : ""}
+            </div>
+          </div>
+        )}
+
+        {/* Sahm Rule recession veto */}
+        {sahm && (
+          <div
+            style={{
+              marginTop: "var(--space-3)",
+              padding: "var(--space-3) var(--space-4)",
+              borderRadius: "var(--r-sm)",
+              background: `${sahm.triggered ? C.danger : C.success}12`,
+              border: `1px solid ${sahm.triggered ? C.danger : C.success}40`,
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className="eyebrow"
+                style={{ color: sahm.triggered ? C.danger : C.success }}
+              >
+                SAHM RULE
+              </span>
+              <span
+                className="mono tnum t-xs"
+                style={{ color: sahm.triggered ? C.danger : C.success }}
+              >
+                {sahm.value != null ? `${num(sahm.value, 2)}pp` : "—"}
+                {sahm.triggered ? " · TRIGGERED" : " · not triggered"}
+              </span>
             </div>
           </div>
         )}
@@ -1291,16 +1441,50 @@ function BreadthCard({ markets }) {
         <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">&gt; 50-DMA</div>
-            <div className="stile-value"><SafeMetricValue value={b50.value} formatter="decimal2" fallback="—" />%</div>
+            <div className="stile-value">
+              <SafeMetricValue
+                value={b50.value}
+                formatter="decimal2"
+                fallback="—"
+              />
+              %
+            </div>
             <div className="stile-sub">
-              <SafeMetricValue value={b50.above} formatter="number" fallback="—" /> of <SafeMetricValue value={b50.total} formatter="number" fallback="—" />
+              <SafeMetricValue
+                value={b50.above}
+                formatter="number"
+                fallback="—"
+              />{" "}
+              of{" "}
+              <SafeMetricValue
+                value={b50.total}
+                formatter="number"
+                fallback="—"
+              />
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">&gt; 200-DMA</div>
-            <div className="stile-value"><SafeMetricValue value={b200.value} formatter="decimal2" fallback="—" />%</div>
+            <div className="stile-value">
+              <SafeMetricValue
+                value={b200.value}
+                formatter="decimal2"
+                fallback="—"
+              />
+              %
+            </div>
             <div className="stile-sub">
-              <SafeMetricValue value={b200.above} formatter="number" fallback="—" /> of <SafeMetricValue value={b200.total} formatter="number" fallback="—" />
+              <SafeMetricValue
+                value={b200.above}
+                formatter="number"
+                fallback="—"
+              />{" "}
+              of{" "}
+              <SafeMetricValue
+                value={b200.total}
+                formatter="number"
+                fallback="—"
+              />
             </div>
           </div>
           <div className="stile">
@@ -1328,7 +1512,11 @@ function NewHighsLowsCard({ markets }) {
   const nhnl = factors.new_highs_lows || {};
   const data = [
     { name: "New Highs", value: nhnl?.new_highs ?? null, fill: C.success },
-    { name: "New Lows", value: nhnl?.new_lows != null ? -(nhnl.new_lows) : null, fill: C.danger },
+    {
+      name: "New Lows",
+      value: nhnl?.new_lows != null ? -nhnl.new_lows : null,
+      fill: C.danger,
+    },
   ];
   const net = nhnl?.net ?? null;
   return (
@@ -1375,15 +1563,29 @@ function NewHighsLowsCard({ markets }) {
         <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">Highs</div>
-            <div className="stile-value up"><SafeMetricValue value={nhnl.new_highs} formatter="number" fallback="—" /></div>
+            <div className="stile-value up">
+              <SafeMetricValue
+                value={nhnl.new_highs}
+                formatter="number"
+                fallback="—"
+              />
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Lows</div>
-            <div className="stile-value down"><SafeMetricValue value={nhnl.new_lows} formatter="number" fallback="—" /></div>
+            <div className="stile-value down">
+              <SafeMetricValue
+                value={nhnl.new_lows}
+                formatter="number"
+                fallback="—"
+              />
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Net</div>
-            <div className={`stile-value ${net != null && net >= 0 ? "up" : net != null && net < 0 ? "down" : ""}`}>
+            <div
+              className={`stile-value ${net != null && net >= 0 ? "up" : net != null && net < 0 ? "down" : ""}`}
+            >
               <SafeMetricValue value={net} formatter="number" fallback="—" />
             </div>
           </div>
@@ -1441,7 +1643,9 @@ function SentimentCard({ markets, sentiment, loading, error }) {
       bear: s?.bearish != null ? parseFloat(s.bearish) : null,
       neutral: s?.neutral != null ? parseFloat(s.neutral) : null,
     }))
-    .filter((row) => row.bull != null && row.bear != null && row.neutral != null);
+    .filter(
+      (row) => row.bull != null && row.bear != null && row.neutral != null
+    );
 
   if (data.length === 0) {
     return (
@@ -1523,26 +1727,48 @@ function SentimentCard({ markets, sentiment, loading, error }) {
         <div className="grid grid-4" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">Bullish</div>
-            <div className="stile-value up"><SafeMetricValue value={latest.bull} formatter="decimal1" fallback="—" />%</div>
+            <div className="stile-value up">
+              <SafeMetricValue
+                value={latest.bull}
+                formatter="decimal1"
+                fallback="—"
+              />
+              %
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Bearish</div>
-            <div className="stile-value down"><SafeMetricValue value={latest.bear} formatter="decimal1" fallback="—" />%</div>
+            <div className="stile-value down">
+              <SafeMetricValue
+                value={latest.bear}
+                formatter="decimal1"
+                fallback="—"
+              />
+              %
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Spread</div>
-            <div className={`stile-value ${spread != null && spread >= 0 ? "up" : spread != null && spread < 0 ? "down" : ""}`}>
+            <div
+              className={`stile-value ${spread != null && spread >= 0 ? "up" : spread != null && spread < 0 ? "down" : ""}`}
+            >
               {spread != null ? (
                 <>
                   {spread >= 0 ? "+" : ""}
-                  <SafeMetricValue value={spread} formatter="decimal1" fallback="—" />
+                  <SafeMetricValue
+                    value={spread}
+                    formatter="decimal1"
+                    fallback="—"
+                  />
                 </>
               ) : (
                 "—"
               )}
             </div>
             <div className="stile-sub">
-              {spread != null && Math.abs(spread) > 20 ? "contrarian alert" : "normal"}
+              {spread != null && Math.abs(spread) > 20
+                ? "contrarian alert"
+                : "normal"}
             </div>
           </div>
           <div className="stile">
@@ -1582,8 +1808,8 @@ function VixCard({ markets }) {
   const vix = factors.vix_regime || {};
   const level = vix.value;
   const regime =
-    level != null ? (
-      level < 15
+    level != null
+      ? level < 15
         ? "Calm"
         : level < 20
           ? "Normal"
@@ -1592,33 +1818,27 @@ function VixCard({ markets }) {
             : level < 36
               ? "High"
               : "Extreme"
-    ) : (
-      "—"
-    );
+      : "—";
   const variant =
-    level != null ? (
-      level < 15
+    level != null
+      ? level < 15
         ? "badge-success"
         : level < 20
           ? "badge-brand"
           : level < 28
             ? "badge-amber"
             : "badge-danger"
-    ) : (
-      "badge-dim"
-    );
+      : "badge-dim";
   const color =
-    level != null ? (
-      level < 15
+    level != null
+      ? level < 15
         ? C.success
         : level < 20
           ? C.brand2
           : level < 28
             ? C.amber
             : C.danger
-    ) : (
-      "var(--text-muted)"
-    );
+      : "var(--text-muted)";
 
   return (
     <div className="card">
@@ -1652,7 +1872,11 @@ function VixCard({ markets }) {
           </span>
         </div>
         <div className="t-2xs faint mono" style={{ marginTop: 8 }}>
-          {vix.rising != null ? (vix.rising ? "RISING" : "STABLE/FALLING") : "—"}
+          {vix.rising != null
+            ? vix.rising
+              ? "RISING"
+              : "STABLE/FALLING"
+            : "—"}
         </div>
         <div
           className="grid grid-4"
@@ -1952,7 +2176,12 @@ function Mover({ symbol, chg, dir }) {
         style={{ fontWeight: "var(--w-semibold)" }}
       >
         {chgVal != null && chgVal >= 0 ? "+" : ""}
-        <SafeMetricValue value={chgVal} formatter="decimal2" fallback="—" format={(v) => `${v}%`} />
+        <SafeMetricValue
+          value={chgVal}
+          formatter="decimal2"
+          fallback="—"
+          format={(v) => `${v}%`}
+        />
       </span>
     </div>
   );
@@ -2016,34 +2245,54 @@ function SeasonalityCard({ data, loading, error }) {
             <div
               className={`stile-value ${currentMonthData?.avg_return != null && currentMonthData.avg_return >= 0 ? "up" : currentMonthData?.avg_return != null ? "down" : ""}`}
             >
-              {currentMonthData?.avg_return != null
-                ? <>
-                    {currentMonthData.avg_return >= 0 ? "+" : ""}
-                    <SafeMetricValue value={currentMonthData.avg_return} formatter="decimal2" fallback="—" format={(v) => `${v}%`} />
-                  </>
-                : "—"}
+              {currentMonthData?.avg_return != null ? (
+                <>
+                  {currentMonthData.avg_return >= 0 ? "+" : ""}
+                  <SafeMetricValue
+                    value={currentMonthData.avg_return}
+                    formatter="decimal2"
+                    fallback="—"
+                    format={(v) => `${v}%`}
+                  />
+                </>
+              ) : (
+                "—"
+              )}
             </div>
             <div className="stile-sub">
-              <SafeMetricValue value={currentMonthData?.month_name} fallback="—" />
+              <SafeMetricValue
+                value={currentMonthData?.month_name}
+                fallback="—"
+              />
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Best Month</div>
-            <div className="stile-value up"><SafeMetricValue value={bestMonth?.name} fallback="—" /></div>
+            <div className="stile-value up">
+              <SafeMetricValue value={bestMonth?.name} fallback="—" />
+            </div>
             <div className="stile-sub">
-              {bestMonth?.avg_return_pct != null ? `+${num(bestMonth.avg_return_pct, 2)}% avg` : "—"}
+              {bestMonth?.avg_return_pct != null
+                ? `+${num(bestMonth.avg_return_pct, 2)}% avg`
+                : "—"}
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Worst Month</div>
-            <div className="stile-value down"><SafeMetricValue value={worstMonth?.name} fallback="—" /></div>
+            <div className="stile-value down">
+              <SafeMetricValue value={worstMonth?.name} fallback="—" />
+            </div>
             <div className="stile-sub">
-              {worstMonth?.avg_return_pct != null ? `${num(worstMonth.avg_return_pct, 2)}% avg` : "—"}
+              {worstMonth?.avg_return_pct != null
+                ? `${num(worstMonth.avg_return_pct, 2)}% avg`
+                : "—"}
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Best Day of Week</div>
-            <div className="stile-value up"><SafeMetricValue value={bestDay?.name} fallback="—" /></div>
+            <div className="stile-value up">
+              <SafeMetricValue value={bestDay?.name} fallback="—" />
+            </div>
             <div className="stile-sub">
               {worstDay ? `Worst: ${worstDay.name}` : "—"}
             </div>
@@ -2256,35 +2505,37 @@ function SectorRotationMap({ markets, onSelect }) {
   // RS-Momentum: positive if rank improved (rank_4w_ago > current_rank)
   const data = useMemo(() => {
     if (!sectors.length) return [];
-    const validSectors = sectors.filter(s => s.rank != null);
+    const validSectors = sectors.filter((s) => s.rank != null);
     if (validSectors.length === 0) {
       console.warn("[MarketsHealth] No sectors with valid rank data");
       return [];
     }
     const maxRank = Math.max(...validSectors.map((s) => s.rank));
-    return sectors.map((s) => {
-      if (s.rank == null) {
-        console.warn(`[MarketsHealth] Sector ${s.name} missing rank data`);
-        return null; // Will be filtered out
-      }
-      const rsRank = ((maxRank - s.rank) / maxRank) * 100;
-      const rsMomentum =
-        s.rank_4w_ago != null && s.rank != null
-          ? s.rank_4w_ago - s.rank // positive = improving
-          : null;
-      if (rsMomentum == null) {
-        // Chart requires both axes; a sector with no 4w-ago rank can't be
-        // plotted honestly (defaulting to 0 would fabricate "no change").
-        return null;
-      }
-      return {
-        name: s.name,
-        rsRank: Number(rsRank.toFixed(1)),
-        rsMomentum: Number(rsMomentum),
-        rank: s.rank,
-        momentum: s.momentum,
-      };
-    }).filter(Boolean);
+    return sectors
+      .map((s) => {
+        if (s.rank == null) {
+          console.warn(`[MarketsHealth] Sector ${s.name} missing rank data`);
+          return null; // Will be filtered out
+        }
+        const rsRank = ((maxRank - s.rank) / maxRank) * 100;
+        const rsMomentum =
+          s.rank_4w_ago != null && s.rank != null
+            ? s.rank_4w_ago - s.rank // positive = improving
+            : null;
+        if (rsMomentum == null) {
+          // Chart requires both axes; a sector with no 4w-ago rank can't be
+          // plotted honestly (defaulting to 0 would fabricate "no change").
+          return null;
+        }
+        return {
+          name: s.name,
+          rsRank: Number(rsRank.toFixed(1)),
+          rsMomentum: Number(rsMomentum),
+          rank: s.rank,
+          momentum: s.momentum,
+        };
+      })
+      .filter(Boolean);
   }, [sectors]);
 
   if (!data.length)
@@ -2491,7 +2742,13 @@ function SectorRotationSignalCard() {
         <div>
           <div className="card-title">Sector Rotation Signal</div>
           <div className="card-sub">
-            Defensive vs Cyclical leadership · <SafeMetricValue value={latest?.weeks_persistent} formatter="number" fallback="—" /> weeks persistent
+            Defensive vs Cyclical leadership ·{" "}
+            <SafeMetricValue
+              value={latest?.weeks_persistent}
+              formatter="number"
+              fallback="—"
+            />{" "}
+            weeks persistent
           </div>
         </div>
         <span
@@ -2508,8 +2765,16 @@ function SectorRotationSignalCard() {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={items.map((d) => {
-                const defScore = d.defensive_lead_score !== null && d.defensive_lead_score !== undefined ? parseFloat(d.defensive_lead_score) : null;
-                const cycScore = d.cyclical_weak_score !== null && d.cyclical_weak_score !== undefined ? parseFloat(d.cyclical_weak_score) : null;
+                const defScore =
+                  d.defensive_lead_score !== null &&
+                  d.defensive_lead_score !== undefined
+                    ? parseFloat(d.defensive_lead_score)
+                    : null;
+                const cycScore =
+                  d.cyclical_weak_score !== null &&
+                  d.cyclical_weak_score !== undefined
+                    ? parseFloat(d.cyclical_weak_score)
+                    : null;
                 return {
                   date: fmtDate(d.date),
                   fullDate: d.date,
@@ -2563,13 +2828,22 @@ function SectorRotationSignalCard() {
           <div className="stile">
             <div className="stile-label">Defensive Lead</div>
             <div className="stile-value mono tnum" style={{ color: C.cyan }}>
-              <SafeMetricValue value={latest?.defensive_lead_score} formatter="decimal1" fallback="—" />
+              <SafeMetricValue
+                value={latest?.defensive_lead_score}
+                formatter="decimal1"
+                fallback="—"
+              />
             </div>
             <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
               {latest?.defensive_avg_rs != null ? (
                 <>
                   {latest.defensive_avg_rs > 0 ? "+" : ""}
-                  <SafeMetricValue value={latest.defensive_avg_rs} formatter="decimal2" fallback="—" />% RS avg
+                  <SafeMetricValue
+                    value={latest.defensive_avg_rs}
+                    formatter="decimal2"
+                    fallback="—"
+                  />
+                  % RS avg
                 </>
               ) : (
                 "— RS avg"
@@ -2579,13 +2853,22 @@ function SectorRotationSignalCard() {
           <div className="stile">
             <div className="stile-label">Cyclical Weakness</div>
             <div className="stile-value mono tnum" style={{ color: C.success }}>
-              <SafeMetricValue value={latest?.cyclical_weak_score} formatter="decimal1" fallback="—" />
+              <SafeMetricValue
+                value={latest?.cyclical_weak_score}
+                formatter="decimal1"
+                fallback="—"
+              />
             </div>
             <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
               {latest?.cyclical_avg_rs != null ? (
                 <>
                   {latest.cyclical_avg_rs > 0 ? "+" : ""}
-                  <SafeMetricValue value={latest.cyclical_avg_rs} formatter="decimal2" fallback="—" />% RS avg
+                  <SafeMetricValue
+                    value={latest.cyclical_avg_rs}
+                    formatter="decimal2"
+                    fallback="—"
+                  />
+                  % RS avg
                 </>
               ) : (
                 "— RS avg"
@@ -2598,10 +2881,19 @@ function SectorRotationSignalCard() {
               className="stile-value mono tnum"
               style={{ color: signalColor }}
             >
-              <SafeMetricValue value={latest?.spread} formatter="decimal1" fallback="—" />
+              <SafeMetricValue
+                value={latest?.spread}
+                formatter="decimal1"
+                fallback="—"
+              />
             </div>
             <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
-              <SafeMetricValue value={latest?.weeks_persistent} formatter="number" fallback="—" /> wks persistent
+              <SafeMetricValue
+                value={latest?.weeks_persistent}
+                formatter="number"
+                fallback="—"
+              />{" "}
+              wks persistent
             </div>
           </div>
         </div>
@@ -3076,7 +3368,8 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
       };
     })
     .filter((s) => s !== null);
-  const aaiiLatest = aaiiSeries.length > 0 ? aaiiSeries[aaiiSeries.length - 1] : null;
+  const aaiiLatest =
+    aaiiSeries.length > 0 ? aaiiSeries[aaiiSeries.length - 1] : null;
 
   if (loading || fgLoading)
     return <Empty title="Sentiment Composite" desc="Loading…" wrap />;
@@ -3347,11 +3640,13 @@ function FGGauge({ value, regime }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TrendHealthCard() {
-  const { data: trendData, loading, error } = useApiQuery(
-    ["trend-health"],
-    () => api.get("/api/market/trends"),
-    { refetchInterval: 300000 }
-  );
+  const {
+    data: trendData,
+    loading,
+    error,
+  } = useApiQuery(["trend-health"], () => api.get("/api/market/trends"), {
+    refetchInterval: 300000,
+  });
 
   const stats = useMemo(() => {
     // BUG FOUND 2026-08-10: list_response-backed endpoints unwrap to {items: [...], ...}
@@ -3363,12 +3658,16 @@ function TrendHealthCard() {
     if (!items.length) return null;
     const uptrends = items.filter((t) => t.trend_type === "uptrend").length;
     const downtrends = items.filter((t) => t.trend_type === "downtrend").length;
-    const consolidations = items.filter((t) => t.trend_type === "consolidation").length;
+    const consolidations = items.filter(
+      (t) => t.trend_type === "consolidation"
+    ).length;
     const total = items.length;
     const ages = items
       .filter((t) => t.days_in_trend != null)
       .map((t) => t.days_in_trend);
-    const avgAge = ages.length ? (ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1) : null;
+    const avgAge = ages.length
+      ? (ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1)
+      : null;
     return {
       uptrend_pct: ((uptrends / total) * 100).toFixed(1),
       downtrend_pct: ((downtrends / total) * 100).toFixed(1),
@@ -3388,7 +3687,9 @@ function TrendHealthCard() {
       </div>
       <div className="card-body">
         {loading && !stats && <div className="muted">Loading trends…</div>}
-        {error && <div className="alert alert-danger">Trend data unavailable</div>}
+        {error && (
+          <div className="alert alert-danger">Trend data unavailable</div>
+        )}
         {stats && (
           <div style={{ padding: "var(--space-2) 0" }}>
             <div
@@ -3436,9 +3737,13 @@ function TrendHealthCard() {
                 <div className="muted t-xs">Consolidation →</div>
               </div>
             </div>
-            <div className="border-top" style={{ paddingTop: "var(--space-3)" }}>
+            <div
+              className="border-top"
+              style={{ paddingTop: "var(--space-3)" }}
+            >
               <div className="muted t-xs">
-                Avg Trend Age: <strong>{stats.avgAge ?? "—"}</strong> days ({stats.total} symbols analyzed)
+                Avg Trend Age: <strong>{stats.avgAge ?? "—"}</strong> days (
+                {stats.total} symbols analyzed)
               </div>
             </div>
           </div>

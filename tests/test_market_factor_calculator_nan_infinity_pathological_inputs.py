@@ -27,6 +27,7 @@ for NaN/Infinity, which passes every "is not None" guard silently.
 
 import math
 from datetime import date
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -125,20 +126,82 @@ class TestAaiiRejectsNonFiniteSentiment:
             calc.aaii(date(2026, 8, 10), cur)
 
 
-class TestNaaimRejectsNonFiniteExposure:
-    def test_nan_exposure_raises_instead_of_scoring_as_extreme_overweight(self):
-        # Without the fix: min(100, max(0, 100 - nan / 2)) silently -> 0.0
-        # (extreme-overweight / most-bearish-contrarian score) for corrupted data.
-        #
-        # UPDATED (2026-08-16): same staleness-guard fix as aaii() above added `date` as a
-        # second SELECT column read via row[1] - this fixture predates that.
-        calc = MarketFactorCalculator()
-        cur = _FakeCursor((float("nan"), date(2026, 8, 10)))
-        with pytest.raises(RuntimeError, match="Non-finite NAAIM exposure"):
-            calc.naaim(date(2026, 8, 10), cur)
+class TestPositioningRejectsNonFiniteShortInterestAvg:
+    """positioning() replaced naaim() 2026-08-20 (NAAIM's source went subscription-only).
 
-    def test_finite_exposure_still_works(self):
+    Unlike naaim()'s single-column exposure read, _short_interest_trend()'s NaN exposure
+    (a corrupted AVG(short_pct)) can't reach the same min/max-clamp laundering bug directly,
+    since the caller (positioning()) never clamps a raw score through min()/max() the way
+    the old naaim() did - but a NaN average must still be REJECTED (treated as unavailable,
+    not silently propagated as a fabricated chg_pct%), not laundered into a confident-looking
+    but meaningless percentage. This is deliberately a graceful-degrade (returns None,
+    positioning() falls back to insider-only), not a raise - positioning is optional
+    enrichment (see its own docstring), unlike naaim()'s old hard-fail contract.
+    """
+
+    def test_nan_current_avg_short_interest_degrades_gracefully_not_fabricated(self):
         calc = MarketFactorCalculator()
-        cur = _FakeCursor((50.0, date(2026, 8, 10)))
-        result = calc.naaim(date(2026, 8, 10), cur)
-        assert result["score"] == 75.0
+        cur = MagicMock()
+        # insider breadth: 60 active symbols, 40 net buyers -> valid
+        # short interest: 4 cycles, current avg is NaN (corrupted), baseline avg is fine
+        cur.fetchone.side_effect = [
+            (60, 40),  # _insider_buying_breadth
+            (float("nan"),),  # _short_interest_trend current_avg (corrupted)
+            (5.0,),  # _short_interest_trend baseline_avg (never used - current is NaN)
+        ]
+        cur.fetchall.side_effect = [
+            [(date(2026, 8, 15),), (date(2026, 8, 1),), (date(2026, 7, 15),), (date(2026, 7, 1),)],
+        ]
+        result = calc.positioning(date(2026, 8, 20), cur)
+        assert not result.get("data_unavailable")
+        # short_interest_chg_pct must be None (unavailable), not a NaN-derived number
+        assert result["short_interest_chg_pct"] is None
+        # falls back to insider-only score, not a NaN-poisoned blend
+        assert not math.isnan(result["score"])
+
+    def test_finite_positioning_blends_both_inputs(self):
+        calc = MarketFactorCalculator()
+        cur = MagicMock()
+        cur.fetchone.side_effect = [
+            (100, 60),  # insider: 100 active, 60 net buyers -> 60% breadth
+            (5.0,),  # current avg short interest
+            (5.0,),  # baseline avg short interest (flat, 0% change)
+        ]
+        cur.fetchall.side_effect = [
+            [(date(2026, 8, 15),), (date(2026, 8, 1),), (date(2026, 7, 15),), (date(2026, 7, 1),)],
+        ]
+        result = calc.positioning(date(2026, 8, 20), cur)
+        assert not result.get("data_unavailable")
+        assert result["insider_buying_breadth_pct"] == 60.0
+        assert result["short_interest_chg_pct"] == 0.0
+        assert not math.isnan(result["score"])
+
+    def test_both_inputs_unavailable_returns_data_unavailable_marker(self):
+        calc = MarketFactorCalculator()
+        cur = MagicMock()
+        cur.fetchone.side_effect = [
+            (10, 5),  # insider: only 10 active symbols, below the 50-symbol minimum sample
+        ]
+        cur.fetchall.side_effect = [
+            [(date(2026, 8, 15),)],  # only 1 cycle, need at least 2
+        ]
+        result = calc.positioning(date(2026, 8, 20), cur)
+        assert result.get("data_unavailable") is True
+
+    def test_short_interest_uses_2_cycles_when_thats_all_thats_available(self):
+        """A 4-cycle floor made this signal permanently unavailable on a DB with only 3
+        cycles of FINRA history yet (live-verified 2026-08-20) - it must work with 2+.
+        """
+        calc = MarketFactorCalculator()
+        cur = MagicMock()
+        cur.fetchone.side_effect = [
+            (100, 60),  # insider: 100 active, 60 net buyers
+            (6.0,),  # current avg short interest
+            (5.0,),  # baseline avg short interest (2 cycles back, not 4)
+        ]
+        cur.fetchall.side_effect = [
+            [(date(2026, 8, 15),), (date(2026, 8, 1),)],  # only 2 cycles available
+        ]
+        result = calc.positioning(date(2026, 8, 20), cur)
+        assert not result.get("data_unavailable")
+        assert result["short_interest_chg_pct"] == 20.0  # (6.0 - 5.0) / 5.0 * 100

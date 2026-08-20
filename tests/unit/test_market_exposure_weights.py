@@ -102,7 +102,7 @@ class TestMarketExposureWeightSum:
             MarketExposure.W_NEW_HIGHS_LOWS,
             MarketExposure.W_AD_LINE,
             MarketExposure.W_BREADTH_50,
-            MarketExposure.W_NAAIM,
+            MarketExposure.W_POSITIONING,
             MarketExposure.W_AAII,
         ]
         assert len(weights) == 12

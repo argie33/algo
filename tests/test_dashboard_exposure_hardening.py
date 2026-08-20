@@ -148,14 +148,14 @@ class TestExposureCompactOptionalFactors:
     """Optional factors like sector_rotation should not fail silently."""
 
     def test_optional_factor_not_available(self, caplog):
-        """If optional factor like naaim is missing, should log warning (not silent)."""
+        """If optional factor like positioning is missing, should log warning (not silent)."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                # Missing naaim and other factors
+                # Missing positioning and other factors
             },
         }
 
@@ -178,7 +178,7 @@ class TestExposureCompactOptionalFactors:
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                "naaim": "not_a_dict",  # WRONG TYPE (should be dict with "value")
+                "positioning": "not_a_dict",  # WRONG TYPE (should be dict with "value")
             },
         }
 
@@ -187,7 +187,7 @@ class TestExposureCompactOptionalFactors:
 
         # Should log about invalid type
         assert any(
-            "naaim" in record.message and "invalid type" in record.message
+            "positioning" in record.message and "invalid type" in record.message
             for record in caplog.records
             if record.levelno == logging.WARNING
         )
@@ -336,15 +336,15 @@ class TestExposureExpandedMalformedFactorData:
 class TestExposureExpandedOptionalAdjustments:
     """Optional adjustments should be handled explicitly."""
 
-    def test_naaim_missing_pts(self, caplog):
-        """If naaim present but pts missing, should log error."""
+    def test_positioning_missing_pts(self, caplog):
+        """If positioning present but pts missing, should log error."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                "naaim": {
+                "positioning": {
                     "reason": "data_unavailable",
                     # Missing 'pts'
                 },
@@ -356,7 +356,7 @@ class TestExposureExpandedOptionalAdjustments:
 
         # Should log error about data unavailable (missing pts)
         assert any(
-            "data_unavailable" in record.message and "naaim" in record.message
+            "data_unavailable" in record.message and "positioning" in record.message
             for record in caplog.records
             if record.levelno == logging.ERROR
         )

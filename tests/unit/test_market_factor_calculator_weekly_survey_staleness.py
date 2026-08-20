@@ -1,26 +1,31 @@
-"""Regression test: MarketFactorCalculator.aaii()/naaim() must reject stale weekly-survey
-readings instead of silently using "most recent, however old" data forever.
+"""Regression test: MarketFactorCalculator.aaii() must reject stale weekly-survey readings
+instead of silently using "most recent, however old" data forever.
 
 BUG FOUND 2026-08-11: every daily factor in market_factor_calculator.py (e.g. the SPY
-selling-pressure check) enforces freshness and raises if the data is stale, but the two
-weekly-survey factors (AAII sentiment, NAAIM exposure) had `SELECT ... WHERE date <= %s
-ORDER BY date DESC LIMIT 1` with no staleness bound at all - if either loader silently
-stopped running for weeks, these factors would keep feeding an arbitrarily old contrarian
-signal into risk/exposure scoring with zero warning. Fixed with a 21-day tolerance (generous
-for a weekly survey - never false-positives on normal operation, still catches a genuinely
-dead loader).
+selling-pressure check) enforces freshness and raises if the data is stale, but the
+weekly-survey factors (AAII sentiment, formerly also NAAIM exposure) had
+`SELECT ... WHERE date <= %s ORDER BY date DESC LIMIT 1` with no staleness bound at all -
+if the loader silently stopped running for weeks, this factor would keep feeding an
+arbitrarily old contrarian signal into risk/exposure scoring with zero warning. Fixed with
+a 21-day tolerance (generous for a weekly survey - never false-positives on normal
+operation, still catches a genuinely dead loader).
 
-FIXED 2026-08-20: NAAIM's public page has required a subscription since 2026-08-01 with no
-free source left - live-confirmed 19 consecutive days of the staleness check below raising
-and taking the entire 12-factor market exposure composite down with it. naaim() now degrades
-gracefully (data_unavailable marker, same as put_call_ratio's precedent) instead of raising,
-so market_exposure.py can skip just this 5pt factor. aaii() is unchanged (still hard-fails) -
-its source hasn't suffered the same permanent loss.
+REPLACED 2026-08-20: NAAIM's public page has required a subscription since 2026-08-01 with
+no free source left - live-confirmed 19 consecutive days of the staleness check below
+raising and taking the entire 12-factor market exposure composite down with it. NAAIM was
+replaced by MarketFactorCalculator.positioning() (insider buying breadth + short interest
+trend, both official-source SEC/FINRA filings rather than a voluntary self-reported survey)
+- its own staleness/sample-size behavior is covered in
+test_market_factor_calculator_nan_infinity_pathological_inputs.py's
+TestPositioningRejectsNonFiniteShortInterestAvg, since it degrades gracefully (data_unavailable
+marker) rather than following this file's raise-on-stale weekly-survey pattern. aaii() is
+unchanged (still hard-fails) - its source hasn't suffered the same permanent loss.
 """
 
 from datetime import date
 from unittest.mock import MagicMock
 
+import psycopg2
 import pytest
 
 from algo.risk.market_factor_calculator import MarketFactorCalculator
@@ -51,28 +56,21 @@ class TestAaiiStaleness:
             calc.aaii(date(2026, 8, 11), cur)
 
 
-class TestNaaimStaleness:
-    def test_fresh_reading_within_tolerance_succeeds(self, calc):
-        cur = MagicMock()
-        cur.fetchone.return_value = (60.0, date(2026, 8, 6))
-        result = calc.naaim(date(2026, 8, 11), cur)
-        assert result["value"] == 60.0
+class TestPositioningGracefulDegradation:
+    """positioning() replaced naaim() 2026-08-20 - see module docstring. Full coverage of
+    its blend/fallback logic lives in test_market_factor_calculator_nan_infinity_pathological_inputs.py;
+    this class covers the two simplest edges directly relevant to graceful degradation.
+    """
 
-    def test_stale_reading_beyond_tolerance_degrades_gracefully(self, calc):
+    def test_no_data_at_all_degrades_gracefully(self, calc):
         cur = MagicMock()
-        cur.fetchone.return_value = (60.0, date(2026, 7, 1))  # 41 days stale
-        result = calc.naaim(date(2026, 8, 11), cur)
-        assert result["data_unavailable"] is True
-        assert "stale" in result["reason"]
-
-    def test_no_reading_at_all_degrades_gracefully(self, calc):
-        cur = MagicMock()
-        cur.fetchone.return_value = None
-        result = calc.naaim(date(2026, 8, 11), cur)
+        cur.fetchone.return_value = None  # _insider_buying_breadth's query returns no row
+        cur.fetchall.return_value = []  # _short_interest_trend's cycles query returns none
+        result = calc.positioning(date(2026, 8, 11), cur)
         assert result["data_unavailable"] is True
 
-    def test_non_finite_value_still_raises(self, calc):
+    def test_db_error_degrades_gracefully_not_raise(self, calc):
         cur = MagicMock()
-        cur.fetchone.return_value = (float("nan"), date(2026, 8, 6))
-        with pytest.raises(RuntimeError, match="Non-finite"):
-            calc.naaim(date(2026, 8, 11), cur)
+        cur.execute.side_effect = psycopg2.OperationalError("connection reset")
+        result = calc.positioning(date(2026, 8, 11), cur)
+        assert result["data_unavailable"] is True
