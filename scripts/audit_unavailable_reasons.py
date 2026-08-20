@@ -17,7 +17,18 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from loaders.loader_registry import LOADER_TABLES, PSEUDO_LOADER_TABLES
 from utils.db.context import DatabaseContext
+
+# FIXED 2026-08-19 (goal session continuation): kept in sync with
+# lambda/api/routes/scores.py::_get_scores_coverage's identical exclusion - see that
+# file's comment for the full rationale. yfinance_snapshot has had no active loader
+# since Session 275 (frozen rows, nothing left to fix), so reporting its gaps here
+# alongside real, currently-loaded tables' gaps would send this same session's own
+# diagnostic tool chasing a table no loader run can ever change.
+_TABLES_WITH_ACTIVE_LOADER = {t for tables in LOADER_TABLES.values() for t in tables} | {
+    t for tables in PSEUDO_LOADER_TABLES.values() for t in tables
+}
 
 
 def find_reason_columns(cur: Any) -> list[tuple[str, str]]:
@@ -30,7 +41,7 @@ def find_reason_columns(cur: Any) -> list[tuple[str, str]]:
         ORDER BY table_name, column_name
         """
     )
-    return [(r[0], r[1]) for r in cur.fetchall()]
+    return [(r[0], r[1]) for r in cur.fetchall() if r[0] in _TABLES_WITH_ACTIVE_LOADER]
 
 
 def table_columns(cur: Any, table: str) -> set[str]:

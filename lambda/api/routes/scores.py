@@ -23,6 +23,7 @@ from routes.utils import (
 )
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
+from loaders.loader_registry import LOADER_TABLES, PSEUDO_LOADER_TABLES
 
 logger = logging.getLogger(__name__)
 
@@ -1938,6 +1939,25 @@ def _get_scores_coverage(cur: cursor) -> Any:
             ("%unavailable_reason%",),
         )
         reason_columns = [(r[0], r[1]) for r in cur.fetchall()]
+
+        # FIXED 2026-08-19 (goal session continuation - "which factor inputs are missing the
+        # most" audit): yfinance_snapshot.unavailable_reason was reporting 2,146 active-symbol
+        # gaps (45.8% of the table, the #2 largest "Missing SEC/XBRL data" contributor after
+        # dividend_data) as if it were an actionable loader gap. It isn't: yfinance_snapshot
+        # has had NO active loader since Session 275 (see load_value_quality_growth_metrics.py's
+        # and load_positioning_metrics.py's own "yfinance_snapshot is deprecated" comments -
+        # every real consumer was migrated off it, nothing writes to it anymore, its rows are
+        # frozen at whatever they were on 2026-07-16). No amount of "fixing loaders" can ever
+        # change this number, so surfacing it here as a live gap actively misleads the exact
+        # workflow ("find which factor inputs are missing the most, fix the loaders") this
+        # report exists to support. Excludes any table with no entry in loader_registry.py's
+        # LOADER_TABLES/PSEUDO_LOADER_TABLES (the canonical active-loader-output mapping) rather
+        # than hardcoding "yfinance_snapshot" by name, so a future loader removal is excluded
+        # automatically instead of silently reintroducing this same trap a second way.
+        _tables_with_active_loader = {t for tables in LOADER_TABLES.values() for t in tables} | {
+            t for tables in PSEUDO_LOADER_TABLES.values() for t in tables
+        }
+        reason_columns = [(t, c) for t, c in reason_columns if t in _tables_with_active_loader]
 
         # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit, same-day
         # follow-up to the active-universe fix above): the "%unavailable_reason%" name
