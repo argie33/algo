@@ -1862,6 +1862,13 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "negative_earnings_growth",
             "negative_invested_capital",
             "growth_undefined_sign_change",
+            # ADDED 2026-08-19 (goal session continuation): foreign private issuers are
+            # exempt from mandatory 10-Q quarterly SEC reporting - a permanent regulatory
+            # fact, not a data gap that more loader coverage could ever close. See
+            # load_value_quality_growth_metrics.py's _compute_quarterly_metrics for the
+            # live-confirmed CHKP/FVRR case this distinguishes from genuine
+            # "insufficient_quarterly_history".
+            "foreign_private_issuer_no_quarterly_filings",
         },
     ),
 ]

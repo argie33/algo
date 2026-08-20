@@ -102,6 +102,50 @@ def _quarters_missing_eps_and_revenue():
     ]
 
 
+class _FpiAwareFakeCursor(_FakeCursor):
+    """Like _FakeCursor, but answers the is_foreign_private_issuer lookup with a real
+    value instead of always None - lets tests exercise both branches of the 2026-08-19
+    FPI-aware reason fix."""
+
+    def __init__(self, quarters, is_foreign_private_issuer):
+        super().__init__(quarters)
+        self._is_fpi = is_foreign_private_issuer
+
+    def fetchone(self):
+        if "company_info_sec" in self._last_query:
+            return (self._is_fpi,)
+        return None
+
+
+class TestForeignPrivateIssuerQuarterlyReason:
+    """FIXED 2026-08-19 (goal session continuation): "insufficient_quarterly_history"
+    implies more data will accumulate over time - false for foreign private issuers, which
+    are exempt from mandatory 10-Q quarterly SEC reporting. Live-confirmed via CHKP/FVRR:
+    both real, mature, long-listed companies whose SEC XBRL genuinely never tags more than
+    2 quarterly periods - not a local extraction gap."""
+
+    def _run(self, monkeypatch, quarters, is_fpi):
+        import loaders.load_value_quality_growth_metrics as mod
+
+        cursor = _FpiAwareFakeCursor(quarters, is_fpi)
+        monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+        loader = ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+        return loader._compute_quarterly_metrics("TESTCO")
+
+    def test_foreign_private_issuer_gets_distinct_reason(self, monkeypatch):
+        metrics = self._run(monkeypatch, _quarters_missing_eps_and_revenue()[:2], is_fpi=True)
+
+        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") == "foreign_private_issuer_no_quarterly_filings"
+        assert metrics.get("consecutive_positive_quarters_unavailable_reason") == (
+            "foreign_private_issuer_no_quarterly_filings"
+        )
+
+    def test_domestic_filer_keeps_generic_reason(self, monkeypatch):
+        metrics = self._run(monkeypatch, _quarters_missing_eps_and_revenue()[:2], is_fpi=False)
+
+        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") == "insufficient_quarterly_history"
+
+
 class TestConsecutivePositiveQuartersRecordsZero:
     def test_all_net_loss_quarters_records_zero_not_missing(self, monkeypatch):
         loader = _make_loader(monkeypatch, _quarters_all_net_losses())

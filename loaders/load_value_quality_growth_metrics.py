@@ -1218,16 +1218,40 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 quarters = cur.fetchall()
 
-            if len(quarters) < 4:
-                # Not enough quarterly data - set unavailable reasons for metrics that depend on quarters
-                for field in [
-                    "consecutive_positive_quarters",
-                    "quarterly_growth_momentum",
-                    "earnings_growth_4q_avg",
-                    "eps_growth_stability",
-                ]:
-                    metrics[f"{field}_unavailable_reason"] = "insufficient_quarterly_history"
-                return metrics
+                if len(quarters) < 4:
+                    # FIXED 2026-08-19 (goal session continuation - "which factor inputs are
+                    # missing the most" audit): "insufficient_quarterly_history" implies "will
+                    # accumulate more data over time," which is false for foreign private
+                    # issuers (20-F/40-F filers) - they're exempt from mandatory quarterly
+                    # (10-Q) SEC reporting, and their optional 6-K interim filings only
+                    # sporadically carry full XBRL-tagged financial statements. Live-confirmed
+                    # via CHKP (Check Point Software, NYSE-listed since 1996) and FVRR
+                    # (Fiverr): both real, mature, long-listed companies whose SEC XBRL
+                    # genuinely has only 2 quarterly Revenues facts ever tagged (confirmed
+                    # directly against SEC's live companyfacts API, not a local extraction gap
+                    # - our loader correctly captured everything SEC has). 371 of 541
+                    # universe-wide "insufficient_quarterly_history" symbols (68%) are flagged
+                    # foreign private issuer - same "permanent SEC exemption, not a data gap"
+                    # distinction already applied to no_insider_transactions_in_lookback and
+                    # no_8k_filings_in_recent_submissions elsewhere in this codebase today.
+                    cur.execute(
+                        "SELECT is_foreign_private_issuer FROM company_info_sec WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    fpi_row = cur.fetchone()
+                    is_fpi = bool(fpi_row[0]) if fpi_row else False
+                    reason = (
+                        "foreign_private_issuer_no_quarterly_filings" if is_fpi else "insufficient_quarterly_history"
+                    )
+                    # Not enough quarterly data - set unavailable reasons for metrics that depend on quarters
+                    for field in [
+                        "consecutive_positive_quarters",
+                        "quarterly_growth_momentum",
+                        "earnings_growth_4q_avg",
+                        "eps_growth_stability",
+                    ]:
+                        metrics[f"{field}_unavailable_reason"] = reason
+                    return metrics
 
             quarters.reverse()
             quarterly_data = [
