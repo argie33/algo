@@ -15,7 +15,13 @@ Data Quality:
   - All metrics computed from SEC audited data (vs. yfinance estimates)
   - Current (updated daily as prices update)
   - Explicit data_unavailable markers on computation failures (fail-fast if SEC data unavailable)
-  - No fallback to yfinance (SEC data only)
+  - No fallback to yfinance for computing values (SEC data only) - every PE/PB/PS/PEG/FCF/
+    market cap figure stored is 100% SEC-derived. The one exception: _sanity_check_market_cap/
+    _sanity_check_pe_ratio use yfinance as a cross-check (never a value source) to catch
+    SEC-side shares_outstanding/EPS scale errors - live for foreign private issuers (the one
+    class where an independent, ADS/USD-basis-quoted source is structurally necessary, since
+    company_info_sec's cross-check is SEC-sourced too and shares the same unit-mismatch risk),
+    a cached table otherwise. See _fetch_live_fpi_yfinance_check_values's docstring.
 
 Run: python3 loaders/load_sec_valuations.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
@@ -767,6 +773,22 @@ class SecValuationsLoader(OptimalLoader):
                 yf_market_cap = float(yf_row[0]) if yf_row and yf_row[0] is not None and yf_row[0] > 0 else None
                 yf_pe_ratio = float(yf_row[1]) if yf_row and yf_row[1] is not None and yf_row[1] > 0 else None
 
+            # FIXED 2026-08-20 (goal: finance-accuracy audit, part 2): yfinance_snapshot is
+            # frozen (no writer since Session 275, 39 days stale as of this fix) and this
+            # sanity check is the PRIMARY defense for foreign private issuers specifically
+            # (company_info_sec is deliberately skipped for FPIs above - see
+            # is_foreign_private_issuer usage - because it carries the same home-market-vs-
+            # ADS unit-mismatch risk as the primary data). Overriding with a live fetch only
+            # for FPIs, outside the `with DatabaseContext` block above (cur already released -
+            # don't hold a pooled connection open across a network call). Fails open to the
+            # (likely-stale-but-better-than-nothing) table value on any live-fetch error.
+            if is_foreign_private_issuer:
+                live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                if live_mcap is not None:
+                    yf_market_cap = live_mcap
+                if live_pe is not None:
+                    yf_pe_ratio = live_pe
+
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
             # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
@@ -1185,6 +1207,78 @@ class SecValuationsLoader(OptimalLoader):
             result["reason"] = "all_valuation_metrics_null"
 
         return result
+
+    # FIXED 2026-08-20 (goal: finance-accuracy audit, part 2): yfinance_snapshot (the table
+    # the cross-check below reads) has had no live writer since Session 275 and was frozen
+    # at 2026-07-12 - live-confirmed via direct query (39 days stale as of this fix, and
+    # covering 4,522/5,210 of the active universe). For DOMESTIC filers this doesn't matter
+    # much: the company_info_sec cross-check + MAX_PLAUSIBLE_SHARES_OUTSTANDING ceiling
+    # above are both independently sourced and fresh, so yfinance is redundant defense-in-
+    # depth there and stays on the frozen table (no new API load added for the ~78% of the
+    # universe that doesn't need it). For FOREIGN PRIVATE ISSUERS specifically, this check
+    # is NOT redundant - company_info_sec is skipped for FPIs (see is_foreign_private_issuer
+    # branch above: it's SEC-sourced too, so it carries the identical home-market-vs-ADS
+    # unit-mismatch risk as the primary data, per the TSM $10.7T incident this file's history
+    # already documents) - yfinance is the only independent, ADS/USD-basis-quoted source
+    # available for this specific class, and it was silently running on 39-day-old data.
+    # Fetches live (shared circuit breaker, same infra as utils/external/yfinance_financials.py)
+    # only for the ~1,154 FPI symbols where this is the primary defense, not the full universe.
+    def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None]:
+        """Live market_cap/trailingPE for a foreign private issuer, for sanity-check use only.
+
+        Never a value source for pe_ratio/market_cap themselves (those stay 100% SEC-derived
+        per this file's module docstring) - only used to validate/reject an already-computed
+        SEC-derived value. Fails open (returns None, None) on any fetch error: a sanity check
+        that can't run is not itself a reason to block valuation output. Uses the same shared
+        cross-ECS-task IP circuit breaker as utils/external/yfinance_financials.py/
+        yfinance_analyst_ratings.py (this loader can run for thousands of symbols across a
+        full pipeline run, same coordination requirement as those callers).
+        """
+        try:
+            import socket
+
+            import yfinance as yf
+
+            from utils.external.yfinance_circuit_breaker import (
+                YFinanceStillBannedError,
+                get_circuit_breaker,
+            )
+            from utils.external.yfinance_symbol import to_yfinance_symbol
+
+            circuit_breaker = get_circuit_breaker()
+            try:
+                circuit_breaker.wait_or_raise()
+            except YFinanceStillBannedError as e:
+                logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping FPI sanity-check fetch: {e}")
+                return None, None
+
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10.0)
+            try:
+                info = yf.Ticker(to_yfinance_symbol(symbol)).info
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+        except Exception as e:
+            error_str = str(e).lower()
+            if any(kw in error_str for kw in ("429", "rate", "too many", "invalid crumb", "unauthorized")):
+                try:
+                    get_circuit_breaker().report_rate_limit_error()
+                except Exception:
+                    pass
+            logger.debug(f"[{symbol}] Live FPI yfinance sanity-check fetch failed (non-fatal): {e}")
+            return None, None
+
+        try:
+            get_circuit_breaker().report_success()
+        except Exception:
+            pass
+        if not isinstance(info, dict):
+            return None, None
+        mcap = info.get("marketCap")
+        pe = info.get("trailingPE")
+        yf_market_cap = float(mcap) if isinstance(mcap, (int, float)) and mcap > 0 else None
+        yf_pe_ratio = float(pe) if isinstance(pe, (int, float)) and pe > 0 else None
+        return yf_market_cap, yf_pe_ratio
 
     # FIXED 2026-08-20 (goal: finance-accuracy audit): shares_outstanding can be wrong by a
     # factor neither the plausibility ceiling nor the company_info_sec cross-check (both
