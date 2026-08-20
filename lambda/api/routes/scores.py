@@ -1810,6 +1810,30 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "all_valuation_metrics_null",
             "no_income_statement",
             "finra_data_unavailable",
+            # ADDED 2026-08-20 (goal session: coverage-categorization audit): these three
+            # (load_sec_valuations.py, load_value_quality_growth_metrics.py) mean the
+            # filer's own SEC filing section is incomplete/inconsistent (not merely
+            # unset) - "the SEC data we have for this statement can't be trusted", the
+            # same class as the other "Missing SEC/XBRL data" reasons above, not an
+            # unexplained "Other" error. See load_sec_valuations.py's 2026-08-20
+            # data_unavailable-filter fix for why these rows are excluded rather than fed
+            # into ratios (113 live symbols were computing pe_ratio=1000+ from them before
+            # that fix).
+            "incomplete_sec_filing_income",
+            "incomplete_sec_filing_balance",
+            "incomplete_sec_filing_cashflow",
+            # ADDED 2026-08-20: earnings_calendar_sec's genuine "no SEC filings exist for
+            # this symbol" case (the old false-positive version of this reason - foreign
+            # private issuers filing 20-F/6-K instead of 10-K/10-Q - was already fixed
+            # 2026-08-19 by widening _EARNINGS_BEARING_FORMS; what remains is real absence).
+            "no_sec_filings_found",
+            # ADDED 2026-08-20: utils/external/sec_xbrl_segments.py - the SEC companyfacts
+            # API structurally never returns per-segment revenue at all (a permanent API
+            # limitation, not a per-filer gap); kept here rather than "Legitimate / not
+            # applicable" because it's the same "the SEC data isn't there" class as the
+            # other segment-data reasons already in this bucket
+            # (no_segment_revenue_in_xbrl_xml etc.), just a different root cause.
+            "companyfacts_api_never_exposes_per_segment_revenue",
         },
     ),
     (
@@ -1828,7 +1852,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
     ),
     (
         "No analyst coverage",
-        {"no_analyst_coverage", "no_analyst_estimates", "analyst_estimates_not_in_sec_filings"},
+        {
+            "no_analyst_coverage",
+            "no_analyst_estimates",
+            "analyst_estimates_not_in_sec_filings",
+            # ADDED 2026-08-20: load_earnings_calendar.py's equivalent of "no coverage" -
+            # same underlying fact (nobody publishes forward estimates/dates for this
+            # symbol), just for the earnings-calendar table instead of analyst_* tables.
+            "no_earnings_coverage",
+            "no_next_earnings_available",
+        },
     ),
     ("Stale fiscal data", {"stale_fiscal_data"}),
     (
@@ -1842,7 +1875,20 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "no_insider_transactions_in_lookback",
         },
     ),
-    ("Implausible / rejected value", {"implausible_ratio", "shares_outstanding_invalid"}),
+    (
+        "Implausible / rejected value",
+        {
+            "implausible_ratio",
+            "shares_outstanding_invalid",
+            # ADDED 2026-08-20: load_sec_valuations.py's market_cap sanity check (>10x vs
+            # yfinance) rejects a mis-scaled shares_outstanding the same way
+            # "shares_outstanding_invalid" does - this reason string existed in the loader
+            # (and load_short_interest_finra.py excludes symbols carrying it, per its
+            # 2026-08-20 fix) but was never wired in here, so every affected row fell
+            # through to "Other (errors / excluded)" instead of this bucket.
+            "shares_outstanding_scale_mismatch",
+        },
+    ),
     (
         "Other (errors / excluded)",
         {
@@ -1947,6 +1993,15 @@ def _categorize_reason(reason: str) -> str:
         return "Missing SEC/XBRL data"
     if reason.startswith("yfinance returned no data"):
         return "Other (errors / excluded)"
+    # ADDED 2026-08-20: loaders/helpers/sec_base.py builds this reason dynamically as
+    # f"no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity" (6 period x
+    # statement_type combinations) for REITs/SPAC-shells/other entities SEC EDGAR
+    # structurally has no income-statement/balance-sheet/cash-flow data for - the same
+    # permanent, non-fixable fact as the literal "reit_special_entity" reason already in
+    # "Legitimate / not applicable" below, just per-statement-type instead of a single
+    # flag. A set literal can't match every combination, hence the suffix check here.
+    if reason.endswith("_data_in_sec_edgar_reit_or_special_entity"):
+        return "Legitimate / not applicable"
     for cat, keys in _COVERAGE_CATEGORY_RULES:
         if base in keys or reason in keys:
             return cat
