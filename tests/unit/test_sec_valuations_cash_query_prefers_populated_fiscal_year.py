@@ -93,6 +93,8 @@ class TestCashQueryPrefersPopulatedFiscalYear:
             (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
             (80_000_000.0, 10_000_000.0, None),  # annual_cash_flow: ocf, capex, dividends_paid
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
         _, cursor = _run_fetch_incremental("JACK", fetchone_results)
 

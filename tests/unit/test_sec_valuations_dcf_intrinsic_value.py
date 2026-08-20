@@ -7,8 +7,16 @@ EV/EBITDA, EV/Revenue). A field literally named `intrinsic_value_per_share` exis
 API (lambda/api/routes/stocks.py deep-value endpoint) but was current_price / pb_ratio - a
 book-value proxy, not a DCF. This adds a real two-stage FCFE-style DCF:
 (OCF - CapEx) grown for 5 explicit years at the same EPS growth rate already used for
-peg_ratio (clamped to [-10%, +15%]/yr), discounted at a fixed 10% rate, plus a Gordon Growth
-terminal value at 2.5% terminal growth, divided by shares outstanding.
+peg_ratio (clamped to [-10%, +15%]/yr), discounted at a CAPM cost of equity, plus a Gordon
+Growth terminal value at 2.5% terminal growth, divided by shares outstanding.
+
+FIXED 2026-08-20 (goal: finance-accuracy audit): the discount rate used to be a single flat
+10%/yr for every company regardless of risk profile - not industry-standard DCF practice (a
+risk-adjusted cost of equity, not one guessed constant, is what CAPM/DCF theory calls for).
+Replaced with risk_free_rate + Blume-adjusted-beta x equity_risk_premium (see
+_compute_discount_rate). These tests exercise the no-beta/no-rate-supplied default path
+(DCF_DEFAULT_BETA=1.0, DCF_DEFAULT_RISK_FREE_RATE=4.5%), which resolves to a 9.5% discount
+rate; test_sec_valuations_capm_discount_rate.py covers the beta-varies-the-rate behavior.
 
 margin_of_safety_pct = (intrinsic_value_per_share - current_price) / intrinsic_value_per_share
 * 100 is the "discount to intrinsic value" figure - positive means undervalued.
@@ -33,8 +41,8 @@ class TestDcfIntrinsicValueCore:
         ivps, mos = loader._compute_dcf_intrinsic_value(
             "TESTCO", fcf=100.0, eps_growth_pct=0.0, shares_out=10.0, current_price=5.0
         )
-        assert ivps == 122.77
-        assert mos == 95.93
+        assert ivps == 131.41
+        assert mos == 96.2
 
     def test_growth_increases_intrinsic_value(self) -> None:
         loader = _make_loader()
@@ -44,7 +52,7 @@ class TestDcfIntrinsicValueCore:
         grown_ivps, _ = loader._compute_dcf_intrinsic_value(
             "TESTCO", fcf=100.0, eps_growth_pct=10.0, shares_out=10.0, current_price=5.0
         )
-        assert grown_ivps == 186.67
+        assert grown_ivps == 200.49
         assert grown_ivps > flat_ivps
 
     def test_extreme_growth_rate_clamped_not_extrapolated(self) -> None:
@@ -54,8 +62,8 @@ class TestDcfIntrinsicValueCore:
         ivps, mos = loader._compute_dcf_intrinsic_value(
             "TESTCO", fcf=100.0, eps_growth_pct=500.0, shares_out=10.0, current_price=5.0
         )
-        assert ivps == 227.93
-        assert mos == 97.81
+        assert ivps == 245.15
+        assert mos == 97.96
 
     def test_negative_growth_rate_floored(self) -> None:
         """A -90% growth rate must floor at DCF_GROWTH_FLOOR (-10%/yr), not compound to
@@ -79,8 +87,8 @@ class TestDcfIntrinsicValueCore:
         _, mos_expensive = loader._compute_dcf_intrinsic_value(
             "TESTCO", fcf=100.0, eps_growth_pct=0.0, shares_out=10.0, current_price=200.0
         )
-        assert mos_cheap == 95.93
-        assert mos_expensive == -62.91
+        assert mos_cheap == 96.2
+        assert mos_expensive == -52.19
         assert mos_cheap > 0
         assert mos_expensive < 0
 
@@ -109,8 +117,8 @@ class TestDcfIntrinsicValueGuards:
         ivps, mos = loader._compute_dcf_intrinsic_value(
             "TESTCO", fcf=100.0, eps_growth_pct=None, shares_out=10.0, current_price=5.0
         )
-        assert ivps == 122.77
-        assert mos == 95.93
+        assert ivps == 131.41
+        assert mos == 96.2
 
     def test_zero_shares_returns_none(self) -> None:
         loader = _make_loader()
@@ -180,8 +188,8 @@ class TestComputeValuationsWiring:
     def test_positive_fcf_populates_intrinsic_value(self) -> None:
         loader = _make_loader()
         result = loader._compute_valuations(**self._base_kwargs())
-        assert result["intrinsic_value_per_share"] == 122.77
-        assert result["margin_of_safety_pct"] == 95.93
+        assert result["intrinsic_value_per_share"] == 131.41
+        assert result["margin_of_safety_pct"] == 96.2
         # Other ratios must still compute normally alongside the new DCF fields.
         assert result["pe_ratio"] == 5.0
 
@@ -226,8 +234,8 @@ class TestAvgFcfFallback:
         kwargs["avg_fcf_fallback"] = 100.0
         result = loader._compute_valuations(**kwargs)
         # Same fcf=100.0 case as test_positive_fcf_populates_intrinsic_value above.
-        assert result["intrinsic_value_per_share"] == 122.77
-        assert result["margin_of_safety_pct"] == 95.93
+        assert result["intrinsic_value_per_share"] == 131.41
+        assert result["margin_of_safety_pct"] == 96.2
 
     def test_negative_average_still_leaves_intrinsic_value_none(self) -> None:
         loader = _make_loader()
@@ -245,8 +253,8 @@ class TestAvgFcfFallback:
         kwargs["capex"] = 0.0  # latest-year FCF = 100.0, already usable
         kwargs["avg_fcf_fallback"] = 1.0  # would produce a very different (tiny) result
         result = loader._compute_valuations(**kwargs)
-        assert result["intrinsic_value_per_share"] == 122.77
-        assert result["margin_of_safety_pct"] == 95.93
+        assert result["intrinsic_value_per_share"] == 131.41
+        assert result["margin_of_safety_pct"] == 96.2
 
     def test_fcf_yield_unaffected_by_fallback(self) -> None:
         """fcf_yield must stay based on the latest year only, never the smoothed average."""

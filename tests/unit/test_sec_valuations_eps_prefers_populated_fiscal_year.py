@@ -67,12 +67,16 @@ def _run_fetch_incremental(
 
 # Downstream fetchone() calls after income_rows/EPS-fallback, in order: cash_and_equivalents,
 # debt_row (both MOVED 2026-08-19 to compute before the price/shares_outstanding gates), then
-# price_daily.close, stockholders_equity.
+# price_daily.close, stockholders_equity, beta (stability_metrics), risk_free_rate
+# (economic_data DGS10 - added 2026-08-20 for the CAPM discount rate, see
+# load_sec_valuations.py's _get_risk_free_rate).
 _DOWNSTREAM_FETCHONE = [
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     (35.26,),
     (500_000_000.0,),
+    (1.0,),
+    (4.5,),
 ]
 
 

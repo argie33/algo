@@ -86,6 +86,12 @@ class SecValuationsLoader(OptimalLoader):
     # future currency/scale-mismatch derivation error before it ever reaches the DB.
     MAX_PLAUSIBLE_SHARES_OUTSTANDING = 100_000_000_000
 
+    # Per-run cache for _get_risk_free_rate() below - a plain class attribute (rather than an
+    # __init__ override) since every real instantiation of this loader only ever runs once
+    # per process; test fixtures construct via __new__ (bypassing __init__ entirely) and never
+    # call _get_risk_free_rate, so this default is never touched by them.
+    _risk_free_rate_cache: float | None = None
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Compute SEC-derived valuations for one symbol.
 
@@ -649,6 +655,14 @@ class SecValuationsLoader(OptimalLoader):
                 ]
                 avg_fcf_fallback = sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 2 else None
 
+                # Beta (stability_metrics, 60-day covariance vs SPY - see load_risk_metrics_daily.py's
+                # _get_beta_from_db) + the live 10Y Treasury yield feed the DCF's CAPM discount
+                # rate below (see _compute_discount_rate) - replaces the old flat 10%/yr rate.
+                cur.execute("SELECT beta FROM stability_metrics WHERE symbol = %s", (symbol,))
+                beta_row = cur.fetchone()
+                beta = float(beta_row[0]) if beta_row and beta_row[0] is not None else None
+                risk_free_rate = self._get_risk_free_rate(cur)
+
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
             # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
@@ -672,6 +686,8 @@ class SecValuationsLoader(OptimalLoader):
                     float(total_cash) if total_cash else None,
                     float(ebitda) if ebitda else None,
                     avg_fcf_fallback,
+                    beta,
+                    risk_free_rate,
                 )
             ]
 
@@ -692,12 +708,85 @@ class SecValuationsLoader(OptimalLoader):
             return [marker]
 
     # DCF constants (migration 1208, Value factor goal 2026-08-17)
-    DCF_DISCOUNT_RATE = 0.10
+    #
+    # FIXED 2026-08-20 (goal: finance-accuracy audit): DCF_DISCOUNT_RATE used to be a single
+    # flat 10%/yr applied to every company in the universe regardless of risk - a mega-cap
+    # utility and a small-cap biotech got the exact same cost of capital. That's not
+    # industry-standard DCF practice: the discount rate for an equity-cash-flow DCF should be
+    # a risk-adjusted cost of equity (CAPM: risk-free rate + beta x equity risk premium), not
+    # one guessed constant for the whole universe. Replaced with a live, per-symbol CAPM rate -
+    # see _compute_discount_rate() below. DCF_DISCOUNT_RATE itself is gone; DCF_EQUITY_RISK_
+    # PREMIUM/DCF_DEFAULT_RISK_FREE_RATE/DCF_BLUME_ADJUSTMENT_WEIGHT/DCF_DEFAULT_BETA replace it.
     DCF_TERMINAL_GROWTH_RATE = 0.025
     DCF_GROWTH_FLOOR = -0.10
     DCF_GROWTH_CEILING = 0.15
     DCF_FORECAST_YEARS = 5
     MAX_INTRINSIC_VALUE_PER_SHARE = 1_000_000.0  # $1M/share - no real per-share DCF exceeds this
+
+    # Long-run US equity risk premium (Damodaran/Ibbotson-style estimate - the ~4-6% range is
+    # the standard academic/practitioner convention for the market's average excess return
+    # over Treasuries; 5.0% sits at the middle of that range).
+    DCF_EQUITY_RISK_PREMIUM = 0.05
+    # Fallback risk-free rate (approx. long-run average 10Y Treasury yield) - used only as a
+    # test/caller default and on the rare day economic_data has no recent DGS10 reading. Live
+    # runs use the actual current 10Y yield via _get_risk_free_rate() below, not this constant.
+    DCF_DEFAULT_RISK_FREE_RATE = 0.045
+    # Blume adjustment (Bloomberg/Merrill Lynch convention): shrinks a raw regression beta
+    # 2/3 of the way toward the market average of 1.0. Individual-stock raw betas are noisy
+    # (small sample, name-specific events) - shrinking toward 1.0 is the standard industry
+    # correction rather than trusting a raw estimate (or a whole-universe flat rate) outright.
+    DCF_BLUME_ADJUSTMENT_WEIGHT = 2.0 / 3.0
+    # Assumed market-average risk when a symbol has no computed beta (stability_metrics.beta
+    # NULL - e.g. insufficient price history). Beta=1.0 is the standard "unknown risk, assume
+    # average" convention, not a guess biased toward either overvaluing or undervaluing.
+    DCF_DEFAULT_BETA = 1.0
+    # Cost of equity must exceed the risk-free rate by at least this much - equities are
+    # inherently riskier than Treasuries, so CAPM should never produce a discount rate at or
+    # below the risk-free rate even for a very low/negative-beta name.
+    DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED = 0.01
+    # Sanity ceiling on the resulting discount rate - prevents degenerate terminal-value math
+    # (or a silently absurd near-zero intrinsic value) on an extreme/noisy beta outlier.
+    DCF_MAX_DISCOUNT_RATE = 0.25
+
+    def _compute_discount_rate(self, beta: float | None, risk_free_rate: float | None) -> float:
+        """CAPM cost of equity: risk_free_rate + Blume-adjusted-beta x equity_risk_premium.
+
+        Replaces the old flat 10%/yr DCF_DISCOUNT_RATE (see its removal comment above) with a
+        risk-adjusted rate so a high-beta, high-risk name gets a real risk-adjusted cost of
+        capital instead of borrowing a safe/average company's discount rate (which would
+        systematically overstate its intrinsic value), and vice versa for a genuinely
+        low-risk name.
+        """
+        rfr = self.DCF_DEFAULT_RISK_FREE_RATE if risk_free_rate is None else risk_free_rate
+        raw_beta = self.DCF_DEFAULT_BETA if beta is None else beta
+        adjusted_beta = self.DCF_BLUME_ADJUSTMENT_WEIGHT * raw_beta + (1 - self.DCF_BLUME_ADJUSTMENT_WEIGHT) * 1.0
+        rate = rfr + adjusted_beta * self.DCF_EQUITY_RISK_PREMIUM
+        return max(rfr + self.DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED, min(self.DCF_MAX_DISCOUNT_RATE, rate))
+
+    def _get_risk_free_rate(self, cur: Any) -> float:
+        """Live 10-year Treasury yield (economic_data.DGS10) as the CAPM risk-free rate.
+
+        Cached on the instance for the lifetime of this loader run - this doesn't change
+        intra-day and querying it once per symbol (5,000+ times a run) would be pure waste.
+        Falls back to the most recent reading within 10 days (FRED doesn't publish on
+        weekends/holidays) rather than requiring an exact today's-date row, and to
+        DCF_DEFAULT_RISK_FREE_RATE on the rare day even that's unavailable.
+        """
+        if self._risk_free_rate_cache is not None:
+            return self._risk_free_rate_cache
+        cur.execute(
+            """
+            SELECT value FROM economic_data
+            WHERE series_id = 'DGS10' AND date >= CURRENT_DATE - INTERVAL '10 days' AND value IS NOT NULL
+            ORDER BY date DESC LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+        # DGS10 is published as a percentage (e.g. 4.71 meaning 4.71%) - convert to decimal.
+        self._risk_free_rate_cache = (
+            float(row[0]) / 100.0 if row and row[0] is not None else self.DCF_DEFAULT_RISK_FREE_RATE
+        )
+        return self._risk_free_rate_cache
 
     def _compute_dcf_intrinsic_value(
         self,
@@ -706,18 +795,22 @@ class SecValuationsLoader(OptimalLoader):
         eps_growth_pct: float | None,
         shares_out: float | None,
         current_price: float | None,
+        beta: float | None = None,
+        risk_free_rate: float | None = None,
     ) -> tuple[float | None, float | None]:
         """Two-stage FCFE DCF: 5-year explicit forecast of `fcf` grown at `eps_growth_pct`
-        (clamped to [DCF_GROWTH_FLOOR, DCF_GROWTH_CEILING]/yr), discounted at
-        DCF_DISCOUNT_RATE, plus a Gordon Growth terminal value at DCF_TERMINAL_GROWTH_RATE,
-        divided by shares_out.
+        (clamped to [DCF_GROWTH_FLOOR, DCF_GROWTH_CEILING]/yr), discounted at a CAPM cost of
+        equity (see _compute_discount_rate), plus a Gordon Growth terminal value at
+        DCF_TERMINAL_GROWTH_RATE, divided by shares_out.
 
         Returns (intrinsic_value_per_share, margin_of_safety_pct) - both None when fcf/
         shares_out/current_price aren't usable or the result is implausible. A missing/
         unusable eps_growth_pct defaults to flat 0%/yr rather than skipping the DCF entirely:
         FCF, shares, and price are the primary drivers and are independently available even
         when EPS history isn't (unlike peg_ratio, which requires a positive prior_year_eps to
-        be meaningful at all).
+        be meaningful at all). beta/risk_free_rate default to DCF_DEFAULT_BETA/
+        DCF_DEFAULT_RISK_FREE_RATE when not supplied (test/caller convenience) - live calls
+        from _compute_valuations always pass the symbol's real beta and the live Treasury rate.
         """
         if (
             fcf is None
@@ -731,17 +824,18 @@ class SecValuationsLoader(OptimalLoader):
 
         growth_rate = 0.0 if eps_growth_pct is None else eps_growth_pct / 100.0
         growth_rate = max(self.DCF_GROWTH_FLOOR, min(self.DCF_GROWTH_CEILING, growth_rate))
+        discount_rate = self._compute_discount_rate(beta, risk_free_rate)
 
         pv_explicit = 0.0
         fcf_year = fcf
         for year in range(1, self.DCF_FORECAST_YEARS + 1):
             fcf_year = fcf_year * (1 + growth_rate)
-            pv_explicit += fcf_year / ((1 + self.DCF_DISCOUNT_RATE) ** year)
+            pv_explicit += fcf_year / ((1 + discount_rate) ** year)
 
         terminal_value = (fcf_year * (1 + self.DCF_TERMINAL_GROWTH_RATE)) / (
-            self.DCF_DISCOUNT_RATE - self.DCF_TERMINAL_GROWTH_RATE
+            discount_rate - self.DCF_TERMINAL_GROWTH_RATE
         )
-        pv_terminal = terminal_value / ((1 + self.DCF_DISCOUNT_RATE) ** self.DCF_FORECAST_YEARS)
+        pv_terminal = terminal_value / ((1 + discount_rate) ** self.DCF_FORECAST_YEARS)
         intrinsic_per_share = (pv_explicit + pv_terminal) / shares_out
 
         if not (0 < intrinsic_per_share < self.MAX_INTRINSIC_VALUE_PER_SHARE):
@@ -771,8 +865,16 @@ class SecValuationsLoader(OptimalLoader):
         total_cash: float | None,
         ebitda: float | None,
         avg_fcf_fallback: float | None = None,
+        beta: float | None = None,
+        risk_free_rate: float | None = None,
     ) -> dict[str, Any]:
-        """Compute all valuation ratios from SEC data."""
+        """Compute all valuation ratios from SEC data.
+
+        beta/risk_free_rate feed the DCF's CAPM discount rate (see _compute_discount_rate) -
+        both default to None (-> DCF_DEFAULT_BETA/DCF_DEFAULT_RISK_FREE_RATE) so existing
+        callers/tests that don't supply them keep working; fetch_incremental always passes the
+        symbol's real stability_metrics.beta and the live Treasury yield.
+        """
         result: dict[str, Any] = {
             "symbol": symbol,
             "computed_at": date.today().isoformat(),
@@ -946,7 +1048,7 @@ class SecValuationsLoader(OptimalLoader):
         if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
             eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100
         result["intrinsic_value_per_share"], result["margin_of_safety_pct"] = self._compute_dcf_intrinsic_value(
-            symbol, fcf_base, eps_growth_pct, shares_out, current_price
+            symbol, fcf_base, eps_growth_pct, shares_out, current_price, beta, risk_free_rate
         )
 
         # Forward PE Ratio removed: Requires external analyst data.

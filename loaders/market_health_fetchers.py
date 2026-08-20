@@ -523,7 +523,7 @@ class YieldCurveFetcher:
 class BreadthFetcher:
     """Fetches market breadth data (advance/decline, new highs/lows) from database.
 
-    Computes from trend_template_data for advance/decline counts.
+    Computes real day-over-day advance/decline counts from price_daily (see fetch() below).
     Computes from price_daily for new 52-week highs/lows.
     """
 
@@ -611,36 +611,70 @@ class BreadthFetcher:
         return result
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch market breadth data from trend_template_data and price_daily.
+        """Fetch market breadth data from price_daily.
 
         Returns: dict[date_str] -> {advance_decline_ratio, new_highs_count, new_lows_count}
 
         CRITICAL: Breadth data (new highs/lows, advance/decline ratios) is essential
         for market health assessment. Fail-fast if data unavailable or computation fails.
+
+        FIXED 2026-08-20 (goal: finance-accuracy audit): advance_decline_ratio used to be
+        COUNT(price_above_sma50=true)/COUNT(price_above_sma50=false) from trend_template_data -
+        i.e. "stocks trading above their 50-day moving average" (a trend-participation metric,
+        already correctly captured on its own by algo/risk/factors/breadth_50dma_factor.py),
+        mislabeled as "advance/decline ratio". A genuine market-breadth A/D ratio is a
+        day-over-day measure - how many stocks closed up vs. down TODAY vs. yesterday - which
+        is far more volatile than "% above a 50-day average" (that only changes as a stock
+        crosses its own slow-moving trendline, not every day). Live-confirmed the mislabeling:
+        market_health_daily.advance_decline_ratio sat in a narrow 0.91-1.41 band for 3+ weeks
+        straight (2026-07-31 through 2026-08-20) - not how a real day-to-day A/D ratio behaves
+        even in a strong rally - which meant load_market_status_daily.py's breadth_momentum_10d
+        ("% of the last 10 days with advance_decline_ratio > 1.0") trivially pinned at 100% for
+        days at a time, and algo/risk/factors/ad_line_factor.py (which reads this same column
+        to score A/D-line-vs-SPY confirmation/divergence, a DISTINCT 6pt market-exposure
+        factor from breadth_50dma_factor's 6pt) was really just re-scoring the same 50DMA
+        signal twice under two different factor names. Now computed as a real day-over-day
+        A/D: each symbol's close vs. its own immediately-prior available close (LAG), summed
+        per date - the standard NYSE/market-breadth A/D definition, and now genuinely
+        independent of breadth_50dma_factor's signal.
         """
+        from datetime import timedelta
+
         from utils.db import DatabaseContext
 
         with DatabaseContext("read") as cur:
-            # Compute daily advance/decline counts from trend_template_data
+            # LAG needs each symbol's close from its own prior trading day, which may fall
+            # before `start` - a 10-calendar-day lookback comfortably covers any holiday
+            # weekend gap while keeping the window small. The outer WHERE date >= %s (the
+            # real `start`) then discards those lookback-only rows from the final result.
             cur.execute(
                 """
+                WITH ranked AS (
+                    SELECT
+                        symbol,
+                        date,
+                        close,
+                        LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+                    FROM price_daily
+                    WHERE date >= %s AND date <= %s AND close IS NOT NULL
+                )
                 SELECT
                     date,
-                    COUNT(*) FILTER (WHERE price_above_sma50 = true) AS advances,
-                    COUNT(*) FILTER (WHERE price_above_sma50 = false) AS declines
-                FROM trend_template_data
-                WHERE date >= %s AND date <= %s
+                    COUNT(*) FILTER (WHERE close > prev_close) AS advances,
+                    COUNT(*) FILTER (WHERE close < prev_close) AS declines
+                FROM ranked
+                WHERE prev_close IS NOT NULL AND date >= %s
                 GROUP BY date
                 ORDER BY date ASC
                 """,
-                (start, end),
+                (start - timedelta(days=10), end, start),
             )
             rows = cur.fetchall()
             if not rows:
                 raise RuntimeError(
                     f"[BREADTH_FETCHER] No advance/decline data available for {start} to {end}. "
                     "Breadth data is critical for market health assessment. "
-                    "Check trend_template_data table for complete data."
+                    "Check price_daily table for complete data."
                 )
 
             # Compute new highs/lows from price_daily

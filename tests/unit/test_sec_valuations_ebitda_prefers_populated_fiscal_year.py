@@ -68,12 +68,16 @@ def _run_fetch_incremental(
 
 
 # Downstream fetchone() calls, in order: price_daily.close, stockholders_equity,
-# cash_and_equivalents, debt_row.
+# cash_and_equivalents, debt_row, beta (stability_metrics), risk_free_rate (economic_data
+# DGS10 - added 2026-08-20 for the CAPM discount rate, see load_sec_valuations.py's
+# _get_risk_free_rate).
 _DOWNSTREAM_FETCHONE = [
     (35.26,),
     (500_000_000.0,),
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
+    (1.0,),
+    (4.5,),
 ]
 
 

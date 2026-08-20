@@ -100,6 +100,8 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             (50.0,),  # price_daily.close
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
         _, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 
@@ -123,6 +125,8 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (None, 0.0, 59_642_000.0, None),  # debt_row
             (50.0,),
             (500_000_000.0,),
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
         _, cursor = _run_fetch_incremental("ANET", fetchone_results)
 
@@ -149,6 +153,8 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (2_439_000_000.0, 9_000_000.0, 308_000_000.0, None),  # debt_row: FY2025's real figures
             (50.0,),
             (500_000_000.0,),
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
         _, cursor = _run_fetch_incremental("AA", fetchone_results)
 
@@ -170,6 +176,8 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (None, 0.0, None, None),  # debt_row - GOOGL-FY2026-shaped: long_term_debt NULL
             (50.0,),
             (500_000_000.0,),
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
         result, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 

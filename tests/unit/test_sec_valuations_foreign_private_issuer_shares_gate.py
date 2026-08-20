@@ -101,6 +101,8 @@ class TestForeignPrivateIssuerSharesGate:
             (970_500_000.0, None, None, None),  # debt_row
             (413.41,),  # price_daily.close
             (500_000_000_000.0,),  # stockholders_equity
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
 
         result = _run_fetch_incremental("DOMESTICCO", income_rows, fetchone_results)
@@ -125,6 +127,8 @@ class TestForeignPrivateIssuerSharesGate:
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             (35.26,),  # price_daily.close
             (500_000_000.0,),  # stockholders_equity
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
         ]
 
         result = _run_fetch_incremental("NOROWCO", income_rows, fetchone_results)
