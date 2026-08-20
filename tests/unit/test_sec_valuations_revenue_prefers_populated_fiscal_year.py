@@ -72,6 +72,7 @@ def _run_fetch_incremental(
 _DOWNSTREAM_FETCHONE = [
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
+    (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
     (50.0,),
     (500_000_000.0,),
     (1.0,),  # beta (stability_metrics)

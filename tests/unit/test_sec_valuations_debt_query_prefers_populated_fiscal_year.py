@@ -98,6 +98,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),  # price_daily.close
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (1.0,),  # beta (stability_metrics)
@@ -123,6 +124,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (30_000_000.0,),
             (None, 0.0, 59_642_000.0, None),  # debt_row
+            (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
@@ -151,6 +153,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (30_000_000.0,),
             (2_439_000_000.0, 9_000_000.0, 308_000_000.0, None),  # debt_row: FY2025's real figures
+            (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
@@ -174,6 +177,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         fetchone_results = [
             (55_911_000_000.0,),  # cash_and_equivalents - real, current-year figure
             (None, 0.0, None, None),  # debt_row - GOOGL-FY2026-shaped: long_term_debt NULL
+            (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)

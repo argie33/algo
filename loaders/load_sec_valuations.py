@@ -565,6 +565,48 @@ class SecValuationsLoader(OptimalLoader):
                             f"[{symbol}] Using shares_outstanding_dei cover-page count (no us-gaap share concept reported): {shares_out:,.0f}"
                         )
 
+                # FIXED 2026-08-20 (goal: finance-accuracy audit): MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                # (100 billion) is calibrated to catch truly absurd derived values (see
+                # test_sec_valuations_shares_outstanding_ceiling.py's NMR case, ~2.94e15) but is
+                # far too generous to catch a per-filing 1000x XBRL scale error for a small/mid-cap
+                # filer - a value like 6.07 billion or 82.5 billion passes the ceiling untouched
+                # even though it's still wrong by 3-4 orders of magnitude for that specific
+                # company. Live-confirmed: LARK (Landmark Bancorp)'s FY2025
+                # shares_outstanding_basic=6,070,662,000 (real count ~6.1M - LARK's OWN FY2026 row
+                # and its own shares_outstanding_dei both independently agree on ~6.1M, proving the
+                # FY2025 tag itself is what's mis-scaled); RPAY (Repay Holdings) mis-scaled the same
+                # way across every fiscal year on file (82.5B/85.6B/89.9B vs company_info_sec's
+                # independently-extracted 6.47M). Both fed sec_valuations.market_cap in the
+                # hundreds of billions (LARK $195.5B, RPAY $304.5B) for real small-caps, corrupting
+                # ps_ratio/fcf_yield. company_info_sec.shares_outstanding comes from a separate
+                # extraction path (see load_company_info_sec.py) - when it's available and
+                # disagrees with the resolved shares_out by more than 20x in either direction,
+                # that's a much stronger signal of a per-filing scale error than the bare ceiling
+                # catches, so prefer it. Only for domestic filers - a foreign private issuer's
+                # company_info_sec figure carries the same home-market-units risk as everywhere
+                # else in this method.
+                if shares_out and not is_foreign_private_issuer:
+                    cur.execute(
+                        """
+                        SELECT shares_outstanding FROM company_info_sec
+                        WHERE symbol = %s AND shares_outstanding > %s AND shares_outstanding < %s
+                        ORDER BY filing_date DESC LIMIT 1
+                        """,
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
+                    )
+                    cross_check_row = cur.fetchone()
+                    if cross_check_row and cross_check_row[0]:
+                        cross_check_shares = float(cross_check_row[0])
+                        larger = max(shares_out, cross_check_shares)
+                        smaller = min(shares_out, cross_check_shares)
+                        if smaller > 0 and larger / smaller > 20:
+                            logger.warning(
+                                f"[{symbol}] shares_outstanding scale mismatch: resolved={shares_out:,.0f} "
+                                f"vs company_info_sec={cross_check_shares:,.0f} (ratio {larger / smaller:.0f}x) "
+                                f"- preferring company_info_sec as the independently-extracted value"
+                            )
+                            shares_out = cross_check_shares
+
                 # Fail if still no shares outstanding available
                 if not shares_out or shares_out <= 0:
                     return [
