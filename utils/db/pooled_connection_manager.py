@@ -256,7 +256,44 @@ class PooledConnectionManager:
 
             for attempt in range(1, max_retries + 1):
                 try:
-                    self._conn = pool.getconn()
+                    candidate = pool.getconn()
+
+                    # LIVENESS CHECK (2026-08-20): getconn() returns whatever the underlying
+                    # pool has, with no validation that it's still a live connection - a
+                    # connection that died while sitting idle in the pool (server-side idle
+                    # timeout, network blip, etc.) gets handed out as-is. Live-reproduced:
+                    # sec_valuations acquired a connection and failed with
+                    # "InterfaceError: cursor already closed" on the very FIRST symbol query
+                    # (13ms after acquiring), then identically on all 5098 - one dead
+                    # connection, reused for the loader's entire run per this class's design,
+                    # cascaded to a total loader failure. release()'s rollback-before-return
+                    # only guards a connection going bad *during* a run, not one that was
+                    # already dead *before* this run ever touched it. Cheap SELECT 1 here
+                    # catches that case at checkout, where it's still recoverable (discard and
+                    # get another) instead of poisoning the whole run.
+                    try:
+                        probe_cur = candidate.cursor()
+                        try:
+                            probe_cur.execute("SELECT 1")
+                        finally:
+                            probe_cur.close()
+                    except Exception as liveness_err:
+                        logger.warning(
+                            f"[{self.loader_name}] Pooled connection failed liveness check "
+                            f"(attempt {attempt}/{max_retries}): {liveness_err}. Discarding and "
+                            "retrying with a fresh connection."
+                        )
+                        try:
+                            pool.putconn(candidate, close=True)
+                        except Exception as discard_err:
+                            logger.debug(f"[{self.loader_name}] Could not discard dead connection: {discard_err}")
+                        if attempt < max_retries:
+                            continue
+                        raise RuntimeError(
+                            f"[{self.loader_name}] Pool kept returning dead connections after {max_retries} attempts"
+                        ) from liveness_err
+
+                    self._conn = candidate
                     self._acquired_at = time.time()
 
                     logger.info(f"[{self.loader_name}] Acquired pooled connection (held for up to {self.timeout_sec}s)")
