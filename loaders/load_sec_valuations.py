@@ -742,6 +742,16 @@ class SecValuationsLoader(OptimalLoader):
                 beta = float(beta_row[0]) if beta_row and beta_row[0] is not None else None
                 risk_free_rate = self._get_risk_free_rate(cur)
 
+                # FIXED 2026-08-20 (goal: finance-accuracy audit): fetched here, still inside
+                # the `with DatabaseContext("read") as cur:` block - _sanity_check_market_cap()
+                # itself runs after this block closes (it needs valuation_row, only available
+                # once _compute_valuations() has run), so the query must happen while cur is
+                # still open. See that method's own docstring for the full rationale.
+                cur.execute("SELECT market_cap, pe_ratio FROM yfinance_snapshot WHERE symbol = %s", (symbol,))
+                yf_row = cur.fetchone()
+                yf_market_cap = float(yf_row[0]) if yf_row and yf_row[0] is not None and yf_row[0] > 0 else None
+                yf_pe_ratio = float(yf_row[1]) if yf_row and yf_row[1] is not None and yf_row[1] > 0 else None
+
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
             # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
@@ -779,7 +789,8 @@ class SecValuationsLoader(OptimalLoader):
                 beta,
                 risk_free_rate,
             )
-            self._sanity_check_market_cap(cur, symbol, valuation_row)
+            self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
+            self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
             return [valuation_row]
 
         except TimeoutError as e:
@@ -1181,15 +1192,12 @@ class SecValuationsLoader(OptimalLoader):
     # independent extraction pipelines, not two paths that can share a root cause - a real,
     # non-buggy 10x+ gap between SEC-audited and yfinance market cap would itself be a strong
     # sign of stale/wrong data on one side, worth losing the metric over.
-    def _sanity_check_market_cap(self, cur: Any, symbol: str, result: dict[str, Any]) -> None:
+    def _sanity_check_market_cap(self, symbol: str, result: dict[str, Any], yf_market_cap: float | None) -> None:
         market_cap = result.get("market_cap")
         if market_cap is None or market_cap <= 0:
             return
-        cur.execute("SELECT market_cap FROM yfinance_snapshot WHERE symbol = %s", (symbol,))
-        row = cur.fetchone()
-        if not row or row[0] is None or row[0] <= 0:
+        if yf_market_cap is None:
             return
-        yf_market_cap = float(row[0])
         ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
         if ratio <= 10:
             return
@@ -1217,6 +1225,38 @@ class SecValuationsLoader(OptimalLoader):
         # ran once before this nulling and may have passed on a metric this method just
         # cleared) - re-evaluate so a row that's now genuinely all-NULL is correctly flagged
         # data_unavailable instead of silently claiming success with nothing but a symbol/price.
+        key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
+        if all(m is None for m in key_metrics):
+            result["data_unavailable"] = True
+
+    # FIXED 2026-08-20 (goal: finance-accuracy audit, ONC follow-up): pe_ratio doesn't depend
+    # on shares_outstanding (current_price / ttm_eps only), so _sanity_check_market_cap above
+    # correctly leaves it untouched - but that also means a separately-mis-scaled ttm_eps
+    # (a different SEC concept, same underlying class of per-filing XBRL scale bug) survives
+    # completely unguarded. Live-confirmed: ONC (BeOne Medicines) still shows pe_ratio=1884.30
+    # after the market_cap fix, vs yfinance's pe_ratio=67.58 for the same company - a ~28x
+    # gap. A DB-wide scan found 38 symbols with a >10x pe_ratio mismatch against
+    # yfinance_snapshot.pe_ratio. Same validity-check-only discipline as market_cap (never a
+    # yfinance value substitution - see that method's docstring): nulls pe_ratio and its
+    # sole dependent, peg_ratio, on a >10x disagreement.
+    def _sanity_check_pe_ratio(self, symbol: str, result: dict[str, Any], yf_pe_ratio: float | None) -> None:
+        pe_ratio = result.get("pe_ratio")
+        if pe_ratio is None or pe_ratio <= 0:
+            return
+        if yf_pe_ratio is None:
+            return
+        ratio = max(pe_ratio, yf_pe_ratio) / min(pe_ratio, yf_pe_ratio)
+        if ratio <= 10:
+            return
+        logger.warning(
+            f"[{symbol}] pe_ratio sanity check failed: SEC-derived={pe_ratio:.2f} vs "
+            f"yfinance={yf_pe_ratio:.2f} (ratio {ratio:.0f}x) - ttm_eps is likely mis-scaled; "
+            f"nulling pe_ratio/peg_ratio"
+        )
+        result["pe_ratio"] = None
+        result["peg_ratio"] = None
+        if result.get("reason") is None:
+            result["reason"] = "eps_scale_mismatch"
         key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
         if all(m is None for m in key_metrics):
             result["data_unavailable"] = True

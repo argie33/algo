@@ -78,7 +78,7 @@ _DOWNSTREAM_FETCHONE = [
     (500_000_000.0,),
     (1.0,),
     (4.5,),
-    (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
+    (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
 ]
 
 

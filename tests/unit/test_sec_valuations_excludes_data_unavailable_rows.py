@@ -104,7 +104,7 @@ class TestExcludesDataUnavailableRows:
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10)
-            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
+            (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("KT", fetchone_results)
 

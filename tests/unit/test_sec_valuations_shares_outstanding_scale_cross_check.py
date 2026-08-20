@@ -84,7 +84,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
             (4.5,),  # risk_free_rate
-            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
+            (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
 
         result, cursor = _run_fetch_incremental("LARK", _LARK_SHAPED_INCOME_ROWS, fetchone_results)
@@ -111,7 +111,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
             (4.5,),  # risk_free_rate
-            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
+            (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
 
         result, _ = _run_fetch_incremental("LARK2", _LARK_SHAPED_INCOME_ROWS, fetchone_results)
@@ -133,7 +133,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
             (4.5,),  # risk_free_rate
-            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
+            (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
 
         result, _ = _run_fetch_incremental("NORMALCO2", income_rows, fetchone_results)

@@ -86,7 +86,7 @@ class TestYfinanceMarketCapSanityCheck:
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
             (4.5,),  # risk_free_rate
-            (30_990_489_600.0,),  # yfinance_snapshot.market_cap - the real ~$31.0B figure
+            (30_990_489_600.0, None),  # yfinance_snapshot: market_cap (real ~$31.0B), pe_ratio unavailable
         ]
 
         result, cursor = _run_fetch_incremental("ONC", _ONC_SHAPED_INCOME_ROWS, fetchone_results)
@@ -116,7 +116,7 @@ class TestYfinanceMarketCapSanityCheck:
             (60_000_000.0,),
             (1.0,),
             (4.5,),
-            (None,),  # yfinance_snapshot - nothing available
+            (None, None),  # yfinance_snapshot - nothing available
         ]
 
         result, _ = _run_fetch_incremental("ONC2", _ONC_SHAPED_INCOME_ROWS, fetchone_results)
@@ -135,7 +135,7 @@ class TestYfinanceMarketCapSanityCheck:
             (60_000_000.0,),
             (1.0,),
             (4.5,),
-            (450_000_000_000.0,),  # yfinance_snapshot.market_cap - within 10x of $534.3B
+            (450_000_000_000.0, None),  # yfinance_snapshot.market_cap - within 10x of $534.3B
         ]
 
         result, _ = _run_fetch_incremental("ONC3", _ONC_SHAPED_INCOME_ROWS, fetchone_results)
