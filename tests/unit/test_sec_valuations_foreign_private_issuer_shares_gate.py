@@ -104,6 +104,7 @@ class TestForeignPrivateIssuerSharesGate:
             (500_000_000_000.0,),  # stockholders_equity
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
         ]
 
         result = _run_fetch_incremental("DOMESTICCO", income_rows, fetchone_results)
@@ -131,6 +132,7 @@ class TestForeignPrivateIssuerSharesGate:
             (500_000_000.0,),  # stockholders_equity
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
         ]
 
         result = _run_fetch_incremental("NOROWCO", income_rows, fetchone_results)

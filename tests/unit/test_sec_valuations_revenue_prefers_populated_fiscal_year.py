@@ -77,6 +77,7 @@ _DOWNSTREAM_FETCHONE = [
     (500_000_000.0,),
     (1.0,),  # beta (stability_metrics)
     (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20 for the CAPM discount rate
+    (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
 ]
 
 

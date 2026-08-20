@@ -103,6 +103,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 
@@ -129,6 +130,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("ANET", fetchone_results)
 
@@ -158,6 +160,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("AA", fetchone_results)
 
@@ -182,6 +185,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (None,),  # yfinance_snapshot market_cap sanity check (2026-08-20)
         ]
         result, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 

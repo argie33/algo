@@ -757,30 +757,30 @@ class SecValuationsLoader(OptimalLoader):
             # fcf_yield=51.32% (vs a real few-percent figure); same pattern hit HMY, CSAN, DXC,
             # GT, WD and others. Preserving None lets the existing guard correctly skip fcf_yield
             # for that year instead of fabricating one from an implicit zero-capex assumption.
-            return [
-                self._compute_valuations(
-                    symbol,
-                    float(current_price),
-                    float(shares_out),
-                    float(ttm_eps_basic) if ttm_eps_basic else None,
-                    float(ttm_revenue) if ttm_revenue else None,  # Changed from 0.0 to None
-                    float(book_value) if book_value else None,
-                    float(ocf) if ocf is not None else None,
-                    float(capex) if capex is not None else None,
-                    float(prior_year_eps) if prior_year_eps else None,
-                    float(dividends_paid) if dividends_paid else None,
-                    # FIXED 2026-08-18 (AA live-confirmed): `if total_debt else None` treated a
-                    # genuine 0.0 (a real, fully zero-debt fiscal year) as falsy, silently
-                    # discarding it the same way a missing value would be - `is not None` is the
-                    # correct check here, same fix class as the SQL tier change just above.
-                    float(total_debt) if total_debt is not None else None,
-                    float(total_cash) if total_cash else None,
-                    float(ebitda) if ebitda else None,
-                    avg_fcf_fallback,
-                    beta,
-                    risk_free_rate,
-                )
-            ]
+            valuation_row = self._compute_valuations(
+                symbol,
+                float(current_price),
+                float(shares_out),
+                float(ttm_eps_basic) if ttm_eps_basic else None,
+                float(ttm_revenue) if ttm_revenue else None,  # Changed from 0.0 to None
+                float(book_value) if book_value else None,
+                float(ocf) if ocf is not None else None,
+                float(capex) if capex is not None else None,
+                float(prior_year_eps) if prior_year_eps else None,
+                float(dividends_paid) if dividends_paid else None,
+                # FIXED 2026-08-18 (AA live-confirmed): `if total_debt else None` treated a
+                # genuine 0.0 (a real, fully zero-debt fiscal year) as falsy, silently
+                # discarding it the same way a missing value would be - `is not None` is the
+                # correct check here, same fix class as the SQL tier change just above.
+                float(total_debt) if total_debt is not None else None,
+                float(total_cash) if total_cash else None,
+                float(ebitda) if ebitda else None,
+                avg_fcf_fallback,
+                beta,
+                risk_free_rate,
+            )
+            self._sanity_check_market_cap(cur, symbol, valuation_row)
+            return [valuation_row]
 
         except TimeoutError as e:
             marker = handle_exception(symbol, e, "querying SEC financial data")
@@ -1159,6 +1159,67 @@ class SecValuationsLoader(OptimalLoader):
             result["reason"] = "all_valuation_metrics_null"
 
         return result
+
+    # FIXED 2026-08-20 (goal: finance-accuracy audit): shares_outstanding can be wrong by a
+    # factor neither the plausibility ceiling nor the company_info_sec cross-check (both
+    # earlier in this file) catches - both can independently derive from the SAME
+    # underlying mis-scaled SEC concept and agree with each other while both being wrong.
+    # Live-confirmed: ONC (BeOne Medicines) computed market_cap=$534.3B here, while
+    # company_info_sec's shares_outstanding (1.478B) agreed with the SEC-derived value
+    # (1.418B) within the existing 20x cross-check tolerance - both sourced from the same
+    # mis-scaled concept. yfinance_snapshot.market_cap (a genuinely independent,
+    # differently-sourced figure) shows ONC's real market cap is ~$31.0B - a 17x gap. A
+    # DB-wide scan found 92 symbols with a >10x mismatch against yfinance_snapshot.market_cap
+    # (up to 792x for MTLS). This file's own module docstring is explicit that yfinance must
+    # never be a VALUE source here ("No fallback to yfinance (SEC data only)"), so this only
+    # uses it as a validity check: a >10x disagreement nulls every field that depends on
+    # shares_outstanding (market_cap, pb_ratio, ps_ratio, fcf_yield, dividend_yield,
+    # enterprise_value, ev_ebitda, ev_revenue, intrinsic_value_per_share,
+    # margin_of_safety_pct) rather than presenting a number now positively known to likely be
+    # wrong - pe_ratio/peg_ratio are untouched since they don't depend on shares_outstanding
+    # at all. 10x (not the shares-cross-check's 20x) because this is comparing two fully
+    # independent extraction pipelines, not two paths that can share a root cause - a real,
+    # non-buggy 10x+ gap between SEC-audited and yfinance market cap would itself be a strong
+    # sign of stale/wrong data on one side, worth losing the metric over.
+    def _sanity_check_market_cap(self, cur: Any, symbol: str, result: dict[str, Any]) -> None:
+        market_cap = result.get("market_cap")
+        if market_cap is None or market_cap <= 0:
+            return
+        cur.execute("SELECT market_cap FROM yfinance_snapshot WHERE symbol = %s", (symbol,))
+        row = cur.fetchone()
+        if not row or row[0] is None or row[0] <= 0:
+            return
+        yf_market_cap = float(row[0])
+        ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
+        if ratio <= 10:
+            return
+        logger.warning(
+            f"[{symbol}] market_cap sanity check failed: SEC-derived=${market_cap:,.0f} vs "
+            f"yfinance=${yf_market_cap:,.0f} (ratio {ratio:.0f}x) - shares_outstanding is "
+            f"likely mis-scaled; nulling shares_outstanding-dependent fields"
+        )
+        for field in (
+            "market_cap",
+            "pb_ratio",
+            "ps_ratio",
+            "fcf_yield",
+            "dividend_yield",
+            "enterprise_value",
+            "ev_ebitda",
+            "ev_revenue",
+            "intrinsic_value_per_share",
+            "margin_of_safety_pct",
+        ):
+            result[field] = None
+        if result.get("reason") is None:
+            result["reason"] = "shares_outstanding_scale_mismatch"
+        # Mirror _compute_valuations' own "all key metrics null" consistency check (it already
+        # ran once before this nulling and may have passed on a metric this method just
+        # cleared) - re-evaluate so a row that's now genuinely all-NULL is correctly flagged
+        # data_unavailable instead of silently claiming success with nothing but a symbol/price.
+        key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
+        if all(m is None for m in key_metrics):
+            result["data_unavailable"] = True
 
     def _unavailable_marker(
         self,
