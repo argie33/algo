@@ -48,6 +48,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
+from utils.external.yfinance_symbol import to_yfinance_symbol
 from utils.loaders.retry_helper import retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
         old_timeout = socket.getdefaulttimeout()
         socket.setdefaulttimeout(timeout_sec)
         try:
-            return getattr(yf.Ticker(symbol), attr)
+            return getattr(yf.Ticker(to_yfinance_symbol(symbol)), attr)
         except TimeoutError:
             raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
         except Exception as e:

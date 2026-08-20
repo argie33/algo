@@ -15,6 +15,8 @@ import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from utils.external.yfinance_symbol import to_yfinance_symbol
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -69,7 +71,7 @@ class YFinanceTimeoutWrapper:
             import yfinance as yf
 
             def create_ticker() -> Any:
-                return yf.Ticker(self.symbol)
+                return yf.Ticker(to_yfinance_symbol(self.symbol))
 
             try:
                 self._ticker = call_with_timeout(create_ticker, self.timeout_sec)

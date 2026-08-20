@@ -31,6 +31,7 @@ from typing import Any
 
 from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
+from utils.external.yfinance_symbol import to_yfinance_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,7 @@ def fetch_financial_statement(
     old_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(timeout_sec)
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(to_yfinance_symbol(symbol))
         df = getattr(ticker, attr)
     except TimeoutError:
         raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None

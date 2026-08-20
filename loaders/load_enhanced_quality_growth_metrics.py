@@ -43,6 +43,7 @@ import psycopg2
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
+from utils.external.yfinance_symbol import to_yfinance_symbol
 from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
@@ -734,7 +735,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
             from utils.loaders.retry_helper import retry_with_backoff
 
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(to_yfinance_symbol(symbol))
 
             # Get last 4 quarters of earnings data. Retried (2026-08-09) for the same reason
             # as _compute_estimate_revision_metrics's eps_trend/eps_revisions fetch - a single
@@ -812,7 +813,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
             from utils.loaders.retry_helper import retry_with_backoff
 
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(to_yfinance_symbol(symbol))
 
             # PACING FIX 2026-08-10: bumped from max_retries=2/backoff=1.0s (~3s total wait) to
             # max_retries=4/backoff=3.0s (~45s total wait, capped by RetryHelper's 32s/attempt
