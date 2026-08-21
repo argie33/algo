@@ -38,6 +38,27 @@ to ~$71B, matching KEPCO's real public-reported revenue; KB (KB Financial Group)
 for Korea's largest bank holding companies - none of the 100-1000x magnitude errors the
 original blanket guard existed to catch.
 
+FIXED 2026-08-20 (goal session: coverage root-cause audit): CNY added. Live-confirmed via
+GDS (GDS Holdings, Chinese data-center operator, CIK 0001526125) - its entire us-gaap
+revenue/net_income history (2016-2025) is tagged exclusively in CNY, none in USD, so the
+blanket guard was dropping real data for every fiscal year going all the way back to its
+2016 IPO. Frankfurter serves CNY (`GET /2025-12-31?from=USD&to=CNY` returns a real rate);
+year-end CNY/USD moved at most ~7.9% year-over-year across 2018-2025 (managed-float regime,
+narrower band than JPY's cited ~35% 2022-2024 swing or KRW's ~25%), so it clears the same
+volatility bar KRW was added under. Converting GDS's real revenue history with each
+fiscal year's own historical rate produces a smooth, monotonic $152M (FY2016) -> $1.63B
+(FY2025) growth curve consistent with its known real business trajectory - no 10-100x
+magnitude red flag. Before this fix, annual_income_statement rows for GDS (and any other
+CNY-only filer) were marked data_unavailable/"incomplete_sec_filing_income" despite having
+a complete, extractable filing - see
+[[financial_statements_governance_flag_downgrade_bug_20260820]] in memory for a separate,
+related bug this interacts with: rows written by a PRE-guard code version had stored the
+raw, unconverted CNY figure directly (a silently ~7x-too-large "USD" value, preserved by
+preserve_on_missing_fields and never overwritten because every fetch since has correctly
+returned None for the un-whitelisted currency) - this fix's next real fetch produces a
+genuine non-NULL converted value, which overwrites the stale wrong one normally (no COALESCE
+blocking involved when the new value is real, only when it's NULL).
+
 Deliberately NOT extended to other volatile/emerging-market currencies (ARS, BRL, CLP,
 COP, MXN, PEN, TRY, TWD, VND and similar) - those can move far more than developed-
 market FX pairs even within a single fiscal year, and Frankfurter itself doesn't cover
@@ -63,7 +84,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW"})
+MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY"})
 
 
 class FxRateCache:

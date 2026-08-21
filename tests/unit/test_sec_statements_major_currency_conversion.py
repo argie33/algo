@@ -82,6 +82,18 @@ class TestFxRateCache:
         assert rate == 0.00077
         assert session.calls == 1
 
+    def test_cny_is_a_major_currency_and_converts_via_historical_rate(self):
+        # FIX 2026-08-20: CNY added - see fx_rates.py's module docstring for the live-
+        # verification (GDS Holdings' full 2016-2025 revenue history, tagged exclusively
+        # in CNY, converting to a smooth $152M->$1.63B growth curve) behind this. Frankfurter
+        # covers it and its year-over-year moves (<=~8%, 2018-2025) are narrower than JPY's
+        # or KRW's, both already on this list.
+        session = _FakeSession(rate=7.001)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("CNY", "2025-12-31")
+        assert rate == 7.001
+        assert session.calls == 1
+
     def test_missing_historical_rate_fails_closed(self):
         session = _FakeSession(rate=None)  # simulates a 404 - date outside range
         cache = _isolated_cache(session)
