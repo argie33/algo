@@ -2134,6 +2134,175 @@ def _coverage_order_col(cur: cursor, table: str, cols: set[str]) -> str:
     return candidates[0]
 
 
+# Known *_data_source / *_source_tracking raw values -> human-readable labels (2026-08-21,
+# goal: "show which source - SEC/yfinance/FRED/etc - each factor's data comes from"). These
+# are the actual literal strings loaders write (see migrations 1022/1023/1135/1185/1202/1207
+# and each loader's own `"data_source": "..."` assignment) - not guessed. Anything not in this
+# map falls back to _prettify_source()'s generic token-capitalization instead of silently
+# showing a raw snake_case value.
+_SOURCE_LABELS: dict[str, str] = {
+    "sec_audited": "SEC (audited financials)",
+    "sec_edgar_submissions": "SEC EDGAR submissions",
+    "sec_edgar_filings": "SEC EDGAR filings",
+    "sec_13f": "SEC Form 13F",
+    "sec_form13f_bulk": "SEC Form 13F (bulk)",
+    "sec_form4": "SEC Form 4/5",
+    "sec_form345_bulk": "SEC Form 3/4/5 (bulk)",
+    "yfinance_api": "Yahoo Finance",
+    "yfinance_snapshot": "Yahoo Finance (snapshot, deprecated)",
+    "yfinance_earnings_estimate": "Yahoo Finance (estimates)",
+    "finra": "FINRA",
+    "finra_query_api": "FINRA",
+    "price_daily_aggregated": "Computed (price history)",
+    "computed_from_price_daily": "Computed (price history)",
+    "alpaca_api": "Alpaca",
+    "mixed": "Mixed / legacy",
+    "none": "Unavailable",
+    "unavailable": "Unavailable",
+    "not_recorded": "Not recorded",
+}
+_SOURCE_ACRONYMS = {
+    "sec",
+    "api",
+    "xbrl",
+    "fred",
+    "cik",
+    "13f",
+    "10k",
+    "20f",
+    "finra",
+    "cef",
+    "reit",
+    "spac",
+    "gaap",
+    "etf",
+    "aaii",
+    "naaim",
+    "cusip",
+    "ad",
+}
+
+
+def _prettify_source(raw: str) -> str:
+    """Turn a raw `data_source`/`source_tracking` value into a display label.
+
+    Known values get an exact label from _SOURCE_LABELS (most of them, live-verified above).
+    Anything else - a future loader's new source string this map hasn't been updated for -
+    gets a generic snake_case-to-Title-Case pass instead of showing raw underscores, so a new
+    source never renders as garbage, just as slightly-less-polished.
+    """
+    if raw in _SOURCE_LABELS:
+        return _SOURCE_LABELS[raw]
+    words = raw.replace("-", "_").split("_")
+    out = []
+    for w in words:
+        lw = w.lower()
+        if lw == "yfinance":
+            out.append("Yahoo Finance")
+        elif lw in _SOURCE_ACRONYMS:
+            out.append(lw.upper())
+        else:
+            out.append(w.capitalize() if w else w)
+    return " ".join(p for p in out if p)
+
+
+def _fetch_table_source_breakdown(
+    cur: cursor, table: str, cols: set[str], has_symbol: bool, order_col: str, active_join: str
+) -> list[dict[str, Any]] | None:
+    """Latest-row-per-symbol breakdown of a table's `data_source` column, or None if the
+    table has no such column (or isn't per-symbol). See _get_scores_coverage's call site
+    comment for why this is computed once per table rather than per factor."""
+    if not (has_symbol and order_col and "data_source" in cols):
+        return None
+    try:
+        cur.execute(
+            f"""
+            SELECT source_val, COUNT(*) FROM (
+                SELECT DISTINCT ON ({table}.symbol) {table}.symbol,
+                       {table}.data_source AS source_val
+                FROM {table}{active_join}
+                ORDER BY {table}.symbol, {table}.{order_col} DESC
+            ) latest
+            GROUP BY source_val
+            ORDER BY COUNT(*) DESC
+            """
+        )
+        src_rows = cur.fetchall()
+        src_total = sum(int(r[1]) for r in src_rows) or 1
+        return [
+            {
+                "source": str(r[0]) if r[0] is not None else "not_recorded",
+                "label": _prettify_source(str(r[0]) if r[0] is not None else "not_recorded"),
+                "count": int(r[1]),
+                "pct": round(100 * int(r[1]) / src_total, 1),
+            }
+            for r in src_rows
+        ]
+    except Exception as src_err:
+        logger.warning(f"[SCORES_COVERAGE] Skipping data_source for {table}: {src_err}")
+        return None
+
+
+def _fetch_table_source_tracking(
+    cur: cursor, table: str, cols: set[str], has_symbol: bool, order_col: str, active_join: str
+) -> dict[str, list[dict[str, Any]]] | None:
+    """Latest-row-per-symbol breakdown of a table's `source_tracking` JSONB column (per-field
+    provenance, e.g. positioning_metrics' short_interest/institutional/insider), keyed by field
+    name. None if the table has no such column."""
+    if not (has_symbol and order_col and "source_tracking" in cols):
+        return None
+    try:
+        cur.execute(
+            f"""
+            SELECT kv.field_key, kv.source_val, COUNT(*) FROM (
+                SELECT DISTINCT ON ({table}.symbol) {table}.symbol,
+                       {table}.source_tracking AS st
+                FROM {table}{active_join}
+                ORDER BY {table}.symbol, {table}.{order_col} DESC
+            ) latest, LATERAL jsonb_each_text(COALESCE(latest.st, '{{}}'::jsonb)) AS kv(field_key, source_val)
+            GROUP BY kv.field_key, kv.source_val
+            ORDER BY kv.field_key, COUNT(*) DESC
+            """
+        )
+        st_rows = cur.fetchall()
+        field_totals: dict[str, int] = {}
+        for field_key, _source_val, cnt in st_rows:
+            field_totals[field_key] = field_totals.get(field_key, 0) + int(cnt)
+        per_field: dict[str, list[dict[str, Any]]] = {}
+        for field_key, source_val, cnt in st_rows:
+            total = field_totals.get(field_key) or 1
+            per_field.setdefault(field_key, []).append(
+                {
+                    "source": str(source_val),
+                    "label": _prettify_source(str(source_val)),
+                    "count": int(cnt),
+                    "pct": round(100 * int(cnt) / total, 1),
+                }
+            )
+        return per_field
+    except Exception as st_err:
+        logger.warning(f"[SCORES_COVERAGE] Skipping source_tracking for {table}: {st_err}")
+        return None
+
+
+def _resolve_factor_sources(
+    table_source_cache: dict[str, list[dict[str, Any]] | None],
+    table_source_tracking_cache: dict[str, dict[str, list[dict[str, Any]]] | None],
+    table: str,
+    factor_name: str,
+) -> list[dict[str, Any]] | None:
+    """Pick this factor's source breakdown: a source_tracking per-field split when the factor
+    name matches one of its keys, else the table-wide data_source breakdown. See
+    table_source_cache's definition at the _get_scores_coverage call site for why sources are
+    computed per-table, not per-factor."""
+    st_detail = table_source_tracking_cache.get(table)
+    if st_detail:
+        for field_key, breakdown in st_detail.items():
+            if field_key in factor_name:
+                return breakdown
+    return table_source_cache.get(table)
+
+
 def _get_scores_coverage(cur: cursor) -> Any:
     """Factor-level data coverage report: which *_unavailable_reason columns are
     missing data across the universe, how much, and why - aggregated by root cause.
@@ -2220,6 +2389,12 @@ def _get_scores_coverage(cur: cursor) -> Any:
 
         denom_cache: dict[str, int | None] = {}
         table_cols_cache: dict[str, set[str]] = {}
+        # Per-table (not per-factor) source breakdown caches - `data_source`/`source_tracking`
+        # are table-level columns shared by every *_unavailable_reason factor on that table, so
+        # they're computed once per table and attached to each of that table's factor rows below,
+        # not recomputed per factor.
+        table_source_cache: dict[str, list[dict[str, Any]] | None] = {}
+        table_source_tracking_cache: dict[str, dict[str, list[dict[str, Any]]] | None] = {}
         factors: list[dict[str, Any]] = []
 
         for table, column in reason_columns:
@@ -2228,7 +2403,8 @@ def _get_scores_coverage(cur: cursor) -> Any:
                     """
                     SELECT column_name FROM information_schema.columns
                     WHERE table_schema='public' AND table_name=%s
-                      AND column_name IN ('symbol','date','fiscal_year','updated_at','created_at')
+                      AND column_name IN ('symbol','date','fiscal_year','updated_at','created_at',
+                                           'data_source','source_tracking')
                     """,
                     (table,),
                 )
@@ -2265,6 +2441,22 @@ def _get_scores_coverage(cur: cursor) -> Any:
                         denom_cache[table] = None
                 else:
                     denom_cache[table] = None
+
+            # Data source breakdown (goal 2026-08-21: "which sources - SEC/yfinance/etc - and
+            # what % from each, per input"). Table-level, not column-level - computed once per
+            # table (same latest-row-per-symbol population as denom_cache above) and attached to
+            # every factor row from that table below. `source_tracking` (positioning_metrics only
+            # today) gives a finer per-field breakdown when the factor name matches one of its
+            # keys (short_interest/institutional/insider); everything else uses the table-wide
+            # `data_source` column. Split into helpers above to keep this loop's own complexity
+            # in check.
+            if table not in table_source_cache:
+                table_source_cache[table] = _fetch_table_source_breakdown(
+                    cur, table, cols, has_symbol, order_col, active_join
+                )
+                table_source_tracking_cache[table] = _fetch_table_source_tracking(
+                    cur, table, cols, has_symbol, order_col, active_join
+                )
 
             try:
                 if has_symbol and order_col:
@@ -2333,6 +2525,9 @@ def _get_scores_coverage(cur: cursor) -> Any:
                     "pct_missing": pct_missing,
                     "reasons": reasons_out,
                     "categories": categories,
+                    "sources": _resolve_factor_sources(
+                        table_source_cache, table_source_tracking_cache, table, factor_name
+                    ),
                 }
             )
 
@@ -2342,6 +2537,22 @@ def _get_scores_coverage(cur: cursor) -> Any:
         for f in factors:
             for c, v in f["categories"].items():
                 category_totals[c] = category_totals.get(c, 0) + v
+
+        # Table-wide source rollup for the summary KPI/chart - one table's data_source
+        # breakdown counted once (not once per factor column on that table), same dedup
+        # reasoning as table_source_cache being keyed by table above.
+        source_totals: dict[str, int] = {}
+        source_labels: dict[str, str] = {}
+        _seen_source_tables: set[str] = set()
+        for f in factors:
+            t = f["table"]
+            if t in _seen_source_tables:
+                continue
+            _seen_source_tables.add(t)
+            for s in table_source_cache.get(t) or []:
+                source_totals[s["source"]] = source_totals.get(s["source"], 0) + s["count"]
+                source_labels[s["source"]] = s["label"]
+        source_order = sorted(source_totals, key=lambda s: -source_totals[s])
 
         # stock_symbols is the actual universe registry - prefer it over other tables'
         # denom counts, since a table like price_weekly can carry more distinct symbols
@@ -2355,6 +2566,9 @@ def _get_scores_coverage(cur: cursor) -> Any:
                 "factor_count": len(factors),
                 "category_order": _COVERAGE_CATEGORY_ORDER,
                 "category_totals": category_totals,
+                "source_order": source_order,
+                "source_totals": source_totals,
+                "source_labels": source_labels,
             },
             "factors": factors,
         }
