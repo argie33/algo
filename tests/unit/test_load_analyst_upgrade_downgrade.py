@@ -25,9 +25,10 @@ def _row(action_date: date, firm: str = "Some Firm") -> dict:
     }
 
 
-def _fake_db_context():
+def _fake_db_context(delete_rowcount: int = 0):
     """A DatabaseContext("write") stand-in that records executed queries, no real DB."""
     cur = MagicMock()
+    cur.rowcount = delete_rowcount
     ctx = MagicMock()
     ctx.__enter__ = MagicMock(return_value=cur)
     ctx.__exit__ = MagicMock(return_value=False)
@@ -134,13 +135,14 @@ class TestFetchIncremental:
         assert "data_unavailable = true" in query
         assert params == ("NVDA",)
 
-    def test_real_fetch_retraction_runs_even_when_since_filters_out_every_row(self):
-        """A symbol with only old real history and nothing new since the last watermark must
-        still get its stale marker retracted - the raw fetch already proved coverage is
-        real, even though every row happens to be filtered out of this run's return value."""
+    def test_since_filters_survive_when_no_marker_was_retracted(self):
+        """A symbol with real, continuous coverage (no stale marker on record - the DELETE
+        matches zero rows) and only old history / nothing new since the last watermark
+        should still get [] - the watermark is trustworthy here, unlike the poisoned-
+        watermark case below."""
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
         rows = [_row(date(2026, 1, 1))]
-        ctx, cur = _fake_db_context()
+        ctx, cur = _fake_db_context(delete_rowcount=0)
         with (
             patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows),
             patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
@@ -149,6 +151,34 @@ class TestFetchIncremental:
 
         assert result == []
         cur.execute.assert_called_once()
+
+    def test_retracted_marker_poisoned_watermark_is_bypassed_and_reset(self):
+        """FIX 2026-08-21 (goal session - BRK.B/dot-suffix ticker audit): live-confirmed
+        BRK.A/BRK.B/BF.B/MOG.A all stuck at zero rows despite a real, current yfinance
+        fetch succeeding, because a "no_analyst_coverage" marker written on 2026-08-19
+        (action_date=today()-at-write-time, back when these dot-suffix symbols still hit
+        the pre-fix yfinance dash-conversion bug) became this symbol's watermark. Every
+        real historical action is necessarily older than that fabricated date, so the old
+        behavior (previous test, now renamed/scoped to the non-poisoned case) silently
+        discarded 100% of the real rows forever. When the marker DELETE actually matches a
+        row (proof the watermark was never real progress), `since` must be ignored for
+        this call AND the persisted watermark row deleted so future runs don't inherit the
+        same poison."""
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        rows = [_row(date(2026, 1, 1)), _row(date(2026, 6, 1))]
+        ctx, cur = _fake_db_context(delete_rowcount=1)
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=rows),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
+        ):
+            result = loader.fetch_incremental("BRK.B", since=date(2026, 8, 19))
+
+        assert result == rows
+        queries = [c.args[0] for c in cur.execute.call_args_list]
+        assert any("DELETE FROM analyst_upgrade_downgrade" in q for q in queries)
+        assert any("DELETE FROM loader_watermarks" in q for q in queries)
+        watermark_delete = next(c for c in cur.execute.call_args_list if "loader_watermarks" in c.args[0])
+        assert watermark_delete.args[1] == ("load_analyst_upgrade_downgrade", "BRK.B")
 
     def test_no_coverage_marker_path_does_not_touch_the_db(self):
         # The retraction DELETE must only run on the real-fetch path - the no-coverage

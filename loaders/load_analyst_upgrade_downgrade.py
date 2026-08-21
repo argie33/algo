@@ -141,6 +141,30 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
                 "DELETE FROM analyst_upgrade_downgrade WHERE symbol = %s AND data_unavailable = true",
                 (symbol,),
             )
+            marker_was_retracted = cur.rowcount > 0
+
+        # FIX 2026-08-21 (goal session - "check BRK.B/dot-suffix tickers, was it rate limits
+        # or something else" audit): retracting the marker above is not enough on its own -
+        # `since` (the watermark this run was called with) can ITSELF be the marker's own
+        # fabricated action_date=today()-at-write-time, not real progress. Live-confirmed:
+        # BRK.A/BRK.B/BF.B/MOG.A (all dot-suffix dual-class tickers, the exact symbols the
+        # 2026-08-19 to_yfinance_symbol fix targeted) each show a watermark of 2026-08-19
+        # with zero rows of ANY kind left in the table today - the marker written that day
+        # (almost certainly while the dot/dash symbol bug this same fix landed for was still
+        # live) got correctly retracted once real data started flowing, but the watermark it
+        # had poisoned was never reset. Every real historical action is necessarily dated
+        # BEFORE that fabricated "today", so the `since` filter below silently discarded
+        # 100% of the real rows just retrieved, forever - the symbol never recovers on its
+        # own. Ignore `since` for this call (the retraction is proof it was never real
+        # progress) and delete the persisted watermark row too, so a future run started
+        # fresh from real data doesn't inherit the same poison.
+        if marker_was_retracted:
+            since = None
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "DELETE FROM loader_watermarks WHERE loader = %s AND symbol = %s AND granularity = 'symbol'",
+                    ("load_analyst_upgrade_downgrade", symbol),
+                )
 
         if since is not None:
             # >= not > : a different firm can issue a same-day action after the watermark
