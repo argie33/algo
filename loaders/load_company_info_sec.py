@@ -437,6 +437,34 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # once per context/class with no class label surviving into plain text - the publicly
         # traded class is virtually always the larger figure (closely-held founder/family
         # classes are the minority share count), so take the max rather than guess further.
+        #
+        # FIXED 2026-08-21 (goal session - "BRK.B and those types" audit): that "larger =
+        # public class" assumption is BACKWARDS for filers where the dot-suffixed class
+        # itself is the low-share-count, high-price class - live-confirmed BRK.A/BRK.B,
+        # BF.A/BF.B, CRD.A/CRD.B, MOG.A/MOG.B all resolve to the IDENTICAL shares_outstanding
+        # in company_info_sec (this function has no symbol-vs-context awareness, so both
+        # tickers of a pair get whichever value max() picks, regardless of which class was
+        # actually asked for). For Berkshire specifically this produced BRK.A market_cap =
+        # $1.03 QUADRILLION in value_metrics (real market cap ~$1.1T) - BRK.B's real ~1.39B
+        # share count applied to BRK.A's ~$744k/share price, off by the ~1,500:1 A-to-B
+        # conversion ratio. When MULTIPLE plausible values are found AND the symbol being
+        # resolved is itself dot-suffixed (a known multi-class ticker), we cannot safely
+        # tell which value belongs to this specific class - per the "no cheats, no
+        # confidently-wrong data" governance, refuse to guess rather than risk silently
+        # assigning the wrong class's share count. Only applies when the SYMBOL is
+        # dot-suffixed; a bare ticker with multiple filing-text values (e.g. PLNT) keeps the
+        # existing max() behavior, since there the ambiguity is between an untracked
+        # closely-held class and the one real tracked ticker - not between two tracked
+        # siblings that can each be silently handed the other's number.
+        if len(plausible) > 1 and "." in symbol:
+            logger.warning(
+                f"[{symbol}] {len(plausible)} plausible shares_outstanding values found in "
+                f"filing text (accession {accession}) and symbol is dot-suffixed (multi-class) "
+                "- cannot determine which class this value belongs to, leaving unavailable "
+                "rather than risk assigning the wrong sibling class's share count."
+            )
+            return None
+
         # int(), not float() - shares_outstanding is a bigint column; a float like
         # "25850270.0" fails psycopg2's implicit cast (live-confirmed: GEF/DGICA both failed
         # with "invalid input syntax for type bigint" before this cast was added).
