@@ -884,18 +884,53 @@ function ExposureFactors({ markets }) {
                     ? "warn"
                     : "danger";
             const sub = [];
-            if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
-            if (f.state) sub.push(f.state);
-            if (f.relation) sub.push(f.relation);
-            if (f.bull_bear_spread != null)
-              sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
-            if (f.new_highs != null)
-              sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
-            if (f.distribution_days_25d != null)
-              sub.push(`${f.distribution_days_25d} dist days`);
-            if (f.widening_rapidly) sub.push("⚠ rapidly widening");
-            if (f.hy_20d_ago != null)
-              sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
+            // Factor-specific detail display
+            if (key === "aaii_sentiment") {
+              if (f.bullish_pct != null)
+                sub.push(`Bull:${num(f.bullish_pct, 1)}%`);
+              if (f.bearish_pct != null)
+                sub.push(`Bear:${num(f.bearish_pct, 1)}%`);
+              if (f.spread != null)
+                sub.push(`Spread:${num(f.spread, 1)}`);
+            } else if (key === "positioning") {
+              if (f.insider_buying_breadth_pct != null)
+                sub.push(`Insider:${num(f.insider_buying_breadth_pct, 1)}%`);
+              if (f.short_interest_chg_pct != null)
+                sub.push(`Short Chg:${num(f.short_interest_chg_pct, 1)}%`);
+              if (f.insider_active_count != null)
+                sub.push(`${f.insider_active_count} active`);
+            } else if (key === "distribution_days") {
+              if (f.count != null)
+                sub.push(`${f.count} days`);
+              if (f.regime) sub.push(f.regime);
+            } else if (key === "new_highs_lows") {
+              if (f.new_highs != null)
+                sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
+              if (f.nh_pct != null)
+                sub.push(`${num(f.nh_pct, 1)}% highs`);
+            } else if (key === "ad_line") {
+              if (f.relation) sub.push(f.relation);
+              if (f.spy_change_pct_20d != null)
+                sub.push(`SPY 20d:${num(f.spy_change_pct_20d, 2)}%`);
+            } else if (key === "credit_spread") {
+              if (f.value != null)
+                sub.push(`OAS ${num(f.value, 2)}%`);
+              if (f.hy_20d_ago != null)
+                sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
+              if (f.widening_rapidly) sub.push("⚠ widening");
+            } else if (key === "spy_momentum") {
+              if (f.value != null)
+                sub.push(`12mo:${num(f.value, 2)}%`);
+            } else if (key === "trend_30wk") {
+              if (f.value) sub.push(f.value);
+              if (f.price_vs_ma_pct != null)
+                sub.push(`${num(f.price_vs_ma_pct, 2)}% above MA`);
+            } else {
+              // Generic display for other factors
+              if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
+              if (f.state) sub.push(f.state);
+              if (f.relation) sub.push(f.relation);
+            }
             return (
               <div key={key} style={{ marginBottom: "var(--space-3)" }}>
                 <div
