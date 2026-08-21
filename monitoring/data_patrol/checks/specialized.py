@@ -4,8 +4,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-import psycopg2
-
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)

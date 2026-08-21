@@ -459,9 +459,35 @@ class SecValuationsLoader(OptimalLoader):
                 # respectively) - skip straight to those for a foreign private issuer rather
                 # than risk the same unit mismatch in a tier nobody had separately audited.
                 shares_out = None
+                # Default False so this is always defined for the FPI-agnostic tiers
+                # below (dei cover-page, diluted) even when is_foreign_private_issuer is
+                # True and the block below never executes to compute a real value.
+                has_dual_class_sibling = False
                 if not is_foreign_private_issuer:
+                    # FIXED 2026-08-21 (goal session - "is BRK.B handled the right way"
+                    # end-to-end re-check): every tier in this block reads
+                    # annual_income_statement.shares_outstanding_basic/diluted (directly, or
+                    # derives from net_income/eps_basic which is equally class-specific) -
+                    # all four are vulnerable to the same dual-class ambiguity, not just the
+                    # net_income/eps proxy this was first found on. Live-confirmed: BRK.A's
+                    # 2021-2026 shares_outstanding_basic is correctly NULL (both prior fixes
+                    # this session), but the "older fiscal year" tier below reaches all the
+                    # way back to a real, pre-existing 2014 row (shares_outstanding_basic=
+                    # 1,643,456 - written years before any fix here existed, never
+                    # retroactively touched since those fixes only guard NEW writes) and
+                    # produced the identical wrong value for both BRK.A and BRK.B again.
+                    # Compute the sibling check once, up front, and gate every tier on it -
+                    # not just the one where this was first caught.
+                    base_root = symbol.split(".")[0]
+                    cur.execute(
+                        "SELECT 1 FROM stock_symbols WHERE active = true AND symbol != %s "
+                        "AND (symbol = %s OR symbol LIKE %s) LIMIT 1",
+                        (symbol, base_root, f"{base_root}.%"),
+                    )
+                    has_dual_class_sibling = cur.fetchone() is not None
                     if (
-                        reported_shares_outstanding
+                        not has_dual_class_sibling
+                        and reported_shares_outstanding
                         and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
                         < reported_shares_outstanding
                         < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
@@ -483,39 +509,16 @@ class SecValuationsLoader(OptimalLoader):
                     # is class-specific (BRK.A's EPS is ~1,500x BRK.B's) - this proxy silently
                     # reconstructs whichever class's EPS our extraction happened to expose,
                     # producing the SAME wrong shares_out for every sibling class regardless of
-                    # which ticker asked. Live-confirmed: with company_info_sec/annual_income_
-                    # statement.shares_outstanding_basic already correctly NULL for BRK.A/BRK.B
-                    # (both prior fixes), this proxy still derived an identical 1,643,456
-                    # "shares" for both, producing BRK.A market_cap=$1.22T and BRK.B
-                    # market_cap=$815M off the SAME wrong share count - real BRK.B market cap
-                    # should be close to BRK.A's, not 1/1500th of it. Same "no confidently-wrong
-                    # data" governance as the other two fixes: skip this proxy entirely for a
-                    # symbol with an actively-tracked dual-class sibling rather than risk
-                    # reconstructing the wrong class's number.
-                    eps_proxy_eligible = (
-                        not shares_out
+                    # which ticker asked. Gated on has_dual_class_sibling (computed once, above,
+                    # alongside every other tier in this block).
+                    if (
+                        not has_dual_class_sibling
+                        and not shares_out
                         and ttm_eps_basic
                         and ttm_eps_basic != 0
                         and _ttm_net_income
                         and _ttm_net_income != 0
-                    )
-                    has_dual_class_sibling = False
-                    if eps_proxy_eligible:
-                        # Only query for a dual-class sibling once we're actually about to
-                        # rely on this proxy - keeps the common case (tier 1 already
-                        # succeeded, or no EPS/net_income to derive from) free of an extra
-                        # query. Always check, not just for dot-suffixed symbols - HEI-style
-                        # bare tickers have dotted siblings too (HEI/HEI.A), the exact gap
-                        # the dual-class fix in load_company_info_sec.py had to close the
-                        # same way.
-                        base_root = symbol.split(".")[0]
-                        cur.execute(
-                            "SELECT 1 FROM stock_symbols WHERE active = true AND symbol != %s "
-                            "AND (symbol = %s OR symbol LIKE %s) LIMIT 1",
-                            (symbol, base_root, f"{base_root}.%"),
-                        )
-                        has_dual_class_sibling = cur.fetchone() is not None
-                    if eps_proxy_eligible and not has_dual_class_sibling:
+                    ):
                         try:
                             # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
                             derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
@@ -538,7 +541,7 @@ class SecValuationsLoader(OptimalLoader):
                     # load_value_quality_growth_metrics.py - live-confirmed for GPRO/JOUT/CWH/etc,
                     # where FY2026 is NULL but FY2025 has a real share count). Search all fiscal
                     # years, not just the two most recent, before falling back to company_info_sec.
-                    if not shares_out:
+                    if not shares_out and not has_dual_class_sibling:
                         cur.execute(
                             """
                             SELECT shares_outstanding_basic FROM annual_income_statement
@@ -577,8 +580,11 @@ class SecValuationsLoader(OptimalLoader):
                 # empty for these filers. Diluted is a real reported count, just not the
                 # exact same measure as basic (differs by dilutive securities outstanding).
                 # Gated the same as tiers 1-3 above - a foreign private issuer's diluted
-                # count carries the identical home-market-units risk.
-                if not shares_out and not is_foreign_private_issuer:
+                # count carries the identical home-market-units risk. Also gated on
+                # has_dual_class_sibling (2026-08-21) - diluted shares are exactly as
+                # class-specific as basic, so a dual-class filer's stale/ambiguous diluted
+                # count is just as unsafe to trust.
+                if not shares_out and not is_foreign_private_issuer and not has_dual_class_sibling:
                     cur.execute(
                         """
                         SELECT shares_outstanding_diluted FROM annual_income_statement
@@ -604,7 +610,14 @@ class SecValuationsLoader(OptimalLoader):
                 # (foreign 20-F/40-F filers report this in local/home-market units with no
                 # ADS-ratio conversion - see that file's removed-IFRS-concept comment for the
                 # exact 100-1000x-wrong-market-cap trap this avoids repeating).
-                if not shares_out:
+                #
+                # FIXED 2026-08-21: also gated on has_dual_class_sibling - live-confirmed
+                # BRK.A/BRK.B both resolved to the identical 941,481 "shares" from this
+                # exact tier once the three tiers above it were fixed, since
+                # shares_outstanding_dei is populated by a separate extraction path
+                # (sec_statements.py) never covered by those fixes. The cover-page fact is
+                # exactly as class-specific as basic/diluted, so the same ambiguity applies.
+                if not shares_out and not has_dual_class_sibling:
                     cur.execute(
                         """
                         SELECT shares_outstanding_dei FROM annual_income_statement

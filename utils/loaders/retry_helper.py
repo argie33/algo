@@ -45,7 +45,20 @@ class RetryHelper:
         Args:
             fn: Callable to execute (should raise exception on failure)
             context: Context string for logging (e.g., "fetch VIX data")
-            transient_errors: Tuple of exception types to retry on (default: ConnectionError, TimeoutError)
+            transient_errors: Tuple of exception types to retry on. Defaults to
+                (ConnectionError, TimeoutError, Exception) - NOT just ConnectionError/TimeoutError
+                as this docstring previously (incorrectly) claimed. The bare `Exception` is
+                deliberate, not an oversight: real yfinance rate-limit/IP-ban conditions this
+                helper's callers depend on (see utils/data/source_router.py's
+                `raise Exception(f"yfinance rate limited: {e}")`) are themselves raised as bare
+                Exception, not a narrower type - so a caller relying on the default to retry
+                those must keep getting `Exception` in the tuple. The tradeoff: a handful of
+                genuinely non-transient errors (e.g. a deterministic yfinance library KeyError
+                for a specific symbol) also get retried pointlessly under the default, wasting a
+                few seconds per occurrence - a real but small cost, confirmed intentional rather
+                than accidental after checking it wouldn't regress rate-limit recovery. Pass an
+                explicit narrower tuple here if a specific call site's errors are reliably
+                distinguishable from its rate-limit-wrapped Exception cases.
 
         Returns:
             Result of successful function call

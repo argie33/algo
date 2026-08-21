@@ -59,13 +59,22 @@ class TestEarningsBlackoutStalenessUsesRealUtcElapsedTime:
 
     def test_load_10_hours_stale_passes_freshness_gate(self):
         """A genuinely fresh load (well under 48h) must not be blocked by staleness -
-        confirms the fix didn't flip the check into always-blocking."""
+        confirms the fix didn't flip the check into always-blocking.
+
+        Mocks a real earnings date safely outside the blackout window for the second
+        query (not None/no-row) - a bare "no row found" now correctly fails closed
+        (2026-08-21 fix, see test_earnings_blackout_placeholder_deprioritized.py and
+        earnings_blackout.py's own comment), so using None here would conflate "did the
+        staleness gate pass" (what this test verifies) with "does an empty earnings
+        lookup pass" (a separate, now-intentionally-blocking case)."""
         blackout = EarningsBlackout(config=_config())
         last_load = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=10)
+        far_future_earnings = datetime.now(timezone.utc).date() + timedelta(days=100)
 
         mock_cur = MagicMock()
-        # First call: staleness check row. Second call: earnings_date lookup -> no row (no earnings).
-        mock_cur.fetchone.side_effect = [(last_load,), None]
+        # First call: staleness check row. Second call: earnings_date lookup -> real date,
+        # far outside the ±7/1 trading day window configured above.
+        mock_cur.fetchone.side_effect = [(last_load,), (far_future_earnings,)]
         mock_db_context = MagicMock()
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)

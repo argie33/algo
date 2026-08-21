@@ -93,6 +93,7 @@ def scheduler_loop() -> None:
     # causing all sessions to re-run on the same day. With 189 runs on 2026-08-07, we need
     # persistent tracking to prevent duplicate session execution after process restarts.
     from datetime import date as _date_class
+
     from utils.db.connection import get_db_connection
 
     def get_executed_sessions(today: _date_class) -> set[str]:

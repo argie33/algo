@@ -174,6 +174,10 @@ def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict
         # CB9: Win rate (last 30 trades)
         metrics["win_rate_last_30_pct"] = _compute_win_rate(cur)
 
+        # Sector drawdown (matches algo/risk/circuit_breaker.py's real halt gate - not
+        # numbered CBn here to avoid colliding with either file's own CB9, see migration 1215)
+        metrics["sector_drawdown_pct"], metrics["worst_sector_name"] = _compute_sector_drawdown(cur)
+
         # Determine if any circuit breaker is triggered
         breakers = _build_circuit_breakers(cur)
         metrics["any_triggered"] = _check_any_triggered(metrics, breakers)
@@ -190,6 +194,7 @@ def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict
             "market_stage",
             "spy_prior_day_change_pct",
             "win_rate_last_30_pct",
+            "sector_drawdown_pct",
             "triggered_count",
             "any_triggered",
         ]
@@ -656,6 +661,66 @@ def _count_triggered(metrics: dict[str, Any], breakers: list[CircuitBreakerDef])
     return sum(1 for cb in breakers if cb.is_triggered(metrics))
 
 
+def _compute_sector_drawdown(cur: Any) -> tuple[float, str | None]:
+    """Cost-basis-weighted unrealized P&L percent of the worst-performing sector among open
+    positions - mirrors algo/risk/circuit_breaker.py::_check_sector_drawdown exactly (same
+    weighting, same NaN/Inf guards) so this reporting table's value can never diverge from
+    what the real halt gate is actually evaluating.
+
+    ADDED 2026-08-21 (finance-accuracy audit): this loader computed 9 other metrics but
+    never this one, despite the real gate enforcing a sector-drawdown halt since commit
+    f20b6e42a - an operator watching this table/the dashboard had no way to see WHY a
+    sector-drawdown halt fired, only the generic any_triggered flag. See migration 1215.
+
+    Unlike the other _compute_* functions here, this does NOT raise on "no open positions"
+    or "all positions missing sector/P&L data" - those are legitimate non-error states in
+    the real gate too (it returns halted=False, not an exception, for both). Returns
+    (0.0, None) for those cases: zero sector exposure genuinely means zero sector-drawdown
+    risk, not a data quality problem worth failing the whole reporting run over.
+    """
+    cur.execute("""
+        SELECT cp.sector, ap.unrealized_pnl, ap.entry_price, ap.quantity
+        FROM algo_positions ap
+        LEFT JOIN company_profile cp ON cp.symbol = ap.symbol
+        WHERE ap.status = 'open'
+    """)
+    rows = cur.fetchall()
+    if not rows:
+        return 0.0, None
+
+    sector_pnl: dict[str, float] = {}
+    sector_basis: dict[str, float] = {}
+    for row in rows:
+        sector = row["sector"]
+        unrealized_pnl = row["unrealized_pnl"]
+        entry_price = row["entry_price"]
+        quantity = row["quantity"]
+        if not sector or unrealized_pnl is None or entry_price is None or quantity is None:
+            continue
+        try:
+            cost_basis = float(entry_price) * float(quantity)
+            unrealized_pnl_f = float(unrealized_pnl)
+        except (ValueError, TypeError):
+            continue
+        if (
+            math.isnan(cost_basis)
+            or math.isinf(cost_basis)
+            or math.isnan(unrealized_pnl_f)
+            or math.isinf(unrealized_pnl_f)
+            or cost_basis <= 0
+        ):
+            continue
+        sector_pnl[sector] = sector_pnl.get(sector, 0.0) + unrealized_pnl_f
+        sector_basis[sector] = sector_basis.get(sector, 0.0) + cost_basis
+
+    if not sector_pnl:
+        return 0.0, None
+
+    sector_returns = {s: sector_pnl[s] / sector_basis[s] * 100 for s in sector_pnl}
+    worst_sector = min(sector_returns, key=lambda s: sector_returns[s])
+    return sector_returns[worst_sector], worst_sector
+
+
 def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any]) -> None:
     """Insert or update circuit breaker status in database."""
     try:
@@ -665,8 +730,9 @@ def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any
                 check_date, portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct,
                 consecutive_losses, open_risk_pct, vix_level, market_stage,
                 spy_prior_day_change_pct, win_rate_last_30_pct,
+                sector_drawdown_pct, worst_sector_name,
                 triggered_count, any_triggered
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (check_date) DO UPDATE SET
                 portfolio_drawdown_pct = EXCLUDED.portfolio_drawdown_pct,
                 daily_loss_pct = EXCLUDED.daily_loss_pct,
@@ -677,6 +743,8 @@ def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any
                 market_stage = EXCLUDED.market_stage,
                 spy_prior_day_change_pct = EXCLUDED.spy_prior_day_change_pct,
                 win_rate_last_30_pct = EXCLUDED.win_rate_last_30_pct,
+                sector_drawdown_pct = EXCLUDED.sector_drawdown_pct,
+                worst_sector_name = EXCLUDED.worst_sector_name,
                 triggered_count = EXCLUDED.triggered_count,
                 any_triggered = EXCLUDED.any_triggered,
                 updated_at = CURRENT_TIMESTAMP
@@ -692,6 +760,8 @@ def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any
                 metrics["market_stage"],
                 metrics["spy_prior_day_change_pct"],
                 metrics["win_rate_last_30_pct"],
+                metrics["sector_drawdown_pct"],
+                metrics["worst_sector_name"],
                 metrics["triggered_count"],
                 metrics["any_triggered"],
             ),

@@ -194,10 +194,43 @@ class EarningsBlackout:
                         "pass": False,
                         "reason": f"Earnings on {earnings_date} ({trading_days_away} trading days away)",
                     }
+                # A real earnings_date was found but sits safely outside the blackout
+                # window (e.g. 60+ trading days away) - genuinely safe to trade.
+                return {
+                    "pass": True,
+                    "reason": f"Earnings on {earnings_date} is outside the ±{self.days_before}/{self.days_after} trading day window",
+                }
 
+            # BUG FOUND 2026-08-21 (goal session - "make sure everything is perfectly
+            # accurate from a finance point of view"): reaching here means the query found
+            # NO earnings_calendar row at all within [-60d(ish), +365d] of eval_date - not
+            # even a data_unavailable placeholder. That's a different, narrower case than
+            # "genuinely never confirmed" (which the placeholder-prioritization tests above
+            # already cover and correctly fail closed on) - this fires when a symbol DOES
+            # have earnings history on file, just nothing recent/upcoming enough to fall in
+            # the window, which almost always means the loader hasn't found/predicted this
+            # symbol's next earnings date yet, not that no earnings risk exists. Live-
+            # confirmed on two currently-active, currently-tradeable symbols: AZUL (real SEC
+            # earnings dates through 2025-05-14, no newer one loaded 15+ months later) and
+            # CNET (a reused ticker - stock_symbols' real underlying company is "ZW Data
+            # Action Technologies", but its earnings_calendar rows are all pre-2012, leftover
+            # from the ticker's PRIOR occupant). Both would have silently PASSED this gate
+            # (no blackout enforced) despite GOVERNANCE.md's explicit "Earnings blackout
+            # fails closed (no confirmed_date -> BLOCK all)" rule - this branch was the one
+            # remaining path that returned pass=True without ever confirming an absence of
+            # near-term earnings risk. Fail closed here too, matching every other "we don't
+            # actually know" branch in this function.
+            logger.warning(
+                f"[EARNINGS_BLACKOUT] {symbol}: no earnings_calendar row found within "
+                f"the lookback/lookahead window ({lookback_date} to {lookahead_date}). "
+                f"Cannot confirm absence of near-term earnings risk. BLOCKING ENTRY as safety measure."
+            )
             return {
-                "pass": True,
-                "reason": f"No earnings in ±{self.days_before}/{self.days_after} trading days",
+                "pass": False,
+                "reason": (
+                    f"No earnings date on file within {lookback_date} to {lookahead_date} - "
+                    "cannot confirm no upcoming earnings risk"
+                ),
             }
         except psycopg2.errors.UndefinedTable as e:
             raise ValueError(
