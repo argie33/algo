@@ -2193,6 +2193,37 @@ class StockScoresLoader(OptimalLoader):
             return 60 - (peg - 2.0) * 20  # 60->20 in [2,4]
         return max(0.0, 20 - (peg - 4.0) * 5)
 
+    def _value_metrics_coverage_excluding_fpi(self, cur: Any) -> tuple[int, int] | None:
+        """Return (covered, total) for value_metrics over the active, non-FPI universe.
+
+        See audit_upstream_coverage()'s 2026-08-21 fix comment for why the raw
+        data_loader_status.completion_pct is unusable for this gate: it counts every
+        foreign-private-issuer symbol's permanent, correct value_metrics exclusion as a
+        "failure" alongside genuine loader breakage.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE v.data_unavailable IS NOT TRUE) AS covered,
+                  COUNT(*) AS total
+                FROM value_metrics v
+                JOIN stock_symbols s ON s.symbol = v.symbol
+                LEFT JOIN LATERAL (
+                    SELECT is_foreign_private_issuer FROM company_info_sec c
+                    WHERE c.symbol = v.symbol ORDER BY filing_date DESC LIMIT 1
+                ) cis ON true
+                WHERE s.active = true AND COALESCE(cis.is_foreign_private_issuer, false) = false
+                """
+            )
+            row = cur.fetchone()
+            if not row or not row[1]:
+                return None
+            return int(row[0]), int(row[1])
+        except Exception as e:
+            logger.warning(f"[STOCK_SCORES] Could not compute FPI-excluded value_metrics coverage: {e}")
+            return None
+
     def audit_upstream_coverage(self) -> None:
         """Audit upstream metric loader coverage after stock_scores completes.
 
@@ -2253,6 +2284,35 @@ class StockScoresLoader(OptimalLoader):
                             f"non-representative sample."
                         )
                         continue
+
+                    # FIXED 2026-08-21 (goal session - "why is stock_scores intermittently
+                    # stale"): value_metrics' own completion_pct counts a symbol as "failed"
+                    # whenever its row-level data_unavailable=TRUE (see
+                    # load_value_quality_growth_metrics.py's symbols_failed bookkeeping) - but
+                    # the overwhelming majority of those are foreign private issuers, which
+                    # load_sec_valuations.py deliberately and permanently refuses to compute
+                    # market_cap/pe/pb/etc. for (20-F/40-F filers report share counts in
+                    # non-ADS home-market units - see that file's shares_outstanding
+                    # resolution comments). Live-confirmed: of 982 active symbols with
+                    # value_metrics.data_unavailable=TRUE, 795 (81%) are FPIs - a permanent,
+                    # correct exclusion, not a loader health signal. That inflates the
+                    # "failure" count enough that this gate hard-failed the whole stock_scores
+                    # run today (80.8% raw vs the 95% bar) even though the loader had actually
+                    # completed cleanly. Recomputing coverage over the non-FPI universe only
+                    # (the population this gate can actually judge loader health from) gives
+                    # 95.37% for the exact same run - real, achievable, and still enforces the
+                    # gate's actual intent (catch real upstream breakage) without punishing an
+                    # already-verified structural gap.
+                    if table_name == "value_metrics":
+                        corrected = self._value_metrics_coverage_excluding_fpi(cur)
+                        if corrected is None:
+                            logger.warning(
+                                "[STOCK_SCORES] value_metrics: could not compute FPI-excluded "
+                                "coverage, falling back to raw completion_pct"
+                            )
+                        else:
+                            symbols_loaded, symbol_count = corrected
+                            completion_pct = (symbols_loaded / symbol_count * 100.0) if symbol_count else 100.0
 
                     if completion_pct < min_coverage_pct:
                         raise RuntimeError(

@@ -24,10 +24,16 @@ def _loader() -> StockScoresLoader:
     return StockScoresLoader.__new__(StockScoresLoader)
 
 
-def _run_audit(rows):
+def _run_audit(rows, fpi_excluded_coverage=(4950, 5000)):
+    """fpi_excluded_coverage feeds the 2026-08-21 fix's separate FPI-excluded query
+    (cur.fetchone(), not cur.fetchall()) - see
+    test_stock_scores_value_metrics_fpi_excluded_coverage.py for that fix's own tests.
+    Defaults to a healthy value so tests unrelated to that path aren't affected by it.
+    """
     loader = _loader()
     cur = MagicMock()
     cur.fetchall.return_value = rows
+    cur.fetchone.return_value = fpi_excluded_coverage
 
     def fake_db_context(mode, **kwargs):
         ctx = MagicMock()
@@ -49,13 +55,14 @@ class TestAuditSkipsNonRepresentativeScopedRuns:
         _run_audit(rows)  # must not raise
 
     def test_real_full_universe_low_coverage_still_hard_fails(self):
-        # A genuine full-universe run with real degraded coverage must still be caught.
+        # A genuine full-universe run with real degraded coverage must still be caught,
+        # even after excluding FPIs (fpi_excluded_coverage here is also low).
         rows = [
             ("value_metrics", 80.0, 4000, 5000),
             ("stability_metrics", 98.0, 4900, 5000),
         ]
         try:
-            _run_audit(rows)
+            _run_audit(rows, fpi_excluded_coverage=(4000, 5000))
             raise AssertionError("expected RuntimeError for real universe-wide low coverage")
         except RuntimeError as e:
             assert "value_metrics" in str(e)
