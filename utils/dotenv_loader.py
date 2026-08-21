@@ -29,11 +29,29 @@ def load_env_local() -> None:
     if not env_local_path.exists():
         return
 
+    # FIXED 2026-08-21 (goal session - Alpaca 401 root-cause dig): override=False used to mean
+    # a stale credential already sitting in the OS process environment silently permanently
+    # wins over .env.local's real, current value, with load_env_local() (and this function's
+    # own callers - see credential_manager.py's get_alpaca_credentials() Step 3) having no way
+    # to tell "intentional live override" from "leftover cruft" apart. Live-confirmed root
+    # cause of today's real Alpaca 401s (NOT AWS Secrets Manager - _is_aws is False locally so
+    # that tier is never reached, and NOT the already-fixed algo_config DB placeholder either):
+    # a dead APCA_API_KEY_ID/APCA_API_SECRET_KEY pair (confirmed 401 against Alpaca's paper,
+    # live, AND market-data endpoints - not a units/scope mismatch, genuinely revoked/invalid)
+    # was set as a persistent Windows USER-level environment variable, invisible to this repo
+    # or .env.local, silently shadowing the real, working .env.local key on every local
+    # process's Step 3 env-var check before it could ever reach the (already-hardened) Step 4
+    # DB fallback. override=True is safe here specifically because this whole function no-ops
+    # via the exists() check above the moment .env.local isn't present - i.e. in any real
+    # deployed environment (AWS Lambda/ECS), .env.local doesn't ship, so this change has zero
+    # effect there; it only ever changes behavior on a local dev machine, which is exactly
+    # where "the checked-in file should always be authoritative over whatever cruft happens to
+    # be sitting in this OS user's environment" is the correct default.
     # Try using dotenv library first (most robust)
     try:
         from dotenv import load_dotenv
 
-        load_dotenv(env_local_path, override=False)
+        load_dotenv(env_local_path, override=True)
         return
     except ImportError:
         pass
@@ -56,8 +74,9 @@ def load_env_local() -> None:
                 key = key.strip()
                 value = value.strip()
 
-                # Don't override existing environment variables
-                if key and key not in os.environ:
+                # override=True to match the dotenv-library path above - see this function's
+                # 2026-08-21 fix comment for why .env.local must always win locally.
+                if key:
                     os.environ[key] = value
 
     except PermissionError:
