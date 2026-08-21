@@ -1484,6 +1484,38 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         """
         transformed = super().transform(rows)
 
+        # FIXED 2026-08-21 (goal session - broad shares_outstanding cross-check audit,
+        # follow-up to the BRK.A/HEI dual-class fix): SEC's companyfacts REST API does NOT
+        # always normalize a filer's inline-XBRL scale= attribute (e.g. scale="3" for
+        # "reported in thousands") before exposing the "val" field - live-confirmed against
+        # HUB Group's real companyfacts JSON (CIK 0000940942):
+        # WeightedAverageNumberOfSharesOutstandingBasic for FY2025Q3 is tagged val=60066 (a
+        # real share count in the tens of millions reported "in thousands", not 60,066
+        # actual shares). ~95 active symbols (HUBG, SWBI, TEM, VPG, DDS, DDT, FLS, and more)
+        # showed this exact ~1,000x-too-small pattern when cross-checked against
+        # company_info_sec.shares_outstanding (an independently-extracted, unaffected
+        # source). load_sec_valuations.py already has its own 20x cross-check guard against
+        # company_info_sec (added 2026-08-20 for the LARK/RPAY 1000x scale-error case) that
+        # happens to catch this before it reaches market_cap, but the raw
+        # shares_outstanding_basic/diluted value stored here was still confidently wrong -
+        # per "no cheats, no confidently-wrong data" governance, reject implausibly small
+        # values here too rather than relying on a downstream consumer's guard to always be
+        # present. Same MIN_PLAUSIBLE_SHARES_OUTSTANDING floor (100,000) already used in
+        # load_company_info_sec.py.
+        min_plausible_shares_outstanding = 100_000
+        for row in transformed:
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+                val = row.get(field)
+                if val is not None and 0 < val < min_plausible_shares_outstanding:
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"{field}={val:,.0f} is implausibly small (< {min_plausible_shares_outstanding:,}) "
+                        "- likely an unconverted 'reported in thousands' XBRL value SEC's "
+                        "companyfacts API didn't normalize. Rejecting rather than storing a "
+                        "confidently-wrong share count."
+                    )
+                    row[field] = None
+
         # Define REQUIRED metric fields (must have at least one non-NULL value) vs OPTIONAL fields
         # REQUIRED fields: core SEC metrics that should always be present for real filings
         # OPTIONAL fields: companies-specific (amortization only for acquistive firms, inventory only for retailers, etc)
