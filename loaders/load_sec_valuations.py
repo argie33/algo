@@ -475,13 +475,47 @@ class SecValuationsLoader(OptimalLoader):
                     # to compute EPS - if that was the same implausible pre-float figure rejected
                     # above (live-confirmed: AIAI's derived value is ~1000, matching its rejected
                     # reported shares_outstanding_basic exactly), the same floor must apply here too.
-                    if (
+                    #
+                    # FIXED 2026-08-21 (goal session - "is BRK.B handled the right way"
+                    # end-to-end re-check, same bug class as the dual-class shares_outstanding
+                    # fixes in load_company_info_sec.py/load_financial_statements.py): net_income
+                    # is a single whole-company figure shared by every share class, but eps_basic
+                    # is class-specific (BRK.A's EPS is ~1,500x BRK.B's) - this proxy silently
+                    # reconstructs whichever class's EPS our extraction happened to expose,
+                    # producing the SAME wrong shares_out for every sibling class regardless of
+                    # which ticker asked. Live-confirmed: with company_info_sec/annual_income_
+                    # statement.shares_outstanding_basic already correctly NULL for BRK.A/BRK.B
+                    # (both prior fixes), this proxy still derived an identical 1,643,456
+                    # "shares" for both, producing BRK.A market_cap=$1.22T and BRK.B
+                    # market_cap=$815M off the SAME wrong share count - real BRK.B market cap
+                    # should be close to BRK.A's, not 1/1500th of it. Same "no confidently-wrong
+                    # data" governance as the other two fixes: skip this proxy entirely for a
+                    # symbol with an actively-tracked dual-class sibling rather than risk
+                    # reconstructing the wrong class's number.
+                    eps_proxy_eligible = (
                         not shares_out
                         and ttm_eps_basic
                         and ttm_eps_basic != 0
                         and _ttm_net_income
                         and _ttm_net_income != 0
-                    ):
+                    )
+                    has_dual_class_sibling = False
+                    if eps_proxy_eligible:
+                        # Only query for a dual-class sibling once we're actually about to
+                        # rely on this proxy - keeps the common case (tier 1 already
+                        # succeeded, or no EPS/net_income to derive from) free of an extra
+                        # query. Always check, not just for dot-suffixed symbols - HEI-style
+                        # bare tickers have dotted siblings too (HEI/HEI.A), the exact gap
+                        # the dual-class fix in load_company_info_sec.py had to close the
+                        # same way.
+                        base_root = symbol.split(".")[0]
+                        cur.execute(
+                            "SELECT 1 FROM stock_symbols WHERE active = true AND symbol != %s "
+                            "AND (symbol = %s OR symbol LIKE %s) LIMIT 1",
+                            (symbol, base_root, f"{base_root}.%"),
+                        )
+                        has_dual_class_sibling = cur.fetchone() is not None
+                    if eps_proxy_eligible and not has_dual_class_sibling:
                         try:
                             # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
                             derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))

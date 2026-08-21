@@ -99,6 +99,7 @@ class TestForeignPrivateIssuerSharesGate:
         fetchone_results = [
             (30_000_000_000.0,),  # cash_and_equivalents
             (970_500_000.0, None, None, None),  # debt_row
+            None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a tuple - "SELECT 1 FROM ..." returns None when no row matches)
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (413.41,),  # price_daily.close
             (500_000_000_000.0,),  # stockholders_equity
@@ -127,6 +128,7 @@ class TestForeignPrivateIssuerSharesGate:
         fetchone_results = [
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a tuple - "SELECT 1 FROM ..." returns None when no row matches)
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (35.26,),  # price_daily.close
             (500_000_000.0,),  # stockholders_equity
