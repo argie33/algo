@@ -756,6 +756,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: {stale_reason}")
                     growth_dict = self._unavailable_marker("growth_metrics", symbol)
                     growth_dict["reason"] = stale_reason
+                    # FIXED 2026-08-21 (goal session, same bug shape as the len==6 shortcut
+                    # fix in _compute_growth_metrics): _unavailable_marker() hardcodes every
+                    # per-field *_unavailable_reason to the generic "insufficient_history",
+                    # and only the top-level `reason` above got the real, specific
+                    # stale_fiscal_data explanation - live-confirmed BCH: reason correctly
+                    # said "stale_fiscal_data: ..." but revenue_growth_1y_unavailable_reason
+                    # (and every other per-field column, which is what downstream consumers
+                    # like the Scores Data Coverage tab actually read) still said
+                    # "insufficient_history", the same misleading "our loader is broken"
+                    # signal this whole reason-code system exists to eliminate. Propagate the
+                    # real cause to every per-field reason column too, not just the summary.
+                    for key in growth_dict:
+                        if key.endswith("_unavailable_reason") and growth_dict[key] is not None:
+                            growth_dict[key] = "stale_fiscal_data"
 
             # These 11 trend fields are computed once, in _compute_quality_metrics (it has
             # the balance-sheet data the calculations need), but are consumed by BOTH
