@@ -1397,6 +1397,24 @@ def _build_freshness_panel(
     rtt_part = ""
     if ready_to_trade:
         rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
+        # READY TO TRADE only reflects data freshness + halt-flag state (see market.py's
+        # ready_to_trade = data_fresh_enough and not trading_halted) - it never looks at
+        # the quality/coverage checks below, so it can read as an all-clear right next to
+        # a real NULL-rate or coverage problem this same panel is about to list. Caveat it
+        # rather than let the two disagree silently (2026-08-21 user-reported confusion).
+        dq_tables = sum(
+            1 for r in hlth_items if isinstance(r, dict) and r.get("quality_status") in ("warning", "error")
+        )
+        cov_tables = sum(
+            1 for r in hlth_items if isinstance(r, dict) and r.get("coverage_status") in ("partial", "sparse")
+        )
+        if dq_tables or cov_tables:
+            caveat_bits = []
+            if dq_tables:
+                caveat_bits.append(f"{dq_tables} quality")
+            if cov_tables:
+                caveat_bits.append(f"{cov_tables} coverage")
+            rtt_part += f"  [{Y}]({'/'.join(caveat_bits)} issue(s) below)[/]"
     elif not ready_to_trade:
         # Check for orchestrator halt reason (from latest run)
         halt_reason = hlth_dict.get("trading_halt_reason") if hlth_dict else None
@@ -1506,10 +1524,23 @@ def _build_freshness_panel(
             else:
                 st = st_raw
             ok = st == "ok"
-            ic = G if ok else (Y if st == "empty" else R)
+            # A table can be fresh (st == "ok") while freshness_enhancements.py's separate
+            # NULL-ratio/coverage checks found a real problem in it - quality_status/
+            # coverage_status are populated independently of `st` (see market.py's
+            # _get_data_status). Without this, this exact row shows a bare green ✓ "ok"
+            # right next to the Data Quality Issues section calling out the same table
+            # (2026-08-21 user-reported: "how is it saying data OK when I'm seeing real
+            # issues" - trend_template_data showed ✓ ok here with weinstein_stage 11% NULL).
+            has_quality_issue = ok and r.get("quality_status") in ("warning", "error")
+            has_coverage_issue = ok and r.get("coverage_status") in ("partial", "sparse")
+            if has_quality_issue or has_coverage_issue:
+                ic = Y
+                ii = "⚠"
+            else:
+                ic = G if ok else (Y if st == "empty" else R)
+                ii = "✓" if ok else ("-" if st == "empty" else "✗")
             if st not in ("ok", "empty"):
                 logger.debug(f"[HEALTH] Health item {nm} status '{st}' mapped to RED color indicator")
-            ii = "✓" if ok else ("-" if st == "empty" else "✗")
             row_count = safe_int(r.get("row_count"), default=None)
             rc_s = f"{row_count:,}" if row_count is not None else "--"
 
@@ -1538,7 +1569,10 @@ def _build_freshness_panel(
             else:
                 last_success_s = "--"
 
-            st_label = "ok" if ok else st.upper()[:3]
+            if has_quality_issue or has_coverage_issue:
+                st_label = "QA"
+            else:
+                st_label = "ok" if ok else st.upper()[:3]
 
             # Consecutive-failure count as its own always-visible column - previously this
             # only showed up in a separate "Repeated failures" list further down the panel,
@@ -1558,7 +1592,12 @@ def _build_freshness_panel(
                 Text(duration_s, style="dim"),
                 Text(last_success_s, style="dim"),
                 Text(fails_s, style=R if cons_fail_n else "dim"),
-                Text(st_label, style=G if ok else (Y if st == "empty" else R)),
+                Text(
+                    st_label,
+                    style=Y
+                    if (has_quality_issue or has_coverage_issue)
+                    else (G if ok else (Y if st == "empty" else R)),
+                ),
             )
         return tbl
 
@@ -1985,6 +2024,7 @@ def _build_loader_health_section(
     loader_health: list[Any] | None,
     total_unhealthy: int | None = None,
     total_tracked: int | None = None,
+    hlth_items: list[Any] | None = None,
 ) -> list[Text | Rule]:
     """Build loader reliability section showing tables with failure streaks.
 
@@ -1999,6 +2039,14 @@ def _build_loader_health_section(
         total_tracked: Total tables tracked in data_loader_status - shown alongside the
             healthy-state message so "all healthy" reads as "all N tracked tables", not
             an unscoped claim.
+        hlth_items: Per-table freshness rows enriched by freshness_enhancements.py
+            (data_quality_issues/quality_status, coverage_status). "Loader Health" here
+            only measures job EXECUTION (did the run finish without error) - it says
+            nothing about whether the resulting data is complete/correct. Without this,
+            a table with an 11% NULL rate in a critical column, or a real coverage gap,
+            still renders "All loaders healthy" - a real user-facing incident (2026-08-21:
+            reported as "how is it saying data OK when I'm seeing real issues") caused by
+            these two signals never being reconciled anywhere in the display.
 
     Returns list of Rich Text/Rule objects for display.
     """
@@ -2014,10 +2062,37 @@ def _build_loader_health_section(
     # against an older cached response.
     unhealthy_count = total_unhealthy if total_unhealthy is not None else len(unhealthy)
 
+    quality_issue_count = 0
+    coverage_issue_count = 0
+    if isinstance(hlth_items, list):
+        quality_issue_count = sum(
+            1
+            for r in hlth_items
+            if isinstance(r, dict) and r.get("quality_status") in ("warning", "error") and r.get("data_quality_issues")
+        )
+        coverage_issue_count = sum(
+            1 for r in hlth_items if isinstance(r, dict) and r.get("coverage_status") in ("partial", "sparse")
+        )
+
     rows.append(Rule(style="dim"))
     if unhealthy_count == 0:
         tracked_str = f" ({total_tracked} tracked)" if total_tracked is not None else ""
-        rows.append(Text.from_markup(f"[bold {G}]Loader Health:[/] All loaders healthy ✓{tracked_str}"))
+        if quality_issue_count == 0 and coverage_issue_count == 0:
+            rows.append(Text.from_markup(f"[bold {G}]Loader Health:[/] All loaders healthy ✓{tracked_str}"))
+        else:
+            # Loaders ran fine (this line's actual scope) - but say so narrowly, and point
+            # at the real problem instead of implying the data itself is fine too.
+            issue_bits = []
+            if quality_issue_count:
+                issue_bits.append(f"{quality_issue_count} with data quality issues")
+            if coverage_issue_count:
+                issue_bits.append(f"{coverage_issue_count} with coverage gaps")
+            rows.append(
+                Text.from_markup(
+                    f"[bold {G}]Loader Health:[/] All loaders executing normally ✓{tracked_str}  "
+                    f"[bold {Y}]but {', '.join(issue_bits)}[/] [dim](see below)[/]"
+                )
+            )
         return rows
 
     # Deliberately a one-line summary, not an itemized per-table list: the same tables
@@ -3362,6 +3437,17 @@ def _format_health_data_fresh_section(
         rtt_badge = f"[bold {R}]✗ NOT READY[/]"
     elif ready_to_trade:
         rtt_badge = f"[{G}]✓ READY TO TRADE[/]"
+        # Same caveat as the expanded panel (_build_freshness_panel) - READY TO TRADE is
+        # freshness/halt-flag only, so surface known quality/coverage issues here too
+        # instead of letting the compact badge read as an unqualified all-clear.
+        issue_tables = sum(
+            1
+            for r in hlth_list
+            if isinstance(r, dict)
+            and (r.get("quality_status") in ("warning", "error") or r.get("coverage_status") in ("partial", "sparse"))
+        )
+        if issue_tables:
+            rtt_badge += f"  [{Y}]⚠ {issue_tables} data issue(s)[/]"
     else:
         rtt_badge = f"[{G}]✓ Data OK[/]"
 
@@ -5530,6 +5616,7 @@ def panel_data_freshness_expanded(
             loader_health,
             total_unhealthy=orch_extended.get("loader_health_total_unhealthy"),
             total_tracked=orch_extended.get("loader_health_total_tracked"),
+            hlth_items=hlth_items,
         )
         if loader_health_rows:
             rows.extend(loader_health_rows)

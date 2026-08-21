@@ -110,6 +110,17 @@ function ServiceHealthContent() {
   };
   const sources = dataStatus?.sources || [];
   const ready = dataStatus?.ready_to_trade;
+  // ready_to_trade only reflects data freshness + halt-flag state (see market.py's
+  // ready_to_trade = data_fresh_enough and not trading_halted) - it never looks at the
+  // quality/coverage checks below, so it can render as an all-clear right next to a real
+  // NULL-rate or coverage problem this same page lists per-source. Caveat it instead of
+  // letting the two disagree silently (mirrors the TUI fix, 2026-08-21).
+  const qualityIssueCount = sources.filter(
+    (s) => s.quality_status === "warning" || s.quality_status === "error",
+  ).length;
+  const coverageIssueCount = sources.filter(
+    (s) => s.coverage_status === "partial" || s.coverage_status === "sparse",
+  ).length;
   const executionHealth = dataStatus?.execution_health;
   const findings = plAccessDenied
     ? []
@@ -232,6 +243,21 @@ function ServiceHealthContent() {
                   >
                     {ready ? "READY TO TRADE" : "NOT READY"}
                   </div>
+                  {ready && (qualityIssueCount > 0 || coverageIssueCount > 0) && (
+                    <div className="t-xs" style={{ color: "var(--amber)" }}>
+                      {[
+                        qualityIssueCount > 0
+                          ? `${qualityIssueCount} quality issue(s)`
+                          : null,
+                        coverageIssueCount > 0
+                          ? `${coverageIssueCount} coverage gap(s)`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}{" "}
+                      below
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="stile">
@@ -337,6 +363,32 @@ function ServiceHealthContent() {
                                 .filter(Boolean)
                                 .join(" · ")
                             : undefined;
+                          // A table can be freshness-"ok" (fresh run) while
+                          // freshness_enhancements.py's separate NULL-ratio/coverage
+                          // checks found a real problem in it - quality_status/
+                          // coverage_status are populated independently of s.status.
+                          // Without this, this exact row showed a bare green "OK" badge
+                          // right next to a real data-quality gap (mirrors the same fix
+                          // in dashboard/panels/health.py's TUI table, 2026-08-21).
+                          const hasQualityIssue =
+                            s.status === "ok" &&
+                            (s.quality_status === "warning" ||
+                              s.quality_status === "error");
+                          const hasCoverageIssue =
+                            s.status === "ok" &&
+                            (s.coverage_status === "partial" ||
+                              s.coverage_status === "sparse");
+                          const flagQA = hasQualityIssue || hasCoverageIssue;
+                          const qaTitle = flagQA
+                            ? [
+                                ...(s.data_quality_issues || []),
+                                s.coverage_status
+                                  ? `coverage: ${s.coverage_status}`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")
+                            : undefined;
                           return (
                             <tr key={i}>
                               <td>
@@ -381,9 +433,10 @@ function ServiceHealthContent() {
                               </td>
                               <td>
                                 <span
-                                  className={`badge ${STATUS_VARIANT[s.status] || "badge"}`}
+                                  className={`badge ${flagQA ? "badge-amber" : STATUS_VARIANT[s.status] || "badge"}`}
+                                  title={qaTitle}
                                 >
-                                  {(s.status || "").toUpperCase()}
+                                  {flagQA ? "QA" : (s.status || "").toUpperCase()}
                                 </span>
                               </td>
                             </tr>

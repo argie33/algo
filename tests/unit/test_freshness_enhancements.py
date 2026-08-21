@@ -103,6 +103,23 @@ class TestCoverageEnrichment:
         enriched = enrich_health_item_with_coverage(health_item)
         assert "symbol_coverage_pct" not in enriched  # Not applicable
 
+    def test_skips_buy_sell_daily_sparse_event_driven_table(self) -> None:
+        """buy_sell_daily is sparse/event-driven - a row only exists when that symbol had a
+        breakout/breakdown signal that day (see load_buy_sell_daily.py's
+        sparse_symbol_population flag, added 2026-08-21 for the identical misreading in the
+        loader's own completion check). Comparing it against the full active-symbol universe
+        here previously reported normal quiet days (e.g. 4.1% coverage) as a "Coverage Gap"
+        alongside genuinely sparse tables like price_daily, drowning out real gaps in noise.
+        """
+        health_item = {
+            "tbl": "buy_sell_daily",
+            "st": "ok",
+            "row_count": 100,
+        }
+
+        enriched = enrich_health_item_with_coverage(health_item)
+        assert "symbol_coverage_pct" not in enriched  # Not applicable - sparse by design
+
 
 class TestFailurePatternEnrichment:
     """Test failure pattern analysis (rate, windows, MTTR)."""

@@ -327,13 +327,19 @@ def enrich_health_item_with_coverage(health_item: dict[str, Any], cur: Any = Non
     # isn't a meaningful metric for them and would falsely flag a healthy, quiet trading day
     # as "SPARSE" coverage.
     # stock_scores is also excluded: it's a snapshot table with one row per symbol (no date),
-    # not a time-series like price_daily/technical_data_daily/buy_sell_daily. The math of
-    # "coverage vs. expected symbols" creates nonsensical ratios > 100% when scores exist for
-    # symbols not in the active trading universe.
+    # not a time-series like price_daily/technical_data_daily. The math of "coverage vs.
+    # expected symbols" creates nonsensical ratios > 100% when scores exist for symbols not
+    # in the active trading universe.
+    # buy_sell_daily is excluded for the same reason as algo_signals: it's sparse/event-driven
+    # by design (a row only exists when that symbol had a breakout/breakdown signal that day -
+    # see load_buy_sell_daily.py's sparse_symbol_population flag, added 2026-08-21 for the
+    # identical misreading in the loader's own completion check). Comparing it against the
+    # full active-symbol universe here reported "4.1% coverage" as a "Coverage Gap" on a
+    # perfectly normal quiet day, right alongside price_daily's real ~97% gap - drowning out
+    # the genuine issue and making the whole panel read as noise.
     symbol_tables = {
         "price_daily",
         "technical_data_daily",
-        "buy_sell_daily",
     }
 
     if table_name not in symbol_tables:
