@@ -308,6 +308,58 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
         return best
 
+    @staticmethod
+    def _resolve_crosswalk_ticker(
+        raw_ticker: str | None,
+        resolved_name: str | None,
+        symbols: set[str],
+        local_names: dict[str, str],
+        name_index: EntityNameIndex,
+    ) -> str | None:
+        """Resolve one crosswalk row's raw OpenFIGI ticker to our own tracked-universe
+        symbol, applying the exact same fallback chain (dot-suffix, currency-suffix,
+        entity-name rescue, name-plausibility check) that _crosswalk_to_tickers() applies
+        when computing the aggregate ownership_pct - see its docstring for each rule's
+        rationale.
+
+        Shared with _get_known_tracked_cusips() specifically because those two call sites
+        used to implement this independently and had drifted: _get_known_tracked_cusips()
+        did a naive exact `ticker = ANY(symbols)` match with no fallback, so any CUSIP that
+        only resolved via one of these rescues (e.g. XOM's CUSIP -> OpenFIGI ticker
+        "EXMOC", rescued via entity-name match; WSO.B's -> "WSO/B", rescued via dot-suffix)
+        never made it into tracked_cusips even though _crosswalk_to_tickers() correctly
+        resolved it to a real, tracked ticker every run. Effect: ownership_pct populated
+        correctly, but institutional_holders_count/top_10_institutions_pct permanently NULL
+        for that symbol (the crosswalk table's stored ticker never becomes "XOM", so it can
+        never pass a literal match on any future run either) - live-confirmed 85+ symbols
+        including XOM.
+        """
+        if not raw_ticker:
+            return None
+        ticker = raw_ticker
+        if ticker not in symbols:
+            dotted = ticker.replace("/", ".")
+            if dotted in symbols:
+                ticker = dotted
+            else:
+                for suffix in _CURRENCY_TICKER_SUFFIXES:
+                    if ticker.endswith(suffix) and len(ticker) > len(suffix) and ticker[: -len(suffix)] in symbols:
+                        ticker = ticker[: -len(suffix)]
+                        break
+                else:
+                    name_match = name_index.find(resolved_name)
+                    if name_match:
+                        ticker = name_match
+                    else:
+                        return None
+        if not names_plausibly_match(resolved_name, local_names.get(ticker)):
+            name_match = name_index.find(resolved_name)
+            if name_match and name_match != ticker:
+                ticker = name_match
+            else:
+                return None
+        return ticker
+
     def _get_known_tracked_cusips(self) -> set[str]:
         """CUSIPs already resolved (in a prior run) to a ticker in our own active universe.
 
@@ -316,11 +368,25 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         CUSIPs) - a CUSIP newly resolved THIS run isn't in this set yet, so it won't get
         holder-count/concentration data until a later run recomputes this set, matching the
         existing incremental-crosswalk philosophy elsewhere in this loader.
+
+        FIXED 2026-08-21 (goal session: missing-data root-cause audit, "Ownership data
+        unresolved" bucket): must apply the same resolution fallbacks
+        _crosswalk_to_tickers() does (see _resolve_crosswalk_ticker) - a raw exact-match
+        query here silently excluded every CUSIP whose crosswalk ticker only maps to our
+        universe via a rescue rule, permanently starving those symbols of holder-count/
+        top-10 data even though their ownership_pct resolves fine every run.
         """
         symbols = set(get_active_symbols(exclude_etfs=True))
+        local_names = self._fetch_local_entity_names(symbols)
+        name_index = EntityNameIndex(local_names)
         with DatabaseContext("read") as cur:
-            cur.execute("SELECT cusip FROM sec_13f_cusip_crosswalk WHERE ticker = ANY(%s)", (list(symbols),))
-            return {row[0] for row in cur.fetchall()}
+            cur.execute("SELECT cusip, ticker, resolved_name FROM sec_13f_cusip_crosswalk WHERE ticker IS NOT NULL")
+            rows = cur.fetchall()
+        return {
+            cusip
+            for cusip, ticker, resolved_name in rows
+            if self._resolve_crosswalk_ticker(ticker, resolved_name, symbols, local_names, name_index)
+        }
 
     def _fetch_and_parse_13f_bulk(
         self, url: str, tracked_cusips: set[str] | None = None
@@ -454,60 +520,15 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         # if the same manager holds via both.
         manager_holdings_by_ticker: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for cusip, shares in holdings_by_cusip.items():
-            ticker, resolved_name = cached.get(cusip, (None, None))
+            raw_ticker, resolved_name = cached.get(cusip, (None, None))
+            # Shared with _get_known_tracked_cusips() - see _resolve_crosswalk_ticker's
+            # docstring for why these two resolutions must never drift again (they silently
+            # did: XOM, WSO.B and 80+ others resolved fine here but were invisible to the
+            # tracked_cusips precomputation, so their institutional_holders_count/
+            # top_10_institutions_pct stayed permanently NULL).
+            ticker = self._resolve_crosswalk_ticker(raw_ticker, resolved_name, symbols, local_names, name_index)
             if not ticker:
                 continue
-            if ticker not in symbols:
-                # FIXED 2026-08-18 (goal: "no SEC data" loader audit): OpenFIGI/Bloomberg use
-                # "TICKER/A" for multi-class share tickers (see sec_13f_cusip_crosswalk:
-                # "BF/A", "HEI/A", "MOG/A") while our own listings use the NYSE/NASDAQ
-                # "TICKER.A" dot convention - the exact-match check below silently skipped
-                # every dot-suffixed share class (BF.A, BF.B, HEI.A, LEN.B, MOG.A, MOG.B,
-                # WSO.B, ...) even though OpenFIGI had already resolved real 13F holdings for
-                # them. Live-confirmed: all 19 dot-suffixed tickers in the active universe hit
-                # "no_resolved_13f_holdings" this way. Tried before the currency-suffix
-                # fallback since a share-class slash and a currency suffix never co-occur.
-                dotted = ticker.replace("/", ".")
-                if dotted in symbols:
-                    ticker = dotted
-                else:
-                    for suffix in _CURRENCY_TICKER_SUFFIXES:
-                        if ticker.endswith(suffix) and len(ticker) > len(suffix) and ticker[: -len(suffix)] in symbols:
-                            ticker = ticker[: -len(suffix)]
-                            break
-                    else:
-                        # None of the ticker-based checks matched - before giving up, check
-                        # whether resolved_name unambiguously identifies one of our own
-                        # tracked symbols anyway (EntityNameIndex, see its docstring).
-                        name_match = name_index.find(resolved_name)
-                        if name_match:
-                            logger.debug(
-                                f"[13F] CUSIP {cusip}: crosswalk ticker '{ticker}' isn't in our "
-                                f"tracked universe, but resolved_name '{resolved_name}' unambiguously "
-                                f"matches {name_match} - using that instead"
-                            )
-                            ticker = name_match
-                        else:
-                            continue
-            if not names_plausibly_match(resolved_name, local_names.get(ticker)):
-                # The candidate ticker IS one of ours, but its own name doesn't match - a
-                # real crosswalk collision (e.g. Verizon's CUSIP resolving to ticker "BAC"),
-                # not just a missing-from-universe case. Same name-index fallback: only
-                # accept if resolved_name unambiguously points elsewhere in our universe.
-                name_match = name_index.find(resolved_name)
-                if name_match and name_match != ticker:
-                    logger.debug(
-                        f"[13F] CUSIP {cusip}: crosswalk ticker '{ticker}' resolved to a name "
-                        f"that doesn't match {ticker}'s own entity_name, but resolved_name "
-                        f"'{resolved_name}' unambiguously matches {name_match} instead - using that"
-                    )
-                    ticker = name_match
-                else:
-                    logger.debug(
-                        f"[13F] {ticker} (CUSIP {cusip}): OpenFIGI name '{resolved_name}' doesn't plausibly "
-                        f"match our own entity_name '{local_names.get(ticker)}' - skipping to avoid a wrong-entity join"
-                    )
-                    continue
             holdings_by_ticker[ticker] += shares
             for accession, mgr_shares in manager_holdings_by_cusip.get(cusip, {}).items():
                 manager_holdings_by_ticker[ticker][accession] += mgr_shares

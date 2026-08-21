@@ -226,6 +226,50 @@ def test_crosswalk_to_tickers_rejects_the_live_verified_xom_wrong_entity_match(m
     assert result == {}
 
 
+def test_get_known_tracked_cusips_applies_same_rescues_as_crosswalk_to_tickers(monkeypatch):
+    """FIXED 2026-08-21 (goal session: "Ownership data unresolved" root-cause audit):
+    _get_known_tracked_cusips() used to do a naive `ticker = ANY(symbols)` match with
+    none of _crosswalk_to_tickers()'s rescue rules (dot-suffix, currency-suffix,
+    entity-name index). A CUSIP that only resolves via a rescue - XOM's real CUSIP
+    30231G102 resolves to OpenFIGI ticker "EXMOC", WSO.B's to "WSO/B" - got its
+    ownership_pct computed correctly every run via _crosswalk_to_tickers(), but was
+    invisible to this method, so manager_holdings_by_cusip was never populated for it:
+    institutional_holders_count/top_10_institutions_pct stayed permanently NULL even
+    though the symbol's data is genuinely available. Live-confirmed 85+ affected
+    symbols including XOM, a mega-cap.
+    """
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[
+            ("30231G102", "EXMOC", "EXXON MOBIL CORP"),  # rescued via entity-name index
+            ("942622101", "WSO/B", "WATSCO INC"),  # rescued via dot-suffix normalization
+            ("999999999", "XOM", "EXXONMOBIL HOLDINGS CORP"),  # wrong-entity collision, must stay excluded
+            ("111111111", "UNRELATED", "SOME OTHER COMPANY"),  # no match at all
+        ],
+        local_name_rows=[("XOM", "EXXON MOBIL CORP"), ("WSO.B", "WATSCO INC")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["XOM", "WSO.B"]
+    )
+
+    tracked = loader._get_known_tracked_cusips()
+
+    assert tracked == {"30231G102", "942622101"}
+
+
 def test_crosswalk_to_tickers_strips_currency_suffix_from_cross_listed_ticker(monkeypatch):
     """Live-verified 2026-08-18: OpenFIGI resolved Rigel Pharmaceuticals' real CUSIP
     (766559603) to ticker "RIGLUSD" (a currency-denomination suffix from a
