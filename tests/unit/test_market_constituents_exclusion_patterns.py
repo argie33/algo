@@ -169,6 +169,23 @@ class TestMortgageBondAndTrustCertificateExclusionPatterns:
         "mortgage bonds" pattern - it doesn't contain the literal phrase "mortgage bonds"."""
         assert not should_exclude("Annaly Capital Management, Inc. Common Stock")
 
+    def test_comcast_zones_excluded(self):
+        """GOVERNANCE 2026-08-21 (goal session - "is analyst coverage really missing"
+        audit, same bug class as the TVA Power Bonds fix): CCZ ("Comcast Holdings ZONES" -
+        Zero-premium Exchangeable Notes, a structured debt security exchangeable into
+        Comcast stock, not common equity) flowed through this loader as real common stock -
+        live-confirmed near-zero price_daily volume and Comcast's own whole-company
+        financials ($121-124B revenue) misattributed to it, producing a $237.9B "market_cap"
+        for what is actually a thinly-traded note."""
+        assert should_exclude("Comcast Holdings ZONES")
+
+    def test_exchangeable_voting_shares_not_excluded(self):
+        """The new "zones" pattern must not false-positive on real exchangeable common
+        equity - Brookfield Wealth Solutions' Class A Exchangeable Limited Voting Shares
+        are real, actively-traded common stock, just structured to be exchangeable into
+        another share class. Doesn't contain the word "zones" so is unaffected."""
+        assert not should_exclude("Brookfield Wealth Solutions Ltd. Class A Exchangeable Limited Voting Shares")
+
 
 class TestAmericanDepositarySharesNotExcluded:
     """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit): the

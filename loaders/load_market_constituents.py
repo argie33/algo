@@ -148,6 +148,22 @@ EXCLUSION_PATTERNS = [
     r"\bpplus\b",
     r"\bbacked tr\.? certs?\b",
     r"\bsynthetic fixed-income securities\b",
+    # GOVERNANCE 2026-08-21 (goal session - "is analyst coverage really missing, or are
+    # we scoring the wrong thing" audit, same bug class as the TVA Power Bonds fix in
+    # utils/loaders/helpers.py::get_active_symbols): CCZ ("Comcast Holdings ZONES" - Zero-
+    # premium Exchangeable Notes, a structured debt security exchangeable into Comcast
+    # stock, not common equity) was flowing through this loader as if it were real common
+    # stock. Live-confirmed: near-zero price_daily volume (0-400 shares/day, not real
+    # trading activity), and its "income statement" rows are literally Comcast's own
+    # whole-company financials ($121-124B revenue, matching Comcast's real consolidated
+    # figures - same CIK/filer as the parent) misattributed to a thinly-traded note,
+    # producing a $237.9B "market_cap" for CCZ specifically. Unlike TVA's bonds, "ZONES"
+    # is a distinctive enough product name to safely regex-match: checked against the full
+    # live security_name feed (active and inactive), this pattern matches CCZ and zero
+    # other symbols - one real false-positive risk (BNT, "...Exchangeable Limited Voting
+    # Shares", real common equity) doesn't contain the word "zones" at all, so it's
+    # unaffected.
+    r"\bzones\b",
 ]
 
 # GOVERNANCE 2026-08-03: a bare `\binvestment corp\b` pattern used to sit in
