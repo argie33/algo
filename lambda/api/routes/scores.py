@@ -1935,7 +1935,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         "Other (errors / excluded)",
         {
             "symbol_not_found",
-            "no_8k_filings_in_recent_submissions",
             "fetch_error:ValueError",
             "fetch_error:RuntimeError",
             "data_unavailable_during_load",
@@ -1997,6 +1996,17 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # dividend/distribution concepts (N-2 prospectus fee-table data only), a permanent
             # structural absence, not a loader gap. See load_dividend_data.py's fetch_incremental.
             "registered_investment_company_no_xbrl",
+            # ADDED 2026-08-21 (goal session: missing-data root-cause audit, "Other" bucket
+            # sweep): load_current_reports_8k.py writes this when a symbol's SEC submissions
+            # feed genuinely contains zero 8-Ks (8-Ks are event-driven - executive changes,
+            # M&A, material agreements - not periodic, so most quiet filers legitimately have
+            # none in any given window; see that loader's own comment on this exact reason for
+            # why it's distinguished from the FPI-exemption case, foreign_private_issuer_no_8k_filings,
+            # already above). Not an error or a gap more loader coverage could close - was the
+            # single largest contributor to "Other (errors / excluded)" (1,092 of 2,017 live
+            # rows, >50%), silently making the "which loaders need fixing" report itself look
+            # far noisier than the real gap.
+            "no_8k_filings_in_recent_submissions",
         },
     ),
 ]
