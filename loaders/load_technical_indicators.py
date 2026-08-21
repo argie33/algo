@@ -307,8 +307,19 @@ class VectorizedTechnicalLoader:
                 # Skip invalid rows
                 if close is None or close <= 0:
                     continue
-                if volume is not None and volume == 0:
-                    continue
+                # BUG FOUND 2026-08-20: dropping volume==0 rows entirely (originally meant to
+                # exclude halted/no-trading days) also deletes legitimate closing prices for
+                # "sleepy" dual-class share tickers that routinely report 0 consolidated-tape
+                # volume while still carrying a valid last-sale close (confirmed live:
+                # MOG.B/TAP.A/HVT.A/AKO.A/WSO.B/AGM.A - 65%-86% of their rows in a 400-day
+                # window have volume=0). For these symbols, dropping the row shrinks the
+                # effective close-price series below the 200/50 bars sma_200/sma_50 need even
+                # though 250+ raw price_daily rows exist, and for symbols that clear 50 but not
+                # 200 bars, the surviving series is quietly gappy (not contiguous trading
+                # days), silently distorting the SMA/RSI/MACD/ROC values rather than nulling
+                # them. Keep the close price for price-based indicators; volume=0 is still
+                # correctly reflected in volume_ma_50 (a real, low, but valid rolling average),
+                # not defaulted or hidden.
 
                 result.append(
                     {
