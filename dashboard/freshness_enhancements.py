@@ -89,6 +89,21 @@ def enrich_health_item_with_data_quality(health_item: dict[str, Any], cur: Any =
     return health_item
 
 
+def _table_has_date_column(table_name: str, cur: Any) -> bool:
+    """Check whether `table_name` has a real `date` column, to scope NULL-ratio sampling to
+    the latest date instead of an arbitrary unordered slice of the table's whole history."""
+    try:
+        cur.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = 'date' LIMIT 1",
+            (table_name,),
+        )
+        return cur.fetchone() is not None
+    except Exception as e:
+        _rollback_after_error(cur)
+        logger.debug(f"[QUALITY] date-column lookup failed for {table_name}: {e}")
+        return False
+
+
 def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]:
     """Execute data quality checks for a table.
 
@@ -150,6 +165,20 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
 
     critical_cols = critical_columns_map.get(table_name, ["created_at"])
 
+    # BUG FOUND 2026-08-20: the bare `LIMIT sample_size` below has no ORDER BY, so on a table
+    # that's appended to over time (trend_template_data, technical_data_daily, price_daily,
+    # ...) it silently blends old, already-resolved history in with today's snapshot instead
+    # of measuring current data quality - live-confirmed on trend_template_data.weinstein_stage:
+    # this check reported 16.4% NULL (a 200k-row sample spanning the table's whole 06-26..08-19
+    # history), while the actual latest date was already down to 10.4% and the rate had been
+    # steadily improving daily (25.5% -> 10.4% over 6 weeks as newly-tracked symbols accumulated
+    # the 200 days of history sma_200/weinstein_stage needs). An operator reading this health
+    # panel has no way to tell "still degrading" from "already fixed, stale stat" without this.
+    # Scope the sample to the table's latest date when it has one (matching how the dedicated
+    # price_daily null-anomaly check in algo/monitoring/data_patrol/checks/quality.py already
+    # does it), falling back to the old unscoped sample for tables with no "date" column.
+    has_date_col = _table_has_date_column(table_name, cur)
+
     # Check 1: NULL ratio in critical columns
     # CRITICAL FIX: a bare `LIMIT 1000000` on a query with no FROM-clause subquery only
     # limits the aggregate's own 1-row result set, not the rows scanned to compute it - so
@@ -159,6 +188,8 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     # makes the cap actually bound the work done, matching the sampling this function's own
     # docstring ("Check 1: NULL ratio...") implies was intended.
     sample_size = 200_000
+    date_scope = f'WHERE "date" = (SELECT MAX("date") FROM "{table_name}")' if has_date_col else ""
+    scope_label = "latest date" if has_date_col else "sampled"
     for col in critical_cols:
         try:
             cur.execute(
@@ -166,7 +197,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN "{col}" IS NULL THEN 1 END) as null_count
-                FROM (SELECT "{col}" FROM "{table_name}" LIMIT %s) sample
+                FROM (SELECT "{col}" FROM "{table_name}" {date_scope} LIMIT %s) sample
             """,
                 (sample_size,),
             )
@@ -177,7 +208,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
                 if total > 0:
                     null_ratio = (null_count / total) * 100
                     if null_ratio > 5:
-                        issues.append(f"{col}: {null_ratio:.1f}% NULL (threshold 5%, sampled)")
+                        issues.append(f"{col}: {null_ratio:.1f}% NULL (threshold 5%, {scope_label})")
         except Exception as e:
             _rollback_after_error(cur)
             logger.debug(f"[QUALITY] NULL check failed for {table_name}.{col}: {e}")

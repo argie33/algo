@@ -349,5 +349,40 @@ class TestQualityAndCoverageSQLBugs:
             )
 
 
+class TestNullRatioScopedToLatestDate:
+    """Regression test for the 2026-08-20 fix: the NULL-ratio check's bare `LIMIT` sample had
+    no ORDER BY, so on an append-only table it silently blended weeks of already-resolved
+    historical rows in with today's snapshot - live-confirmed on
+    trend_template_data.weinstein_stage, which reported 16.4% NULL (a 200k-row sample spanning
+    the table's whole ~2-month history) when the actual latest date was already down to 10.4%
+    and steadily improving daily. Tables with a real `date` column now scope the sample to
+    `WHERE date = MAX(date)`, matching how the dedicated price_daily null-anomaly check in
+    algo/monitoring/data_patrol/checks/quality.py already does it.
+    """
+
+    def test_table_with_date_column_scopes_sample_to_latest_date(self) -> None:
+        cur = MagicMock()
+        cur.fetchone.return_value = (100, 20)
+        freshness_enhancements._run_data_quality_checks("trend_template_data", cur)
+
+        executed_sql = [call.args[0] for call in cur.execute.call_args_list]
+        assert any('WHERE "date" = (SELECT MAX("date")' in sql for sql in executed_sql), (
+            "Expected the NULL-ratio sample to be scoped to the table's latest date, not an "
+            "arbitrary unordered LIMIT that can blend in old, already-resolved history."
+        )
+
+    def test_issue_message_labels_latest_date_not_sampled(self) -> None:
+        cur = MagicMock()
+        cur.fetchone.return_value = (100, 20)
+        issues, _status = freshness_enhancements._run_data_quality_checks("trend_template_data", cur)
+
+        assert any("latest date" in issue for issue in issues), (
+            f"Expected a 'latest date' label on a table with a real date column, got: {issues}"
+        )
+        assert not any("sampled" in issue and "NULL" in issue for issue in issues), (
+            "NULL-ratio issues on a date-scoped table should not still claim to be 'sampled'."
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
