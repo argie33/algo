@@ -1475,6 +1475,86 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         return super().fetch_incremental(symbol, since)
 
+    def _reject_implausible_shares_outstanding(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject shares_outstanding_basic/diluted values that are confidently wrong due to
+        SEC's companyfacts API not always normalizing a filer's "reported in thousands"
+        inline-XBRL scale attribute. Mutates `transformed` in place.
+
+        FIXED 2026-08-21 (goal session - broad shares_outstanding cross-check audit,
+        follow-up to the BRK.A/HEI dual-class fix): live-confirmed against HUB Group's real
+        companyfacts JSON (CIK 0000940942): WeightedAverageNumberOfSharesOutstandingBasic
+        for FY2025Q3 is tagged val=60066 (a real share count in the tens of millions
+        reported "in thousands", not 60,066 actual shares). ~95 active symbols showed this
+        exact ~1,000x-too-small pattern when cross-checked against
+        company_info_sec.shares_outstanding (an independently-extracted, unaffected
+        source). Rejects values below MIN_PLAUSIBLE_SHARES_OUTSTANDING (100,000, same floor
+        already used in load_company_info_sec.py) rather than relying on a downstream
+        consumer's guard to always be present.
+
+        FIXED 2026-08-21 (same session, follow-up): the absolute floor above only catches
+        the thousands-scale bug for SMALLER companies - a large-cap's real share count
+        divided by 1000 can easily still clear 100,000 (e.g. NTNX's real ~270M shares,
+        stored as 267,479 - "267,479 thousand" per the unconverted XBRL scale= attribute -
+        sails right past the floor). Bulk cross-check of
+        annual_income_statement.earnings_per_share against
+        net_income/shares_outstanding_basic surfaced 891 rows where the implied EPS is
+        ~1,000x the reported EPS - live-confirmed NTNX FY2025 exactly this way: stored
+        shares_outstanding_basic=267,479 vs company_info_sec's independently-extracted
+        270,320,509 (real value, ~1010x higher). Extends the guard with a relative
+        cross-check against company_info_sec.shares_outstanding (the same independent
+        source load_sec_valuations.py's own 20x scale-mismatch guard already trusts for
+        exactly this purpose), not just an absolute floor.
+        """
+        min_plausible_shares_outstanding = 100_000
+        for row in transformed:
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+                val = row.get(field)
+                if val is not None and 0 < val < min_plausible_shares_outstanding:
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"{field}={val:,.0f} is implausibly small (< {min_plausible_shares_outstanding:,}) "
+                        "- likely an unconverted 'reported in thousands' XBRL value SEC's "
+                        "companyfacts API didn't normalize. Rejecting rather than storing a "
+                        "confidently-wrong share count."
+                    )
+                    row[field] = None
+
+        shares_check_symbols = sorted({str(row.get("symbol")) for row in transformed if row.get("symbol")})
+        reference_shares: dict[str, float] = {}
+        if shares_check_symbols:
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol, shares_outstanding FROM company_info_sec "
+                        "WHERE symbol = ANY(%s) AND shares_outstanding > 0",
+                        (shares_check_symbols,),
+                    )
+                    reference_shares = {sym: float(val) for sym, val in cur.fetchall()}
+            except Exception as e:
+                logger.debug(f"[{self.table_name}] company_info_sec cross-check lookup failed (non-fatal): {e}")
+
+        if not reference_shares:
+            return
+        for row in transformed:
+            symbol = row.get("symbol")
+            reference = reference_shares.get(symbol) if symbol else None
+            if not reference:
+                continue
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+                val = row.get(field)
+                if val is None or val <= 0:
+                    continue
+                ratio = reference / float(val)
+                if ratio > 20 or ratio < 1 / 20:
+                    logger.warning(
+                        f"[{self.table_name}] {symbol} FY{row.get('fiscal_year')}: {field}={val:,.0f} "
+                        f"disagrees with company_info_sec.shares_outstanding={reference:,.0f} by "
+                        f"{ratio:.0f}x - likely an unconverted 'reported in thousands' XBRL scale "
+                        "error the absolute floor above didn't catch. Rejecting rather than storing "
+                        "a confidently-wrong share count."
+                    )
+                    row[field] = None
+
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
 
@@ -1502,19 +1582,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         # values here too rather than relying on a downstream consumer's guard to always be
         # present. Same MIN_PLAUSIBLE_SHARES_OUTSTANDING floor (100,000) already used in
         # load_company_info_sec.py.
-        min_plausible_shares_outstanding = 100_000
-        for row in transformed:
-            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
-                val = row.get(field)
-                if val is not None and 0 < val < min_plausible_shares_outstanding:
-                    logger.warning(
-                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
-                        f"{field}={val:,.0f} is implausibly small (< {min_plausible_shares_outstanding:,}) "
-                        "- likely an unconverted 'reported in thousands' XBRL value SEC's "
-                        "companyfacts API didn't normalize. Rejecting rather than storing a "
-                        "confidently-wrong share count."
-                    )
-                    row[field] = None
+        self._reject_implausible_shares_outstanding(transformed)
 
         # Define REQUIRED metric fields (must have at least one non-NULL value) vs OPTIONAL fields
         # REQUIRED fields: core SEC metrics that should always be present for real filings
