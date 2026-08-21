@@ -1871,6 +1871,17 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # positioning_metrics.ad_rating_unavailable_reason). Was unmapped and falling through
             # to "Other (errors / excluded)" (11 live rows).
             "ad_calculation_failed",
+            # ADDED 2026-08-21 (goal session: beta_unavailable_reason genericization fix,
+            # loaders/load_risk_metrics_daily.py's _get_beta_from_db): the stock/benchmark
+            # price series didn't have enough overlapping history yet to compute a
+            # covariance-based beta - same "not enough history yet" class as
+            # insufficient_price_history, just three different checkpoints along that
+            # computation (SPY's own series, the aligned overlap, the resulting return
+            # count) rather than one. See that function's docstring for the full set of
+            # beta failure reasons - extreme_beta below is the one that ISN'T this class.
+            "spy_price_data_insufficient",
+            "insufficient_common_dates",
+            "insufficient_returns",
         },
     ),
     (
@@ -1929,6 +1940,11 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # per-filing XBRL scale-bug class, just a different concept. Was unmapped and falling
             # through to "Other (errors / excluded)" (35 live rows, sec_valuations.reason).
             "eps_scale_mismatch",
+            # ADDED 2026-08-21 (goal session: beta_unavailable_reason genericization fix):
+            # loaders/load_risk_metrics_daily.py's _get_beta_from_db rejects a computed
+            # |beta| > 10 as a numerically degenerate regression result (near-zero SPY
+            # variance denominator, not a real risk figure) - same class as implausible_ratio.
+            "extreme_beta",
         },
     ),
     (

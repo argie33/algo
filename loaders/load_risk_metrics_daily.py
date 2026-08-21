@@ -351,7 +351,7 @@ class RiskMetricsLoader(OptimalLoader):
                     "max_drawdown_1y": None,
                     "beta": None,
                     "debt_to_assets": debt_to_assets,
-                    "beta_unavailable_reason": "missing_price_data",
+                    "beta_unavailable_reason": "insufficient_price_history",
                     "volatility_30d_unavailable_reason": "insufficient_history",
                     "volatility_60d_unavailable_reason": "insufficient_history",
                     "volatility_252d_unavailable_reason": "insufficient_history",
@@ -386,7 +386,7 @@ class RiskMetricsLoader(OptimalLoader):
                     "max_drawdown_1y": None,
                     "beta": None,
                     "debt_to_assets": debt_to_assets,
-                    "beta_unavailable_reason": "missing_price_data",
+                    "beta_unavailable_reason": "insufficient_price_history",
                     "volatility_30d_unavailable_reason": "insufficient_history",
                     "volatility_60d_unavailable_reason": "insufficient_history",
                     "volatility_252d_unavailable_reason": "insufficient_history",
@@ -434,8 +434,23 @@ class RiskMetricsLoader(OptimalLoader):
                 unavailability_reasons.append(f"vol_60d: insufficient_returns ({len(returns)}/60 required)")
             if vol_252d is None and len(returns) < 60:
                 unavailability_reasons.append(f"vol_252d: insufficient_returns ({len(returns)}/60 required)")
+            # FIXED 2026-08-21 (goal session: missing-data root-cause audit): _get_beta_from_db
+            # returns a specific, real reason (spy_price_data_insufficient/
+            # insufficient_common_dates/insufficient_returns/spy_variance_zero/extreme_beta/
+            # db_beta_error) for every failure mode - but until now that reason was only ever
+            # folded into this function's own aggregate `unavailability_reason` log string;
+            # beta_unavailable_reason (the column the coverage report and dashboard actually
+            # read) was hardcoded to the single generic "missing_price_data" below regardless
+            # of which of those six real causes applied. Live-confirmed: 100% of 217
+            # null-beta stability_metrics rows carried that one generic string, most of them
+            # for the identical "not enough history yet" cause volatility's sibling fields
+            # correctly label "insufficient_history" right next to it - falling through to
+            # "Other (errors / excluded)" in the coverage report instead of "Insufficient
+            # history" (or "Implausible / rejected value" for extreme_beta).
+            beta_reason: str | None = None
             if isinstance(beta, dict) and beta.get("data_unavailable"):
-                unavailability_reasons.append(f"beta: {beta.get('reason', 'unknown')}")
+                beta_reason = str(beta.get("reason", "unknown"))
+                unavailability_reasons.append(f"beta: {beta_reason}")
                 beta = None
 
             # FIX 2026-07-20: Previously required ALL of vol_30d/vol_60d/vol_252d/beta
@@ -488,7 +503,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "debt_to_assets": debt_to_assets,
                 # Session 395+: Add unavailable_reason for each metric
-                "beta_unavailable_reason": "missing_price_data" if beta is None else None,
+                "beta_unavailable_reason": beta_reason if beta is None else None,
                 "volatility_30d_unavailable_reason": "insufficient_history" if vol_30d is None else None,
                 "volatility_60d_unavailable_reason": "insufficient_history" if vol_60d is None else None,
                 "volatility_252d_unavailable_reason": "insufficient_history" if vol_252d is None else None,
