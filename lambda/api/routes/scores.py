@@ -1840,6 +1840,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # "facts" key at all - was silently falling through to "Other (errors / excluded)"
             # for 11 live rows because nothing in this map matched it.
             "no_companyfacts",
+            # ADDED 2026-08-20 (goal session: missing-data root-cause audit): utils/external/
+            # sec_xbrl_segments.py's extraction returns this when every tagged segment's revenue
+            # is negative (ASC 280 elimination/reconciling lines, excluded by design - see that
+            # function's own comment) or the reportable total is exactly 0 - the segment XBRL
+            # facts exist but aren't usable, same "SEC data we have can't be trusted" class as
+            # the other segment-data reasons already here. Was unmapped and falling through to
+            # "Other (errors / excluded)" (19 live rows, sec_segment_info.reason).
+            "zero_total_segment_revenue",
         },
     ),
     (
@@ -1854,6 +1862,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "insufficient_revenue_data",
             "insufficient_price_history",
             "insufficient_quarterly_eps_history",
+            # ADDED 2026-08-20 (goal session: missing-data root-cause audit): loaders/
+            # technical_indicators.py's compute_ad_rating() returns None (which
+            # load_positioning_metrics.py then labels "ad_calculation_failed", despite the name
+            # sounding like an error) only when len(close) < 20 or the recent window is all-NaN -
+            # not a calculation bug, the same "not enough price history yet" fact as
+            # "insufficient_price_history" right above (both come from
+            # positioning_metrics.ad_rating_unavailable_reason). Was unmapped and falling through
+            # to "Other (errors / excluded)" (11 live rows).
+            "ad_calculation_failed",
         },
     ),
     (
@@ -1906,6 +1923,12 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             #   artifact, not a real growth rate, rejected the same way implausible_ratio is.
             "implausible_dcf_result",
             "garbage_metric_value_abs_gt_100000",
+            # ADDED 2026-08-20 (goal session: missing-data root-cause audit): load_sec_valuations.py's
+            # _sanity_check_pe_ratio (>10x vs yfinance) rejects a mis-scaled ttm_eps the same way
+            # _sanity_check_market_cap rejects a mis-scaled shares_outstanding just above - same
+            # per-filing XBRL scale-bug class, just a different concept. Was unmapped and falling
+            # through to "Other (errors / excluded)" (35 live rows, sec_valuations.reason).
+            "eps_scale_mismatch",
         },
     ),
     (
