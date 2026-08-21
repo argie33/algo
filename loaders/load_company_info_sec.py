@@ -62,6 +62,31 @@ class CompanyInfoSECLoader(SecLoaderBase):
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
         self.sec_client = SecEdgarClient()
+        # FIX 2026-08-21 (goal session - digging into a live SEC XBRL loading run): same bug
+        # class already fixed for load_financial_statements.py (see
+        # utils/bulk_insert_manager.py's preserve_on_missing_fields docstring) but never
+        # applied here. primary_key=("symbol",) means this loader's every run does an
+        # ON CONFLICT DO UPDATE against the SAME row per symbol - without this, a single
+        # transient/point-in-time miss (e.g. the ticker cache's live-verified 149-symbol SEC
+        # data-completeness gap, or SEC's browse-edgar fallback endpoint returning a
+        # no-results page for a ticker it's inconsistent about) writes an all-NULL
+        # _unavailable_record() that unconditionally overwrites real entity_name/sic_code/
+        # shares_outstanding this symbol already had on file. Live-confirmed: AXIA, BNZI,
+        # BRNX, FRBA, GRAF, GV, HIFS, IA all have 5-12 real annual_income_statement rows
+        # (proving a CIK was resolved before) but got their entity_name/sic_code wiped to
+        # NULL mid-run today by exactly this path. data_unavailable/reason/data_source/
+        # filing_date are excluded - those must always reflect the CURRENT run's real
+        # assessment, never a stale one, matching load_financial_statements.py's own carve-out.
+        self._bulk_insert_mgr.preserve_on_missing_fields = frozenset(
+            {
+                "entity_name",
+                "sic_code",
+                "sic_description",
+                "entity_type",
+                "shares_outstanding",
+                "has_annual_report_filing",
+            }
+        )
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch company info from SEC EDGAR submissions API.
