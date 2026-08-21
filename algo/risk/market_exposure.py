@@ -1703,7 +1703,20 @@ class MarketExposure:
         revision breadth (universe-wide, 45% weight), insider buying breadth (reused from
         MarketFactorCalculator._insider_buying_breadth, 30% weight), and valuation-extension
         breadth (see _valuation_extension_breadth above, 25% weight - added 2026-08-20,
-        completing the design memo's 3-input fundamental pillar). Each input's weight is
+        completing the design memo's 3-input fundamental pillar).
+
+        Insider buying breadth is intentionally reused here AND as 60% of the `positioning`
+        factor's score (see MarketFactorCalculator.positioning()) - this is a deliberate dual
+        role, not an oversight or a double-count of the same kind the HY/IG OAS split above
+        guards against. `positioning` uses it unconditionally as a direct bullish/bearish tilt
+        on the 100pt score; this modifier only uses it conditionally, as one of three ingredients
+        checking whether an already-bullish tape is fundamentally confirmed. A rally with strong
+        insider buying scores higher via positioning AND avoids this haircut - which is the
+        intended behavior (insiders buying into strength is confirmation, not two independent
+        signals that happen to agree), not a bug. If this ever needs to be decorrelated (e.g.
+        insider data proves too influential in backtests), reduce/drop insider's weight here
+        first - positioning is the primary, unconditional home for this data.
+        Each input's weight is
         redistributed proportionally among whichever inputs are actually available (e.g. if
         only insider + valuation are available, they split 30/25 rescaled to sum to 1.0) - not
         a fixed 3-way average, so a temporarily-missing input never masks the others by forcing
