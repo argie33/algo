@@ -279,6 +279,26 @@ def get_active_symbols(
                                     AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
                                     AND s.symbol != 'OZK'
                               )
+                              -- GOVERNANCE 2026-08-21 (goal session - "is SEC/XBRL data really
+                              -- missing, or are we scoring the wrong thing"): TVC/TVE ("Tennessee
+                              -- Valley Authority Common Stock" / "Tennessee Valley Authority") are
+                              -- NYSE-listed TVA Power Bonds, not equity - TVA is a wholly
+                              -- federally-owned corporation with no shareholders. Live-confirmed:
+                              -- both report shares_outstanding_dei=0 on every filing (the reason
+                              -- sec_valuations correctly refuses to compute market_cap/P-E for
+                              -- them), price_daily shows classic fixed-income behavior (~$24.08,
+                              -- <0.1% daily moves, <30k share volume) rather than equity price
+                              -- action, and their "income statement" rows are TVA's whole-entity
+                              -- utility financials (SIC 4911, entity_type='operating' - a real
+                              -- operating-company profile, same trap GRN's issuing bank sidestepped
+                              -- only by name-pattern match) with no per-share meaning. Neither
+                              -- security_name contains any bond/note/debenture wording the regex
+                              -- above could catch, and their real SIC/entity_type look exactly like
+                              -- a genuine operating company (unlike the sic_code=0/entity_type=
+                              -- other signal the OZK carve-out guards) - a name-based or
+                              -- classification-based rule can't generalize to this case, same
+                              -- reasoning as the OZK force-include, just the opposite direction.
+                              AND s.symbol NOT IN ('TVC', 'TVE')
                             ORDER BY s.symbol
                         """
                     else:

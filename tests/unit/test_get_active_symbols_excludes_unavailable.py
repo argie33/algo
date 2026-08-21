@@ -150,3 +150,31 @@ def test_exclude_etfs_query_uses_word_boundary_not_backspace(monkeypatch) -> Non
     assert "Right|" not in sql
     assert "|Bitcoin|" not in sql
     _reset_cache()
+
+
+def test_exclude_etfs_query_excludes_tva_power_bonds(monkeypatch) -> None:
+    """Regression test for the 2026-08-21 fix (goal session - "is SEC/XBRL data really
+    missing, or are we scoring the wrong thing").
+
+    TVC/TVE ("Tennessee Valley Authority Common Stock" / "Tennessee Valley Authority") are
+    NYSE-listed TVA Power Bonds, not equity - TVA is a wholly federally-owned corporation
+    with no shareholders. Live-confirmed: both report shares_outstanding_dei=0 on every
+    filing, price_daily shows fixed-income behavior (~$24.08, <0.1% daily moves, <30k
+    volume), and their "income statement" rows are TVA's whole-entity utility financials
+    (SIC 4911, entity_type='operating' - passes every existing fund/CEF/ETN detection
+    signal since it looks exactly like a real operating company). No security_name wording
+    (no "bond"/"note"/"debenture") for either regex or a name-pattern fix to catch - same
+    explicit-carve-out shape as OZK, just the opposite direction (force-exclude, not
+    force-include).
+    """
+    _reset_cache()
+    fake_ctx = _FakeDatabaseContext(rows=[("AAPL",)])
+    monkeypatch.setattr(helpers_module, "DatabaseContext", fake_ctx)
+
+    get_active_symbols(exclude_etfs=True)
+
+    sql = fake_ctx._cursor.last_sql
+    assert sql is not None
+    assert "'TVC'" in sql
+    assert "'TVE'" in sql
+    _reset_cache()
