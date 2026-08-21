@@ -72,6 +72,49 @@ from ._helpers import _error_panel
 _tier_formatter = TierFormatter()
 
 
+def _delta_bar_markup(pts: float | None, neg_span: float, pos_span: float | None = None, w: int = 12) -> str:
+    """Render a signed +/- adjustment as a filled/empty bar + point value (markup string).
+
+    Unlike mini_bar() (a 0..max budget filled green/yellow/red by fraction), the four
+    "adjustment" factors (sector rotation, economic overlay, cross-asset, fundamental
+    quality) are discounts/bonuses around a zero midpoint, so the bar fills from empty
+    proportional to |pts| and colors green (bonus) / red (penalty) by sign. Shared by
+    both the compact and expanded panels so they render these factors identically
+    (BUG FOUND 2026-08-21: compact panel showed a bare +/-N with no bar at all, unlike
+    every other factor in that panel).
+
+    neg_span/pos_span are the factor's own bounds on each side of zero (e.g. economic
+    overlay is -7..+2, not symmetric) - a maxed-out bonus must fill the bar exactly as
+    fully as a maxed-out penalty does. Passing one span for both sides (BUG FOUND
+    2026-08-21: economic overlay always divided by its 7pt penalty span even when
+    scoring its own +2pt bonus side, so a full bonus only ever showed ~29% filled)
+    silently understates whichever side isn't the one `neg_span` was tuned for.
+    """
+    if pts is None:
+        return "[yellow]⚠ N/A[/]"
+    if pts == 0:
+        return f"[dim]{'░' * w}[/]  0"
+    c = G if pts > 0 else R
+    span = (pos_span if pos_span is not None else neg_span) if pts > 0 else neg_span
+    filled = max(int(min(abs(pts) / span, 1.0) * w), 1) if span > 0 else w
+    return f"[{c}]{'█' * filled}[/][dim]{'░' * (w - filled)}[/]  [{c}]{pts:+.0f}[/]"
+
+
+def _range_label(low: float, high: float) -> str:
+    """Format an adjustment factor's point range consistently as "low to high".
+
+    BUG FOUND 2026-08-21: sector rotation/cross-asset/fundamental quality wrote their
+    range as "0/-10" (max-then-min) while economic overlay wrote "-7/+2" (min-then-max)
+    - two different orderings for the same kind of value on the same table, which reads
+    as arbitrary +/- noise. Every adjustment row now goes through this one function.
+    """
+
+    def fmt(v: float) -> str:
+        return f"{v:+.0f}" if v != 0 else "0"
+
+    return f"{fmt(low)} to {fmt(high)}"
+
+
 def _stale_warning(exp_f: Any) -> str:
     """Server-computed staleness badge from the API's data_freshness field.
 
@@ -349,28 +392,33 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             fq_pen = safe_float(fq.get("pts"), None, field_name="fundamental_quality_pts")
         except StrictValidationError as e:
             logger.error("[EXPOSURE] fundamental_quality pts conversion failed: %s", e)
-    if sr_pen is not None and sr_pen < 0 and sr:
+    # All four adjustment factors gate on "!= 0" (not "< 0"): sector rotation/cross-asset/
+    # fundamental quality are penalty-only so this is equivalent to "< 0" for them, but
+    # economic overlay can also score a +2 bonus (BUG FOUND 2026-08-21: this panel used
+    # to gate all four on "< 0", so an active economic overlay bonus was silently invisible
+    # here even though the expanded panel always shows it - one unified rule now covers both).
+    if sr_pen is not None and sr_pen != 0 and sr:
         sig = sr.get("signal")
         sig_display = sig.replace("_", " ")[:18] if isinstance(sig, str) else ""
-        items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig_display}[/]")
-    if eco_pen is not None and eco_pen < 0 and eco:
+        items.append(f"[dim]Sector Rotation:[/] {_delta_bar_markup(sr_pen, 10, w=4)} [dim]{sig_display}[/]")
+    if eco_pen is not None and eco_pen != 0 and eco:
         # Check for error marker in economic overlay data
         eco_err = None
         if error_boundary.has_error(eco):
             eco_err = error_boundary.get_error_message(eco)
         eco_err_display = eco_err[:18] if isinstance(eco_err, str) else ""
         items.append(
-            f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]"
+            f"[dim]Economic Overlay:[/] {_delta_bar_markup(eco_pen, 7, pos_span=2, w=4)}"
             + (f" [dim]{eco_err_display}[/]" if eco_err_display else "")
         )
-    if xasset_pen is not None and xasset_pen < 0 and xasset:
+    if xasset_pen is not None and xasset_pen != 0 and xasset:
         sigs = xasset.get("risk_off_signals")
         sig_display = ", ".join(sigs)[:24] if isinstance(sigs, list) and sigs else ""
-        items.append(f"[dim]Cross-Asset:[/] [{R}]{xasset_pen:+.0f}[/] [dim]{sig_display}[/]")
-    if fq_pen is not None and fq_pen < 0 and fq:
+        items.append(f"[dim]Cross-Asset:[/] {_delta_bar_markup(xasset_pen, 8, w=4)} [dim]{sig_display}[/]")
+    if fq_pen is not None and fq_pen != 0 and fq:
         fscore = fq.get("fundamental_score")
         fscore_display = f"score {fscore:.0f}" if isinstance(fscore, (int, float)) else ""
-        items.append(f"[dim]Fundamental Qual:[/] [{R}]{fq_pen:+.0f}[/] [dim]{fscore_display}[/]")
+        items.append(f"[dim]Fundamental Qual:[/] {_delta_bar_markup(fq_pen, 5, w=4)} [dim]{fscore_display}[/]")
     if sahm is not None and sahm.get("triggered"):
         sahm_val = safe_float(sahm.get("value"), default=None)
         val_display = f"{sahm_val:.2f}pp" if sahm_val is not None else "--"
@@ -508,16 +556,29 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         box=box.SIMPLE_HEAD,
         show_header=True,
         header_style="dim bold",
+        # No vertical padding: this panel renders inside Live(screen=True), which clips
+        # content taller than the real terminal instead of scrolling it (confirmed live:
+        # a trailing blank line per row pushed the last 1-2 rows off-screen entirely,
+        # e.g. Sahm Rule silently disappearing). With 17 rows already wrapping to
+        # multiple lines each, there is no vertical budget to spend on padding here -
+        # see _shorten_adjustment_value() below for the height-neutral fix instead.
         padding=(0, 2),
         expand=True,
         row_styles=["", "dim"],
     )
-    tbl.add_column("Factor", no_wrap=True, min_width=20)
-    tbl.add_column("Pts", justify="right", no_wrap=True, min_width=5)
-    tbl.add_column("Max", justify="right", no_wrap=True, min_width=4)
-    tbl.add_column("Score", no_wrap=True, min_width=16)
-    tbl.add_column("Value", no_wrap=True, min_width=12)
-    tbl.add_column("Context", style="dim", no_wrap=False)
+    # Factor/Pts/Max/Score are fixed/bounded so they never truncate; Value and Context
+    # share whatever width remains via ratio, so Context gets a fair, legible column
+    # instead of being squeezed to a sliver that wraps every word onto its own line
+    # (BUG FOUND 2026-08-21: all six columns used to be no_wrap or unbounded, so the
+    # Value column's rare long strings ate the table's width and left Context <20 cols).
+    tbl.add_column("Factor", no_wrap=True, min_width=20, max_width=26)
+    tbl.add_column("Pts", justify="right", no_wrap=True, width=5)
+    # width=9 fits the longest range label ("-10 to 0" / "-7 to +2", 8 chars) without
+    # truncating (BUG FOUND 2026-08-21: width=7 truncated both to "-10 to…"/"-7 to …").
+    tbl.add_column("Max", justify="right", no_wrap=True, width=9)
+    tbl.add_column("Score", no_wrap=True, width=19)
+    tbl.add_column("Value", no_wrap=False, ratio=2, min_width=16, max_width=36)
+    tbl.add_column("Context", style="dim", no_wrap=False, ratio=3, min_width=18)
 
     for key, label, max_pts, context in factor_map_exp:
         # Early exit if factors dict has error markers
@@ -559,7 +620,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 key,
                 reason_val,
             )
-            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
+            # Pad "⚠ N/A" (5 chars) out to the same 12-char width as a real bar so this
+            # row lines up with the rest of the Score column instead of overflowing it.
+            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>7}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),
                 Text("--", style="yellow"),
@@ -574,7 +637,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             pts = safe_float(pts_raw, field_name=f"{label}_pts")
         except StrictValidationError as e:
             reason = f"invalid: {str(e)[:12]}"
-            bar_s = Text.from_markup(f"[red]✗ ERR{'':>12}[/]  [dim]--/{max_pts}[/]")
+            # Same 12-char alignment as the N/A case above ("✗ ERR" is also 5 chars).
+            bar_s = Text.from_markup(f"[red]✗ ERR{'':>7}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="red"),
                 Text("--", style="red"),
@@ -664,14 +728,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     # user has to learn. Only difference: Max is a +/- range (not a fixed budget) since
     # each of these is a bounded discount/bonus, and Sahm Rule caps the final allocation
     # directly instead of adding/subtracting points.
-    def _delta_bar(pts: float | None, span: float) -> Text:
-        if pts is None:
-            return Text.from_markup("[yellow]⚠ N/A[/]")
-        if pts == 0:
-            return Text.from_markup(f"[dim]{'░' * 12}  0[/]")
-        c = G if pts > 0 else R
-        filled = int(min(abs(pts) / span, 1.0) * 12) if span > 0 else 12
-        return Text.from_markup(f"[{c}]{'█' * filled}[/][dim]{'░' * (12 - filled)}[/]  [{c}]{pts:+.0f}[/]")
+    def _delta_bar(pts: float | None, neg_span: float, pos_span: float | None = None) -> Text:
+        return Text.from_markup(_delta_bar_markup(pts, neg_span, pos_span=pos_span, w=12))
 
     sr = None
     eco = None
@@ -712,7 +770,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             tbl.add_row(
                 Text("Sector Rotation", style="red"),
                 Text("--", style="red"),
-                Text("0/-10", style="dim"),
+                Text(_range_label(-10, 0), style="dim"),
                 Text.from_markup("[red]✗ ERR[/]"),
                 Text("calculation failed", style="red"),
                 "Defensive-sector leadership vs. cyclicals",
@@ -735,7 +793,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             tbl.add_row(
                 Text("Sector Rotation", style="white" if sr_pen else "dim"),
                 Text(f"{sr_pen:+.0f}" if sr_pen is not None else "--", style="white"),
-                Text("0/-10", style="dim"),
+                Text(_range_label(-10, 0), style="dim"),
                 _delta_bar(sr_pen, 10),
                 Text(val_s, style="white"),
                 "Defensive-sector leadership vs. cyclicals",
@@ -748,7 +806,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             tbl.add_row(
                 Text("Economic Overlay", style="red"),
                 Text("--", style="red"),
-                Text("-7/+2", style="dim"),
+                Text(_range_label(-7, 2), style="dim"),
                 Text.from_markup("[red]✗ ERR[/]"),
                 Text("calculation failed", style="red"),
                 "Yield curve + jobless claims + financial stress composite",
@@ -772,8 +830,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             tbl.add_row(
                 Text("Economic Overlay", style="white" if eco_pen else "dim"),
                 Text(f"{eco_pen:+.0f}" if eco_pen is not None else "--", style="white"),
-                Text("-7/+2", style="dim"),
-                _delta_bar(eco_pen, 7),
+                Text(_range_label(-7, 2), style="dim"),
+                _delta_bar(eco_pen, 7, pos_span=2),
                 Text(val_s, style="white"),
                 "Yield curve + jobless claims + financial stress composite",
             )
@@ -812,7 +870,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         tbl.add_row(
             Text("Cross-Asset Confirmation", style="white" if xasset_pen else "dim"),
             Text(f"{xasset_pen:+.0f}" if xasset_pen is not None else "--", style="white"),
-            Text("0/-8", style="dim"),
+            Text(_range_label(-8, 0), style="dim"),
             _delta_bar(xasset_pen, 8),
             Text(val_s, style="white"),
             "Gold/bonds/USD/oil disagreeing with bullish equities",
@@ -832,11 +890,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         ins_s = f"{ins:.0f}%" if isinstance(ins, (int, float)) else "n/a"
         val_s_pct = f"{val:.0f}%" if isinstance(val, (int, float)) else "n/a"
         fscore_display = f"{fscore:.0f}/100" if isinstance(fscore, (int, float)) else "n/a"
-        val_s = f"score {fscore_display} (analyst rev {rev_s}, insider buy {ins_s}, valuation-extended {val_s_pct})"
+        val_s = f"score {fscore_display} (rev {rev_s}, insider {ins_s}, val-ext {val_s_pct})"
         tbl.add_row(
             Text("Fundamental Quality", style="white" if fq_pen else "dim"),
             Text(f"{fq_pen:+.0f}" if fq_pen is not None else "--", style="white"),
-            Text("0/-5", style="dim"),
+            Text(_range_label(-5, 0), style="dim"),
             _delta_bar(fq_pen, 5),
             Text(val_s, style="white"),
             "Analyst/insider/valuation confirmation of a bullish tape",
@@ -846,14 +904,15 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         sahm_val = sahm.get("value")
         sahm_triggered = sahm.get("triggered")
         val_display = f"{sahm_val:.2f}pp" if isinstance(sahm_val, (int, float)) else "--"
-        val_s = f"{val_display} vs. 0.50pp threshold" + (
-            " — TRIGGERED, allocation capped at 25%" if sahm_triggered else " — not triggered"
-        )
+        val_s = f"{val_display} vs. 0.50pp" + (" — TRIGGERED, capped 25%" if sahm_triggered else " — not triggered")
         indicator = Text.from_markup("[red]⛔ VETO[/]") if sahm_triggered else Text.from_markup("[dim]✓ clear[/]")
         tbl.add_row(
+            # Not a points contribution like the rows above it - a hard veto that caps the
+            # final allocation directly - so Pts/Max stay "--" rather than smuggling "cap 25%"
+            # into what's otherwise a numeric points-range column (BUG FOUND 2026-08-21).
             Text("Sahm Rule", style="red bold" if sahm_triggered else "dim"),
             Text("VETO" if sahm_triggered else "--", style="red bold" if sahm_triggered else "dim"),
-            Text("cap 25%", style="dim"),
+            Text("--", style="dim"),
             indicator,
             Text(val_s, style="red" if sahm_triggered else "white"),
             "Recession veto — 3mo avg unemployment vs. trailing-12mo low",
