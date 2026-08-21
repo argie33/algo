@@ -1496,6 +1496,59 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         # Get REQUIRED metrics for current statement type
         required_by_type = required_metrics.get(self.statement_type, set())
 
+        # BUG FOUND 2026-08-20 (goal session: coverage root-cause audit): the required-metrics
+        # check below runs against THIS run's freshly-fetched `row` dict only - but revenue/
+        # net_income/etc. are in preserve_on_missing_fields (see __init__), so when this run's
+        # SEC fetch comes back empty for a fiscal year (transient concept-extraction gap, rate
+        # limiting, a currency-conversion miss) that a PRIOR run already populated with real
+        # data, the SQL-level COALESCE preserves the real value in revenue/net_income - but
+        # data_unavailable/reason are explicitly excluded from that preserve set (by design,
+        # so they always reflect the CURRENT run's assessment), so they get overwritten to
+        # True/"incomplete_sec_filing_{type}" based on this run's empty snapshot even though
+        # the row ends up with real, usable data after the merge. Live-confirmed: 437 rows
+        # across 232 symbols (e.g. GDS - 12 straight years of real revenue/net_income,
+        # AIB, AKTS) stuck exactly this way - which then excludes them from
+        # load_value_quality_growth_metrics.py's growth-rate computation (WHERE
+        # data_unavailable = FALSE), inflating "insufficient_history" for otherwise-complete
+        # symbols. Fixed by checking the EXISTING DB row before downgrading: a fiscal year
+        # already confirmed available in a prior run keeps that state instead of being
+        # re-judged on this run's possibly-incomplete fetch alone (financial statement facts
+        # are immutable once real - same "once real, always real" logic __init__'s
+        # preserve_on_missing_fields already applies to the value columns themselves).
+        has_quarter_col = any("fiscal_quarter" in row for row in transformed)
+        key_fields = ("symbol", "fiscal_year", "fiscal_quarter") if has_quarter_col else ("symbol", "fiscal_year")
+
+        def _has_required(row: dict[str, Any]) -> bool:
+            return any(row.get(field) is not None for field in required_by_type)
+
+        would_downgrade = required_by_type and any(
+            not row.get("data_unavailable") and not _has_required(row) for row in transformed
+        )
+
+        already_available: set[tuple[Any, ...]] = set()
+        if would_downgrade:
+            symbols_in_batch: list[str] = sorted({str(row.get("symbol")) for row in transformed if row.get("symbol")})
+            required_cols = sorted(required_by_type)
+            select_cols = [*key_fields, *required_cols]
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        f"""
+                        SELECT {", ".join(select_cols)}
+                        FROM {self.table_name}
+                        WHERE symbol = ANY(%s) AND data_unavailable = FALSE
+                        """,
+                        (symbols_in_batch,),
+                    )
+                    n_key_fields = len(key_fields)
+                    for existing_row in cur.fetchall():
+                        key = existing_row[:n_key_fields]
+                        required_vals = existing_row[n_key_fields:]
+                        if any(v is not None for v in required_vals):
+                            already_available.add(key)
+            except Exception as e:
+                logger.debug(f"[{self.table_name}] Existing-row lookup failed (non-fatal): {e}")
+
         result = []
         for row in transformed:
             if row.get("data_unavailable"):
@@ -1503,8 +1556,9 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             else:
                 # Check if REQUIRED metrics are NULL (indicates truly incomplete SEC data)
                 # OPTIONAL fields (amortization, goodwill, etc.) can be NULL without marking as unavailable
-                has_required = any(row.get(field) is not None for field in required_by_type)
-                if not has_required and required_by_type:
+                has_required = _has_required(row)
+                row_key = tuple(row.get(f) for f in key_fields)
+                if not has_required and required_by_type and row_key not in already_available:
                     # REQUIRED financial metrics are NULL - mark as unavailable (spinoff/incomplete filing)
                     symbol = row.get("symbol", "?")
                     fiscal_year = row.get("fiscal_year", "?")
