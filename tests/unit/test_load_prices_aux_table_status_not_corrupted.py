@@ -12,6 +12,14 @@ that corrupted the dashboard's ETF progress tracking on every price_daily run.
 
 Fixed by not passing the stock run's counts to the aux tables at all - mark_completed() falls
 back to reading each aux table's own last-known counts instead.
+
+Also covers the 2026-08-21 follow-up fix: because these aux calls have no real per-run counts
+to validate, they must pass min_completion_pct=0.0 (not 95.0) - a stale/absent DB-read fallback
+checked against a real threshold can spuriously downgrade a healthy aux table to FAILED with no
+connection to its actual completeness (live-confirmed via data_loader_status_history: this
+silently mis-marked etf_price_daily, which - unlike price_weekly/monthly - has no later
+self-healing writer in the same run). Same reasoning as derive_aggregate_prices()'s own
+min_completion_pct=0.0 (2026-08-10 fix, same file).
 """
 
 from unittest.mock import MagicMock, patch
@@ -67,3 +75,7 @@ class TestAuxTableStatusNotCorruptedByPrimaryCounts:
         for aux_call in mark_completed_calls[1:]:
             assert "current_run_symbols_loaded" not in aux_call.kwargs
             assert "current_run_symbol_count" not in aux_call.kwargs
+            # These calls have no real counts to check completeness against - a nonzero
+            # floor here would validate against a stale/unrelated DB-read fallback instead
+            # (the exact mechanism that spuriously FAILED etf_price_daily in production).
+            assert aux_call.kwargs["min_completion_pct"] == 0.0

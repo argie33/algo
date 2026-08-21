@@ -2318,12 +2318,30 @@ class PriceLoader(OptimalLoader):
                             # "cannot decrease" guard on its very next run. Omitting these params
                             # falls back to mark_completed()'s DB-read branch, which validates
                             # against that aux table's own last-known counts instead.
+                            #
+                            # BUG FOUND 2026-08-21 (goal session): min_completion_pct=95.0 here
+                            # made that DB-read fallback dangerous rather than harmless - this
+                            # secondary layer has no real per-run counts for any of these 5 tables
+                            # (it's the STOCK run noting that a related table exists, not verifying
+                            # that table's own data), so a 95% floor checked against whatever stale
+                            # symbol_count/symbols_loaded happen to be sitting in that aux table's
+                            # row (e.g. mid-reset by that table's own concurrent/not-yet-run cycle)
+                            # can spuriously downgrade a perfectly healthy table to FAILED with no
+                            # connection to its real completeness. Live-confirmed via
+                            # data_loader_status_history: price_weekly/price_monthly self-heal
+                            # within ~10s because derive_aggregate_prices() (below) immediately
+                            # overwrites them with a real, safe mark_completed() call - but
+                            # etf_price_daily has no such second writer and would stay falsely
+                            # FAILED for up to an hour. Same reasoning already applied to
+                            # derive_aggregate_prices()'s own mark_completed() call on 2026-08-10
+                            # (see its comment): a check with no real data to validate against
+                            # should not gate on a threshold it cannot meaningfully evaluate.
                             aux_mgr.mark_completed(
                                 execution_duration_sec=(time.time() - start_time)
                                 if hasattr(self, "_start_time")
                                 else None,
                                 latest_date=latest_date,
-                                min_completion_pct=95.0,
+                                min_completion_pct=0.0,
                             )
                             logger.info(
                                 f"[{aux_table}] SESSION 113 FIX: Secondary layer marked auxiliary output table as COMPLETED (primary layer via runner.py)"
