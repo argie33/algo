@@ -298,6 +298,73 @@ def test_thin_filer_with_no_income_statement_facts_keeps_generic_gap_label() -> 
     assert records[0]["data_unavailable_reason"] == "no_dividend_xbrl_concepts"
 
 
+def test_us_gaap_profitloss_only_filer_is_labeled_non_payer_not_gap() -> None:
+    """Regression for the 2026-08-20 fix: a filer reporting bottom-line net income solely via
+    us-gaap "ProfitLoss" (PRI/Primerica-style - never tags NetIncomeLoss at all) must still be
+    recognized as having real income-statement facts, not miscategorized as the gap-implying
+    "no_dividend_xbrl_concepts". Live-confirmed 3,119 of 3,153 symbols carrying that generic
+    label already had real net_income in annual_income_statement before this fix."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "ProfitLoss": {"units": {"USD": [{"val": 751_234_000, "filed": "2026-01-30", "end": "2025-12-31"}]}},
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "non_dividend_paying_stock"
+
+
+def test_ifrs_profitlossattributabletoownersofparent_filer_is_labeled_non_payer_not_gap() -> None:
+    """Regression for the 2026-08-20 fix: an ifrs-full filer reporting net income solely via
+    "ProfitLossAttributableToOwnersOfParent" (ONON-style) must be recognized as having real
+    income-statement facts, not miscategorized as the gap-implying "no_dividend_xbrl_concepts".
+    """
+    facts = {
+        "facts": {
+            "ifrs-full": {
+                "ProfitLossAttributableToOwnersOfParent": {
+                    "units": {"USD": [{"val": 100_000_000, "filed": "2026-01-30", "end": "2025-12-31"}]}
+                },
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "non_dividend_paying_stock"
+
+
+def test_ifrs_comprehensiveincome_only_filer_is_labeled_non_payer_not_gap() -> None:
+    """Regression for the 2026-08-20 fix: an ifrs-full filer reporting only
+    "ComprehensiveIncome" (ATHE-style) must be recognized as having real income-statement
+    facts, not miscategorized as the gap-implying "no_dividend_xbrl_concepts"."""
+    facts = {
+        "facts": {
+            "ifrs-full": {
+                "ComprehensiveIncome": {
+                    "units": {"USD": [{"val": 5_000_000, "filed": "2026-01-30", "end": "2025-12-31"}]}
+                },
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records[0]["data_unavailable"] is True
+    assert records[0]["data_unavailable_reason"] == "non_dividend_paying_stock"
+
+
 def test_all_ifrs_filer_with_no_us_gaap_facts_at_all_still_extracts() -> None:
     """Must not bail out on missing/empty us-gaap before ever checking ifrs-full - an
     all-IFRS filer (no us-gaap facts at all) can still have real ifrs-full dividend data."""

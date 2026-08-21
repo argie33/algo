@@ -639,10 +639,25 @@ class DividendDataLoader(SecLoaderBase):
             # gate: a filer thin enough to have no real income-statement facts at all genuinely
             # can't be distinguished from "we just don't have their data" and keeps the honest
             # generic reason.
+            #
+            # BUG FOUND 2026-08-20 (goal session: coverage root-cause audit): this gate only
+            # checked 3 of the bottom-line concepts utils/external/sec_statements.py already
+            # recognizes for annual_income_statement.net_income - missing us-gaap "ProfitLoss"
+            # (PRI/Primerica reports zero NetIncomeLoss entries ever, using ProfitLoss as its
+            # sole bottom-line tag - see sec_statements.py's 2026-08-17 fix) and the ifrs-full
+            # "ProfitLossAttributableToOwnersOfParent"/"ComprehensiveIncome" aliases (ONON,
+            # ATHE - see sec_statements.py's 2026-07-31 fix). Live-confirmed: 3,119 of 3,153
+            # symbols (99%) carrying "no_dividend_xbrl_concepts" already have real net_income
+            # in annual_income_statement - this gate was failing almost universally, leaving
+            # genuine non-dividend-payers miscategorized as a "Missing SEC/XBRL data" gap
+            # instead of "Legitimate / not applicable" for nearly the entire affected cohort.
             has_real_income_statement_facts = bool(
                 (us_gaap.get("NetIncomeLoss") or {}).get("units")
+                or (us_gaap.get("ProfitLoss") or {}).get("units")
                 or (ifrs_full.get("ProfitLoss") or {}).get("units")
                 or (ifrs_full.get("ProfitLossFromContinuingOperations") or {}).get("units")
+                or (ifrs_full.get("ProfitLossAttributableToOwnersOfParent") or {}).get("units")
+                or (ifrs_full.get("ComprehensiveIncome") or {}).get("units")
             )
             if has_real_income_statement_facts:
                 return [self._unavailable_record(symbol, now_et, "non_dividend_paying_stock")]
