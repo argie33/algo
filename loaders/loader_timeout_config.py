@@ -90,7 +90,7 @@ def get_loader_timeouts() -> dict[str, int]:
         "quarterly_cash_flow": 540 * 60,  # 540 min - Part of consolidated financial_statements load
         "ttm_income_statement": 540 * 60,  # 540 min - Part of consolidated financial_statements load
         "ttm_cash_flow": 540 * 60,  # 540 min - Part of consolidated financial_statements load
-        "value_quality_growth": 40 * 60,  # 40 min - multi-source aggregation
+        "value_quality_growth": 75 * 60,  # matches terraform's 4500s ECS task-def timeout
         "enhanced_quality_growth": 300 * 60,  # 300 min (5h) - Session 92: yfinance variance high
         # ADDED 2026-08-19: pure DB-derived metric (trailing-4-quarter EPS consistency from
         # quarterly_income_statement, no external API calls at all) - no rate-limiting
@@ -200,7 +200,8 @@ def get_loader_timeouts() -> dict[str, int]:
         "market_constituents": 10 * 60,  # Alias for constituents (terraform ECS task-def key)
         "market_status_daily": 15 * 60,  # Alias for market_status (terraform ECS task-def key)
         "sector_industry_daily": 15 * 60,  # Alias for sector_industry (terraform ECS task-def key)
-        "value_quality_growth_metrics": 40 * 60,  # Alias for value_quality_growth (terraform ECS task-def key)
+        "value_quality_growth_metrics": 75
+        * 60,  # Alias for value_quality_growth (terraform ECS task-def key; matches terraform's 4500s)
         "enhanced_quality_growth_metrics": 300 * 60,  # Alias for enhanced_quality_growth (terraform ECS task-def key)
         "stock_symbols": 10 * 60,  # Alias for constituents
         "etf_symbols": 10 * 60,  # Alias for constituents
@@ -208,9 +209,23 @@ def get_loader_timeouts() -> dict[str, int]:
         "aaii_sentiment": 10 * 60,  # Alias for aaii
         "analyst_upgrade_downgrade": 90 * 60,  # Alias for analyst_upgrades (Session 99: 90m)
         "analyst_sentiment_analysis": 120 * 60,  # Alias for analyst_sentiment (Session 99: 120m)
-        "quality_metrics": 40 * 60,  # Output of value_quality_growth loader
-        "growth_metrics": 40 * 60,  # Output of value_quality_growth loader
-        "value_metrics": 40 * 60,  # Output of value_quality_growth loader
+        # BUG FOUND 2026-08-21 (goal session): quality_metrics/growth_metrics status rows are
+        # shared by TWO loaders with very different real budgets -
+        # load_value_quality_growth_metrics.py (~40min) AND load_enhanced_quality_growth_metrics.py
+        # (yfinance-heavy per-symbol trend/earnings-estimate calls, terraform ECS timeout=18000s/
+        # 5h). reap_stale_running_loaders() and the local file lock's TTL both key off this table
+        # name's timeout regardless of which loader is actually running, so a legitimately-slow
+        # (not hung) enhanced_quality_growth run got auto-marked FAILED partway through mid-run
+        # (live-confirmed 2026-08-19: 66.50% genuine progress, not 0%, reaped at 50min then the
+        # same run went on to complete for real at the ~2h4m mark) - and since the file lock's TTL
+        # expired too, the scheduler launched a second, fully concurrent duplicate run of the same
+        # ~5188-symbol universe before the first one finished. Raised to match
+        # enhanced_quality_growth_metrics' real terraform budget, the slower of the two legitimate
+        # writers to these tables.
+        "quality_metrics": 300 * 60,  # Shared output: value_quality_growth AND enhanced_quality_growth
+        "growth_metrics": 300 * 60,  # Shared output: value_quality_growth AND enhanced_quality_growth
+        "value_metrics": 40
+        * 60,  # Output of value_quality_growth loader only (enhanced_quality_growth doesn't write here)
         "momentum_metrics": 30 * 60,  # Alias for stability_metrics
         "institutional_holdings_13f": 45 * 60,  # Alias for institutional
         "short_interest_finra": 10 * 60,  # Alias for short_interest

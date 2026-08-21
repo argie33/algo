@@ -46,6 +46,29 @@ class OptimalLoader:
     chunk_size: int = 10_000
     max_age_for_full_refresh: timedelta = timedelta(days=365)
     is_symbol_based: bool = True
+    # BUG FOUND 2026-08-21 (goal session, resolves buy_sell_daily_intermittent_71pct_
+    # shortfall_unresolved_20260821): _update_final_status()'s is_symbol_based completion
+    # check counts `COUNT(DISTINCT symbol) FROM {table_name} WHERE symbol = ANY(requested)`
+    # with NO date/watermark scoping at all - it measures "how many requested symbols have
+    # EVER had a row in this table, at any point in its history", not "did this run
+    # succeed". For a dense table where every run rewrites/refreshes ~every active symbol
+    # (price_daily, quality_metrics, etc.) that's a harmless proxy since the two numbers
+    # stay close. For a SPARSE, event-driven table like buy_sell_daily - where a real,
+    # successful run only writes a row for the symbols that triggered an actual BUY/SELL
+    # that day (~5-20% of the universe on a normal day; most symbols correctly get zero
+    # rows most days) - it instead measures a slow-drifting "ever triggered a signal in
+    # its tracked history" population stat, live-confirmed at 3478/4861=71.55% and
+    # 3493/4947=70.61% on two separate runs, that has nothing to do with the run's actual
+    # success. Both runs had symbols_failed=0 and were otherwise completely healthy -
+    # main()'s own post-run block (using the correct `symbols_processed` stat) wrote the
+    # accurate COMPLETED status right after, but this generic write still landed a bogus
+    # FAILED row in data_loader_status_history first (and briefly in the live
+    # data_loader_status row, incrementing consecutive_failures) - the actual source of
+    # the ~10-prior-session "intermittent 71% shortfall" mystery. Subclasses covering a
+    # sparse/event-driven table should set this True so _update_final_status uses
+    # self._stats["symbols_processed"] (attempted, not "triggered a signal") instead of
+    # this DB query. Defaults False - zero behavior change for every other loader.
+    sparse_symbol_population: bool = False
 
     def __init__(self, backfill_days: int | None = None):
         self._router: Any = None
@@ -1460,6 +1483,14 @@ class OptimalLoader:
                         total_rows = result[0]
                         latest_date = self._to_date(result[1])
                         actual_symbols_loaded = result[2] if result[2] is not None else 0
+                        if self.sparse_symbol_population:
+                            # See sparse_symbol_population's class-level docstring: the
+                            # lifetime-distinct-symbol count above is meaningless for a
+                            # sparse/event-driven table - use this run's own real
+                            # processed-symbol accounting instead (same semantics
+                            # symbols_failed already uses, so symbols_processed +
+                            # symbols_failed == expected_symbols when the run is clean).
+                            actual_symbols_loaded = self._stats.get("symbols_processed", 0)
                     else:
                         # Market-wide loader (not symbol-based): count rows only
                         cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")

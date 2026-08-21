@@ -121,6 +121,11 @@ class SignalsDailyLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
     exclude_etfs_from_symbols = True  # Trading signals for stocks only, not ETFs
+    # FIX 2026-08-21 (resolves buy_sell_daily_intermittent_71pct_shortfall_unresolved_20260821):
+    # buy_sell_daily is sparse/event-driven - most symbols correctly get zero rows most days
+    # (no breakout/breakdown that day). See OptimalLoader.sparse_symbol_population's
+    # docstring for why the base class's default completion check is meaningless here.
+    sparse_symbol_population = True
 
     def run(
         self,
@@ -274,7 +279,6 @@ class SignalsDailyLoader(OptimalLoader):
                     f"{symbols_before_price_filter} → {len(symbols)} symbols "
                     f"({pct_retained_price:.1f}% retained, price_data has {price_data_count} total)"
                 )
-
                 if not symbols:
                     raise RuntimeError(
                         f"CRITICAL: No symbols have price_daily data on {price_data_date}. "
@@ -298,6 +302,17 @@ class SignalsDailyLoader(OptimalLoader):
         # Call parent run() with filtered symbols
         effective_parallelism: int = parallelism if parallelism is not None else 1
         result = super().run(symbols, parallelism=effective_parallelism, backfill_days=backfill_days)
+
+        # Every symbol submitted to optimal_loader must land in exactly one of
+        # processed/failed - if not, a symbol was silently dropped inside
+        # OptimalLoader's run loop (e.g. a future neither completed nor counted failed).
+        accounted = (result.get("symbols_processed") or 0) + (result.get("symbols_failed") or 0)
+        if accounted != len(symbols):
+            logger.warning(
+                f"[LOAD_BUY_SELL_DAILY] Symbol accounting mismatch: submitted {len(symbols)}, "
+                f"processed+failed={accounted}. {len(symbols) - accounted} symbols unaccounted for "
+                "in OptimalLoader.run()."
+            )
 
         # FAIL-FAST: Validate that signal generation actually produced results
         # In a finance app, silent success with zero data is a critical failure
