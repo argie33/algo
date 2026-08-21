@@ -401,5 +401,39 @@ class TestNullRatioScopedToLatestDate:
         )
 
 
+class TestWeinsteinStageNewListingFloorExcluded:
+    """Regression test for the 2026-08-21 fix: weinstein_stage requires a real 200-day SMA
+    (loaders/load_trend_analysis.py's `valid_data` gate) - a symbol with under 200 total
+    price_daily rows cannot have one yet no matter how correct the loader is. Live-confirmed
+    498 of 555 NULL rows on the latest date belonged to such recently-listed symbols. The
+    NULL-ratio check must exclude them from its denominator (same structural-floor shape as
+    the analyst loaders' coverage ceiling), not flag this self-resolving population as an
+    "error"-severity data quality issue.
+    """
+
+    def test_weinstein_stage_query_excludes_symbols_under_200_price_rows(self) -> None:
+        cur = MagicMock()
+        cur.fetchone.return_value = (100, 2)
+        freshness_enhancements._run_data_quality_checks("trend_template_data", cur)
+
+        executed = [call.args[0] for call in cur.execute.call_args_list]
+        weinstein_queries = [sql for sql in executed if "weinstein_stage" in sql]
+        assert weinstein_queries, "Expected a query against the weinstein_stage column"
+        assert any("HAVING COUNT(*) >= 200" in sql and "price_daily" in sql for sql in weinstein_queries), (
+            "weinstein_stage's NULL check must exclude symbols too new to have a 200-day SMA"
+        )
+
+    def test_other_columns_and_tables_unaffected_by_the_floor_scope(self) -> None:
+        cur = MagicMock()
+        cur.fetchone.return_value = (100, 2)
+        freshness_enhancements._run_data_quality_checks("price_daily", cur)
+
+        executed = [call.args[0] for call in cur.execute.call_args_list]
+        assert not any("HAVING COUNT(*) >= 200" in sql for sql in executed), (
+            "The new-listing floor scope is specific to trend_template_data.weinstein_stage "
+            "and must not leak into other tables' NULL-ratio checks."
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

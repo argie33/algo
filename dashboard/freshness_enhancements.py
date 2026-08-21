@@ -104,6 +104,29 @@ def _table_has_date_column(table_name: str, cur: Any) -> bool:
         return False
 
 
+def _new_listing_floor_scope(table_name: str, col: str) -> tuple[str, str]:
+    """Return (select_extra, where_extra) SQL fragments excluding symbols too newly listed to
+    possibly have a value for `col`, or ("", "") if no such floor is known for this column.
+
+    FIX 2026-08-21 (goal session - digging into the weinstein_stage 11% NULL alert this same
+    check now correctly surfaces post-2026-08-20's stale-sample fix): live-confirmed 498 of
+    555 NULL rows on the latest date belong to symbols with under 200 total price_daily rows -
+    weinstein_stage requires a real 200-day SMA (loaders/load_trend_analysis.py's `valid_data`
+    gate), so a recently-listed symbol CANNOT have one yet, no matter how correct the loader
+    is. Same structural-floor shape as the analyst loaders' ~72% coverage ceiling (SESSION 91
+    RC-3) and stock_scores' FPI exclusion from its own coverage gate - exclude symbols too new
+    to possibly qualify from the denominator so this check measures genuine computation gaps,
+    not an unavoidable "too newly listed" population that self-resolves in ~200 trading days
+    per symbol.
+    """
+    if table_name == "trend_template_data" and col == "weinstein_stage":
+        return (
+            ', "symbol"',
+            'AND "symbol" IN (SELECT symbol FROM price_daily GROUP BY symbol HAVING COUNT(*) >= 200)',
+        )
+    return "", ""
+
+
 def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]:
     """Execute data quality checks for a table.
 
@@ -192,12 +215,14 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     scope_label = "latest date" if has_date_col else "sampled"
     for col in critical_cols:
         try:
+            select_extra, floor_scope = _new_listing_floor_scope(table_name, col)
             cur.execute(
                 f"""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN "{col}" IS NULL THEN 1 END) as null_count
-                FROM (SELECT "{col}" FROM "{table_name}" {date_scope} LIMIT %s) sample
+                FROM (SELECT "{col}"{select_extra} FROM "{table_name}" {date_scope} LIMIT %s) sample
+                WHERE 1=1 {floor_scope}
             """,
                 (sample_size,),
             )
