@@ -447,21 +447,28 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # actually asked for). For Berkshire specifically this produced BRK.A market_cap =
         # $1.03 QUADRILLION in value_metrics (real market cap ~$1.1T) - BRK.B's real ~1.39B
         # share count applied to BRK.A's ~$744k/share price, off by the ~1,500:1 A-to-B
-        # conversion ratio. When MULTIPLE plausible values are found AND the symbol being
-        # resolved is itself dot-suffixed (a known multi-class ticker), we cannot safely
-        # tell which value belongs to this specific class - per the "no cheats, no
-        # confidently-wrong data" governance, refuse to guess rather than risk silently
-        # assigning the wrong class's share count. Only applies when the SYMBOL is
-        # dot-suffixed; a bare ticker with multiple filing-text values (e.g. PLNT) keeps the
-        # existing max() behavior, since there the ambiguity is between an untracked
-        # closely-held class and the one real tracked ticker - not between two tracked
-        # siblings that can each be silently handed the other's number.
-        if len(plausible) > 1 and "." in symbol:
+        # conversion ratio.
+        #
+        # FIXED 2026-08-21 (same session, follow-up): the first version of this guard only
+        # checked `"." in symbol` - but live-confirmed HEI/HEI.A (HEICO) also share an
+        # identical, wrong shares_outstanding, and HEI itself is a BARE ticker (no dot), so
+        # the dot-only check let it fall straight through to the same wrong max(). The real
+        # signal isn't the requesting symbol's own spelling, it's whether this CIK has more
+        # than one registered ticker at all - `submissions["tickers"]` (already fetched,
+        # already passed in) reliably lists every class SEC has on file for this CIK
+        # (live-confirmed: CIK0001067983 -> ['BRK-B','BRK-A'], CIK0000046619 ->
+        # ['HEI','HEI-A']), regardless of which specific symbol/spelling asked. A CIK with
+        # only one registered ticker (PLNT) has no cross-contamination risk even when the
+        # filing text itself has multiple plausible values (an untracked closely-held class),
+        # so max() stays correct there. Kept the dot-suffix check as a defensive OR in case
+        # `tickers` is ever missing/malformed in a submissions payload.
+        multi_ticker_cik = len(submissions.get("tickers") or []) > 1
+        if len(plausible) > 1 and (multi_ticker_cik or "." in symbol):
             logger.warning(
                 f"[{symbol}] {len(plausible)} plausible shares_outstanding values found in "
-                f"filing text (accession {accession}) and symbol is dot-suffixed (multi-class) "
-                "- cannot determine which class this value belongs to, leaving unavailable "
-                "rather than risk assigning the wrong sibling class's share count."
+                f"filing text (accession {accession}) and this CIK has multiple registered "
+                "tickers/classes - cannot determine which class this value belongs to, "
+                "leaving unavailable rather than risk assigning the wrong sibling's share count."
             )
             return None
 

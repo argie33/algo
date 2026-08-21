@@ -29,8 +29,8 @@ def _loader() -> CompanyInfoSECLoader:
     return loader
 
 
-def _submissions_with_10k(accession: str = "0001067983-26-000018") -> dict:
-    return {
+def _submissions_with_10k(accession: str = "0001067983-26-000018", tickers: list | None = None) -> dict:
+    d: dict = {
         "filings": {
             "recent": {
                 "form": ["10-K"],
@@ -38,6 +38,9 @@ def _submissions_with_10k(accession: str = "0001067983-26-000018") -> dict:
             }
         }
     }
+    if tickers is not None:
+        d["tickers"] = tickers
+    return d
 
 
 class TestDualClassSharesAmbiguityGuard:
@@ -84,9 +87,10 @@ class TestDualClassSharesAmbiguityGuard:
 
         assert result == 34_944_441
 
-    def test_bare_symbol_with_multiple_candidates_keeps_max_behavior(self):
-        """Regression guard: PLNT-style bare (non-dot) tickers must be unaffected - the new
-        ambiguity check is scoped to dot-suffixed symbols only."""
+    def test_bare_symbol_with_multiple_candidates_and_single_registered_ticker_keeps_max(self):
+        """PLNT-style: bare ticker, only ONE ticker registered for this CIK (Class B
+        founder shares aren't separately listed) - no cross-contamination risk, max() stays
+        correct even though the filing text itself has multiple values."""
         loader = _loader()
         loader.sec_client.get_filing_plaintext.return_value = (
             '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding">79,697,889</ix:nonFraction> '
@@ -94,6 +98,43 @@ class TestDualClassSharesAmbiguityGuard:
             "</ix:nonFraction> Class B"
         )
 
-        result = loader._fetch_shares_outstanding_from_filing_text("PLNT", "0000000000", _submissions_with_10k())
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "PLNT", "0000000000", _submissions_with_10k(tickers=["PLNT"])
+        )
 
         assert result == 79_697_889
+
+    def test_bare_symbol_with_registered_sibling_ticker_returns_none(self):
+        """Live-confirmed gap in the first version of this fix: HEI (bare, no dot) and
+        HEI.A both resolved to the identical, wrong shares_outstanding, because the
+        original guard only checked '.' in the REQUESTING symbol - HEI has none. The real
+        signal is submissions['tickers'] having more than one entry (HEICO's real CIK
+        0000046619 lists ['HEI', 'HEI-A']), not the requesting symbol's own spelling."""
+        loader = _loader()
+        loader.sec_client.get_filing_plaintext.return_value = (
+            '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding">44,000,000</ix:nonFraction> '
+            "Class A common stock, "
+            '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding">55,143,000'
+            "</ix:nonFraction> common stock"
+        )
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "HEI", "0000046619", _submissions_with_10k(tickers=["HEI", "HEI-A"])
+        )
+
+        assert result is None
+
+    def test_missing_tickers_field_falls_back_to_dot_suffix_check(self):
+        """Defensive fallback: if submissions['tickers'] is absent/malformed, a
+        dot-suffixed requesting symbol still triggers the guard rather than silently
+        trusting max() with no signal at all."""
+        loader = _loader()
+        loader.sec_client.get_filing_plaintext.return_value = (
+            '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding">601,935</ix:nonFraction> '
+            'Class A, <ix:nonFraction name="dei:EntityCommonStockSharesOutstanding">1,389,605,139'
+            "</ix:nonFraction> Class B"
+        )
+
+        result = loader._fetch_shares_outstanding_from_filing_text("BRK.A", "1067983", _submissions_with_10k())
+
+        assert result is None
