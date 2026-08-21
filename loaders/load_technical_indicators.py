@@ -96,9 +96,11 @@ class VectorizedTechnicalLoader:
                 "duration_sec": time.time() - start_time,
             }
 
-        # 252-trading-day indicators (roc_252d) need ~252 * 7/5 ≈ 353 calendar days of
-        # history plus market holidays; 300 was short by ~50+ days and left roc_252d
-        # (and therefore minervini_trend_score, which sums it) permanently NULL.
+        # start_date is now informational only (log message / caller signature) - the
+        # actual fetch (_fetch_price_batch) pulls each symbol's most recent
+        # _TRADING_DAYS_LOOKBACK rows regardless of calendar span, so thin/sparse tickers
+        # still get a full 252-trading-day lookback for roc_252d/sma_200 even when that
+        # spans well over 400 calendar days. See _fetch_price_batch's docstring.
         start_date = end_date - timedelta(days=400)
 
         logger.info(f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}")
@@ -253,17 +255,42 @@ class VectorizedTechnicalLoader:
     # redo one batch instead of the whole universe.
     _FETCH_BATCH_SIZE = 1000
 
+    # BUG FOUND 2026-08-21: a flat `date >= start_date` calendar-day window (previously
+    # 400 days) assumes ~5/7 of calendar days are trading days, which only holds for
+    # normally-traded tickers. 538 symbols with >=200 total price_daily rows (live-verified
+    # via DB query: EDN, FAMI, DGICB, FORTY, GGAL, ...) trade on fewer than half their
+    # calendar days - some have YEARS of history (EDN back to 2007, 4332 rows) but under
+    # 200 rows inside ANY 400-day window, so sma_200 (rolling(200) on the fetched series)
+    # was permanently NaN for them regardless of window size chosen, which cascades into
+    # weinstein_stage (load_trend_analysis.py) being permanently NULL even though the
+    # symbol has plenty of real history. Fetching by TRADING-DAY COUNT per symbol (LATERAL
+    # + LIMIT, using idx_price_daily_symbol_date_cover) instead of a calendar-day range
+    # fixes this for any trading frequency - each symbol gets its own most-recent N rows
+    # regardless of how far back in calendar time that spans.
+    # roc_252d needs 252 PRIOR trading-day rows for each row it's computed on - rolling(252)
+    # over N fetched rows is only valid for the LAST (N - 252 + 1) rows. The OUTPUT_WINDOW
+    # (last ~30 calendar days / ~20-22 trading days, see OUTPUT_WINDOW_DAYS_TECH_INDICATORS
+    # below) all need a valid roc_252d, not just the single most recent row - so N must cover
+    # 252 + the output window's trading-day span, plus a safety buffer. 300 gives ~48 rows of
+    # margin beyond the 252+22 minimum (previously 400 calendar days gave dense tickers a
+    # similar ~28-trading-day margin - this is a deliberately generous superset of that).
+    _TRADING_DAYS_LOOKBACK = 300
+
     def _fetch_price_batch(self, symbols: list[str], start_date: date, end_date: date) -> list[Any]:
         with DatabaseContext("read") as cur:
-            sql_param_markers = ",".join(["%s"] * len(symbols))
-            query = f"""
-                SELECT symbol, date, open, high, low, close, volume
-                FROM price_daily
-                WHERE symbol IN ({sql_param_markers})
-                AND date >= %s AND date <= %s
-                ORDER BY symbol, date ASC
+            query = """
+                SELECT sym.symbol, p.date, p.open, p.high, p.low, p.close, p.volume
+                FROM unnest(%s::text[]) AS sym(symbol)
+                CROSS JOIN LATERAL (
+                    SELECT date, open, high, low, close, volume
+                    FROM price_daily pd
+                    WHERE pd.symbol = sym.symbol AND pd.date <= %s
+                    ORDER BY pd.date DESC
+                    LIMIT %s
+                ) p
+                ORDER BY sym.symbol, p.date ASC
             """
-            cur.execute(query, [*symbols, start_date, end_date])
+            cur.execute(query, [symbols, end_date, self._TRADING_DAYS_LOOKBACK])
             return cast(list[Any], cur.fetchall())
 
     def _fetch_all_prices(self, symbols: list[str], start_date: date, end_date: date) -> list[dict[str, Any]]:
