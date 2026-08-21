@@ -85,6 +85,39 @@ class TestTransientRefetchGapNotDowngraded:
         assert result[0]["data_unavailable"] is True
         assert result[0]["reason"] == "incomplete_sec_filing_income"
 
+    def test_existing_row_already_stuck_true_with_real_data_self_heals(self):
+        """FIXED 2026-08-21 (same bug class, one run later): the existing-row lookup used to
+        also filter `data_unavailable = FALSE`, so a row that was ALREADY stuck at
+        data_unavailable=True with real required data underneath it (the exact
+        self-perpetuating state this whole mechanism can itself produce, before this fix
+        existed) was invisible to the safety net - every future run re-derived the same
+        downgrade from its own possibly-sparse refetch and wrote data_unavailable=True right
+        back, forever. Live-confirmed: XP FY2017 stuck this way (real revenue=$1.28B) across
+        multiple runs after the 2026-08-20 fix landed. The row's own current flag must not
+        gate whether its real values are trusted - only whether the values are non-NULL."""
+        loader = _make_loader()
+        rows = [
+            {
+                "symbol": "XP",
+                "fiscal_year": 2017,
+                "revenue": None,
+                "net_income": None,
+                "data_unavailable": False,
+                "reason": None,
+            }
+        ]
+        # Existing DB row is ITSELF marked data_unavailable=True, despite carrying real values.
+        existing = [("XP", 2017, 423_541_000, 1_283_616_000)]
+
+        with (
+            patch.object(ConsolidatedFinancialStatementsLoader.__mro__[1], "transform", side_effect=lambda r: r),
+            patch("loaders.load_financial_statements.DatabaseContext", return_value=_mock_db_context(existing)),
+        ):
+            result = loader.transform(rows)
+
+        assert result[0]["data_unavailable"] is False
+        assert result[0]["reason"] is None
+
     def test_no_db_lookup_when_all_rows_already_have_required_data(self):
         """The common, healthy case (real data every run) must not trigger a DB round-trip."""
         loader = _make_loader()

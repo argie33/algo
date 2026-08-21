@@ -1532,11 +1532,29 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             select_cols = [*key_fields, *required_cols]
             try:
                 with DatabaseContext("read") as cur:
+                    # FIXED 2026-08-21 (goal session continuation, same bug class as the
+                    # 2026-08-20 fix above): this used to also filter `AND data_unavailable
+                    # = FALSE`, on the assumption that's the only reliable signal a row
+                    # "really" has data. But the COALESCE-preserve merge this whole check
+                    # exists to guard against can ALSO write a real required value onto a
+                    # row that's simultaneously (wrongly) marked data_unavailable=TRUE - if
+                    # THAT already happened once (e.g. before this fix existed, or before a
+                    # required-metric mapping was added), the FALSE-only filter can never
+                    # see it, so every future run re-derives the same downgrade from that
+                    # run's own (possibly sparse, e.g. an old fiscal year SEC is slow to
+                    # re-serve) fetch and writes data_unavailable=TRUE right back - forever,
+                    # even though real revenue/net_income sit right there in the row. Live-
+                    # confirmed: XP FY2017-2019 (real revenue/net_income, e.g. FY2017
+                    # revenue=$1.28B) stuck at data_unavailable=TRUE/
+                    # reason='incomplete_sec_filing_income' across multiple runs AFTER the
+                    # 2026-08-20 fix landed - 240 rows total. The row's actual column
+                    # values, not its own possibly-wrong flag, are the correct source of
+                    # truth for "is this really available" - drop the flag filter entirely.
                     cur.execute(
                         f"""
                         SELECT {", ".join(select_cols)}
                         FROM {self.table_name}
-                        WHERE symbol = ANY(%s) AND data_unavailable = FALSE
+                        WHERE symbol = ANY(%s)
                         """,
                         (symbols_in_batch,),
                     )
