@@ -3587,17 +3587,40 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         if failed_metrics:
             if len(failed_metrics) == 6:
-                return self._unavailable_marker("growth_metrics", symbol)
-            # PARTIAL failure (1-5 of 6 periods, e.g. eps_growth_5y needs 6 fiscal years of
-            # history that many symbols don't have yet): the periods that DID compute are
-            # real values, not noise - leave data_unavailable=False so downstream scoring
-            # (load_stock_scores.py::_score_growth) can weight whatever periods are present
-            # instead of discarding the whole row. _score_growth already renormalizes over
-            # available fields; it was this flag - not the scorer - that was throwing partial
-            # data away before it ever got there. `reason` still records what's missing.
-            metrics["reason"] = (
-                f"Incomplete growth metrics: {', '.join(sorted(set(failed_metrics)))} failed to compute (insufficient history or invalid data)"
-            )
+                # FIXED 2026-08-21 (goal session - bulk EPS/revenue cross-check audit):
+                # this used to `return self._unavailable_marker("growth_metrics", symbol)`
+                # here - a completely fresh dict that hardcodes EVERY *_unavailable_reason
+                # to the literal string "insufficient_history", discarding the nuanced
+                # per-field reasons _growth_reason() just computed above (including a real
+                # sign-change correctly detected via sign_change_metrics). Live-confirmed on
+                # LFT/BDTX/ENLV: each has genuinely too little revenue history (correctly
+                # "insufficient_history") AND a real EPS sign change between the two CAGR
+                # endpoints (should be "growth_undefined_sign_change" per this file's own
+                # sign-change comment above - "must not be reported to the user as
+                # insufficient history") - but because ALL 6 periods failed (for this mix of
+                # two different, both-legitimate reasons), the len==6 shortcut fired and
+                # silently overwrote the already-correct eps_growth_*_unavailable_reason
+                # values back to "insufficient_history" anyway. Keep the per-field reasons
+                # already set in `metrics` instead of discarding them - the row still has no
+                # usable growth VALUES (all 6 are None either way), so data_unavailable=True
+                # remains correct, just with honest per-field reasons preserved.
+                metrics["data_unavailable"] = True
+                metrics["data_source"] = "none"
+                metrics["reason"] = (
+                    f"Insufficient historical data: {', '.join(sorted(set(failed_metrics)))} could not be computed"
+                )
+            else:
+                # PARTIAL failure (1-5 of 6 periods, e.g. eps_growth_5y needs 6 fiscal years
+                # of history that many symbols don't have yet): the periods that DID compute
+                # are real values, not noise - leave data_unavailable=False so downstream
+                # scoring (load_stock_scores.py::_score_growth) can weight whatever periods
+                # are present instead of discarding the whole row. _score_growth already
+                # renormalizes over available fields; it was this flag - not the scorer -
+                # that was throwing partial data away before it ever got there. `reason`
+                # still records what's missing.
+                metrics["reason"] = (
+                    f"Incomplete growth metrics: {', '.join(sorted(set(failed_metrics)))} failed to compute (insufficient history or invalid data)"
+                )
             logger.debug(
                 f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})"
             )

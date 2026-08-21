@@ -63,3 +63,41 @@ def test_same_sign_negative_to_negative_computes_normally():
 
     assert result["eps_growth_1y"] is not None
     assert result["eps_growth_1y_unavailable_reason"] is None
+
+
+def test_all_six_periods_failing_for_a_mix_of_reasons_keeps_nuanced_reasons():
+    """FIXED 2026-08-21 (same session, follow-up to the sign-change fix above): when ALL 6
+    growth periods fail - not just some - the `len(failed_metrics) == 6` shortcut used to
+    `return self._unavailable_marker("growth_metrics", symbol)`, a completely fresh dict
+    that hardcodes every *_unavailable_reason to "insufficient_history", silently
+    overwriting the nuanced per-field reasons _growth_reason() had just computed above it
+    (including a real sign-change this exact fix already exists to report correctly).
+
+    Live-confirmed on LFT/BDTX/ENLV: each has genuinely too little revenue history (only 1
+    real positive-revenue fiscal year - correctly "insufficient_history") AND a real EPS
+    sign change between the CAGR endpoints (should be "growth_undefined_sign_change") - but
+    because revenue and EPS both failed for every one of the 6 periods, the len==6 shortcut
+    fired and silently reverted eps_growth_5y back to "insufficient_history" anyway.
+    """
+    loader = _make_loader()
+    # LFT-shaped: only ONE usable revenue year (all 6 revenue-based periods genuinely lack
+    # history), but 7 EPS years with a sign flip between the most recent (negative) and the
+    # 5-years-back point (positive) - eps_growth_5y specifically must stay a sign-change.
+    income_rows = [
+        (2025, None, None, None, -0.14),
+        (2024, None, None, None, 0.34),
+        (2023, None, None, None, 0.29),
+        (2022, None, None, None, 0.11),
+        (2021, None, None, None, 0.30),
+        (2020, None, None, None, 0.34),
+        (2013, 18916975.0, None, None, 0.52),
+    ]
+
+    result = loader._compute_growth_metrics("LFT", income_rows)
+
+    assert result["data_unavailable"] is True
+    assert result["revenue_growth_1y_unavailable_reason"] == "insufficient_history"
+    assert result["revenue_growth_5y_unavailable_reason"] == "insufficient_history"
+    assert result["eps_growth_1y_unavailable_reason"] == "growth_undefined_sign_change"
+    assert result["eps_growth_3y_unavailable_reason"] == "growth_undefined_sign_change"
+    assert result["eps_growth_5y_unavailable_reason"] == "growth_undefined_sign_change"
