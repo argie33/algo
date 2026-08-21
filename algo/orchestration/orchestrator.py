@@ -74,28 +74,13 @@ if str(_project_root) not in sys.path:
 logger = logging.getLogger(__name__)
 
 
-def is_obviously_fake_alpaca_key(api_key: str) -> bool:
-    """Detect an obviously-fake/placeholder Alpaca API key ID, to fail fast at startup
-    instead of failing later (and confusingly) when Phase 8 tries to place a real order.
-
-    BUG FOUND 2026-08-11: the original inline check required an exact `len(api_key) == 20`,
-    but "PK0123456789ABCDEF" - the literal example this check's own comment names, and the
-    exact value seeded in this dev DB's algo_config.alpaca_api_key - is 18 characters, not
-    20. That length mismatch meant the documented example silently passed this guard and
-    only triggered a separate, non-blocking WARNING-level check elsewhere in this file -
-    defeating the stated "fail here at startup" purpose for the exact credential the check
-    was written to catch. A real Alpaca key ID is randomly generated, so instead of guessing
-    an exact length, detect the actual "obviously fake" signal: the characters after "PK"
-    being a strictly sequential 0-9/A-F run (i.e. any prefix of "0123456789ABCDEF" repeated)
-    - a pattern a random key would essentially never produce, at any length.
-    """
-    if not api_key or not api_key.startswith("PK"):
-        return False
-    suffix = api_key[2:].upper()
-    if len(suffix) < 8 or not suffix.isalnum():
-        return False
-    sequential_placeholder = "0123456789ABCDEF" * 4
-    return sequential_placeholder.startswith(suffix)
+# is_obviously_fake_alpaca_key() moved 2026-08-21 to algo/config/credential_manager.py
+# (a lower-level module this file already imports from, never the reverse) so it can also
+# guard get_alpaca_credentials()'s own database-fallback tier, not just this file's strict
+# execution_mode="auto" startup gate - see that module's docstring for the full story.
+# Re-exported here for backward compatibility with existing callers/tests that import it
+# from this module.
+from algo.config.credential_manager import is_obviously_fake_alpaca_key
 
 
 def compute_run_mode_label(dry_run: bool, execution_mode: str, alpaca_paper_trading: bool) -> str:

@@ -54,6 +54,40 @@ def _sanitize_error(error: Exception) -> str:
 CREDENTIAL_CACHE_TTL_SECONDS = 300
 
 
+def is_obviously_fake_alpaca_key(api_key: str | None) -> bool:
+    """Detect an obviously-fake/placeholder Alpaca API key ID.
+
+    Moved here 2026-08-21 (goal session - "digging into the logs" audit) from
+    `algo/orchestration/orchestrator.py`, where it was originally added 2026-08-11 and
+    only ever guarded the strict `execution_mode="auto"` real-trading startup path. Live-
+    confirmed the exact placeholder this function was built to catch
+    ("PK0123456789ABCDEF", per this dev DB's `algo_config.alpaca_api_key`) was ALSO
+    silently accepted by `get_alpaca_credentials()`'s own database-fallback tier (see that
+    function's docstring) - a completely separate code path this check never covered,
+    reached by the standalone price-loading pipeline (not just the full Orchestrator).
+    Result: `price_daily` ran 100% on the yfinance fallback all day (Alpaca 401ing on
+    every request) with the fake key silently treated as valid, well below the strict
+    "auto" mode gate this function was originally written to protect. Relocated to this
+    lower-level module (already imported by orchestrator.py, never the reverse) so both
+    the real-trading startup gate AND the database-fallback credential tier share one
+    tested implementation - the "same logic in more than one place is a bug" rule.
+    `algo/orchestration/orchestrator.py` re-exports this name for backward compatibility
+    with existing callers/tests.
+
+    A real Alpaca key ID is randomly generated, so instead of guessing an exact length,
+    detect the actual "obviously fake" signal: the characters after "PK" being a strictly
+    sequential 0-9/A-F run (i.e. any prefix of "0123456789ABCDEF" repeated) - a pattern a
+    random key would essentially never produce, at any length.
+    """
+    if not api_key or not api_key.startswith("PK"):
+        return False
+    suffix = api_key[2:].upper()
+    if len(suffix) < 8 or not suffix.isalnum():
+        return False
+    sequential_placeholder = "0123456789ABCDEF" * 4
+    return sequential_placeholder.startswith(suffix)
+
+
 class CredentialManager:
     """Centralized credential fetcher with caching and TTL-based expiration.
 
@@ -573,8 +607,29 @@ class CredentialManager:
             conn.close()
 
             if key and secret:
-                logger.info("[CREDENTIALS] Alpaca credentials loaded from database (final fallback)")
-                return {"key": key, "secret": secret}
+                # FIXED 2026-08-21 (goal session - "digging into the logs" audit): this
+                # tier silently accepted the exact placeholder is_obviously_fake_alpaca_key()
+                # was built to catch ("PK0123456789ABCDEF"/"test_..." - see that function's
+                # docstring), because this DB-fallback code path never called it - only
+                # orchestrator.py's separate, stricter execution_mode="auto" startup gate
+                # did. Live-confirmed: this exact fake key sat in algo_config.alpaca_api_key
+                # (seeded 2026-07-11) and was silently returned as if valid whenever the
+                # earlier tiers failed (e.g. .env.local not yet loaded into this process's
+                # environment) - causing price_daily to get a real HTTP 401 from Alpaca on
+                # every request, all day, with zero visibility into why (100% fallback to
+                # yfinance, which alone isn't reliable enough at this volume - a real
+                # 325-symbol/6.4% completeness shortfall). Reject it here too instead of
+                # returning it as if valid.
+                if is_obviously_fake_alpaca_key(key) or secret.startswith("test_"):
+                    logger.warning(
+                        "[CREDENTIALS] Database fallback (algo_config) holds an obviously "
+                        "fake/placeholder Alpaca credential - refusing to use it. Configure "
+                        "real APCA_API_KEY_ID/APCA_API_SECRET_KEY via environment variables "
+                        "or AWS Secrets Manager instead."
+                    )
+                else:
+                    logger.info("[CREDENTIALS] Alpaca credentials loaded from database (final fallback)")
+                    return {"key": key, "secret": secret}
         except Exception as e:
             logger.debug(f"[CREDENTIALS] Database fallback failed: {e}")
 
