@@ -348,6 +348,113 @@ class MarketConstituentsLoader(OptimalLoader):
                 (recovered,),
             )
 
+    def _deactivate_symbols_delisted_from_exchange_feed(self, current_feed_symbols: set[str]) -> None:
+        """Deactivate already-active symbols that have vanished entirely from today's
+        NASDAQ/otherlisted feed - i.e. no longer trade under this symbol on any listed exchange.
+
+        GOVERNANCE 2026-08-21 (goal session - "why does price_daily keep retry-failing on
+        the same handful of symbols every day"): `active` is never a key in the row dicts
+        fetch_global() returns, so BulkInsertManager's UPSERT only ever adds/updates symbols
+        present in THIS run's fetch - a symbol that drops out of nasdaqlisted.txt/
+        otherlisted.txt entirely (real delisting/acquisition) stays `active=true` forever.
+        That's exactly the gap _reactivate_no_longer_excluded_symbols()'s docstring assumed
+        was already handled elsewhere ("an unrelated, still-valid reason (e.g. genuinely
+        delisted)") - nothing actually covered it. Live-confirmed: NSA/ELSE/LPRO/PSTV/SKYT/
+        VSTD are absent from both live feeds today, and Alpaca has zero bars for each past
+        its own last real trading day (NSA: stopped 2026-07-21 despite >100k-share days
+        before that) - not a data source problem, they're genuinely gone. Left
+        `active=true`, price_daily retried and logged them FAILED every single day with
+        nothing an operator could act on.
+
+        BUG FOUND 2026-08-21 (same session, live-caught before this reached any real
+        pipeline run): "absent from this fetch of the feed" ALONE is not trustworthy
+        signal - the very first live run of this method deactivated 110 symbols, and 94 of
+        them (AVB, EQR, WBS, BBBY, ...) had price_daily rows within the last 2 weeks,
+        obviously still trading. The feed fetch this environment reaches is not guaranteed
+        to be a complete, ground-truth snapshot of the real listing universe every time
+        (rate limiting, partial mirrors, whatever - the exact cause doesn't matter). Per
+        the "verify via a second, orthogonal signal before acting" pattern used everywhere
+        else in this codebase for exactly this class of risk (see MEMORY.md - CNY
+        conversion, sec_valuations sanity checks), a symbol is only deactivated here if it
+        is BOTH absent from the feed AND has had no real price_daily data for
+        STALE_PRICE_DAYS - a feed hiccup alone can never flip an actively-traded symbol to
+        inactive; only a feed hiccup THAT ALSO coincides with a genuine multi-week pricing
+        gap can.
+
+        Guarded like _deactivate_stale_excluded_symbols() (scoped UPDATE, not blanket),
+        plus a floor on the fetched feed size and a per-run cap on rows flipped - a
+        truncated or malformed feed fetch must never be able to mass-deactivate the universe.
+        """
+        min_trusted_feed_size = 5000
+        if len(current_feed_symbols) < min_trusted_feed_size:
+            logger.error(
+                f"[MARKET_CONSTITUENTS] Fetched feed only has {len(current_feed_symbols)} symbols "
+                f"(expected >= {min_trusted_feed_size}) - too small to trust for delisting "
+                "detection, likely a truncated/failed fetch. Skipping delisted-symbol "
+                "deactivation this run."
+            )
+            return
+
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT symbol FROM stock_symbols WHERE active = true")
+            active_symbols = {row[0] for row in cur.fetchall()}
+
+        missing_from_feed = sorted(active_symbols - current_feed_symbols)
+        if not missing_from_feed:
+            return
+
+        stale_price_days = 14
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM (
+                    SELECT symbol, MAX(date) AS last_price_date
+                    FROM price_daily WHERE symbol = ANY(%s) GROUP BY symbol
+                ) latest
+                WHERE last_price_date >= CURRENT_DATE - INTERVAL '%s days'
+                """,
+                (missing_from_feed, stale_price_days),
+            )
+            recently_priced = {row[0] for row in cur.fetchall()}
+
+        gone = [s for s in missing_from_feed if s not in recently_priced]
+        still_priced = [s for s in missing_from_feed if s in recently_priced]
+        if still_priced:
+            logger.warning(
+                f"[MARKET_CONSTITUENTS] {len(still_priced)} symbol(s) absent from today's feed "
+                f"still have price_daily data within {stale_price_days}d - treating as a feed "
+                f"gap, not a real delisting, and leaving active: {still_priced[:10]}"
+                + (f" ...and {len(still_priced) - 10} more" if len(still_priced) > 10 else "")
+            )
+        if not gone:
+            return
+
+        max_auto_deactivate = 50
+        if len(gone) > max_auto_deactivate:
+            logger.critical(
+                f"[MARKET_CONSTITUENTS] {len(gone)} symbols are both missing from today's feed "
+                f"AND have no recent price_daily data - exceeds the {max_auto_deactivate} safety "
+                "cap, which more likely means an upstream data problem than a real mass-"
+                f"delisting event. Skipping automatic deactivation this run. Sample: {gone[:10]}"
+            )
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Deactivating {len(gone)} symbol(s) absent from today's "
+            f"NASDAQ/otherlisted feed with no price_daily data in {stale_price_days}d "
+            f"(delisted/acquired): {gone[:10]}" + (f" ...and {len(gone) - 10} more" if len(gone) > 10 else "")
+        )
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE stock_symbols
+                SET active = false, data_unavailable = true,
+                    data_unavailable_reason = 'delisted_or_removed_from_exchange_feed'
+                WHERE symbol = ANY(%s)
+                """,
+                (gone,),
+            )
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
 
@@ -377,6 +484,10 @@ class MarketConstituentsLoader(OptimalLoader):
                 )
 
             logger.info(f"Fetched {len(base_symbols)} base symbols from NASDAQ/NYSE")
+
+            self._deactivate_symbols_delisted_from_exchange_feed(
+                {row["symbol"] for row in base_symbols if row.get("symbol")}
+            )
 
             # STEP 2: Fetch and index S&P 500 constituents (critical enrichment for signal generation)
             logger.info("STEP 2/3: Fetching S&P 500 constituents")

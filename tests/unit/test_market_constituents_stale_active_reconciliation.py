@@ -137,6 +137,101 @@ class TestReactivateNoLongerExcludedSymbols:
             assert "data_unavailable_reason = 'excluded_by_naming_pattern'" in sql
 
 
+class TestDeactivateSymbolsDelistedFromExchangeFeed:
+    """Regression test added 2026-08-21 (goal session - "why does price_daily keep
+    retry-failing on the same handful of symbols every day"): a symbol that vanishes
+    entirely from nasdaqlisted.txt/otherlisted.txt (real delisting/acquisition) was never
+    deactivated - `active` is never a key in fetch_global()'s row dicts, so the bulk-insert
+    write path only ever adds/updates symbols present in the CURRENT fetch and never
+    notices one that dropped out. Live-confirmed: NSA/ELSE/LPRO/PSTV/SKYT/VSTD absent from
+    both live feeds, Alpaca has zero bars for each past its own last real trading day, yet
+    all six sat `active=true` and price_daily logged them FAILED every single run.
+
+    BUG FOUND 2026-08-21 (same session): "absent from feed" alone is not trustworthy -
+    the first live run deactivated 110 symbols and 94 (AVB, EQR, WBS, BBBY, ...) had
+    price_daily data within the last 2 weeks, obviously still trading. Fixed to require
+    BOTH signals (missing from feed AND no recent price_daily row) before deactivating -
+    these tests now cover that second, orthogonal check.
+    """
+
+    def test_symbol_missing_from_feed_and_no_recent_price_gets_deactivated(self):
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_active_cur = MagicMock()
+            mock_active_cur.fetchall.return_value = [(s,) for s in feed_symbols] + [("NSA",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = []  # NSA has no recent price_daily row
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur, mock_write_cur]
+
+            loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
+
+            mock_write_cur.execute.assert_called_once()
+            sql, params = mock_write_cur.execute.call_args[0]
+            assert "UPDATE stock_symbols" in sql
+            assert "active = false" in sql
+            assert "delisted_or_removed_from_exchange_feed" in sql
+            assert params == (["NSA"],)
+
+    def test_symbol_missing_from_feed_but_still_recently_priced_stays_active(self):
+        """The exact false-positive this bug produced live: absent from the feed fetch,
+        but price_daily proves it's still trading - must not be touched."""
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_active_cur = MagicMock()
+            mock_active_cur.fetchall.return_value = [(s,) for s in feed_symbols] + [("AVB",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = [("AVB",)]  # recent price_daily row exists
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur]
+
+            loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
+
+            # Only the two read calls happened - DatabaseContext("write") never entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {}), (("read",), {})]
+
+    def test_no_missing_symbols_skips_price_check_and_write(self):
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)}
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [(s,) for s in feed_symbols]
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
+
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_truncated_feed_skips_check_entirely(self):
+        """A feed with far fewer symbols than a real universe is more likely a broken
+        fetch than a mass-delisting event - must not touch the DB at all."""
+        loader = _make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            loader._deactivate_symbols_delisted_from_exchange_feed({"AAPL", "MSFT"})
+
+            mock_db_ctx.assert_not_called()
+
+    def test_mass_missing_symbols_exceeds_safety_cap_skips_write(self):
+        """More than MAX_AUTO_DEACTIVATE symbols that are both missing from the feed AND
+        have no recent price data implies a bad fetch, not real delistings - must not
+        mass-deactivate the universe on a single bad run."""
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)}
+        missing = [f"GONE{i}" for i in range(51)]
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_active_cur = MagicMock()
+            mock_active_cur.fetchall.return_value = [(s,) for s in feed_symbols] + [(s,) for s in missing]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = []  # none of the missing symbols have recent prices
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur]
+
+            loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
+
+            # Only the two read calls happened - DatabaseContext("write") never entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {}), (("read",), {})]
+
+
 class TestKnownWhenIssuedMisclassificationOverride:
     """Regression test added 2026-08-18 (goal: "no SEC data"/loader-failure audit): SNDK
     (Sandisk Corp, spun off from Western Digital Feb 2025) and CEG (Constellation Energy
