@@ -1834,6 +1834,12 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # other segment-data reasons already in this bucket
             # (no_segment_revenue_in_xbrl_xml etc.), just a different root cause.
             "companyfacts_api_never_exposes_per_segment_revenue",
+            # ADDED 2026-08-20 (goal session: unmapped-reason sweep, cross-checked every live
+            # *_unavailable_reason value in the schema against this map): dividend_data's
+            # equivalent of no_us_gaap_facts/no_xbrl_filings - the companyfacts response has no
+            # "facts" key at all - was silently falling through to "Other (errors / excluded)"
+            # for 11 live rows because nothing in this map matched it.
+            "no_companyfacts",
         },
     ),
     (
@@ -1887,6 +1893,19 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # 2026-08-20 fix) but was never wired in here, so every affected row fell
             # through to "Other (errors / excluded)" instead of this bucket.
             "shares_outstanding_scale_mismatch",
+            # ADDED 2026-08-20 (goal session: unmapped-reason sweep): both confirmed via
+            # loaders/load_value_quality_growth_metrics.py as genuine sanity-check rejections,
+            # not errors - were silently falling through to "Other (errors / excluded)" for 15
+            # live rows combined because nothing in this map matched them.
+            # - implausible_dcf_result: the 2-stage FCFE DCF model produced a per-share value
+            #   outside MAX_INTRINSIC_VALUE_PER_SHARE bounds (only reached when fcf_yield > 0 -
+            #   the fcf_yield <= 0 case correctly returns negative_free_cash_flow instead, see
+            #   intrinsic_value_reason_from_fcf_yield's own docstring/history).
+            # - garbage_metric_value_abs_gt_100000: an EPS/earnings growth rate whose magnitude
+            #   exceeds MAX_TREND_PERCENTAGE_POINTS (100000%) - a near-zero denominator
+            #   artifact, not a real growth rate, rejected the same way implausible_ratio is.
+            "implausible_dcf_result",
+            "garbage_metric_value_abs_gt_100000",
         },
     ),
     (
