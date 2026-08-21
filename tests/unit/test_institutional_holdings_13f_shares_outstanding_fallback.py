@@ -21,17 +21,29 @@ def _make_loader() -> InstitutionalHoldings13FLoader:
 
 class _FakeCursor:
     """Single-query stand-in: the real code now issues one COALESCE query per ticker,
-    not two separate lookups - route by the ticker bound as a parameter."""
+    not two separate lookups - route by the ticker bound as a parameter.
+
+    Also routes the 2026-08-21 FPI lookup (`_load_foreign_private_issuers`, run once
+    per _calculate_and_cache_ownership call, unrelated to per-ticker shares_outstanding
+    resolution) - none of this test's fixtures are FPIs, so it returns no rows.
+    """
 
     def __init__(self, shares_by_ticker: dict[str, float | None]) -> None:
         self._shares_by_ticker = shares_by_ticker
         self._pending: tuple | None = None
+        self._last_query = ""
 
     def execute(self, query: str, params=None) -> None:
+        self._last_query = query
+        if "is_foreign_private_issuer" in query:
+            return
         assert "COALESCE" in query, "expected the combined company_info_sec/sec_valuations fallback query"
         ticker = params[0]
         value = self._shares_by_ticker.get(ticker)
         self._pending = (value,)
+
+    def fetchall(self):
+        return []
 
     def fetchone(self):
         return self._pending

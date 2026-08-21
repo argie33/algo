@@ -1848,6 +1848,30 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # the other segment-data reasons already here. Was unmapped and falling through to
             # "Other (errors / excluded)" (19 live rows, sec_segment_info.reason).
             "zero_total_segment_revenue",
+            # ADDED 2026-08-21 (goal session: "is missing data really missing" audit):
+            # load_company_profile.py's company_profile.reason - "no_sic_code_available"
+            # means company_info_sec never resolved a SIC code for this symbol at all;
+            # "sic_code_unmapped" (base of the dynamic "sic_code_unmapped:XXXX" reason,
+            # matched via `base in keys` in _categorize_reason) means SEC assigned a real
+            # SIC code but it has no SIC_TO_GICS mapping/division fallback yet - both are
+            # "the SEC classification data isn't there/usable" facts, same class as the
+            # other Missing SEC/XBRL reasons. Were unmapped and falling through to "Other
+            # (errors / excluded)" (146 live rows combined).
+            "no_sic_code_available",
+            "sic_code_unmapped",
+            # ADDED 2026-08-21 (same session): orphaned reason string with zero remaining
+            # code references (grepped repo-wide) - written directly to the DB by a
+            # one-off remediation script during the 2026-08-19 currency-conversion fixes
+            # (see MEMORY.md's cny_currency_conversion / dividend_loader entries) that
+            # NULLed out revenue/net_income poisoned by the pre-fix wrong-currency bug for
+            # ~15-30 FPI symbols per statement table (TV, TKC, KSPI, IBN, KT, and other
+            # ARS/TRY/KZT/INR/KRW filers), pending a real re-fetch to repopulate them.
+            # Downstream value_metrics/quality_metrics already handle this safely (verified
+            # live: no garbage ratios, correct NULL propagation with their own sensible
+            # reasons), so this is inert bookkeeping debris, not an active bug - but it
+            # represents a real "SEC data not currently available" fact and was falling
+            # through to "Other (errors / excluded)" (61 live rows) for lack of a mapping.
+            "currency_conversion_bug_remediation_20260819",
         },
     ),
     (
@@ -2076,16 +2100,38 @@ def _categorize_reason(reason: str) -> str:
     return "Other (errors / excluded)"
 
 
-def _coverage_order_col(cols: set[str]) -> str:
+def _coverage_order_col(cur: cursor, table: str, cols: set[str]) -> str:
     """Pick the best "latest row per symbol" ordering column available on a table.
 
     Same candidate order/fallback contract as scripts/audit_unavailable_reasons.py's
     select_order_col() - keep the two in sync if either changes.
+
+    FIXED 2026-08-21 (goal session: "is missing data really missing, or are we doing it
+    wrong again"): picking the first candidate that merely EXISTS on the table (old
+    behavior) breaks on event-log tables where that column exists but is never populated -
+    live-confirmed on earnings_calendar, which has a `fiscal_year` column (ranked above
+    updated_at) that is NULL on all 450,856 rows. `DISTINCT ON (symbol) ORDER BY
+    fiscal_year DESC` then has no real sort key at all (every row ties), so Postgres
+    returns an arbitrary row per symbol instead of the actual latest one - live-reproduced
+    on symbol A: a fresh, real row from today (updated_at 2026-08-21 06:10, eps_estimate
+    populated) coexists with two stale, already-self-healed fetch_error rows from
+    2026-08-12, and the old logic picked one of the stale errors, not today's real data.
+    That's exactly the kind of "different freshness methodologies disagree" trap already
+    documented for monitor_data_staleness.py vs Phase 1 - except here it wasn't even two
+    real methodologies, just a candidate column nobody checked was populated. Now queries
+    each present candidate's non-null count and picks the first that actually has data;
+    tables where fiscal_year IS the real per-row key (annual/quarterly statements,
+    sec_segment_info) are unaffected since it's populated on every row there.
     """
-    for candidate in ("date", "fiscal_year", "updated_at", "created_at"):
-        if candidate in cols:
+    candidates = [c for c in ("date", "fiscal_year", "updated_at", "created_at") if c in cols]
+    if not candidates:
+        return ""
+    cur.execute(f"SELECT {', '.join(f'count({c})' for c in candidates)} FROM {table}")
+    counts = cur.fetchone()
+    for candidate, count in zip(candidates, counts, strict=True):
+        if count:
             return candidate
-    return ""
+    return candidates[0]
 
 
 def _get_scores_coverage(cur: cursor) -> Any:
@@ -2189,7 +2235,7 @@ def _get_scores_coverage(cur: cursor) -> Any:
                 table_cols_cache[table] = {r[0] for r in cur.fetchall()}
             cols = table_cols_cache[table]
             has_symbol = "symbol" in cols
-            order_col = _coverage_order_col(cols)
+            order_col = _coverage_order_col(cur, table, cols)
 
             # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): every
             # query below used to scan {table} directly with no active-universe filter, so

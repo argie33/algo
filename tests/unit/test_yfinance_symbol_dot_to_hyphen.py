@@ -33,6 +33,37 @@ class TestToYfinanceSymbol:
         assert to_yfinance_symbol(internal_symbol) == expected
 
 
+class TestToYfinanceSymbolPreferredShares:
+    """FIXED 2026-08-21 (goal session): to_yfinance_symbol only handled the '.'-suffix
+    (multi-class share) case, silently dropping the '$'-suffix (preferred/depositary
+    share) conversion that utils/data/source_router.py's independent copy of this same
+    logic already had since 2026-08-03. Every '$'-suffix symbol reaching yf.Ticker() via
+    this function's 6 call sites (analyst ratings, analyst estimates, financials, the
+    quality/growth-metrics yfinance fallback, sec_valuations' sanity check) 404'd/returned
+    empty, indistinguishable from genuine "no coverage" - live-confirmed for SCE$L (SCE
+    Trust VI), which is `active=true` in the local DB with no name-based exclusion.
+    """
+
+    @pytest.mark.parametrize(
+        ("internal_symbol", "expected"),
+        [
+            ("MET$E", "MET-PE"),
+            ("BAC$E", "BAC-PE"),
+            ("SCE$L", "SCE-PL"),
+            ("AHL$D", "AHL-PD"),
+        ],
+    )
+    def test_dollar_suffix_converted_to_dash_p(self, internal_symbol, expected):
+        assert to_yfinance_symbol(internal_symbol) == expected
+
+    def test_matches_source_router_normalization(self):
+        """The two call sites must never drift apart again - see the module docstring."""
+        from utils.data.source_router import _normalize_yfinance_symbol
+
+        for symbol in ("BRK.B", "MET$E", "SCE$L", "AAPL"):
+            assert to_yfinance_symbol(symbol) == _normalize_yfinance_symbol(symbol)
+
+
 class TestFetchWithCircuitBreakerUsesConvertedSymbol:
     """The conversion must actually reach the yf.Ticker() call, not just exist as an
     unused helper - asserts the real argument yfinance receives."""

@@ -50,7 +50,13 @@ def test_per_table_queries_join_and_filter_to_active_symbols():
     resp = scores_mod._get_scores_coverage(cursor)
     assert resp["statusCode"] == 200
 
-    per_table_queries = [q for q in cursor.queries if "fake_metrics" in q]
+    # ADDED 2026-08-21 (goal session: order_col population-check fix): _coverage_order_col's
+    # `SELECT count(candidate), ...` probe is a structural question ("has this column ever
+    # been populated by this table's loader, across its whole history?"), not a per-symbol
+    # gap count - scoping it to the active universe would be meaningless (it doesn't count
+    # gaps at all) and wastefully joins a table that can be scanned with a single COUNT.
+    # Excluded from the active-universe-join assertion below on that basis.
+    per_table_queries = [q for q in cursor.queries if "fake_metrics" in q and not q.strip().startswith("SELECT count(")]
     assert per_table_queries, "expected at least the denom-count and latest-row queries for fake_metrics"
 
     for q in per_table_queries:

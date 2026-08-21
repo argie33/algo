@@ -640,6 +640,19 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         now_et = datetime.now(EASTERN_TZ)
         resolved_tickers: set[str] = set()
         manager_holdings_by_ticker = manager_holdings_by_ticker or {}
+        # FIXED 2026-08-21 (goal session: "ownership data unresolved" audit): a missing
+        # shares_outstanding here was always tagged the generic "shares_outstanding_unavailable"
+        # (categorized upstream as "Ownership data unresolved" - implies a fixable loader gap),
+        # even though load_short_interest_finra.py already fixed the identical situation
+        # 2026-08-19/20 by tagging it "foreign_private_issuer_shares_unavailable" instead for
+        # FPIs (categorized as "Legitimate / not applicable" - a permanent structural fact,
+        # since FPIs have no shares_outstanding source that isn't in home-market/non-ADS units
+        # per load_sec_valuations.py's 2026-08-19 fix). That fix was never ported to this
+        # sibling loader. Live-confirmed: 687 of 692 active-universe symbols currently carrying
+        # this reason for institutional_holders_count/institutional_ownership_pct/
+        # top_10_institutions_pct (99.3%) are foreign private issuers (AACG, ABEV, VIPS, MT,
+        # AQN, TEO, ...) - the same permanent gap, mislabeled as a fixable one.
+        foreign_private_issuers = self._load_foreign_private_issuers()
 
         with DatabaseContext("read") as cur:
             for ticker, inst_shares in holdings_by_ticker.items():
@@ -701,9 +714,14 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         resolved_tickers.add(ticker)
                         logger.debug(f"[13F] {ticker}: {inst_shares:,.0f} / {shares_os:,.0f} = {pct:.1f}%")
                     else:
-                        records.append(self._unavailable_record(ticker, now_et, "shares_outstanding_unavailable"))
+                        reason = (
+                            "foreign_private_issuer_shares_unavailable"
+                            if ticker in foreign_private_issuers
+                            else "shares_outstanding_unavailable"
+                        )
+                        records.append(self._unavailable_record(ticker, now_et, reason))
                         resolved_tickers.add(ticker)
-                        logger.debug(f"[13F] {ticker}: shares_outstanding unavailable")
+                        logger.debug(f"[13F] {ticker}: {reason}")
                 except Exception as e:
                     logger.debug(f"[13F] {ticker}: error - {e}")
 
@@ -716,6 +734,18 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             f"wrote fresh data_unavailable markers for {len(records) - len(resolved_tickers)} others"
         )
         return records
+
+    @staticmethod
+    def _load_foreign_private_issuers() -> set[str]:
+        """Symbols company_info_sec has flagged as foreign private issuers (migration 1211).
+
+        Mirrors loaders/load_short_interest_finra.py's identical helper - used to
+        distinguish a FPI's permanent shares_outstanding gap from a genuine data-quality
+        issue for domestic filers. Keep both in sync if either changes.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT symbol FROM company_info_sec WHERE is_foreign_private_issuer = true")
+            return {row[0] for row in cur.fetchall()}
 
     @staticmethod
     def _unavailable_record(symbol: str, now_et: datetime, reason: str) -> dict[str, Any]:

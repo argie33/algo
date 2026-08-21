@@ -95,7 +95,7 @@ def table_columns(cur: Any, table: str) -> set[str]:
     return {r[0] for r in cur.fetchall()}
 
 
-def select_order_col(cols: set[str]) -> str:
+def select_order_col(cur: Any, table: str, cols: set[str]) -> str:
     """Pick the best "latest row per symbol" ordering column available on a table.
 
     FIXED 2026-08-18: originally only recognized "date"/"fiscal_year", so any table
@@ -107,11 +107,29 @@ def select_order_col(cols: set[str]) -> str:
     deduplicated distinct-symbol count is 3,097 - a 7x inflation that could send
     someone chasing a "huge systemic bug" that isn't one. Returns "" (falsy) only when
     none of the four candidate columns exist, matching the pre-fix contract.
+
+    FIXED 2026-08-21 (goal session: "is missing data really missing, or are we doing it
+    wrong again"): picking the first candidate that merely EXISTS (old behavior) breaks
+    on event-log tables where that column exists but is never populated - live-confirmed
+    on earnings_calendar (`fiscal_year` ranked above updated_at, NULL on all 450,856
+    rows). With no real sort key, `DISTINCT ON (symbol) ORDER BY fiscal_year DESC` ties
+    on every row and returns an arbitrary one per symbol - this script was reporting 663
+    "fetch_error:RuntimeError" symbols when the real count (ordering by the column that
+    actually varies, updated_at) was 4; symbol A's row picked was a stale, already
+    self-healed error from 9 days earlier while a fresh real row from today sat right
+    next to it. See lambda/api/routes/scores.py::_coverage_order_col (kept in sync with
+    this function) for the full live-reproduction. Now queries each present candidate's
+    non-null count and picks the first that actually has data.
     """
-    for candidate in ("date", "fiscal_year", "updated_at", "created_at"):
-        if candidate in cols:
+    candidates = [c for c in ("date", "fiscal_year", "updated_at", "created_at") if c in cols]
+    if not candidates:
+        return ""
+    cur.execute(f"SELECT {', '.join(f'count({c})' for c in candidates)} FROM {table}")
+    counts = cur.fetchone()
+    for candidate, count in zip(candidates, counts, strict=True):
+        if count:
             return candidate
-    return ""
+    return candidates[0]
 
 
 def main() -> None:
@@ -127,7 +145,7 @@ def main() -> None:
         try:
             with DatabaseContext("read") as cur:
                 cols = table_columns(cur, table)
-                order_col = select_order_col(cols)
+                order_col = select_order_col(cur, table, cols)
                 # FIXED 2026-08-19 (goal: "no SEC data" audit, same-day follow-up): this
                 # script scanned {table} directly with no active-universe filter, same bug
                 # as /api/algo/scores/coverage (lambda/api/routes/scores.py's

@@ -48,6 +48,7 @@ import yfinance as yf
 
 from algo.infrastructure import retry
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
+from utils.external.yfinance_symbol import to_yfinance_symbol as _normalize_yfinance_symbol
 from utils.infrastructure import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -179,28 +180,13 @@ class SourceHealth:
                 )
 
 
-def _normalize_yfinance_symbol(symbol: str) -> str:
-    """Translate this system's stored ticker notation to yfinance's expected format.
-
-    Two independent notation mismatches were verified live against the yfinance API
-    (2026-08-03) as the root cause of a chunk of price_daily's missing-symbol gap:
-    - Multi-class shares use a '.'-suffix here (e.g. "AGM.A", "BIO.B") but yfinance
-      requires a hyphen (e.g. "AGM-A", "BIO-B"); "AGM.A" 404s, "AGM-A" returns real data.
-    - Preferred shares use a '$'-suffix here (e.g. "BAC$E", "AHL$D") but yfinance
-      requires "-P" + the series letter (e.g. "BAC-PE", "AHL-PD"); "BAC$E" 404s,
-      "BAC-PE" returns real data. This second case was previously unhandled even
-      though the '.'-suffix case was already fixed at every yf.download() call site.
-    Order matters: '.' must be replaced before '$' would ever matter since no symbol
-    in this dataset mixes both, but doing '.' first keeps behavior identical to the
-    pre-existing single-purpose replacements this consolidates.
-    """
-    if "." in symbol:
-        symbol = symbol.replace(".", "-")
-    if "$" in symbol:
-        import re
-
-        symbol = re.sub(r"\$([A-Z]+)", r"-P\1", symbol)
-    return symbol
+# FIXED 2026-08-21 (goal session): _normalize_yfinance_symbol used to be a second,
+# independent copy of yfinance_symbol.py::to_yfinance_symbol - both did the same
+# '.'->'-' and '$'->'-P' translation, but that copy silently lost the '$' half (added
+# later, 2026-08-19, without porting this file's 2026-08-03 preferred-share fix).
+# Delegating to one function (imported above) instead of two prevents this drift from
+# recurring. See yfinance_symbol.py's module docstring for the live-confirmed impact
+# (SCE$L and others).
 
 
 class DataSourceRouter:

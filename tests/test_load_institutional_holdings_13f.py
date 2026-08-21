@@ -15,6 +15,8 @@ OpenFIGI, cached in sec_13f_cusip_crosswalk (migration 1161) - see
 _crosswalk_to_tickers tests below.
 """
 
+from datetime import date
+
 from loaders.load_institutional_holdings_13f import InstitutionalHoldings13FLoader
 
 LISTING_HTML = """
@@ -435,3 +437,60 @@ def test_crosswalk_to_tickers_recovers_a_resolved_ticker_outside_our_universe_vi
     result, _manager_result = loader._crosswalk_to_tickers({"30231G102": 5720000000})
 
     assert result == {"XOM": 5720000000}
+
+
+def test_calculate_and_cache_ownership_tags_fpi_shares_gap_distinctly(monkeypatch):
+    """FIXED 2026-08-21 (goal session: "Ownership data unresolved" root-cause audit):
+    a missing shares_outstanding here was always tagged the generic
+    "shares_outstanding_unavailable" - categorized by lambda/api/routes/scores.py as
+    "Ownership data unresolved" (implies a fixable loader gap) - even for foreign
+    private issuers, which structurally have no shares_outstanding source that isn't in
+    home-market (non-ADS) units (same permanent fact load_short_interest_finra.py
+    already distinguishes via "foreign_private_issuer_shares_unavailable", categorized
+    as "Legitimate / not applicable"). Live-confirmed 687 of 692 affected symbols
+    (99.3%) are FPIs. VIPS (FPI, no shares_outstanding anywhere) must get the FPI-
+    specific reason; AAPL (domestic, no shares_outstanding - a genuine data gap) must
+    keep the generic one.
+    """
+    loader = _make_loader()
+
+    class _FakeCursor:
+        def __init__(self):
+            self.queries: list[str] = []
+
+        def execute(self, query, params=None):
+            self.queries.append(query)
+            self._last_query = query
+            self._last_params = params
+
+        def fetchall(self):
+            if "is_foreign_private_issuer = true" in self._last_query:
+                return [("VIPS",)]
+            return []
+
+        def fetchone(self):
+            # Both VIPS and AAPL have no shares_outstanding anywhere (COALESCE -> NULL).
+            return (None,)
+
+    cursor = _FakeCursor()
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: [])
+
+    records = loader._calculate_and_cache_ownership(
+        holdings_by_ticker={"VIPS": 1000, "AAPL": 1000}, filing_date=date(2026, 8, 21)
+    )
+
+    by_symbol = {r["symbol"]: r for r in records}
+    assert by_symbol["VIPS"]["reason"] == "foreign_private_issuer_shares_unavailable"
+    assert by_symbol["AAPL"]["reason"] == "shares_outstanding_unavailable"
