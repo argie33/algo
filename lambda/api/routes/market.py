@@ -247,17 +247,22 @@ def _handle_technicals(cur: cursor) -> Any:
         _rollback_savepoint(cur, "technicals_breadth")
         raise RuntimeError(f"Market technicals breadth query failed: {e}") from e
 
-    # Build 30-day A/D line history (formerly labeled mcclellan_oscillator)
+    # Build 30-day A/D line history (formerly labeled mcclellan_oscillator).
+    # NOTE: the old McClellan-oscillator factor (which stored a "value" key) was
+    # removed in the 12-factor exposure redesign; _ad_line() now stores its 20-day
+    # net advance/decline change under "ad_change_20d" instead. This query still
+    # read the old "value" key, so it silently returned zero rows on every call -
+    # the chart never had any data to render.
     try:
         cur.execute("SET LOCAL statement_timeout = '3000ms'")
         cur.execute("""
             SELECT date,
-                   (factors->'ad_line'->>'value')::float AS advance_decline_line
+                   (factors->'ad_line'->>'ad_change_20d')::float AS advance_decline_line
             FROM market_exposure_daily
             WHERE date >= CURRENT_DATE - INTERVAL '35 days'
                   AND factors IS NOT NULL
                   AND factors->'ad_line' IS NOT NULL
-                  AND (factors->'ad_line'->>'value') IS NOT NULL
+                  AND (factors->'ad_line'->>'ad_change_20d') IS NOT NULL
             ORDER BY date DESC
             LIMIT 30
         """)

@@ -109,6 +109,27 @@ const REGIME_COLOR = {
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
+// snake_case backend enum ("bearish_divergence") -> "Bearish Divergence"
+const humanize = (s) =>
+  typeof s === "string"
+    ? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : s;
+
+// Bar-fill % for a signed points adjustment (sector rotation / cross-asset /
+// fundamental quality / economic overlay), scaled against that factor's own bound on
+// whichever side of zero `pts` falls - a maxed-out bonus must fill exactly as fully as
+// a maxed-out penalty. Mirrors dashboard/panels/exposure.py::_delta_bar_markup so the
+// TUI and web dashboard render these post-score modifiers identically (BUG FOUND
+// 2026-08-21: this card had a 0..max bar for every budget factor above but NO bar at
+// all for these adjustment factors - just a text badge - while the TUI expanded panel
+// already showed one).
+function deltaBarPct(pts, negSpan, posSpan = negSpan) {
+  if (pts == null || pts === 0) return 0;
+  const span = pts > 0 ? posSpan : negSpan;
+  if (!span) return 100;
+  return Math.max(Math.min((Math.abs(pts) / span) * 100, 100), 4);
+}
+
 const TOOLTIP_STYLE = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
@@ -829,9 +850,20 @@ function ExposureFactors({ markets }) {
     ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 3],
   ];
 
+  // Sector Rotation modifier (defensive-vs-cyclical leadership penalty, up to -10pts) -
+  // present in factors alongside the other 4 post-score modifiers below, but was missing
+  // from this card entirely (only ever rendered in the TUI dashboard's exposure panel).
+  const sr = factors?.sector_rotation;
+  const srPenalty = sr?.pts;
+  const srUnavailable = sr?.signal === "data_unavailable";
+
   const eco = factors?.economic_overlay;
   const macroStress = eco?.macro_stress_score;
-  const macroPenalty = eco?.penalty;
+  // Read the sign-normalized "pts" field (positive = bonus, negative = penalty), same
+  // as sector rotation/cross-asset/fundamental quality below - not the raw "penalty"
+  // field (positive = penalty) this used to read, which made economic overlay the one
+  // adjustment factor in this file with an inverted sign convention from its siblings.
+  const ecoPts = eco?.pts;
   const macroSignals = Array.isArray(eco?.signals) ? eco.signals : [];
   const macroColor =
     macroStress != null && macroStress >= 60
@@ -890,8 +922,7 @@ function ExposureFactors({ markets }) {
                 sub.push(`Bull:${num(f.bullish_pct, 1)}%`);
               if (f.bearish_pct != null)
                 sub.push(`Bear:${num(f.bearish_pct, 1)}%`);
-              if (f.spread != null)
-                sub.push(`Spread:${num(f.spread, 1)}`);
+              if (f.spread != null) sub.push(`Spread:${num(f.spread, 1)}`);
             } else if (key === "positioning") {
               if (f.insider_buying_breadth_pct != null)
                 sub.push(`Insider:${num(f.insider_buying_breadth_pct, 1)}%`);
@@ -900,36 +931,36 @@ function ExposureFactors({ markets }) {
               if (f.insider_active_count != null)
                 sub.push(`${f.insider_active_count} active`);
             } else if (key === "distribution_days") {
-              if (f.count != null)
-                sub.push(`${f.count} days`);
-              if (f.regime) sub.push(f.regime);
+              if (f.count != null) sub.push(`${f.count} days`);
+              if (f.regime) sub.push(humanize(f.regime));
             } else if (key === "new_highs_lows") {
               if (f.new_highs != null)
                 sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
-              if (f.nh_pct != null)
-                sub.push(`${num(f.nh_pct, 1)}% highs`);
+              if (f.nh_pct != null) sub.push(`${num(f.nh_pct, 1)}% highs`);
             } else if (key === "ad_line") {
-              if (f.relation) sub.push(f.relation);
+              if (f.relation) sub.push(humanize(f.relation));
+              if (f.ad_change_20d != null)
+                sub.push(
+                  `A/D 20d:${f.ad_change_20d > 0 ? "+" : ""}${num(f.ad_change_20d, 4)}`
+                );
               if (f.spy_change_pct_20d != null)
                 sub.push(`SPY 20d:${num(f.spy_change_pct_20d, 2)}%`);
             } else if (key === "credit_spread") {
-              if (f.value != null)
-                sub.push(`OAS ${num(f.value, 2)}%`);
+              if (f.value != null) sub.push(`OAS ${num(f.value, 2)}%`);
               if (f.hy_20d_ago != null)
                 sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
               if (f.widening_rapidly) sub.push("⚠ widening");
             } else if (key === "spy_momentum") {
-              if (f.value != null)
-                sub.push(`12mo:${num(f.value, 2)}%`);
+              if (f.value != null) sub.push(`12mo:${num(f.value, 2)}%`);
             } else if (key === "trend_30wk") {
-              if (f.value) sub.push(f.value);
+              if (f.value) sub.push(humanize(f.value));
               if (f.price_vs_ma_pct != null)
                 sub.push(`${num(f.price_vs_ma_pct, 2)}% above MA`);
             } else {
               // Generic display for other factors
               if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
-              if (f.state) sub.push(f.state);
-              if (f.relation) sub.push(f.relation);
+              if (f.state) sub.push(humanize(f.state));
+              if (f.relation) sub.push(humanize(f.relation));
             }
             return (
               <div key={key} style={{ marginBottom: "var(--space-3)" }}>
@@ -963,6 +994,65 @@ function ExposureFactors({ markets }) {
           })
           .filter(Boolean)}
 
+        {/* Sector Rotation modifier */}
+        {sr && (
+          <div
+            style={{
+              marginTop: "var(--space-4)",
+              padding: "var(--space-3) var(--space-4)",
+              borderRadius: "var(--r-sm)",
+              background: `${srPenalty < 0 ? C.danger : C.success}12`,
+              border: `1px solid ${srPenalty < 0 ? C.danger : C.success}40`,
+            }}
+          >
+            <div
+              className="flex items-center justify-between"
+              style={{ marginBottom: 6 }}
+            >
+              <span
+                className="eyebrow"
+                style={{ color: srPenalty < 0 ? C.danger : C.success }}
+              >
+                SECTOR ROTATION
+              </span>
+              <span
+                className="mono tnum t-xs"
+                style={{ color: srPenalty < 0 ? C.danger : C.success }}
+              >
+                {srUnavailable
+                  ? "n/a"
+                  : srPenalty < 0
+                    ? `${srPenalty} pts`
+                    : "no penalty"}
+              </span>
+            </div>
+            {!srUnavailable && (
+              <div className="bar" style={{ marginBottom: 6 }}>
+                <div
+                  className="bar-fill"
+                  style={{
+                    width: `${deltaBarPct(srPenalty, 10)}%`,
+                    background: srPenalty < 0 ? C.danger : C.border2,
+                  }}
+                />
+              </div>
+            )}
+            <div className="t-2xs muted">
+              {srUnavailable
+                ? sr.reason || "insufficient rotation history yet (<12wk)"
+                : `${humanize(sr.signal) || "unknown"}${
+                    sr.defensive_lead_score != null
+                      ? ` · lead ${num(sr.defensive_lead_score, 0)}/100`
+                      : ""
+                  }`}
+            </div>
+            <div className="t-2xs muted" style={{ marginTop: 4 }}>
+              Defensive-sector leadership vs. cyclicals — discount-only, up to
+              −10 pts
+            </div>
+          </div>
+        )}
+
         {/* Economic Regime Overlay */}
         {(macroStress != null || macroSignals.length > 0) && (
           <div
@@ -982,13 +1072,25 @@ function ExposureFactors({ markets }) {
                 MACRO REGIME OVERLAY
               </span>
               <span className="mono tnum t-xs" style={{ color: macroColor }}>
-                {macroPenalty > 0
-                  ? `−${macroPenalty} pts`
-                  : macroPenalty < 0
-                    ? `+${Math.abs(macroPenalty)} pts (favourable)`
+                {ecoPts < 0
+                  ? `${ecoPts} pts`
+                  : ecoPts > 0
+                    ? `+${ecoPts} pts (favourable)`
                     : "neutral"}
                 {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ""}
               </span>
+            </div>
+            {/* Points-contribution bar - same scale/semantics as sector rotation/cross-asset/
+                fundamental quality below, not to be confused with the macro stress bar beneath
+                it (that one plots the underlying 0-100 stress score driving this penalty). */}
+            <div className="bar" style={{ marginBottom: 6 }}>
+              <div
+                className="bar-fill"
+                style={{
+                  width: `${deltaBarPct(ecoPts, 7, 2)}%`,
+                  background: ecoPts < 0 ? C.danger : C.border2,
+                }}
+              />
             </div>
             <div className="flex items-center gap-3">
               <div style={{ flex: 1 }}>
@@ -1043,6 +1145,15 @@ function ExposureFactors({ markets }) {
                 {xassetPenalty < 0 ? `${xassetPenalty} pts` : "no disagreement"}
               </span>
             </div>
+            <div className="bar" style={{ marginBottom: 6 }}>
+              <div
+                className="bar-fill"
+                style={{
+                  width: `${deltaBarPct(xassetPenalty, 8)}%`,
+                  background: xassetPenalty < 0 ? C.danger : C.border2,
+                }}
+              />
+            </div>
             {xassetSignals.length > 0 ? (
               <div className="t-2xs muted">{xassetSignals.join(" · ")}</div>
             ) : (
@@ -1087,6 +1198,15 @@ function ExposureFactors({ markets }) {
                   ? ` · score ${num(fq.fundamental_score, 0)}`
                   : ""}
               </span>
+            </div>
+            <div className="bar" style={{ marginBottom: 6 }}>
+              <div
+                className="bar-fill"
+                style={{
+                  width: `${deltaBarPct(fqPenalty, 5)}%`,
+                  background: fqPenalty < 0 ? C.danger : C.border2,
+                }}
+              />
             </div>
             <div className="t-2xs muted">
               Analyst revision breadth
