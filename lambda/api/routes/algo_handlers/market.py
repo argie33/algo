@@ -439,9 +439,9 @@ ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS = {
     "algo_performance_daily": "report_date",
     "algo_portfolio_snapshots": "snapshot_date",
     "algo_risk_daily": "report_date",
-    "algo_metrics_daily": "report_date",
+    "algo_metrics_daily": "date",
     "equity_curve_daily": "date",
-    "growth_metrics": "report_date",
+    "growth_metrics": "date",
     "algo_orchestrator_runs": "updated_at",
 }
 
@@ -796,6 +796,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             else:
                 max_age = int(str(max_age_raw)) if isinstance(max_age_raw, (int, str, float)) else 1
 
+            # BUG FIX 2026-08-22 (goal session: dashboard health endpoint 500 audit): age_hours
+            # was only ever assigned inside the else branch below - any row landing in either
+            # "empty" branch (row_count None/0, or freshness_reference None, e.g. a table whose
+            # live-refresh query above failed - live-confirmed via growth_metrics/
+            # algo_metrics_daily's stale "report_date" column mapping) left age_hours undefined,
+            # and the unconditional `age_h = age_hours` read further down (used for every row's
+            # display) then raised UnboundLocalError, crashing this ENTIRE endpoint (HTTP 500)
+            # for the whole dashboard health/freshness panel, not just the one broken table.
+            age_hours = None
             if row_count is None or row_count == 0:
                 status = "empty"
             elif freshness_reference is None:
@@ -805,7 +814,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
                 # Calculate elapsed time for all tables (used below for both daily and weekly/biweekly)
                 utc_result_for_age = normalize_to_utc_datetime(freshness_reference, naive_tz)
-                age_hours = None
                 if isinstance(utc_result_for_age, datetime):
                     age_hours = (datetime.now(timezone.utc) - utc_result_for_age).total_seconds() / 3600
 

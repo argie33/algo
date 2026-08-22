@@ -61,3 +61,16 @@ def test_circuit_breaker_status_uses_updated_at_not_date_only_check_date():
     column would cap precision at 24h even after the staleness bug above is fixed.
     updated_at is a real timestamp column on circuit_breaker_status."""
     assert ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS["circuit_breaker_status"] == "updated_at"
+
+
+def test_algo_metrics_daily_and_growth_metrics_use_real_date_column():
+    """FIXED 2026-08-22 (goal session: dashboard health endpoint 500 audit): both tables'
+    mapping said "report_date", a column neither table actually has (live-confirmed: both
+    use "date") - live-verified via direct psql information_schema query, not a guess. The
+    refresh query for these two tables threw UndefinedColumn on every call, which left
+    freshness_reference None for them and tripped a separate age_hours UnboundLocalError
+    that crashed the ENTIRE /api/algo/data-status endpoint with HTTP 500 for every caller
+    (confirmed live via curl against the running local dev API server before/after the fix).
+    """
+    assert ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS["algo_metrics_daily"] == "date"
+    assert ORCHESTRATOR_OWNED_TABLE_TS_COLUMNS["growth_metrics"] == "date"
