@@ -11,7 +11,7 @@ never actually read, with no marker distinguishing it from a filing that was rea
 genuinely had no material items.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from loaders.load_current_reports_8k import CurrentReports8KLoader
 
@@ -78,6 +78,35 @@ def test_get_filing_plaintext_called_with_dashed_accession_number() -> None:
 
     loader.sec_client.get_filing_plaintext.assert_called_once_with("0000320193", "0001193125-26-000111")
     # The DB primary key column must still stay dash-stripped (existing convention).
+    assert records[0]["accession_number"] == "000119312526000111"
+
+
+def test_8k_beyond_first_100_recent_entries_is_still_found() -> None:
+    """BUG FOUND 2026-08-21 (goal session - "no analyst coverage"/marker-shadowing audit):
+    `forms[:100]` sliced SEC's "recent" filings block by type-agnostic recency, not the 100
+    most recent 8-Ks. Live-confirmed against BAC's real submissions: the "recent" block has
+    11,483 entries and the nearest real 8-K sits at index 826 - every 424B2/FWP
+    structured-note filing (BAC issues dozens per day) ahead of it in the array pushed real
+    8-Ks out of the scanned window on effectively every run, not because BAC lacks 8-K
+    coverage but because its own filing volume crowded the window. This fixture mimics that
+    shape with a small, fast fixture: 150 non-8-K noise filings ahead of one real 8-K."""
+    loader = _make_loader()
+    noise_count = 150
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["424B2"] * noise_count + ["8-K"],
+                "filingDate": ["2026-08-20"] * noise_count + ["2026-07-24"],
+                "accessionNumber": [f"0001-26-{i:06d}" for i in range(noise_count)] + ["0001193125-26-000111"],
+            }
+        }
+    }
+    loader.sec_client.get_filing_plaintext.return_value = "Item 5.02 Departure of Directors..."
+
+    records = loader.fetch_incremental("BAC", since=None)
+
+    assert len(records) == 1
+    assert records[0]["data_unavailable"] is False
     assert records[0]["accession_number"] == "000119312526000111"
 
 
@@ -261,6 +290,34 @@ def test_cik_lookup_retries_once_before_giving_up(monkeypatch) -> None:
     assert loader.sec_client.symbol_to_cik.call_count == 2
     assert records
     assert records[0].get("data_unavailable_reason") != "symbol_not_found"
+
+
+def test_cik_lookup_failure_for_already_covered_symbol_skips_and_retracts_marker(monkeypatch) -> None:
+    """BUG FOUND 2026-08-21 (same bug class as the analyst loaders' pre-fix marker
+    retraction fixes, and the exact scenario this file's own 2026-08-19 fix on _get_cik
+    already flagged for AEP): a transient SEC-ticker-cache miss that survives the retry
+    still wrote "symbol_not_found" unconditionally - live-confirmed BNZI (real 8-K rows
+    through 2026-08-13 on file) got a fresh "symbol_not_found" marker that became its
+    "latest row", masking real history. A symbol with prior real coverage must skip the
+    write (transient hiccup, not delisting) AND retract any marker already on record."""
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+    cur = MagicMock()
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+    with (
+        patch.object(loader, "_has_prior_real_coverage", return_value=True),
+        patch("loaders.load_current_reports_8k.DatabaseContext", return_value=ctx),
+    ):
+        records = loader.fetch_incremental("BNZI", since=None)
+
+    assert records == []
+    query, params = cur.execute.call_args[0]
+    assert "DELETE FROM current_reports_8k" in query
+    assert "data_unavailable = true" in query
+    assert params == ("BNZI",)
 
 
 def test_cik_lookup_gives_up_as_not_found_after_retry_exhausted(monkeypatch) -> None:

@@ -163,6 +163,29 @@ class CurrentReports8KLoader(SecLoaderBase):
             # Get CIK for symbol
             cik = self._get_cik(symbol)
             if not cik:
+                # BUG FOUND 2026-08-21 (goal session - same bug class as the analyst
+                # loaders' pre-fix marker retraction fixes, and the exact scenario this
+                # file's own 2026-08-19 fix on _get_cik already documented for AEP: "a
+                # transient failure baked in as permanent because this loader's
+                # incremental scheduling never revisits a symbol once it has any row on
+                # file"). _get_cik already retries once with backoff, but a symbol whose
+                # SEC ticker-cache lookup still misses that day (live-confirmed: BNZI,
+                # which has real 8-K rows through 2026-08-13 on file) gets this marker
+                # written unconditionally, immediately becoming the "latest row" and
+                # shadowing real history - the exact thing _has_prior_real_coverage
+                # already exists to prevent everywhere else in this loader family. Skip
+                # the write when real coverage is already on record; a transient lookup
+                # miss has nothing new to report.
+                if self._has_prior_real_coverage(symbol):
+                    # Also retract any marker already sitting on record (e.g. a
+                    # "symbol_not_found" written before this guard existed) - a marker
+                    # coexisting with confirmed real coverage is always wrong information.
+                    with DatabaseContext("write") as cur:
+                        cur.execute(
+                            "DELETE FROM current_reports_8k WHERE symbol = %s AND data_unavailable = true",
+                            (symbol,),
+                        )
+                    return []
                 return self._unavailable_record(symbol, now_et, "symbol_not_found")
 
             # Get submissions (SEC API returns columnar format: dict of arrays)
@@ -181,8 +204,27 @@ class CurrentReports8KLoader(SecLoaderBase):
             accessions = recent.get("accessionNumber", [])
 
             # Process each filing, building 8-K records from parallel arrays
+            #
+            # BUG FOUND 2026-08-21 (goal session - "no analyst coverage"/marker-shadowing
+            # audit, same investigation that found the pre-fix stale-marker bugs in the
+            # analyst loaders): `forms[:100]` slices the FIRST 100 entries of SEC's
+            # "recent" filings block by TYPE-AGNOSTIC recency, not the 100 most recent
+            # 8-Ks - live-confirmed against BAC's real submissions (CIK 0000070858): the
+            # "recent" block has 11,483 entries, the nearest real 8-K sits at index 826
+            # (2026-07-24), and everything ahead of it in the array is 424B2 structured-
+            # note prospectuses/FWPs (BAC issues dozens per day). Every run's `forms[:100]`
+            # window is 100% non-8-K noise, so `results` comes back empty on effectively
+            # every run for BAC - not because BAC lacks 8-K coverage, but because its own
+            # debt-issuance filing volume crowds every real 8-K out of the scanned window.
+            # This silently starved BAC/AEP/ELSE (and any other high-filing-volume issuer:
+            # major banks, frequent structured-note issuers) of current material-event data
+            # and fed directly into the marker-shadowing bug below (an empty `results` with
+            # since=None wrote a "no_8k_filings_in_recent_submissions" marker over BAC's
+            # real historical 8-Ks). Scan the full "recent" block instead - it's already
+            # fetched (no extra SEC call) and the `since` watermark filter below already
+            # bounds the real per-run cost to genuinely new filings.
             results = []
-            for i, form in enumerate(forms[:100]):  # Limit to 100 most recent
+            for i, form in enumerate(forms):
                 if form != "8-K":
                     continue
 
@@ -313,6 +355,21 @@ class CurrentReports8KLoader(SecLoaderBase):
                 f"Cannot parse SEC filing date '{date_str}': must be YYYY-MM-DD format. "
                 f"Data quality issue or format change in SEC EDGAR responses."
             ) from e
+
+    @staticmethod
+    def _has_prior_real_coverage(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) row on record.
+
+        Same convention as the sibling analyst loaders (load_analyst_upgrade_downgrade.py
+        etc.) - a symbol with real history is far more likely mid-transient-hiccup than
+        genuinely delisted from SEC, so a fresh negative marker should never overwrite it.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM current_reports_8k WHERE symbol = %s AND data_unavailable = false LIMIT 1",
+                (symbol,),
+            )
+            return cur.fetchone() is not None
 
     @staticmethod
     def _last_reason_was_symbol_not_found(symbol: str) -> bool:
