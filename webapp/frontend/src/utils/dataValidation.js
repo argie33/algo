@@ -153,9 +153,45 @@ export const safeGetFactors = (current) => {
         ? f.put_call_ratio
         : {},
     ad_line: f.ad_line && typeof f.ad_line === "object" ? f.ad_line : {},
-    economic_overlay:
-      f.economic_overlay && typeof f.economic_overlay === "object"
-        ? f.economic_overlay
+    // FIXED 2026-08-22 (exposure-model integrity review): economic_overlay was removed
+    // from the exposure engine's factors dict (split into 4 standalone factors below) but
+    // this guard kept type-checking it anyway - dead code, always resolving to {} since
+    // that key can never appear in a real response anymore. Guards below cover the
+    // factors that actually replaced it, plus the other post-2026-08-22 factors whose
+    // sub-fields the ExposureFactors component reads directly (yield_curve.t10y2y,
+    // cross_asset_confirmation.composite_z, etc.).
+    yield_curve:
+      f.yield_curve && typeof f.yield_curve === "object" ? f.yield_curve : {},
+    financial_conditions:
+      f.financial_conditions && typeof f.financial_conditions === "object"
+        ? f.financial_conditions
+        : {},
+    financial_stress:
+      f.financial_stress && typeof f.financial_stress === "object"
+        ? f.financial_stress
+        : {},
+    inflation_expectations:
+      f.inflation_expectations && typeof f.inflation_expectations === "object"
+        ? f.inflation_expectations
+        : {},
+    sector_rotation:
+      f.sector_rotation && typeof f.sector_rotation === "object"
+        ? f.sector_rotation
+        : {},
+    cross_asset_confirmation:
+      f.cross_asset_confirmation &&
+      typeof f.cross_asset_confirmation === "object"
+        ? f.cross_asset_confirmation
+        : {},
+    earnings_revision_breadth:
+      f.earnings_revision_breadth &&
+      typeof f.earnings_revision_breadth === "object"
+        ? f.earnings_revision_breadth
+        : {},
+    valuation_extension_breadth:
+      f.valuation_extension_breadth &&
+      typeof f.valuation_extension_breadth === "object"
+        ? f.valuation_extension_breadth
         : {},
   };
 };

@@ -1411,7 +1411,32 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     if is_instant:
                         should_replace = row_end is None or end_date > row_end
                         if not should_replace and end_date == row_end:
-                            should_replace = row_filed is None or entry_filed > row_filed
+                            # FIXED 2026-08-22 (goal session: PMT debt-maturity-schedule
+                            # contamination): multiple facts can legitimately share the exact
+                            # same (concept, end_date) - a real balance-sheet snapshot AND
+                            # unrelated debt-maturity-schedule footnote entries that happen to
+                            # use the same future end date as a schedule bucket boundary.
+                            # "latest filed wins" alone is NOT reliable here: schedule entries
+                            # get re-disclosed (same date, same value) in every subsequent
+                            # year's 10-K/10-Q, so a schedule entry can have a LATER filed
+                            # date than the one real snapshot fact for that period. SEC's own
+                            # "frame" key is the reliable signal - it's only assigned to the
+                            # single canonical, non-dimensional instant/duration fact for a
+                            # standardized calendar period, never to a dimensional/footnote
+                            # schedule entry. Live-confirmed via PMT's real companyfacts JSON:
+                            # LongTermDebt end=2026-03-31 has 4 candidate entries (fy=2021/22/23
+                            # all val=$695M, no frame; fy=2024 val=$1.497B, frame="CY2026Q1I")
+                            # - the frame'd entry is the real snapshot, the other 3 are the
+                            # same static debt-maturity-schedule bucket re-cited across 3 years
+                            # of filings. DB-wide cross-check against every frame-confirmed
+                            # LongTermDebt value found 11 real mismatches (FY2022-2024 Q1-Q3,
+                            # off by billions - e.g. FY2022 stored $1.70B vs real $5.07B).
+                            entry_has_frame = bool(entry.get("frame"))
+                            row_has_frame = bool(row.get(f"_frame_{col}"))
+                            if entry_has_frame != row_has_frame:
+                                should_replace = entry_has_frame
+                            else:
+                                should_replace = row_filed is None or entry_filed > row_filed
                     else:
                         should_replace = row_filed is None or entry_filed > row_filed
                 if should_replace:
@@ -1428,6 +1453,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     row[f"_filed_{col}"] = entry.get("filed")
                     row[f"_end_{col}"] = end_date
                     row[f"_rank_{col}"] = entry_rank
+                    row[f"_frame_{col}"] = bool(entry.get("frame"))
 
     # Drop helper fields, return sorted (require fiscal_year for ordering)
     # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
@@ -1444,6 +1470,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 if not k.startswith("_filed_")
                 and not k.startswith("_end_")
                 and not k.startswith("_rank_")
+                and not k.startswith("_frame_")
                 and k not in ("period_end", "filed", "form")
             }
         )

@@ -113,3 +113,49 @@ class TestInstantFactPrefersLatestEndDate:
         by_year = {r["fiscal_year"]: r for r in rows}
 
         assert by_year[2024]["stockholders_equity"] == 105_000_000
+
+    def test_frame_tagged_fact_wins_over_later_filed_schedule_reentry(self):
+        """FIXED 2026-08-22 (live-verified PMT): a debt-maturity-schedule footnote entry can
+        share the exact same (concept, end_date) as the real balance-sheet snapshot, AND get
+        re-disclosed with an identical value in each subsequent year's 10-K/10-Q - so it can
+        have a LATER filed date than the one real snapshot fact for that period, defeating the
+        plain "latest filed wins" tiebreak even when end dates are identical. Live-confirmed
+        via PMT's real companyfacts JSON: LongTermDebt end=2026-03-31 has 3 schedule re-entries
+        (fy=2021/2022/2023, all val=$695M, no "frame" key) and 1 real snapshot fact (fy=2024,
+        val=$1.497B, frame="CY2026Q1I") - the schedule entries' filed dates are chronologically
+        earlier here, but even a later-filed schedule re-entry must not beat a frame-tagged
+        fact. SEC's own "frame" key is only ever assigned to the single canonical,
+        non-dimensional fact for a standardized period - never to a dimensional/footnote
+        schedule entry - so it's the reliable signal, not filed-date."""
+        facts = {
+            "us-gaap": {
+                "LongTermDebt": _concept(
+                    [
+                        {
+                            "end": "2026-03-31",
+                            "val": 695_000_000,  # stale schedule re-entry, filed LATER
+                            "filed": "2026-08-01",
+                            "fp": "Q1",
+                            "fy": 2023,
+                            "form": "10-Q",
+                        },
+                        {
+                            "end": "2026-03-31",
+                            "val": 1_497_385_000,  # real snapshot, filed earlier but frame-tagged
+                            "filed": "2024-05-02",
+                            "fp": "Q1",
+                            "fy": 2024,
+                            "form": "10-Q",
+                            "frame": "CY2026Q1I",
+                        },
+                    ]
+                ),
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_balance_sheet(client, "PMT", period="quarterly")
+
+        assert len(rows) == 1
+        assert rows[0]["long_term_debt"] == 1_497_385_000

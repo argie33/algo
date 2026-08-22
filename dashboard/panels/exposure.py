@@ -72,49 +72,6 @@ from ._helpers import _error_panel
 _tier_formatter = TierFormatter()
 
 
-def _delta_bar_markup(pts: float | None, neg_span: float, pos_span: float | None = None, w: int = 12) -> str:
-    """Render a signed +/- adjustment as a filled/empty bar + point value (markup string).
-
-    Unlike mini_bar() (a 0..max budget filled green/yellow/red by fraction), the four
-    "adjustment" factors (sector rotation, economic overlay, cross-asset, fundamental
-    quality) are discounts/bonuses around a zero midpoint, so the bar fills from empty
-    proportional to |pts| and colors green (bonus) / red (penalty) by sign. Shared by
-    both the compact and expanded panels so they render these factors identically
-    (BUG FOUND 2026-08-21: compact panel showed a bare +/-N with no bar at all, unlike
-    every other factor in that panel).
-
-    neg_span/pos_span are the factor's own bounds on each side of zero (e.g. economic
-    overlay is -7..+2, not symmetric) - a maxed-out bonus must fill the bar exactly as
-    fully as a maxed-out penalty does. Passing one span for both sides (BUG FOUND
-    2026-08-21: economic overlay always divided by its 7pt penalty span even when
-    scoring its own +2pt bonus side, so a full bonus only ever showed ~29% filled)
-    silently understates whichever side isn't the one `neg_span` was tuned for.
-    """
-    if pts is None:
-        return "[yellow]⚠ N/A[/]"
-    if pts == 0:
-        return f"[dim]{'░' * w}[/]  0"
-    c = G if pts > 0 else R
-    span = (pos_span if pos_span is not None else neg_span) if pts > 0 else neg_span
-    filled = max(int(min(abs(pts) / span, 1.0) * w), 1) if span > 0 else w
-    return f"[{c}]{'█' * filled}[/][dim]{'░' * (w - filled)}[/]  [{c}]{pts:+.0f}[/]"
-
-
-def _range_label(low: float, high: float) -> str:
-    """Format an adjustment factor's point range consistently as "low to high".
-
-    BUG FOUND 2026-08-21: sector rotation/cross-asset/fundamental quality wrote their
-    range as "0/-10" (max-then-min) while economic overlay wrote "-7/+2" (min-then-max)
-    - two different orderings for the same kind of value on the same table, which reads
-    as arbitrary +/- noise. Every adjustment row now goes through this one function.
-    """
-
-    def fmt(v: float) -> str:
-        return f"{v:+.0f}" if v != 0 else "0"
-
-    return f"{fmt(low)} to {fmt(high)}"
-
-
 def _stale_warning(exp_f: Any) -> str:
     """Server-computed staleness badge from the API's data_freshness field.
 
@@ -271,21 +228,69 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 return f" {int(cnt)}d/{regime_display}"
             logger.warning("[EXPOSURE] Risk factor missing: distribution_days unavailable (cnt=%s)", cnt)
             return "[yellow]⚠[/]"  # Missing count data
+        # FIXED 2026-08-22 (exposure-model integrity review): these 7 used to be a
+        # separate "adjustment" display category (sector_rotation/economic_overlay/
+        # cross_asset_confirmation/fundamental_quality, penalty-only, own bar rendering
+        # via _delta_bar_markup). They're now normal scored factors on the same 0-100/pts-
+        # of-max footing as everything above, so they get normal factor_detail entries too
+        # instead of a special-cased second table section.
+        if key == "yield_curve":
+            t2 = f.get("t10y2y", {}).get("value") if isinstance(f.get("t10y2y"), dict) else None
+            t3 = f.get("t10y3m", {}).get("value") if isinstance(f.get("t10y3m"), dict) else None
+            parts = []
+            if isinstance(t2, (int, float)):
+                parts.append(f"2s10s{t2:+.2f}")
+            if isinstance(t3, (int, float)):
+                parts.append(f"3m10y{t3:+.2f}")
+            return f" {' '.join(parts)}" if parts else "[yellow]⚠[/]"
+        if key == "financial_conditions":
+            v = safe_float(f.get("value"), default=None)
+            return f" ANFCI {v:.2f}" if v is not None else "[yellow]⚠[/]"
+        if key == "financial_stress":
+            v = safe_float(f.get("value"), default=None)
+            return f" STLFSI4 {v:.2f}" if v is not None else "[yellow]⚠[/]"
+        if key == "inflation_expectations":
+            v = safe_float(f.get("value"), default=None)
+            return f" BE {v:.2f}%" if v is not None else "[yellow]⚠[/]"
+        if key == "sector_rotation":
+            sig = f.get("signal")
+            dls = f.get("defensive_lead_score")
+            if isinstance(sig, str) and isinstance(dls, (int, float)):
+                return f" {sig.replace('_', ' ')[:14]} {dls:.0f}"
+            return "[yellow]⚠[/]"
+        if key == "cross_asset_confirmation":
+            z = safe_float(f.get("composite_z"), default=None)
+            n = f.get("n_signals")
+            return f" z={z:+.1f} n={n}" if z is not None else "[yellow]⚠[/]"
+        if key == "earnings_revision_breadth":
+            rev = f.get("revision_breadth_pct")
+            return f" {rev:.0f}% rising" if isinstance(rev, (int, float)) else "[yellow]⚠[/]"
+        if key == "valuation_extension_breadth":
+            bp = f.get("breadth_pct")
+            return f" {bp:.0f}% extended" if isinstance(bp, (int, float)) else "[yellow]⚠[/]"
         return "[yellow]⚠[/]"  # Unknown factor key
 
     factor_map = [
-        ("trend_30wk", "30-Week Trend", 15),
-        ("spy_momentum", "SPY 12mo Mom", 10),
-        ("breadth_200dma", "Breadth 200MA", 10),
-        ("distribution_days", "Sell Pressure", 10),
-        ("vix_regime", "VIX Regime", 10),
-        ("credit_spread", "Credit Spread", 10),
-        ("put_call_ratio", "Put/Call", 8),
-        ("new_highs_lows", "New Hi vs Lo", 7),
-        ("ad_line", "Adv/Dec Line", 6),
-        ("breadth_50dma", "Breadth 50 MA", 6),
-        ("positioning", "Positioning", 5),
-        ("aaii_sentiment", "AAII Survey", 3),
+        ("trend_30wk", "30-Week Trend", 11.25),
+        ("spy_momentum", "SPY 12mo Mom", 7.5),
+        ("breadth_200dma", "Breadth 200MA", 7.5),
+        ("distribution_days", "Sell Pressure", 7.5),
+        ("vix_regime", "VIX Regime", 7.5),
+        ("credit_spread", "Credit Spread", 7.5),
+        ("put_call_ratio", "Put/Call", 6),
+        ("new_highs_lows", "New Hi vs Lo", 5.25),
+        ("ad_line", "Adv/Dec Line", 4.5),
+        ("breadth_50dma", "Breadth 50 MA", 4.5),
+        ("positioning", "Positioning", 3.75),
+        ("aaii_sentiment", "AAII Survey", 2.25),
+        ("yield_curve", "Yield Curve", 4),
+        ("financial_conditions", "Fin Conditions", 4),
+        ("financial_stress", "Fin Stress", 2),
+        ("inflation_expectations", "Infl Expect", 1),
+        ("sector_rotation", "Sector Rotation", 5),
+        ("cross_asset_confirmation", "Cross-Asset", 5),
+        ("earnings_revision_breadth", "Earnings Revisions", 2.5),
+        ("valuation_extension_breadth", "Valuation Ext", 1.5),
     ]
 
     tbl = Table.grid(padding=(0, 2), expand=True)
@@ -296,13 +301,13 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     for key, label, max_pts in factor_map:
         if not factors or key not in factors:
             logger.warning("[EXPOSURE] factor %s not in response - data unavailable", key)
-            items.append(f"[dim]{label}:[/] [yellow]⚠ factor unavailable[/][dim] /{max_pts}[/]")
+            items.append(f"[dim]{label}:[/] [yellow]⚠ factor unavailable[/][dim] /{max_pts:g}[/]")
             continue
 
         f: dict[str, Any] = factors[key]
         if not isinstance(f, dict):
             logger.warning("[EXPOSURE] factor %s has invalid type: %s, expected dict", key, type(f).__name__)
-            items.append(f"[dim]{label}:[/] [yellow]⚠ invalid data type[/][dim] /{max_pts}[/]")
+            items.append(f"[dim]{label}:[/] [yellow]⚠ invalid data type[/][dim] /{max_pts:g}[/]")
             continue
 
         pts_raw = f.get("pts")
@@ -311,7 +316,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             if reason is None:
                 reason = "data unavailable"
             logger.warning("[EXPOSURE] factor %s missing pts field: %s", key, reason)
-            items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/][dim] /{max_pts}[/]")
+            items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/][dim] /{max_pts:g}[/]")
         else:
             try:
                 pts = safe_float(pts_raw, field_name=f"{label}_pts")
@@ -326,99 +331,22 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             )
             det = factor_detail(key)
             det_s = f" [dim]{det.strip()}[/]" if det else ""
-            items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts}[/]{det_s}")
+            items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts:g}[/]{det_s}")
 
-    sr = None
-    eco = None
-    xasset = None
-    fq = None
+    # FIXED 2026-08-22 (exposure-model integrity review): sector_rotation, the old
+    # economic_overlay (now 4 separate factors), cross_asset_confirmation, and the old
+    # fundamental_quality (now split into earnings_revision_breadth and
+    # valuation_extension_breadth) used to be a special "adjustment" display category
+    # rendered here as a second block of rows with their own bar style. They're normal
+    # scored factors now (see factor_map above) and render through the same loop as
+    # everything else. Sahm Rule is the one signal that's still genuinely different in kind
+    # (a hard veto, not a graded score), so it keeps its own block below.
     sahm = None
     if factors and isinstance(factors, dict):
-        sr_raw = factors.get("sector_rotation")
-        if isinstance(sr_raw, dict):
-            sr = sr_raw
-        else:
-            logger.debug(
-                "[EXPOSURE] sector_rotation not available or invalid type: %s",
-                type(sr_raw).__name__ if sr_raw is not None else "None",
-            )
-        eco_raw = factors.get("economic_overlay")
-        if isinstance(eco_raw, dict):
-            eco = eco_raw
-        else:
-            logger.debug(
-                "[EXPOSURE] economic_overlay not available or invalid type: %s",
-                type(eco_raw).__name__ if eco_raw is not None else "None",
-            )
-        xasset_raw = factors.get("cross_asset_confirmation")
-        if isinstance(xasset_raw, dict):
-            xasset = xasset_raw
-        fq_raw = factors.get("fundamental_quality")
-        if isinstance(fq_raw, dict):
-            fq = fq_raw
         sahm_raw = factors.get("sahm_rule")
         if isinstance(sahm_raw, dict):
             sahm = sahm_raw
 
-    sr_pen = None
-    eco_pen = None
-    xasset_pen = None
-    fq_pen = None
-    if sr:
-        sr_pts_raw = sr.get("pts")
-        if sr_pts_raw is None:
-            logger.warning("[EXPOSURE] sector_rotation factor present but missing 'pts' field")
-        else:
-            try:
-                sr_pen = safe_float(sr_pts_raw, None, field_name="sector_rotation_pts")
-            except StrictValidationError as e:
-                logger.error("[EXPOSURE] sector_rotation pts conversion failed: %s", e)
-    if eco:
-        eco_pts_raw = eco.get("pts")
-        if eco_pts_raw is None:
-            logger.warning("[EXPOSURE] economic_overlay factor present but missing 'pts' field")
-        else:
-            try:
-                eco_pen = safe_float(eco_pts_raw, None, field_name="economic_overlay_pts")
-            except StrictValidationError as e:
-                logger.error("[EXPOSURE] economic_overlay pts conversion failed: %s", e)
-    if xasset:
-        try:
-            xasset_pen = safe_float(xasset.get("pts"), None, field_name="cross_asset_confirmation_pts")
-        except StrictValidationError as e:
-            logger.error("[EXPOSURE] cross_asset_confirmation pts conversion failed: %s", e)
-    if fq:
-        try:
-            fq_pen = safe_float(fq.get("pts"), None, field_name="fundamental_quality_pts")
-        except StrictValidationError as e:
-            logger.error("[EXPOSURE] fundamental_quality pts conversion failed: %s", e)
-    # All four adjustment factors gate on "!= 0" (not "< 0"): sector rotation/cross-asset/
-    # fundamental quality are penalty-only so this is equivalent to "< 0" for them, but
-    # economic overlay can also score a +2 bonus (BUG FOUND 2026-08-21: this panel used
-    # to gate all four on "< 0", so an active economic overlay bonus was silently invisible
-    # here even though the expanded panel always shows it - one unified rule now covers both).
-    if sr_pen is not None and sr_pen != 0 and sr:
-        sig = sr.get("signal")
-        sig_display = sig.replace("_", " ")[:18] if isinstance(sig, str) else ""
-        items.append(f"[dim]Sector Rotation:[/] {_delta_bar_markup(sr_pen, 10, w=4)} [dim]{sig_display}[/]")
-    if eco_pen is not None and eco_pen != 0 and eco:
-        # Check for error marker in economic overlay data
-        eco_err = None
-        if error_boundary.has_error(eco):
-            eco_err = error_boundary.get_error_message(eco)
-        eco_err_display = eco_err[:18] if isinstance(eco_err, str) else ""
-        items.append(
-            f"[dim]Economic Overlay:[/] {_delta_bar_markup(eco_pen, 7, pos_span=2, w=4)}"
-            + (f" [dim]{eco_err_display}[/]" if eco_err_display else "")
-        )
-    if xasset_pen is not None and xasset_pen != 0 and xasset:
-        sigs = xasset.get("risk_off_signals")
-        sig_display = ", ".join(sigs)[:24] if isinstance(sigs, list) and sigs else ""
-        items.append(f"[dim]Cross-Asset:[/] {_delta_bar_markup(xasset_pen, 8, w=4)} [dim]{sig_display}[/]")
-    if fq_pen is not None and fq_pen != 0 and fq:
-        fscore = fq.get("fundamental_score")
-        fscore_display = f"score {fscore:.0f}" if isinstance(fscore, (int, float)) else ""
-        items.append(f"[dim]Fundamental Qual:[/] {_delta_bar_markup(fq_pen, 5, w=4)} [dim]{fscore_display}[/]")
     if sahm is not None and sahm.get("triggered"):
         sahm_val = safe_float(sahm.get("value"), default=None)
         val_display = f"{sahm_val:.2f}pp" if sahm_val is not None else "--"
@@ -448,7 +376,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
 
 
 def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
-    """Full-screen exposure score detail - all 12 factors with values, thresholds, and signal context."""
+    """Full-screen exposure score detail - all 19 factors with values, thresholds, and signal context."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -536,20 +464,37 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     )
     rows.append(Rule(style="dim"))
 
-    # Per-factor detail table
+    # Per-factor detail table. FIXED 2026-08-22 (exposure-model integrity review):
+    # sector_rotation/economic_overlay/cross_asset_confirmation/fundamental_quality used
+    # to be a separate "adjustment" table section below this one, rendered as +/- deltas
+    # around zero with their own bar style. They're normal weighted factors now (0..max,
+    # same footing as everything else), so they're rows in this same table - the old
+    # economic_overlay is 4 separate rows (yield_curve/financial_conditions/
+    # financial_stress/inflation_expectations), each a real standalone or correlation-
+    # checked-non-redundant signal rather than one blended composite. Only Sahm Rule keeps
+    # its own block below - it's a hard veto, not a graded score, genuinely a different
+    # kind of thing.
     factor_map_exp = [
-        ("trend_30wk", "30-Week Trend", 15, "SPY above 30-week MA?"),
-        ("spy_momentum", "SPY 12mo Momentum", 10, "12-month SPY return"),
-        ("breadth_200dma", "Breadth 200 DMA", 10, "% stocks above 200DMA"),
-        ("distribution_days", "Sell Pressure", 10, "Distribution day count"),
-        ("vix_regime", "VIX + Structure", 10, "Fear gauge + market structure"),
-        ("credit_spread", "Credit Spread", 10, "HY/IG spread compression"),
-        ("put_call_ratio", "Put/Call Ratio", 8, "Options sentiment signal"),
-        ("new_highs_lows", "New Highs vs Lows", 7, "NYSE new highs minus lows"),
-        ("ad_line", "Advance/Decline", 6, "Breadth momentum direction"),
-        ("breadth_50dma", "Breadth 50 DMA", 6, "% stocks above 50DMA"),
-        ("positioning", "Positioning & Flows", 5, "Insider buying breadth + short interest trend"),
-        ("aaii_sentiment", "AAII Sentiment", 3, "Retail investor bull/bear"),
+        ("trend_30wk", "30-Week Trend", 11.25, "SPY above 30-week MA?"),
+        ("spy_momentum", "SPY 12mo Momentum", 7.5, "12-month SPY return"),
+        ("breadth_200dma", "Breadth 200 DMA", 7.5, "% stocks above 200DMA"),
+        ("distribution_days", "Sell Pressure", 7.5, "Distribution day count"),
+        ("vix_regime", "VIX + Trend", 7.5, "Fear gauge + genuine day-over-day trend"),
+        ("credit_spread", "Credit Spread", 7.5, "HY OAS level + 20d widening"),
+        ("put_call_ratio", "Put/Call Ratio", 6, "Options sentiment signal"),
+        ("new_highs_lows", "New Highs vs Lows", 5.25, "NYSE new highs minus lows"),
+        ("ad_line", "Advance/Decline", 4.5, "Breadth momentum direction"),
+        ("breadth_50dma", "Breadth 50 DMA", 4.5, "% stocks above 50DMA"),
+        ("positioning", "Positioning & Flows", 3.75, "Insider buying breadth + short interest trend"),
+        ("aaii_sentiment", "AAII Sentiment", 2.25, "Retail investor bull/bear"),
+        ("yield_curve", "Yield Curve", 4, "T10Y2Y + T10Y3M avg, z-scored vs own history"),
+        ("financial_conditions", "Financial Conditions", 4, "ANFCI (Chicago Fed), z-scored standalone"),
+        ("financial_stress", "Financial Stress", 2, "STLFSI4 (St. Louis Fed), z-scored standalone"),
+        ("inflation_expectations", "Inflation Expectations", 1, "T5YIE + T10YIE breakeven avg, z-scored"),
+        ("sector_rotation", "Sector Rotation", 5, "Defensive vs. cyclical sector leadership"),
+        ("cross_asset_confirmation", "Cross-Asset Confirmation", 5, "Gold/bonds/USD/oil vs. equities, z-scored"),
+        ("earnings_revision_breadth", "Earnings Revision Breadth", 2.5, "Analyst target-price revisions, 30d"),
+        ("valuation_extension_breadth", "Valuation Extension Breadth", 1.5, "% of universe at extended P/E or P/S"),
     ]
 
     tbl = Table(
@@ -622,11 +567,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
             # Pad "⚠ N/A" (5 chars) out to the same 12-char width as a real bar so this
             # row lines up with the rest of the Score column instead of overflowing it.
-            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>7}[/]  [dim]--/{max_pts}[/]")
+            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>7}[/]  [dim]--/{max_pts:g}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),
                 Text("--", style="yellow"),
-                Text(str(max_pts), style="dim"),
+                Text(f"{max_pts:g}", style="dim"),
                 bar_s,
                 Text(f"⚠ {reason}", style="yellow"),
                 context,
@@ -638,11 +583,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         except StrictValidationError as e:
             reason = f"invalid: {str(e)[:12]}"
             # Same 12-char alignment as the N/A case above ("✗ ERR" is also 5 chars).
-            bar_s = Text.from_markup(f"[red]✗ ERR{'':>7}[/]  [dim]--/{max_pts}[/]")
+            bar_s = Text.from_markup(f"[red]✗ ERR{'':>7}[/]  [dim]--/{max_pts:g}[/]")
             tbl.add_row(
                 Text(label, style="red"),
                 Text("--", style="red"),
-                Text(str(max_pts), style="dim"),
+                Text(f"{max_pts:g}", style="dim"),
                 bar_s,
                 Text(f"✗ {reason}", style="red"),
                 context,
@@ -650,7 +595,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             continue
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 and pts is not None else 12
         fc = G if pts is not None and pts >= max_pts * 0.75 else (Y if pts is not None and pts >= max_pts * 0.35 else R)
-        bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
+        bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts:g}[/]")
 
         # Build value string per factor
         val_s = "--"
@@ -713,192 +658,82 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             rg = f.get("regime")
             rg_display = rg[:10] if isinstance(rg, str) else "?"
             val_s = f"{cnt}d / {rg_display}" if cnt is not None else "--"
-
-        tbl.add_row(
-            Text(label, style=fc),
-            Text(f"{pts:.0f}", style=fc),
-            Text(str(max_pts), style="dim"),
-            bar_s,
-            Text(val_s, style="white"),
-            context,
-        )
-
-    # Same table, same columns as the 12 factors above - these are just the remaining
-    # 5 rows of the same "what feeds the score" picture, not a separate concept the
-    # user has to learn. Only difference: Max is a +/- range (not a fixed budget) since
-    # each of these is a bounded discount/bonus, and Sahm Rule caps the final allocation
-    # directly instead of adding/subtracting points.
-    def _delta_bar(pts: float | None, neg_span: float, pos_span: float | None = None) -> Text:
-        return Text.from_markup(_delta_bar_markup(pts, neg_span, pos_span=pos_span, w=12))
-
-    sr = None
-    eco = None
-    xasset = None
-    fq = None
-    sahm = None
-    if factors and isinstance(factors, dict) and not error_boundary.has_error(factors):
-        sr_raw = factors.get("sector_rotation")
-        if isinstance(sr_raw, dict) and not error_boundary.has_error(sr_raw):
-            sr = sr_raw
-        else:
-            logger.debug(
-                "[EXPOSURE_EXPANDED_ADJ] sector_rotation not available or invalid type: %s",
-                type(sr_raw).__name__ if sr_raw is not None else "None",
-            )
-        eco_raw = factors.get("economic_overlay")
-        if isinstance(eco_raw, dict) and not error_boundary.has_error(eco_raw):
-            eco = eco_raw
-        else:
-            logger.debug(
-                "[EXPOSURE_EXPANDED_ADJ] economic_overlay not available or invalid type: %s",
-                type(eco_raw).__name__ if eco_raw is not None else "None",
-            )
-        xasset_raw = factors.get("cross_asset_confirmation")
-        if isinstance(xasset_raw, dict) and not error_boundary.has_error(xasset_raw):
-            xasset = xasset_raw
-        fq_raw = factors.get("fundamental_quality")
-        if isinstance(fq_raw, dict) and not error_boundary.has_error(fq_raw):
-            fq = fq_raw
-        sahm_raw = factors.get("sahm_rule")
-        if isinstance(sahm_raw, dict) and not error_boundary.has_error(sahm_raw):
-            sahm = sahm_raw
-
-    if sr:
-        sr_pts_raw = sr.get("pts")
-        if sr_pts_raw is None:
-            logger.error("[EXPOSURE_EXPANDED_ADJ] sector_rotation factor present but missing 'pts' field")
-            tbl.add_row(
-                Text("Sector Rotation", style="red"),
-                Text("--", style="red"),
-                Text(_range_label(-10, 0), style="dim"),
-                Text.from_markup("[red]✗ ERR[/]"),
-                Text("calculation failed", style="red"),
-                "Defensive-sector leadership vs. cyclicals",
-            )
-        else:
-            try:
-                sr_pen = safe_float(sr_pts_raw, field_name="sector_rotation_pts")
-            except StrictValidationError as e:
-                logger.error("[EXPOSURE_EXPANDED_ADJ] sector_rotation pts conversion failed: %s", e)
-                sr_pen = None
-            sig = sr.get("signal")
-            dls = sr.get("defensive_lead_score")
+        elif key == "yield_curve":
+            t2 = f.get("t10y2y", {}).get("value") if isinstance(f.get("t10y2y"), dict) else None
+            t3 = f.get("t10y3m", {}).get("value") if isinstance(f.get("t10y3m"), dict) else None
+            parts = []
+            if isinstance(t2, (int, float)):
+                parts.append(f"2s10s {t2:+.2f}")
+            if isinstance(t3, (int, float)):
+                parts.append(f"3m10y {t3:+.2f}")
+            val_s = " / ".join(parts) if parts else "--"
+        elif key == "financial_conditions":
+            v = f.get("value")
+            z = f.get("z")
+            val_s = f"ANFCI {v:.2f} (z={z:+.1f})" if isinstance(v, (int, float)) else "--"
+        elif key == "financial_stress":
+            v = f.get("value")
+            z = f.get("z")
+            val_s = f"STLFSI4 {v:.2f} (z={z:+.1f})" if isinstance(v, (int, float)) else "--"
+        elif key == "inflation_expectations":
+            v = f.get("value")
+            val_s = f"breakeven {v:.2f}%" if isinstance(v, (int, float)) else "--"
+        elif key == "sector_rotation":
+            sig = f.get("signal")
+            dls = f.get("defensive_lead_score")
             if sig == "data_unavailable":
-                reason = sr.get("reason") or "insufficient rotation history yet (<12wk)"
+                reason = f.get("reason") or "insufficient rotation history yet (<12wk)"
                 val_s = f"n/a — {reason}"
             else:
                 sig_display = sig.replace("_", " ") if isinstance(sig, str) else "unknown"
                 dls_display = f", lead {dls:.0f}/100" if isinstance(dls, (int, float)) else ""
                 val_s = f"{sig_display}{dls_display}"
-            tbl.add_row(
-                Text("Sector Rotation", style="white" if sr_pen else "dim"),
-                Text(f"{sr_pen:+.0f}" if sr_pen is not None else "--", style="white"),
-                Text(_range_label(-10, 0), style="dim"),
-                _delta_bar(sr_pen, 10),
-                Text(val_s, style="white"),
-                "Defensive-sector leadership vs. cyclicals",
-            )
-
-    if eco:
-        eco_pts_raw = eco.get("pts")
-        if eco_pts_raw is None:
-            logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay factor present but missing 'pts' field")
-            tbl.add_row(
-                Text("Economic Overlay", style="red"),
-                Text("--", style="red"),
-                Text(_range_label(-7, 2), style="dim"),
-                Text.from_markup("[red]✗ ERR[/]"),
-                Text("calculation failed", style="red"),
-                "Yield curve + jobless claims + financial stress composite",
-            )
-        else:
-            try:
-                eco_pen = safe_float(eco_pts_raw, field_name="economic_overlay_pts")
-            except StrictValidationError as e:
-                logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay pts conversion failed: %s", e)
-                eco_pen = None
-            stress = eco.get("macro_stress_score")
-            stress_display = f"stress {stress:.0f}/100" if isinstance(stress, (int, float)) else "stress n/a"
-            eco_signals = eco.get("signals")
-            sig_display = (
-                "; ".join(str(s) for s in eco_signals[:2])
-                if isinstance(eco_signals, list) and eco_signals
-                else "no stress signals active"
-            )
-            eco_err = error_boundary.get_error_message(eco) if error_boundary.has_error(eco) else None
-            val_s = f"{stress_display} — {sig_display}" + (f" [{eco_err[:20]}]" if eco_err else "")
-            tbl.add_row(
-                Text("Economic Overlay", style="white" if eco_pen else "dim"),
-                Text(f"{eco_pen:+.0f}" if eco_pen is not None else "--", style="white"),
-                Text(_range_label(-7, 2), style="dim"),
-                _delta_bar(eco_pen, 7, pos_span=2),
-                Text(val_s, style="white"),
-                "Yield curve + jobless claims + financial stress composite",
-            )
-            if isinstance(eco_signals, list) and len(eco_signals) > 2:
-                tbl.add_row(
-                    "",
-                    "",
-                    "",
-                    "",
-                    Text(f"+ {len(eco_signals) - 2} more: " + "; ".join(str(s) for s in eco_signals[2:5]), style="dim"),
-                    "",
-                )
-
-    if xasset:
-        try:
-            xasset_pen = safe_float(xasset.get("pts"), field_name="cross_asset_confirmation_pts")
-        except StrictValidationError as e:
-            logger.error("[EXPOSURE_EXPANDED_ADJ] cross_asset_confirmation pts conversion failed: %s", e)
-            xasset_pen = None
-        sigs = xasset.get("risk_off_signals")
-        if isinstance(sigs, list) and sigs:
-            val_s = "; ".join(sigs)
-        else:
+        elif key == "cross_asset_confirmation":
+            z = f.get("composite_z")
             chg_parts = [
-                f"{label} {v:+.1f}%"
-                for label, key in (
-                    ("SPY", "spy_chg_20d"),
-                    ("GLD", "gld_chg_20d"),
-                    ("TLT", "tlt_chg_20d"),
+                f"{label_ca} {v:+.1f}%"
+                for label_ca, key_ca in (
+                    ("Gold", "gld_vs_spy_chg_20d"),
+                    ("Bonds", "tlt_vs_spy_chg_20d"),
                     ("USD", "usd_chg_20d"),
                     ("Oil", "oil_chg_20d"),
                 )
-                if isinstance((v := xasset.get(key)), (int, float))
+                if isinstance((v := f.get(key_ca)), (int, float))
             ]
-            val_s = "no disagreement (needs 2 of 4)" + (f" — 20d: {' '.join(chg_parts)}" if chg_parts else "")
+            val_s = (f"z={z:+.1f}" if isinstance(z, (int, float)) else "--") + (
+                f" — {' '.join(chg_parts)}" if chg_parts else ""
+            )
+        elif key == "earnings_revision_breadth":
+            rev = f.get("revision_breadth_pct")
+            val_s = f"{rev:.0f}% of universe rising" if isinstance(rev, (int, float)) else "--"
+        elif key == "valuation_extension_breadth":
+            bp = f.get("breadth_pct")
+            active = f.get("active_count")
+            active_s = f" (n={active})" if isinstance(active, (int, float)) else ""
+            val_s = f"{bp:.0f}% at extended P/E or P/S{active_s}" if isinstance(bp, (int, float)) else "--"
+
         tbl.add_row(
-            Text("Cross-Asset Confirmation", style="white" if xasset_pen else "dim"),
-            Text(f"{xasset_pen:+.0f}" if xasset_pen is not None else "--", style="white"),
-            Text(_range_label(-8, 0), style="dim"),
-            _delta_bar(xasset_pen, 8),
+            Text(label, style=fc),
+            Text(f"{pts:.1f}", style=fc),
+            Text(f"{max_pts:g}", style="dim"),
+            bar_s,
             Text(val_s, style="white"),
-            "Gold/bonds/USD/oil disagreeing with bullish equities",
+            context,
         )
 
-    if fq:
-        try:
-            fq_pen = safe_float(fq.get("pts"), field_name="fundamental_quality_pts")
-        except StrictValidationError as e:
-            logger.error("[EXPOSURE_EXPANDED_ADJ] fundamental_quality pts conversion failed: %s", e)
-            fq_pen = None
-        fscore = fq.get("fundamental_score")
-        rev = fq.get("revision_breadth_pct")
-        ins = fq.get("insider_buying_breadth_pct")
-        val = fq.get("valuation_extension_breadth_pct")
-        rev_s = f"{rev:.0f}%" if isinstance(rev, (int, float)) else "n/a"
-        ins_s = f"{ins:.0f}%" if isinstance(ins, (int, float)) else "n/a"
-        val_s_pct = f"{val:.0f}%" if isinstance(val, (int, float)) else "n/a"
-        fscore_display = f"{fscore:.0f}/100" if isinstance(fscore, (int, float)) else "n/a"
-        val_s = f"score {fscore_display} (rev {rev_s}, insider {ins_s}, val-ext {val_s_pct})"
-        tbl.add_row(
-            Text("Fundamental Quality", style="white" if fq_pen else "dim"),
-            Text(f"{fq_pen:+.0f}" if fq_pen is not None else "--", style="white"),
-            Text(_range_label(-5, 0), style="dim"),
-            _delta_bar(fq_pen, 5),
-            Text(val_s, style="white"),
-            "Analyst/insider/valuation confirmation of a bullish tape",
-        )
+    # FIXED 2026-08-22 (exposure-model integrity review): sector_rotation, the old
+    # economic_overlay, cross_asset_confirmation, and fundamental_quality used to render
+    # here as a separate "adjustment" block (+/- deltas around zero, own bar style). All
+    # of them (now including the earnings-revision/valuation-extension split of what was
+    # fundamental_quality - see market_exposure.py's module docstring) are normal weighted
+    # factors and already rendered by the factor_map_exp loop above. Sahm Rule is the one
+    # signal that's still genuinely different in kind (a hard veto, not a graded score),
+    # so it keeps its own row below.
+    sahm = None
+    if factors and isinstance(factors, dict) and not error_boundary.has_error(factors):
+        sahm_raw = factors.get("sahm_rule")
+        if isinstance(sahm_raw, dict) and not error_boundary.has_error(sahm_raw):
+            sahm = sahm_raw
 
     if sahm is not None:
         sahm_val = sahm.get("value")

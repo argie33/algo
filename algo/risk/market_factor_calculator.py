@@ -66,6 +66,46 @@ class MarketFactorCalculator:
 
         return score * weight / 100.0, weight
 
+    @staticmethod
+    def _sample_zscore(current: float, history: list[float]) -> float | None:
+        """Sample z-score of `current` against its own real historical distribution.
+
+        Standard Barra/Axioma-style factor normalization: standardize a raw reading
+        against its own history rather than score it off a fixed, eyeballed threshold
+        that goes stale as the regime shifts. `history` should be the series' own past
+        readings (current value may or may not be included - negligible effect on a
+        reasonably-sized sample). Requires >=15 points and non-zero variance; returns
+        None otherwise rather than a misleadingly precise number off too little data.
+        """
+        n = len(history)
+        if n < 15:
+            return None
+        mean = sum(history) / n
+        variance = sum((x - mean) ** 2 for x in history) / (n - 1)
+        stdev = math.sqrt(variance)
+        if stdev < 1e-9:
+            return None
+        z = (current - mean) / stdev
+        if math.isnan(z) or math.isinf(z):
+            return None
+        return z
+
+    @staticmethod
+    def _zscore_to_score(z: float, cap: float = 2.5) -> float:
+        """Map a z-score (positive = worse/more-bearish, by the caller's convention) to a
+        0-100 factor score: z=0 (average reading) -> 50, z=+cap -> 0, z=-cap -> 100.
+
+        cap=2.5 std devs covers ~98.8% of a normal distribution - wide enough that routine
+        variation doesn't pin the score at the boundary, tight enough that a genuine tail
+        reading actually reaches it. The caller is responsible for sign convention (flip the
+        raw z before calling if a lower raw reading is the bearish direction, e.g. an
+        inverted yield curve) so this mapping stays uniform across every factor that uses it.
+        """
+        if math.isnan(z) or math.isinf(z):
+            return 50.0
+        score = 50.0 - (z / cap) * 50.0
+        return max(0.0, min(100.0, score))
+
     def _pct_above_ma(self, eval_date: _date, ma_days: int, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Calculate % of stocks trading above N-day MA (critical).
 
@@ -107,11 +147,17 @@ class MarketFactorCalculator:
                 f"Cannot proceed with position sizing without technical breadth data."
             ) from e
 
-    def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> tuple[float, dict[str, Any]]:
-        """Score VIX level and term structure.
+    def _vix_score(self, vix: float, rising: bool) -> tuple[float, dict[str, Any]]:
+        """Score VIX level, with an additive penalty for a genuine rising trend.
 
-        Level tiers: <15=100, 15-25=80, 25-35=40, 35+=0
-        Term structure penalty if inverted (backwardation).
+        Level tiers: <15=100, 15-25=80, 25-35=40, 35+=0.
+
+        FIXED 2026-08-22 (goal: exposure-model integrity review): this used to combine
+        level_score * trend_mult * ts_mult - the only multiplicative combination in this
+        file; every other factor and modifier combines additively, with no comment
+        anywhere explaining why VIX was different. `rising` now gets a flat 10pt additive
+        penalty like everything else. `term_structure` (VIX3M) is removed entirely - see
+        vix_regime()'s docstring for why.
         """
         if vix < 15:
             level_score = 100.0
@@ -122,20 +168,12 @@ class MarketFactorCalculator:
         else:
             level_score = 0.0
 
-        # Trend penalty
-        trend_mult = 1.0 if not rising else 0.8
-
-        # Term structure penalty if inverted
-        ts_mult = 1.0
-        if term_structure and term_structure < 1.0:
-            ts_mult = 0.6  # backwardation penalty
-
-        final_score = level_score * trend_mult * ts_mult
+        trend_penalty = 10.0 if rising else 0.0
+        final_score = max(0.0, level_score - trend_penalty)
         return final_score, {
             "level": round(vix, 1),
             "level_score": round(level_score, 1),
             "rising": rising,
-            "term_structure": round(term_structure, 2) if term_structure else None,
         }
 
     # REMOVED 2026-08-20 (goal: finance-accuracy audit): _has_market_confirmation was dead
@@ -334,21 +372,38 @@ class MarketFactorCalculator:
             ) from e
 
     def vix_regime(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """VIX level + term structure (critical).
+        """VIX level + genuine day-over-day trend (critical).
 
         Raises RuntimeError if data unavailable - VIX is foundational to risk assessment.
-        VIX is a 10pt factor. Missing volatility data is a data error, not a skip condition.
+        VIX is a factor weighted per MarketExposure.W_VIX. Missing volatility data is a
+        data error, not a skip condition.
+
+        FIXED 2026-08-22 (goal: exposure-model integrity review): "rising" previously meant
+        `vix > 20` - a re-test of the level tier, not a trend read. Two consequences: the
+        in-score "rising" penalty was really a second, hidden level penalty, and hard Veto 2
+        ("VIX>40 rising") was mathematically just "VIX>40", since 40>20 always implies
+        vix>20. Live-verified against 20 days of real market_exposure_daily rows: "rising"
+        read false on every single day in that window even while VIX genuinely climbed
+        14.6->19.6, because it never crossed 20. Now compares today's VIX to 5 sessions ago
+        (VIX moves faster than the 20d windows used elsewhere in this file for slower series
+        like credit spreads) - a real trend read.
+
+        REMOVED (2026-08-22): term structure (VIX3M). Advertised in this file's docstrings
+        since the 2026-08-20 redesign but never wired to any real data source -
+        market_health_daily has no vix3m column and nothing in this codebase loads one.
+        Rather than fabricate an input, the claim is removed; add it back only when a real
+        VIX3M source exists.
         """
         try:
-            # Get latest VIX data on or before eval_date
+            # Pull 6 sessions: today's reading plus a real 5-session-ago comparison point.
             cur.execute(
-                "SELECT date, vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                "SELECT date, vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 6",
                 (eval_date,),
             )
-            row = cur.fetchone()
+            rows = cur.fetchall()
 
             # No data available: fail-fast with diagnostic info
-            if not row:
+            if not rows:
                 cur.execute("SELECT MAX(date) FROM market_health_daily")
                 latest_row = cur.fetchone()
                 latest_date = latest_row[0] if latest_row and latest_row[0] is not None else "EMPTY"
@@ -359,9 +414,8 @@ class MarketFactorCalculator:
                 )
 
             # Data exists but VIX level is NULL: data quality issue
-            data_date = row[0]
-            vix = row[1]
-            if vix is None:
+            data_date, vix_raw = rows[0]
+            if vix_raw is None:
                 raise RuntimeError(
                     f"[VIX CRITICAL] VIX level is NULL for {data_date}. "
                     f"Data quality issue in market_health_daily - vix_level column not populated. "
@@ -369,13 +423,22 @@ class MarketFactorCalculator:
                 )
 
             # VIX level available: compute score
-            vix = float(vix)
+            vix = float(vix_raw)
             if math.isnan(vix) or math.isinf(vix):
                 raise RuntimeError(
                     f"[VIX CRITICAL] Non-finite VIX level for {data_date}: {vix!r}. "
                     f"Data quality issue in market_health_daily."
                 )
-            score, detail = self._vix_score(vix, vix > 20)
+
+            # Real trend: today vs ~5 sessions ago. Missing depth degrades to "not rising"
+            # rather than failing - trend is an enrichment on the level score, not foundational.
+            rising = False
+            if len(rows) >= 6 and rows[5][1] is not None:
+                vix_5d_ago = float(rows[5][1])
+                if not (math.isnan(vix_5d_ago) or math.isinf(vix_5d_ago)):
+                    rising = vix > vix_5d_ago
+
+            score, detail = self._vix_score(vix, rising)
             return {"value": round(vix, 1), "score": score, **detail}
 
         except RuntimeError:
@@ -387,11 +450,24 @@ class MarketFactorCalculator:
             ) from e
 
     def put_call_ratio(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator, 8pt factor - OPTIONAL enrichment).
+        """Put/call ratio (contrarian indicator - OPTIONAL enrichment), z-scored against
+        its own real history.
 
-        Returns explicit data_unavailable marker if data unavailable. Put/call ratio is
-        optional sentiment enrichment (Session 291+: yfinance removed, no official source).
-        Gracefully degrades with explicit marker, not RuntimeError.
+        FIXED 2026-08-22 (goal: exposure-model integrity review): the old scoring formula
+        (score = (pcr - 0.7) * 100) was calibrated for the classic CBOE broad-market
+        VOLUME put/call ratio (~0.5-1.2 typical range) - but the value actually fed in here
+        is a single-expiration SPY options OPEN-INTEREST ratio (see
+        loaders/market_health_fetchers.py's PutCallRatioFetcher), a structurally different,
+        noisier metric that runs higher (live-verified: real readings in this DB span
+        0.87-2.84 across three weeks with nothing unusual happening on any of those days -
+        crossing 2.0, near this factor's old max-score ceiling, three separate times in an
+        ordinary market). Scoring a metric against thresholds built for a DIFFERENT metric's
+        distribution isn't a real signal, just a coincidence of similar-looking numbers.
+        Now z-scored against its own real historical distribution instead, the same
+        convention every other factor in this file uses. That history is thin (this source
+        only started 2026-07) so this degrades gracefully to unavailable rather than a fixed
+        threshold when there isn't enough of it yet - an honest "don't know" beats a
+        confident wrong number.
         """
         try:
             # put_call_ratio_data_unavailable must be excluded explicitly, not inferred from
@@ -409,32 +485,40 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            if not row:
-                # Put/call ratio data unavailable - return explicit marker
-                # This is an expected, graceful degradation (optional enrichment)
+            if not row or row[0] is None:
                 return {
                     "data_unavailable": True,
                     "reason": f"Put/call ratio data unavailable on or before {eval_date} (optional sentiment enrichment)",
                 }
 
-            # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
-            if isinstance(row, dict):
-                pcr_val = row.get("put_call_ratio")
-            else:
-                # Tuple result - validate structure before indexing
-                if not row or len(row) < 1:
-                    return {"data_unavailable": True, "reason": "Query returned empty or invalid result structure"}
-                pcr_val = row[0]
-            if pcr_val is None:
-                return {"data_unavailable": True, "reason": "put_call_ratio value is NULL (data quality issue)"}
-
-            pcr = float(pcr_val)
-            if not (0.2 <= pcr <= 3.0):
-                reason = f"Put/call ratio {pcr} outside realistic 0.2-3.0 range (data quality issue)"
+            pcr = float(row[0])
+            if math.isnan(pcr) or math.isinf(pcr) or not (0.2 <= pcr <= 3.0):
+                reason = f"Put/call ratio {pcr} non-finite or outside realistic 0.2-3.0 range (data quality issue)"
                 logger.warning(f"[PUT_CALL_RATIO] {reason} - treating as unavailable")
                 return {"data_unavailable": True, "reason": reason}
-            score = max(0, min(100, (pcr - 0.7) * 100))
-            return {"value": round(pcr, 2), "score": score}
+
+            cur.execute(
+                "SELECT put_call_ratio FROM market_health_daily "
+                "WHERE date <= %s AND put_call_ratio IS NOT NULL "
+                "AND put_call_ratio_data_unavailable IS NOT TRUE "
+                "AND put_call_ratio BETWEEN 0.2 AND 3.0 "
+                "ORDER BY date DESC LIMIT 500",
+                (eval_date,),
+            )
+            history = [float(r[0]) for r in cur.fetchall()]
+            z = self._sample_zscore(pcr, history)
+            if z is None:
+                return {
+                    "data_unavailable": True,
+                    "reason": f"Insufficient put/call ratio history to z-score (have {len(history)}, need 15+)",
+                    "value": round(pcr, 2),
+                }
+            # Higher put/call ratio = more fear priced into options = contrarian bullish, so
+            # a high raw reading should score HIGH - flip the sign before mapping (the shared
+            # _zscore_to_score convention treats positive input as the bearish/low-score
+            # direction).
+            score = self._zscore_to_score(-z)
+            return {"value": round(pcr, 2), "score": score, "z": round(z, 2)}
         except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as e:
             return {"data_unavailable": True, "reason": f"Query failed: {type(e).__name__}"}
 

@@ -115,21 +115,6 @@ const humanize = (s) =>
     ? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
     : s;
 
-// Bar-fill % for a signed points adjustment (sector rotation / cross-asset /
-// fundamental quality / economic overlay), scaled against that factor's own bound on
-// whichever side of zero `pts` falls - a maxed-out bonus must fill exactly as fully as
-// a maxed-out penalty. Mirrors dashboard/panels/exposure.py::_delta_bar_markup so the
-// TUI and web dashboard render these post-score modifiers identically (BUG FOUND
-// 2026-08-21: this card had a 0..max bar for every budget factor above but NO bar at
-// all for these adjustment factors - just a text badge - while the TUI expanded panel
-// already showed one).
-function deltaBarPct(pts, negSpan, posSpan = negSpan) {
-  if (pts == null || pts === 0) return 0;
-  const span = pts > 0 ? posSpan : negSpan;
-  if (!span) return 100;
-  return Math.max(Math.min((Math.abs(pts) / span) * 100, 100), 4);
-}
-
 const TOOLTIP_STYLE = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
@@ -835,53 +820,39 @@ function IndexCell({ idx, prices = [] }) {
 function ExposureFactors({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
+  // FIXED 2026-08-22 (exposure-model integrity review): sector_rotation,
+  // economic_overlay (now 4 separate real factors), cross_asset_confirmation, and the old
+  // fundamental_quality (now split into earnings_revision_breadth and
+  // valuation_extension_breadth) used to be a separate "modifier" category - post-score
+  // point-deltas around zero, rendered as their own cards below with a different bar style
+  // (deltaBarPct) than every budget factor above. There's no real reason those specific
+  // signals should combine or render differently from the rest - they're normal weighted
+  // factors now (see algo/risk/market_exposure.py's module docstring), so they're rows in
+  // this same list. Only Sahm Rule keeps its own card below - it's a hard veto that caps
+  // the final allocation directly, not a graded score, genuinely a different kind of thing.
   const list = [
-    ["trend_30wk", "30-WEEK MA TREND", 15],
-    ["spy_momentum", "SPY 12-MONTH MOMENTUM", 10],
-    ["breadth_200dma", "BREADTH (% > 200-DMA)", 10],
-    ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 10],
-    ["vix_regime", "VIX REGIME + TERM STRUCTURE", 10],
-    ["credit_spread", "HY CREDIT SPREAD", 10],
-    ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 8],
-    ["new_highs_lows", "NEW HIGHS - LOWS", 7],
-    ["ad_line", "A/D LINE CONFIRMATION", 6],
-    ["breadth_50dma", "BREADTH (% > 50-DMA)", 6],
-    ["positioning", "POSITIONING & FLOWS", 5],
-    ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 3],
+    ["trend_30wk", "30-WEEK MA TREND", 11.25],
+    ["spy_momentum", "SPY 12-MONTH MOMENTUM", 7.5],
+    ["breadth_200dma", "BREADTH (% > 200-DMA)", 7.5],
+    ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 7.5],
+    ["vix_regime", "VIX REGIME + TREND", 7.5],
+    ["credit_spread", "HY CREDIT SPREAD", 7.5],
+    ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 6],
+    ["new_highs_lows", "NEW HIGHS - LOWS", 5.25],
+    ["ad_line", "A/D LINE CONFIRMATION", 4.5],
+    ["breadth_50dma", "BREADTH (% > 50-DMA)", 4.5],
+    ["positioning", "POSITIONING & FLOWS", 3.75],
+    ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 2.25],
+    ["yield_curve", "YIELD CURVE (T10Y2Y + T10Y3M)", 4],
+    ["financial_conditions", "FINANCIAL CONDITIONS (ANFCI)", 4],
+    ["financial_stress", "FINANCIAL STRESS (STLFSI4)", 2],
+    ["inflation_expectations", "INFLATION EXPECTATIONS (BREAKEVEN)", 1],
+    ["sector_rotation", "SECTOR ROTATION", 5],
+    ["cross_asset_confirmation", "CROSS-ASSET CONFIRMATION", 5],
+    ["earnings_revision_breadth", "EARNINGS REVISION BREADTH", 2.5],
+    ["valuation_extension_breadth", "VALUATION EXTENSION BREADTH", 1.5],
   ];
 
-  // Sector Rotation modifier (defensive-vs-cyclical leadership penalty, up to -10pts) -
-  // present in factors alongside the other 4 post-score modifiers below, but was missing
-  // from this card entirely (only ever rendered in the TUI dashboard's exposure panel).
-  const sr = factors?.sector_rotation;
-  const srPenalty = sr?.pts;
-  const srUnavailable = sr?.signal === "data_unavailable";
-
-  const eco = factors?.economic_overlay;
-  const macroStress = eco?.macro_stress_score;
-  // Read the sign-normalized "pts" field (positive = bonus, negative = penalty), same
-  // as sector rotation/cross-asset/fundamental quality below - not the raw "penalty"
-  // field (positive = penalty) this used to read, which made economic overlay the one
-  // adjustment factor in this file with an inverted sign convention from its siblings.
-  const ecoPts = eco?.pts;
-  const macroSignals = Array.isArray(eco?.signals) ? eco.signals : [];
-  const macroColor =
-    macroStress != null && macroStress >= 60
-      ? C.danger
-      : macroStress != null && macroStress >= 40
-        ? C.amber
-        : C.success;
-
-  // Cross-asset confirmation + fundamental quality modifiers, and the Sahm Rule veto
-  // (added 2026-08-20, exposure-model redesign) - all three are penalty-only modifiers
-  // applied post-score, not scored factors, mirroring the economic overlay card above.
-  const xasset = factors?.cross_asset_confirmation;
-  const xassetPenalty = xasset?.pts;
-  const xassetSignals = Array.isArray(xasset?.risk_off_signals)
-    ? xasset.risk_off_signals
-    : [];
-  const fq = factors?.fundamental_quality;
-  const fqPenalty = fq?.pts;
   const sahm = factors?.sahm_rule;
 
   return (
@@ -956,6 +927,36 @@ function ExposureFactors({ markets }) {
               if (f.value) sub.push(humanize(f.value));
               if (f.price_vs_ma_pct != null)
                 sub.push(`${num(f.price_vs_ma_pct, 2)}% above MA`);
+            } else if (key === "yield_curve") {
+              if (f.t10y2y?.value != null)
+                sub.push(`2s10s ${num(f.t10y2y.value, 2)}%`);
+              if (f.t10y3m?.value != null)
+                sub.push(`3m10y ${num(f.t10y3m.value, 2)}%`);
+            } else if (
+              key === "financial_conditions" ||
+              key === "financial_stress"
+            ) {
+              if (f.value != null) sub.push(`value ${num(f.value, 2)}`);
+              if (f.z != null) sub.push(`z=${f.z > 0 ? "+" : ""}${num(f.z, 1)}`);
+            } else if (key === "inflation_expectations") {
+              if (f.value != null) sub.push(`breakeven ${num(f.value, 2)}%`);
+            } else if (key === "sector_rotation") {
+              if (f.signal) sub.push(humanize(f.signal));
+              if (f.defensive_lead_score != null)
+                sub.push(`lead ${num(f.defensive_lead_score, 0)}/100`);
+            } else if (key === "cross_asset_confirmation") {
+              if (f.composite_z != null)
+                sub.push(
+                  `z=${f.composite_z > 0 ? "+" : ""}${num(f.composite_z, 1)}`
+                );
+              if (f.n_signals != null) sub.push(`n=${f.n_signals}`);
+            } else if (key === "earnings_revision_breadth") {
+              if (f.revision_breadth_pct != null)
+                sub.push(`${num(f.revision_breadth_pct, 0)}% rising`);
+            } else if (key === "valuation_extension_breadth") {
+              if (f.breadth_pct != null)
+                sub.push(`${num(f.breadth_pct, 0)}% extended`);
+              if (f.active_count != null) sub.push(`n=${f.active_count}`);
             } else {
               // Generic display for other factors
               if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
@@ -993,233 +994,6 @@ function ExposureFactors({ markets }) {
             );
           })
           .filter(Boolean)}
-
-        {/* Sector Rotation modifier */}
-        {sr && (
-          <div
-            style={{
-              marginTop: "var(--space-4)",
-              padding: "var(--space-3) var(--space-4)",
-              borderRadius: "var(--r-sm)",
-              background: `${srPenalty < 0 ? C.danger : C.success}12`,
-              border: `1px solid ${srPenalty < 0 ? C.danger : C.success}40`,
-            }}
-          >
-            <div
-              className="flex items-center justify-between"
-              style={{ marginBottom: 6 }}
-            >
-              <span
-                className="eyebrow"
-                style={{ color: srPenalty < 0 ? C.danger : C.success }}
-              >
-                SECTOR ROTATION
-              </span>
-              <span
-                className="mono tnum t-xs"
-                style={{ color: srPenalty < 0 ? C.danger : C.success }}
-              >
-                {srUnavailable
-                  ? "n/a"
-                  : srPenalty < 0
-                    ? `${srPenalty} pts`
-                    : "no penalty"}
-              </span>
-            </div>
-            {!srUnavailable && (
-              <div className="bar" style={{ marginBottom: 6 }}>
-                <div
-                  className="bar-fill"
-                  style={{
-                    width: `${deltaBarPct(srPenalty, 10)}%`,
-                    background: srPenalty < 0 ? C.danger : C.border2,
-                  }}
-                />
-              </div>
-            )}
-            <div className="t-2xs muted">
-              {srUnavailable
-                ? sr.reason || "insufficient rotation history yet (<12wk)"
-                : `${humanize(sr.signal) || "unknown"}${
-                    sr.defensive_lead_score != null
-                      ? ` · lead ${num(sr.defensive_lead_score, 0)}/100`
-                      : ""
-                  }`}
-            </div>
-            <div className="t-2xs muted" style={{ marginTop: 4 }}>
-              Defensive-sector leadership vs. cyclicals — discount-only, up to
-              −10 pts
-            </div>
-          </div>
-        )}
-
-        {/* Economic Regime Overlay */}
-        {(macroStress != null || macroSignals.length > 0) && (
-          <div
-            style={{
-              marginTop: "var(--space-4)",
-              padding: "var(--space-3) var(--space-4)",
-              borderRadius: "var(--r-sm)",
-              background: `${macroColor}12`,
-              border: `1px solid ${macroColor}40`,
-            }}
-          >
-            <div
-              className="flex items-center justify-between"
-              style={{ marginBottom: 6 }}
-            >
-              <span className="eyebrow" style={{ color: macroColor }}>
-                MACRO REGIME OVERLAY
-              </span>
-              <span className="mono tnum t-xs" style={{ color: macroColor }}>
-                {ecoPts < 0
-                  ? `${ecoPts} pts`
-                  : ecoPts > 0
-                    ? `+${ecoPts} pts (favourable)`
-                    : "neutral"}
-                {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ""}
-              </span>
-            </div>
-            {/* Points-contribution bar - same scale/semantics as sector rotation/cross-asset/
-                fundamental quality below, not to be confused with the macro stress bar beneath
-                it (that one plots the underlying 0-100 stress score driving this penalty). */}
-            <div className="bar" style={{ marginBottom: 6 }}>
-              <div
-                className="bar-fill"
-                style={{
-                  width: `${deltaBarPct(ecoPts, 7, 2)}%`,
-                  background: ecoPts < 0 ? C.danger : C.border2,
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <div style={{ flex: 1 }}>
-                <div className="bar">
-                  <div
-                    className="bar-fill"
-                    style={{ width: `${macroStress}%`, background: macroColor }}
-                  />
-                </div>
-              </div>
-              <span className="mono tnum t-xs muted">
-                {macroStress != null ? `${macroStress}/100` : "—"}
-              </span>
-            </div>
-            {macroSignals.length > 0 && (
-              <div className="t-2xs muted" style={{ marginTop: 6 }}>
-                {macroSignals.join(" · ")}
-              </div>
-            )}
-            <div className="t-2xs muted" style={{ marginTop: 4 }}>
-              Yield curve (T10Y2Y + T10Y3M) · IG/HY credit trend · jobless
-              claims · ANFCI · CFNAI — post-score macro adjustment
-            </div>
-          </div>
-        )}
-
-        {/* Cross-Asset Confirmation modifier */}
-        {xasset && (
-          <div
-            style={{
-              marginTop: "var(--space-3)",
-              padding: "var(--space-3) var(--space-4)",
-              borderRadius: "var(--r-sm)",
-              background: `${xassetPenalty < 0 ? C.danger : C.success}12`,
-              border: `1px solid ${xassetPenalty < 0 ? C.danger : C.success}40`,
-            }}
-          >
-            <div
-              className="flex items-center justify-between"
-              style={{ marginBottom: 6 }}
-            >
-              <span
-                className="eyebrow"
-                style={{ color: xassetPenalty < 0 ? C.danger : C.success }}
-              >
-                CROSS-ASSET CONFIRMATION
-              </span>
-              <span
-                className="mono tnum t-xs"
-                style={{ color: xassetPenalty < 0 ? C.danger : C.success }}
-              >
-                {xassetPenalty < 0 ? `${xassetPenalty} pts` : "no disagreement"}
-              </span>
-            </div>
-            <div className="bar" style={{ marginBottom: 6 }}>
-              <div
-                className="bar-fill"
-                style={{
-                  width: `${deltaBarPct(xassetPenalty, 8)}%`,
-                  background: xassetPenalty < 0 ? C.danger : C.border2,
-                }}
-              />
-            </div>
-            {xassetSignals.length > 0 ? (
-              <div className="t-2xs muted">{xassetSignals.join(" · ")}</div>
-            ) : (
-              <div className="t-2xs muted">
-                Gold/bonds/USD agree with the equity trend
-              </div>
-            )}
-            <div className="t-2xs muted" style={{ marginTop: 4 }}>
-              Gold vs. SPY · long bonds vs. SPY · USD strength (20d) —
-              discount-only, no bonus for agreement
-            </div>
-          </div>
-        )}
-
-        {/* Fundamental Quality of the Rally modifier */}
-        {fq && (
-          <div
-            style={{
-              marginTop: "var(--space-3)",
-              padding: "var(--space-3) var(--space-4)",
-              borderRadius: "var(--r-sm)",
-              background: `${fqPenalty < 0 ? C.danger : C.success}12`,
-              border: `1px solid ${fqPenalty < 0 ? C.danger : C.success}40`,
-            }}
-          >
-            <div
-              className="flex items-center justify-between"
-              style={{ marginBottom: 6 }}
-            >
-              <span
-                className="eyebrow"
-                style={{ color: fqPenalty < 0 ? C.danger : C.success }}
-              >
-                FUNDAMENTAL QUALITY OF THE RALLY
-              </span>
-              <span
-                className="mono tnum t-xs"
-                style={{ color: fqPenalty < 0 ? C.danger : C.success }}
-              >
-                {fqPenalty < 0 ? `${fqPenalty} pts` : "confirmed"}
-                {fq.fundamental_score != null
-                  ? ` · score ${num(fq.fundamental_score, 0)}`
-                  : ""}
-              </span>
-            </div>
-            <div className="bar" style={{ marginBottom: 6 }}>
-              <div
-                className="bar-fill"
-                style={{
-                  width: `${deltaBarPct(fqPenalty, 5)}%`,
-                  background: fqPenalty < 0 ? C.danger : C.border2,
-                }}
-              />
-            </div>
-            <div className="t-2xs muted">
-              Analyst revision breadth
-              {fq.revision_breadth_pct != null
-                ? ` ${num(fq.revision_breadth_pct, 0)}%`
-                : ""}{" "}
-              · insider buying breadth
-              {fq.insider_buying_breadth_pct != null
-                ? ` ${num(fq.insider_buying_breadth_pct, 0)}%`
-                : ""}
-            </div>
-          </div>
-        )}
 
         {/* Sahm Rule recession veto */}
         {sahm && (

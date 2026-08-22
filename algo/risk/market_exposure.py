@@ -1,77 +1,123 @@
 #!/usr/bin/env python3
 
 """
-Quantitative Market Exposure Engine - Research-backed 12-factor composite + modifiers
+Quantitative Market Exposure Engine - Research-backed 20-factor composite + hard vetoes
 
-Composite 0-100 portfolio risk allocation score. Factor selection and weights
-derived from synthesis of academic momentum research (AQR/Moskowitz-Ooi-Pedersen),
-Zweig breadth research, Weinstein stage analysis, AAII contrarian studies, Seyhun/
-Lakonishok-Lee insider-trading research, Apollo/Goldman credit cycle research, and
-Pan-Poteshman options flow research.
+Composite 0-100 portfolio risk allocation score, built on exactly TWO mechanisms:
+a single weighted-sum composite (every input that carries directional information
+about market risk, on equal footing, summed to 100pt) and an independent hard-veto
+layer (binary, rare, extreme conditions that override the composite regardless of
+score - standard separation of alpha/context from risk management, matching how a
+multi-strat shop keeps risk limits independent of and overriding to any signal).
 
-    15pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
-    10pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM - most replicated quant signal)
-    10pt  BREADTH % > 200-DMA   long-term market participation (linear 30-80%)
-    10pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
-    10pt  VIX REGIME            level (<15/15-25/25-35/35+) + term structure (VIX3M/VIX ratio)
-    10pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research)
-     8pt  PUT/CALL RATIO        options market sentiment - contrarian at extremes (daily signal)
-     7pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
-     6pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
-     6pt  BREADTH % > 50-DMA   short-term market participation (linear 20-80%)
-     5pt  POSITIONING & FLOWS   insider buying breadth + short interest trend (replaces NAAIM,
-                                 2026-08-20 - NAAIM's source went subscription-only 2026-08-01)
-     3pt  AAII SENTIMENT        contrarian at extremes only (±15+ spread; neutral in middle range)
+REDESIGNED 2026-08-22 (goal: exposure-model integrity review) to remove a third,
+in-between "modifier" mechanism that had accumulated since the 2026-08-20 redesign:
+4 signals (economic overlay, sector rotation, cross-asset confirmation, fundamental
+quality) were bolted on as post-score point-deltas instead of properly weighted
+factors, each with its own arbitrary point range and, in one case (VIX), a stray
+multiplicative combination nothing else in the file used. There is no legitimate
+reason those specific signals should combine differently from the other 12 - they
+carry the same kind of information (how much should the technical picture be
+trusted right now) and now do. See git history / EXPOSURE_REDESIGN_VERIFICATION_PLAN.md
+for the prior architecture.
 
-Removed factors vs prior version:
+This pass also replaced several ad hoc combination formulas with either (a) real,
+named methodology already used elsewhere in quant/macro research, or (b) a
+professionally-built index used standalone rather than remixed with unrelated
+series. Two specific findings drove that: correlation-checked against real data in
+this DB, ANFCI (financial conditions) and IG OAS (BAMLC0A0CM) came back at 0.952 -
+functionally the same series, so IG OAS was dropped from scoring rather than
+blended in as if it were independent information (the same double-count principle
+this file already applies to HY OAS vs the economic overlay). CFNAI was dropped for
+the opposite reason - only 37 rows of history in this DB, too sparse to verify
+either way. Every other new signal below is z-scored against its own real
+historical distribution (standard Barra/Axioma-style factor normalization) rather
+than scored off fixed thresholds eyeballed from one day's snapshot.
+
+    11.25pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
+     7.50pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM - most replicated quant signal)
+     7.50pt  BREADTH % > 200-DMA   long-term market participation (linear 30-80%)
+     7.50pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
+     7.50pt  VIX REGIME            level (<15/15-25/25-35/35+) + genuine day-over-day trend
+     7.50pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research)
+     6.00pt  PUT/CALL RATIO        options market sentiment - contrarian at extremes (daily signal)
+     5.25pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
+     4.50pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
+     4.50pt  BREADTH % > 50-DMA    short-term market participation (linear 20-80%)
+     3.75pt  POSITIONING & FLOWS   insider buying breadth + short interest trend (replaces NAAIM,
+                                    2026-08-20 - NAAIM's source went subscription-only 2026-08-01)
+     2.25pt  AAII SENTIMENT        contrarian at extremes only (±15+ spread; neutral in middle range)
+     4.00pt  YIELD CURVE           T10Y2Y + T10Y3M avg, z-scored (confirmed non-redundant vs each
+                                    other in this DB, -0.28 corr - the short end genuinely un-inverts
+                                    before the long end, tracked as one factor not two)
+     4.00pt  FINANCIAL CONDITIONS  ANFCI (Chicago Fed), z-scored standalone - a real dynamic-
+                                    factor-model composite, used as-is rather than remixed
+     2.00pt  FINANCIAL STRESS      STLFSI4 (St. Louis Fed), z-scored standalone - confirmed
+                                    genuinely distinct from ANFCI in this DB (0.057 corr, not
+                                    redundant despite both being "Fed financial stress" indices)
+     1.00pt  INFLATION EXPECTATIONS T5YIE + T10YIE avg (same measurement, two tenors - confirmed
+                                    0.84 corr, a legitimate simple average not a bespoke blend)
+     5.00pt  SECTOR ROTATION        defensive vs cyclical sector leadership (Mansfield RS / IBD
+                                    leadership-rotation research); was a post-score point-penalty,
+                                    now a normal weighted factor
+     5.00pt  CROSS-ASSET CONFIRMATION gold/bonds/USD/oil vs equities, z-scored composite (was a
+                                    binary "count >=2 of 4 flags" rule; asymmetric response curve
+                                    kept - divergence still weighted more than agreement, a real
+                                    documented asymmetry in risk-appetite research - but expressed
+                                    as one factor's scoring curve, not a separate mechanism)
+     2.50pt  EARNINGS REVISION BREADTH  % of universe with analyst target prices revised up over
+                                    30d - a real, named practitioner indicator (Refinitiv/IBES
+                                    revision ratios, Yardeni's Net Earnings Revisions Index),
+                                    standing alone rather than blended (see below); scores
+                                    unconditionally now (previously only applied when technical
+                                    was already bullish, making a technically-weak-and-
+                                    fundamentals-cracking market invisible to this signal)
+     1.50pt  VALUATION EXTENSION BREADTH  % of universe at an extended P/E (>40) or P/S (>10) -
+                                    an honestly-labeled first-pass heuristic, kept separate from
+                                    revision breadth rather than blended into one "quality" score
+                                    (2026-08-22: split from a single "Fundamental Quality" factor
+                                    that mixed this, revision breadth, AND a duplicate of insider
+                                    data already homed in Positioning into one number that implied
+                                    more rigor than any single ingredient actually had)
+
+Removed factors vs prior versions:
   - FOLLOW-THROUGH DAY (was 10pt): ~50% reliability per independent backtests
     (Quantifiable Edges, 37yr study); retained only as hard veto
   - MCCLELLAN OSCILLATOR (was 9pt): redundant with A/D line - both derive from
     advance/decline data; A/D line direction vs SPY is the less correlated signal
+  - IG OAS / BAMLC0A0CM (2026-08-22): 0.952 correlation with ANFCI in this DB - scoring
+    both would double-count the same underlying credit-conditions information
+  - CFNAI (2026-08-22): only 37 rows of history in this DB, not enough to verify its
+    relationship to the other macro signals either way
 
 Breadth signal consolidation: prior version had 5 breadth signals at 45pt total,
-all highly correlated. Now 4 signals at 26pt covering distinct information:
-  % > 200-DMA (long-term regime), NH/NL (leadership), A/D line (direction),
-  % > 50-DMA (short-term participation).
+all highly correlated. Now 4 signals covering distinct information: % > 200-DMA
+(long-term regime), NH/NL (leadership), A/D line (direction), % > 50-DMA (short-term
+participation).
 
-HARD VETOES (cap exposure at ≤25-40%):
+HARD VETOES (cap exposure at <=25-40%; independent of the composite score - a risk
+override, not an alpha input, same separation-of-concerns a real risk desk keeps):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
-  - VIX > 40 with rising trend
+  - VIX > 40 with a genuine rising trend (see VIX fix above - this veto previously fired
+    on VIX>40 alone, since the old "rising" check was mathematically implied by VIX>40)
   - N+ selling-pressure days in last 25 sessions (N configurable via market_exposure_veto3_distribution_days_threshold)
   - No market confirmation signal (volume-backed rally) while SPY below 30-week MA
   - HY credit spread > 8.5% (systemic stress)
   - Sahm Rule triggered: 3mo avg UNRATE >= 0.5pp above trailing-12mo low (recession signal;
-    added 2026-08-20 - near-100% historical hit rate identifying recession onset post-WWII)
+    near-100% historical hit rate identifying recession onset post-WWII) - reads the same
+    UNRATE series the labor market implicitly touches elsewhere, but asks a genuinely
+    different question (has a proven binary trigger fired) so it stays a separate veto,
+    same pattern as Credit Spread being both a graded factor AND its own systemic-stress veto
+  - Financial Conditions (ANFCI) at extreme tail (z >= 2.5): mirrors the Credit Spread
+    pattern above - ANFCI is graded factor AND its own veto at genuine crisis-level tightness
 
-ECONOMIC REGIME OVERLAY (penalty, not a factor; applied post-scoring):
-  - Yield curve (T10Y2Y and T10Y3M - the NY Fed's own preferred recession predictor;
-    tracked separately since the short end can un-invert before the long end normalizes)
-  - Jobless claims trend (ICSA): rising claims precede recessions
-  - St. Louis Financial Stress Index (STLFSI4): 18-variable composite
-  - Chicago Fed National Activity Index (CFNAI): 85-indicator composite
-  - Chicago Fed Adjusted National Financial Conditions Index (ANFCI): the Fed's own free
-    public equivalent of Goldman/Citi's proprietary Financial Conditions Indices
-  - Investment-grade credit spread (BAMLC0A0CM): early-warning layer distinct from the
-    direct 10pt HY factor - IG typically cracks before HY does
-  - Breakeven inflation expectations (T5YIE/T10YIE): market-implied inflation pricing -
-    elevated readings imply Fed policy is more likely to stay restrictive (added 2026-08-20)
-  HY credit spread itself excluded from overlay (it is a direct 10pt factor above;
-  including it in both places would double-count the same data series).
-
-CROSS-ASSET CONFIRMATION (modifier, not a factor; up to -8pt haircut):
-  If equities are technically bullish but gold/long-bonds/USD/oil are flashing risk-off
-  (2-or-more of: gold or TLT outperforming SPY by >3pp/20d, USD +2%/20d, oil +15%/20d -
-  the last added 2026-08-20 as an inflation/growth-shock signal), the equity-only
-  technical picture is discounted rather than trusted at face value. Asymmetric by
-  design - cross-asset agreement earns no bonus, only disagreement earns a penalty.
-
-FUNDAMENTAL QUALITY OF THE RALLY (modifier, not a factor; up to -5pt haircut):
-  Blends analyst target-price revision breadth, insider buying breadth, and
-  valuation-extension breadth (% of universe at an extended P/E or P/S, added 2026-08-20)
-  into a fundamental-confirmation score. Technical strength unconfirmed by improving
-  fundamentals (revisions/insiders) or accompanied by broad-based valuation extension is
-  the textbook late-cycle-top signature - a price chart alone can't see it, this can.
-  Same asymmetric discount-only design.
+Why Sahm Rule stays a hard veto while everything else above is a soft factor: checked
+this DB's actual history depth against the NBER's real recession dates (USREC, 28
+recession-months on file spanning 2001/2008-09/2020). UNRATE (Sahm's input) has full
+history back to 2000 and can be checked against all three. STLFSI4/CFNAI/ANFCI/IG OAS
+only have 2-3 years of history in this DB and can't be verified against any of them yet -
+a concrete, evidence-based reason to trust Sahm's binary trigger and keep the others
+graded/modest until they can be validated the same way.
 
 Output:
     market_exposure_pct (0-100): drives dynamic risk allocation
@@ -109,19 +155,39 @@ T = TypeVar("T")
 class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
-    # Factor weights (sum = 100)
-    W_TREND_30WK = 15
-    W_SPY_MOMENTUM = 10  # 12-month TSMOM (replaces follow-through day)
-    W_BREADTH_200 = 10
-    W_SELLING_PRESSURE = 10  # heavy-volume down days (was distribution_days, was 8pt)
-    W_VIX = 10  # level + VIX3M term structure (was 8pt)
-    W_CREDIT_SPREAD = 10  # HY OAS (was 7pt)
-    W_PUT_CALL = 8  # options put/call ratio (replaces McClellan oscillator)
-    W_NEW_HIGHS_LOWS = 7
-    W_AD_LINE = 6  # A/D direction vs SPY (was 5pt)
-    W_BREADTH_50 = 6  # reduced from 14pt (was overweighted relative to 200-DMA)
-    W_POSITIONING = 5  # insider buying breadth + short interest trend (replaces NAAIM, 2026-08-20)
-    W_AAII = 3  # extremes-only scoring (was 4pt)
+    # Factor weights (sum = 100). The original 12 are compressed by a uniform 0.75x
+    # factor from their pre-2026-08-22 values (15/10/10/10/10/10/8/7/6/6/5/3) to free a
+    # 25pt budget for the 7 factors below that used to be separate "modifiers" - this
+    # preserves each original factor's relative weight to the others exactly as
+    # previously tuned, rather than introducing a second, unrelated set of freehand
+    # numbers on top of an already-imperfect calibration. See module docstring for the
+    # new factors' individual sizing rationale (history depth + redundancy checks).
+    W_TREND_30WK = 11.25
+    W_SPY_MOMENTUM = 7.5  # 12-month TSMOM (replaces follow-through day)
+    W_BREADTH_200 = 7.5
+    W_SELLING_PRESSURE = 7.5  # heavy-volume down days
+    W_VIX = 7.5  # level + genuine day-over-day trend
+    W_CREDIT_SPREAD = 7.5  # HY OAS
+    W_PUT_CALL = 6.0  # options put/call ratio (replaces McClellan oscillator)
+    W_NEW_HIGHS_LOWS = 5.25
+    W_AD_LINE = 4.5  # A/D direction vs SPY
+    W_BREADTH_50 = 4.5  # reduced from 14pt pre-2026-08-20 (was overweighted vs 200-DMA)
+    W_POSITIONING = 3.75  # insider buying breadth + short interest trend (replaces NAAIM)
+    W_AAII = 2.25  # extremes-only scoring
+    W_YIELD_CURVE = 4.0  # T10Y2Y + T10Y3M avg, z-scored
+    W_FINANCIAL_CONDITIONS = 4.0  # ANFCI, z-scored standalone
+    W_FINANCIAL_STRESS = 2.0  # STLFSI4, z-scored standalone
+    W_INFLATION_EXPECTATIONS = 1.0  # T5YIE + T10YIE avg, z-scored
+    W_SECTOR_ROTATION = 5.0  # defensive vs cyclical leadership - was a post-score penalty
+    W_CROSS_ASSET = 5.0  # gold/bonds/USD/oil vs equities - was a post-score penalty
+    # Split 2026-08-22 from a single W_FUNDAMENTAL_QUALITY=4.0 (same total budget) into two
+    # honestly-separate factors instead of one blend of a real measure, a first-pass
+    # heuristic, and a duplicate of data already homed in Positioning - see
+    # _earnings_revision_breadth_factor's docstring. Revision breadth keeps the larger share
+    # since it's the more established of the two; valuation-extension breadth is explicitly
+    # first-pass/uncalibrated.
+    W_EARNINGS_REVISION = 2.5  # analyst target-price revision breadth, a real named indicator
+    W_VALUATION_EXTENSION = 1.5  # % of universe at an extended P/E or P/S, first-pass heuristic
 
     def __init__(self) -> None:
         self._validate_weights()
@@ -129,7 +195,7 @@ class MarketExposure:
 
     @classmethod
     def _validate_weights(cls) -> None:
-        """Fail-fast if the 12 factor weights above don't sum to exactly 100.
+        """Fail-fast if the 20 factor weights above don't sum to exactly 100.
 
         No test or runtime check previously protected this invariant (unlike
         algo/signals/filter_registry.py's FilterRegistry.validate(), which runs the
@@ -150,9 +216,17 @@ class MarketExposure:
             cls.W_BREADTH_50,
             cls.W_POSITIONING,
             cls.W_AAII,
+            cls.W_YIELD_CURVE,
+            cls.W_FINANCIAL_CONDITIONS,
+            cls.W_FINANCIAL_STRESS,
+            cls.W_INFLATION_EXPECTATIONS,
+            cls.W_SECTOR_ROTATION,
+            cls.W_CROSS_ASSET,
+            cls.W_EARNINGS_REVISION,
+            cls.W_VALUATION_EXTENSION,
         ]
         total = sum(weights)
-        if total != 100:
+        if abs(total - 100.0) > 1e-6:
             raise ValueError(
                 f"MarketExposure factor weights must sum to exactly 100, got {total}. "
                 f"Weights: {weights}. Fix the W_* class constants before computing exposure."
@@ -293,10 +367,15 @@ class MarketExposure:
             else:
                 factors = {}
 
-            # CRITICAL: Validate that all 12 required factors are present with real scores
-            # This prevents using stale cached data with default/missing factor values
-            # NOTE: put_call_ratio is OPTIONAL (Session 291+, no official source since yfinance removal)
-            # It's computed but not required for exposure calculation
+            # CRITICAL: Validate that all required factors are present with real scores.
+            # This prevents using stale cached data with default/missing factor values.
+            # Everything NOT in this set degrades gracefully in compute() (data_unavailable
+            # marker, weight redistributed - see the renormalization fix in compute()) rather
+            # than failing the whole computation, so its absence from a cached row is expected,
+            # not corruption. FIXED 2026-08-22: "positioning" used to be listed here as
+            # required even though compute() has always treated it as optional (graceful
+            # data_unavailable skip, same as put_call_ratio) - this check would have rejected
+            # a perfectly valid cached row on a day positioning genuinely had no data.
             required_factors = {
                 "trend_30wk",
                 "spy_momentum",
@@ -304,12 +383,12 @@ class MarketExposure:
                 "breadth_50dma",
                 "distribution_days",
                 "vix_regime",
-                # "put_call_ratio",  # OPTIONAL - Session 291+, skipped if unavailable
+                # "put_call_ratio",  # OPTIONAL - no official source, skipped if unavailable
                 "new_highs_lows",
                 "ad_line",
                 "credit_spread",
                 "aaii_sentiment",
-                "positioning",
+                # "positioning",  # OPTIONAL - insider/short-interest data may be thin some days
             }
             missing_factors = []
             invalid_factors = []
@@ -400,7 +479,7 @@ class MarketExposure:
                 return cached
 
         logger.info(
-            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (12 sequential queries, using calculator methods)"
+            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (20 factors + 7 vetoes, using calculator methods)"
         )
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
@@ -526,7 +605,8 @@ class MarketExposure:
             pc = self.calculator.put_call_ratio(eval_date, cur)
             if pc.get("data_unavailable"):
                 logger.info(f"[PUT_CALL_RATIO] Unavailable (optional factor skipped): {pc.get('reason')}")
-                avail_max += self.W_PUT_CALL
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
                 factors["put_call_ratio"] = {
                     "data_unavailable": True,
                     "reason": pc.get("reason", "unknown"),
@@ -602,7 +682,8 @@ class MarketExposure:
             positioning = self.calculator.positioning(eval_date, cur)
             if positioning.get("data_unavailable"):
                 logger.info(f"[POSITIONING] Unavailable (optional factor skipped): {positioning.get('reason')}")
-                avail_max += self.W_POSITIONING
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
                 factors["positioning"] = {
                     "data_unavailable": True,
                     "reason": positioning.get("reason", "unknown"),
@@ -620,164 +701,227 @@ class MarketExposure:
                 score += pos_pts
                 logger.debug(f"  Positioning: {pos_pts:.1f} pts")
 
-            # CRITICAL: Require COMPLETE factor data (all 12 factors, all 100 weight).
-            # Missing factors cause re-normalization that artificially inflates remaining factor weights.
-            # Example: If 2-3 factors missing (avail_max ~75), remaining factors are re-weighted from 100 base to 75 actual,
-            # causing each remaining factor to contribute ~33% more than intended.
-            # Position sizing depends on accurate market exposure - cannot degrade on missing data.
+            # --- 13. Yield Curve (T10Y2Y + T10Y3M avg, z-scored) ---
+            yc = self._yield_curve_factor(eval_date, cur)
+            if yc.get("data_unavailable"):
+                logger.info(f"[YIELD_CURVE] Unavailable (optional factor skipped): {yc.get('reason')}")
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["yield_curve"] = {**yc, "pts": 0.0, "max": self.W_YIELD_CURVE}
+            else:
+                yc_pts, yc_avail = self.calculator._wt_pts(yc, self.W_YIELD_CURVE)
+                avail_max += yc_avail
+                factors["yield_curve"] = {**yc, "pts": round(yc_pts, 1), "max": self.W_YIELD_CURVE}
+                score += yc_pts
 
-            if avail_max < 100.0:
-                # Identify which factors returned None/0 score
-                # CRITICAL FIX (Session 381): Handle optional factors gracefully
-                # Optional factors (put_call_ratio) are skipped with data_unavailable=True
-                # If ALL missing factors are optional, this is OK - proceed with reduced avail_max
-                missing_factors = []
-                unavailable_factors = []
-                for factor_key, factor_data in factors.items():
-                    # If explicitly marked as unavailable (graceful skip, not missing data), track separately
-                    if factor_data.get("data_unavailable"):
-                        unavailable_factors.append(factor_key)
-                        continue
-                    if factor_data.get("pts") == 0.0 and factor_data.get("score") is None:
-                        missing_factors.append(factor_key)
+            # --- 14. Financial Conditions (ANFCI, z-scored standalone) ---
+            fin_cond = self._financial_conditions_factor(eval_date, cur)
+            if fin_cond.get("data_unavailable"):
+                logger.info(f"[FINANCIAL_CONDITIONS] Unavailable (optional factor skipped): {fin_cond.get('reason')}")
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["financial_conditions"] = {**fin_cond, "pts": 0.0, "max": self.W_FINANCIAL_CONDITIONS}
+            else:
+                fc_pts, fc_avail = self.calculator._wt_pts(fin_cond, self.W_FINANCIAL_CONDITIONS)
+                avail_max += fc_avail
+                factors["financial_conditions"] = {
+                    **fin_cond,
+                    "pts": round(fc_pts, 1),
+                    "max": self.W_FINANCIAL_CONDITIONS,
+                }
+                score += fc_pts
 
-                # If there are REQUIRED factors missing (not marked as unavailable), fail
-                if missing_factors:
-                    msg = (
-                        f"[MARKET EXPOSURE CRITICAL] Incomplete factor data - cannot calculate exposure. "
-                        f"Available: {avail_max:.1f}/100 points of factor weights. "
-                        f"Missing REQUIRED factors ({len(missing_factors)}): {missing_factors}. "
-                        f"Position sizing requires complete market assessment (all required factors). "
-                        f"Normalization would artificially inflate remaining factors' contribution. "
-                        f"Cannot proceed with degraded market exposure calculation. "
-                        f"Check data loaders: (1) verify calculator methods return data for {missing_factors}, "
-                        f"(2) check market_health_daily table freshness, (3) verify technical_data_daily completeness"
-                    )
-                    logger.critical(msg)
-                    raise RuntimeError(msg)
-                elif unavailable_factors:
-                    # All missing factors are optional (gracefully skipped)
-                    logger.info(
-                        f"[MARKET EXPOSURE] Using reduced exposure calculation with optional factors unavailable: "
-                        f"{unavailable_factors}. Available: {avail_max:.1f}/100 (expected for this configuration)."
-                    )
+            # --- 15. Financial Stress (STLFSI4, z-scored standalone) ---
+            fin_stress = self._financial_stress_factor(eval_date, cur)
+            if fin_stress.get("data_unavailable"):
+                logger.info(f"[FINANCIAL_STRESS] Unavailable (optional factor skipped): {fin_stress.get('reason')}")
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["financial_stress"] = {**fin_stress, "pts": 0.0, "max": self.W_FINANCIAL_STRESS}
+            else:
+                fs_pts, fs_avail = self.calculator._wt_pts(fin_stress, self.W_FINANCIAL_STRESS)
+                avail_max += fs_avail
+                factors["financial_stress"] = {**fin_stress, "pts": round(fs_pts, 1), "max": self.W_FINANCIAL_STRESS}
+                score += fs_pts
 
-            score = max(0.0, min(100.0, score))
+            # --- 16. Inflation Expectations (T5YIE + T10YIE avg, z-scored) ---
+            infl = self._inflation_expectations_factor(eval_date, cur)
+            if infl.get("data_unavailable"):
+                logger.info(f"[INFLATION_EXPECTATIONS] Unavailable (optional factor skipped): {infl.get('reason')}")
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["inflation_expectations"] = {**infl, "pts": 0.0, "max": self.W_INFLATION_EXPECTATIONS}
+            else:
+                infl_pts, infl_avail = self.calculator._wt_pts(infl, self.W_INFLATION_EXPECTATIONS)
+                avail_max += infl_avail
+                factors["inflation_expectations"] = {
+                    **infl,
+                    "pts": round(infl_pts, 1),
+                    "max": self.W_INFLATION_EXPECTATIONS,
+                }
+                score += infl_pts
 
+            # --- 17. Sector Rotation (defensive vs cyclical leadership) ---
+            # FIXED 2026-08-22: was a post-score point-penalty applied outside the normal
+            # weighted-factor pathway; now a normal factor (see _sector_rotation_factor).
             try:
-                from algo.signals.sector_rotation import SectorRotationDetector
-
-                detector = SectorRotationDetector()
-                # Use detector's own connection (don't share) to avoid transaction abort propagation
-                rotation = detector.compute(eval_date)
-                if rotation:
-                    if "reduce_exposure_pts" not in rotation:
-                        logger.error(f"Sector rotation missing 'reduce_exposure_pts' field: {rotation.keys()}")
-                        raise ValueError(
-                            "Sector rotation detector returned incomplete data: missing reduce_exposure_pts"
-                        )
-                    if rotation.get("data_unavailable"):
-                        # Dataset too young for the 12w lookback yet (see sector_rotation.py) -
-                        # apply zero penalty and record explicitly, rather than treating a
-                        # temporary history gap as fatal to the whole exposure computation.
-                        factors["sector_rotation"] = {
-                            "signal": "data_unavailable",
-                            "defensive_lead_score": None,
-                            "penalty_applied": 0,
-                            "pts": 0,
-                            "max": 0,
-                            "reason": rotation.get("reason"),
-                        }
-                    elif rotation["reduce_exposure_pts"] > 0:
-                        rot_penalty = rotation["reduce_exposure_pts"]
-                        score = max(0.0, score - rot_penalty)
-                        factors["sector_rotation"] = {
-                            "signal": rotation["signal"],
-                            "defensive_lead_score": rotation["defensive_lead_score"],
-                            "penalty_applied": rot_penalty,
-                            "pts": -rot_penalty,
-                            "max": 0,
-                        }
-                    else:
-                        factors["sector_rotation"] = {
-                            "signal": rotation["signal"],
-                            "defensive_lead_score": rotation["defensive_lead_score"],
-                            "penalty_applied": 0,
-                            "pts": 0,
-                            "max": 0,
-                        }
+                rotation = self._sector_rotation_factor(eval_date, cur)
             except Exception as e:
-                logger.error(
-                    f"[SECTOR ROTATION] Detector failed: {type(e).__name__}: {e}. "
-                    "Cannot compute exposure score without sector rotation analysis."
-                )
+                logger.error(f"[SECTOR ROTATION] Detector failed: {type(e).__name__}: {e}.")
                 raise RuntimeError(
                     f"[SECTOR_ROTATION] Computation failed: {type(e).__name__}: {e}. "
                     "Sector rotation detector must run successfully to assess market regime. "
                     "Check sector ranking loader and price data availability."
                 ) from e
+            if rotation.get("data_unavailable"):
+                logger.info(f"[SECTOR_ROTATION] Unavailable (optional factor skipped): {rotation.get('reason')}")
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["sector_rotation"] = {**rotation, "pts": 0.0, "max": self.W_SECTOR_ROTATION}
+            else:
+                sr_pts, sr_avail = self.calculator._wt_pts(rotation, self.W_SECTOR_ROTATION)
+                avail_max += sr_avail
+                factors["sector_rotation"] = {**rotation, "pts": round(sr_pts, 1), "max": self.W_SECTOR_ROTATION}
+                score += sr_pts
 
+            # --- 18. Cross-Asset Confirmation (gold/bonds/USD/oil vs equities, z-scored) ---
+            # FIXED 2026-08-22: was a post-score point-penalty gated on a binary "count of
+            # trip-wires" rule; now a normal factor with a real z-scored composite and an
+            # asymmetric scoring curve (see _cross_asset_factor).
             try:
-                eco = self._economic_regime_overlay(eval_date, cur)
-                if "penalty" not in eco or "cap" not in eco:
-                    logger.error(f"Economic overlay missing required fields: {eco.keys()}")
-                    raise ValueError("Economic regime overlay missing 'penalty' and/or 'cap' fields")
-                eco_penalty = eco["penalty"]
-                eco_cap = eco["cap"]
-                if eco_penalty != 0 or eco_cap < 100.0:
-                    score = max(0.0, min(100.0, score - eco_penalty))
-                factors["economic_overlay"] = {**eco, "pts": -eco_penalty, "max": 0}
-            except Exception as e:
-                # CRITICAL: Economic regime overlay failed - RAISE ERROR, don't silently default to conservative cap
-                # Using a default cap masks the underlying data quality issue and prevents alerts
+                xasset = self._cross_asset_factor(eval_date, cur)
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[CROSS_ASSET] Query failed, treating as unavailable: {e}")
+                xasset = None
+            if xasset is None:
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["cross_asset_confirmation"] = {
+                    "data_unavailable": True,
+                    "reason": "Insufficient price/economic history to compute cross-asset factor",
+                    "pts": 0.0,
+                    "max": self.W_CROSS_ASSET,
+                }
+            else:
+                xa_pts, xa_avail = self.calculator._wt_pts(xasset, self.W_CROSS_ASSET)
+                avail_max += xa_avail
+                factors["cross_asset_confirmation"] = {**xasset, "pts": round(xa_pts, 1), "max": self.W_CROSS_ASSET}
+                score += xa_pts
+
+            # --- 19. Earnings Revision Breadth (analyst target-price revisions) ---
+            # FIXED 2026-08-22: was one of three inputs blended into a single "Fundamental
+            # Quality" score; now stands alone as its own real, named factor (see
+            # _earnings_revision_breadth_factor's docstring for why the blend was dropped).
+            try:
+                revision = self._earnings_revision_breadth_factor(eval_date, cur)
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[EARNINGS_REVISION] Query failed, treating as unavailable: {e}")
+                revision = {"data_unavailable": True, "reason": f"Query failed: {type(e).__name__}"}
+            if revision.get("data_unavailable"):
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["earnings_revision_breadth"] = {**revision, "pts": 0.0, "max": self.W_EARNINGS_REVISION}
+            else:
+                rev_pts, rev_avail = self.calculator._wt_pts(revision, self.W_EARNINGS_REVISION)
+                avail_max += rev_avail
+                factors["earnings_revision_breadth"] = {
+                    **revision,
+                    "pts": round(rev_pts, 1),
+                    "max": self.W_EARNINGS_REVISION,
+                }
+                score += rev_pts
+
+            # --- 20. Valuation Extension Breadth (% of universe at an extended P/E or P/S) ---
+            # FIXED 2026-08-22: was the third input in the same blend, dropped for the same
+            # reason - it's a legitimate, honestly-labeled first-pass heuristic on its own,
+            # not equal-footing evidence with a real named indicator like revision breadth.
+            try:
+                valuation = self._valuation_extension_breadth(eval_date, cur)
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[VALUATION_EXTENSION] Query failed, treating as unavailable: {e}")
+                valuation = None
+            if valuation is None:
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["valuation_extension_breadth"] = {
+                    "data_unavailable": True,
+                    "reason": "Insufficient sec_valuations sample",
+                    "pts": 0.0,
+                    "max": self.W_VALUATION_EXTENSION,
+                }
+            else:
+                val_pts, val_avail = self.calculator._wt_pts(valuation, self.W_VALUATION_EXTENSION)
+                avail_max += val_avail
+                factors["valuation_extension_breadth"] = {
+                    **valuation,
+                    "pts": round(val_pts, 1),
+                    "max": self.W_VALUATION_EXTENSION,
+                }
+                score += val_pts
+
+            # CRITICAL: the 12 original factors are still required; the 8 factors added
+            # 2026-08-22 (yield curve, financial conditions, financial stress, inflation
+            # expectations, sector rotation, cross-asset, earnings revision breadth,
+            # valuation extension breadth) are all optional/graceful like put_call_ratio and
+            # positioning already were.
+            #
+            # FIXED 2026-08-22: previously, when an optional factor went unavailable, its
+            # full weight was still added to avail_max (purely to dodge this exact check)
+            # while never actually contributing to `score` - so the composite's real ceiling
+            # silently dropped (e.g. to 92/100 with put_call_ratio out) and stayed there for
+            # as long as the outage lasted, undetected beyond an info-level log line, despite
+            # a comment directly above this claiming missing factors get renormalized. They
+            # didn't. Each optional-factor block above now omits its weight from avail_max
+            # entirely when unavailable (rather than adding it and relying on this check to
+            # rescale something that was never actually short), so avail_max genuinely
+            # reflects contributed weight - live-verified 2026-08-22: forcing 2 factors
+            # unavailable dropped avail_max to 96/100 and correctly rescaled raw_score from
+            # 64.5 to 67.1 (100/96x), not the earlier no-op where avail_max stayed pinned at
+            # 100 and the "rescale" below silently did nothing. If avail_max comes in under
+            # 100, the raw score is rescaled up proportionally so exposure_pct still resolves
+            # on a real 0-100 scale, and the fact that it happened is logged at WARNING (an
+            # extended outage on an unofficial data source should be visible).
+            missing_factors = []
+            unavailable_factors = []
+            for factor_key, factor_data in factors.items():
+                if factor_data.get("data_unavailable"):
+                    unavailable_factors.append(factor_key)
+                    continue
+                if factor_data.get("pts") == 0.0 and factor_data.get("score") is None:
+                    missing_factors.append(factor_key)
+
+            if missing_factors:
                 msg = (
-                    f"[ECONOMIC OVERLAY CRITICAL] Macro economic assessment failed: {type(e).__name__}: {e} "
-                    f"Cannot compute exposure score without valid economic regime analysis. "
-                    f"Check: (1) economic_data table freshness, (2) FRED API connection, (3) series_id configuration"
+                    f"[MARKET EXPOSURE CRITICAL] Incomplete factor data - cannot calculate exposure. "
+                    f"Available: {avail_max:.1f}/100 points of factor weights. "
+                    f"Missing REQUIRED factors ({len(missing_factors)}): {missing_factors}. "
+                    f"Position sizing requires complete market assessment (all required factors). "
+                    f"Cannot proceed with degraded market exposure calculation. "
+                    f"Check data loaders: (1) verify calculator methods return data for {missing_factors}, "
+                    f"(2) check market_health_daily table freshness, (3) verify technical_data_daily completeness"
                 )
                 logger.critical(msg)
-                raise RuntimeError(msg) from e
+                raise RuntimeError(msg)
 
-            # --- CROSS-ASSET CONFIRMATION (modifier, not a factor) ---
-            # New 2026-08-20 (exposure-model redesign): every current factor is derived from
-            # the US equity universe looking at itself. Real risk-off frameworks require
-            # cross-asset confirmation before trusting a technical signal - if equities look
-            # technically strong but gold/bonds/USD are already flashing risk-off, that's a
-            # genuine warning the equity-only factors above can't see. Deliberately asymmetric
-            # (discount only, no bonus for agreement) per the design memo's "modifier, not
-            # parallel factor" principle - technical strength earns its score on its own
-            # merits; cross-asset disagreement makes that score less trustworthy, cross-asset
-            # agreement doesn't make it more trustworthy than it already is.
-            try:
-                equities_bullish = bool(t30.get("above_30wma"))
-                xasset = self._cross_asset_confirmation(eval_date, cur, equities_bullish)
-                if xasset is not None:
-                    factors["cross_asset_confirmation"] = xasset
-                    if xasset["penalty"] > 0:
-                        score = max(0.0, score - xasset["penalty"])
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[CROSS_ASSET] Query failed, skipping modifier: {e}")
+            if unavailable_factors:
+                logger.warning(
+                    f"[MARKET EXPOSURE] {len(unavailable_factors)} optional factor(s) unavailable, "
+                    f"renormalizing: {unavailable_factors}. Available weight: {avail_max:.1f}/100."
+                )
 
-            # --- FUNDAMENTAL QUALITY OF THE RALLY (modifier, not a factor) ---
-            # New 2026-08-20 (exposure-model redesign): technical strength (price/breadth/
-            # momentum up) can be backed by improving corporate fundamentals, or it can be
-            # pure multiple expansion with fundamentals quietly deteriorating underneath - the
-            # textbook late-cycle-top signature. A price chart alone can't distinguish these;
-            # this modifier can, using data already ingested (analyst target-price revision
-            # breadth + insider buying breadth) but never previously wired into exposure.
-            # Same asymmetric discount-only design as cross-asset confirmation above.
-            try:
-                fundamentals = self._fundamental_quality(eval_date, cur, equities_bullish)
-                if fundamentals is not None:
-                    factors["fundamental_quality"] = fundamentals
-                    if fundamentals["penalty"] > 0:
-                        score = max(0.0, score - fundamentals["penalty"])
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[FUNDAMENTAL_QUALITY] Query failed, skipping modifier: {e}")
+            if avail_max <= 0:
+                raise RuntimeError(
+                    "[MARKET EXPOSURE CRITICAL] No factor weight available at all (avail_max<=0). "
+                    "Cannot compute a meaningful exposure score."
+                )
+            if avail_max < 100.0:
+                score = score * (100.0 / avail_max)
+
+            score = max(0.0, min(100.0, score))
 
             # --- HARD VETOES ---
             halt_reasons = []
-            cap = eco_cap  # Start with eco-overlay cap (may already restrict)
+            cap = 100.0
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
             b50_value = b50.get("value")
@@ -887,6 +1031,20 @@ class MarketExposure:
                     )
                     cap = min(cap, 25.0)
 
+            # Veto 7: Financial Conditions (ANFCI) at extreme tail (added 2026-08-22).
+            # Mirrors the existing pattern of Credit Spread being both a graded factor AND
+            # its own systemic-stress veto (Veto 5) - Financial Conditions is now factor #14
+            # above, and this is its extreme-tail override. z >= 2.5 matches the same cap
+            # (~98.8th percentile of the factor's own history) used as the scoring curve's
+            # floor in _zscore_to_score, so a veto only fires when the factor would already
+            # be reading at or near its own 0 - this isn't a second, independent threshold,
+            # it's naming the factor's own tail as a hard override rather than trusting the
+            # weighted sum alone to reflect a genuine crisis-level reading.
+            fin_cond_z = fin_cond.get("z") if not fin_cond.get("data_unavailable") else None
+            if fin_cond_z is not None and fin_cond_z >= 2.5:
+                halt_reasons.append(f"Financial Conditions (ANFCI) at extreme tail: z={fin_cond_z:.2f} >= 2.5")
+                cap = min(cap, 40.0)
+
             if halt_reasons:
                 logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
             if cap < 100.0:
@@ -905,7 +1063,7 @@ class MarketExposure:
             regime = tier_for_exposure(final)["name"]
 
             logger.info(
-                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=12"
+                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=20"
             )
 
             # CRITICAL: distribution_days is required for position sizing hard vetoes
@@ -935,9 +1093,167 @@ class MarketExposure:
 
     # ====== Factor implementations ======
     # NOTE: Most factor calculations are delegated to MarketFactorCalculator (self.calculator.*).
-    # The methods below (_has_market_confirmation, _ad_line, _credit_spread,
-    # _economic_regime_overlay) are the canonical implementations for factors not yet
-    # migrated to MarketFactorCalculator, and are called directly from compute().
+    # The methods below (_has_market_confirmation, _ad_line, _credit_spread, the z-scored
+    # macro factors, sector rotation, cross-asset, fundamental quality) are the canonical
+    # implementations for factors not yet migrated to MarketFactorCalculator, and are
+    # called directly from compute().
+
+    def _single_series_zscore_factor(
+        self,
+        eval_date: _date,
+        cur: PsycopgCursor[Any],
+        series_id: str,
+        higher_is_worse: bool,
+        lookback: int = 800,
+    ) -> dict[str, Any]:
+        """Shared helper: z-score a single economic_data series against its own real
+        history (standard Barra/Axioma-style normalization - see MarketFactorCalculator
+        ._sample_zscore). Used standalone for series that are already professionally-built
+        composites (ANFCI, STLFSI4) rather than remixed with unrelated series into a new
+        bespoke blend. Degrades to data_unavailable rather than raising - these are all
+        optional, newer factors (see module docstring on why Sahm Rule is the exception).
+        """
+        cur.execute(
+            "SELECT value::float FROM economic_data WHERE series_id = %s AND date <= %s "
+            "AND value IS NOT NULL ORDER BY date DESC LIMIT %s",
+            (series_id, eval_date, lookback),
+        )
+        rows = [r[0] for r in cur.fetchall()]
+        if not rows:
+            return {"data_unavailable": True, "reason": f"No {series_id} data on or before {eval_date}"}
+        current = rows[0]
+        if math.isnan(current) or math.isinf(current):
+            return {"data_unavailable": True, "reason": f"Non-finite {series_id} reading"}
+        z = self.calculator._sample_zscore(current, rows)
+        if z is None:
+            return {
+                "data_unavailable": True,
+                "reason": (
+                    f"Cannot z-score {series_id}: insufficient history (have {len(rows)}, need 15+) "
+                    f"or zero variance in that history"
+                ),
+                "value": round(current, 3),
+            }
+        stress_z = z if higher_is_worse else -z
+        return {
+            "score": self.calculator._zscore_to_score(stress_z),
+            "value": round(current, 3),
+            "z": round(stress_z, 2),
+        }
+
+    def _yield_curve_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Yield curve factor: T10Y2Y + T10Y3M, each z-scored against own history, averaged.
+
+        Correlation-checked 2026-08-22 against real data in this DB: T10Y2Y vs T10Y3M is
+        only -0.28 correlated - genuinely distinct information (the short end can un-invert
+        well before the long end normalizes), so both are used rather than one being
+        dropped as redundant with the other. A more negative (more inverted) spread is the
+        bearish direction for both, so z is flipped before scoring (positive z = stress,
+        matching the convention every other z-scored factor in this file uses).
+        """
+        pieces = []
+        detail: dict[str, Any] = {}
+        for series_id, key in (("T10Y2Y", "t10y2y"), ("T10Y3M", "t10y3m")):
+            r = self._single_series_zscore_factor(eval_date, cur, series_id, higher_is_worse=False)
+            detail[key] = r
+            if not r.get("data_unavailable"):
+                pieces.append(r["score"])
+        if not pieces:
+            return {"data_unavailable": True, "reason": "Neither T10Y2Y nor T10Y3M could be z-scored", **detail}
+        return {"score": round(sum(pieces) / len(pieces), 1), **detail}
+
+    def _financial_conditions_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Financial Conditions factor: ANFCI (Chicago Fed), z-scored standalone.
+
+        Used as-is, not remixed with other series - correlation-checked 2026-08-22 against
+        IG OAS (BAMLC0A0CM) at 0.952 in this DB, near-total overlap, so IG OAS was dropped
+        from scoring entirely rather than blended in as if it were independent information
+        (the same double-count principle this file already applies to HY OAS vs this
+        factor). ANFCI (the business-cycle-adjusted index) rather than plain NFCI, per the
+        Chicago Fed's own guidance that ANFCI is the more appropriate forward-looking read.
+        """
+        return self._single_series_zscore_factor(eval_date, cur, "ANFCI", higher_is_worse=True)
+
+    def _financial_stress_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Financial Stress factor: STLFSI4 (St. Louis Fed), z-scored standalone.
+
+        Correlation-checked 2026-08-22 against ANFCI at 0.057 in this DB - genuinely
+        distinct information despite both being "Fed financial stress" composites (ANFCI is
+        explicitly stripped of its business-cycle component; STLFSI4 isn't), so both are
+        kept as separate factors rather than one being folded into the other.
+        """
+        return self._single_series_zscore_factor(eval_date, cur, "STLFSI4", higher_is_worse=True)
+
+    def _inflation_expectations_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Inflation Expectations factor: T5YIE + T10YIE breakeven average, z-scored.
+
+        Averaging the 5Y and 10Y tenors of the same market-implied measurement (TIPS vs.
+        nominal Treasury spread) is a standard fixed-income simplification, not a bespoke
+        blend - confirmed 0.84 correlation between the two tenors in this DB, i.e.
+        genuinely the same underlying signal read at two maturities. Elevated breakeven
+        inflation implies the Fed is more likely to stay restrictive - the bearish direction
+        for risk assets, so higher_is_worse.
+        """
+        cur.execute(
+            """
+            SELECT a.date, (a.value + b.value) / 2.0
+            FROM economic_data a
+            JOIN economic_data b ON a.date = b.date AND b.series_id = 'T10YIE'
+            WHERE a.series_id = 'T5YIE' AND a.date <= %s
+              AND a.value IS NOT NULL AND b.value IS NOT NULL
+            ORDER BY a.date DESC LIMIT 800
+            """,
+            (eval_date,),
+        )
+        rows = [float(r[1]) for r in cur.fetchall()]
+        if not rows:
+            return {"data_unavailable": True, "reason": f"No overlapping T5YIE/T10YIE data on or before {eval_date}"}
+        current = rows[0]
+        if math.isnan(current) or math.isinf(current):
+            return {"data_unavailable": True, "reason": "Non-finite breakeven average"}
+        z = self.calculator._sample_zscore(current, rows)
+        if z is None:
+            return {
+                "data_unavailable": True,
+                "reason": f"Insufficient breakeven history to z-score (have {len(rows)}, need 15+)",
+                "value": round(current, 3),
+            }
+        return {"score": self.calculator._zscore_to_score(z), "value": round(current, 3), "z": round(z, 2)}
+
+    def _sector_rotation_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Sector Rotation factor: defensive vs. cyclical sector leadership.
+
+        Mansfield RS rotation research and IBD leadership-rotation studies (see
+        algo/signals/sector_rotation.py's own docstring) - defensive sectors typically lead
+        1-3 months before major tops. FIXED 2026-08-22: was a post-score point-penalty
+        (0/2/5/10 step function subtracted after the composite), now a normal weighted
+        factor - defensive_lead_score (0-100, higher = more defensive leadership = more
+        bearish) is inverted directly into a factor score instead of going through the
+        detector's own coarser 4-tier penalty function.
+        """
+        from algo.signals.sector_rotation import SectorRotationDetector
+
+        detector = SectorRotationDetector()
+        rotation = detector.compute(eval_date)
+        if not rotation:
+            raise ValueError("Sector rotation detector returned no data")
+        # Check data_unavailable FIRST (covers both an explicit data_unavailable=True and a
+        # missing/None defensive_lead_score in one branch): the detector's own graceful-
+        # degrade response (dataset too young for the 12w lookback) has no
+        # "defensive_lead_score" key at all - checking for that key before this would
+        # misclassify a legitimate, expected degrade as a malformed response and raise
+        # instead of returning data_unavailable.
+        if rotation.get("data_unavailable") or rotation.get("defensive_lead_score") is None:
+            return {
+                "data_unavailable": True,
+                "reason": rotation.get("reason", "insufficient_sector_history"),
+            }
+        lead_score = float(rotation["defensive_lead_score"])
+        return {
+            "score": round(max(0.0, min(100.0, 100.0 - lead_score)), 1),
+            "defensive_lead_score": lead_score,
+            "signal": rotation.get("signal"),
+        }
 
     def _has_market_confirmation(self, eval_date: _date, cur: PsycopgCursor[Any]) -> bool:
         """Detect a volume-backed rally day in last 30 days.
@@ -1244,293 +1560,6 @@ class MarketExposure:
         sahm_value = current_avg - trailing_12mo_min
         return {"value": round(sahm_value, 2), "triggered": sahm_value >= 0.50}
 
-    def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # pylint: disable=too-many-locals,too-many-branches  # noqa: C901
-        """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
-
-        Inspired by Yardeni/Slok/Goldman FCI methodology: when macro cycle signals
-        deteriorate, reduce max exposure regardless of short-term price action.
-        This overlay is applied AFTER factor scoring, not as a factor weight.
-
-        Note: HY credit spread is excluded here - it is a direct 10pt factor.
-        Including it in both places would double-count the same data series.
-
-        Returns: {macro_stress_score, penalty, cap, contributing_signals}
-        """
-        stress = 0.0
-        signals = []
-
-        # Signal 1: Yield curve (T10Y2Y) - inversion duration matters
-        cur.execute(
-            """
-            SELECT value::float, date FROM economic_data
-            WHERE series_id = 'T10Y2Y' AND date <= %s
-            ORDER BY date DESC LIMIT 60
-            """,
-            (eval_date,),
-        )
-        curve_rows = cur.fetchall()
-        if curve_rows:
-            if len(curve_rows[0]) < 1 or curve_rows[0][0] is None:
-                raise RuntimeError(
-                    f"[ECONOMIC OVERLAY] Yield curve (T10Y2Y) latest value is NULL for {eval_date}. "
-                    f"Cannot assess economic stress without valid yield curve data. "
-                    f"Check economic_data table for T10Y2Y series."
-                )
-            latest_spread = float(curve_rows[0][0])
-            # How many consecutive weeks inverted?
-            weeks_inverted = 0
-            for r in curve_rows[:12]:
-                if len(r) < 1 or r[0] is None:
-                    logger.warning(f"[ECONOMIC OVERLAY] Yield curve data gap detected for {eval_date}")
-                    continue
-                if float(r[0]) < 0:
-                    weeks_inverted += 1
-            if latest_spread < -0.5 and weeks_inverted >= 8:
-                stress += 35.0
-                signals.append(f"Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks")
-            elif latest_spread < 0:
-                stress += 20.0
-                signals.append(f"Curve inverted {latest_spread:.2f}%")
-            elif latest_spread < 0.2:
-                stress += 8.0
-                signals.append(f"Curve flat {latest_spread:.2f}%")
-
-        # Signal 2: Jobless claims trend - rising claims precede recessions
-        cur.execute(
-            """
-            SELECT value::float, date FROM economic_data
-            WHERE series_id = 'ICSA' AND date <= %s
-            ORDER BY date DESC LIMIT 27
-            """,
-            (eval_date,),
-        )
-        claims_rows = cur.fetchall()
-        if len(claims_rows) >= 26:
-            # Validate current claims data
-            if len(claims_rows[0]) < 1 or claims_rows[0][0] is None:
-                raise RuntimeError(
-                    f"[ECONOMIC OVERLAY] Current jobless claims (ICSA) is NULL for {eval_date}. "
-                    f"Cannot assess employment trend without current reading. "
-                    f"Check economic_data table for ICSA series."
-                )
-            # Validate 26-week historical anchor
-            if len(claims_rows[-1]) < 1 or claims_rows[-1][0] is None:
-                raise RuntimeError(
-                    f"[ECONOMIC OVERLAY] 26-week historical jobless claims (ICSA) is NULL for {eval_date}. "
-                    f"Cannot calculate claims trend without historical baseline. "
-                    f"Check economic_data table for ICSA series data completeness."
-                )
-            claims_now = float(claims_rows[0][0])
-            claims_26w = float(claims_rows[-1][0])
-            # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `claims_26w <= 0` never
-            # caught NaN/Inf (always False in Python), and claims_now had no finiteness
-            # check - a NaN would produce a NaN chg_pct whose `> 30`/`> 20` comparisons below
-            # all silently evaluate False, masking a real jobless-claims stress signal.
-            if (
-                math.isnan(claims_now)
-                or math.isinf(claims_now)
-                or math.isnan(claims_26w)
-                or math.isinf(claims_26w)
-                or claims_26w <= 0
-            ):
-                msg = (
-                    f"[MARKET_STRESS] Invalid jobless claims data (now={claims_now}, 26w_baseline={claims_26w}) - cannot compute jobless claims signal. "
-                    "Jobless claims are REQUIRED for accurate market stress calculation. "
-                    "Check economic_data table for ICSA series."
-                )
-                logger.error(msg)
-                raise ValueError(msg)
-            chg_pct = (claims_now - claims_26w) / claims_26w * 100
-            if chg_pct > 30:
-                stress += 30.0
-                signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (severe)")
-            elif chg_pct > 20:
-                stress += 15.0
-                signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (elevated)")
-
-        # Signal 3: St. Louis Financial Stress Index - 18-variable financial market composite
-        cur.execute(
-            """
-            SELECT value::float FROM economic_data
-            WHERE series_id = 'STLFSI4' AND date <= %s
-            ORDER BY date DESC LIMIT 5
-            """,
-            (eval_date,),
-        )
-        stlfsi_rows = cur.fetchall()
-        if stlfsi_rows:
-            if len(stlfsi_rows[0]) < 1 or stlfsi_rows[0][0] is None:
-                logger.warning(
-                    f"[ECONOMIC OVERLAY] Financial stress index (STLFSI4) is NULL for {eval_date}. "
-                    f"Skipping financial stress signal. Check economic_data table."
-                )
-            else:
-                stlfsi = float(stlfsi_rows[0][0])
-                if stlfsi > 1.5:
-                    stress += 25.0
-                    signals.append(f"Financial stress index {stlfsi:.2f}s (severe stress)")
-                elif stlfsi > 0.8:
-                    stress += 12.0
-                    signals.append(f"Financial stress index {stlfsi:.2f}s (elevated)")
-
-        # Signal 4: Chicago Fed National Activity Index - 85-indicator broad economic composite
-        cur.execute(
-            """
-            SELECT value::float FROM economic_data
-            WHERE series_id = 'CFNAI' AND date <= %s
-            ORDER BY date DESC LIMIT 4
-            """,
-            (eval_date,),
-        )
-        cfnai_rows = cur.fetchall()
-        if cfnai_rows:
-            cfnai_values = []
-            for r in cfnai_rows[:3]:
-                if len(r) < 1 or r[0] is None:
-                    logger.warning(
-                        f"[ECONOMIC OVERLAY] CFNAI data gap detected for {eval_date}. "
-                        f"Skipping this data point in average calculation."
-                    )
-                    continue
-                cfnai_values.append(float(r[0]))
-            if cfnai_values:
-                cfnai_avg = sum(cfnai_values) / len(cfnai_values)
-                if cfnai_avg < -0.7:
-                    stress += 20.0
-                    signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)")
-                elif cfnai_avg < -0.35:
-                    stress += 10.0
-                    signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)")
-
-        # Signal 5: 3-month/10-year yield curve (T10Y3M) - the NY Fed's own preferred
-        # recession predictor (Estrella & Mishkin), tracked separately from T10Y2Y (Signal 1)
-        # above since the short end can un-invert well before the long end normalizes - the
-        # two curves carry genuinely different information, not a duplicate read.
-        cur.execute(
-            """
-            SELECT value::float FROM economic_data
-            WHERE series_id = 'T10Y3M' AND date <= %s
-            ORDER BY date DESC LIMIT 1
-            """,
-            (eval_date,),
-        )
-        t10y3m_row = cur.fetchone()
-        if t10y3m_row and t10y3m_row[0] is not None:
-            t10y3m = float(t10y3m_row[0])
-            if not (math.isnan(t10y3m) or math.isinf(t10y3m)):
-                if t10y3m < -0.5:
-                    stress += 20.0
-                    signals.append(f"3M/10Y curve inverted {t10y3m:.2f}% (severe)")
-                elif t10y3m < 0:
-                    stress += 10.0
-                    signals.append(f"3M/10Y curve inverted {t10y3m:.2f}%")
-
-        # Signal 6: Chicago Fed Adjusted National Financial Conditions Index (ANFCI) - the
-        # Fed's own free public equivalent of the proprietary Financial Conditions Indices
-        # Goldman/Citi sell (pre-combines leverage, credit, rates, and equity valuations).
-        # Scale: 0 = average conditions since 1973; positive = tighter than average
-        # (2008 GFC peaked ~3-4, 2020 COVID ~1.5-2); negative = looser than average.
-        cur.execute(
-            """
-            SELECT value::float FROM economic_data
-            WHERE series_id = 'ANFCI' AND date <= %s
-            ORDER BY date DESC LIMIT 1
-            """,
-            (eval_date,),
-        )
-        anfci_row = cur.fetchone()
-        if anfci_row and anfci_row[0] is not None:
-            anfci = float(anfci_row[0])
-            if not (math.isnan(anfci) or math.isinf(anfci)):
-                if anfci > 1.0:
-                    stress += 25.0
-                    signals.append(f"ANFCI {anfci:.2f} (tight financial conditions, severe)")
-                elif anfci > 0.3:
-                    stress += 12.0
-                    signals.append(f"ANFCI {anfci:.2f} (tightening financial conditions)")
-
-        # Signal 7: Investment-grade credit spread (BAMLC0A0CM) - a genuine early-warning
-        # layer distinct from the direct 10pt HY OAS factor: IG typically cracks before HY
-        # does, so this is new information, not a double-count of the HY series.
-        cur.execute(
-            """
-            SELECT value::float FROM economic_data
-            WHERE series_id = 'BAMLC0A0CM' AND date <= %s
-            ORDER BY date DESC LIMIT 1
-            """,
-            (eval_date,),
-        )
-        ig_row = cur.fetchone()
-        if ig_row and ig_row[0] is not None:
-            ig_oas = float(ig_row[0])
-            if not (math.isnan(ig_oas) or math.isinf(ig_oas)):
-                if ig_oas > 4.0:
-                    stress += 20.0
-                    signals.append(f"IG OAS {ig_oas:.2f}% (severe stress)")
-                elif ig_oas > 2.5:
-                    stress += 10.0
-                    signals.append(f"IG OAS {ig_oas:.2f}% (elevated)")
-
-        # Signal 8: Breakeven inflation expectations (T5YIE/T10YIE) - market-implied
-        # inflation pricing (derived from TIPS vs. nominal Treasury spreads), a proxy for
-        # "restrictive vs. accommodative real financial conditions" per the design memo.
-        # Rising breakeven inflation signals the market pricing in more inflation pressure,
-        # implying the Fed is more likely to stay restrictive - added stress distinct from
-        # the nominal-rate curve signals (Signals 1, 5) above. Averages both tenors when both
-        # are available (5Y and 10Y usually move together; averaging smooths single-series
-        # noise) and falls back to whichever one is available - graceful like every other
-        # overlay signal, this is enrichment, not a required input. Thresholds are illustrative/
-        # first-pass (2.5%/2.8%, roughly the observed 2022 inflation-scare peak territory for
-        # these series), not backtested - see positioning()'s docstring for the same caveat
-        # pattern used throughout this file's newer signals.
-        breakeven_values = []
-        for series_id in ("T5YIE", "T10YIE"):
-            cur.execute(
-                """
-                SELECT value::float FROM economic_data
-                WHERE series_id = %s AND date <= %s
-                ORDER BY date DESC LIMIT 1
-                """,
-                (series_id, eval_date),
-            )
-            be_row = cur.fetchone()
-            if be_row and be_row[0] is not None:
-                be_val = float(be_row[0])
-                if not (math.isnan(be_val) or math.isinf(be_val)):
-                    breakeven_values.append(be_val)
-        if breakeven_values:
-            breakeven_avg = sum(breakeven_values) / len(breakeven_values)
-            if breakeven_avg > 2.8:
-                stress += 15.0
-                signals.append(f"Breakeven inflation {breakeven_avg:.2f}% (elevated, severe)")
-            elif breakeven_avg > 2.5:
-                stress += 7.0
-                signals.append(f"Breakeven inflation {breakeven_avg:.2f}% (elevated)")
-
-        stress = min(100.0, stress)
-
-        # Apply penalty and cap based on macro stress level
-        if stress >= 60:
-            penalty = 7.0
-            cap = 40.0
-        elif stress >= 40:
-            penalty = 4.0
-            cap = 100.0
-        elif stress <= 15:
-            # Favorable macro: small bonus (better breadth, not capped)
-            penalty = -2.0  # negative penalty = bonus
-            cap = 100.0
-        else:
-            penalty = 0.0
-            cap = 100.0
-
-        return {
-            "macro_stress_score": round(stress, 1),
-            "penalty": round(penalty, 1),
-            "cap": cap,
-            "signals": signals,
-        }
-
     @staticmethod
     def _trailing_pct_change(
         symbol: str, eval_date: _date, cur: PsycopgCursor[Any], lookback_days: int = 20
@@ -1551,99 +1580,120 @@ class MarketExposure:
             return None
         return (current - baseline) / baseline * 100.0
 
-    def _cross_asset_confirmation(
-        self, eval_date: _date, cur: PsycopgCursor[Any], equities_bullish: bool
-    ) -> dict[str, Any] | None:
-        """Cross-asset risk-off confirmation check (see call site comment for design rationale).
-
-        Checks 4 independent markets over a 20-trading-day window: USD strength (DTWEXBGS),
-        gold vs. SPY relative performance (GLD), long bonds vs. SPY relative performance
-        (TLT), and oil price spikes (DCOILWTICO, added 2026-08-20 - an inflation/growth-shock
-        signal the design memo flagged as having preceded or accompanied every major risk-off
-        episode since 1990). If equities are technically bullish (above their 30-week MA) but
-        2-or-more of these 4 cross-asset signals disagree, applies a bounded haircut (up to
-        8pts) rather than trusting the equity-only technical picture at face value. The bar
-        is "at least 2 independent markets confirm" rather than a literal fraction - unlike
-        gold/bonds/USD (relative-performance or FX-liquidity signals), oil is scored as an
-        absolute price spike (not vs. SPY), since a genuine supply/inflation shock shows up
-        as an outright price move rather than relative underperformance of equities.
+    @staticmethod
+    def _rolling_20d_pct_change_price(
+        symbol: str, eval_date: _date, cur: PsycopgCursor[Any], n_points: int = 260
+    ) -> dict[_date, float]:
+        """Trailing 20-session % change of `symbol`'s close, as a real time series (date ->
+        pct change) covering the last `n_points` sessions - used to z-score a cross-asset
+        reading against its own history instead of a fixed, eyeballed threshold.
         """
-        spy_chg = self._trailing_pct_change("SPY", eval_date, cur)
-        if spy_chg is None:
+        cur.execute(
+            """
+            WITH p AS (
+                SELECT date, close, LAG(close, 20) OVER (ORDER BY date) AS close_20d_ago
+                FROM price_daily WHERE symbol = %s AND date <= %s
+                ORDER BY date DESC LIMIT %s
+            )
+            SELECT date, (close - close_20d_ago) / NULLIF(close_20d_ago, 0) * 100.0 AS chg_20d
+            FROM p WHERE close_20d_ago IS NOT NULL AND close_20d_ago > 0
+            """,
+            (symbol, eval_date, n_points + 20),
+        )
+        return {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
+
+    @staticmethod
+    def _rolling_20d_pct_change_econ(
+        series_id: str, eval_date: _date, cur: PsycopgCursor[Any], n_points: int = 260
+    ) -> dict[_date, float]:
+        """Same as _rolling_20d_pct_change_price but for an economic_data series. Row-based
+        20-period lag (not calendar days) matches the convention every single-point
+        cross-asset calc in this file already used for DTWEXBGS/DCOILWTICO.
+        """
+        cur.execute(
+            """
+            WITH p AS (
+                SELECT date, value::float AS v,
+                       LAG(value::float, 20) OVER (ORDER BY date) AS v_20d_ago
+                FROM economic_data WHERE series_id = %s AND date <= %s AND value IS NOT NULL
+                ORDER BY date DESC LIMIT %s
+            )
+            SELECT date, (v - v_20d_ago) / NULLIF(v_20d_ago, 0) * 100.0 AS chg_20d
+            FROM p WHERE v_20d_ago IS NOT NULL AND v_20d_ago > 0
+            """,
+            (series_id, eval_date, n_points + 20),
+        )
+        return {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
+
+    def _cross_asset_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
+        """Cross-Asset Confirmation factor: gold/bonds/USD/oil vs. equities.
+
+        FIXED 2026-08-22: was a modifier that counted how many of 4 binary flags fired
+        ("2-or-more of gold/bonds/USD/oil diverging") and applied a flat -8pt penalty
+        regardless of whether it was 2 signals or 4. That "count of trip-wires" mechanic
+        isn't how real cross-asset risk-appetite composites are built (e.g. Citi's Macro
+        Risk Index, Credit Suisse's Risk Appetite Index) - they z-score each input against
+        its own history and blend continuously. Now does the same: gold-vs-SPY and
+        bonds-vs-SPY (relative performance) plus USD and oil (absolute moves - a genuine
+        supply/inflation shock shows up as an outright price move, not underperformance vs.
+        equities) each get a real ~260-session 20d-%-change history to z-score against,
+        direction-normalized so positive z = risk-off, averaged into one composite z.
+
+        The response curve stays deliberately asymmetric (divergence weighted more than
+        agreement) - not because "modifiers are asymmetric as a category" but because this
+        specific asymmetry is real, documented risk-appetite research (bad news moves
+        markets more than equivalent good news; VIX itself only spikes on the downside).
+        That's now expressed as this one factor's own scoring curve, not a separate
+        combination mechanism sitting outside the normal weighted-factor pathway.
+        """
+        spy_series = self._rolling_20d_pct_change_price("SPY", eval_date, cur)
+        if not spy_series:
             return None
 
-        signals_flagged = []
+        zs: list[float] = []
+        detail: dict[str, Any] = {}
 
-        gld_chg = self._trailing_pct_change("GLD", eval_date, cur)
-        gld_vs_spy = (gld_chg - spy_chg) if gld_chg is not None else None
-        gold_risk_off = gld_vs_spy is not None and gld_vs_spy > 3.0
-        if gold_risk_off and gld_vs_spy is not None:
-            signals_flagged.append(f"gold outperforming SPY by {gld_vs_spy:.1f}pp/20d")
+        for symbol, key in (("GLD", "gld"), ("TLT", "tlt")):
+            asset_series = self._rolling_20d_pct_change_price(symbol, eval_date, cur)
+            common_dates = sorted(set(asset_series) & set(spy_series))
+            if len(common_dates) < 15:
+                detail[f"{key}_vs_spy_chg_20d"] = None
+                continue
+            spread_series = [asset_series[d] - spy_series[d] for d in common_dates]
+            current = spread_series[-1]  # common_dates sorted ascending -> most recent last
+            detail[f"{key}_vs_spy_chg_20d"] = round(current, 1)
+            z = self.calculator._sample_zscore(current, spread_series)
+            if z is not None:
+                zs.append(z)  # already positive = asset outperforming SPY = risk-off
 
-        tlt_chg = self._trailing_pct_change("TLT", eval_date, cur)
-        tlt_vs_spy = (tlt_chg - spy_chg) if tlt_chg is not None else None
-        bonds_risk_off = tlt_vs_spy is not None and tlt_vs_spy > 3.0
-        if bonds_risk_off and tlt_vs_spy is not None:
-            signals_flagged.append(f"long bonds outperforming SPY by {tlt_vs_spy:.1f}pp/20d")
+        for series_id, key in (("DTWEXBGS", "usd"), ("DCOILWTICO", "oil")):
+            econ_series = self._rolling_20d_pct_change_econ(series_id, eval_date, cur)
+            if len(econ_series) < 15:
+                detail[f"{key}_chg_20d"] = None
+                continue
+            latest_date = max(econ_series)
+            current = econ_series[latest_date]
+            detail[f"{key}_chg_20d"] = round(current, 1)
+            z = self.calculator._sample_zscore(current, list(econ_series.values()))
+            if z is not None:
+                zs.append(z)  # positive = USD/oil spiking = risk-off
 
-        cur.execute(
-            "SELECT value::float FROM economic_data WHERE series_id = 'DTWEXBGS' AND date <= %s "
-            "ORDER BY date DESC LIMIT 21",
-            (eval_date,),
-        )
-        usd_rows = cur.fetchall()
-        usd_risk_off = False
-        usd_chg = None
-        if len(usd_rows) >= 21 and usd_rows[0][0] is not None and usd_rows[-1][0] is not None:
-            usd_now, usd_then = float(usd_rows[0][0]), float(usd_rows[-1][0])
-            if (
-                not (math.isnan(usd_now) or math.isinf(usd_now) or math.isnan(usd_then) or math.isinf(usd_then))
-                and usd_then > 0
-            ):
-                usd_chg = (usd_now - usd_then) / usd_then * 100.0
-                usd_risk_off = usd_chg > 2.0
-                if usd_risk_off:
-                    signals_flagged.append(f"USD +{usd_chg:.1f}%/20d (tightening liquidity)")
+        if not zs:
+            return None
 
-        cur.execute(
-            "SELECT value::float FROM economic_data WHERE series_id = 'DCOILWTICO' AND date <= %s "
-            "ORDER BY date DESC LIMIT 21",
-            (eval_date,),
-        )
-        oil_rows = cur.fetchall()
-        oil_risk_off = False
-        oil_chg = None
-        if len(oil_rows) >= 21 and oil_rows[0][0] is not None and oil_rows[-1][0] is not None:
-            oil_now, oil_then = float(oil_rows[0][0]), float(oil_rows[-1][0])
-            if (
-                not (math.isnan(oil_now) or math.isinf(oil_now) or math.isnan(oil_then) or math.isinf(oil_then))
-                and oil_then > 0
-            ):
-                oil_chg = (oil_now - oil_then) / oil_then * 100.0
-                # Illustrative/first-pass threshold (uncalibrated, like the other new signals
-                # in this file) - +15%/20d is a genuine spike for WTI, not routine volatility.
-                oil_risk_off = oil_chg > 15.0
-                if oil_risk_off:
-                    signals_flagged.append(f"oil +{oil_chg:.1f}%/20d (inflation/growth shock)")
+        composite_z = sum(zs) / len(zs)
+        if composite_z <= 0:
+            score = min(100.0, 50.0 + (-composite_z) * 10.0)
+        else:
+            score = max(0.0, 50.0 - composite_z * 20.0)
 
-        risk_off_count = sum([gold_risk_off, bonds_risk_off, usd_risk_off, oil_risk_off])
-        penalty = 8.0 if (equities_bullish and risk_off_count >= 2) else 0.0
-
-        return {
-            "spy_chg_20d": round(spy_chg, 1),
-            "gld_chg_20d": round(gld_chg, 1) if gld_chg is not None else None,
-            "tlt_chg_20d": round(tlt_chg, 1) if tlt_chg is not None else None,
-            "usd_chg_20d": round(usd_chg, 1) if usd_chg is not None else None,
-            "oil_chg_20d": round(oil_chg, 1) if oil_chg is not None else None,
-            "risk_off_signals": signals_flagged,
-            "penalty": penalty,
-            "pts": -penalty,
-            "max": 0,
-        }
+        return {"score": round(score, 1), "composite_z": round(composite_z, 2), "n_signals": len(zs), **detail}
 
     def _valuation_extension_breadth(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
         """% of the universe trading at an extended valuation TODAY (P/E > 40 or P/S > 10),
-        a cross-sectional "froth breadth" gauge for the fundamental_quality modifier.
+        a cross-sectional "froth breadth" gauge, its own standalone factor (see module
+        docstring - split 2026-08-22 from what used to be a blended "Fundamental Quality"
+        modifier).
 
         DEVIATION FROM DESIGN: the design memo specified this as "% of universe at an extreme
         percentile P/E/P/S/FCF-yield relative to its OWN trailing history" - live-verified
@@ -1694,36 +1744,36 @@ class MarketExposure:
         score = min(100.0, max(0.0, 100.0 - (breadth_pct - 15.0) / 0.4))
         return {"score": score, "breadth_pct": round(breadth_pct, 1), "active_count": total}
 
-    def _fundamental_quality(
-        self, eval_date: _date, cur: PsycopgCursor[Any], technical_bullish: bool
-    ) -> dict[str, Any] | None:
-        """Fundamental confirmation check for a technically-strong tape (see call site comment).
+    def _earnings_revision_breadth_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Earnings Revision Breadth factor: % of the universe with analyst price targets
+        revised UP over the trailing 30 days.
 
-        Blends three inputs into a fundamental-confirmation score: analyst target-price
-        revision breadth (universe-wide, 45% weight), insider buying breadth (reused from
-        MarketFactorCalculator._insider_buying_breadth, 30% weight), and valuation-extension
-        breadth (see _valuation_extension_breadth above, 25% weight - added 2026-08-20,
-        completing the design memo's 3-input fundamental pillar).
+        FIXED 2026-08-22 (goal: exposure-model integrity review): this used to be one of
+        three inputs blended into a single "Fundamental Quality" score alongside insider
+        buying breadth and valuation-extension breadth - mixing one well-established
+        measure with a first-pass heuristic and a duplicate (insider breadth is already the
+        primary, unconditional home of that data in Positioning - see
+        MarketFactorCalculator.positioning()) and presenting the result as if it were one
+        coherent "quality" concept. It wasn't. Earnings revision breadth is its own real,
+        named, practitioner-standard indicator - Refinitiv/IBES publish earnings revision
+        ratios, Yardeni Research publishes a "Net Earnings Revisions Index" on exactly this
+        concept - so it stands alone now instead of being diluted into a blend, and insider
+        data was dropped from this area entirely (it wasn't adding new information, just a
+        second, smaller-weighted echo of what Positioning already does with it).
 
-        Insider buying breadth is intentionally reused here AND as 60% of the `positioning`
-        factor's score (see MarketFactorCalculator.positioning()) - this is a deliberate dual
-        role, not an oversight or a double-count of the same kind the HY/IG OAS split above
-        guards against. `positioning` uses it unconditionally as a direct bullish/bearish tilt
-        on the 100pt score; this modifier only uses it conditionally, as one of three ingredients
-        checking whether an already-bullish tape is fundamentally confirmed. A rally with strong
-        insider buying scores higher via positioning AND avoids this haircut - which is the
-        intended behavior (insiders buying into strength is confirmation, not two independent
-        signals that happen to agree), not a bug. If this ever needs to be decorrelated (e.g.
-        insider data proves too influential in backtests), reduce/drop insider's weight here
-        first - positioning is the primary, unconditional home for this data.
-        Each input's weight is
-        redistributed proportionally among whichever inputs are actually available (e.g. if
-        only insider + valuation are available, they split 30/25 rescaled to sum to 1.0) - not
-        a fixed 3-way average, so a temporarily-missing input never masks the others by forcing
-        a stale 0 into the blend. If the technical picture is bullish but fundamentals aren't
-        confirming it (score < 40), applies a bounded haircut (up to 5pts) - the market's move
-        is real but should be trusted less when the earnings/insider/valuation picture
-        underneath is deteriorating rather than improving.
+        Also FIXED: previously only scored when the technical picture was already bullish
+        (a conditional haircut) - meant a technically-weak-and-fundamentally-cracking
+        market was invisible to this signal, exactly the combination it exists to catch.
+        Scores unconditionally now, like every other factor - the weighted sum already
+        handles how much a bearish technical picture should matter on top of a bearish
+        fundamental one.
+
+        No persisted daily history exists yet for this specific breadth percentage (it's
+        computed fresh from current DB state each run - market_exposure_daily itself is
+        only ~1 month deep), so this stays on its original linear threshold scoring rather
+        than z-scoring against a history that doesn't exist - a first-pass calibration,
+        flagged like every other not-yet-backtested threshold in this file, not a claim of
+        precision it doesn't have.
         """
         cur.execute(
             """
@@ -1750,42 +1800,15 @@ class MarketExposure:
             (eval_date, eval_date, eval_date),
         )
         row = cur.fetchone()
-        revision_breadth_pct = None
-        if row and row[1] and int(row[1]) >= 200:
-            revision_breadth_pct = int(row[0]) * 100.0 / int(row[1])
-
-        insider = self.calculator._insider_buying_breadth(eval_date, cur)
-        valuation = self._valuation_extension_breadth(eval_date, cur)
-
-        parts: list[tuple[float, float]] = []
-        if revision_breadth_pct is not None:
-            # Linear: 35% -> 0, 50% -> 50, 65% -> 100 (illustrative, uncalibrated - see
-            # positioning() docstring re: the same first-pass-thresholds caveat).
-            rev_score = min(100.0, max(0.0, (revision_breadth_pct - 35) / 0.3))
-            parts.append((rev_score, 0.45))
-        if insider is not None:
-            parts.append((insider["score"], 0.30))
-        if valuation is not None:
-            parts.append((valuation["score"], 0.25))
-
-        if not parts:
-            return None
-
-        total_weight = sum(w for _, w in parts)
-        fundamental_score = sum(s * w for s, w in parts) / total_weight
-        penalty = 0.0
-        if technical_bullish and fundamental_score < 40:
-            penalty = min(5.0, (40 - fundamental_score) * 0.15)
-
-        return {
-            "revision_breadth_pct": round(revision_breadth_pct, 1) if revision_breadth_pct is not None else None,
-            "insider_buying_breadth_pct": insider["breadth_pct"] if insider is not None else None,
-            "valuation_extension_breadth_pct": round(valuation["breadth_pct"], 1) if valuation is not None else None,
-            "fundamental_score": round(fundamental_score, 1),
-            "penalty": round(penalty, 1),
-            "pts": -round(penalty, 1),
-            "max": 0,
-        }
+        if not row or not row[1] or int(row[1]) < 200:
+            return {
+                "data_unavailable": True,
+                "reason": f"Insufficient analyst-coverage sample on or before {eval_date} (need 200+ symbols)",
+            }
+        revision_breadth_pct = int(row[0]) * 100.0 / int(row[1])
+        # Linear: 35% -> 0, 50% -> 50, 65% -> 100 (illustrative, uncalibrated - see docstring).
+        score = min(100.0, max(0.0, (revision_breadth_pct - 35) / 0.3))
+        return {"score": round(score, 1), "revision_breadth_pct": round(revision_breadth_pct, 1)}
 
     def _persist(self, eval_date: _date, result: dict[str, Any]) -> None:
         try:
@@ -1842,10 +1865,10 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
-            # BUG FOUND 2026-08-17: result["factors"] is built up via `**eco`-spreading
-            # sub-detector output dicts (e.g. _economic_regime_overlay) whose fields aren't
-            # guaranteed to already be JSON-safe (raw DB dates, Decimals). Same bug class
-            # already found and fixed in phase9_reconciliation.py's audit log insert -
+            # BUG FOUND 2026-08-17: result["factors"] is built up via `**`-spreading
+            # sub-detector output dicts (e.g. the z-scored macro factors) whose fields
+            # aren't guaranteed to already be JSON-safe (raw DB dates, Decimals). Same bug
+            # class already found and fixed in phase9_reconciliation.py's audit log insert -
             # default=str is the same standard, safe fallback for an archival JSON column.
             factors_json = json.dumps(result["factors"], default=str)
             halt_reasons_json = json.dumps(result["halt_reasons"], default=str)

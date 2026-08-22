@@ -50,6 +50,13 @@ class _FakeCursor:
     def fetchone(self):
         return self._row
 
+    def fetchall(self):
+        # vix_regime() now pulls up to 6 sessions (today + a real trend comparison point,
+        # see market_factor_calculator.py) via fetchall() instead of fetchone() - a single
+        # row is enough to exercise the level/NaN-guard logic these tests target, since
+        # `rising` gracefully defaults to False without a 6th row.
+        return [self._row] if self._row is not None else []
+
 
 class TestWtPtsRejectsNonFiniteScore:
     def test_nan_score_raises_instead_of_laundering_through_caller_clamp(self):
