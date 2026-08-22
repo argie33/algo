@@ -370,6 +370,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
         )
         self._reit_symbols: frozenset[str] | None = None
         self._depository_institution_symbols: frozenset[str] | None = None
+        self._insurance_symbols: frozenset[str] | None = None
 
         super().__init__()
         self._sec_client = sec_client if sec_client is not None else SecEdgarClient()
@@ -394,6 +395,39 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 cur.execute("SELECT symbol FROM company_info_sec WHERE sic_code = 6798")
                 self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
         return self._reit_symbols
+
+    def _get_insurance_symbols(self) -> frozenset[str]:
+        """Bulk-fetch insurance-carrier symbols (SIC 6311/6321/6331/6351/6361/6399) once per
+        loader run, not per-row.
+
+        FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
+        insurance contracts are explicitly out of ASC 606's scope (covered by ASC 944/IFRS 17
+        instead), so an insurer's "RevenueFromContractWithCustomer*" tag - when present at
+        all - is inherently a minor ancillary fee-revenue stream (policy administration fees
+        etc.), never the real premium/investment-income-driven total. The general priority
+        chain legitimately lets this concept supersede "Revenues" for ordinary post-2018
+        filers (see test_sec_reit_lease_revenue_not_overwritten.py's AAPL case), which is
+        exactly wrong here - same failure shape as the REIT case above, different industry.
+        Live-confirmed via MCY (Mercury General, a P&C insurer, SIC 6331): real "Revenues"
+        FY2025 = $5.99B (matches its known real revenue), but real
+        RevenueFromContractWithCustomerIncludingAssessedTax FY2025 = $29.6M (a minor fee
+        line) was clobbering it - stored "revenue" was $29.6M, a ~200x understatement that
+        fed a nonsensical >1800% net_margin into the implausible_ratio guard (correctly
+        rejecting the ratio, for the wrong underlying reason).
+        """
+        # getattr: see _get_depository_institution_symbols's identical comment - some
+        # existing test fixtures construct this loader via __new__, bypassing __init__.
+        cached: frozenset[str] | None = getattr(self, "_insurance_symbols", None)
+        if cached is None:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT symbol FROM company_info_sec WHERE sic_code IN (6311, 6321, 6331, 6351, 6361, 6399)"
+                )
+                cached = frozenset(row[0] for row in cur.fetchall())
+            self._insurance_symbols = cached
+        return cached
 
     def _get_depository_institution_symbols(self) -> frozenset[str]:
         """Bulk-fetch bank/depository-institution symbols once per loader run, not per-row.
@@ -676,7 +710,32 @@ class SecEdgarStatementLoader(SecLoaderBase):
             row["data_unavailable"] = False
 
             field_mapping = self._field_mapping
-            for sec_field, value in r.items():
+            # FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
+            # REIT-only-fallback concepts (revenue_from_contract_with_customer_*, the minor
+            # ASC-606 fee-income line - see test_sec_reit_lease_revenue_not_overwritten.py)
+            # only skip when "revenue" is ALREADY populated - which depends entirely on
+            # whichever concept happened to occupy an earlier position in `r`'s insertion
+            # order (itself just _aggregate_concepts's own concepts-list iteration order in
+            # sec_statements.py, an implementation detail, not a deliberate priority signal).
+            # Live-confirmed via CPT (Camden Property Trust, a real REIT, SIC 6798): reports
+            # NO "Revenues"/"SalesRevenueNet" at all, only a small real ASC-606 fee-income
+            # figure ($12.967M) AND the correct, much larger real lease-revenue figure under
+            # operating_lease_lease_income ($1.574B, live-confirmed via real companyfacts
+            # JSON) - because the ASC-606 concept happens to sit earlier in the concepts
+            # list (so gets inserted into `r` first), it won the "not yet populated" check
+            # and permanently blocked the correct, REIT-exclusive figure from ever writing
+            # (operating_lease_lease_income's OWN fallback-only-for-REIT check then saw
+            # "revenue" already populated and skipped too) - a ~121x understatement with no
+            # data_unavailable/reason flag anywhere, silently corrupting every downstream
+            # margin/ratio computation (net_margin, roic_pct, etc. all showed nonsensical
+            # thousands-of-percent values, correctly caught by the implausible_ratio guard,
+            # but for the wrong underlying reason). Process `_reit_only_fallback_fields`
+            # keys LAST (stable sort - relative order otherwise unchanged) so the real REIT
+            # lease-revenue concept always gets first claim on "revenue" for confirmed REITs,
+            # regardless of incidental dict-insertion order.
+            _reit_only_fallback: frozenset[str] = getattr(self, "_reit_only_fallback_fields", frozenset())
+            ordered_fields = sorted(r.items(), key=lambda kv: kv[0] in _reit_only_fallback)
+            for sec_field, value in ordered_fields:
                 if sec_field in ("symbol", "fiscal_year"):
                     continue
 
@@ -709,9 +768,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 if (
                     sec_field in getattr(self, "_reit_only_fallback_fields", frozenset())
                     and db_field in row
-                    and r.get("symbol") in self._get_reit_symbols()
+                    and (
+                        r.get("symbol") in self._get_reit_symbols() or r.get("symbol") in self._get_insurance_symbols()
+                    )
                 ):
-                    continue  # REIT filer: real lease revenue already populated this field
+                    # REIT filer: real lease revenue already populated this field.
+                    # Insurance filer (2026-08-22 fix): real "Revenues" (premiums + investment
+                    # income) already populated this field - see _get_insurance_symbols's
+                    # docstring for why ASC 606's contract-revenue concept must not supersede
+                    # it, same reasoning as the REIT case, different XBRL concept trigger.
+                    continue
                 # BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): a separate,
                 # stricter category from _reit_only_fallback_fields above. That set's
                 # "skip only when (already populated AND symbol is a REIT)" semantics is
