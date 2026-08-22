@@ -291,7 +291,22 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
 
         # Only use support_stop if it's valid and fits within risk limits
         if support_stop > 0 and support_stop < entry_price and support_risk <= MAX_RISK_ALLOWED:
-            stop_loss = min(volatility_stop, support_stop)
+            # FIXED 2026-08-21 (goal session - finance-accuracy audit): this was min(), which
+            # mathematically always selects whichever candidate is FARTHER from entry_price
+            # (i.e. more risk) - the opposite of this function's own documented intent ("use
+            # support-level stop... if it's tighter than volatility stop"). Live-verified: in
+            # the one regime where support_stop genuinely IS tighter (entry=100, atr=2,
+            # sma_50=99.8 -> volatility_stop=97.6, support_stop=97.8), the old min() still
+            # returned 97.6 (the WIDER one) - proving it picked wrong in every regime, not just
+            # the common one. Since every Phase 7 candidate is already required to have
+            # close > sma_50 (a real uptrend), support_stop is typically well below entry and
+            # was winning min() almost every time, producing ~13% risk/share instead of the
+            # intended ~3.6% for a typical normal-volatility trade. Position sizing is already
+            # risk-per-share-aware (position_sizer.py's risk_dollars / risk_per_share), so this
+            # was never a blown dollar-risk-cap bug - it was systematically undersized
+            # positions from an unintentionally wide stop. max() correctly picks whichever of
+            # the two candidates is CLOSER to entry (tighter), matching the docstring exactly.
+            stop_loss = max(volatility_stop, support_stop)
         else:
             stop_loss = volatility_stop
 
