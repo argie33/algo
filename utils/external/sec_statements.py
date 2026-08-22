@@ -1139,6 +1139,35 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             # only available annual data, same fallback-of-last-resort precedent as
             # _PRIMARY_STATEMENT_FORMS above.
             has_annual_report_form = any(e.get("form") in _ANNUAL_REPORT_FORMS for e in entries)
+            # BUG FOUND 2026-08-22 (goal session: quarterly balance-sheet comparative-period
+            # contamination): a single filing (one accession number, "accn") typically tags
+            # an instant concept's value TWICE - once for its own current reporting period,
+            # once as a "prior period" comparative shown for context (occasionally a THIRD
+            # time for an even older rollforward comparative, e.g. in a statement-of-equity
+            # table). All copies inherit that SAME filing's fp/fy, which reflects the FILING's
+            # own period, not each individual fact's real period (same filing-context-vs-
+            # fact-identity conflation the "Use period end year..." comment below already
+            # documents for "fy" specifically). Within any one filing, the fact with the
+            # LATEST end date for a concept is always the filing's own current-period value;
+            # every other same-accn fact for that concept is a comparative echo of a period
+            # whose real value is already captured by ITS OWN filing (where it WAS the latest
+            # end date). Tried a fiscal-year-end-month/day heuristic first instead of this -
+            # live-confirmed too unreliable via PMT: its own 10-Ks separately tag "selected
+            # quarterly financial data" footnote disclosures under fp='FY' with genuine
+            # quarter-end dates, so a fact's own end date being a quarter-end date does NOT
+            # reliably distinguish it from a true fiscal-year-end fact either way. Excluding
+            # every non-latest-in-its-accn instant fact sidesteps the fp/fy unreliability
+            # entirely - it only ever looks at each filing's own internal facts, never trusts
+            # SEC's period labels. Duration facts (has "start") are unaffected - each real
+            # duration fact within a filing already has its own distinct (start, end) span,
+            # so they don't collide across periods the way instant facts do.
+            _max_end_by_accn: dict[str, str] = {}
+            for _e in entries:
+                if _e.get("start"):
+                    continue
+                _accn, _e_end = _e.get("accn"), _e.get("end")
+                if _accn and _e_end and (_accn not in _max_end_by_accn or _e_end > _max_end_by_accn[_accn]):
+                    _max_end_by_accn[_accn] = _e_end
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
                 # whatever share unit the local filing uses - domestic 10-K/10-Q filers
@@ -1202,6 +1231,14 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         span_days = None
                     if span_days is not None and span_days < 330:
                         continue  # Real single-quarter/partial-year data - not annual
+
+                # See the _max_end_by_accn comment above this loop: drop any instant fact
+                # that isn't the latest-end-date one within its own filing - a comparative/
+                # rollforward echo of a period whose real value comes from its own filing.
+                if not start_date:
+                    _accn, _e_end = entry.get("accn"), entry.get("end")
+                    if _accn and _e_end and _max_end_by_accn.get(_accn) not in (None, _e_end):
+                        continue
 
                 # FIXED 2026-08-18 (no-SEC-data audit continuation): see the
                 # has_annual_report_form comment above this loop. An instant fact sourced

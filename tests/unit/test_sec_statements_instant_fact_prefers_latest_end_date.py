@@ -159,3 +159,79 @@ class TestInstantFactPrefersLatestEndDate:
 
         assert len(rows) == 1
         assert rows[0]["long_term_debt"] == 1_497_385_000
+
+    def test_comparative_fy_end_snapshot_does_not_clobber_real_quarter_snapshot(self):
+        """FIXED 2026-08-22 (live-verified PMT): a 10-Q's comparative prior-fiscal-year-end
+        balance (shown alongside the current quarter's own balance, for context) is tagged
+        with THAT FILING's fp, not its own period - e.g. the real FY2022 year-end
+        (end=2022-12-31) balance gets re-cited as the comparative figure in the FY2023 Q1
+        10-Q, tagged fp='Q1'. Because period_year is derived from end date (2022) same as the
+        real Q1-2022 fact, both land in the same (fiscal_year=2022, fp='Q1') bucket, and the
+        instant "prefer latest end date" tiebreak then always preferred the comparative (Dec
+        31 > Mar 31) - silently overwriting every real quarterly snapshot with that year's
+        FY-end figure. Live-confirmed via PMT's real companyfacts JSON: quarterly_balance_sheet
+        held an IDENTICAL total_assets value across Q1/Q2/Q3 of nearly every fiscal year
+        2011-2024, impossible for an actively-financed mortgage REIT with fluctuating repo
+        balances. Fix: within one filing (accn), only the latest-end-date fact for a concept
+        is that filing's own current-period value - every other same-accn fact is a
+        comparative echo, dropped regardless of what fp/fy it's mislabeled with."""
+        facts = {
+            "us-gaap": {
+                "Assets": _concept(
+                    [
+                        # The real FY2022 year-end fact (from PMT's own FY2022 10-K, accn A).
+                        {
+                            "end": "2022-12-31",
+                            "val": 13_921_564_000,
+                            "filed": "2023-02-24",
+                            "fp": "FY",
+                            "fy": 2022,
+                            "form": "10-K",
+                            "accn": "0001564590-23-002430",
+                        },
+                        # The genuine Q1-2022 snapshot (from PMT's own Q1-2022 10-Q, accn B).
+                        {
+                            "end": "2022-03-31",
+                            "val": 12_387_515_000,
+                            "filed": "2022-05-06",
+                            "fp": "Q1",
+                            "fy": 2022,
+                            "form": "10-Q",
+                            "accn": "0001564590-22-018584",
+                        },
+                        # PMT's real Q1-2023 10-Q (accn C): its own current-period value...
+                        {
+                            "end": "2023-03-31",
+                            "val": 15_357_229_000,
+                            "filed": "2023-05-04",
+                            "fp": "Q1",
+                            "fy": 2023,
+                            "form": "10-Q",
+                            "accn": "0000950170-23-017766",
+                        },
+                        # ...plus the SAME accn C re-citing the FY2022 year-end as its
+                        # comparative prior-year-end figure - tagged with accn C's own
+                        # fp='Q1', not its true period, but NOT the max end date within
+                        # accn C (2023-03-31 is), so the fix drops it.
+                        {
+                            "end": "2022-12-31",
+                            "val": 13_921_564_000,
+                            "filed": "2023-05-04",
+                            "fp": "Q1",
+                            "fy": 2023,
+                            "form": "10-Q",
+                            "accn": "0000950170-23-017766",
+                        },
+                    ]
+                ),
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_balance_sheet(client, "PMT", period="quarterly")
+        by_year_quarter = {(r["fiscal_year"], r["fiscal_period"]): r for r in rows}
+
+        assert by_year_quarter[(2023, "Q1")]["assets"] == 15_357_229_000
+
+        assert by_year_quarter[(2022, "Q1")]["assets"] == 12_387_515_000
