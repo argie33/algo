@@ -131,6 +131,7 @@ class TestFpiLiveYfinanceSanityCheck:
         fetchone_results = [
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
             (1_417_000_000.0,),
             (376.86,),
             (60_000_000.0,),

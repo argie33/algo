@@ -79,12 +79,20 @@ def _run_fetch_incremental(
 
 class TestBookValueQueryPrefersPopulatedFiscalYear:
     def test_book_value_query_orders_by_stockholders_equity_populated_before_fiscal_year(self) -> None:
+        # FIXED 2026-08-21: reordered to match the loader's actual query sequence (cash, debt,
+        # has_dual_class_sibling, company_info_sec cross-check, price, equity, ...) - the old
+        # order here (price/equity first) predated the 2026-08-19 cash/debt reordering fix and
+        # only "passed" because the resulting internal ValueError was caught and converted to a
+        # generic data_unavailable result AFTER the equity query (this test's only real
+        # assertion target) had already executed. Inserting has_dual_class_sibling's result
+        # without fixing the stale order shifted that checkpoint out of reach entirely.
         fetchone_results = [
-            (50.0,),  # price_daily.close
-            (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
-            (80_000_000.0, 10_000_000.0, None),  # annual_cash_flow: ocf, capex, dividends_paid
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (1_000_000_000.0,),  # company_info_sec shares cross-check - agrees, no override
+            (50.0,),  # price_daily.close
+            (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
         ]
         _, cursor = _run_fetch_incremental("AA", fetchone_results)
 

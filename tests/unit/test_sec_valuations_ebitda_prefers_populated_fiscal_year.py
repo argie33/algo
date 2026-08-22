@@ -74,6 +74,7 @@ def _run_fetch_incremental(
 _DOWNSTREAM_FETCHONE = [
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
+    None,  # has_dual_class_sibling check (2026-08-21) - no matching row
     (None,),
     (35.26,),
     (500_000_000.0,),

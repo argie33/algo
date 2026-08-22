@@ -200,8 +200,25 @@ def _load_credentials():
 
     db_password = os.getenv("DB_PASSWORD")
     if not db_password:
-        logger.error("[CRITICAL] DB_PASSWORD environment variable is required - cannot authenticate to database")
-        sys.exit(1)
+        # FIX 2026-08-21 (goal session - Alpaca credential root-cause dig surfaced this too):
+        # only localhost Postgres is expected to run with trust-auth (no password required) -
+        # same convention already established in algo/config/credential_manager.py's DB
+        # fallback. A non-localhost DB_HOST (a real RDS endpoint) must still have an explicit
+        # password; silently trying "" against it would just fail auth anyway, but with a
+        # confusing connection error instead of naming the actual missing config. Previously
+        # masked here by an unrelated stale Windows-level DB_PASSWORD env var that happened to
+        # be non-empty (see utils/dotenv_loader.py's 2026-08-21 fix) - trust-auth ignores
+        # whatever password value is supplied, so that value had zero functional effect, it
+        # just accidentally satisfied this check. Live-confirmed this crashed even a pure unit
+        # test (test_migration_sort_order.py) that only imports _migration_sort_key, since
+        # credentials are loaded eagerly at module import time.
+        if db_host not in ("localhost", "127.0.0.1"):
+            logger.error(
+                "[CRITICAL] DB_PASSWORD environment variable is required for non-local "
+                f"DB_HOST={db_host!r} - cannot authenticate to database"
+            )
+            sys.exit(1)
+        db_password = ""
 
     db_user = os.getenv("DB_USER")
     if not db_user:

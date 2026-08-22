@@ -96,12 +96,17 @@ def _run_fetch_incremental(
 
 class TestExcludesDataUnavailableRows:
     def test_all_four_latest_fiscal_year_queries_exclude_data_unavailable_true(self) -> None:
+        # FIXED 2026-08-21: reordered to match the loader's actual query sequence (cash, debt,
+        # has_dual_class_sibling, company_info_sec cross-check, price, equity, ...) - see
+        # test_sec_valuations_book_value_query_prefers_populated_fiscal_year.py's matching fix
+        # comment for why the old order only happened to work before.
         fetchone_results = [
+            (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
+            (20_000_000.0, 5_000_000.0, None, None),  # debt_row
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (1_000_000_000.0,),  # company_info_sec shares cross-check - agrees, no override
             (50.0,),  # price_daily.close
             (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
-            (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
-            (80_000_000.0, 10_000_000.0, None),  # annual_cash_flow: ocf, capex, dividends_paid
-            (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10)
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)

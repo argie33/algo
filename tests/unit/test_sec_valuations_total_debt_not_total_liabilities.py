@@ -108,6 +108,7 @@ class TestTotalDebtNotTotalLiabilities:
                 8_000_000.0,  # operating_lease_liability - real debt (S&P/Moody's adjusted-debt convention)
                 2_000_000.0,  # finance_lease_liability - real debt
             ),
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),  # price_daily.close
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
@@ -147,6 +148,7 @@ class TestTotalDebtNotTotalLiabilities:
                 None,  # operating_lease_liability - not reported
                 None,  # finance_lease_liability - not reported
             ),
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),
@@ -175,6 +177,7 @@ class TestTotalDebtNotTotalLiabilities:
         fetchone_results = [
             (30_000_000.0,),  # cash_and_equivalents
             (None, None, None, None),  # debt_row: nothing reported
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),
@@ -206,6 +209,7 @@ class TestTotalDebtNotTotalLiabilities:
         fetchone_results = [
             (30_000_000.0,),  # cash_and_equivalents
             (None, 0.0, None, None),  # debt_row: only short_term_debt reported, and it's 0
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),
