@@ -136,14 +136,9 @@ export const safeGetFactors = (current) => {
         : {},
     vix_regime:
       f.vix_regime && typeof f.vix_regime === "object" ? f.vix_regime : {},
-    breadth_50dma:
-      f.breadth_50dma && typeof f.breadth_50dma === "object"
-        ? f.breadth_50dma
-        : {},
-    breadth_200dma:
-      f.breadth_200dma && typeof f.breadth_200dma === "object"
-        ? f.breadth_200dma
-        : {},
+    // Merged 2026-08-22 pass 3: breadth_50dma/breadth_200dma -> one "breadth" factor
+    // with both raw values as sub-fields (pct_above_50/pct_above_200).
+    breadth: f.breadth && typeof f.breadth === "object" ? f.breadth : {},
     spy_momentum:
       f.spy_momentum && typeof f.spy_momentum === "object"
         ? f.spy_momentum

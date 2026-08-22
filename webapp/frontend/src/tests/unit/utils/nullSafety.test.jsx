@@ -67,7 +67,7 @@ describe("Null Safety Utilities", () => {
       const result = safeGetFactors(current);
       expect(result.vix_regime.value).toBe(20);
       expect(result.distribution_days.regime).toBe("strong");
-      expect(result.breadth_50dma).toEqual({});
+      expect(result.breadth).toEqual({});
       expect(result.spy_momentum).toEqual({});
     });
   });

@@ -836,14 +836,13 @@ function ExposureFactors({ markets }) {
   const list = [
     ["trend_30wk", "30-WEEK MA TREND", 11.25],
     ["spy_momentum", "SPY 12-MONTH MOMENTUM", 7.5],
-    ["breadth_200dma", "BREADTH (% > 200-DMA)", 7.5],
+    ["breadth", "BREADTH (% > 50/200-DMA)", 12],
     ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 7.5],
     ["vix_regime", "VIX REGIME + TREND", 7.5],
     ["credit_spread", "HY CREDIT SPREAD", 10.5],
     ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 6],
     ["new_highs_lows", "NEW HIGHS - LOWS", 5.25],
     ["ad_line", "A/D LINE CONFIRMATION", 4.5],
-    ["breadth_50dma", "BREADTH (% > 50-DMA)", 4.5],
     ["positioning", "POSITIONING & FLOWS", 3.75],
     ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 2.25],
     ["yield_curve", "YIELD CURVE (T10Y2Y + T10Y3M)", 5],
@@ -932,6 +931,11 @@ function ExposureFactors({ markets }) {
                 sub.push(`2s10s ${num(f.t10y2y.value, 2)}%`);
               if (f.t10y3m?.value != null)
                 sub.push(`3m10y ${num(f.t10y3m.value, 2)}%`);
+            } else if (key === "breadth") {
+              if (f.pct_above_50 != null)
+                sub.push(`50d:${num(f.pct_above_50, 0)}%`);
+              if (f.pct_above_200 != null)
+                sub.push(`200d:${num(f.pct_above_200, 0)}%`);
             } else if (key === "sahm_rule") {
               if (f.value != null) sub.push(`${num(f.value, 2)}pp vs. 0.50pp trigger`);
               if (f.triggered) sub.push("TRIGGERED");
@@ -1254,24 +1258,20 @@ function ExposureHistory({ markets }) {
 function BreadthCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  const b50 =
-    factors?.breadth_50dma && typeof factors.breadth_50dma === "object"
-      ? factors.breadth_50dma
-      : {};
-  const b200 =
-    factors?.breadth_200dma && typeof factors.breadth_200dma === "object"
-      ? factors.breadth_200dma
+  // Merged 2026-08-22 pass 3: breadth_50dma/breadth_200dma are now one "breadth" factor
+  // with both raw values as sub-fields (see algo/risk/market_exposure.py module docstring).
+  const breadth =
+    factors?.breadth && typeof factors.breadth === "object"
+      ? factors.breadth
       : {};
   const data = [
     {
       name: "> 50-DMA",
-      value: b50?.value ?? null,
-      count: `${b50?.above ?? 0}/${b50?.total ?? 0}`,
+      value: breadth?.pct_above_50 ?? null,
     },
     {
       name: "> 200-DMA",
-      value: b200?.value ?? null,
-      count: `${b200?.above ?? 0}/${b200?.total ?? 0}`,
+      value: breadth?.pct_above_200 ?? null,
     },
   ];
   return (
@@ -1308,10 +1308,7 @@ function BreadthCard({ markets }) {
                   fontSize: 12,
                   color: C.text,
                 }}
-                formatter={(v, _, p) => [
-                  `${v}% (${p.payload.count})`,
-                  p.payload.name,
-                ]}
+                formatter={(v, _, p) => [`${v}%`, p.payload.name]}
               />
               <ReferenceLine
                 y={50}
@@ -1340,48 +1337,22 @@ function BreadthCard({ markets }) {
             <div className="stile-label">&gt; 50-DMA</div>
             <div className="stile-value">
               <SafeMetricValue
-                value={b50.value}
+                value={breadth.pct_above_50}
                 formatter="decimal2"
                 fallback="—"
               />
               %
-            </div>
-            <div className="stile-sub">
-              <SafeMetricValue
-                value={b50.above}
-                formatter="number"
-                fallback="—"
-              />{" "}
-              of{" "}
-              <SafeMetricValue
-                value={b50.total}
-                formatter="number"
-                fallback="—"
-              />
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">&gt; 200-DMA</div>
             <div className="stile-value">
               <SafeMetricValue
-                value={b200.value}
+                value={breadth.pct_above_200}
                 formatter="decimal2"
                 fallback="—"
               />
               %
-            </div>
-            <div className="stile-sub">
-              <SafeMetricValue
-                value={b200.above}
-                formatter="number"
-                fallback="—"
-              />{" "}
-              of{" "}
-              <SafeMetricValue
-                value={b200.total}
-                formatter="number"
-                fallback="—"
-              />
             </div>
           </div>
           <div className="stile">

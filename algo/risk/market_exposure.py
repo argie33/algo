@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Quantitative Market Exposure Engine - Research-backed 19-factor composite + hard vetoes
+Quantitative Market Exposure Engine - Research-backed 18-factor composite + hard vetoes
 
 Composite 0-100 portfolio risk allocation score, built on exactly TWO mechanisms:
 a single weighted-sum composite (every input that carries directional information
@@ -66,6 +66,23 @@ trigger, continuing to 0 by +1.5pp) rather than force-fitting the same z-score
 treatment used for continuous macro series onto a binary-regime indicator just for
 superficial consistency.
 
+Pass 3 (2026-08-22, user-flagged inconsistency during a post-merge review) caught pass
+1/2 applying their own stated redundancy principle inconsistently: Yield Curve's two
+rate-spread inputs (T10Y2Y/T10Y3M, only -0.28 correlated - genuinely close to
+independent) were merged into ONE blended factor, but Breadth's two participation
+inputs (% > 50-DMA / % > 200-DMA, 0.77 correlated in this DB - real, substantial
+overlap, already noted in the "Breadth signal consolidation" paragraph below) were left
+as two SEPARATELY weighted factors, each casting its own vote for the same underlying
+"is the market broadly participating" read - exactly the double-counting pattern this
+file otherwise treats as a bug (see Financial Conditions/Stress above). The original
+"they're built to diverge at regime turns" rationale for keeping them separate is real,
+but doesn't require separate weight budgets to preserve - a single blended factor still
+carries both raw values in its detail dict (so the divergence is still visible on the
+dashboard/frontend), it just casts one combined vote sized to the two inputs' original
+relative importance (200-DMA weighted 62.5%, 50-DMA 37.5%, exactly preserving the prior
+7.5:4.5 split) instead of two correlated votes. Merged into one BREADTH factor (12.0pt
+total, unchanged from the prior 7.5+4.5 combined weight).
+
 Every macro signal below that IS z-scored is checked against its own real historical
 distribution (standard Barra/Axioma-style factor normalization) rather than scored
 off fixed thresholds eyeballed from one day's snapshot - see each factor's own
@@ -73,7 +90,11 @@ docstring for its specific correlation/history-depth check.
 
     11.25pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
      7.50pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM - most replicated quant signal)
-     7.50pt  BREADTH % > 200-DMA   long-term market participation (linear 30-80%)
+    12.00pt  BREADTH               % > 200-DMA (long-term regime, linear 30-80%) + % > 50-DMA
+                                    (short-term participation, linear 20-80%), blended 62.5%/37.5%
+                                    - merged 2026-08-22 pass 3 from two separately-weighted
+                                    factors (0.77 corr, real overlap; see "Breadth signal
+                                    consolidation" below)
      7.50pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
      7.50pt  VIX REGIME            level (<15/15-25/25-35/35+) + genuine day-over-day trend
     10.50pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research);
@@ -82,7 +103,6 @@ docstring for its specific correlation/history-depth check.
      6.00pt  PUT/CALL RATIO        options market sentiment - contrarian at extremes (daily signal)
      5.25pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
      4.50pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
-     4.50pt  BREADTH % > 50-DMA    short-term market participation (linear 20-80%)
      3.75pt  POSITIONING & FLOWS   insider buying breadth + short interest trend (replaces NAAIM,
                                     2026-08-20 - NAAIM's source went subscription-only 2026-08-01)
      2.25pt  AAII SENTIMENT        contrarian at extremes only (+/-15 spread; neutral in middle range)
@@ -135,14 +155,20 @@ Removed factors vs prior versions:
     no recession in-sample - see the pass-2 writeup above
 
 Breadth signal consolidation: prior version had 5 breadth signals at 45pt total,
-all highly correlated. Now 4 signals covering distinct information: % > 200-DMA
-(long-term regime), NH/NL (leadership), A/D line (direction), % > 50-DMA (short-term
-participation). Live-checked 2026-08-22: % > 50-DMA and % > 200-DMA are themselves
-0.77 correlated in this DB - real overlap, but kept as two factors deliberately
-(standard technical-analysis convention, e.g. StockCharts/IBD breadth panels track
-both) because the two series are BUILT to diverge exactly at regime turns, which is
-precisely when the extra information matters most; unlike the Fed-index cluster
-above, this isn't two composites quietly re-deriving the same rates/credit read.
+all highly correlated. Reduced to 3 signals covering genuinely distinct information:
+BREADTH (participation - see below), NH/NL (leadership), A/D line (direction).
+Live-checked 2026-08-22: % > 50-DMA and % > 200-DMA are themselves 0.77 correlated in
+this DB - real overlap. Through pass 2 this was used to justify keeping them as two
+separately-weighted factors deliberately (standard technical-analysis convention, e.g.
+StockCharts/IBD breadth panels track both, and the two series are BUILT to diverge
+exactly at regime turns, which is precisely when the extra information matters most).
+Pass 3 kept the rationale but fixed the mechanism: separate weight budgets meant the
+same participation read got two votes in the composite, the exact double-counting this
+file treats as a bug everywhere else (Financial Conditions/Stress above; IG OAS/ANFCI
+before that). Now ONE blended BREADTH factor (62.5% weight on 200-DMA, 37.5% on 50-DMA,
+preserving the original 7.5:4.5 relative importance) - both raw values still live in
+the factor's detail dict, so the regime-turn divergence this was protecting is still
+fully visible on the dashboard/frontend, it just isn't double-weighted in the score.
 
 HARD VETOES (cap exposure at <=25-40%; independent of the composite score - a risk
 override, not an alpha input, same separation-of-concerns a real risk desk keeps):
@@ -206,14 +232,18 @@ class MarketExposure:
     # see module docstring for the evidence behind that reallocation.
     W_TREND_30WK = 11.25
     W_SPY_MOMENTUM = 7.5  # 12-month TSMOM (replaces follow-through day)
-    W_BREADTH_200 = 7.5
+    # Merged 2026-08-22 pass 3 from W_BREADTH_200=7.5 + W_BREADTH_50=4.5 (two separately-
+    # weighted, 0.77-correlated factors double-counting the same participation read) into
+    # one blended factor - see module docstring "Breadth signal consolidation". Weight
+    # unchanged in total; _breadth_factor() blends the two inputs 62.5%/37.5% internally
+    # to preserve their original relative importance.
+    W_BREADTH = 12.0
     W_SELLING_PRESSURE = 7.5  # heavy-volume down days
     W_VIX = 7.5  # level + genuine day-over-day trend
     W_CREDIT_SPREAD = 10.5  # HY OAS; +3pt 2026-08-22 pass 2 from dropped Financial Conditions/Stress
     W_PUT_CALL = 6.0  # options put/call ratio (replaces McClellan oscillator)
     W_NEW_HIGHS_LOWS = 5.25
     W_AD_LINE = 4.5  # A/D direction vs SPY
-    W_BREADTH_50 = 4.5  # reduced from 14pt pre-2026-08-20 (was overweighted vs 200-DMA)
     W_POSITIONING = 3.75  # insider buying breadth + short interest trend (replaces NAAIM)
     W_AAII = 2.25  # extremes-only scoring
     W_YIELD_CURVE = 5.0  # T10Y2Y + T10Y3M avg, z-scored; +1pt 2026-08-22 pass 2 (see above)
@@ -238,7 +268,7 @@ class MarketExposure:
 
     @classmethod
     def _validate_weights(cls) -> None:
-        """Fail-fast if the 19 factor weights above don't sum to exactly 100.
+        """Fail-fast if the 18 factor weights above don't sum to exactly 100.
 
         No test or runtime check previously protected this invariant (unlike
         algo/signals/filter_registry.py's FilterRegistry.validate(), which runs the
@@ -249,14 +279,13 @@ class MarketExposure:
         weights = [
             cls.W_TREND_30WK,
             cls.W_SPY_MOMENTUM,
-            cls.W_BREADTH_200,
+            cls.W_BREADTH,
             cls.W_SELLING_PRESSURE,
             cls.W_VIX,
             cls.W_CREDIT_SPREAD,
             cls.W_PUT_CALL,
             cls.W_NEW_HIGHS_LOWS,
             cls.W_AD_LINE,
-            cls.W_BREADTH_50,
             cls.W_POSITIONING,
             cls.W_AAII,
             cls.W_YIELD_CURVE,
@@ -421,8 +450,7 @@ class MarketExposure:
             required_factors = {
                 "trend_30wk",
                 "spy_momentum",
-                "breadth_200dma",
-                "breadth_50dma",
+                "breadth",  # merged 2026-08-22 pass 3 (was breadth_200dma + breadth_50dma)
                 "distribution_days",
                 "vix_regime",
                 # "put_call_ratio",  # OPTIONAL - no official source, skipped if unavailable
@@ -521,7 +549,7 @@ class MarketExposure:
                 return cached
 
         logger.info(
-            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (19 factors + 5 vetoes, using calculator methods)"
+            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (18 factors + 5 vetoes, using calculator methods)"
         )
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
@@ -557,43 +585,30 @@ class MarketExposure:
             score += mom_pts
             logger.debug(f"  SPY 12-month momentum: {mom_pts:.1f} pts")
 
-            # --- 3. Breadth: % stocks above 50-DMA ---
+            # --- 3. Breadth: % stocks above 50-DMA and 200-DMA, blended into one factor ---
+            # MERGED 2026-08-22 pass 3 (user-flagged inconsistency vs. how Yield Curve
+            # treats its own two inputs) - see module docstring "Breadth signal
+            # consolidation". Both raw values are still kept in the factor detail (still
+            # visible on dashboard/frontend); only the SCORING treats them as one 0.77-
+            # correlated vote, weighted 62.5%/37.5% to preserve 200-DMA/50-DMA's original
+            # 7.5:4.5 relative importance, rather than two separately-weighted votes for
+            # the same participation read. _pct_above_ma() raises RuntimeError internally
+            # (not data_unavailable) if either window's data is missing - breadth is
+            # required, not optional, matching its pre-merge behavior.
             b50 = self.calculator._pct_above_ma(eval_date, ma_days=50, cur=cur)
-            b50_pts, b50_avail = self.calculator._wt_pts(b50, self.W_BREADTH_50)
-            avail_max += b50_avail
-            factors["breadth_50dma"] = {
-                **b50,
-                "pts": round(b50_pts, 1),
-                "max": self.W_BREADTH_50,
-            }
-            score += b50_pts
-            b50_val = b50.get("value")
-            if b50_val is None:
-                raise ValueError(
-                    f"[MARKET_EXPOSURE CRITICAL] Breadth 50-DMA 'value' field is None for {eval_date}. "
-                    f"Cannot assess market breadth - trend_template_data may be missing or corrupted."
-                )
-            logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
-
-            # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
-            b200_pts, b200_avail = self.calculator._wt_pts(b200, self.W_BREADTH_200)
-            avail_max += b200_avail
-            factors["breadth_200dma"] = {
-                **b200,
-                "pts": round(b200_pts, 1),
-                "max": self.W_BREADTH_200,
+            breadth = {
+                "score": round(0.625 * b200["score"] + 0.375 * b50["score"], 1),
+                "pct_above_50": b50["value"],
+                "pct_above_200": b200["value"],
             }
-            score += b200_pts
-            b200_val = b200.get("value")
-            if b200_val is None:
-                raise ValueError(
-                    f"[MARKET_EXPOSURE CRITICAL] Breadth 200-DMA 'value' field is None for {eval_date}. "
-                    f"Cannot assess long-term market breadth - trend_template_data may be missing or corrupted."
-                )
-            logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
+            breadth_pts, breadth_avail = self.calculator._wt_pts(breadth, self.W_BREADTH)
+            avail_max += breadth_avail
+            factors["breadth"] = {**breadth, "pts": round(breadth_pts, 1), "max": self.W_BREADTH}
+            score += breadth_pts
+            logger.debug(f"  Breadth: 50DMA {b50['value']:.1f}% / 200DMA {b200['value']:.1f}%, {breadth_pts:.1f} pts")
 
-            # --- 5. Selling pressure (heavy-volume down days) ---
+            # --- 4. Selling pressure (heavy-volume down days) ---
             # CRITICAL: Selling pressure is required for hard veto checks (Veto 3: 6+ days)
             # Never silently exclude or default to None - must fail-fast on calculation error
             try:
@@ -626,7 +641,7 @@ class MarketExposure:
             score += sp_pts
             logger.debug(f"  Selling pressure: {sp['count']} days, {sp_pts:.1f} pts")
 
-            # --- 6. VIX regime (level + VIX3M term structure) ---
+            # --- 5. VIX regime (level + VIX3M term structure) ---
             # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).
             # Term structure (VIX3M) is optional: if missing, calculation proceeds with level only.
             try:
@@ -641,7 +656,7 @@ class MarketExposure:
             vix_value_display = vix.get("value") if vix.get("value") is not None else "N/A"
             logger.debug(f"  VIX regime: {vix_value_display} (score {vix_pts:.1f} pts)")
 
-            # --- 7. Put/call ratio (options sentiment - contrarian, 8pt optional) ---
+            # --- 6. Put/call ratio (options sentiment - contrarian, 8pt optional) ---
             # OPTIONAL enrichment (Session 291+): No official source for put/call data.
             # Yfinance removed. Factor gracefully skipped if unavailable (don't fail, just skip).
             pc = self.calculator.put_call_ratio(eval_date, cur)
@@ -669,7 +684,7 @@ class MarketExposure:
                 )
                 logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
-            # --- 8. New highs vs new lows ---
+            # --- 7. New highs vs new lows ---
             nhnl = self.calculator.new_highs_lows(eval_date, cur)
             nhnl_pts, nhnl_avail = self.calculator._wt_pts(nhnl, self.W_NEW_HIGHS_LOWS)
             avail_max += nhnl_avail
@@ -681,7 +696,7 @@ class MarketExposure:
             score += nhnl_pts
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
-            # --- 9. A/D line confirmation ---
+            # --- 8. A/D line confirmation ---
             ad = self._ad_line(eval_date, cur)
             ad_pts, ad_avail = self.calculator._wt_pts(ad, self.W_AD_LINE)
             avail_max += ad_avail
@@ -692,7 +707,7 @@ class MarketExposure:
             )
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
-            # --- 10. Credit spreads (HY OAS - credit leads equity) ---
+            # --- 9. Credit spreads (HY OAS - credit leads equity) ---
             cs = self._credit_spread(eval_date, cur)
             cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
@@ -707,7 +722,7 @@ class MarketExposure:
             )
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
-            # --- 11. AAII sentiment (contrarian at extremes only) ---
+            # --- 10. AAII sentiment (contrarian at extremes only) ---
             aaii = self.calculator.aaii(eval_date, cur)
             aaii_pts, aaii_avail = self.calculator._wt_pts(aaii, self.W_AAII)
             avail_max += aaii_avail
@@ -719,7 +734,7 @@ class MarketExposure:
             score += aaii_pts
             logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
-            # --- 12. Positioning & flows: insider buying breadth + short interest trend ---
+            # --- 11. Positioning & flows: insider buying breadth + short interest trend ---
             # (5pt optional; replaces NAAIM 2026-08-20, see MarketFactorCalculator.positioning())
             positioning = self.calculator.positioning(eval_date, cur)
             if positioning.get("data_unavailable"):
@@ -743,7 +758,7 @@ class MarketExposure:
                 score += pos_pts
                 logger.debug(f"  Positioning: {pos_pts:.1f} pts")
 
-            # --- 13. Yield Curve (T10Y2Y + T10Y3M avg, z-scored) ---
+            # --- 12. Yield Curve (T10Y2Y + T10Y3M avg, z-scored) ---
             yc = self._yield_curve_factor(eval_date, cur)
             if yc.get("data_unavailable"):
                 logger.info(f"[YIELD_CURVE] Unavailable (optional factor skipped): {yc.get('reason')}")
@@ -756,7 +771,7 @@ class MarketExposure:
                 factors["yield_curve"] = {**yc, "pts": round(yc_pts, 1), "max": self.W_YIELD_CURVE}
                 score += yc_pts
 
-            # --- 14. Inflation Expectations (T5YIE + T10YIE avg, z-scored) ---
+            # --- 13. Inflation Expectations (T5YIE + T10YIE avg, z-scored) ---
             infl = self._inflation_expectations_factor(eval_date, cur)
             if infl.get("data_unavailable"):
                 logger.info(f"[INFLATION_EXPECTATIONS] Unavailable (optional factor skipped): {infl.get('reason')}")
@@ -773,7 +788,7 @@ class MarketExposure:
                 }
                 score += infl_pts
 
-            # --- 15. Sector Rotation (defensive vs cyclical leadership) ---
+            # --- 14. Sector Rotation (defensive vs cyclical leadership) ---
             # FIXED 2026-08-22: was a post-score point-penalty applied outside the normal
             # weighted-factor pathway; now a normal factor (see _sector_rotation_factor).
             try:
@@ -796,7 +811,7 @@ class MarketExposure:
                 factors["sector_rotation"] = {**rotation, "pts": round(sr_pts, 1), "max": self.W_SECTOR_ROTATION}
                 score += sr_pts
 
-            # --- 16. Cross-Asset Confirmation (gold/bonds/USD/oil vs equities, z-scored) ---
+            # --- 15. Cross-Asset Confirmation (gold/bonds/USD/oil vs equities, z-scored) ---
             # FIXED 2026-08-22: was a post-score point-penalty gated on a binary "count of
             # trip-wires" rule; now a normal factor with a real z-scored composite and an
             # asymmetric scoring curve (see _cross_asset_factor).
@@ -820,7 +835,7 @@ class MarketExposure:
                 factors["cross_asset_confirmation"] = {**xasset, "pts": round(xa_pts, 1), "max": self.W_CROSS_ASSET}
                 score += xa_pts
 
-            # --- 17. Earnings Revision Breadth (analyst target-price revisions) ---
+            # --- 16. Earnings Revision Breadth (analyst target-price revisions) ---
             # FIXED 2026-08-22: was one of three inputs blended into a single "Fundamental
             # Quality" score; now stands alone as its own real, named factor (see
             # _earnings_revision_breadth_factor's docstring for why the blend was dropped).
@@ -843,7 +858,7 @@ class MarketExposure:
                 }
                 score += rev_pts
 
-            # --- 18. Valuation Extension Breadth (% of universe at an extended P/E or P/S) ---
+            # --- 17. Valuation Extension Breadth (% of universe at an extended P/E or P/S) ---
             # FIXED 2026-08-22: was the third input in the same blend, dropped for the same
             # reason - it's a legitimate, honestly-labeled first-pass heuristic on its own,
             # not equal-footing evidence with a real named indicator like revision breadth.
@@ -871,7 +886,7 @@ class MarketExposure:
                 }
                 score += val_pts
 
-            # --- 19. Sahm Rule (recession-onset ramp, demoted 2026-08-22 pass 2 from a hard
+            # --- 18. Sahm Rule (recession-onset ramp, demoted 2026-08-22 pass 2 from a hard
             # veto - see module docstring for the full reasoning: single lagging monthly
             # print, real 2024 false-trigger precedent, and a raw z-score against Sahm's own
             # history is the wrong tool for this specific right-skewed, regime-switching
@@ -1058,7 +1073,7 @@ class MarketExposure:
             regime = tier_for_exposure(final)["name"]
 
             logger.info(
-                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=19"
+                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=18"
             )
 
             # CRITICAL: distribution_days is required for position sizing hard vetoes

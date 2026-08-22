@@ -147,12 +147,14 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if key == "trend_30wk":
             v = safe_float(f.get("price_vs_ma_pct"), default=None)
             return f" {'+' if v is not None and v >= 0 else ''}{v:.1f}%" if v is not None else "[yellow]⚠[/]"
-        if key == "breadth_50dma":
-            v = safe_float(f.get("value"), default=None)
-            return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
-        if key == "breadth_200dma":
-            v = safe_float(f.get("value"), default=None)
-            return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
+        if key == "breadth":
+            # Merged 2026-08-22 pass 3 from two separate factors (breadth_50dma/
+            # breadth_200dma) into one blended factor - both raw values still shown.
+            b50 = safe_float(f.get("pct_above_50"), default=None)
+            b200 = safe_float(f.get("pct_above_200"), default=None)
+            if b50 is not None and b200 is not None:
+                return f" 50d:{b50:.0f}% 200d:{b200:.0f}%"
+            return "[yellow]⚠[/]"
         if key == "spy_momentum":
             v = safe_float(f.get("value"), default=None)
             if v is None:
@@ -275,14 +277,13 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     factor_map = [
         ("trend_30wk", "30-Week Trend", 11.25),
         ("spy_momentum", "SPY 12mo Mom", 7.5),
-        ("breadth_200dma", "Breadth 200MA", 7.5),
+        ("breadth", "Breadth 50/200MA", 12),
         ("distribution_days", "Sell Pressure", 7.5),
         ("vix_regime", "VIX Regime", 7.5),
         ("credit_spread", "Credit Spread", 10.5),
         ("put_call_ratio", "Put/Call", 6),
         ("new_highs_lows", "New Hi vs Lo", 5.25),
         ("ad_line", "Adv/Dec Line", 4.5),
-        ("breadth_50dma", "Breadth 50 MA", 4.5),
         ("positioning", "Positioning", 3.75),
         ("aaii_sentiment", "AAII Survey", 2.25),
         ("yield_curve", "Yield Curve", 5),
@@ -472,14 +473,13 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     factor_map_exp = [
         ("trend_30wk", "30-Week Trend", 11.25, "SPY above 30-week MA?"),
         ("spy_momentum", "SPY 12mo Momentum", 7.5, "12-month SPY return"),
-        ("breadth_200dma", "Breadth 200 DMA", 7.5, "% stocks above 200DMA"),
+        ("breadth", "Breadth (50+200 DMA)", 12, "% stocks above 50DMA + 200DMA, blended 37.5%/62.5%"),
         ("distribution_days", "Sell Pressure", 7.5, "Distribution day count"),
         ("vix_regime", "VIX + Trend", 7.5, "Fear gauge + genuine day-over-day trend"),
         ("credit_spread", "Credit Spread", 10.5, "HY OAS level + 20d widening"),
         ("put_call_ratio", "Put/Call Ratio", 6, "Options sentiment signal"),
         ("new_highs_lows", "New Highs vs Lows", 5.25, "NYSE new highs minus lows"),
         ("ad_line", "Advance/Decline", 4.5, "Breadth momentum direction"),
-        ("breadth_50dma", "Breadth 50 DMA", 4.5, "% stocks above 50DMA"),
         ("positioning", "Positioning & Flows", 3.75, "Insider buying breadth + short interest trend"),
         ("aaii_sentiment", "AAII Sentiment", 2.25, "Retail investor bull/bear"),
         ("yield_curve", "Yield Curve", 5, "T10Y2Y + T10Y3M avg, z-scored vs own history"),
@@ -596,12 +596,14 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         if key == "trend_30wk":
             v = f.get("price_vs_ma_pct")
             val_s = f"{v:+.1f}% vs MA" if v is not None else "--"
-        elif key == "breadth_200dma":
-            v = f.get("value")
-            val_s = f"{v:.0f}% above" if v is not None else "--"
-        elif key == "breadth_50dma":
-            v = f.get("value")
-            val_s = f"{v:.0f}% above" if v is not None else "--"
+        elif key == "breadth":
+            b50 = f.get("pct_above_50")
+            b200 = f.get("pct_above_200")
+            val_s = (
+                f"50d:{b50:.0f}% / 200d:{b200:.0f}%"
+                if isinstance(b50, (int, float)) and isinstance(b200, (int, float))
+                else "--"
+            )
         elif key == "spy_momentum":
             v = f.get("value")
             val_s = f"{v:+.1f}% 12mo" if v is not None else "--"
