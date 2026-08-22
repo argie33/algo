@@ -95,6 +95,26 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
             # normal, expected outcome per this loader's own docstring) and only mark
             # data_unavailable for symbols that have NEVER had real coverage.
             if self._has_prior_real_coverage(symbol):
+                # BUG FOUND 2026-08-21 (goal session - "no analyst coverage" bucket audit,
+                # follow-up to the 2026-08-19 marker-retraction fix above): that fix only
+                # retracts a stale marker when THIS run's raw fetch comes back non-empty -
+                # it never considered the case where a symbol has real coverage on record
+                # AND the current yfinance window is legitimately empty (e.g. AMAL's only
+                # real action is from 2024-07-29, long outside yfinance's rolling
+                # upgrades_downgrades window) - live-confirmed 15 symbols (AMAL among them)
+                # stuck showing a marker written BEFORE the 2026-08-18 fix landed
+                # (2026-08-10 through 2026-08-17, back when markers were written
+                # unconditionally) as their permanent "latest row", miscategorizing a
+                # symbol with real historical coverage as "no_analyst_coverage" forever -
+                # this early-return path never touches those old rows. Any marker row
+                # coexisting with confirmed real coverage is always wrong information (we
+                # now know for a fact this symbol has coverage), so retract it here too,
+                # not just in the "rows non-empty" branch below.
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        "DELETE FROM analyst_upgrade_downgrade WHERE symbol = %s AND data_unavailable = true",
+                        (symbol,),
+                    )
                 return []
 
             # No analyst coverage for this symbol (legitimate case, not a fetch failure)

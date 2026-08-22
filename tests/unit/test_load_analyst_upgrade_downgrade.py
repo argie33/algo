@@ -76,12 +76,40 @@ class TestFetchIncremental:
         wrongly making a fully-covered symbol look data-unavailable. Must return [] instead -
         leaving the real historical rows as the visible truth - not manufacture a marker."""
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        ctx, cur = _fake_db_context(delete_rowcount=0)
         with (
             patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None),
             patch.object(loader, "_has_prior_real_coverage", return_value=True),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
         ):
             result = loader.fetch_incremental("NVDA", since=date(2026, 8, 11))
         assert result == []
+        cur.execute.assert_called_once()
+
+    def test_empty_fetch_for_already_covered_symbol_retracts_pre_existing_marker(self):
+        """BUG FOUND 2026-08-21 (follow-up to the 2026-08-18 fix above): "skip the marker
+        write" is not enough on its own - it never retracts a marker already written BEFORE
+        that fix landed (2026-08-10 through 2026-08-17, when markers were written
+        unconditionally). Live-confirmed 15 symbols (AMAL among them: one real 2024-07-29
+        action, then 6 straight days of markers before the fix stopped touching it) stuck
+        showing that pre-fix marker as their permanent "latest row" forever, since this
+        early-return path never retracted it and the yfinance window for these symbols may
+        legitimately stay empty indefinitely. Any marker coexisting with confirmed real
+        coverage is always wrong - retract it here too, not just on the "rows non-empty"
+        path below."""
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        ctx, cur = _fake_db_context(delete_rowcount=1)
+        with (
+            patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=True),
+            patch("loaders.load_analyst_upgrade_downgrade.DatabaseContext", return_value=ctx),
+        ):
+            result = loader.fetch_incremental("AMAL", since=date(2026, 8, 17))
+        assert result == []
+        query, params = cur.execute.call_args[0]
+        assert "DELETE FROM analyst_upgrade_downgrade" in query
+        assert "data_unavailable = true" in query
+        assert params == ("AMAL",)
 
     def test_since_none_returns_all_rows(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
