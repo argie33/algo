@@ -1546,12 +1546,23 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     continue
                 ratio = reference / float(val)
                 if ratio > 20 or ratio < 1 / 20:
+                    # BUG FOUND 2026-08-21 (goal session - log-accuracy audit): `{ratio:.0f}x`
+                    # only reads sensibly when val is too SMALL (ratio > 1). When val is too
+                    # LARGE instead (ratio < 1, e.g. ALMU FY2026's shares_outstanding_basic=
+                    # 17,354,370,000 vs company_info_sec's 18,305,335 - the ~1000x-too-large
+                    # mirror image of the same scale bug), `ratio:.0f` rounds to "0x",
+                    # printing the nonsensical "disagrees ... by 0x" - live-confirmed 241
+                    # occurrences in a single run. Report the magnitude symmetrically
+                    # (always >= 1x) and say which side is off so the log is actually usable
+                    # for diagnosing which direction the scale error went.
+                    times_off = ratio if ratio >= 1 else 1 / ratio
+                    direction = "too small" if ratio >= 1 else "too large"
                     logger.warning(
                         f"[{self.table_name}] {symbol} FY{row.get('fiscal_year')}: {field}={val:,.0f} "
-                        f"disagrees with company_info_sec.shares_outstanding={reference:,.0f} by "
-                        f"{ratio:.0f}x - likely an unconverted 'reported in thousands' XBRL scale "
-                        "error the absolute floor above didn't catch. Rejecting rather than storing "
-                        "a confidently-wrong share count."
+                        f"disagrees with company_info_sec.shares_outstanding={reference:,.0f} - "
+                        f"{field} looks {times_off:.0f}x {direction} - likely an unconverted "
+                        "'reported in thousands' XBRL scale error the absolute floor above didn't "
+                        "catch. Rejecting rather than storing a confidently-wrong share count."
                     )
                     row[field] = None
 
