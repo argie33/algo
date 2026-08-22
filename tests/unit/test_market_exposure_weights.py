@@ -90,18 +90,17 @@ class TestMarketExposureWeightSum:
     def test_current_weights_sum_to_100(self):
         MarketExposure()  # must not raise
 
-    def test_weights_are_the_documented_19_factors(self):
+    def test_weights_are_the_documented_18_factors(self):
         weights = [
             MarketExposure.W_TREND_30WK,
             MarketExposure.W_SPY_MOMENTUM,
-            MarketExposure.W_BREADTH_200,
+            MarketExposure.W_BREADTH,
             MarketExposure.W_SELLING_PRESSURE,
             MarketExposure.W_VIX,
             MarketExposure.W_CREDIT_SPREAD,
             MarketExposure.W_PUT_CALL,
             MarketExposure.W_NEW_HIGHS_LOWS,
             MarketExposure.W_AD_LINE,
-            MarketExposure.W_BREADTH_50,
             MarketExposure.W_POSITIONING,
             MarketExposure.W_AAII,
             MarketExposure.W_YIELD_CURVE,
@@ -112,7 +111,7 @@ class TestMarketExposureWeightSum:
             MarketExposure.W_VALUATION_EXTENSION,
             MarketExposure.W_SAHM_RULE,
         ]
-        assert len(weights) == 19
+        assert len(weights) == 18
         assert sum(weights) == pytest.approx(100.0)
 
     def test_drifted_weight_sum_raises(self, monkeypatch):

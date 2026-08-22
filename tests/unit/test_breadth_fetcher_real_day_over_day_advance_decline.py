@@ -2,17 +2,19 @@
 """Regression test (2026-08-20, goal: finance-accuracy audit): BreadthFetcher.fetch()'s
 advance_decline_ratio used to be COUNT(price_above_sma50=true)/COUNT(price_above_sma50=false)
 from trend_template_data - "% of stocks above their 50-day moving average" (a trend-
-participation metric, already separately and correctly captured by
-algo/risk/factors/breadth_50dma_factor.py), mislabeled as an advance/decline ratio.
+participation metric, already separately and correctly captured by MarketExposure's breadth
+factor - now algo/risk/market_exposure.py's merged BREADTH factor, formerly the standalone
+breadth_50dma_factor.py in a pre-2026-08-20 architecture since removed), mislabeled as an
+advance/decline ratio.
 
 Live-confirmed the mislabeling before this fix: market_health_daily.advance_decline_ratio sat
 in a narrow 0.91-1.41 band for 3+ weeks straight (2026-07-31 through 2026-08-20) - not how a
 real day-to-day advance/decline ratio behaves, since "% above a slow-moving 50-day average"
 barely changes day to day. This meant load_market_status_daily.py's breadth_momentum_10d
 ("% of the last 10 days with advance_decline_ratio > 1.0") trivially pinned at 100% for days
-at a time during any sustained uptrend, and algo/risk/factors/ad_line_factor.py (which reads
-this same column) was really just re-scoring breadth_50dma_factor's signal a second time under
-a different factor name in the 12-factor market exposure composite.
+at a time during any sustained uptrend, and MarketExposure's A/D line factor (which reads
+this same column) was really just re-scoring the breadth factor's signal a second time under
+a different factor name in the market exposure composite.
 
 Fixed to compute a genuine day-over-day A/D: each symbol's close vs. its own immediately-prior
 available close (LAG), summed per date - live-verified against the real DB (2026-08-10 to
@@ -35,7 +37,7 @@ from loaders.market_health_fetchers import BreadthFetcher
 class TestBreadthFetcherUsesRealDayOverDayAdvanceDecline:
     def test_query_does_not_read_trend_template_data_or_price_above_sma50(self) -> None:
         """Guard against regressing back to the trend-participation proxy this fix replaced -
-        that data is breadth_50dma_factor's signal, not advance/decline's."""
+        that data is the breadth factor's signal, not advance/decline's."""
         fetcher = BreadthFetcher()
 
         with patch("utils.db.DatabaseContext") as mock_db:

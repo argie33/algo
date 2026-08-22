@@ -621,22 +621,24 @@ class BreadthFetcher:
         FIXED 2026-08-20 (goal: finance-accuracy audit): advance_decline_ratio used to be
         COUNT(price_above_sma50=true)/COUNT(price_above_sma50=false) from trend_template_data -
         i.e. "stocks trading above their 50-day moving average" (a trend-participation metric,
-        already correctly captured on its own by algo/risk/factors/breadth_50dma_factor.py),
-        mislabeled as "advance/decline ratio". A genuine market-breadth A/D ratio is a
-        day-over-day measure - how many stocks closed up vs. down TODAY vs. yesterday - which
-        is far more volatile than "% above a 50-day average" (that only changes as a stock
-        crosses its own slow-moving trendline, not every day). Live-confirmed the mislabeling:
+        already correctly captured on its own by MarketExposure's breadth factor - now
+        algo/risk/market_exposure.py's merged BREADTH factor, formerly the standalone
+        breadth_50dma_factor.py in a pre-2026-08-20 architecture since removed), mislabeled
+        as "advance/decline ratio". A genuine market-breadth A/D ratio is a day-over-day
+        measure - how many stocks closed up vs. down TODAY vs. yesterday - which is far more
+        volatile than "% above a 50-day average" (that only changes as a stock crosses its
+        own slow-moving trendline, not every day). Live-confirmed the mislabeling:
         market_health_daily.advance_decline_ratio sat in a narrow 0.91-1.41 band for 3+ weeks
         straight (2026-07-31 through 2026-08-20) - not how a real day-to-day A/D ratio behaves
         even in a strong rally - which meant load_market_status_daily.py's breadth_momentum_10d
         ("% of the last 10 days with advance_decline_ratio > 1.0") trivially pinned at 100% for
-        days at a time, and algo/risk/factors/ad_line_factor.py (which reads this same column
-        to score A/D-line-vs-SPY confirmation/divergence, a DISTINCT 6pt market-exposure
-        factor from breadth_50dma_factor's 6pt) was really just re-scoring the same 50DMA
-        signal twice under two different factor names. Now computed as a real day-over-day
-        A/D: each symbol's close vs. its own immediately-prior available close (LAG), summed
-        per date - the standard NYSE/market-breadth A/D definition, and now genuinely
-        independent of breadth_50dma_factor's signal.
+        days at a time, and MarketExposure's A/D line factor (which reads this same column to
+        score A/D-line-vs-SPY confirmation/divergence, a DISTINCT 4.5pt market-exposure factor
+        from breadth's 12pt) was really just re-scoring the same 50DMA signal twice under two
+        different factor names. Now computed as a real day-over-day A/D: each symbol's close
+        vs. its own immediately-prior available close (LAG), summed per date - the standard
+        NYSE/market-breadth A/D definition, and now genuinely independent of the breadth
+        factor's signal.
         """
         from datetime import timedelta
 
