@@ -22,6 +22,15 @@ Data Quality:
     class where an independent, ADS/USD-basis-quoted source is structurally necessary, since
     company_info_sec's cross-check is SEC-sourced too and shares the same unit-mismatch risk),
     a cached table otherwise. See _fetch_live_fpi_yfinance_check_values's docstring.
+  - SECOND, narrower exception (2026-08-22): true dual-class filers (e.g. BRK.A/BRK.B) get
+    shares_outstanding from yfinance, ONLY when every SEC-derived tier has already failed and
+    has_dual_class_sibling=True - live-verified against real SEC EDGAR data that
+    data.sec.gov's companyfacts API structurally cannot carry per-share-class data at all (no
+    XBRL dimensional/segment support), not a gap our own extraction logic can close. Rows
+    produced this way carry `data_source="sec_audited_except_dual_class_shares_yfinance"`
+    (never silently blended into the "sec_audited" label) - see
+    _fetch_live_dual_class_shares_outstanding's docstring and
+    dual_class_primary_ticker_shares_outstanding_structural_gap_found_20260822 in memory.
 
 Run: python3 loaders/load_sec_valuations.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
@@ -699,6 +708,46 @@ class SecValuationsLoader(OptimalLoader):
                             )
                             shares_out = cross_check_shares
 
+                # DELIBERATE, NARROW EXCEPTION to this file's "SEC data only, yfinance never a
+                # value source" rule (see module docstring) - added 2026-08-22 after live-
+                # verifying against real SEC EDGAR data that the exception is structurally
+                # unavoidable: data.sec.gov's companyfacts convenience API flattens each
+                # concept to ONE value per CIK+period and does not expose XBRL dimensional/
+                # segment axes at all, so for a true dual-class filer it CANNOT distinguish one
+                # share class's count from another - not a bug in our extraction, a real gap in
+                # the only SEC data source this loader has access to (see
+                # dual_class_primary_ticker_shares_outstanding_structural_gap_found_20260822 in
+                # memory for the live BRK.A/BRK.B verification that established this: SEC has
+                # carried NO per-class share data for Berkshire since 2011). Every tier above
+                # this point is deliberately disabled for has_dual_class_sibling=True (see each
+                # tier's own 2026-08-21 comment) specifically to avoid attributing one class's
+                # SEC-reported count to its sibling - that gate stays exactly as strict. This
+                # tier only fires when every one of those SEC-sourced paths has already been
+                # exhausted and failed, for this narrow case alone. yfinance queries per-LISTING
+                # (ticker), not per-company, so it naturally resolves the correct class-specific
+                # value instead of SEC's collapsed one - live-verified 2026-08-22: BRK-A/BRK-B,
+                # AGM/AGM-A, and BIO/BIO-B each independently resolve to a market_cap
+                # (shares x price) matching its sibling's within a few percent, the strongest
+                # available sanity check that these are genuinely distinct correct values, not
+                # a copy of the parent/sibling figure. Marked via a distinct data_source value
+                # below so this narrow exception stays visible/auditable, never silently blended
+                # into the "sec_audited" label the rest of this file's output uses.
+                shares_out_from_dual_class_yfinance = False
+                if not shares_out and has_dual_class_sibling:
+                    dual_class_shares = self._fetch_live_dual_class_shares_outstanding(symbol)
+                    if (
+                        dual_class_shares
+                        and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                        < dual_class_shares
+                        < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                    ):
+                        shares_out = dual_class_shares
+                        shares_out_from_dual_class_yfinance = True
+                        logger.debug(
+                            f"[{symbol}] Using yfinance per-class shares_outstanding (dual-class "
+                            f"sibling, SEC companyfacts has no per-class data): {shares_out:,.0f}"
+                        )
+
                 # Fail if still no shares outstanding available.
                 # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit):
                 # every tier above that could resolve a foreign private issuer's shares
@@ -927,6 +976,7 @@ class SecValuationsLoader(OptimalLoader):
                 avg_fcf_fallback,
                 beta,
                 risk_free_rate,
+                shares_out_from_dual_class_yfinance,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1108,6 +1158,7 @@ class SecValuationsLoader(OptimalLoader):
         avg_fcf_fallback: float | None = None,
         beta: float | None = None,
         risk_free_rate: float | None = None,
+        shares_out_from_dual_class_yfinance: bool = False,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1115,13 +1166,22 @@ class SecValuationsLoader(OptimalLoader):
         both default to None (-> DCF_DEFAULT_BETA/DCF_DEFAULT_RISK_FREE_RATE) so existing
         callers/tests that don't supply them keep working; fetch_incremental always passes the
         symbol's real stability_metrics.beta and the live Treasury yield.
+
+        shares_out_from_dual_class_yfinance: True only for the narrow 2026-08-22 dual-class
+        exception (see _fetch_live_dual_class_shares_outstanding) - shares_out itself came from
+        yfinance, not SEC data, so data_source must say so rather than claim "sec_audited" for
+        a value that isn't. Every other input here is still 100% SEC-derived either way.
         """
         result: dict[str, Any] = {
             "symbol": symbol,
             "computed_at": date.today().isoformat(),
             "data_unavailable": False,
             "reason": None,
-            "data_source": "sec_audited",
+            "data_source": (
+                "sec_audited_except_dual_class_shares_yfinance"
+                if shares_out_from_dual_class_yfinance
+                else "sec_audited"
+            ),
             # Price-based metrics
             "current_price": current_price,
             "shares_outstanding": shares_out,
@@ -1396,6 +1456,65 @@ class SecValuationsLoader(OptimalLoader):
         yf_market_cap = float(mcap) if isinstance(mcap, (int, float)) and mcap > 0 else None
         yf_pe_ratio = float(pe) if isinstance(pe, (int, float)) and pe > 0 else None
         return yf_market_cap, yf_pe_ratio
+
+    # ADDED 2026-08-22 (goal session - real-money-readiness audit): the one narrow, deliberate
+    # exception to this file's "SEC data only, yfinance never a value source" rule - see the
+    # call site's comment (in _resolve_shares_outstanding-equivalent block above) and
+    # dual_class_primary_ticker_shares_outstanding_structural_gap_found_20260822 in memory for
+    # the full justification (SEC's companyfacts API structurally cannot carry per-share-class
+    # data for a true dual-class filer - live-verified against BRK.A/BRK.B).
+    def _fetch_live_dual_class_shares_outstanding(self, symbol: str) -> float | None:
+        """Live per-ticker shares_outstanding for a dual-class sibling, from yfinance.
+
+        ONLY called when has_dual_class_sibling=True and every SEC-derived tier above has
+        already failed - never a substitute for a real SEC value when one exists. yfinance
+        queries per-LISTING (ticker), not per-company like SEC's companyfacts API, so it
+        naturally resolves the correct class-specific count. Fails open (returns None) on any
+        fetch error, same as _fetch_live_fpi_yfinance_check_values above - a fetch failure here
+        just means this symbol stays data_unavailable, not a reason to block the whole run.
+        """
+        try:
+            import socket
+
+            import yfinance as yf
+
+            from utils.external.yfinance_circuit_breaker import (
+                YFinanceStillBannedError,
+                get_circuit_breaker,
+            )
+            from utils.external.yfinance_symbol import to_yfinance_symbol
+
+            circuit_breaker = get_circuit_breaker()
+            try:
+                circuit_breaker.wait_or_raise()
+            except YFinanceStillBannedError as e:
+                logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping dual-class shares fetch: {e}")
+                return None
+
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10.0)
+            try:
+                info = yf.Ticker(to_yfinance_symbol(symbol)).info
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+        except Exception as e:
+            error_str = str(e).lower()
+            if any(kw in error_str for kw in ("429", "rate", "too many", "invalid crumb", "unauthorized")):
+                try:
+                    get_circuit_breaker().report_rate_limit_error()
+                except Exception:
+                    pass
+            logger.debug(f"[{symbol}] Live dual-class yfinance shares fetch failed (non-fatal): {e}")
+            return None
+
+        try:
+            get_circuit_breaker().report_success()
+        except Exception:
+            pass
+        if not isinstance(info, dict):
+            return None
+        shares = info.get("sharesOutstanding")
+        return float(shares) if isinstance(shares, (int, float)) and shares > 0 else None
 
     # FIXED 2026-08-20 (goal: finance-accuracy audit): shares_outstanding can be wrong by a
     # factor neither the plausibility ceiling nor the company_info_sec cross-check (both
