@@ -19,6 +19,7 @@ from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
+from utils.db.context import DatabaseContext
 from utils.external.sec_edgar_client import SecEdgarClient
 from utils.external.sec_xbrl_segments import XBRLSegmentParser
 
@@ -113,7 +114,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
             try:
                 cik = self.sec_client.symbol_to_cik(symbol)
             except ValueError:
-                return [self._unavailable_marker(symbol, "symbol_not_found")]
+                return self._handle_symbol_not_found(symbol)
 
             # Fetch companyfacts XBRL data (JSON)
             # This returns JSON with all us-gaap facts for the company
@@ -415,6 +416,53 @@ class SecSegmentInfoLoader(SecLoaderBase):
                 f"[SEC_SEGMENT_INFO] Unexpected error parsing SEC facts: {type(e).__name__}: {str(e)[:200]}. "
                 "Check SEC API connectivity and response format."
             ) from e
+
+    @staticmethod
+    def _has_prior_real_coverage(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) row on record.
+
+        Same convention as load_current_reports_8k.py / the analyst loaders.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM sec_segment_info WHERE symbol = %s AND data_unavailable = false LIMIT 1",
+                (symbol,),
+            )
+            return cur.fetchone() is not None
+
+    @staticmethod
+    def _retract_stale_marker(symbol: str) -> None:
+        """Delete any data_unavailable marker for this symbol - only called once real
+        coverage is confirmed, so a marker coexisting with it is always wrong."""
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "DELETE FROM sec_segment_info WHERE symbol = %s AND data_unavailable = true",
+                (symbol,),
+            )
+
+    def _handle_symbol_not_found(self, symbol: str) -> list[dict[str, Any]]:
+        """A symbol_to_cik() ValueError - write the marker, unless real coverage exists.
+
+        BUG FOUND 2026-08-21 (goal session - same bug class as
+        load_current_reports_8k.py's/the analyst loaders' pre-fix marker retraction
+        fixes): this marker's fiscal_year=date.today().year (see _unavailable_marker
+        below) makes it permanently outrank any real historical fiscal-year segment data
+        in a "latest fiscal_year" read, and it was written unconditionally with zero
+        retry - live-confirmed 20 symbols including exactly the dot-suffix dual-class
+        tickers this session already fixed dot/dash handling for (BRK.A, BRK.B, CRD.A,
+        CRD.B, GEF.B, GTN.A, HEI.A, HVT.A, LEN.B, MOG.A, MOG.B, MKC.V): a fresh,
+        unretried `symbol_to_cik()` call resolves every one of them correctly right now,
+        proving the stored "symbol_not_found" marker was a one-off transient miss, not a
+        real resolution failure. Skip writing a fresh data_unavailable marker when real
+        segment data is already on record, and retract any data_unavailable=true marker
+        row already sitting there from before this guard existed - not a silent
+        fallback, this run genuinely has nothing new to report for an already-covered
+        symbol.
+        """
+        if self._has_prior_real_coverage(symbol):
+            self._retract_stale_marker(symbol)
+            return []
+        return [self._unavailable_marker(symbol, "symbol_not_found")]
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any | None]:
         """Build a data_unavailable row for a symbol with no segment disclosure."""

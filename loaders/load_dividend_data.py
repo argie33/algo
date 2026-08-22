@@ -689,6 +689,21 @@ class DividendDataLoader(SecLoaderBase):
             # produce after 3 wasted retries.
             elapsed = time.time() - start_time
             logger.debug(f"[{symbol}] Ticker not resolvable to a CIK after {elapsed:.1f}s.")
+            # BUG FOUND 2026-08-21 (same bug class as load_sec_segment_info.py /
+            # load_current_reports_8k.py / load_earnings_calendar_sec.py / the analyst
+            # loaders' pre-fix marker retraction fixes): a transient CIK-resolution miss
+            # gets treated identically to a genuine permanent non-filer here, even for a
+            # symbol with real dividend history already on record - live-confirmed VMRK
+            # (real dividend_per_share rows through 2026-08-14) shadowed by a
+            # "cik_not_found" marker written 2026-08-19. Reuses the same has_real_history
+            # check the fetch_error branch below already has, so a transient lookup miss
+            # can't clobber known-good history here either - not a silent fallback, this
+            # run genuinely has nothing new to report for a symbol with real dividend
+            # data_unavailable=false rows already on file, and any pre-existing
+            # data_unavailable=true marker is retracted as stale.
+            if self._has_real_dividend_history(symbol):
+                self._retract_stale_marker(symbol)
+                return []
             return [self._unavailable_record(symbol, now_et, "cik_not_found")]
         except Exception as e:
             elapsed = time.time() - start_time
@@ -716,20 +731,7 @@ class DividendDataLoader(SecLoaderBase):
             # recording that today's re-check happened to fail - so skip writing the marker
             # for those, same as OptimalLoader already treats an empty return (no real rows,
             # no marker) as "nothing new since watermark, skip" rather than an error.
-            try:
-                from utils.db import DatabaseContext
-
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT 1 FROM dividend_data WHERE symbol = %s AND dividend_per_share IS NOT NULL LIMIT 1",
-                        (symbol,),
-                    )
-                    has_real_history = cur.fetchone() is not None
-            except Exception as lookup_err:
-                logger.debug(f"[{symbol}] Could not check existing dividend history: {lookup_err}")
-                has_real_history = False
-
-            if has_real_history:
+            if self._has_real_dividend_history(symbol):
                 logger.debug(
                     f"[{symbol}] Fetch failed but real dividend history is already on file - "
                     "not writing a spurious data_unavailable marker row."
@@ -738,9 +740,42 @@ class DividendDataLoader(SecLoaderBase):
                 # represent its current, correct state - a transient re-check failure has
                 # nothing new to report. OptimalLoader.load_symbol() treats an empty list the
                 # same as "no new data since watermark" and skips, exactly as intended here.
+                # Also retract any marker already on record (2026-08-21: this branch never
+                # had a retraction step either, the same latent gap as the cik_not_found
+                # branch above) - a marker coexisting with confirmed real coverage is
+                # always wrong.
+                self._retract_stale_marker(symbol)
                 return []
 
             return [self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")]
+
+    @staticmethod
+    def _has_real_dividend_history(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) dividend row."""
+        from utils.db import DatabaseContext
+
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT 1 FROM dividend_data WHERE symbol = %s AND dividend_per_share IS NOT NULL LIMIT 1",
+                    (symbol,),
+                )
+                return cur.fetchone() is not None
+        except Exception as lookup_err:
+            logger.debug(f"[{symbol}] Could not check existing dividend history: {lookup_err}")
+            return False
+
+    @staticmethod
+    def _retract_stale_marker(symbol: str) -> None:
+        """Delete any data_unavailable marker for this symbol - only called once real
+        coverage is confirmed, so a marker coexisting with it is always wrong."""
+        from utils.db import DatabaseContext
+
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "DELETE FROM dividend_data WHERE symbol = %s AND data_unavailable = true",
+                (symbol,),
+            )
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> dict[str, Any]:
         """Return a data_unavailable marker for this symbol."""

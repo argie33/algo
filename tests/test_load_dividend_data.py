@@ -8,7 +8,7 @@ first survived. A symbol with multiple fiscal years of declared dividends silent
 lost all but one row before it ever reached the database.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -38,6 +38,55 @@ def _make_loader() -> DividendDataLoader:
     loader.sec_client.symbol_to_cik.return_value = "0000320193"
     loader.sec_client.get_company_facts.return_value = COMPANY_FACTS
     return loader
+
+
+def test_cik_not_found_for_already_covered_symbol_skips_and_retracts_marker() -> None:
+    """BUG FOUND 2026-08-21 (same bug class as load_sec_segment_info.py's/
+    load_current_reports_8k.py's/load_earnings_calendar_sec.py's/the analyst loaders'
+    pre-fix marker retraction fixes): a transient CIK-resolution miss was treated
+    identically to a genuine permanent non-filer, even for a symbol with real dividend
+    history already on record - live-confirmed VMRK (real dividend_per_share rows
+    through 2026-08-14) shadowed by a "cik_not_found" marker written 2026-08-19. A
+    symbol with real history must skip the write and retract any pre-existing marker."""
+    loader = _make_loader()
+    cur = MagicMock()
+    cur.fetchone.return_value = (1,)  # has_real_history query finds a real row
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch.object(loader, "_fetch_sec_data_with_timeout", side_effect=ValueError("not found")),
+        patch("utils.db.DatabaseContext", return_value=ctx),
+    ):
+        result = loader.fetch_incremental("VMRK", since=None)
+
+    assert result == []
+    delete_calls = [c for c in cur.execute.call_args_list if "DELETE FROM dividend_data" in c.args[0]]
+    assert len(delete_calls) == 1
+    assert "data_unavailable = true" in delete_calls[0].args[0]
+    assert delete_calls[0].args[1] == ("VMRK",)
+
+
+def test_cik_not_found_for_never_covered_symbol_still_gets_the_marker() -> None:
+    """Control: a symbol with no real dividend history on record must still get the
+    honest cik_not_found marker - this is the genuine "never resolved" case."""
+    loader = _make_loader()
+    cur = MagicMock()
+    cur.fetchone.return_value = None  # has_real_history query finds nothing
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch.object(loader, "_fetch_sec_data_with_timeout", side_effect=ValueError("not found")),
+        patch("utils.db.DatabaseContext", return_value=ctx),
+    ):
+        result = loader.fetch_incremental("ZZZZ", since=None)
+
+    assert len(result) == 1
+    assert result[0]["data_unavailable"] is True
+    assert result[0]["data_unavailable_reason"] == "cik_not_found"
 
 
 def test_distinct_dividend_records_are_not_collapsed() -> None:

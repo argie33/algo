@@ -116,7 +116,22 @@ class EarningsCalendarSECLoader(SecLoaderBase):
             try:
                 cik = self.sec_client.symbol_to_cik(symbol)
             except ValueError:
+                # BUG FOUND 2026-08-21 (same bug class as load_sec_segment_info.py /
+                # load_current_reports_8k.py / the analyst loaders' pre-fix marker
+                # retraction fixes): this marker's filing_date=today() outranks any real
+                # historical earnings-date row in a "latest filing_date" read, and was
+                # written unconditionally with zero retry - live-confirmed 5 symbols
+                # (BNZI, GRAF, GV, NUTR, QMMM) stuck shadowed despite real coverage on
+                # record. Skip the write when real coverage exists, and retract any
+                # marker already sitting there from before this guard existed.
                 logger.warning(f"[{symbol}] CIK not found in SEC ticker cache")
+                if self._has_prior_real_coverage(symbol):
+                    with DatabaseContext("write") as cur:
+                        cur.execute(
+                            "DELETE FROM earnings_calendar_sec WHERE symbol = %s AND data_unavailable = true",
+                            (symbol,),
+                        )
+                    return []
                 return self._unavailable_record(symbol, now_et, "cik_not_found")
 
             # Fetch submissions which has filing dates
@@ -250,6 +265,20 @@ class EarningsCalendarSECLoader(SecLoaderBase):
         except Exception as e:
             # Try to handle via classification, or fail-fast if unexpected
             return self._wrap_exception_handler(symbol, e, "fetching earnings calendar")
+
+    @staticmethod
+    def _has_prior_real_coverage(symbol: str) -> bool:
+        """True if this symbol already has at least one real (non-marker) row on record.
+
+        Same convention as load_current_reports_8k.py / load_sec_segment_info.py / the
+        analyst loaders.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM earnings_calendar_sec WHERE symbol = %s AND data_unavailable = false LIMIT 1",
+                (symbol,),
+            )
+            return cur.fetchone() is not None
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record.

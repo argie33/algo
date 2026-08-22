@@ -13,7 +13,7 @@ fiscal period, corrupting any time-series or freshness use of those columns.
 """
 
 from datetime import date
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from loaders.load_sec_segment_info import SecSegmentInfoLoader
 
@@ -27,6 +27,58 @@ def _make_loader() -> SecSegmentInfoLoader:
     # confirm the symbol has facts at all.
     loader.sec_client.get_company_facts.return_value = {"facts": {"us-gaap": {}}}
     return loader
+
+
+def _fake_db_context():
+    cur = MagicMock()
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx, cur
+
+
+def test_symbol_not_found_for_already_covered_symbol_skips_and_retracts_marker() -> None:
+    """BUG FOUND 2026-08-21 (same bug class as load_current_reports_8k.py's/the analyst
+    loaders' pre-fix marker retraction fixes): the "symbol_not_found" marker's
+    fiscal_year=date.today().year permanently outranks any real historical segment data
+    in a "latest fiscal_year" read, and was written unconditionally with zero retry -
+    live-confirmed 20 symbols including exactly the dot-suffix dual-class tickers this
+    session already fixed dot/dash handling for (BRK.A, BRK.B, CRD.A, CRD.B, GEF.B,
+    GTN.A, HEI.A, HVT.A, LEN.B, MOG.A, MOG.B, MKC.V) - a fresh symbol_to_cik() call
+    resolves every one of them correctly, proving the stored marker was a one-off
+    transient miss. A symbol with real coverage must skip the write and retract any
+    pre-existing marker."""
+    loader = SecSegmentInfoLoader.__new__(SecSegmentInfoLoader)
+    loader.sec_client = MagicMock()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+    ctx, cur = _fake_db_context()
+
+    with (
+        patch.object(loader, "_has_prior_real_coverage", return_value=True),
+        patch("loaders.load_sec_segment_info.DatabaseContext", return_value=ctx),
+    ):
+        result = loader.fetch_incremental("BRK.A", since=None)
+
+    assert result == []
+    query, params = cur.execute.call_args[0]
+    assert "DELETE FROM sec_segment_info" in query
+    assert "data_unavailable = true" in query
+    assert params == ("BRK.A",)
+
+
+def test_symbol_not_found_for_never_covered_symbol_still_gets_the_marker() -> None:
+    """Control: a symbol with no real segment data on record must still get the honest
+    symbol_not_found marker - this is the genuine "never resolved" case."""
+    loader = SecSegmentInfoLoader.__new__(SecSegmentInfoLoader)
+    loader.sec_client = MagicMock()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+
+    with patch.object(loader, "_has_prior_real_coverage", return_value=False):
+        result = loader.fetch_incremental("ZZZZ", since=None)
+
+    assert len(result) == 1
+    assert result[0]["data_unavailable"] is True
+    assert result[0]["reason"] == "symbol_not_found"
 
 
 _XML_WITH_SEGMENTS = """<?xml version="1.0"?>
