@@ -2386,21 +2386,57 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         fallback_tax_row = cur.fetchone()
 
                 if fallback_tax_row:
-                    roic_tax_expense = self._nan_to_none(
-                        safe_float(fallback_tax_row[0], f"{symbol}.income_tax_expense_fallback_year", allow_none=True)
-                    )
-                    roic_pretax_income = self._nan_to_none(
-                        safe_float(fallback_tax_row[1], f"{symbol}.pretax_income_fallback_year", allow_none=True)
-                    )
-                    roic_operating_income = self._nan_to_none(
-                        safe_float(fallback_tax_row[2], f"{symbol}.operating_income_fallback_year", allow_none=True)
-                    )
-                    roic_interest_expense = self._nan_to_none(
-                        safe_float(fallback_tax_row[3], f"{symbol}.interest_expense_fallback_year", allow_none=True)
-                    )
-                    roic_net_income = self._nan_to_none(
-                        safe_float(fallback_tax_row[4], f"{symbol}.net_income_fallback_year", allow_none=True)
-                    )
+                    # FIXED 2026-08-22 (goal session: "Legitimate/not applicable" coverage
+                    # audit): this fallback search's trigger condition fires whenever
+                    # operating_income AND interest_expense are BOTH missing in the anchor
+                    # year - true for insurers (they don't tag either concept the way
+                    # industrials do) even when the anchor's own income_tax_expense/
+                    # pretax_income are perfectly real and current. The search below ranks
+                    # candidate years by "has operating_income or interest_expense" ABOVE
+                    # recency, so it can - and did - pick an older, WORSE year's tax/pretax
+                    # over the anchor's own good ones purely because that older year happens
+                    # to have a stray interest_expense value. Live-confirmed via ALL
+                    # (Allstate, a real, profitable insurer): anchor FY2025 has real
+                    # pretax_income=$13.156B (clearly profitable) with operating_income/
+                    # interest_expense both None, but FY2023 (a real loss year,
+                    # pretax_income=-$348M) has a real interest_expense value and won this
+                    # fallback's tier-0 preference - silently overwriting a profitable
+                    # company's correct current pretax_income with a 2-year-stale loss
+                    # figure, wrongly marking roic_pct "unprofitable_stock". Only take the
+                    # fallback row's tax_expense/pretax_income when the anchor didn't already
+                    # have real values for them - this fallback's entire reason to exist is
+                    # recovering operating_income/interest_expense for NOPAT, never to
+                    # second-guess an anchor year's own already-good profitability figures.
+                    if roic_tax_expense is None:
+                        roic_tax_expense = self._nan_to_none(
+                            safe_float(
+                                fallback_tax_row[0], f"{symbol}.income_tax_expense_fallback_year", allow_none=True
+                            )
+                        )
+                    if roic_pretax_income is None:
+                        roic_pretax_income = self._nan_to_none(
+                            safe_float(fallback_tax_row[1], f"{symbol}.pretax_income_fallback_year", allow_none=True)
+                        )
+                    # Same "don't clobber a real anchor-year value" guard for
+                    # operating_income/interest_expense - the mirror-image case (tax/pretax
+                    # missing in anchor, but operating_income/interest_expense already
+                    # present there) would otherwise mix the anchor year's real
+                    # operating_income with a DIFFERENT fallback year's interest_expense (or
+                    # vice versa), exactly the "mixed years" problem this file's own Session
+                    # 72 fix already solved once for the anchor-vs-3-year/all-time search
+                    # further above - the same discipline applies here.
+                    if roic_operating_income is None:
+                        roic_operating_income = self._nan_to_none(
+                            safe_float(fallback_tax_row[2], f"{symbol}.operating_income_fallback_year", allow_none=True)
+                        )
+                    if roic_interest_expense is None:
+                        roic_interest_expense = self._nan_to_none(
+                            safe_float(fallback_tax_row[3], f"{symbol}.interest_expense_fallback_year", allow_none=True)
+                        )
+                    if roic_net_income is None:
+                        roic_net_income = self._nan_to_none(
+                            safe_float(fallback_tax_row[4], f"{symbol}.net_income_fallback_year", allow_none=True)
+                        )
 
             if roic_operating_income is None and roic_pretax_income is not None and roic_interest_expense is not None:
                 # EBIT approximation fallback - see comment above. roic_interest_expense is

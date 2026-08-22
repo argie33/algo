@@ -274,3 +274,40 @@ class TestRoicPctUnprofitableStockReason:
 
         assert metrics["roic_pct"] is not None
         assert metrics["roic_pct_unavailable_reason"] is None
+
+    def test_fallback_year_recovery_does_not_clobber_anchors_own_good_pretax_income(self, monkeypatch):
+        # FIXED 2026-08-22 (goal session: "Legitimate/not applicable" coverage audit):
+        # live-confirmed via ALL (Allstate, a real, profitable insurer) - the anchor year
+        # has real, POSITIVE pretax_income/income_tax_expense (insurers just never tag
+        # operating_income or interest_expense), triggering the same history-search fallback
+        # as the BANKCO test above. But that fallback ranks candidate years by "has
+        # operating_income or interest_expense" ABOVE recency/correctness, so it can win with
+        # an OLDER year whose pretax_income is negative (a real prior loss year) purely
+        # because that older year happens to have a stray interest_expense value - silently
+        # overwriting the anchor's own correct, profitable pretax_income with a stale loss
+        # figure and wrongly reporting "unprofitable_stock" for a genuinely profitable
+        # company. The fallback must only fill in what the anchor is missing
+        # (operating_income/interest_expense here), never override tax_expense/pretax_income
+        # the anchor already had.
+        fallback_row = (
+            -1_000_000.0,  # income_tax_expense (older, worse year)
+            -3_000_000.0,  # pretax_income (a real prior LOSS - must NOT win)
+            None,  # operating_income
+            2_000_000.0,  # interest_expense (why this older year won the ranking)
+            -2_000_000.0,  # net_income
+        )
+        loader = _make_loader_with_fallback_row(monkeypatch, fallback_row)
+        row = _quality_row(
+            stockholders_equity=200_000_000.0,
+            long_term_debt=50_000_000.0,
+            cash_and_equivalents=10_000_000.0,
+            operating_income=None,
+            income_tax_expense=8_000_000.0,
+            pretax_income=32_000_000.0,  # anchor's own real, POSITIVE pretax income
+            interest_expense=None,
+        )
+
+        metrics = loader._compute_quality_metrics("PROFITABLECO", row, ev_metrics=None)
+
+        assert metrics["roic_pct_unavailable_reason"] != "unprofitable_stock"
+        assert metrics["roic_pct"] is not None
