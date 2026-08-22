@@ -1165,16 +1165,31 @@ class SecValuationsLoader(OptimalLoader):
 
         # FCF Yield = Free Cash Flow ÷ Market Cap
         # FCF = Operating Cash Flow - Capital Expenditures
-        if ocf and capex is not None:
-            fcf = ocf - capex
-            if fcf and result["market_cap"] and result["market_cap"] > 0:
-                fcf_yield_pct = (fcf / result["market_cap"]) * 100
-                # Only store if within reasonable bounds (-1000% to +1000%)
-                # Extreme values indicate data errors or tiny market caps
-                if -1000 <= fcf_yield_pct <= 1000:
-                    result["fcf_yield"] = round(fcf_yield_pct, 2)
-                else:
-                    logger.debug(f"[{symbol}] FCF yield out of bounds ({fcf_yield_pct:.1f}%), marking as NULL")
+        #
+        # FIXED 2026-08-22 (goal session - coverage-bucket root-cause audit): `ocf`/`capex`
+        # here are always the SINGLE latest fiscal_year row (fetch_incremental's `cash_rows[0]`)
+        # - for the current, still-open fiscal year (e.g. 2026 while that year is in progress),
+        # a full-year capex figure genuinely hasn't been filed yet, so capex is None and this
+        # unconditionally left fcf_yield NULL even when the immediately preceding COMPLETE
+        # fiscal year had perfectly good ocf/capex on file. Live-confirmed: BAX, VTR, STM, CWT,
+        # FAF, UMH, ESE, MWA (and ~1574 symbols universe-wide, ~30% of the tracked universe) -
+        # all real, established companies with a real, complete prior-year FCF figure already in
+        # annual_cash_flow - permanently NULL here purely because the current interim year's
+        # capex isn't tagged yet. Same "current partial year masks real prior-year data" bug
+        # class already fixed for margin_of_safety/intrinsic_value_per_share via
+        # `avg_fcf_fallback` (see fcf_base a few lines below) - that fallback was computed and
+        # passed into this function all along, just never wired up for fcf_yield itself.
+        fcf = ocf - capex if ocf is not None and capex is not None else None
+        if fcf is None and avg_fcf_fallback is not None:
+            fcf = avg_fcf_fallback
+        if fcf is not None and result["market_cap"] and result["market_cap"] > 0:
+            fcf_yield_pct = (fcf / result["market_cap"]) * 100
+            # Only store if within reasonable bounds (-1000% to +1000%)
+            # Extreme values indicate data errors or tiny market caps
+            if -1000 <= fcf_yield_pct <= 1000:
+                result["fcf_yield"] = round(fcf_yield_pct, 2)
+            else:
+                logger.debug(f"[{symbol}] FCF yield out of bounds ({fcf_yield_pct:.1f}%), marking as NULL")
 
         # Dividend Yield = Dividends Paid ÷ Market Cap (stored as a decimal fraction, e.g.
         # 0.03 = 3% - matches load_stock_scores.py._score_value's existing "decimal ->

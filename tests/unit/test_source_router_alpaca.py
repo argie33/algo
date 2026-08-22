@@ -16,7 +16,7 @@ def _rows(symbol: str) -> list[dict[str, Any]]:
     return [
         {
             "symbol": symbol,
-            "date": "2026-07-13",
+            "date": "2026-07-14",
             "open": 1.0,
             "high": 2.0,
             "low": 0.5,
@@ -113,6 +113,42 @@ def test_yfinance_residual_failure_keeps_alpaca_batch(
     assert result["AAPL"] == _rows("AAPL")
     assert result["BK"] is None
     assert router.last_source == "alpaca"
+
+
+def test_alpaca_stale_rows_still_trigger_yfinance_residual(
+    router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A symbol with real Alpaca rows that stop short of `end` must still fall back
+    to yfinance for the missing tail, not be treated as fully served.
+
+    Regression test for the 2026-08-22 fix: Alpaca can return genuine historical
+    rows for a symbol while lagging/gapping on just the most recent trading day.
+    The old check (`not alpaca_results.get(s)`) only caught symbols with zero
+    rows, so a stale-but-present response silently never advanced past that gap.
+    """
+    monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
+    symbols = ["AAPL", "STALE"]
+
+    def fake_alpaca(syms: list[str], start: date, end: date) -> dict[str, Any]:
+        aapl_rows = _rows("AAPL")
+        # STALE has real Alpaca data, but the last row is one day short of `end`.
+        stale_rows = [{**_rows("STALE")[0], "date": "2026-07-13"}]
+        return {"AAPL": aapl_rows, "STALE": stale_rows}
+
+    def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
+        assert syms == ["STALE"], "yfinance must only be asked to backfill the stale symbol"
+        return {s: _rows(s) for s in syms}
+
+    with (
+        patch.object(router, "_fetch_alpaca_ohlcv_batch", side_effect=fake_alpaca),
+        patch.object(router, "_fetch_yfinance_ohlcv_batch", side_effect=fake_yfinance),
+    ):
+        result = router.fetch_ohlcv_batch(symbols, START, END)
+
+    assert result["AAPL"] == _rows("AAPL"), "AAPL already reached `end` via Alpaca, no fallback needed"
+    assert all(row.get("_source_name") == "yfinance" for row in result["STALE"]), (
+        "STALE's gap-day should be backfilled from yfinance instead of silently staying stale"
+    )
 
 
 def test_default_source_never_touches_alpaca(router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch) -> None:

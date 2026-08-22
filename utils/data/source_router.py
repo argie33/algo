@@ -428,16 +428,46 @@ class DataSourceRouter:
         start: date,
         end: date,
     ) -> None:
-        """Re-fetch symbols Alpaca returned nothing for via yfinance and merge in place.
+        """Re-fetch symbols Alpaca returned nothing for, or whose rows stop short
+        of `end`, via yfinance and merge in place.
+
+        FIXED 2026-08-22 (goal session - price completeness audit): this used to
+        treat a symbol as "served" if Alpaca returned ANY rows at all (`not
+        alpaca_results.get(s)`), even when those rows stopped short of `end`.
+        Alpaca's feed intermittently lags or has a per-symbol gap on just the
+        most recent trading day without raising an exception, so a symbol with
+        real-but-stale-by-a-day rows never triggered this fallback and its
+        watermark simply never advanced. Live DB audit found 183 active symbols
+        (including liquid names like AVB, WBS - not thin/delisted tickers)
+        missing their most recent close in a single EOD run where only 11
+        symbols triggered this fallback at all; 107 of them were already missing
+        the prior day too, i.e. silently and cumulatively falling further behind
+        rather than self-healing. Now checks the max row date reaches `end`.
 
         Best-effort: a yfinance failure here must not discard the successful
-        Alpaca batch - unresolved symbols simply stay None (same semantics as a
+        Alpaca batch - unresolved symbols simply stay short (same semantics as a
         symbol with no data).
 
         TRANSPARENCY FIX: Mark each row with source attribution so callers know
         which data came from Alpaca vs yfinance fallback.
         """
-        residual = [s for s in symbols if not alpaca_results.get(s)]
+
+        def _reaches_end(rows: list[dict[str, Any]] | None) -> bool:
+            if not rows:
+                return False
+            for row in rows:
+                row_date = row.get("date")
+                if not row_date:
+                    continue
+                try:
+                    parsed = date.fromisoformat(row_date) if isinstance(row_date, str) else row_date
+                except ValueError:
+                    continue
+                if parsed >= end:
+                    return True
+            return False
+
+        residual = [s for s in symbols if not _reaches_end(alpaca_results.get(s))]
         if not residual:
             return
         alpaca_served = len(symbols) - len(residual)

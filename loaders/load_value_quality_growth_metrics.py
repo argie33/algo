@@ -3000,20 +3000,47 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 elif sgr_reason is None:
                     sgr_reason = "missing_sec_data"
             elif sgr_reason is None:
-                sgr_reason = "missing_sec_data"
+                # FIXED 2026-08-22 (goal session - coverage-bucket root-cause audit): this
+                # unconditionally labeled the gate above's else-branch "missing_sec_data", but
+                # that branch also fires when stockholders_equity is present and real, just <= 0
+                # (debt-funded buybacks/distributions - same real, well-known condition as the
+                # roe_trend fix above, e.g. YUM/IRM/COKE). SGR's "growth financeable from retained
+                # earnings relative to the equity base" interpretation doesn't translate cleanly
+                # to a negative base, so - unlike roe_trend - this deliberately still does NOT
+                # compute a value here, but the label must say why: real data, not missing data.
+                # Reuses "negative_book_value" (already used for pb_ratio just above in this same
+                # file, same stockholders_equity<=0 condition, already correctly bucketed under
+                # "Legitimate / not applicable" in scores.py) rather than inventing a new string.
+                if stockholders_equity is not None and stockholders_equity <= 0:
+                    sgr_reason = "negative_book_value"
+                else:
+                    sgr_reason = "missing_sec_data"
 
             # ROE Trend = Current ROE - Prior ROE (now can compute with prior-year equity)
             # Same per-side MAX_MARGIN_ABS_PCT bound as the margin trends above - a near-zero
             # prior-year equity base (the ORKA 8.3M% case this function's docstring already
             # describes) must be caught before the subtraction, not just via the looser
             # trend-level MAX_TREND_PERCENTAGE_POINTS check on the delta.
+            #
+            # FIXED 2026-08-22 (goal session - coverage-bucket root-cause audit): this required
+            # stockholders_equity > 0 on BOTH years, unlike the base `roe` field just above (this
+            # function's own precedent) which only requires `!= 0` plus the same
+            # MAX_MARGIN_ABS_PCT bound. Real, well-known large-caps with real, computable
+            # multi-year history were silently excluded and mislabeled "insufficient_prior_year_
+            # data" purely because they carry negative equity (debt-funded buybacks/distributions,
+            # not a data gap) - live-confirmed YUM (negative every year 2021-2026), IRM (negative
+            # 2024+), COKE (negative 2025-2026), each with 5-6 years of real net_income/equity on
+            # file. 388 of 798 (49%) of the current "insufficient_prior_year_data" roe_trend
+            # population has real, present-but-negative equity data, not missing data. Relaxed to
+            # match the base roe field's `!= 0` bound - the MAX_MARGIN_ABS_PCT check below already
+            # rejects genuine near-zero-equity garbage the same way it does for the base field.
             if (
                 stockholders_equity is not None
                 and net_income is not None
-                and stockholders_equity > 0
+                and stockholders_equity != 0
                 and prior_year_stockholders_equity is not None
                 and prior_year_net_income is not None
-                and prior_year_stockholders_equity > 0
+                and prior_year_stockholders_equity != 0
             ):
                 curr_roe = (net_income / stockholders_equity) * 100
                 prior_roe = (prior_year_net_income / prior_year_stockholders_equity) * 100

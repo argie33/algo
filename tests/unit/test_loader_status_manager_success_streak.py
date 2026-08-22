@@ -234,6 +234,151 @@ def test_mark_failed_suppresses_stale_report_after_newer_success():
         assert healing_call[0][1][0] == "COMPLETED"
 
 
+def test_mark_failed_does_not_suppress_same_run_self_conflict():
+    """Regression test (2026-08-22): a run's OWN internal mark_completed() (e.g.
+    OptimalLoader.run() stamping last_success_at at the end of its per-symbol write loop)
+    must not cause a LATER failure from the SAME run (e.g. a post_run() audit hook raising
+    moments afterward) to be suppressed as "stale". execution_started never changed - no
+    other run's mark_running() has superseded this one - so last_success_at being newer
+    than it just reflects this run's own earlier success marker.
+
+    Live-confirmed: stock_scores' post_run audit_upstream_coverage() raised twice in a row
+    on 2026-08-21 ("value_metrics only 94.7% complete"), yet data_loader_status.stock_scores
+    read status=COMPLETED, error_message=NULL both times because the pre-fix guard couldn't
+    tell this case apart from test_mark_failed_suppresses_stale_report_after_newer_success's
+    genuinely-different-later-run case above.
+    """
+    manager = _make_manager()
+    from datetime import datetime
+
+    same_execution_started = datetime(2026, 8, 21, 23, 58, 18)
+    own_run_last_success = datetime(2026, 8, 21, 23, 58, 52)  # this run's own mark_completed()
+
+    # mark_running() first, so the manager captures its own execution_started baseline.
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1
+        mock_cur.fetchone.side_effect = [(None,), (same_execution_started,)]
+        manager.mark_running()
+    assert manager._own_execution_started == same_execution_started
+
+    # Now the same instance reports a failure (e.g. a post_run() hook raising) - the row's
+    # execution_started is unchanged (no newer mark_running() happened), but last_success_at
+    # is newer because THIS run's own internal mark_completed() already stamped it.
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1
+        mock_cur.fetchone.side_effect = [
+            (same_execution_started, own_run_last_success),  # guard's own SELECT FOR UPDATE
+            (None, None, None, None, None, None, None),  # archive SELECT
+        ]
+
+        manager.mark_failed("post_run failed: value_metrics only 94.7% complete")
+
+        update_calls = [
+            call[0][0] for call in mock_cur.execute.call_args_list if "UPDATE data_loader_status" in call[0][0]
+        ]
+        assert len(update_calls) == 1, f"Expected the real FAILED UPDATE to proceed, got: {update_calls}"
+        failed_call = mock_cur.execute.call_args_list[
+            [i for i, c in enumerate(mock_cur.execute.call_args_list) if "UPDATE data_loader_status" in c[0][0]][0]
+        ]
+        assert failed_call[0][1][0] == "FAILED"
+
+
+def test_mark_failed_tolerates_millisecond_level_execution_started_drift():
+    """Regression test (2026-08-22, same-day follow-up): the first same-run-self-conflict fix
+    above used EXACT equality between the row's execution_started and
+    self._own_execution_started, which still incorrectly suppressed on a real, live-reproduced
+    stock_scores run - confirmed via full call-stack tracing that mark_running() was called
+    exactly ONCE (same PID, same LoaderStatusManager id()), yet the value captured via its own
+    `RETURNING execution_started` differed from what a later SELECT on the same row read back,
+    by roughly 11ms (root cause not fully isolated - not worth chasing further, since two
+    GENUINELY different mark_running() calls for the same loader are always at least minutes
+    apart in practice). Must now tolerate small timing drift and still recognize this as the
+    same run."""
+    manager = _make_manager()
+    from datetime import datetime, timedelta
+
+    own_execution_started = datetime(2026, 8, 22, 9, 4, 0, 151270)
+    # What a later SELECT on the same row actually reads back - 11.5ms earlier, same run.
+    row_execution_started = own_execution_started - timedelta(milliseconds=11)
+    own_run_last_success = own_execution_started + timedelta(seconds=76)
+
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1
+        mock_cur.fetchone.side_effect = [(None,), (own_execution_started,)]
+        manager.mark_running()
+    assert manager._own_execution_started == own_execution_started
+
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1
+        mock_cur.fetchone.side_effect = [
+            (row_execution_started, own_run_last_success),  # guard's own SELECT FOR UPDATE
+            (None, None, None, None, None, None, None),  # archive SELECT
+        ]
+
+        manager.mark_failed("post_run failed: value_metrics only 94.7% complete")
+
+        update_calls = [
+            call[0][0] for call in mock_cur.execute.call_args_list if "UPDATE data_loader_status" in call[0][0]
+        ]
+        assert len(update_calls) == 1, f"Expected the real FAILED UPDATE to proceed, got: {update_calls}"
+        failed_call = mock_cur.execute.call_args_list[
+            [i for i, c in enumerate(mock_cur.execute.call_args_list) if "UPDATE data_loader_status" in c[0][0]][0]
+        ]
+        assert failed_call[0][1][0] == "FAILED"
+
+
+def test_mark_failed_still_suppresses_genuinely_later_run_beyond_tolerance():
+    """The tolerance window must not become overly permissive: a mark_running() call minutes
+    later (a genuinely different, later scheduled run - not a sub-second timing artifact) must
+    still be recognized as superseding this instance, even though this instance did call
+    mark_running() itself at some point."""
+    manager = _make_manager()
+    from datetime import datetime, timedelta
+
+    own_execution_started = datetime(2026, 8, 22, 9, 0, 0)
+    # A genuinely different, later run's execution_started - many minutes later.
+    later_execution_started = own_execution_started + timedelta(minutes=15)
+    later_run_success = later_execution_started + timedelta(seconds=30)
+
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1
+        mock_cur.fetchone.side_effect = [(None,), (own_execution_started,)]
+        manager.mark_running()
+
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.fetchone.side_effect = [
+            (later_execution_started, later_run_success),  # guard's own SELECT FOR UPDATE
+            (99.0, 5000, 5050, later_execution_started),  # archive/history SELECT for self-heal
+        ]
+
+        manager.mark_failed("this instance's own report, but a newer run has since started")
+
+        update_calls = [
+            call[0][0] for call in mock_cur.execute.call_args_list if "UPDATE data_loader_status" in call[0][0]
+        ]
+        assert len(update_calls) == 1, f"Expected exactly one self-healing UPDATE, got: {update_calls}"
+        healing_call = mock_cur.execute.call_args_list[-1]
+        assert healing_call[0][1][0] == "COMPLETED"
+
+
 def test_mark_timeout_suppresses_stale_report_after_newer_success():
     """Same guard as mark_failed, for the mark_timeout() sibling path. See the self-heal
     note on test_mark_failed_suppresses_stale_report_after_newer_success above."""

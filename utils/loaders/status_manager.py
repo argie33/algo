@@ -62,6 +62,13 @@ class LoaderStatusManager:
             raise ValueError(f"LoaderStatusManager requires a non-empty table_name, got {table_name!r}")
         self.table_name = table_name
         self._ensure_status_row_exists()
+        # Set by mark_running() to this instance's own execution_started, so mark_failed()/
+        # mark_timeout() can tell "a later run already succeeded" (a different, newer
+        # mark_running() call overwrote the row - the original stale-report guard below) apart
+        # from "THIS run's own internal mark_completed() call already stamped last_success_at
+        # earlier in its own lifecycle, before a later step in the same run failed" - see the
+        # 2026-08-22 fix note on that guard for the live incident this second case caused.
+        self._own_execution_started: Any = None
 
     def _acquire_lock(self, timeout: int = 10) -> None:
         """No-op for backwards compatibility.
@@ -185,6 +192,7 @@ class LoaderStatusManager:
                         UPDATE data_loader_status
                         SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW(), execution_duration_sec = NULL, symbols_per_second = NULL, http_status_code = NULL, rate_limit_quota = NULL
                         WHERE table_name = %s
+                        RETURNING execution_started
                         """,
                         (LoaderStatus.RUNNING.value, symbol_count, self.table_name),
                     )
@@ -194,6 +202,7 @@ class LoaderStatusManager:
                         UPDATE data_loader_status
                         SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW(), execution_duration_sec = NULL, symbols_per_second = NULL, http_status_code = NULL, rate_limit_quota = NULL
                         WHERE table_name = %s
+                        RETURNING execution_started
                         """,
                         (LoaderStatus.RUNNING.value, self.table_name),
                     )
@@ -202,6 +211,8 @@ class LoaderStatusManager:
                         f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "
                         f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
                     )
+                returned = cur.fetchone()
+                self._own_execution_started = returned[0] if returned else None
             logger.info(f"[STATUS] {self.table_name}: RUNNING")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as RUNNING: {e}")
@@ -562,6 +573,23 @@ class LoaderStatusManager:
             )
         logger.info(f"[STATUS_MANAGER] Self-healed {self.table_name} RUNNING->COMPLETED after suppressing: {msg[:200]}")
 
+    # Any two GENUINELY different mark_running() calls for the same loader are always at
+    # least minutes apart in practice (scheduled runs, not sub-second retries) - see the
+    # 2026-08-22 follow-up fix note on the stale-report guard below for why this is a wide
+    # tolerance rather than exact equality.
+    _SAME_RUN_TOLERANCE_SECONDS = 30
+
+    def _is_own_run(self, row_execution_started: Any) -> bool:
+        """True if `row_execution_started` (freshly read from the DB row) is close enough to
+        this instance's own mark_running() timestamp to be the SAME run, not a different,
+        later one. Returns False (defer to the caller's original stale-report behavior) when
+        this instance never called mark_running() - e.g. an external stall-reaper reporting
+        on a run it didn't create has no baseline to compare against."""
+        if self._own_execution_started is None:
+            return False
+        delta = abs((row_execution_started - self._own_execution_started).total_seconds())
+        return bool(delta <= self._SAME_RUN_TOLERANCE_SECONDS)
+
     def mark_failed(
         self,
         error_message: str,
@@ -604,10 +632,46 @@ class LoaderStatusManager:
                 # Guard: if a success is already recorded more recently than the row's current
                 # execution_started, some run that started at-or-before that point already won -
                 # this failure report is for a superseded attempt and must not overwrite it.
+                #
+                # FIXED 2026-08-22 (goal session - price/scores data-integrity audit): this used
+                # to suppress unconditionally whenever last_success_at > execution_started, which
+                # also fires when THIS SAME run is reporting its own failure - e.g. a loader whose
+                # OptimalLoader.run() calls mark_completed() (stamping last_success_at) at the end
+                # of its per-symbol write loop, then a later post_run() hook (like stock_scores'
+                # upstream-coverage audit) raises and calls mark_failed() on the SAME
+                # LoaderStatusManager instance moments later. execution_started never changed (no
+                # other run started mark_running() since), so last_success_at being newer than it
+                # just reflects this run's own earlier internal success marker, not a genuinely
+                # later run - yet the old guard swallowed the failure anyway. Live-confirmed:
+                # stock_scores' post_run audit failed twice in a row 2026-08-21 ("value_metrics
+                # only 94.7% complete") and both times this guard "self-healed" it back to
+                # COMPLETED with error_message=NULL, leaving zero trace in data_loader_status that
+                # the scores were computed from below-threshold upstream coverage. Only suppress
+                # when `execution_started` on the row differs from the execution_started THIS
+                # instance's own mark_running() set (self._own_execution_started) - i.e. a
+                # genuinely different, later mark_running() call has since superseded us. An
+                # instance that never called mark_running() (e.g. an external stall-reaper
+                # reporting on a run it didn't create) has no such baseline and keeps the
+                # original, unconditional behavior.
+                #
+                # FIXED 2026-08-22 (same session, follow-up): the first version of this fix used
+                # EXACT equality (`!=`) between the row's execution_started and
+                # self._own_execution_started, which still incorrectly suppressed on a real,
+                # live-reproduced stock_scores run - the value captured via mark_running()'s own
+                # `RETURNING execution_started` differed from what a later SELECT on the same row
+                # (same PID, same LoaderStatusManager instance, confirmed via id()) read back, by
+                # ~11ms. Root cause not fully isolated (candidates: pooled-connection transaction-
+                # boundary timing, PostgreSQL NOW() snapshot semantics interacting with this
+                # project's connection pooling), but chasing the exact mechanism further isn't
+                # worth it: two GENUINELY different mark_running() calls for the same loader are
+                # always at least minutes apart (scheduled runs, not sub-second retries), so exact
+                # timestamp equality was always an unnecessarily fragile signal for "same run" in
+                # the first place. A wide tolerance window is simpler and correct either way.
                 if (
                     last_success_at is not None
                     and execution_started is not None
                     and last_success_at > execution_started
+                    and not self._is_own_run(execution_started)
                 ):
                     logger.warning(
                         f"[STATUS_MANAGER] Suppressing stale FAILED report for {self.table_name}: "
@@ -678,12 +742,13 @@ class LoaderStatusManager:
                 )
                 row = cur.fetchone()
                 execution_started, last_success_at = row if row else (None, None)
-                # Same stale-report guard as mark_failed() above - see that comment for the
-                # live-reproduced incident this prevents.
+                # Same stale-report guard as mark_failed() above - see that comment (including
+                # the 2026-08-22 same-run-self-conflict fix) for the incidents this prevents.
                 if (
                     last_success_at is not None
                     and execution_started is not None
                     and last_success_at > execution_started
+                    and not self._is_own_run(execution_started)
                 ):
                     logger.warning(
                         f"[STATUS_MANAGER] Suppressing stale TIMEOUT report for {self.table_name}: "

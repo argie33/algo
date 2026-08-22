@@ -401,7 +401,33 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
             # RS percentiles via a batch rank query) that must run after all per-symbol
             # writes complete. This hook was previously defined but never invoked.
             if hasattr(loader, "post_run"):
-                loader.post_run()
+                try:
+                    loader.post_run()
+                except Exception as post_run_err:
+                    # FIXED 2026-08-22 (goal session - price/scores data-integrity audit): a
+                    # post_run() failure used to fall straight through to the bottom `except
+                    # Exception` block, which only marks SECONDARY output_tables failed (see its
+                    # comment: "OptimalLoader.run() marks its own (primary) table failed
+                    # internally" - true for exceptions raised inside run() itself, but post_run()
+                    # runs AFTER run() has already returned and called its own internal
+                    # mark_completed(), so nothing marked the PRIMARY table failed here). Live-
+                    # confirmed: stock_scores' post_run audit_upstream_coverage() raised twice in a
+                    # row on 2026-08-21 ("value_metrics only 94.7% complete"), yet
+                    # data_loader_status.stock_scores read status=COMPLETED, error_message=NULL
+                    # both times - the run() call above had already stamped last_success_at moments
+                    # earlier, so mark_failed() below (via loader._status_manager, the SAME
+                    # instance run() used) now correctly recognizes this as its own run rather than
+                    # a stale one - see the matching fix in status_manager.py's stale-report guard.
+                    loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
+                    status_mgr_for_primary = getattr(loader, "_status_manager", None)
+                    if status_mgr_for_primary is None:
+                        from utils.loaders.status_manager import LoaderStatusManager
+
+                        status_mgr_for_primary = LoaderStatusManager(loader.table_name)
+                    status_mgr_for_primary.mark_failed(
+                        error_message=f"post_run failed: {type(post_run_err).__name__}: {str(post_run_err)[:400]}",
+                    )
+                    raise
 
             # Mark completion with error count visibility so dashboard shows partial success (e.g. "95 of 100 succeeded")
             #

@@ -740,7 +740,23 @@ class RiskMetricsLoader(OptimalLoader):
     ) -> float | dict[str, Any]:
         import numpy as np
 
-        min_spy_days = 5
+        # FIXED 2026-08-22 (goal session - coverage-bucket root-cause audit): these floors
+        # (5 common dates, 4 return observations) came from np.cov()/np.var(ddof=1)'s own
+        # divide-by-zero guards, not a real "is this a statistically meaningful beta"
+        # check - the exact same bug class already fixed 2026-07-27 for vol_252d a few
+        # lines below in this same file (see that fix's comment: "should never rest on a
+        # thinner sample than the mid-window measure it's supposed to be a more-robust
+        # superset of"). A covariance-based beta from 4-5 daily return observations (2-3
+        # degrees of freedom) is dominated by sampling noise, not signal - live-confirmed:
+        # a DB-wide sweep of the current "extreme_beta" rejections found ~190 distinct
+        # symbols with |beta| > 10 (up to 59.46), values only an estimate built from a
+        # handful of days could plausibly produce. The `abs(beta) > 10` sanity check below
+        # only catches the most extreme of these - equally unreliable but merely
+        # "plausible-looking" betas (e.g. 3.2 or -2.1 from 5 days of data) were silently
+        # ACCEPTED and fed into load_stock_scores.py's stability score at 0.15 weight as if
+        # they were real 1-year risk estimates. Raised to the same 60-return floor
+        # volatility_252d already enforces, for consistency within this same loader.
+        min_spy_days = 61
         if not spy_rows or len(spy_rows) < min_spy_days:
             actual = len(spy_rows) if spy_rows else 0
             return {
@@ -754,11 +770,11 @@ class RiskMetricsLoader(OptimalLoader):
             spy_by_date: dict[Any, float] = {row[0]: float(row[1]) for row in spy_rows}
 
             common_dates = sorted(set(stock_by_date.keys()) & set(spy_by_date.keys()))
-            if len(common_dates) < 5:
+            if len(common_dates) < 61:
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": f"insufficient_common_dates: {len(common_dates)}/5",
+                    "reason": f"insufficient_common_dates: {len(common_dates)}/61",
                 }
 
             stock_aligned = [stock_by_date[d] for d in common_dates]
@@ -767,11 +783,11 @@ class RiskMetricsLoader(OptimalLoader):
             stock_returns = np.diff(np.log(np.array(stock_aligned, dtype=float)))
             spy_returns = np.diff(np.log(np.array(spy_aligned, dtype=float)))
 
-            if len(stock_returns) < 4:
+            if len(stock_returns) < 60:
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": f"insufficient_returns: {len(stock_returns)}/4",
+                    "reason": f"insufficient_returns: {len(stock_returns)}/60",
                 }
 
             spy_var = float(np.var(spy_returns, ddof=1))
