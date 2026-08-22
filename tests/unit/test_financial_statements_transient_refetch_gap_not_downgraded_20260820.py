@@ -119,6 +119,46 @@ class TestTransientRefetchGapNotDowngraded:
         assert result[0]["data_unavailable"] is False
         assert result[0]["reason"] is None
 
+    def test_existing_row_as_real_dictrow_shape_not_downgraded(self) -> None:
+        """FIXED 2026-08-22 (goal session: CNK/Cinemark balance-sheet puzzle): every other test
+        in this file mocks the existing-row lookup with plain Python tuples, e.g.
+        `("GDS", 2025, ...)` - but the REAL `DatabaseContext("read")` cursor returns rows as
+        `psycopg2.extras.DictRow`, a LIST subclass. Slicing a list (`existing_row[:n]`) returns
+        a plain `list`, not a tuple - `already_available.add(key)` then raised `TypeError:
+        unhashable type: 'list'` on EVERY call, silently swallowed by the broad `except
+        Exception` a few lines below and logged only at DEBUG (invisible in this loader's
+        normal WARNING/ERROR output). This made the entire already_available rescue - the exact
+        mechanism the other 3 tests in this file exist to lock in - silently inert since it was
+        introduced: `already_available` was always an empty set, for every symbol, every run.
+        Live-confirmed via CNK (Cinemark): FY2022's real total_assets/stockholders_equity sit in
+        the DB, but a fresh run kept re-marking it data_unavailable=TRUE anyway. None of the
+        tuple-mocked tests above could have caught this - they don't reproduce the real cursor's
+        return type. Fixed via `tuple(existing_row[:n_key_fields])` at the call site."""
+        loader = ConsolidatedFinancialStatementsLoader(statement_type="balance", period="annual")
+        rows = [
+            {
+                "symbol": "CNK",
+                "fiscal_year": 2022,
+                "total_assets": None,
+                "stockholders_equity": None,
+                "data_unavailable": False,
+                "reason": None,
+            }
+        ]
+        # Real cursor rows are list subclasses (psycopg2.extras.DictRow) - plain `list`, not
+        # `tuple`, is the point of this test. required_cols is sorted alphabetically
+        # ("stockholders_equity" < "total_assets"), so that's the column order here.
+        existing = [["CNK", 2022, 194_800_000, 4_850_500_000]]
+
+        with (
+            patch.object(ConsolidatedFinancialStatementsLoader.__mro__[1], "transform", side_effect=lambda r: r),
+            patch("loaders.load_financial_statements.DatabaseContext", return_value=_mock_db_context(existing)),
+        ):
+            result = loader.transform(rows)
+
+        assert result[0]["data_unavailable"] is False
+        assert result[0]["reason"] is None
+
     def test_no_downgrade_guard_lookup_when_all_rows_already_have_required_data(self) -> None:
         """The common, healthy case (real data every run) must not trigger the downgrade-guard
         DB round-trip this test module is about.

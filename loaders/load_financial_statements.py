@@ -1687,8 +1687,25 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         (symbols_in_batch,),
                     )
                     n_key_fields = len(key_fields)
+                    # BUG FOUND 2026-08-22 (goal session: CNK/Cinemark balance-sheet puzzle):
+                    # DatabaseContext("read") returns rows as psycopg2.extras.DictRow, a LIST
+                    # subclass - slicing it (`existing_row[:n]`) returns a plain `list`, not a
+                    # tuple, so `already_available.add(key)` below raised `TypeError:
+                    # unhashable type: 'list'` on every single call, silently caught by the
+                    # broad except below and logged only at DEBUG (invisible at the normal
+                    # WARNING/ERROR level this loader's other messages use). This made the
+                    # ENTIRE "already_available" rescue - the fix for exactly this
+                    # "real data already on file, don't re-downgrade it" bug class, added
+                    # 2026-08-20/21 and credited with recovering 240+ XP rows and similar -
+                    # silently inert since it was introduced: `already_available` was always
+                    # an empty set, every run, for every symbol/table using this loader base
+                    # class. Live-confirmed via CNK (Cinemark): FY2022's real total_assets/
+                    # stockholders_equity sit in the DB untouched, but every fresh run
+                    # re-marked it data_unavailable=TRUE anyway because the rescue that was
+                    # supposed to prevent exactly that never actually ran. `tuple(...)` makes
+                    # the key hashable so `set.add()` succeeds.
                     for existing_row in cur.fetchall():
-                        key = existing_row[:n_key_fields]
+                        key = tuple(existing_row[:n_key_fields])
                         required_vals = existing_row[n_key_fields:]
                         if any(v is not None for v in required_vals):
                             already_available.add(key)
