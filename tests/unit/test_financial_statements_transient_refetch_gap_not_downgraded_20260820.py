@@ -15,6 +15,7 @@ already has real required-metric data with data_unavailable = FALSE - if so, kee
 available state instead of re-judging on this run's possibly-incomplete fetch alone.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from loaders.load_financial_statements import ConsolidatedFinancialStatementsLoader
@@ -24,7 +25,7 @@ def _make_loader() -> ConsolidatedFinancialStatementsLoader:
     return ConsolidatedFinancialStatementsLoader(statement_type="income", period="annual")
 
 
-def _mock_db_context(existing_rows):
+def _mock_db_context(existing_rows: list[tuple[Any, ...]]) -> MagicMock:
     mock_cur = MagicMock()
     mock_cur.fetchall.return_value = existing_rows
     mock_ctx = MagicMock()
@@ -34,7 +35,7 @@ def _mock_db_context(existing_rows):
 
 
 class TestTransientRefetchGapNotDowngraded:
-    def test_existing_available_row_not_downgraded_on_empty_refetch(self):
+    def test_existing_available_row_not_downgraded_on_empty_refetch(self) -> None:
         """GDS-style case: this run's fetch has no revenue/net_income for FY2025, but the DB
         already has a real, available row for it - must not be marked unavailable."""
         loader = _make_loader()
@@ -61,7 +62,7 @@ class TestTransientRefetchGapNotDowngraded:
         assert result[0]["data_unavailable"] is False
         assert result[0]["reason"] is None
 
-    def test_new_row_with_no_prior_data_still_marked_unavailable(self):
+    def test_new_row_with_no_prior_data_still_marked_unavailable(self) -> None:
         """A genuinely new/incomplete filer (no prior DB row at all) must still be marked
         unavailable - this fix must not silently paper over real gaps."""
         loader = _make_loader()
@@ -85,7 +86,7 @@ class TestTransientRefetchGapNotDowngraded:
         assert result[0]["data_unavailable"] is True
         assert result[0]["reason"] == "incomplete_sec_filing_income"
 
-    def test_existing_row_already_stuck_true_with_real_data_self_heals(self):
+    def test_existing_row_already_stuck_true_with_real_data_self_heals(self) -> None:
         """FIXED 2026-08-21 (same bug class, one run later): the existing-row lookup used to
         also filter `data_unavailable = FALSE`, so a row that was ALREADY stuck at
         data_unavailable=True with real required data underneath it (the exact
@@ -118,8 +119,17 @@ class TestTransientRefetchGapNotDowngraded:
         assert result[0]["data_unavailable"] is False
         assert result[0]["reason"] is None
 
-    def test_no_db_lookup_when_all_rows_already_have_required_data(self):
-        """The common, healthy case (real data every run) must not trigger a DB round-trip."""
+    def test_no_downgrade_guard_lookup_when_all_rows_already_have_required_data(self) -> None:
+        """The common, healthy case (real data every run) must not trigger the downgrade-guard
+        DB round-trip this test module is about.
+
+        UPDATED 2026-08-21: this used to assert DatabaseContext was never called at all, but a
+        later, unrelated fix (commit a3a0339af, same session) added an unconditional
+        company_info_sec.shares_outstanding cross-check to transform() that always issues one
+        query per batch regardless of downgrade status - a real, intentional DB call this test
+        predates. Narrowed to assert the specific *downgrade-guard* query (the one this file's
+        other 3 tests exercise, selecting required_cols from self.table_name) is skipped, since
+        that's this test's actual, still-valid intent - not "zero DB calls of any kind"."""
         loader = _make_loader()
         rows = [
             {
@@ -132,11 +142,23 @@ class TestTransientRefetchGapNotDowngraded:
             }
         ]
 
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = []
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        mock_ctx.__exit__.return_value = False
+
         with (
             patch.object(ConsolidatedFinancialStatementsLoader.__mro__[1], "transform", side_effect=lambda r: r),
-            patch("loaders.load_financial_statements.DatabaseContext") as mock_db_context,
+            patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx),
         ):
             result = loader.transform(rows)
 
-        mock_db_context.assert_not_called()
+        downgrade_guard_queries = [
+            call.args[0] for call in mock_cur.execute.call_args_list if f"FROM {loader.table_name}" in call.args[0]
+        ]
+        assert not downgrade_guard_queries, (
+            "The downgrade-guard existing-row lookup must be skipped entirely when every row "
+            f"in the batch already has real required-metric data: {downgrade_guard_queries}"
+        )
         assert result[0]["data_unavailable"] is False
