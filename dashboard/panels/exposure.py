@@ -272,20 +272,25 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if key == "valuation_extension_breadth":
             bp = f.get("breadth_pct")
             return f" {bp:.0f}% extended" if isinstance(bp, (int, float)) else "[yellow]⚠[/]"
+        if key == "consumer_sentiment":
+            v = safe_float(f.get("value"), default=None)
+            z = safe_float(f.get("z"), default=None)
+            z_s = f" z={z:+.1f}" if z is not None else ""
+            return f" {v:.0f}{z_s}" if v is not None else "[yellow]⚠[/]"
         return "[yellow]⚠[/]"  # Unknown factor key
 
     factor_map = [
-        ("trend_30wk", "30-Week Trend", 11.25),
-        ("spy_momentum", "SPY 12mo Mom", 7.5),
-        ("breadth", "Breadth 50/200MA", 12),
-        ("distribution_days", "Sell Pressure", 7.5),
-        ("vix_regime", "VIX Regime", 7.5),
-        ("credit_spread", "Credit Spread", 10.5),
-        ("put_call_ratio", "Put/Call", 6),
-        ("new_highs_lows", "New Hi vs Lo", 5.25),
+        ("trend_30wk", "30-Week Trend", 11.0),
+        ("spy_momentum", "SPY 12mo Mom", 7.25),
+        ("breadth", "Breadth 50/200MA", 11.75),
+        ("distribution_days", "Sell Pressure", 7.25),
+        ("vix_regime", "VIX Regime", 7.25),
+        ("credit_spread", "Credit Spread", 10.25),
+        ("put_call_ratio", "Put/Call", 5.75),
+        ("new_highs_lows", "New Hi vs Lo", 5),
         ("ad_line", "Adv/Dec Line", 4.5),
         ("positioning", "Positioning", 3.75),
-        ("aaii_sentiment", "AAII Survey", 2.25),
+        ("aaii_sentiment", "Retail Sentiment", 2.25),
         ("yield_curve", "Yield Curve", 5),
         ("inflation_expectations", "Infl Expect", 1),
         ("sector_rotation", "Sector Rotation", 5),
@@ -293,6 +298,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         ("earnings_revision_breadth", "Earnings Revisions", 2.5),
         ("valuation_extension_breadth", "Valuation Ext", 1.5),
         ("sahm_rule", "Sahm Rule", 2),
+        ("consumer_sentiment", "Consumer Sentiment", 2),
     ]
 
     tbl = Table.grid(padding=(0, 2), expand=True)
@@ -471,17 +477,17 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     # block (used to render separately below this table) to a normal graded row here too -
     # same reasoning, see the module docstring.
     factor_map_exp = [
-        ("trend_30wk", "30-Week Trend", 11.25, "SPY above 30-week MA?"),
-        ("spy_momentum", "SPY 12mo Momentum", 7.5, "12-month SPY return"),
-        ("breadth", "Breadth (50+200 DMA)", 12, "% stocks above 50DMA + 200DMA, blended 37.5%/62.5%"),
-        ("distribution_days", "Sell Pressure", 7.5, "Distribution day count"),
-        ("vix_regime", "VIX + Trend", 7.5, "Fear gauge + genuine day-over-day trend"),
-        ("credit_spread", "Credit Spread", 10.5, "HY OAS level + 20d widening"),
-        ("put_call_ratio", "Put/Call Ratio", 6, "Options sentiment signal"),
-        ("new_highs_lows", "New Highs vs Lows", 5.25, "NYSE new highs minus lows"),
+        ("trend_30wk", "30-Week Trend", 11.0, "SPY above 30-week MA?"),
+        ("spy_momentum", "SPY 12mo Momentum", 7.25, "12-month SPY return"),
+        ("breadth", "Breadth (50+200 DMA)", 11.75, "% stocks above 50DMA + 200DMA, blended 37.5%/62.5%"),
+        ("distribution_days", "Sell Pressure", 7.25, "Distribution day count"),
+        ("vix_regime", "VIX + Trend", 7.25, "Fear gauge + genuine day-over-day trend"),
+        ("credit_spread", "Credit Spread", 10.25, "HY OAS level + 20d widening"),
+        ("put_call_ratio", "Put/Call Ratio", 5.75, "Options sentiment signal"),
+        ("new_highs_lows", "New Highs vs Lows", 5, "NYSE new highs minus lows"),
         ("ad_line", "Advance/Decline", 4.5, "Breadth momentum direction"),
         ("positioning", "Positioning & Flows", 3.75, "Insider buying breadth + short interest trend"),
-        ("aaii_sentiment", "AAII Sentiment", 2.25, "Retail investor bull/bear"),
+        ("aaii_sentiment", "Retail Sentiment (AAII)", 2.25, "Retail investor bull/bear survey"),
         ("yield_curve", "Yield Curve", 5, "T10Y2Y + T10Y3M avg, z-scored vs own history"),
         ("inflation_expectations", "Inflation Expectations", 1, "T5YIE + T10YIE breakeven avg, z-scored"),
         ("sector_rotation", "Sector Rotation", 5, "Defensive vs. cyclical sector leadership"),
@@ -489,6 +495,12 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         ("earnings_revision_breadth", "Earnings Revision Breadth", 2.5, "Analyst target-price revisions, 30d"),
         ("valuation_extension_breadth", "Valuation Extension Breadth", 1.5, "% of universe at extended P/E or P/S"),
         ("sahm_rule", "Sahm Rule", 2, "Recession-onset ramp, 3mo avg unemployment vs. trailing-12mo low"),
+        (
+            "consumer_sentiment",
+            "Consumer Sentiment (UMich)",
+            2,
+            "UMCSENT z-scored vs own history, contrarian at extremes",
+        ),
     ]
 
     tbl = Table(
@@ -711,6 +723,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 if isinstance(v, (int, float))
                 else "--"
             )
+        elif key == "consumer_sentiment":
+            v = f.get("value")
+            z = f.get("z")
+            z_s = f" (z={z:+.1f})" if isinstance(z, (int, float)) else ""
+            val_s = f"UMCSENT {v:.1f}{z_s}" if isinstance(v, (int, float)) else "--"
 
         tbl.add_row(
             Text(label, style=fc),

@@ -834,17 +834,17 @@ function ExposureFactors({ markets }) {
   // veto card) - see algo/risk/market_exposure.py's module docstring for the full
   // reasoning. Every remaining signal is a normal weighted factor, one row in this list.
   const list = [
-    ["trend_30wk", "30-WEEK MA TREND", 11.25],
-    ["spy_momentum", "SPY 12-MONTH MOMENTUM", 7.5],
-    ["breadth", "BREADTH (% > 50/200-DMA)", 12],
-    ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 7.5],
-    ["vix_regime", "VIX REGIME + TREND", 7.5],
-    ["credit_spread", "HY CREDIT SPREAD", 10.5],
-    ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 6],
-    ["new_highs_lows", "NEW HIGHS - LOWS", 5.25],
+    ["trend_30wk", "30-WEEK MA TREND", 11.0],
+    ["spy_momentum", "SPY 12-MONTH MOMENTUM", 7.25],
+    ["breadth", "BREADTH (% > 50/200-DMA)", 11.75],
+    ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 7.25],
+    ["vix_regime", "VIX REGIME + TREND", 7.25],
+    ["credit_spread", "HY CREDIT SPREAD", 10.25],
+    ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 5.75],
+    ["new_highs_lows", "NEW HIGHS - LOWS", 5],
     ["ad_line", "A/D LINE CONFIRMATION", 4.5],
     ["positioning", "POSITIONING & FLOWS", 3.75],
-    ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 2.25],
+    ["aaii_sentiment", "RETAIL SENTIMENT (AAII, EXTREMES ONLY)", 2.25],
     ["yield_curve", "YIELD CURVE (T10Y2Y + T10Y3M)", 5],
     ["inflation_expectations", "INFLATION EXPECTATIONS (BREAKEVEN)", 1],
     ["sector_rotation", "SECTOR ROTATION", 5],
@@ -852,6 +852,7 @@ function ExposureFactors({ markets }) {
     ["earnings_revision_breadth", "EARNINGS REVISION BREADTH", 2.5],
     ["valuation_extension_breadth", "VALUATION EXTENSION BREADTH", 1.5],
     ["sahm_rule", "SAHM RULE (RECESSION-ONSET RAMP)", 2],
+    ["consumer_sentiment", "CONSUMER SENTIMENT (UMICH, CONTRARIAN)", 2],
   ];
 
   return (
@@ -958,6 +959,9 @@ function ExposureFactors({ markets }) {
               if (f.breadth_pct != null)
                 sub.push(`${num(f.breadth_pct, 0)}% extended`);
               if (f.active_count != null) sub.push(`n=${f.active_count}`);
+            } else if (key === "consumer_sentiment") {
+              if (f.value != null) sub.push(`UMCSENT ${num(f.value, 1)}`);
+              if (f.z != null) sub.push(`z=${f.z > 0 ? "+" : ""}${num(f.z, 1)}`);
             } else {
               // Generic display for other factors
               if (f.value != null) sub.push(`val ${num(f.value, 2)}`);

@@ -185,6 +185,16 @@ export const safeGetFactors = (current) => {
       typeof f.valuation_extension_breadth === "object"
         ? f.valuation_extension_breadth
         : {},
+    // ADDED 2026-08-22 (goal: exposure-model integrity review). Distinct from
+    // safeGetSentimentData's "fearGreed" key below - that one guards
+    // market_sentiment.fear_greed_index (a VIX-derived proxy, unrelated display on the
+    // Sentiment page); this "consumer_sentiment" is the exposure engine's own factor,
+    // sourced from University of Michigan Consumer Sentiment (UMCSENT, FRED) - see
+    // MarketExposure._consumer_sentiment_factor.
+    consumer_sentiment:
+      f.consumer_sentiment && typeof f.consumer_sentiment === "object"
+        ? f.consumer_sentiment
+        : {},
   };
 };
 
