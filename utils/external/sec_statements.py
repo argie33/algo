@@ -157,6 +157,23 @@ _INCOME_IFRS_ALIASES = [
     # FIXED 2026-08-01: Add IFRS alias for financial services revenue.
     # Some IFRS-reporting banks may use this concept instead of legacy "Revenue".
     ("RevenuesNetOfInterestExpense", "revenues_net_of_interest_expense"),
+    # FIXED 2026-08-22 (goal session: "Insufficient history"/revenue-gap audit): foreign
+    # (non-US, IFRS-filing) banks report neither "Revenue" nor "RevenuesNetOfInterestExpense"
+    # - live-confirmed via WF (Woori Financial Group, a major Korean bank holding company,
+    # $55B market cap)'s real companyfacts JSON: real, growing NetIncomeLoss on file for
+    # every fiscal year 2015-2024 (e.g. FY2022 $2.67B), but revenue NULL for the same 10
+    # straight years despite continuously filing real 20-Fs, wrongly presenting as
+    # "insufficient_history" downstream in growth_metrics (WF has 16+ years of real SEC
+    # data on file, just not under any previously-mapped revenue concept). Real gross
+    # interest income/expense line under ifrs-full:InterestRevenueExpense has full USD-unit
+    # coverage FY2017-2024 (e.g. FY2022 $6.9B - a plausible bank revenue figure well above
+    # net_income, not a mismatched/wrong concept). Same "gross interest income, not net"
+    # choice as InterestIncomeOperating below (mortgage REITs) - IFRS 7's required interest
+    # revenue/expense split is the closest bank analog to a top-line revenue figure these
+    # filers report. Listed after RevenuesNetOfInterestExpense (a more complete figure when
+    # a filer reports both) per this list's last-listed-wins-only-when-nothing-else
+    # convention.
+    ("InterestRevenueExpense", "interest_revenue_expense"),
     ("CostOfSales", "cost_of_revenue"),
     ("GrossProfit", "gross_profit"),
     ("ProfitLossFromOperatingActivities", "operating_income_loss"),

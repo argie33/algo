@@ -116,6 +116,11 @@ _INCOME_FIELD_MAPPING = {
     # financial services companies since 2020. Ordering in sec_statements.py
     # ensures last-listed concept (this one for banks) wins on overwrite.
     "revenues_net_of_interest_expense": "revenue",
+    # FIXED 2026-08-22: foreign IFRS-filing banks' gross interest income/expense line - see
+    # sec_statements.py's comment on InterestRevenueExpense (live-verified via WF/Woori
+    # Financial Group) for the full rationale. Same target column as every other revenue
+    # fallback above.
+    "interest_revenue_expense": "revenue",
     # FIXED 2026-08-03: mortgage REITs (AGNC, NLY live-confirmed) report gross interest
     # income as their revenue-equivalent line, not any concept above - see sec_statements.py's
     # comment on InterestIncomeOperating for why InterestIncomeExpenseNet (which goes negative
@@ -256,6 +261,18 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "interest_income_operating",
         "interest_and_dividend_income_operating",
+        # FIXED 2026-08-22 (goal session: "Insufficient history"/revenue-gap audit): IFRS 7
+        # requires ALL filers with financial instruments (not just banks with no other
+        # revenue tag) to disclose interest revenue/expense, so a filer that already reports
+        # a real "Revenue"/"RevenuesNetOfInterestExpense" figure could ALSO separately report
+        # InterestRevenueExpense as a supplementary disclosure - without fallback-only status
+        # sec_base.py's last-processed-wins copy loop would let it silently clobber a correct,
+        # more complete revenue figure with the narrower gross-interest-income one (same risk
+        # class as the cost_of_goods_and_services_sold/CAT incident above). See
+        # sec_statements.py's comment on InterestRevenueExpense (live-verified via WF/Woori
+        # Financial Group, which has zero data under any other revenue concept, for the case
+        # this genuinely does need to fill).
+        "interest_revenue_expense",
         "sales_revenue_net",
         "sales_revenue_goods_net",
         # FIXED 2026-08-17 (goal: "no SEC data" audit continuation): "cost_of_goods_and_
