@@ -67,6 +67,23 @@ original blanket-reject guard, unconverted. Do not add another currency to
 MAJOR_CURRENCIES without the same live-verification discipline: (1) confirm Frankfurter
 actually serves it, (2) sanity-check the converted USD figure against at least one real
 filer's known public financials.
+
+FIXED 2026-08-22 (goal session: "Stale fiscal data" coverage audit): ZAR added. Live-
+confirmed via HMY (Harmony Gold Mining, a South African gold producer, CIK 0001023514) -
+its entire ifrs-full revenue/net_income history from FY2019 onward is tagged exclusively
+in ZAR (FY2016-2018 alone were USD-tagged), so the blanket guard silently dropped 7
+straight fiscal years of real, current 20-F data (marked "incomplete_sec_filing_income")
+despite the company continuing to file real annual reports every year. Frankfurter serves
+ZAR (`GET /2025-06-30?from=USD&to=ZAR` returns a real rate); year-end ZAR/USD moved at
+most ~8.6% year-over-year across 2019-2025 (2.6%-8.6% range, live-checked), comparable to
+or narrower than CNY's ~7.9% bar above - clears the same volatility threshold. Converting
+HMY's real FY2025 revenue (ZAR 73.896B) at its own fiscal-year-end rate produces ~$4.16B,
+consistent with Harmony Gold's known real, growing revenue during 2024-2025's record gold
+prices - no magnitude red flag. NOT the same case as MXN or CLP: MXN's real year-over-year
+move was live-checked at up to 22.4% (2023->2024) - genuinely more volatile than CNY/ZAR's
+band, so it stays excluded pending its own dedicated review; CLP still 404s on Frankfurter
+entirely (BCH/Bank of Chile stays unconverted for a structural source-availability reason,
+not a volatility judgment).
 """
 
 import json
@@ -84,7 +101,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY"})
+MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR"})
 
 
 class FxRateCache:

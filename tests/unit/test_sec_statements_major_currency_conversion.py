@@ -94,6 +94,19 @@ class TestFxRateCache:
         assert rate == 7.001
         assert session.calls == 1
 
+    def test_zar_is_a_major_currency_and_converts_via_historical_rate(self):
+        # FIX 2026-08-22: ZAR added - see fx_rates.py's module docstring for the live-
+        # verification (Harmony Gold Mining/HMY's real revenue history from FY2019 onward,
+        # tagged exclusively in ZAR, converting to a plausible ~$4.16B FY2025 figure
+        # consistent with its known real financials). Frankfurter covers it and its
+        # year-over-year moves (2.6%-8.6%, 2019-2025 live-checked) are comparable to CNY's
+        # band, already on this list.
+        session = _FakeSession(rate=17.78)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("ZAR", "2025-06-30")
+        assert rate == 17.78
+        assert session.calls == 1
+
     def test_missing_historical_rate_fails_closed(self):
         session = _FakeSession(rate=None)  # simulates a 404 - date outside range
         cache = _isolated_cache(session)
