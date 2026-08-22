@@ -19,6 +19,16 @@ it via thread.join(timeout=...) if it runs long. Python cannot force-kill a thre
 Both are exercised here with a genuinely-hanging (blocks on a never-set Event, not just
 slow) fake load_symbol(), using a short LOADER_PER_SYMBOL_TIMEOUT_SECONDS so the test
 itself stays fast.
+
+FIXED 2026-08-22: after the per-symbol timeout abandons a thread, _run_symbol_pass() now
+gives it a final bounded grace period to actually finish (and let any in-flight bulk_insert()
+commit) before the process exits, instead of silently killing genuinely-still-working threads
+uncommitted at process exit - see
+financial_statements_all_mode_daemon_thread_abandon_on_exit_data_loss_fixed_20260822 in memory
+for the full root-cause story. That grace period defaults to 300s in production (bounded by
+whatever's left of the overall SLA) - tests here override it down to near-zero via
+LOADER_ABANDONED_THREAD_GRACE_SECONDS so a genuinely-hung thread (as simulated here) is still
+abandoned quickly and the test suite doesn't pay a multi-minute tax on every run.
 """
 
 import threading
@@ -63,6 +73,7 @@ class _HangingLoader:
 class TestPerSymbolTimeoutDaemonThread:
     def test_stuck_symbol_does_not_block_subsequent_symbols(self, monkeypatch):
         monkeypatch.setenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "1")
+        monkeypatch.setenv("LOADER_ABANDONED_THREAD_GRACE_SECONDS", "1")
         never_set_event = threading.Event()
         loader = _HangingLoader(hang_on_symbol="STUCK", never_set_event=never_set_event)
 
@@ -80,8 +91,9 @@ class TestPerSymbolTimeoutDaemonThread:
         # STUCK counted as failed (timeout), not silently dropped or crashing the pass.
         assert loader._stats.counts.get("symbols_failed") == 1
         assert loader._stats.counts.get("symbols_processed") == 3
-        # The whole pass took roughly one timeout window, not one per remaining symbol
-        # and not "forever" (this would hang the test itself if the fix regressed).
+        # The whole pass took roughly one timeout window plus one grace window, not one
+        # per remaining symbol and not "forever" (this would hang the test itself if
+        # either the abandon-on-timeout fix or the final grace-period fix regressed).
         assert elapsed < 5
 
         # Release the real abandoned thread so it doesn't linger into other tests in
@@ -93,6 +105,10 @@ class TestPerSymbolTimeoutDaemonThread:
         # We can't spawn a real subprocess cheaply here, so assert the property directly
         # by capturing the thread object while it's still alive (blocked on the event).
         monkeypatch.setenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "1")
+        # Without this, _run_symbol_pass()'s post-loop grace period (default 300s) would
+        # also wait on this genuinely-hung thread before returning, silently costing this
+        # test ~5 minutes with no assertion ever catching it.
+        monkeypatch.setenv("LOADER_ABANDONED_THREAD_GRACE_SECONDS", "1")
         never_set_event = threading.Event()
         loader = _HangingLoader(hang_on_symbol="STUCK", never_set_event=never_set_event)
 

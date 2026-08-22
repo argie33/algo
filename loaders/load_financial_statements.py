@@ -1101,6 +1101,26 @@ def _run_symbol_pass(
     sla_timeout_seconds = get_loader_timeout("financial_statements")
     per_symbol_timeout_seconds = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "30"))
 
+    # FIXED 2026-08-22: a symbol whose thread.join() times out was previously just logged
+    # and abandoned - the daemon thread itself kept running in the background (Python cannot
+    # force-kill a thread), potentially still mid-fetch or mid-bulk_insert() with its own real
+    # DB connection and an open transaction. Since nothing ever waited for these abandoned
+    # threads, they were silently hard-killed - uncommitted - the instant this process exited
+    # at the end of the full symbol-major pass, discarding any write that hadn't fully
+    # committed yet. This is a strong live-supported root cause candidate for
+    # [[quarterly_balance_sheet_fy_end_contamination_fixed_20260822]]'s unresolved
+    # "backfill reports COMPLETED but 3,393/3,394 symbols still contaminated" mystery: the
+    # 30s-per-symbol budget is cumulative across all 6 statement/period combos (see
+    # `remaining_timeout` below), tight enough that a single slow-but-real SEC EDGAR fetch
+    # (data.sec.gov, API_REQUEST_TIMEOUT_SECONDS=30 alone) can consume the whole budget - the
+    # main loop then abandons the symbol as "failed" and moves on while the real fetch+write
+    # keeps running unsupervised, only to be discarded uncommitted at process exit. Now every
+    # timed-out thread is tracked and given a real chance to finish (and commit) after the
+    # main pass completes, instead of being silently killed. This does NOT change behavior
+    # for genuinely hung threads (e.g. a socket that never connects) - those still get
+    # abandoned via daemon=True once the final grace join also times out.
+    abandoned_threads: list[tuple[threading.Thread, str, str]] = []
+
     for i, symbol in enumerate(symbols, 1):
         if time.time() - start > sla_timeout_seconds:
             logger.critical(
@@ -1197,11 +1217,16 @@ def _run_symbol_pass(
             thread.join(timeout=remaining_timeout)
 
             if thread.is_alive():
-                # Thread still running after timeout - mark as failed, continue
+                # Thread still running after timeout - mark as failed for this pass's
+                # accounting, continue - but track it so we can still wait for it (and let
+                # any in-flight bulk_insert() actually commit) after the main loop, instead
+                # of leaving it to be silently killed uncommitted at process exit.
                 logger.warning(
-                    f"[{loader.table_name}] {symbol} exceeded per-symbol timeout ({per_symbol_timeout_seconds}s). Skipping."
+                    f"[{loader.table_name}] {symbol} exceeded per-symbol timeout ({per_symbol_timeout_seconds}s). "
+                    f"Skipping for now - will get a final grace period to finish after the full pass."
                 )
                 loader._stats.increment("symbols_failed")
+                abandoned_threads.append((thread, symbol, loader.table_name))
             elif result[0]:
                 loader._stats.increment("symbols_processed")
             else:
@@ -1211,6 +1236,41 @@ def _run_symbol_pass(
 
         if i % 100 == 0:
             logger.info(f"  Progress: {i}/{len(symbols)}")
+
+    # Give every abandoned-but-possibly-still-running thread a final bounded chance to finish
+    # (and let any in-flight bulk_insert() actually commit) before this process exits and
+    # daemon=True silently kills them mid-transaction. Bounded by whatever's left of the
+    # overall SLA (never blows past it) and a configurable cap (default 300s, override via
+    # LOADER_ABANDONED_THREAD_GRACE_SECONDS for fast tests) so a large batch of genuinely
+    # stuck threads can't stall the run indefinitely - each thread only consumes its share of
+    # the remaining grace window, and join() returns immediately once a thread actually finishes.
+    if abandoned_threads:
+        grace_cap_seconds = float(os.getenv("LOADER_ABANDONED_THREAD_GRACE_SECONDS", "300"))
+        grace_budget = max(0.0, min(grace_cap_seconds, sla_timeout_seconds - (time.time() - start)))
+        logger.info(
+            f"[FINANCIAL_STATEMENTS ALL MODE] Giving {len(abandoned_threads)} abandoned thread(s) up to "
+            f"{grace_budget:.0f}s total to finish before this process exits."
+        )
+        grace_deadline = time.time() + grace_budget
+        recovered = 0
+        still_alive = 0
+        for thread, symbol, table_name in abandoned_threads:
+            thread.join(timeout=max(0.0, grace_deadline - time.time()))
+            if thread.is_alive():
+                still_alive += 1
+                logger.warning(
+                    f"[{table_name}] {symbol}: still running after final grace period - genuinely stuck, "
+                    f"abandoning (will be killed at process exit; will retry next run)."
+                )
+            else:
+                recovered += 1
+                logger.info(
+                    f"[{table_name}] {symbol}: finished during grace period - late write got a chance to commit."
+                )
+        logger.info(
+            f"[FINANCIAL_STATEMENTS ALL MODE] Grace period complete: {recovered} thread(s) finished, "
+            f"{still_alive} still alive and being abandoned."
+        )
 
 
 def _finalize_combo(
