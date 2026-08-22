@@ -380,6 +380,24 @@ PIPELINES = {
     ],
     "signals": [
         "prices",
+        # FIXED 2026-08-22: production's eod_pipeline Step Function (terraform/modules/
+        # pipeline/main.tf, 4:05 PM ET) runs TrendTemplate right after EodBulkPrices, before
+        # TechnicalDataDaily - so trend_template_data gets refreshed with the SAME trading
+        # day's close every day. This local "signals" pipeline (the analog of that EOD run)
+        # never had a "trend_analysis" entry at all - only "morning" did, which runs at 2 AM
+        # before that day's close exists. Result: trend_template_data locally could only ever
+        # reflect the PRIOR trading day's close (whatever was on file at 2 AM), and never
+        # caught up same-day like technical_data_daily does - live-confirmed via
+        # data_loader_status: trend_template_data's only 2026-08-21 execution was at 07:16 AM
+        # (morning pipeline, wrote latest_date=2026-08-20, the prior close) with no later
+        # re-run, while technical_data_daily correctly updated at 20:10 PM the same day.
+        # algo/orchestrator/phase7_signal_generation.py's own comment ("Morning runs often
+        # have same-day signals before trend data loads (EOD pipeline runs 4:05 PM)")
+        # explicitly assumes this same-day EOD refresh happens - without it, Phase 7's
+        # same-day join (tr1.date = t.date) can never match, and every signal silently falls
+        # back to yesterday's Minervini/Weinstein trend data via the tr2 COALESCE fallback,
+        # losing 15-25 signal quality points every single day rather than only occasionally.
+        "trend_analysis",
         "technical",
         "scores",
         "buy_sell",
@@ -486,6 +504,10 @@ LOADER_DEPENDENCIES = {
     # FIX SESSION 86: Changed from "buy_sell_daily" (wrong) to "buy_sell" (correct shorthand)
     # SESSION 103 FIX: Also requires scores - buy_sell filters universe to only scored symbols
     "buy_sell": ["prices", "technical", "scores"],
+    # FIXED 2026-08-22: trend_analysis (trend_template_data) needs this run's own fresh prices,
+    # not whatever was on file from an earlier run - see the "signals" pipeline comment above
+    # for the full staleness bug this same-run addition is paired with.
+    "trend_analysis": ["prices"],
     # scores requires value metrics to be available (for scoring algorithm)
     # FIX SESSION 86: Changed from "stock_scores" (wrong) to "scores" (correct shorthand)
     # SESSION 103 FIX: Also requires positioning and technical dependencies
