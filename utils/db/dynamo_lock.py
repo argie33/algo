@@ -66,6 +66,16 @@ class DynamoDBLockManager:
         self.acquired = False
         self.is_available = True
         self.lock_key = "orchestrator-run-lock"
+        # FIXED 2026-08-22 (goal session - real-money-readiness audit): same bug class as
+        # utils/db/rds_lock.py's identical fix, live-reproduced there via
+        # load_financial_statements.py's ALL-mode (one lock manager instance acquiring 6
+        # different lock_keys). self.acquired was a single shared flag - the first
+        # release() call for ANY key set it False, silently short-circuiting every
+        # subsequent release() call for the other keys into a no-op, leaving those DynamoDB
+        # items held for their full TTL. Track acquired keys per-key; self.acquired is kept
+        # as a derived "acquired at least one currently-held lock" flag for any external
+        # code reading it as a simple bool, but release() no longer trusts it as the gate.
+        self._acquired_keys: set[str] = set()
 
         try:
             self.dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
@@ -120,6 +130,7 @@ class DynamoDBLockManager:
                     ReturnValues="ALL_NEW",
                 )
                 self.acquired = True
+                self._acquired_keys.add(lock_key)
                 logger.info(f"[LOCK] Acquired lock {lock_key} (expires at {expiry}) on attempt {attempt}")
                 return True
 
@@ -174,11 +185,14 @@ class DynamoDBLockManager:
 
         Returns: True if released, False on error
         """
-        if not self.acquired:
-            return True  # No lock to release
-
         if lock_key is None:
             lock_key = self.lock_key
+
+        # FIXED 2026-08-22: was `if not self.acquired: return True` - see self._acquired_keys'
+        # docstring in __init__ for the live-reproduced multi-key failure this caused. Check
+        # the SPECIFIC key instead of a single shared flag.
+        if lock_key not in self._acquired_keys:
+            return True  # No lock to release
 
         try:
             self.table.delete_item(
@@ -187,20 +201,24 @@ class DynamoDBLockManager:
                 ExpressionAttributeNames={"#lock_id": "lock_id"},
                 ExpressionAttributeValues={":lock_id": self.lock_id},
             )
-            self.acquired = False
+            self._acquired_keys.discard(lock_key)
+            self.acquired = bool(self._acquired_keys)
             logger.info(f"[LOCK] Released lock {lock_key}")
             return True
 
         except self._conditional_check_failed:
             # Someone else already acquired the lock (can happen if we released late)
             logger.debug(f"[LOCK] Lock {lock_key} already released or acquired by another instance")
-            self.acquired = False
+            self._acquired_keys.discard(lock_key)
+            self.acquired = bool(self._acquired_keys)
             return True
 
         except Exception as e:
             logger.error(f"[LOCK] Error releasing lock {lock_key}: {e}")
-            # Still mark as released to prevent re-release attempts
-            self.acquired = False
+            # Don't discard lock_key from _acquired_keys here - outcome is unknown on
+            # exception, so the conservative assumption is we still hold it (same reasoning
+            # as the identical fix in utils/db/rds_lock.py). Force-clearing here would
+            # incorrectly make every OTHER key this instance holds look released too.
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def cleanup_expired_locks(self, lock_key: str | None = None, max_age_seconds: int = 1800) -> int:

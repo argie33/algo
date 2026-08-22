@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 from utils.db.rds_lock import RDSLockManager
 
 
-def _manager_with_mock_db(cur_mock):
+def _manager_with_mock_db(cur_mock, acquired_key="orchestrator-run-lock"):
     with patch.object(RDSLockManager, "__init__", lambda self: None):
         manager = RDSLockManager()
     manager.lock_duration_seconds = 600
@@ -30,6 +30,9 @@ def _manager_with_mock_db(cur_mock):
     manager.is_available = True
     manager.lock_key = "orchestrator-run-lock"
     manager.acquired_lock_id = None
+    # Per-key acquired tracking (2026-08-22 fix) - must include whatever key this test later
+    # sets manager.lock_key to, or release() correctly treats it as never-acquired.
+    manager._acquired_keys = {acquired_key}
 
     db_context = MagicMock()
     db_context.__enter__.return_value = cur_mock
@@ -42,7 +45,7 @@ def test_release_with_no_argument_uses_the_key_that_was_actually_acquired():
     not the unrelated hardcoded default "orchestrator-run-lock"."""
     cur = MagicMock()
     cur.rowcount = 1
-    manager, db_context = _manager_with_mock_db(cur)
+    manager, db_context = _manager_with_mock_db(cur, acquired_key="my-loader")
     manager.lock_key = "my-loader"  # what acquire(lock_key="my-loader") would have set
 
     with patch("utils.db.rds_lock.DatabaseContext", return_value=db_context):
@@ -57,7 +60,7 @@ def test_release_reports_failure_when_delete_matches_zero_rows():
     """A 0-row DELETE means the lock was NOT actually released - must not report success."""
     cur = MagicMock()
     cur.rowcount = 0
-    manager, db_context = _manager_with_mock_db(cur)
+    manager, db_context = _manager_with_mock_db(cur, acquired_key="my-loader")
     manager.lock_key = "my-loader"
 
     with patch("utils.db.rds_lock.DatabaseContext", return_value=db_context):
@@ -73,7 +76,7 @@ def test_release_explicit_lock_key_still_overrides_self_lock_key():
     """Explicit lock_key argument must still take priority over self.lock_key."""
     cur = MagicMock()
     cur.rowcount = 1
-    manager, db_context = _manager_with_mock_db(cur)
+    manager, db_context = _manager_with_mock_db(cur, acquired_key="explicit-key")
     manager.lock_key = "some-other-key"
 
     with patch("utils.db.rds_lock.DatabaseContext", return_value=db_context):
@@ -82,3 +85,32 @@ def test_release_explicit_lock_key_still_overrides_self_lock_key():
     assert result is True
     delete_call_args = cur.execute.call_args[0][1]
     assert delete_call_args[0] == "explicit-key"
+
+
+def test_release_does_not_clobber_other_held_locks():
+    """The exact bug this session found live (load_financial_statements.py's ALL-mode: one
+    RDSLockManager instance acquiring 6 different lock_keys): releasing one key must not make
+    release() treat every OTHER held key as already-released too. Before this fix, release()
+    gated on a single shared self.acquired flag - the first release() call for ANY key set it
+    False, silently no-op'ing every subsequent release() call for the other keys, leaking them
+    for their full multi-hour TTL."""
+    cur = MagicMock()
+    cur.rowcount = 1
+    manager, db_context = _manager_with_mock_db(cur, acquired_key="key-a")
+    manager._acquired_keys = {"key-a", "key-b", "key-c"}
+
+    with patch("utils.db.rds_lock.DatabaseContext", return_value=db_context):
+        result_a = manager.release(lock_key="key-a")
+
+    assert result_a is True
+    assert manager._acquired_keys == {"key-b", "key-c"}
+
+    # A second release for a still-held key must actually attempt the DELETE, not no-op.
+    cur.execute.reset_mock()
+    with patch("utils.db.rds_lock.DatabaseContext", return_value=db_context):
+        result_b = manager.release(lock_key="key-b")
+
+    assert result_b is True
+    delete_call_args = cur.execute.call_args[0][1]
+    assert delete_call_args[0] == "key-b"
+    assert manager._acquired_keys == {"key-c"}

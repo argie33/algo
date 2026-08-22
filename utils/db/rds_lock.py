@@ -38,6 +38,25 @@ class RDSLockManager:
         self.is_available = True
         self.lock_key = "orchestrator-run-lock"
         self.acquired_lock_id = None  # Track the actual lock_id stored in database
+        # FIXED 2026-08-22 (goal session - real-money-readiness audit, live-reproduced via
+        # load_financial_statements.py's ALL-mode): self.acquired/self.lock_key used to be
+        # the ONLY acquired-state tracking, but ONE RDSLockManager instance acquires MULTIPLE
+        # different lock_keys in ALL-mode (one per statement/period combo, all sharing this
+        # single instance and its one self.lock_id). release()'s `if not self.acquired: return
+        # True` early-return doesn't distinguish WHICH key - the first successful release()
+        # call (for any key) set self.acquired=False, silently short-circuiting every
+        # subsequent release() call for the other 5 keys into a same no-op "already released"
+        # return, without ever running the DELETE. Live-confirmed: 5 of 6
+        # loader_execution_locks rows (annual_balance_sheet, quarterly_balance_sheet,
+        # annual_cash_flow, quarterly_cash_flow, quarterly_income_statement) stayed held for
+        # their full multi-hour TTL after every single ALL-mode run, only ever releasing
+        # whichever combo happened to be first - blocking any same-day retry/backfill of this
+        # loader from ever touching 5 of its 6 tables, silently (no error - "another instance
+        # already running" is indistinguishable from real contention). Track acquired keys
+        # per-key instead of one shared flag; self.acquired is kept in sync as a "have I ever
+        # acquired anything on this instance" flag for any external code that reads it as a
+        # simple bool, but release() below no longer trusts it as gating logic.
+        self._acquired_keys: set[str] = set()
 
         try:
             # Test RDS connectivity
@@ -117,6 +136,7 @@ class RDSLockManager:
                     if result and result[0] == self.lock_id:
                         self.acquired = True
                         self.acquired_lock_id = result[0]  # Save actual lock_id for later verification
+                        self._acquired_keys.add(lock_key)
                         logger.info(f"[RDS_LOCK] Acquired lock {lock_key} on attempt {attempt}")
                         return True
 
@@ -160,11 +180,16 @@ class RDSLockManager:
 
         Returns: True if released, False on error
         """
-        if not self.acquired:
-            return True
-
         if lock_key is None:
             lock_key = self.lock_key
+
+        # FIXED 2026-08-22: was `if not self.acquired: return True` - a single shared flag
+        # that doesn't distinguish which key is being released. See the docstring on
+        # self._acquired_keys in __init__ for the live-reproduced failure this caused when
+        # one instance holds multiple keys (load_financial_statements.py ALL-mode: 6 combos,
+        # one RDSLockManager instance). Check the SPECIFIC key instead.
+        if lock_key not in self._acquired_keys:
+            return True
 
         try:
             with DatabaseContext("write") as cur:
@@ -186,7 +211,8 @@ class RDSLockManager:
                     (lock_key, delete_lock_id),
                 )
                 deleted = cur.rowcount
-                self.acquired = False
+                self._acquired_keys.discard(lock_key)
+                self.acquired = bool(self._acquired_keys)
                 if deleted == 0:
                     # Log what was in the database for debugging
                     if existing:
@@ -210,7 +236,11 @@ class RDSLockManager:
 
         except Exception as e:
             logger.error(f"[RDS_LOCK] Error releasing lock {lock_key}: {e}")
-            self.acquired = False
+            # Don't discard lock_key from _acquired_keys here - the DELETE's outcome is
+            # unknown on exception (could have failed before or after actually deleting the
+            # row), so the conservative assumption is we still hold it. self.acquired stays
+            # whatever it already was (derived from _acquired_keys) rather than being forced
+            # False, which would incorrectly look like every other held key was released too.
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def cleanup_expired_locks(self, lock_key: str | None = None, max_age_seconds: int = 1800) -> int:
