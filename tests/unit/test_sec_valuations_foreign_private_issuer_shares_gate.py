@@ -88,6 +88,16 @@ class TestForeignPrivateIssuerSharesGate:
         assert row.get("data_unavailable") is True
         assert row.get("market_cap") is None
         assert row.get("pe_ratio") is None
+        # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit): this is
+        # the EXPECTED, structural outcome for a real FPI (every tier that could resolve it
+        # is deliberately gated off above), not a generic "couldn't find the data" gap - must
+        # carry the same "foreign_private_issuer_shares_unavailable" reason
+        # load_short_interest_finra.py/load_institutional_holdings_13f.py already use for
+        # this identical root cause, not the generic "shares_outstanding_unavailable" that
+        # value_metrics propagates into ~10 downstream fields as a false "Ownership data
+        # unresolved" gap (live-confirmed 763 of 799 universe symbols carrying the generic
+        # reason were actually this exact FPI case).
+        assert row.get("reason") == "foreign_private_issuer_shares_unavailable"
 
     def test_domestic_filer_same_shape_still_computes_normally(self) -> None:
         """Companion case: a domestic filer (is_foreign_private_issuer=False) with the exact

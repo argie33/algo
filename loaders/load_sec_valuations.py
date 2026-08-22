@@ -699,12 +699,32 @@ class SecValuationsLoader(OptimalLoader):
                             )
                             shares_out = cross_check_shares
 
-                # Fail if still no shares outstanding available
+                # Fail if still no shares outstanding available.
+                # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit):
+                # every tier above that could resolve a foreign private issuer's shares
+                # outstanding is deliberately gated off (home-market-units risk - see the
+                # tier comments above), so for a real FPI this branch is the EXPECTED,
+                # structural outcome, not a data gap - the same fact
+                # load_short_interest_finra.py/load_institutional_holdings_13f.py already
+                # label "foreign_private_issuer_shares_unavailable" (root-caused to this
+                # exact method's 2026-08-19 FPI unit-mismatch fix per their own comments).
+                # This method itself still used the generic "shares_outstanding_unavailable"
+                # for its own output, which value_metrics's _build_value_metrics propagates
+                # verbatim to ~10 downstream fields (market_cap/pe_ratio/pb_ratio/ps_ratio/
+                # peg_ratio/dividend_yield/fcf_yield/ev_ebitda/ev_revenue/intrinsic_value/
+                # margin_of_safety) - live-confirmed 763 of 799 universe symbols carrying
+                # this reason (95.5%) are real FPIs, cascading into ~7,600 of the 14,339
+                # "Ownership data unresolved" coverage-report rows.
                 if not shares_out or shares_out <= 0:
+                    reason = (
+                        "foreign_private_issuer_shares_unavailable"
+                        if is_foreign_private_issuer
+                        else "shares_outstanding_unavailable"
+                    )
                     return [
                         self._unavailable_marker(
                             symbol,
-                            "shares_outstanding_unavailable",
+                            reason,
                             total_debt=total_debt,
                             total_cash=total_cash,
                             ebitda=ebitda,
