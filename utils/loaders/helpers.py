@@ -298,7 +298,24 @@ def get_active_symbols(
                               -- other signal the OZK carve-out guards) - a name-based or
                               -- classification-based rule can't generalize to this case, same
                               -- reasoning as the OZK force-include, just the opposite direction.
-                              AND s.symbol NOT IN ('TVC', 'TVE')
+                              --
+                              -- GOVERNANCE 2026-08-22 (goal session - "is our financial data
+                              -- perfectly accurate" audit, same bug class as TVC/TVE above): SCE$L
+                              -- ("SCE TRUST VI") is a Southern California Edison financing trust
+                              -- that issues preferred trust securities, not common equity - SCE
+                              -- itself (the operating utility) has no shareholders' equity claim
+                              -- here, the trust exists solely to issue these securities. Its
+                              -- security_name contains no word any existing regex pattern above
+                              -- catches (no "trust" pattern exists, deliberately - a bare \btrust\b
+                              -- would false-positive on real common-equity REITs like "XYZ Realty
+                              -- Trust"), so it falls through and was flowing into value_metrics as
+                              -- a genuine equity gap ("Insufficient SEC valuation data" /
+                              -- no_income_statement - it's a financing trust, it has no income
+                              -- statement to report). It is the only active symbol in the local
+                              -- universe with a `$` in its ticker (checked live), NYSE's own
+                              -- convention for preferred/trust-preferred securities - same
+                              -- unclassifiable-by-name-pattern situation as TVC/TVE, same fix.
+                              AND s.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
                             ORDER BY s.symbol
                         """
                     else:
