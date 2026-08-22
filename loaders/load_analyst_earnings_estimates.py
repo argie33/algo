@@ -80,6 +80,23 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
             # current impact (9 symbols with real history currently masked this way) but same
             # bug class - fixed for consistency and to stop it from growing.
             if self._has_prior_real_coverage(symbol):
+                # BUG FOUND 2026-08-21 (goal session - same bug class as
+                # load_analyst_upgrade_downgrade.py's pre-fix marker retraction fix): this
+                # guard stops WRITING new markers once a symbol has prior real coverage, but
+                # never retracts markers already written before it landed on 2026-08-19 -
+                # live-confirmed 7 symbols (ATOM, KPLT, PZG, RGS, SKYT, THCH, XAIR) each
+                # stuck on a marker dated exactly 2026-08-19 (the day this guard started
+                # skipping writes) as their permanent "latest row per symbol", masking real
+                # historical forward-EPS coverage (e.g. ATOM had real forward_eps through
+                # 2026-08-09, then 10 days of markers before this guard silenced further
+                # writes). Retract any pre-existing marker whenever we know real coverage
+                # exists, so a stale pre-fix marker can't outlive the fix that stopped
+                # writing new ones.
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        "DELETE FROM analyst_earnings_estimates WHERE symbol = %s AND data_unavailable = true",
+                        (symbol,),
+                    )
                 return []
             return [
                 {

@@ -9,24 +9,59 @@ day. Live-confirmed low but nonzero impact (9 symbols with real history currentl
 """
 
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from loaders.load_analyst_earnings_estimates import AnalystEarningsEstimatesLoader
 from utils.infrastructure.timezone import EASTERN_TZ
 
 
+def _fake_db_context():
+    cur = MagicMock()
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx, cur
+
+
 class TestFetchIncrementalPriorCoverageSkip:
     def test_transient_failure_for_already_covered_symbol_skips_the_marker(self):
         loader = AnalystEarningsEstimatesLoader.__new__(AnalystEarningsEstimatesLoader)
+        ctx, _cur = _fake_db_context()
         with (
             patch(
                 "loaders.load_analyst_earnings_estimates.fetch_forward_eps",
                 return_value=None,
             ),
             patch.object(loader, "_has_prior_real_coverage", return_value=True),
+            patch("loaders.load_analyst_earnings_estimates.DatabaseContext", return_value=ctx),
         ):
             result = loader.fetch_incremental("NVDA", since=date(2026, 8, 11))
         assert result == []
+
+    def test_prior_coverage_skip_retracts_pre_existing_stale_marker(self):
+        """BUG FOUND 2026-08-21 (follow-up to the 2026-08-19 fix above): "skip the marker
+        write" never retracts a marker already written BEFORE that fix landed - live-
+        confirmed 7 symbols (ATOM, KPLT, PZG, RGS, SKYT, THCH, XAIR) stuck on a marker
+        dated 2026-08-19 as their permanent "latest row", masking real historical
+        forward-EPS coverage underneath (e.g. ATOM had real forward_eps through
+        2026-08-09). Any marker coexisting with confirmed real coverage is always wrong -
+        retract it here too."""
+        loader = AnalystEarningsEstimatesLoader.__new__(AnalystEarningsEstimatesLoader)
+        ctx, cur = _fake_db_context()
+        with (
+            patch(
+                "loaders.load_analyst_earnings_estimates.fetch_forward_eps",
+                return_value=None,
+            ),
+            patch.object(loader, "_has_prior_real_coverage", return_value=True),
+            patch("loaders.load_analyst_earnings_estimates.DatabaseContext", return_value=ctx),
+        ):
+            result = loader.fetch_incremental("ATOM", since=date(2026, 8, 19))
+        assert result == []
+        query, params = cur.execute.call_args[0]
+        assert "DELETE FROM analyst_earnings_estimates" in query
+        assert "data_unavailable = true" in query
+        assert params == ("ATOM",)
 
     def test_never_covered_symbol_still_gets_the_marker(self):
         # Control: a symbol with no real history on record must still get the honest

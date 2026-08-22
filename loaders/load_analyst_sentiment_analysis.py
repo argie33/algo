@@ -79,6 +79,21 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
             # run simply found nothing new, same normal outcome as the sibling loader) and only
             # write a data_unavailable marker below for symbols that have NEVER had coverage.
             if self._has_prior_real_coverage(symbol):
+                # BUG FOUND 2026-08-21 (goal session - same bug class as the sibling
+                # analyst loaders' pre-fix marker retraction fixes): this guard stops
+                # WRITING new markers once a symbol has prior real coverage, but never
+                # retracts markers already written before it landed - live-confirmed 23
+                # symbols (ATTO, BIRD, BOC, CCEL, CMCT, DDC, EFT, EMPD, ESP, FIRY, FTHM,
+                # GVH, KPLT, NTRB, ORKT, PETS, PHUN, PZG, QTEX, RDI, and more) each stuck on
+                # a marker dated 2026-08-17 (the day this guard started skipping writes) as
+                # their permanent "latest row per symbol", masking real historical
+                # analyst-sentiment coverage underneath. Retract any pre-existing marker
+                # whenever we know real coverage exists.
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        "DELETE FROM analyst_sentiment_analysis WHERE symbol = %s AND data_unavailable = true",
+                        (symbol,),
+                    )
                 return []
             # No analyst coverage for this symbol (legitimate case)
             return [

@@ -7,10 +7,18 @@ same conventions as test_load_analyst_upgrade_downgrade.py.
 """
 
 from datetime import date, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from loaders.load_analyst_sentiment_analysis import AnalystSentimentAnalysisLoader
 from utils.infrastructure.timezone import EASTERN_TZ
+
+
+def _fake_db_context():
+    cur = MagicMock()
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx, cur
 
 
 def _summary(symbol: str = "AAPL") -> dict:
@@ -47,12 +55,35 @@ class TestFetchIncremental:
         getting an empty fetch today is more likely a transient hiccup than a genuine loss of
         coverage. Must return [] instead of overwriting the "latest row" with a marker."""
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
+        ctx, _cur = _fake_db_context()
         with (
             patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=None),
             patch.object(loader, "_has_prior_real_coverage", return_value=True),
+            patch("loaders.load_analyst_sentiment_analysis.DatabaseContext", return_value=ctx),
         ):
             result = loader.fetch_incremental("AAPL", since=date(2020, 1, 1))
         assert result == []
+
+    def test_prior_coverage_skip_retracts_pre_existing_stale_marker(self):
+        """BUG FOUND 2026-08-21 (follow-up to the 2026-08-18 fix above): "skip the marker
+        write" never retracts a marker already written BEFORE that fix landed - live-
+        confirmed 23 symbols (ATTO, BIRD, BOC, CCEL, CMCT, and more) stuck on a marker
+        dated 2026-08-17 as their permanent "latest row", masking real historical
+        analyst-sentiment coverage underneath. Any marker coexisting with confirmed real
+        coverage is always wrong - retract it here too."""
+        loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
+        ctx, cur = _fake_db_context()
+        with (
+            patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=None),
+            patch.object(loader, "_has_prior_real_coverage", return_value=True),
+            patch("loaders.load_analyst_sentiment_analysis.DatabaseContext", return_value=ctx),
+        ):
+            result = loader.fetch_incremental("ATTO", since=date(2026, 8, 17))
+        assert result == []
+        query, params = cur.execute.call_args[0]
+        assert "DELETE FROM analyst_sentiment_analysis" in query
+        assert "data_unavailable = true" in query
+        assert params == ("ATTO",)
 
     def test_since_none_fetches_todays_snapshot(self):
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
