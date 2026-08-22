@@ -2006,6 +2006,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         {
             "non_dividend_paying_stock",
             "unprofitable_stock",
+            # ADDED 2026-08-22 (goal session: "No analyst coverage" bucket audit):
+            # load_value_quality_growth_metrics.py's forward-looking analogue of
+            # unprofitable_stock two lines above - a real analyst forward-EPS estimate is on
+            # file, it's just negative (the company is projected to lose money next year), so
+            # forward_pe is undefined the same way trailing pe_ratio is for a current loss.
+            # Was sharing "no_analyst_estimates" with genuine zero-coverage symbols - see that
+            # loader's own comment on forward_pe_reason for the live-confirmed scope (848 of
+            # 1,560 rows, including real large-caps like MRNA/RBLX/RIVN/RKLB/WBD/BNTX).
+            "negative_forward_eps",
             "reit_special_entity",
             "negative_free_cash_flow",
             "negative_book_value",

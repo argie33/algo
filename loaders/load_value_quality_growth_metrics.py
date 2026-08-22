@@ -950,6 +950,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             margin_of_safety_reason = None
 
         forward_pe = None
+        # FIXED 2026-08-22 (goal session: "No analyst coverage" bucket audit): a real analyst
+        # forward-EPS estimate on file for a company projected to LOSE money next year (a
+        # genuinely common case for biotech/EV/early-growth names - live-confirmed on
+        # MRNA/RBLX/RIVN/RKLB/WBD/BNTX, all real, well-covered large-caps) correctly leaves
+        # forward_pe undefined (price / negative earnings isn't a valid multiple, same as
+        # pe_ratio's own "unprofitable_stock" case), but was being reported with the same
+        # "no_analyst_estimates" reason as genuinely having zero analyst coverage - 848 of
+        # 1,560 live "no_analyst_estimates" forward_pe rows (54%) actually had a real,
+        # non-null forward_eps on file. forward_pe_reason now distinguishes the two.
+        forward_pe_reason = "no_analyst_estimates"
         current_price = row_dict.get("current_price")
         if current_price is not None and current_price > 0:
             with DatabaseContext("read") as cur:
@@ -965,6 +975,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             forward_eps = fe_row[0] if fe_row else None
             if forward_eps is not None and forward_eps > 0:
                 forward_pe = float(current_price) / float(forward_eps)
+            elif forward_eps is not None:
+                forward_pe_reason = "negative_forward_eps"
 
         # Validate: at least one core metric must be non-None
         # FIXED 2026-08-06: Include forward_pe in validation. Analyst-derived forward PE should
@@ -1123,7 +1135,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "peg_ratio_unavailable_reason": peg_ratio_reason,
             "dividend_yield_unavailable_reason": dividend_yield_reason,
             "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
-            "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
+            "forward_pe_unavailable_reason": forward_pe_reason if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": (
                 ("no_revenue_reported" if symbol in self._get_no_recent_revenue_symbols() else "missing_sec_data")
