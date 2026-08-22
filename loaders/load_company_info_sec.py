@@ -27,6 +27,7 @@ from typing import Any
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.exception_handler import (
@@ -297,6 +298,28 @@ class CompanyInfoSECLoader(SecLoaderBase):
         re.IGNORECASE,
     )
     _IX_SCALE_ATTR_RE = re.compile(r'scale="(-?\d+)"', re.IGNORECASE)
+    _IX_CONTEXTREF_ATTR_RE = re.compile(r'contextRef="([^"]+)"', re.IGNORECASE)
+
+    # ADDED 2026-08-22 (goal session - "BRK.B and those types" follow-up): the
+    # multi_ticker_cik guard just above (2026-08-21) correctly stops guessing when a filing
+    # tags shares_outstanding once per share class with no visible label - but SEC's inline
+    # XBRL DOES carry the class label, just not in the plain-text-converted view this
+    # function's plaintext regex sees: each <ix:nonFraction> has a contextRef pointing at an
+    # <xbrli:context> block whose <xbrldi:explicitMember dimension="...ClassOfStockAxis">
+    # names the exact class (e.g. "us-gaap:CommonClassAMember"). Live-confirmed this is the
+    # real, standard US-GAAP taxonomy convention SEC filers use for this - verified directly
+    # against Berkshire Hathaway's (CIK 1067983) and Lennar's (CIK 920760) real, current 10-Q
+    # inline XBRL: both tag exactly one context per class under
+    # us-gaap:StatementClassOfStockAxis with us-gaap:CommonClass{A,B}Member, and the values
+    # match the real, independently-known share counts for each class (Berkshire ~488K
+    # Class A / ~1.4B Class B; Lennar ~210.5M Class A / ~30.4M Class B). Resolving via this
+    # dimension - not a per-filer naming guess - lets a dot-suffixed ticker (BRK.A, BRK.B,
+    # LEN.B, ...) claim its OWN class's real value instead of being permanently left NULL
+    # alongside its sibling.
+    _CONTEXT_BLOCK_RE_TEMPLATE = r'<xbrli:context id="{}">.*?</xbrli:context>'
+    _CLASS_OF_STOCK_MEMBER_RE = re.compile(r'dimension="[^"]*ClassOfStockAxis"[^>]*>\s*([\w:.-]+)\s*<', re.IGNORECASE)
+    _CLASS_LETTER_FROM_MEMBER_RE = re.compile(r"Class([A-Z])(?:Member)?\b")
+    _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
 
     @staticmethod
     def _latest_shares_value(fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False) -> int | None:
@@ -393,6 +416,54 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 return rounded
         return None
 
+    @staticmethod
+    def _target_class_letter(symbol: str) -> str | None:
+        """This symbol's own share class letter, if determinable with confidence.
+
+        Two sources, both conservative (return None rather than guess):
+        1. A single-letter dot suffix (BRK.A -> "A", LEN.B -> "B") - the internal symbol
+           convention already encodes the class directly, no lookup needed.
+        2. For a BARE ticker (no dot) with a dual-class sibling, `stock_symbols.security_name`
+           sometimes states the class explicitly (live-confirmed: LEN is literally named
+           "Lennar Corporation Class A Common Stock", TAP "...Class B Common Stock") - only
+           trusted when that exact "Class {LETTER}" text is present, never inferred from
+           context (many bare siblings, e.g. BRK's peers AGM/GTN/HVT/WSO, carry no class text
+           in security_name at all and correctly stay unresolved here).
+        """
+        if "." in symbol:
+            suffix = symbol.rsplit(".", 1)[-1]
+            if len(suffix) == 1 and suffix.isalpha():
+                return suffix.upper()
+            return None
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT security_name FROM stock_symbols WHERE symbol = %s", (symbol,))
+                row = cur.fetchone()
+        except Exception as e:
+            logger.debug(f"[{symbol}] Could not look up security_name for class-letter resolution: {e}")
+            return None
+        if not row or not row[0]:
+            return None
+        match = CompanyInfoSECLoader._CLASS_LETTER_FROM_SECURITY_NAME_RE.search(row[0])
+        return match.group(1).upper() if match else None
+
+    def _class_letter_for_context(self, filing_text: str, context_id: str) -> str | None:
+        """The us-gaap:StatementClassOfStockAxis class letter for one <xbrli:context>, or
+        None if this context has no such dimension (single-class filers, or an unrelated
+        context reused from another fact) or the member name doesn't end in a bare letter.
+        """
+        context_re = re.compile(
+            self._CONTEXT_BLOCK_RE_TEMPLATE.format(re.escape(context_id)), re.IGNORECASE | re.DOTALL
+        )
+        context_match = context_re.search(filing_text)
+        if not context_match:
+            return None
+        member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
+        if not member_match:
+            return None
+        letter_match = self._CLASS_LETTER_FROM_MEMBER_RE.search(member_match.group(1))
+        return letter_match.group(1).upper() if letter_match else None
+
     def _fetch_shares_outstanding_from_filing_text(
         self, symbol: str, cik: str, submissions: dict[str, Any]
     ) -> int | None:
@@ -435,6 +506,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
             return None
 
         values = []
+        values_with_context: list[tuple[float, str | None]] = []
         for attrs, raw_text in matches:
             try:
                 raw_val = float(raw_text.replace(",", ""))
@@ -453,10 +525,37 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # correct behavior for filers like PLNT that already report raw units.
             scale_match = self._IX_SCALE_ATTR_RE.search(attrs)
             scale = int(scale_match.group(1)) if scale_match else 0
-            values.append(raw_val * (10**scale))
+            scaled_val = raw_val * (10**scale)
+            values.append(scaled_val)
+            ctx_match = self._IX_CONTEXTREF_ATTR_RE.search(attrs)
+            values_with_context.append((scaled_val, ctx_match.group(1) if ctx_match else None))
         plausible = [v for v in values if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING]
         if not plausible:
             return None
+
+        # ADDED 2026-08-22: before falling back to the ambiguous-reject behavior below, try
+        # to resolve THIS symbol's own class via the standard us-gaap:StatementClassOfStockAxis
+        # dimension on each value's context (see the class-level comment above
+        # _CONTEXT_BLOCK_RE_TEMPLATE for the live BRK/LEN verification). Only acts when exactly
+        # one plausible value's resolved class letter matches this symbol's own, known class
+        # letter - any ambiguity (0 or 2+ matches, or no determinable target letter) falls
+        # through to the existing conservative reject unchanged.
+        target_letter = self._target_class_letter(symbol)
+        if target_letter and len(plausible) > 1:
+            dimensional_matches = [
+                v
+                for v, ctx in values_with_context
+                if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                and ctx is not None
+                and self._class_letter_for_context(text, ctx) == target_letter
+            ]
+            if len(dimensional_matches) == 1:
+                result = int(dimensional_matches[0])
+                logger.info(
+                    f"[{symbol}] Recovered shares_outstanding={result:,.0f} for class '{target_letter}' via "
+                    f"StatementClassOfStockAxis dimensional match (accession {accession})"
+                )
+                return result
 
         # Multi-class filers (e.g. PLNT: Class A 79,697,889 / Class B 316,128) tag the fact
         # once per context/class with no class label surviving into plain text - the publicly
