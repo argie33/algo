@@ -1827,6 +1827,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # private issuers filing 20-F/6-K instead of 10-K/10-Q - was already fixed
             # 2026-08-19 by widening _EARNINGS_BEARING_FORMS; what remains is real absence).
             "no_sec_filings_found",
+            # ADDED 2026-08-22 (goal session: "Top Causes of Missing Data" Other-bucket
+            # sweep): load_positioning_metrics.py's per-field marker for "no FINRA
+            # short-interest row on file for this symbol at all" (as opposed to
+            # short_interest_finra.reason's table-level "finra_data_unavailable"/
+            # "finra_data_unavailable" fed row - same underlying fact, just written by a
+            # different loader onto a different table/column). Was sitting in "Other
+            # (errors / excluded)" even though it's the identical "the FINRA feed simply
+            # doesn't cover this issue" absence as finra_data_unavailable two lines above,
+            # not an error - 585 of 712 live "Other" rows (82%) were this single reason,
+            # making the "how much is a genuine unexplained error" signal in that bucket
+            # far noisier than the real number.
+            "missing_finra_data",
             # ADDED 2026-08-20: utils/external/sec_xbrl_segments.py - the SEC companyfacts
             # API structurally never returns per-segment revenue at all (a permanent API
             # limitation, not a per-filer gap); kept here rather than "Legitimate / not
@@ -1985,7 +1997,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "no_price_data_after_validation",
             "historical_date_enrichment_only_for_latest",
             "missing_price_data",
-            "missing_finra_data",
             "excluded_by_naming_pattern",
             "no_recent_price",
         },
