@@ -369,6 +369,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
             frozenset[str], cfg.get("reit_exclusive_fields", frozenset())
         )
         self._reit_symbols: frozenset[str] | None = None
+        self._depository_institution_symbols: frozenset[str] | None = None
 
         super().__init__()
         self._sec_client = sec_client if sec_client is not None else SecEdgarClient()
@@ -393,6 +394,35 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 cur.execute("SELECT symbol FROM company_info_sec WHERE sic_code = 6798")
                 self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
         return self._reit_symbols
+
+    def _get_depository_institution_symbols(self) -> frozenset[str]:
+        """Bulk-fetch bank/depository-institution symbols once per loader run, not per-row.
+
+        FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): banks never
+        tag a "CapitalExpenditures" XBRL concept in any fiscal year - live-confirmed via JPM,
+        BAC, MS, WFC, PNC's real companyfacts JSON (capex NULL across every year 2007-2026).
+        Same SIC codes as load_sec_valuations.py's DEPOSITORY_INSTITUTION_SIC_CODES - see that
+        class attribute's comment for the full rationale (a bank's capital allocation is
+        fundamentally different from an industrial filer's, so treating its genuinely-absent
+        capex as 0 for the free_cash_flow computation just below is the standard equity-
+        research convention for this sector, not a guess).
+        """
+        # getattr (not a direct self._depository_institution_symbols read): mirrors the
+        # _fallback_only_fields/_reit_only_fallback_fields defensive-getattr pattern used
+        # elsewhere in this file - some existing test fixtures construct this loader via
+        # __new__, bypassing __init__ entirely, so the attribute this method's own __init__
+        # assignment sets may not exist yet.
+        cached: frozenset[str] | None = getattr(self, "_depository_institution_symbols", None)
+        if cached is None:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT symbol FROM company_info_sec WHERE sic_code IN (6020, 6021, 6022, 6029, 6035, 6036, 6712)"
+                )
+                cached = frozenset(row[0] for row in cur.fetchall())
+            self._depository_institution_symbols = cached
+        return cached
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
         """Build an explicit data_unavailable marker row for this loader's period.
@@ -742,6 +772,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
             if self.statement_type == "cashflow":
                 ocf = row.get("operating_cash_flow")
                 capex = row.get("capex")
+                # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit):
+                # depository institutions (banks) never tag a "CapitalExpenditures" concept
+                # at all - see _get_depository_institution_symbols's docstring for the full
+                # rationale. Without this, free_cash_flow (and everything derived from it:
+                # fcf_yield, margin_of_safety, intrinsic_value_per_share) was structurally
+                # uncomputable forever for the entire banking sector, not a transient
+                # extraction gap a future fetch could fix.
+                if capex is None and r.get("symbol") in self._get_depository_institution_symbols():
+                    capex = 0
                 if ocf is not None and capex is not None:
                     row["free_cash_flow"] = ocf - capex
 

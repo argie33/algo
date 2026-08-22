@@ -92,6 +92,22 @@ class SecValuationsLoader(OptimalLoader):
     # micro-caps.
     MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
 
+    # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): depository
+    # institutions never tag a "CapitalExpenditures" XBRL concept in any fiscal year -
+    # live-confirmed via JPM, BAC, MS, WFC, PNC's real companyfacts JSON (capex NULL across
+    # every year 2007-2026). Same SIC codes as the community-bank revenue fallback concepts
+    # in sec_statements.py (national/state commercial banks 6020-6022/6029, savings
+    # institutions 6035-6036, bank holding companies 6712) - without this, fcf_yield/
+    # margin_of_safety/intrinsic_value_per_share/free_cash_flow are structurally
+    # uncomputable forever for the entire banking sector (not a transient extraction gap
+    # that a future fetch could fix), since both the direct fcf=ocf-capex calc AND the
+    # multi-year avg_fcf_fallback below require a non-None capex on every year they use.
+    # A bank's capital allocation is fundamentally different from an industrial filer's -
+    # investing activity is dominated by loan/securities purchases, not PP&E - so treating
+    # its (genuinely absent, not missing) capex as 0 and using OCF directly as FCF is the
+    # standard equity-research convention for this sector, not a guess.
+    DEPOSITORY_INSTITUTION_SIC_CODES = frozenset({6020, 6021, 6022, 6029, 6035, 6036, 6712})
+
     # FIXED 2026-08-18 (goal session, currency-poisoned-row cleanup follow-up): live-crashed
     # via NMR (Nomura Holdings, a JPY-reporting IFRS filer - JPY is FX-CONVERTED not rejected
     # outright, unlike KRW/VND above, since it's in MAJOR_CURRENCIES): the derived-shares-out
@@ -169,7 +185,8 @@ class SecValuationsLoader(OptimalLoader):
                         ais.amortization_expense,
                         ais.shares_outstanding_basic,
                         ais.income_tax_expense,
-                        cis.is_foreign_private_issuer
+                        cis.is_foreign_private_issuer,
+                        cis.sic_code
                     FROM annual_income_statement ais
                     LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
                     WHERE ais.symbol = %s AND ais.data_unavailable IS NOT TRUE
@@ -187,6 +204,13 @@ class SecValuationsLoader(OptimalLoader):
                 # (unchanged prior behavior) rather than requiring every one of those
                 # fixtures to be updated for a column real production queries always return.
                 is_foreign_private_issuer = bool(income_rows[0][10]) if len(income_rows[0]) > 10 else False
+                # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit):
+                # depository institutions (banks) never tag a "CapitalExpenditures" XBRL
+                # concept, ever, in any fiscal year - live-confirmed via JPM, BAC, MS, WFC,
+                # PNC's real companyfacts JSON (capex NULL across every year 2007-2026, not
+                # just the current interim year). See the capex-fallback comment below and
+                # in sec_base.py's free_cash_flow computation for the full rationale.
+                sic_code = income_rows[0][11] if len(income_rows[0]) > 11 else None
 
                 (
                     ttm_fiscal_year,
@@ -795,11 +819,22 @@ class SecValuationsLoader(OptimalLoader):
                 cash_rows = cur.fetchall()
                 ocf, capex, dividends_paid = cash_rows[0] if cash_rows else (None, None, None)
                 # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
-                yearly_fcfs = [
-                    float(row_ocf) - float(row_capex)
-                    for row_ocf, row_capex, _ in cash_rows
-                    if row_ocf is not None and row_capex is not None
-                ]
+                # Depository institutions never report capex at all (see
+                # DEPOSITORY_INSTITUTION_SIC_CODES above) - treat it as 0 rather than
+                # unknowable, for both the latest year and every year in the multi-year
+                # average below.
+                is_depository_institution = sic_code in self.DEPOSITORY_INSTITUTION_SIC_CODES
+                if is_depository_institution and capex is None:
+                    capex = 0
+                yearly_fcfs = []
+                for row_ocf, row_capex, _row_dividends in cash_rows:
+                    if row_ocf is None:
+                        continue
+                    if row_capex is None:
+                        if not is_depository_institution:
+                            continue
+                        row_capex = 0
+                    yearly_fcfs.append(float(row_ocf) - float(row_capex))
                 avg_fcf_fallback = sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 2 else None
 
                 # Beta (stability_metrics, 60-day covariance vs SPY - see load_risk_metrics_daily.py's
