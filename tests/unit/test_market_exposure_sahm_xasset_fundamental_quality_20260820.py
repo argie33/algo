@@ -1,15 +1,24 @@
 """Regression coverage for the exposure-model factors touched by the 2026-08-22 redesign
 (goal: exposure-model integrity review - see market_exposure.py's module docstring).
 
-_sahm_rule (hard veto, unchanged 2026-08-20) and _valuation_extension_breadth (unchanged
-2026-08-20) keep their original tests. Everything else in this file was rewritten 2026-08-22:
+This file was originally written for redesign pass 1 (2026-08-22) and rewritten again for
+pass 2 the same day. Pass 2 findings: _sahm_rule -> _sahm_rule_factor (demoted from a hard
+veto to a graded factor, scored via _sahm_ramp_score's threshold-anchored ramp instead of a
+binary trigger - see module docstring for why a raw z-score against Sahm's own
+right-skewed history would have been the wrong tool). _financial_conditions_factor and
+_financial_stress_factor (ANFCI/STLFSI4) were deleted entirely - live-verified
+substantially redundant with the pre-existing Credit Spread/Yield Curve factors, not just
+with each other - so TestFinancialConditionsVeto is gone with them.
+
+_valuation_extension_breadth (unchanged 2026-08-20) keeps its original tests.
 _cross_asset_confirmation -> _cross_asset_factor (z-scored composite, no more binary
 "count >= 2 of 4" rule, no more technical_bullish gate) and _fundamental_quality ->
-_fundamental_quality_factor (scores unconditionally, returns "score" not "penalty"). The old
-_economic_regime_overlay's breakeven-inflation signal is now its own standalone
-_inflation_expectations_factor; T10Y2Y/T10Y3M's overlay signal is now _yield_curve_factor;
-ANFCI/STLFSI4 are now _financial_conditions_factor/_financial_stress_factor, both built on
-the shared _single_series_zscore_factor helper.
+_fundamental_quality_factor (scores unconditionally, returns "score" not "penalty") are
+unchanged from pass 1. The old _economic_regime_overlay's breakeven-inflation signal is
+still its own standalone _inflation_expectations_factor; T10Y2Y/T10Y3M's overlay signal is
+still _yield_curve_factor, built on the shared _single_series_zscore_factor helper (which
+stays, still exercised generically below even though ANFCI/STLFSI4 no longer have their
+own factory functions calling it).
 """
 
 import math
@@ -20,123 +29,101 @@ import pytest
 
 from algo.risk.market_exposure import MarketExposure
 
-# --- Sahm Rule (unchanged 2026-08-20 - see market_exposure.py module docstring on why it
-# stays a hard veto while everything else in this file became a z-scored soft factor) ---
+# --- Sahm Rule (demoted 2026-08-22 pass 2 from a hard veto to a graded factor - see
+# market_exposure.py module docstring for why) ---
 
 
 def _unrate_rows(values):
-    """rows[0] = most recent month, descending, matching _sahm_rule's DESC query order."""
+    """rows[0] = most recent month, descending, matching _sahm_rule_factor's DESC query order."""
     base = date(2026, 8, 1)
     return [(v, base) for v in values]
 
 
-class TestSahmRule:
-    def test_insufficient_history_returns_none(self):
+class TestSahmRuleFactor:
+    def test_insufficient_history_is_data_unavailable(self):
         cur = MagicMock()
         cur.fetchall.return_value = _unrate_rows([4.0] * 14)  # needs >= 15
         me = MarketExposure()
-        assert me._sahm_rule(date(2026, 8, 20), cur) is None
+        result = me._sahm_rule_factor(date(2026, 8, 20), cur)
+        assert result["data_unavailable"] is True
 
-    def test_nan_value_returns_none_not_fabricated(self):
+    def test_nan_value_is_data_unavailable_not_fabricated(self):
         cur = MagicMock()
         values = [4.0] * 20
         values[5] = float("nan")
         cur.fetchall.return_value = _unrate_rows(values)
         me = MarketExposure()
-        assert me._sahm_rule(date(2026, 8, 20), cur) is None
+        result = me._sahm_rule_factor(date(2026, 8, 20), cur)
+        assert result["data_unavailable"] is True
 
-    def test_infinity_value_returns_none(self):
+    def test_infinity_value_is_data_unavailable(self):
         cur = MagicMock()
         values = [4.0] * 20
         values[0] = float("inf")
         cur.fetchall.return_value = _unrate_rows(values)
         me = MarketExposure()
-        assert me._sahm_rule(date(2026, 8, 20), cur) is None
+        result = me._sahm_rule_factor(date(2026, 8, 20), cur)
+        assert result["data_unavailable"] is True
 
-    def test_rising_unemployment_triggers(self):
+    def test_rising_unemployment_triggers_and_scores_low(self):
         cur = MagicMock()
         values = [4.7, 4.7, 4.7] + [4.0] * 17
         cur.fetchall.return_value = _unrate_rows(values)
         me = MarketExposure()
-        result = me._sahm_rule(date(2026, 8, 20), cur)
-        assert result is not None
+        result = me._sahm_rule_factor(date(2026, 8, 20), cur)
         assert result["value"] == 0.70
         assert result["triggered"] is True
+        # 0.70pp is past the 0.50 trigger, ramping toward 0 by 1.5pp - solidly bearish
+        # but not necessarily zero (continuous, not a binary cliff).
+        assert result["score"] < 40.0
 
-    def test_flat_unemployment_does_not_trigger(self):
+    def test_flat_unemployment_does_not_trigger_and_scores_max(self):
         cur = MagicMock()
         cur.fetchall.return_value = _unrate_rows([4.0] * 20)
         me = MarketExposure()
-        result = me._sahm_rule(date(2026, 8, 20), cur)
-        assert result is not None
+        result = me._sahm_rule_factor(date(2026, 8, 20), cur)
         assert result["value"] == 0.0
         assert result["triggered"] is False
+        assert result["score"] == 100.0
 
-    def test_triggered_sahm_rule_caps_exposure_at_25(self):
+    def test_triggered_sahm_no_longer_caps_exposure_directly(self):
+        # Pass 2: Sahm Rule is a graded factor now, not a hard veto - it can only ever
+        # contribute up to its own W_SAHM_RULE=2.0pt weight to the composite, it cannot
+        # cap the whole portfolio to 25% by itself the way the old veto did.
         me = MarketExposure()
         cur = MagicMock()
         values = [4.7, 4.7, 4.7] + [4.0] * 17
         cur.fetchall.return_value = _unrate_rows(values)
-        sahm = me._sahm_rule(date(2026, 8, 20), cur)
+        sahm = me._sahm_rule_factor(date(2026, 8, 20), cur)
         assert sahm["triggered"] is True
-        cap = 100.0
-        if sahm["triggered"]:
-            cap = min(cap, 25.0)
-        assert cap == 25.0
+        pts, _ = me.calculator._wt_pts(sahm, me.W_SAHM_RULE)
+        assert 0.0 <= pts <= me.W_SAHM_RULE
 
 
-class TestFinancialConditionsVeto:
-    """Veto 7 (added 2026-08-22): Financial Conditions (ANFCI) at extreme tail, mirroring
-    how Credit Spread is both a graded factor AND its own systemic-stress veto. Mirrors the
-    veto-application logic at its call site in compute() rather than running the full
-    pipeline, same pattern as TestSahmRule's end-to-end test above."""
+class TestSahmRampScore:
+    """_sahm_ramp_score's threshold-anchored curve (real 0.50pp trigger, not a generic
+    z-score against Sahm's own right-skewed history - see its docstring)."""
 
-    def test_extreme_anfci_reading_triggers_veto(self):
-        # History flat/near-zero, current reading a real +3.5 outlier -> z well past 2.5.
-        me = MarketExposure()
-        cur = MagicMock()
-        history = [0.0, 0.1, -0.1, 0.05, -0.05] * 6
-        cur.fetchall.return_value = [(3.5,)] + [(v,) for v in history]
-        fin_cond = me._financial_conditions_factor(date(2026, 8, 20), cur)
-        assert not fin_cond.get("data_unavailable")
-        assert fin_cond["z"] >= 2.5
-        cap = 100.0
-        fin_cond_z = fin_cond.get("z") if not fin_cond.get("data_unavailable") else None
-        if fin_cond_z is not None and fin_cond_z >= 2.5:
-            cap = min(cap, 40.0)
-        assert cap == 40.0
+    def test_negative_or_zero_scores_max(self):
+        assert MarketExposure._sahm_ramp_score(-1.0) == 100.0
+        assert MarketExposure._sahm_ramp_score(0.0) == 100.0
 
-    def test_routine_anfci_reading_does_not_trigger_veto(self):
-        me = MarketExposure()
-        cur = MagicMock()
-        values = [0.0, 0.1, -0.1, 0.05, -0.05, 0.02, -0.02] * 3
-        cur.fetchall.return_value = [(v,) for v in values]
-        fin_cond = me._financial_conditions_factor(date(2026, 8, 20), cur)
-        assert not fin_cond.get("data_unavailable")
-        assert fin_cond["z"] < 2.5
-        cap = 100.0
-        fin_cond_z = fin_cond.get("z") if not fin_cond.get("data_unavailable") else None
-        if fin_cond_z is not None and fin_cond_z >= 2.5:
-            cap = min(cap, 40.0)
-        assert cap == 100.0
+    def test_exactly_at_trigger_scores_40(self):
+        assert MarketExposure._sahm_ramp_score(0.50) == pytest.approx(40.0)
 
-    def test_data_unavailable_does_not_trigger_veto(self):
-        # Insufficient history -> data_unavailable=True, no "z" key at all - the veto check
-        # must not crash or misfire when the underlying factor couldn't be computed.
-        me = MarketExposure()
-        cur = MagicMock()
-        cur.fetchall.return_value = [(0.0,)] * 5  # < 15 needed
-        fin_cond = me._financial_conditions_factor(date(2026, 8, 20), cur)
-        assert fin_cond.get("data_unavailable") is True
-        cap = 100.0
-        fin_cond_z = fin_cond.get("z") if not fin_cond.get("data_unavailable") else None
-        if fin_cond_z is not None and fin_cond_z >= 2.5:
-            cap = min(cap, 40.0)
-        assert cap == 100.0
+    def test_far_past_trigger_scores_zero(self):
+        assert MarketExposure._sahm_ramp_score(1.5) == 0.0
+        assert MarketExposure._sahm_ramp_score(5.0) == 0.0
+
+    def test_monotonically_decreasing(self):
+        xs = [-0.2, 0.0, 0.1, 0.25, 0.4, 0.5, 0.7, 1.0, 1.3, 1.5, 2.0]
+        scores = [MarketExposure._sahm_ramp_score(x) for x in xs]
+        assert scores == sorted(scores, reverse=True)
 
 
-# --- Single-series z-score factor (shared helper behind financial conditions/stress and
-# half of yield curve) ---
+# --- Single-series z-score factor (shared helper, still used by _yield_curve_factor's two
+# components even though ANFCI/STLFSI4 no longer have their own factory functions calling
+# it - see module docstring on why those two were dropped entirely in pass 2) ---
 
 
 class TestSingleSeriesZscoreFactor:

@@ -820,40 +820,40 @@ function IndexCell({ idx, prices = [] }) {
 function ExposureFactors({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  // FIXED 2026-08-22 (exposure-model integrity review): sector_rotation,
-  // economic_overlay (now 4 separate real factors), cross_asset_confirmation, and the old
-  // fundamental_quality (now split into earnings_revision_breadth and
-  // valuation_extension_breadth) used to be a separate "modifier" category - post-score
-  // point-deltas around zero, rendered as their own cards below with a different bar style
-  // (deltaBarPct) than every budget factor above. There's no real reason those specific
-  // signals should combine or render differently from the rest - they're normal weighted
-  // factors now (see algo/risk/market_exposure.py's module docstring), so they're rows in
-  // this same list. Only Sahm Rule keeps its own card below - it's a hard veto that caps
-  // the final allocation directly, not a graded score, genuinely a different kind of thing.
+  // FIXED 2026-08-22 (exposure-model integrity review, 2 passes same day): sector_rotation,
+  // economic_overlay, cross_asset_confirmation, and the old fundamental_quality (now split
+  // into earnings_revision_breadth and valuation_extension_breadth) used to be a separate
+  // "modifier" category - post-score point-deltas around zero, rendered as their own cards
+  // below with a different bar style (deltaBarPct) than every budget factor above. Sahm
+  // Rule used to keep its own card below too, as a hard veto. Pass 2 found 2 of the
+  // economic overlay's 4 factors (Financial Conditions/ANFCI, Financial Stress/STLFSI4)
+  // substantially redundant with the pre-existing Credit Spread/Yield Curve rows (live
+  // correlation-checked: 0.75/0.53/-0.76) and thin on local history (~3yr, no recession
+  // in-sample) - both dropped entirely, their 6pt budget returned to Credit Spread (+3),
+  // Yield Curve (+1), and Sahm Rule (+2, now a normal graded row here instead of its own
+  // veto card) - see algo/risk/market_exposure.py's module docstring for the full
+  // reasoning. Every remaining signal is a normal weighted factor, one row in this list.
   const list = [
     ["trend_30wk", "30-WEEK MA TREND", 11.25],
     ["spy_momentum", "SPY 12-MONTH MOMENTUM", 7.5],
     ["breadth_200dma", "BREADTH (% > 200-DMA)", 7.5],
     ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 7.5],
     ["vix_regime", "VIX REGIME + TREND", 7.5],
-    ["credit_spread", "HY CREDIT SPREAD", 7.5],
+    ["credit_spread", "HY CREDIT SPREAD", 10.5],
     ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 6],
     ["new_highs_lows", "NEW HIGHS - LOWS", 5.25],
     ["ad_line", "A/D LINE CONFIRMATION", 4.5],
     ["breadth_50dma", "BREADTH (% > 50-DMA)", 4.5],
     ["positioning", "POSITIONING & FLOWS", 3.75],
     ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 2.25],
-    ["yield_curve", "YIELD CURVE (T10Y2Y + T10Y3M)", 4],
-    ["financial_conditions", "FINANCIAL CONDITIONS (ANFCI)", 4],
-    ["financial_stress", "FINANCIAL STRESS (STLFSI4)", 2],
+    ["yield_curve", "YIELD CURVE (T10Y2Y + T10Y3M)", 5],
     ["inflation_expectations", "INFLATION EXPECTATIONS (BREAKEVEN)", 1],
     ["sector_rotation", "SECTOR ROTATION", 5],
     ["cross_asset_confirmation", "CROSS-ASSET CONFIRMATION", 5],
     ["earnings_revision_breadth", "EARNINGS REVISION BREADTH", 2.5],
     ["valuation_extension_breadth", "VALUATION EXTENSION BREADTH", 1.5],
+    ["sahm_rule", "SAHM RULE (RECESSION-ONSET RAMP)", 2],
   ];
-
-  const sahm = factors?.sahm_rule;
 
   return (
     <div className="card">
@@ -932,12 +932,9 @@ function ExposureFactors({ markets }) {
                 sub.push(`2s10s ${num(f.t10y2y.value, 2)}%`);
               if (f.t10y3m?.value != null)
                 sub.push(`3m10y ${num(f.t10y3m.value, 2)}%`);
-            } else if (
-              key === "financial_conditions" ||
-              key === "financial_stress"
-            ) {
-              if (f.value != null) sub.push(`value ${num(f.value, 2)}`);
-              if (f.z != null) sub.push(`z=${f.z > 0 ? "+" : ""}${num(f.z, 1)}`);
+            } else if (key === "sahm_rule") {
+              if (f.value != null) sub.push(`${num(f.value, 2)}pp vs. 0.50pp trigger`);
+              if (f.triggered) sub.push("TRIGGERED");
             } else if (key === "inflation_expectations") {
               if (f.value != null) sub.push(`breakeven ${num(f.value, 2)}%`);
             } else if (key === "sector_rotation") {
@@ -994,35 +991,6 @@ function ExposureFactors({ markets }) {
             );
           })
           .filter(Boolean)}
-
-        {/* Sahm Rule recession veto */}
-        {sahm && (
-          <div
-            style={{
-              marginTop: "var(--space-3)",
-              padding: "var(--space-3) var(--space-4)",
-              borderRadius: "var(--r-sm)",
-              background: `${sahm.triggered ? C.danger : C.success}12`,
-              border: `1px solid ${sahm.triggered ? C.danger : C.success}40`,
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <span
-                className="eyebrow"
-                style={{ color: sahm.triggered ? C.danger : C.success }}
-              >
-                SAHM RULE
-              </span>
-              <span
-                className="mono tnum t-xs"
-                style={{ color: sahm.triggered ? C.danger : C.success }}
-              >
-                {sahm.value != null ? `${num(sahm.value, 2)}pp` : "—"}
-                {sahm.triggered ? " · TRIGGERED" : " · not triggered"}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

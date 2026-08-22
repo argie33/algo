@@ -216,10 +216,14 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("[EXPOSURE] Risk factor missing: aaii_sentiment unavailable (bull=%s, bear=%s)", bull, bear)
             return "[yellow]⚠[/]"  # Missing sentiment data
         if key == "positioning":
+            # "blended" = 60/40 weighted avg of insider-buying-breadth-score and
+            # short-interest-trend-score (each already 0-100) - a sub-score, not a real-world
+            # unit, so it's labeled "/100 blend" rather than a bare number that reads as
+            # meaningless (BUG FOUND 2026-08-22: exposure-model integrity review).
             v = safe_float(f.get("value"), default=None)
             if v is None:
                 logger.warning("[EXPOSURE] Risk factor missing: positioning unavailable")
-            return f" {v:.0f}" if v is not None else "[yellow]⚠[/]"
+            return f" {v:.0f}/100 blend" if v is not None else "[yellow]⚠[/]"
         if key == "distribution_days":
             cnt = safe_float(f.get("count"), default=None)
             regime = f.get("regime")
@@ -243,12 +247,10 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             if isinstance(t3, (int, float)):
                 parts.append(f"3m10y{t3:+.2f}")
             return f" {' '.join(parts)}" if parts else "[yellow]⚠[/]"
-        if key == "financial_conditions":
+        if key == "sahm_rule":
             v = safe_float(f.get("value"), default=None)
-            return f" ANFCI {v:.2f}" if v is not None else "[yellow]⚠[/]"
-        if key == "financial_stress":
-            v = safe_float(f.get("value"), default=None)
-            return f" STLFSI4 {v:.2f}" if v is not None else "[yellow]⚠[/]"
+            trig = f.get("triggered")
+            return f" {v:+.2f}pp{' TRIG' if trig else ''}" if v is not None else "[yellow]⚠[/]"
         if key == "inflation_expectations":
             v = safe_float(f.get("value"), default=None)
             return f" BE {v:.2f}%" if v is not None else "[yellow]⚠[/]"
@@ -276,21 +278,20 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         ("breadth_200dma", "Breadth 200MA", 7.5),
         ("distribution_days", "Sell Pressure", 7.5),
         ("vix_regime", "VIX Regime", 7.5),
-        ("credit_spread", "Credit Spread", 7.5),
+        ("credit_spread", "Credit Spread", 10.5),
         ("put_call_ratio", "Put/Call", 6),
         ("new_highs_lows", "New Hi vs Lo", 5.25),
         ("ad_line", "Adv/Dec Line", 4.5),
         ("breadth_50dma", "Breadth 50 MA", 4.5),
         ("positioning", "Positioning", 3.75),
         ("aaii_sentiment", "AAII Survey", 2.25),
-        ("yield_curve", "Yield Curve", 4),
-        ("financial_conditions", "Fin Conditions", 4),
-        ("financial_stress", "Fin Stress", 2),
+        ("yield_curve", "Yield Curve", 5),
         ("inflation_expectations", "Infl Expect", 1),
         ("sector_rotation", "Sector Rotation", 5),
         ("cross_asset_confirmation", "Cross-Asset", 5),
         ("earnings_revision_breadth", "Earnings Revisions", 2.5),
         ("valuation_extension_breadth", "Valuation Ext", 1.5),
+        ("sahm_rule", "Sahm Rule", 2),
     ]
 
     tbl = Table.grid(padding=(0, 2), expand=True)
@@ -334,23 +335,14 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts:g}[/]{det_s}")
 
     # FIXED 2026-08-22 (exposure-model integrity review): sector_rotation, the old
-    # economic_overlay (now 4 separate factors), cross_asset_confirmation, and the old
-    # fundamental_quality (now split into earnings_revision_breadth and
-    # valuation_extension_breadth) used to be a special "adjustment" display category
-    # rendered here as a second block of rows with their own bar style. They're normal
-    # scored factors now (see factor_map above) and render through the same loop as
-    # everything else. Sahm Rule is the one signal that's still genuinely different in kind
-    # (a hard veto, not a graded score), so it keeps its own block below.
-    sahm = None
-    if factors and isinstance(factors, dict):
-        sahm_raw = factors.get("sahm_rule")
-        if isinstance(sahm_raw, dict):
-            sahm = sahm_raw
-
-    if sahm is not None and sahm.get("triggered"):
-        sahm_val = safe_float(sahm.get("value"), default=None)
-        val_display = f"{sahm_val:.2f}pp" if sahm_val is not None else "--"
-        items.append(f"[dim]Sahm Rule:[/] [{R}]VETO[/] [dim]{val_display} recession signal, capped 25%[/]")
+    # economic_overlay, cross_asset_confirmation, and the old fundamental_quality (now
+    # split into earnings_revision_breadth and valuation_extension_breadth) used to be a
+    # special "adjustment" display category rendered here as a second block of rows with
+    # their own bar style. Sahm Rule used to keep its own veto block right below this one
+    # too. All of them are normal scored factors now (see factor_map above, which includes
+    # sahm_rule) and render through the same loop as everything else - pass 2 (same day)
+    # demoted Sahm from a hard veto to a graded factor, so it no longer needs a special
+    # "VETO" block distinct from every other row.
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -464,37 +456,39 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     )
     rows.append(Rule(style="dim"))
 
-    # Per-factor detail table. FIXED 2026-08-22 (exposure-model integrity review):
-    # sector_rotation/economic_overlay/cross_asset_confirmation/fundamental_quality used
-    # to be a separate "adjustment" table section below this one, rendered as +/- deltas
-    # around zero with their own bar style. They're normal weighted factors now (0..max,
-    # same footing as everything else), so they're rows in this same table - the old
-    # economic_overlay is 4 separate rows (yield_curve/financial_conditions/
-    # financial_stress/inflation_expectations), each a real standalone or correlation-
-    # checked-non-redundant signal rather than one blended composite. Only Sahm Rule keeps
-    # its own block below - it's a hard veto, not a graded score, genuinely a different
-    # kind of thing.
+    # Per-factor detail table. FIXED 2026-08-22 (exposure-model integrity review, 2 passes
+    # same day): sector_rotation/economic_overlay/cross_asset_confirmation/fundamental_quality
+    # used to be a separate "adjustment" table section below this one, rendered as +/- deltas
+    # around zero with their own bar style. They're normal weighted factors now (0..max, same
+    # footing as everything else), so they're rows in this same table. Pass 2 then found
+    # Financial Conditions (ANFCI) and Financial Stress (STLFSI4) - 2 of the economic
+    # overlay's 4 factors - substantially redundant with the pre-existing Credit Spread and
+    # Yield Curve rows (0.75/0.53/-0.76 corr, live-checked) and built on only ~3 years of
+    # local history with no recession in-sample; both were dropped entirely (see
+    # market_exposure.py's module docstring), with their 6pt budget returned to Credit
+    # Spread/Yield Curve/Sahm Rule below. Sahm Rule itself was demoted from its own hard-veto
+    # block (used to render separately below this table) to a normal graded row here too -
+    # same reasoning, see the module docstring.
     factor_map_exp = [
         ("trend_30wk", "30-Week Trend", 11.25, "SPY above 30-week MA?"),
         ("spy_momentum", "SPY 12mo Momentum", 7.5, "12-month SPY return"),
         ("breadth_200dma", "Breadth 200 DMA", 7.5, "% stocks above 200DMA"),
         ("distribution_days", "Sell Pressure", 7.5, "Distribution day count"),
         ("vix_regime", "VIX + Trend", 7.5, "Fear gauge + genuine day-over-day trend"),
-        ("credit_spread", "Credit Spread", 7.5, "HY OAS level + 20d widening"),
+        ("credit_spread", "Credit Spread", 10.5, "HY OAS level + 20d widening"),
         ("put_call_ratio", "Put/Call Ratio", 6, "Options sentiment signal"),
         ("new_highs_lows", "New Highs vs Lows", 5.25, "NYSE new highs minus lows"),
         ("ad_line", "Advance/Decline", 4.5, "Breadth momentum direction"),
         ("breadth_50dma", "Breadth 50 DMA", 4.5, "% stocks above 50DMA"),
         ("positioning", "Positioning & Flows", 3.75, "Insider buying breadth + short interest trend"),
         ("aaii_sentiment", "AAII Sentiment", 2.25, "Retail investor bull/bear"),
-        ("yield_curve", "Yield Curve", 4, "T10Y2Y + T10Y3M avg, z-scored vs own history"),
-        ("financial_conditions", "Financial Conditions", 4, "ANFCI (Chicago Fed), z-scored standalone"),
-        ("financial_stress", "Financial Stress", 2, "STLFSI4 (St. Louis Fed), z-scored standalone"),
+        ("yield_curve", "Yield Curve", 5, "T10Y2Y + T10Y3M avg, z-scored vs own history"),
         ("inflation_expectations", "Inflation Expectations", 1, "T5YIE + T10YIE breakeven avg, z-scored"),
         ("sector_rotation", "Sector Rotation", 5, "Defensive vs. cyclical sector leadership"),
         ("cross_asset_confirmation", "Cross-Asset Confirmation", 5, "Gold/bonds/USD/oil vs. equities, z-scored"),
         ("earnings_revision_breadth", "Earnings Revision Breadth", 2.5, "Analyst target-price revisions, 30d"),
         ("valuation_extension_breadth", "Valuation Extension Breadth", 1.5, "% of universe at extended P/E or P/S"),
+        ("sahm_rule", "Sahm Rule", 2, "Recession-onset ramp, 3mo avg unemployment vs. trailing-12mo low"),
     ]
 
     tbl = Table(
@@ -651,8 +645,12 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             else:
                 val_s = "--"
         elif key == "positioning":
+            # 60/40 weighted avg of insider-buying-breadth-score and short-interest-trend-
+            # score (each already 0-100) - labeled "/100 blend" not a bare number (BUG FOUND
+            # 2026-08-22: exposure-model integrity review - a raw "10.6 blended" reads as
+            # meaningless without knowing it's a sub-score, not a real-world unit).
             v = f.get("value")
-            val_s = f"{v:.0f} blended" if v is not None else "--"
+            val_s = f"{v:.0f}/100 blend" if v is not None else "--"
         elif key == "distribution_days":
             cnt = f.get("count")
             rg = f.get("regime")
@@ -667,14 +665,6 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             if isinstance(t3, (int, float)):
                 parts.append(f"3m10y {t3:+.2f}")
             val_s = " / ".join(parts) if parts else "--"
-        elif key == "financial_conditions":
-            v = f.get("value")
-            z = f.get("z")
-            val_s = f"ANFCI {v:.2f} (z={z:+.1f})" if isinstance(v, (int, float)) else "--"
-        elif key == "financial_stress":
-            v = f.get("value")
-            z = f.get("z")
-            val_s = f"STLFSI4 {v:.2f} (z={z:+.1f})" if isinstance(v, (int, float)) else "--"
         elif key == "inflation_expectations":
             v = f.get("value")
             val_s = f"breakeven {v:.2f}%" if isinstance(v, (int, float)) else "--"
@@ -711,6 +701,14 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             active = f.get("active_count")
             active_s = f" (n={active})" if isinstance(active, (int, float)) else ""
             val_s = f"{bp:.0f}% at extended P/E or P/S{active_s}" if isinstance(bp, (int, float)) else "--"
+        elif key == "sahm_rule":
+            v = f.get("value")
+            trig = f.get("triggered")
+            val_s = (
+                f"{v:+.2f}pp vs. 0.50pp trigger" + (" — TRIGGERED" if trig else "")
+                if isinstance(v, (int, float))
+                else "--"
+            )
 
         tbl.add_row(
             Text(label, style=fc),
@@ -721,38 +719,13 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             context,
         )
 
-    # FIXED 2026-08-22 (exposure-model integrity review): sector_rotation, the old
-    # economic_overlay, cross_asset_confirmation, and fundamental_quality used to render
-    # here as a separate "adjustment" block (+/- deltas around zero, own bar style). All
-    # of them (now including the earnings-revision/valuation-extension split of what was
-    # fundamental_quality - see market_exposure.py's module docstring) are normal weighted
-    # factors and already rendered by the factor_map_exp loop above. Sahm Rule is the one
-    # signal that's still genuinely different in kind (a hard veto, not a graded score),
-    # so it keeps its own row below.
-    sahm = None
-    if factors and isinstance(factors, dict) and not error_boundary.has_error(factors):
-        sahm_raw = factors.get("sahm_rule")
-        if isinstance(sahm_raw, dict) and not error_boundary.has_error(sahm_raw):
-            sahm = sahm_raw
-
-    if sahm is not None:
-        sahm_val = sahm.get("value")
-        sahm_triggered = sahm.get("triggered")
-        val_display = f"{sahm_val:.2f}pp" if isinstance(sahm_val, (int, float)) else "--"
-        val_s = f"{val_display} vs. 0.50pp" + (" — TRIGGERED, capped 25%" if sahm_triggered else " — not triggered")
-        indicator = Text.from_markup("[red]⛔ VETO[/]") if sahm_triggered else Text.from_markup("[dim]✓ clear[/]")
-        tbl.add_row(
-            # Not a points contribution like the rows above it - a hard veto that caps the
-            # final allocation directly - so Pts/Max stay "--" rather than smuggling "cap 25%"
-            # into what's otherwise a numeric points-range column (BUG FOUND 2026-08-21).
-            Text("Sahm Rule", style="red bold" if sahm_triggered else "dim"),
-            Text("VETO" if sahm_triggered else "--", style="red bold" if sahm_triggered else "dim"),
-            Text("--", style="dim"),
-            indicator,
-            Text(val_s, style="red" if sahm_triggered else "white"),
-            "Recession veto — 3mo avg unemployment vs. trailing-12mo low",
-        )
-
+    # FIXED 2026-08-22 (exposure-model integrity review, 2 passes same day): sector_rotation,
+    # the old economic_overlay, cross_asset_confirmation, fundamental_quality, and Sahm Rule
+    # all used to render as separate special-cased blocks (adjustment deltas, then a
+    # dedicated hard-veto row) below this table. All of them - including Sahm Rule as of
+    # pass 2 - are normal weighted factors now and already rendered by the factor_map_exp
+    # loop above; see market_exposure.py's module docstring for why Sahm was demoted from a
+    # hard veto to a graded factor.
     rows.append(tbl)
 
     timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None

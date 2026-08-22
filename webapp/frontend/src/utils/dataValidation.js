@@ -153,23 +153,20 @@ export const safeGetFactors = (current) => {
         ? f.put_call_ratio
         : {},
     ad_line: f.ad_line && typeof f.ad_line === "object" ? f.ad_line : {},
-    // FIXED 2026-08-22 (exposure-model integrity review): economic_overlay was removed
-    // from the exposure engine's factors dict (split into 4 standalone factors below) but
-    // this guard kept type-checking it anyway - dead code, always resolving to {} since
-    // that key can never appear in a real response anymore. Guards below cover the
-    // factors that actually replaced it, plus the other post-2026-08-22 factors whose
-    // sub-fields the ExposureFactors component reads directly (yield_curve.t10y2y,
-    // cross_asset_confirmation.composite_z, etc.).
+    // FIXED 2026-08-22 (exposure-model integrity review, 2 passes same day): economic_overlay
+    // was removed from the exposure engine's factors dict (split into standalone factors
+    // below) but this guard kept type-checking it anyway - dead code, always resolving to {}
+    // since that key can never appear in a real response anymore. Pass 2 then dropped
+    // financial_conditions/financial_stress entirely (substantially redundant with
+    // credit_spread/yield_curve, see market_exposure.py's module docstring) - their guards
+    // are gone too, replaced by sahm_rule's (demoted from its own hard-veto field to a
+    // normal factor). Guards below cover the factors that actually replaced economic_overlay,
+    // plus other post-2026-08-22 factors whose sub-fields the ExposureFactors component
+    // reads directly (yield_curve.t10y2y, cross_asset_confirmation.composite_z, etc.).
     yield_curve:
       f.yield_curve && typeof f.yield_curve === "object" ? f.yield_curve : {},
-    financial_conditions:
-      f.financial_conditions && typeof f.financial_conditions === "object"
-        ? f.financial_conditions
-        : {},
-    financial_stress:
-      f.financial_stress && typeof f.financial_stress === "object"
-        ? f.financial_stress
-        : {},
+    sahm_rule:
+      f.sahm_rule && typeof f.sahm_rule === "object" ? f.sahm_rule : {},
     inflation_expectations:
       f.inflation_expectations && typeof f.inflation_expectations === "object"
         ? f.inflation_expectations

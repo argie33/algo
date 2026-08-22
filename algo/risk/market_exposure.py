@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Quantitative Market Exposure Engine - Research-backed 20-factor composite + hard vetoes
+Quantitative Market Exposure Engine - Research-backed 19-factor composite + hard vetoes
 
 Composite 0-100 portfolio risk allocation score, built on exactly TWO mechanisms:
 a single weighted-sum composite (every input that carries directional information
@@ -10,51 +10,86 @@ layer (binary, rare, extreme conditions that override the composite regardless o
 score - standard separation of alpha/context from risk management, matching how a
 multi-strat shop keeps risk limits independent of and overriding to any signal).
 
-REDESIGNED 2026-08-22 (goal: exposure-model integrity review) to remove a third,
-in-between "modifier" mechanism that had accumulated since the 2026-08-20 redesign:
-4 signals (economic overlay, sector rotation, cross-asset confirmation, fundamental
-quality) were bolted on as post-score point-deltas instead of properly weighted
-factors, each with its own arbitrary point range and, in one case (VIX), a stray
-multiplicative combination nothing else in the file used. There is no legitimate
-reason those specific signals should combine differently from the other 12 - they
-carry the same kind of information (how much should the technical picture be
-trusted right now) and now do. See git history / EXPOSURE_REDESIGN_VERIFICATION_PLAN.md
-for the prior architecture.
+REDESIGNED 2026-08-22 (goal: exposure-model integrity review) in two passes the same
+day. Pass 1 removed a third, in-between "modifier" mechanism that had accumulated
+since the 2026-08-20 redesign: 4 signals (economic overlay, sector rotation,
+cross-asset confirmation, fundamental quality) were bolted on as post-score
+point-deltas instead of properly weighted factors, each with its own arbitrary point
+range and, in one case (VIX), a stray multiplicative combination nothing else in the
+file used. Pass 1 also correlation-checked the newly-split-out macro signals against
+EACH OTHER (ANFCI vs STLFSI4, T10Y2Y vs T10Y3M, T5YIE vs T10YIE) and dropped IG OAS
+(0.952 corr with ANFCI) and CFNAI (only 37 rows, too sparse to verify) on that basis.
 
-This pass also replaced several ad hoc combination formulas with either (a) real,
-named methodology already used elsewhere in quant/macro research, or (b) a
-professionally-built index used standalone rather than remixed with unrelated
-series. Two specific findings drove that: correlation-checked against real data in
-this DB, ANFCI (financial conditions) and IG OAS (BAMLC0A0CM) came back at 0.952 -
-functionally the same series, so IG OAS was dropped from scoring rather than
-blended in as if it were independent information (the same double-count principle
-this file already applies to HY OAS vs the economic overlay). CFNAI was dropped for
-the opposite reason - only 37 rows of history in this DB, too sparse to verify
-either way. Every other new signal below is z-scored against its own real
-historical distribution (standard Barra/Axioma-style factor normalization) rather
-than scored off fixed thresholds eyeballed from one day's snapshot.
+Pass 2 (same day, user-prompted second look) found that pass 1's redundancy audit
+stopped one level too shallow: it checked the new macro signals against each other,
+but never against the pre-existing, longer-history factors (Credit Spread, Yield
+Curve) already in the model. Re-checked directly against real data in this DB:
+  - STLFSI4 ("Financial Stress") correlates 0.748 with HY OAS (BAMLH0A0HYM2) - already
+    a direct 7.5pt factor AND its own hard veto. That is MORE redundant than the
+    0.057 STLFSI4-vs-ANFCI check pass 1 used to justify keeping it.
+  - ANFCI ("Financial Conditions") correlates -0.762 with T10Y3M (already half of the
+    Yield Curve factor) and 0.528 with HY OAS.
+  - Both series also only have 2023-06+ history in this DB (~167 points, no recession
+    in-sample) - too thin a sample to trust a 2.5-sigma tail read on their own, on top
+    of being substantially explained by factors that DO have long, cycle-spanning
+    history (T10Y3M back to 2015, UNRATE back to 2000).
+Conclusion: Financial Conditions and Financial Stress were dropped entirely as
+separately-scored factors (and ANFCI's extreme-tail veto with it) - not because the
+pairwise checks in pass 1 were wrong (re-verified, they were correct), but because
+checking only sibling-vs-sibling correlation among the newly-added signals missed
+that the real overlap was with the model's own pre-existing pillars. Their combined
+6pt budget was returned to Credit Spread (+3) and Yield Curve (+1) - the two
+transparent, long-history pillars this info was actually chasing - with the
+remaining 2pt going to Sahm Rule (see below).
+
+Pass 2 also demoted Sahm Rule from a hard veto to a graded factor - not a redundancy
+finding, a soundness one. A single monthly, revision-prone UNRATE print
+unilaterally capping the whole portfolio at 25% is a real operational tail risk in
+its own right, and the "near-100% historical hit rate" framing predates a concrete
+counterexample: the real-time Sahm Rule triggered in mid-2024 with no NBER recession
+following (Sahm herself attributed it to post-pandemic labor-supply/immigration
+effects on the unemployment denominator, not a genuine downturn). A real multi-strat
+risk desk would not hard-cap equity exposure off one lagging labor-market print with
+no confirming signal from credit, vol, or breadth. UNRATE/Sahm's OWN history (24+
+years, spans 2001/2008-09/2020) is long enough to trust statistically, unlike
+ANFCI/STLFSI4 above - but naively z-scoring the raw Sahm-value series against that
+history turned out to be its own mistake: live-checked, the series is heavily
+right-skewed (mean 0.497, stdev 1.265, driven almost entirely by a handful of extreme
+2008-09/2020 crisis readings, max 9.43) so its raw mean sits almost exactly ON the
+0.50 trigger threshold purely from those rare spikes, even though 80% of all months
+(243/304) never came close to triggering. A generic z-score would call today's
+reading of 0.0 "roughly average" (z=-0.39) when it is actually deep in the calm
+majority regime - the wrong read, and the wrong tool for a fundamentally
+regime-switching statistic. Scored instead via a ramp anchored on Sahm's own
+published, real methodology (100 at <=0, ramping to 40 exactly at the literal 0.50pp
+trigger, continuing to 0 by +1.5pp) rather than force-fitting the same z-score
+treatment used for continuous macro series onto a binary-regime indicator just for
+superficial consistency.
+
+Every macro signal below that IS z-scored is checked against its own real historical
+distribution (standard Barra/Axioma-style factor normalization) rather than scored
+off fixed thresholds eyeballed from one day's snapshot - see each factor's own
+docstring for its specific correlation/history-depth check.
 
     11.25pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
      7.50pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM - most replicated quant signal)
      7.50pt  BREADTH % > 200-DMA   long-term market participation (linear 30-80%)
      7.50pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
      7.50pt  VIX REGIME            level (<15/15-25/25-35/35+) + genuine day-over-day trend
-     7.50pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research)
+    10.50pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research);
+                                    +3pt 2026-08-22 from the dropped Financial Conditions/Stress budget
+                                    - this is the pillar that data was substantially re-deriving
      6.00pt  PUT/CALL RATIO        options market sentiment - contrarian at extremes (daily signal)
      5.25pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
      4.50pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
      4.50pt  BREADTH % > 50-DMA    short-term market participation (linear 20-80%)
      3.75pt  POSITIONING & FLOWS   insider buying breadth + short interest trend (replaces NAAIM,
                                     2026-08-20 - NAAIM's source went subscription-only 2026-08-01)
-     2.25pt  AAII SENTIMENT        contrarian at extremes only (±15+ spread; neutral in middle range)
-     4.00pt  YIELD CURVE           T10Y2Y + T10Y3M avg, z-scored (confirmed non-redundant vs each
+     2.25pt  AAII SENTIMENT        contrarian at extremes only (+/-15 spread; neutral in middle range)
+     5.00pt  YIELD CURVE           T10Y2Y + T10Y3M avg, z-scored (confirmed non-redundant vs each
                                     other in this DB, -0.28 corr - the short end genuinely un-inverts
-                                    before the long end, tracked as one factor not two)
-     4.00pt  FINANCIAL CONDITIONS  ANFCI (Chicago Fed), z-scored standalone - a real dynamic-
-                                    factor-model composite, used as-is rather than remixed
-     2.00pt  FINANCIAL STRESS      STLFSI4 (St. Louis Fed), z-scored standalone - confirmed
-                                    genuinely distinct from ANFCI in this DB (0.057 corr, not
-                                    redundant despite both being "Fed financial stress" indices)
+                                    before the long end normalizes, tracked as one factor not two);
+                                    +1pt 2026-08-22 from the dropped Financial Conditions/Stress budget
      1.00pt  INFLATION EXPECTATIONS T5YIE + T10YIE avg (same measurement, two tenors - confirmed
                                     0.84 corr, a legitimate simple average not a bespoke blend)
      5.00pt  SECTOR ROTATION        defensive vs cyclical sector leadership (Mansfield RS / IBD
@@ -79,6 +114,11 @@ than scored off fixed thresholds eyeballed from one day's snapshot.
                                     that mixed this, revision breadth, AND a duplicate of insider
                                     data already homed in Positioning into one number that implied
                                     more rigor than any single ingredient actually had)
+     2.00pt  SAHM RULE              recession-onset ramp (see above) - demoted 2026-08-22 from a
+                                    hard veto to a small graded factor; still checked directly
+                                    against UNRATE, still the same 0.50pp trigger methodology,
+                                    just no longer able to unilaterally cap the whole portfolio
+                                    off one monthly print
 
 Removed factors vs prior versions:
   - FOLLOW-THROUGH DAY (was 10pt): ~50% reliability per independent backtests
@@ -89,11 +129,20 @@ Removed factors vs prior versions:
     both would double-count the same underlying credit-conditions information
   - CFNAI (2026-08-22): only 37 rows of history in this DB, not enough to verify its
     relationship to the other macro signals either way
+  - FINANCIAL CONDITIONS / ANFCI and FINANCIAL STRESS / STLFSI4 (2026-08-22, pass 2):
+    substantially redundant with the pre-existing Credit Spread and Yield Curve
+    factors (0.75/0.53/-0.76 corr) and built on only ~3 years of local history with
+    no recession in-sample - see the pass-2 writeup above
 
 Breadth signal consolidation: prior version had 5 breadth signals at 45pt total,
 all highly correlated. Now 4 signals covering distinct information: % > 200-DMA
 (long-term regime), NH/NL (leadership), A/D line (direction), % > 50-DMA (short-term
-participation).
+participation). Live-checked 2026-08-22: % > 50-DMA and % > 200-DMA are themselves
+0.77 correlated in this DB - real overlap, but kept as two factors deliberately
+(standard technical-analysis convention, e.g. StockCharts/IBD breadth panels track
+both) because the two series are BUILT to diverge exactly at regime turns, which is
+precisely when the extra information matters most; unlike the Fed-index cluster
+above, this isn't two composites quietly re-deriving the same rates/credit read.
 
 HARD VETOES (cap exposure at <=25-40%; independent of the composite score - a risk
 override, not an alpha input, same separation-of-concerns a real risk desk keeps):
@@ -103,22 +152,13 @@ override, not an alpha input, same separation-of-concerns a real risk desk keeps
   - N+ selling-pressure days in last 25 sessions (N configurable via market_exposure_veto3_distribution_days_threshold)
   - No market confirmation signal (volume-backed rally) while SPY below 30-week MA
   - HY credit spread > 8.5% (systemic stress)
-  - Sahm Rule triggered: 3mo avg UNRATE >= 0.5pp above trailing-12mo low (recession signal;
-    near-100% historical hit rate identifying recession onset post-WWII) - reads the same
-    UNRATE series the labor market implicitly touches elsewhere, but asks a genuinely
-    different question (has a proven binary trigger fired) so it stays a separate veto,
-    same pattern as Credit Spread being both a graded factor AND its own systemic-stress veto
-  - Financial Conditions (ANFCI) at extreme tail (z >= 2.5): mirrors the Credit Spread
-    pattern above - ANFCI is graded factor AND its own veto at genuine crisis-level tightness
 
-Why Sahm Rule stays a hard veto while everything else above is a soft factor: checked
-this DB's actual history depth against the NBER's real recession dates (USREC, 28
-recession-months on file spanning 2001/2008-09/2020). UNRATE (Sahm's input) has full
-history back to 2000 and can be checked against all three. STLFSI4/CFNAI/ANFCI/IG OAS
-only have 2-3 years of history in this DB and can't be verified against any of them yet -
-a concrete, evidence-based reason to trust Sahm's binary trigger and keep the others
-graded/modest until they can be validated the same way.
-
+(Sahm Rule and Financial Conditions extreme-tail were both hard vetoes here through
+2026-08-22 pass 1; both are gone from this list now - see the pass-2 writeup above
+for why. Credit Spread remains the one signal that is deliberately both a graded
+factor AND its own systemic-stress veto: unlike Sahm, HY OAS is a fast, daily,
+market-based read, not a monthly government print, so a genuine >8.5% reading is a
+real-time signal rather than a stale one.)
 Output:
     market_exposure_pct (0-100): drives dynamic risk allocation
     state: 'confirmed_uptrend' | 'uptrend_under_pressure' | 'caution' | 'correction'
@@ -157,26 +197,26 @@ class MarketExposure:
 
     # Factor weights (sum = 100). The original 12 are compressed by a uniform 0.75x
     # factor from their pre-2026-08-22 values (15/10/10/10/10/10/8/7/6/6/5/3) to free a
-    # 25pt budget for the 7 factors below that used to be separate "modifiers" - this
+    # 25pt budget for the factors added 2026-08-22 pass 1 (see module docstring) - this
     # preserves each original factor's relative weight to the others exactly as
     # previously tuned, rather than introducing a second, unrelated set of freehand
-    # numbers on top of an already-imperfect calibration. See module docstring for the
-    # new factors' individual sizing rationale (history depth + redundancy checks).
+    # numbers on top of an already-imperfect calibration. Pass 2 (same day) then dropped
+    # Financial Conditions/Financial Stress entirely and redistributed their 6pt budget
+    # into Credit Spread (+3), Yield Curve (+1), and the newly-graded Sahm Rule (+2) -
+    # see module docstring for the evidence behind that reallocation.
     W_TREND_30WK = 11.25
     W_SPY_MOMENTUM = 7.5  # 12-month TSMOM (replaces follow-through day)
     W_BREADTH_200 = 7.5
     W_SELLING_PRESSURE = 7.5  # heavy-volume down days
     W_VIX = 7.5  # level + genuine day-over-day trend
-    W_CREDIT_SPREAD = 7.5  # HY OAS
+    W_CREDIT_SPREAD = 10.5  # HY OAS; +3pt 2026-08-22 pass 2 from dropped Financial Conditions/Stress
     W_PUT_CALL = 6.0  # options put/call ratio (replaces McClellan oscillator)
     W_NEW_HIGHS_LOWS = 5.25
     W_AD_LINE = 4.5  # A/D direction vs SPY
     W_BREADTH_50 = 4.5  # reduced from 14pt pre-2026-08-20 (was overweighted vs 200-DMA)
     W_POSITIONING = 3.75  # insider buying breadth + short interest trend (replaces NAAIM)
     W_AAII = 2.25  # extremes-only scoring
-    W_YIELD_CURVE = 4.0  # T10Y2Y + T10Y3M avg, z-scored
-    W_FINANCIAL_CONDITIONS = 4.0  # ANFCI, z-scored standalone
-    W_FINANCIAL_STRESS = 2.0  # STLFSI4, z-scored standalone
+    W_YIELD_CURVE = 5.0  # T10Y2Y + T10Y3M avg, z-scored; +1pt 2026-08-22 pass 2 (see above)
     W_INFLATION_EXPECTATIONS = 1.0  # T5YIE + T10YIE avg, z-scored
     W_SECTOR_ROTATION = 5.0  # defensive vs cyclical leadership - was a post-score penalty
     W_CROSS_ASSET = 5.0  # gold/bonds/USD/oil vs equities - was a post-score penalty
@@ -188,6 +228,9 @@ class MarketExposure:
     # first-pass/uncalibrated.
     W_EARNINGS_REVISION = 2.5  # analyst target-price revision breadth, a real named indicator
     W_VALUATION_EXTENSION = 1.5  # % of universe at an extended P/E or P/S, first-pass heuristic
+    # Demoted 2026-08-22 pass 2 from a hard veto to a small graded factor - see module
+    # docstring for why (single lagging monthly print, real 2024 false-trigger precedent).
+    W_SAHM_RULE = 2.0  # recession-onset ramp, anchored on Sahm's real 0.50pp trigger
 
     def __init__(self) -> None:
         self._validate_weights()
@@ -195,7 +238,7 @@ class MarketExposure:
 
     @classmethod
     def _validate_weights(cls) -> None:
-        """Fail-fast if the 20 factor weights above don't sum to exactly 100.
+        """Fail-fast if the 19 factor weights above don't sum to exactly 100.
 
         No test or runtime check previously protected this invariant (unlike
         algo/signals/filter_registry.py's FilterRegistry.validate(), which runs the
@@ -217,13 +260,12 @@ class MarketExposure:
             cls.W_POSITIONING,
             cls.W_AAII,
             cls.W_YIELD_CURVE,
-            cls.W_FINANCIAL_CONDITIONS,
-            cls.W_FINANCIAL_STRESS,
             cls.W_INFLATION_EXPECTATIONS,
             cls.W_SECTOR_ROTATION,
             cls.W_CROSS_ASSET,
             cls.W_EARNINGS_REVISION,
             cls.W_VALUATION_EXTENSION,
+            cls.W_SAHM_RULE,
         ]
         total = sum(weights)
         if abs(total - 100.0) > 1e-6:
@@ -479,7 +521,7 @@ class MarketExposure:
                 return cached
 
         logger.info(
-            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (20 factors + 7 vetoes, using calculator methods)"
+            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (19 factors + 5 vetoes, using calculator methods)"
         )
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
@@ -714,37 +756,7 @@ class MarketExposure:
                 factors["yield_curve"] = {**yc, "pts": round(yc_pts, 1), "max": self.W_YIELD_CURVE}
                 score += yc_pts
 
-            # --- 14. Financial Conditions (ANFCI, z-scored standalone) ---
-            fin_cond = self._financial_conditions_factor(eval_date, cur)
-            if fin_cond.get("data_unavailable"):
-                logger.info(f"[FINANCIAL_CONDITIONS] Unavailable (optional factor skipped): {fin_cond.get('reason')}")
-                # Weight NOT added to avail_max here - see the renormalization
-                # comment below compute()'s factor loop for why this matters.
-                factors["financial_conditions"] = {**fin_cond, "pts": 0.0, "max": self.W_FINANCIAL_CONDITIONS}
-            else:
-                fc_pts, fc_avail = self.calculator._wt_pts(fin_cond, self.W_FINANCIAL_CONDITIONS)
-                avail_max += fc_avail
-                factors["financial_conditions"] = {
-                    **fin_cond,
-                    "pts": round(fc_pts, 1),
-                    "max": self.W_FINANCIAL_CONDITIONS,
-                }
-                score += fc_pts
-
-            # --- 15. Financial Stress (STLFSI4, z-scored standalone) ---
-            fin_stress = self._financial_stress_factor(eval_date, cur)
-            if fin_stress.get("data_unavailable"):
-                logger.info(f"[FINANCIAL_STRESS] Unavailable (optional factor skipped): {fin_stress.get('reason')}")
-                # Weight NOT added to avail_max here - see the renormalization
-                # comment below compute()'s factor loop for why this matters.
-                factors["financial_stress"] = {**fin_stress, "pts": 0.0, "max": self.W_FINANCIAL_STRESS}
-            else:
-                fs_pts, fs_avail = self.calculator._wt_pts(fin_stress, self.W_FINANCIAL_STRESS)
-                avail_max += fs_avail
-                factors["financial_stress"] = {**fin_stress, "pts": round(fs_pts, 1), "max": self.W_FINANCIAL_STRESS}
-                score += fs_pts
-
-            # --- 16. Inflation Expectations (T5YIE + T10YIE avg, z-scored) ---
+            # --- 14. Inflation Expectations (T5YIE + T10YIE avg, z-scored) ---
             infl = self._inflation_expectations_factor(eval_date, cur)
             if infl.get("data_unavailable"):
                 logger.info(f"[INFLATION_EXPECTATIONS] Unavailable (optional factor skipped): {infl.get('reason')}")
@@ -761,7 +773,7 @@ class MarketExposure:
                 }
                 score += infl_pts
 
-            # --- 17. Sector Rotation (defensive vs cyclical leadership) ---
+            # --- 15. Sector Rotation (defensive vs cyclical leadership) ---
             # FIXED 2026-08-22: was a post-score point-penalty applied outside the normal
             # weighted-factor pathway; now a normal factor (see _sector_rotation_factor).
             try:
@@ -784,7 +796,7 @@ class MarketExposure:
                 factors["sector_rotation"] = {**rotation, "pts": round(sr_pts, 1), "max": self.W_SECTOR_ROTATION}
                 score += sr_pts
 
-            # --- 18. Cross-Asset Confirmation (gold/bonds/USD/oil vs equities, z-scored) ---
+            # --- 16. Cross-Asset Confirmation (gold/bonds/USD/oil vs equities, z-scored) ---
             # FIXED 2026-08-22: was a post-score point-penalty gated on a binary "count of
             # trip-wires" rule; now a normal factor with a real z-scored composite and an
             # asymmetric scoring curve (see _cross_asset_factor).
@@ -808,7 +820,7 @@ class MarketExposure:
                 factors["cross_asset_confirmation"] = {**xasset, "pts": round(xa_pts, 1), "max": self.W_CROSS_ASSET}
                 score += xa_pts
 
-            # --- 19. Earnings Revision Breadth (analyst target-price revisions) ---
+            # --- 17. Earnings Revision Breadth (analyst target-price revisions) ---
             # FIXED 2026-08-22: was one of three inputs blended into a single "Fundamental
             # Quality" score; now stands alone as its own real, named factor (see
             # _earnings_revision_breadth_factor's docstring for why the blend was dropped).
@@ -831,7 +843,7 @@ class MarketExposure:
                 }
                 score += rev_pts
 
-            # --- 20. Valuation Extension Breadth (% of universe at an extended P/E or P/S) ---
+            # --- 18. Valuation Extension Breadth (% of universe at an extended P/E or P/S) ---
             # FIXED 2026-08-22: was the third input in the same blend, dropped for the same
             # reason - it's a legitimate, honestly-labeled first-pass heuristic on its own,
             # not equal-footing evidence with a real named indicator like revision breadth.
@@ -859,11 +871,32 @@ class MarketExposure:
                 }
                 score += val_pts
 
-            # CRITICAL: the 12 original factors are still required; the 8 factors added
-            # 2026-08-22 (yield curve, financial conditions, financial stress, inflation
-            # expectations, sector rotation, cross-asset, earnings revision breadth,
-            # valuation extension breadth) are all optional/graceful like put_call_ratio and
-            # positioning already were.
+            # --- 19. Sahm Rule (recession-onset ramp, demoted 2026-08-22 pass 2 from a hard
+            # veto - see module docstring for the full reasoning: single lagging monthly
+            # print, real 2024 false-trigger precedent, and a raw z-score against Sahm's own
+            # history is the wrong tool for this specific right-skewed, regime-switching
+            # series, so it's scored via a ramp anchored on the real published 0.50pp
+            # trigger instead) ---
+            try:
+                sahm = self._sahm_rule_factor(eval_date, cur)
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[SAHM_RULE] Query failed, treating as unavailable: {e}")
+                sahm = {"data_unavailable": True, "reason": f"Query failed: {type(e).__name__}"}
+            if sahm.get("data_unavailable"):
+                logger.info(f"[SAHM_RULE] Unavailable (optional factor skipped): {sahm.get('reason')}")
+                # Weight NOT added to avail_max here - see the renormalization
+                # comment below compute()'s factor loop for why this matters.
+                factors["sahm_rule"] = {**sahm, "pts": 0.0, "max": self.W_SAHM_RULE}
+            else:
+                sahm_pts, sahm_avail = self.calculator._wt_pts(sahm, self.W_SAHM_RULE)
+                avail_max += sahm_avail
+                factors["sahm_rule"] = {**sahm, "pts": round(sahm_pts, 1), "max": self.W_SAHM_RULE}
+                score += sahm_pts
+
+            # CRITICAL: the 12 original factors are still required; the factors added
+            # 2026-08-22 (yield curve, inflation expectations, sector rotation, cross-asset,
+            # earnings revision breadth, valuation extension breadth, sahm rule) are all
+            # optional/graceful like put_call_ratio and positioning already were.
             #
             # FIXED 2026-08-22: previously, when an optional factor went unavailable, its
             # full weight was still added to avail_max (purely to dodge this exact check)
@@ -1001,49 +1034,11 @@ class MarketExposure:
                 logger.critical(msg)
                 raise RuntimeError(msg)
 
-            # Veto 6: Sahm Rule recession trigger (added 2026-08-20, exposure-model redesign).
-            # Computed from UNRATE (already loaded, was idle) - 3-month average unemployment
-            # rate rising >=0.5pp above its trailing-12-month low. Claudia Sahm's rule has
-            # near-100% historical hit rate identifying recession onset post-WWII with very
-            # few false positives - cleaner and more binary than the curve-inversion-duration
-            # heuristic in the economic overlay above, so it's wired as a genuine hard veto
-            # rather than a soft-scored signal. Unlike vetoes 1-5, missing/thin UNRATE history
-            # does NOT raise - this is new, additive risk coverage layered onto an
-            # already-complete 12-factor composite, not a foundational input the score depends
-            # on; a monthly series with a real reporting lag should degrade gracefully like
-            # the economic overlay's other signals, not halt the whole computation.
-            try:
-                sahm = self._sahm_rule(eval_date, cur)
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[SAHM RULE] Query failed, skipping veto: {e}")
-                sahm = None
-            if sahm is not None:
-                factors["sahm_rule"] = {
-                    "value": sahm["value"],
-                    "triggered": sahm["triggered"],
-                    "pts": 0,
-                    "max": 0,
-                }
-                if sahm["triggered"]:
-                    halt_reasons.append(
-                        f"Sahm Rule triggered: 3mo avg unemployment {sahm['value']:.2f}pp above trailing 12mo low "
-                        f">= 0.50pp threshold (recession signal)"
-                    )
-                    cap = min(cap, 25.0)
-
-            # Veto 7: Financial Conditions (ANFCI) at extreme tail (added 2026-08-22).
-            # Mirrors the existing pattern of Credit Spread being both a graded factor AND
-            # its own systemic-stress veto (Veto 5) - Financial Conditions is now factor #14
-            # above, and this is its extreme-tail override. z >= 2.5 matches the same cap
-            # (~98.8th percentile of the factor's own history) used as the scoring curve's
-            # floor in _zscore_to_score, so a veto only fires when the factor would already
-            # be reading at or near its own 0 - this isn't a second, independent threshold,
-            # it's naming the factor's own tail as a hard override rather than trusting the
-            # weighted sum alone to reflect a genuine crisis-level reading.
-            fin_cond_z = fin_cond.get("z") if not fin_cond.get("data_unavailable") else None
-            if fin_cond_z is not None and fin_cond_z >= 2.5:
-                halt_reasons.append(f"Financial Conditions (ANFCI) at extreme tail: z={fin_cond_z:.2f} >= 2.5")
-                cap = min(cap, 40.0)
+            # Vetoes 6 (Sahm Rule) and 7 (Financial Conditions extreme tail) were both
+            # removed 2026-08-22 pass 2 - Sahm is now factor #19 above (a graded ramp, not a
+            # binary trip-wire) and Financial Conditions/ANFCI was dropped entirely as
+            # redundant with Credit Spread/Yield Curve (see module docstring). Both used to
+            # live here as hard caps to 25%/40%.
 
             if halt_reasons:
                 logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
@@ -1063,7 +1058,7 @@ class MarketExposure:
             regime = tier_for_exposure(final)["name"]
 
             logger.info(
-                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=20"
+                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=19"
             )
 
             # CRITICAL: distribution_days is required for position sizing hard vetoes
@@ -1162,27 +1157,12 @@ class MarketExposure:
             return {"data_unavailable": True, "reason": "Neither T10Y2Y nor T10Y3M could be z-scored", **detail}
         return {"score": round(sum(pieces) / len(pieces), 1), **detail}
 
-    def _financial_conditions_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Financial Conditions factor: ANFCI (Chicago Fed), z-scored standalone.
-
-        Used as-is, not remixed with other series - correlation-checked 2026-08-22 against
-        IG OAS (BAMLC0A0CM) at 0.952 in this DB, near-total overlap, so IG OAS was dropped
-        from scoring entirely rather than blended in as if it were independent information
-        (the same double-count principle this file already applies to HY OAS vs this
-        factor). ANFCI (the business-cycle-adjusted index) rather than plain NFCI, per the
-        Chicago Fed's own guidance that ANFCI is the more appropriate forward-looking read.
-        """
-        return self._single_series_zscore_factor(eval_date, cur, "ANFCI", higher_is_worse=True)
-
-    def _financial_stress_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Financial Stress factor: STLFSI4 (St. Louis Fed), z-scored standalone.
-
-        Correlation-checked 2026-08-22 against ANFCI at 0.057 in this DB - genuinely
-        distinct information despite both being "Fed financial stress" composites (ANFCI is
-        explicitly stripped of its business-cycle component; STLFSI4 isn't), so both are
-        kept as separate factors rather than one being folded into the other.
-        """
-        return self._single_series_zscore_factor(eval_date, cur, "STLFSI4", higher_is_worse=True)
+    # REMOVED 2026-08-22 pass 2 (_financial_conditions_factor / _financial_stress_factor,
+    # ANFCI/STLFSI4 via _single_series_zscore_factor): both correlated substantially with
+    # factors already in the model (STLFSI4 vs HY OAS 0.748, ANFCI vs T10Y3M -0.762, ANFCI
+    # vs HY OAS 0.528) and both are built on only ~3 years of local history with no
+    # recession in-sample - see module docstring for the full evidence. _single_series_
+    # zscore_factor itself stays (still used by _yield_curve_factor's two components).
 
     def _inflation_expectations_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Inflation Expectations factor: T5YIE + T10YIE breakeven average, z-scored.
@@ -1529,14 +1509,46 @@ class MarketExposure:
         }
         return result
 
-    def _sahm_rule(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
+    @staticmethod
+    def _sahm_ramp_score(sahm_value: float) -> float:
+        """Map a Sahm value to a 0-100 factor score via a ramp anchored on Sahm's own real,
+        published 0.50pp trigger - not a generic z-score.
+
+        Live-checked 2026-08-22 (pass 2): the raw historical Sahm-value series in this DB
+        (304 monthly readings, 2001-2026) is heavily right-skewed - mean 0.497, stdev 1.265,
+        driven almost entirely by a handful of extreme 2008-09/2020 crisis readings (max
+        9.43) - even though 80% of months (243/304) never came remotely close to
+        triggering. A generic sample z-score against that distribution would call a
+        reading of 0.0 "roughly average" (z=-0.39, score ~58) purely because a few historic
+        crisis spikes drag the mean up near the trigger threshold - the wrong read, and the
+        wrong tool for a fundamentally regime-switching statistic (calm 80% of the time,
+        rare violent spikes the rest). This ramp instead respects the threshold's real,
+        research-backed meaning directly: 100 at or below 0 (no recessionary signal at
+        all), linearly down to 40 exactly AT the literal 0.50pp trigger (already solidly
+        bearish, not a cliff-edge discontinuity), continuing down to 0 by +1.5pp (a level
+        only ever seen in genuine recessions in this DB's history).
+        """
+        if sahm_value <= 0.0:
+            return 100.0
+        if sahm_value < 0.50:
+            return 100.0 - (sahm_value / 0.50) * 60.0
+        if sahm_value >= 1.50:
+            return 0.0
+        return 40.0 - ((sahm_value - 0.50) / 1.0) * 40.0
+
+    def _sahm_rule_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Sahm Rule recession indicator, computed from UNRATE (FRED, monthly).
 
-        Real-time Sahm Rule = (3-month average unemployment rate) minus (the minimum 3-month
-        average unemployment rate over the trailing 12 months). Triggered when this value is
-        >= 0.50 percentage points. Requires 15 months of history (3 for the current average,
-        12 more for the trailing-minimum window); returns None if history is too thin rather
-        than raising - this veto degrades gracefully, see its call site's comment.
+        DEMOTED 2026-08-22 pass 2 from a hard veto to a small graded factor - see module
+        docstring for the full reasoning (single lagging monthly print, real 2024
+        false-trigger precedent). The underlying Sahm math is unchanged from the original
+        2026-08-20 veto: real-time Sahm Rule = (3-month average unemployment rate) minus
+        (the minimum 3-month average unemployment rate over the trailing 12 months).
+        "triggered" (>= 0.50pp) is still reported for transparency/logging/dashboard
+        display, it just no longer caps exposure directly - _sahm_ramp_score does that
+        continuously instead. Requires 15 months of history (3 for the current average, 12
+        more for the trailing-minimum window); degrades to data_unavailable rather than
+        raising, matching every other optional factor in this file.
         """
         cur.execute(
             "SELECT value::float, date FROM economic_data "
@@ -1546,10 +1558,13 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 15:
-            return None
+            return {
+                "data_unavailable": True,
+                "reason": f"Insufficient UNRATE history for Sahm Rule (have {len(rows)} months, need 15+)",
+            }
         values = [float(r[0]) for r in rows]
         if any(math.isnan(v) or math.isinf(v) for v in values):
-            return None
+            return {"data_unavailable": True, "reason": "Non-finite UNRATE reading in trailing window"}
 
         # rows[0] is the most recent month; 3-month trailing averages ending at each month
         # index i (i=0 is "ending this month") for i in 0..12, matching the official
@@ -1558,7 +1573,11 @@ class MarketExposure:
         current_avg = trailing_3mo_avgs[0]
         trailing_12mo_min = min(trailing_3mo_avgs[1:13])
         sahm_value = current_avg - trailing_12mo_min
-        return {"value": round(sahm_value, 2), "triggered": sahm_value >= 0.50}
+        return {
+            "score": self._sahm_ramp_score(sahm_value),
+            "value": round(sahm_value, 2),
+            "triggered": sahm_value >= 0.50,
+        }
 
     @staticmethod
     def _trailing_pct_change(
