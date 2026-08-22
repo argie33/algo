@@ -83,6 +83,39 @@ relative importance (200-DMA weighted 62.5%, 50-DMA 37.5%, exactly preserving th
 7.5:4.5 split) instead of two correlated votes. Merged into one BREADTH factor (12.0pt
 total, unchanged from the prior 7.5+4.5 combined weight).
 
+Pass 4 (2026-08-22, continuation of the redundancy audit after pass 3 - checking the
+remaining factor pairs pass 3 itself hadn't reached yet) live-checked every other
+factor pair with enough history to test, closing out the "checked only some factors"
+gap pass 3 identified. Two pairs came back with real, non-trivial correlation:
+  - VIX REGIME vs CREDIT SPREADS: 0.757 corr, n=275 days - crosses this file's own
+    established >0.7 action bar (matches STLFSI4/HY-OAS's 0.748 that got STLFSI4
+    dropped in pass 2, close to Breadth's 0.77 that got merged in pass 3).
+  - CREDIT SPREADS vs SELLING PRESSURE: 0.612, n=274; VIX REGIME vs SELLING PRESSURE:
+    0.571, n=284 - both above Yield Curve's -0.28 "confirmed non-redundant" baseline.
+Deliberately NOT merged or dropped, unlike every prior case that crossed this bar.
+The prior fixes (Breadth 50/200-DMA, STLFSI4, ANFCI, IG OAS) were all pairs measuring
+the SAME underlying construction twice - two lookback windows of one %-above-MA
+metric, or a composite index built substantially FROM the pillar it correlated with.
+VIX (options-implied volatility), HY OAS (corporate credit market pricing), and
+distribution days (realized price/volume institutional selling) are three mechanically
+distinct measurements that co-move because they share exposure to the same risk-off
+regimes, not because one is a redundant recomputation of another - the same relationship
+Yield Curve's two rate spreads have to each other (real correlation, genuinely
+different underlying mechanisms, historically documented to diverge: 2018 "Volmageddon"
+was a VIX spike with no credit stress; 2015-16 energy-sector credit stress ran with no
+comparable VIX spike). VIX also independently drives its own hard veto (Veto 2), making
+it structurally non-optional regardless of this correlation. Kept as three separate
+factors, same treatment as Yield Curve - this paragraph is that check's documented
+record, same as every other correlation check in this file.
+
+Two more pairs were checked and found to have too little history to trust a read
+either way (same bar as CFNAI's 37-row rejection in pass 1, not a new standard):
+Positioning's internal insider-buying/short-interest blend (short_interest_finra has
+only 3 FINRA settlement cycles in this DB - 2 data points isn't enough to correlate
+anything) and Earnings Revision Breadth vs Valuation Extension Breadth (both compute
+fresh from current DB state each run with no persisted daily history yet - see each
+factor's own docstring). Revisit both once more history accumulates.
+
 Every macro signal below that IS z-scored is checked against its own real historical
 distribution (standard Barra/Axioma-style factor normalization) rather than scored
 off fixed thresholds eyeballed from one day's snapshot - see each factor's own
@@ -96,10 +129,16 @@ docstring for its specific correlation/history-depth check.
                                     factors (0.77 corr, real overlap; see "Breadth signal
                                     consolidation" below)
      7.50pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
+                                    (pass 4: 0.57-0.61 corr vs VIX/Credit Spread - checked,
+                                    kept separate, see module docstring)
      7.50pt  VIX REGIME            level (<15/15-25/25-35/35+) + genuine day-over-day trend
+                                    (pass 4: 0.757 corr vs Credit Spread in this DB - checked,
+                                    kept separate as a distinct mechanism, see module docstring)
     10.50pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research);
                                     +3pt 2026-08-22 from the dropped Financial Conditions/Stress budget
                                     - this is the pillar that data was substantially re-deriving
+                                    (pass 4: 0.757 corr vs VIX Regime - checked, kept separate,
+                                    see module docstring)
      6.00pt  PUT/CALL RATIO        options market sentiment - contrarian at extremes (daily signal)
      5.25pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
      4.50pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
@@ -238,6 +277,11 @@ class MarketExposure:
     # unchanged in total; _breadth_factor() blends the two inputs 62.5%/37.5% internally
     # to preserve their original relative importance.
     W_BREADTH = 12.0
+    # Pass 4 (2026-08-22) checked these three against each other: 0.57-0.76 corr pairwise,
+    # crossing this file's own >0.7 action bar for VIX/Credit Spread specifically - but
+    # kept as three separate factors (distinct mechanisms co-moving in risk-off regimes,
+    # not the same measurement recomputed; VIX also independently drives Veto 2) rather
+    # than merged/dropped like the pairs that crossed this bar before. See module docstring.
     W_SELLING_PRESSURE = 7.5  # heavy-volume down days
     W_VIX = 7.5  # level + genuine day-over-day trend
     W_CREDIT_SPREAD = 10.5  # HY OAS; +3pt 2026-08-22 pass 2 from dropped Financial Conditions/Stress
