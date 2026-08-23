@@ -26,6 +26,16 @@ class AdvancedFilters:
     This class focuses on the evaluation logic, not parameter definitions.
     """
 
+    # industry_ranking's company_profile.industry taxonomy is hundreds of narrow SIC-style
+    # buckets (391 distinct values live, 2026-08-23), nearly half with <5 stocks and 58 with
+    # exactly 1 - an industry's avg_score/momentum_score there is a single stock's composite_score
+    # on those days, not a real momentum read. Below this count an industry is excluded from
+    # _strong_industries (the top-quartile "strong" bucket) so a lucky/unlucky day for one or two
+    # names can't hand every stock sharing that industry label a real momentum_industry point
+    # boost/miss. It still stays in _industry_full_ranking so a genuinely-thin-but-real industry
+    # scores 0 (not a momentum leader) rather than hard-failing like a truly unknown industry name.
+    MIN_INDUSTRY_STOCK_COUNT_FOR_STRONG = 5
+
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
         self._strong_sectors: dict[str, float] | None = None
@@ -124,7 +134,7 @@ class AdvancedFilters:
 
             cur.execute(
                 """
-                SELECT industry, momentum_score
+                SELECT industry, momentum_score, stock_count
                 FROM industry_ranking
                 WHERE date_recorded = (
                     SELECT MAX(date_recorded) FROM industry_ranking
@@ -143,11 +153,17 @@ class AdvancedFilters:
                     f"cannot proceed without industry ranking for signal evaluation"
                 )
             for row in industries:
-                if len(row) < 2:
-                    raise ValueError(f"[ADVANCED_FILTERS] Industry query returned {len(row)} columns, expected 2")
-            cutoff_idx = max(1, len(industries) // 4)
-            self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
+                if len(row) < 3:
+                    raise ValueError(f"[ADVANCED_FILTERS] Industry query returned {len(row)} columns, expected 3")
             self._industry_full_ranking = {row[0]: idx + 1 for idx, row in enumerate(industries)}
+            # Quartile cutoff computed over well-sampled industries only (see
+            # MIN_INDUSTRY_STOCK_COUNT_FOR_STRONG docstring) - a thin, noisy industry must not be
+            # able to occupy a "top quartile" slot and crowd out a genuinely well-sampled one.
+            well_sampled = [
+                row for row in industries if row[2] is not None and row[2] >= self.MIN_INDUSTRY_STOCK_COUNT_FOR_STRONG
+            ]
+            cutoff_idx = max(1, len(well_sampled) // 4)
+            self._strong_industries = {row[0]: float(row[1]) for row in well_sampled[:cutoff_idx]}
 
             cur.execute(
                 "SELECT bullish, bearish, neutral FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
