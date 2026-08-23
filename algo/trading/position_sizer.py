@@ -1095,26 +1095,37 @@ class PositionSizer:
                     "reason": f"Position would exceed {effective_limit:.0f}% limit even at minimum size (margin: {safety_margin:.0f}%)",
                 }
 
-            # Scale down but still enter - capture the opportunity at reduced size
-            scaled_position_value = Decimal(scaled_shares) * Decimal(str(entry_price))
-            scaled_position_pct = (scaled_position_value / pv_dec) * Decimal(100)
-            scaled_risk_dollars = risk_per_share * Decimal(scaled_shares)
+            # BUG FOUND 2026-08-23 (goal session: real-money-readiness position-sizer audit):
+            # this branch used to `return` immediately with the scaled position - unlike the
+            # max_position_size_pct cap just above it (which updates shares/position_value/
+            # risk_dollars in place and falls through to the concentration/total-invested/
+            # total-risk checks that follow), this was the ONLY scaling branch in the whole
+            # function that skipped the remaining checks entirely. That meant a concentration-
+            # scaled entry never went through the total_invested_pct check (line ~1119) OR the
+            # enforce_total_risk_limit block (line ~1135) - the latter explicitly documented a
+            # few lines below as "the single most important portfolio-level guardrail" (the
+            # aggregate open-risk hard cap), specifically evaluated per-symbol because Phase 8
+            # sizes multiple symbols per cycle and needs a live, cumulative check as it goes.
+            # A symbol whose OWN concentration limit triggered scaling could still push the
+            # portfolio's aggregate open risk past the configured cap, completely unchecked -
+            # not currently exploited (no live incident found), but a real, structural gap in
+            # the exact guardrail meant to prevent overexposure before using real money. Update
+            # the working variables in place and let execution continue, matching the
+            # max_position_size_pct branch's own established pattern, instead of returning early.
+            original_pct_of_portfolio = position_pct_of_portfolio
+            original_shares = shares
+            shares = scaled_shares
+            position_value = Decimal(shares) * Decimal(str(entry_price))
+            position_pct_of_portfolio = (position_value / pv_dec) * Decimal(100)
+            risk_dollars = risk_per_share * Decimal(shares)
 
             logger.info(
                 f"[POSITION SIZER] {symbol}: Position scaled down to respect concentration limit. "
-                f"Original: {position_pct_of_portfolio:.1f}% ({shares} shares). "
-                f"Scaled: {scaled_position_pct:.1f}% ({scaled_shares} shares). "
-                f"Limit: {effective_limit:.0f}% (with {safety_margin:.0f}% safety margin)."
+                f"Original: {original_pct_of_portfolio:.1f}% ({original_shares} shares). "
+                f"Scaled: {position_pct_of_portfolio:.1f}% ({shares} shares). "
+                f"Limit: {effective_limit:.0f}% (with {safety_margin:.0f}% safety margin). "
+                f"Still subject to the total-invested/total-risk checks below."
             )
-
-            # Return scaled position - NOT rejection
-            return {
-                "shares": scaled_shares,
-                "position_size_pct": float(scaled_position_pct),
-                "risk_dollars": float(scaled_risk_dollars),
-                "status": "ok",
-                "reason": f"Scaled from {position_pct_of_portfolio:.1f}% to {scaled_position_pct:.1f}% to respect concentration limit",
-            }
 
         total_invested = Decimal(str(active_position_value)) + position_value
         max_inv_val = self.config.get("max_total_invested_pct")
