@@ -1682,13 +1682,29 @@ class MarketExposure:
             )
 
         spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
-        # Confirmation: both same direction. Divergence: opposite.
-        if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
+        # BUG FOUND 2026-08-23 (goal: exposure-model integrity review): "confirming" used to
+        # score 100 - the composite's best possible reading - for EITHER direction of
+        # agreement, including ad_change<0 AND spy_change_pct<0 (breadth deteriorating
+        # alongside a falling SPY: a real, broad-based selloff, not index-level noise). A
+        # confirmed downtrend is a MORE reliable bearish signal than a mere divergence (the
+        # same "confirmation = higher conviction" logic this factor already applies on the
+        # bullish side), so it must score below bearish_divergence (30), not tied with
+        # bullish confirmation at the top. This is the same class of bug this file's other
+        # passes have been finding all week (a mechanism built for one direction silently
+        # mis-scoring the mirror-image case) - just never caught here because every other
+        # audit pass in this file checked cross-factor redundancy, not within-factor sign
+        # correctness. Ordered worst to best: bearish_confirming (0, real broad decline) <
+        # bearish_divergence (30, rally not broadly supported) < bullish_divergence (60,
+        # breadth improving despite price dip - "hidden bullish") < bullish_confirming (100).
+        if ad_change > 0 and spy_change_pct > 0:
             score = 100.0
-            relation = "confirming"
+            relation = "bullish_confirming"
         elif ad_change > 0 and spy_change_pct < 0:
             score = 60.0  # hidden bullish
             relation = "bullish_divergence"
+        elif ad_change < 0 and spy_change_pct < 0:
+            score = 0.0  # confirmed broad-based decline - worse than a mere divergence
+            relation = "bearish_confirming"
         else:
             score = 30.0  # bearish divergence
             relation = "bearish_divergence"
