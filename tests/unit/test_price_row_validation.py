@@ -29,7 +29,15 @@ def _make_loader() -> PriceLoader:
 
 
 def _row(**overrides):
-    base = {"symbol": "AAPL", "date": "2026-07-21", "open": 150.0, "high": 152.0, "low": 149.0, "close": 151.0}
+    base = {
+        "symbol": "AAPL",
+        "date": "2026-07-21",
+        "open": 150.0,
+        "high": 152.0,
+        "low": 149.0,
+        "close": 151.0,
+        "volume": 1_000_000,
+    }
     base.update(overrides)
     return base
 
@@ -88,6 +96,40 @@ class TestPriceRowOHLCValidation:
         incomplete = {"symbol": "AAPL", "date": "2026-07-21", "open": 100.0, "high": 105.0}
         with pytest.raises(RuntimeError, match="PRICE_VALIDATION"):
             loader._validate_row(incomplete)
+
+
+class TestFlatZeroVolumeRowRejected:
+    """Regression test (goal session, "before real money" finance-accuracy audit):
+    open == high == low == close with volume == 0 passed every check above (it doesn't
+    violate any OHLC-consistency invariant) even though no real trading session for an
+    actively-listed stock produces that exact combination - live-confirmed EA (Electronic
+    Arts, a liquid mega-cap) got exactly this from a yfinance fallback (4 straight sessions
+    of 209.70/209.70/209.70/209.70, volume=0) after its normal Alpaca source dropped out,
+    silently accepted as real data. 28,601 existing price_daily rows repo-wide match this
+    shape (11,766 from yfinance vs only 1,286 from alpaca) - a vendor-placeholder pattern,
+    not genuine market activity.
+    """
+
+    def test_flat_ohlc_with_zero_volume_is_rejected(self):
+        loader = _make_loader()
+        bad = _row(open=209.70, high=209.70, low=209.70, close=209.70, volume=0)
+        assert loader._validate_row(bad) is False
+
+    def test_flat_ohlc_with_real_volume_is_accepted(self):
+        """A genuinely flat trading day (rare but possible for a real security) with real
+        volume traded is NOT the vendor-placeholder signature - must not be rejected."""
+        loader = _make_loader()
+        flat_but_traded = _row(open=50.0, high=50.0, low=50.0, close=50.0, volume=1200)
+        assert loader._validate_row(flat_but_traded) is True
+
+    def test_non_flat_ohlc_with_zero_volume_is_accepted(self):
+        """Zero volume alone (with real intra-day price movement) is a different, already
+        -handled case (see zero_volume_rows_dropped_technical_indicators_20260820 in
+        memory) - only the combination of BOTH flat OHLC AND zero volume is the new
+        rejection signal here."""
+        loader = _make_loader()
+        moved_but_zero_volume = _row(open=100.0, high=101.0, low=99.5, close=100.5, volume=0)
+        assert loader._validate_row(moved_but_zero_volume) is True
 
 
 class TestBaseLoaderRespectsValidationReturnValue:

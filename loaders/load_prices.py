@@ -1502,16 +1502,35 @@ class PriceLoader(OptimalLoader):
             high = row["high"]
             close = row["close"]
             open_ = row["open"]
-            return cast(
-                bool,
+            volume = row["volume"]
+            if not (
                 low > 0
                 and high > 0
                 and close > 0
                 and open_ > 0
                 and high >= low
                 and low <= close <= high
-                and low <= open_ <= high,
-            )
+                and low <= open_ <= high
+            ):
+                return False
+            # FIXED (goal session, "before real money" finance-accuracy audit): the checks
+            # above only verify internal OHLC consistency (high/low/open/close mutually
+            # plausible) - a row with open == high == low == close AND volume == 0 passes
+            # every one of them, even though no real trading session for an actively-listed
+            # stock produces that combination (even a single share trading moves the tick,
+            # or there's simply no real quote to report - not a flat one). Live-confirmed:
+            # EA (Electronic Arts, a liquid mega-cap) got exactly this - data_source flipped
+            # from 'alpaca' (real OHLCV) to 'yfinance' around 2026-08-05, and yfinance
+            # returned 209.70/209.70/209.70/209.70 with volume=0 for 4 straight sessions,
+            # silently accepted as real data (data_unavailable=False) because nothing here
+            # checked volume at all. 28,601 existing price_daily rows match this exact
+            # shape repo-wide (11,766 from yfinance specifically, vs only 1,286 from
+            # alpaca) - a vendor-placeholder/stale-cache pattern, not genuine market data.
+            # Reject rather than accept: per this same method's 2026-07-21 fix, a rejected
+            # row is skipped-and-logged (the loader retries on a later run) instead of
+            # corrupting price_daily and every downstream technical indicator/signal/risk
+            # calculation that reads it.
+            return not (open_ == high == low == close and volume == 0)
         except (KeyError, TypeError) as e:
             raise RuntimeError(
                 f"[PRICE_VALIDATION] Price validation failed: row is missing required fields or has invalid types: {e}. "
