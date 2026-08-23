@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import logging
 import math
 import time
@@ -1481,12 +1482,55 @@ def run(
                                 cur_w.execute(
                                     "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP, exit_price = %s, "
                                     "profit_loss_dollars = %s, "
-                                    "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
+                                    "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s "
+                                    "RETURNING trade_id",
                                     (
                                         float(current_price) if current_price is not None else None,
                                         pnl_dollars,
                                         "portfolio_rotation_safety_check",
                                         pos_uuid,
+                                    ),
+                                )
+                                # BUG FOUND (goal session, "before real money" audit,
+                                # compliance/audit-log completeness pass): unlike every other
+                                # exit path (executor_exit_handler.py's _execute_exit()
+                                # writes to algo_audit_log as part of the SAME atomic
+                                # transaction as the position/trade UPDATE, "TRANSACTION
+                                # GUARD 6"), this force-close path never wrote an
+                                # algo_audit_log entry at all. Live-confirmed: TRD-313426C1FA
+                                # (AII, closed 2026-08-20 via this exact path) has 15 routine
+                                # position_review entries but zero record of the actual
+                                # closure event - invisible to any audit/compliance query
+                                # scoped to real exit events (e.g. the same
+                                # action_type LIKE 'exit_%' pattern _compute_cumulative_pnl
+                                # uses), and never reaches TCA/slippage tracking either. Log
+                                # it in the same transaction as the position/trade close, so
+                                # a failure here correctly rolls back the whole force-close
+                                # as one atomic unit - matching the executor's own
+                                # established "audit log is part of atomic transaction" rule.
+                                trade_id_row = cur_w.fetchone()
+                                cur_w.execute(
+                                    """INSERT INTO algo_audit_log (action_type, symbol, action_date,
+                                                                    details, actor, status, created_at)
+                                        VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, CURRENT_TIMESTAMP)""",
+                                    (
+                                        "exit_portfolio_rotation_safety_check",
+                                        symbol,
+                                        json.dumps(
+                                            {
+                                                "trade_id": trade_id_row[0] if trade_id_row else None,
+                                                "position_id": pos_uuid,
+                                                "exit_price": float(current_price)
+                                                if current_price is not None
+                                                else None,
+                                                "pnl_dollars": pnl_dollars,
+                                                "reason": "portfolio_rotation_safety_check",
+                                                "entry_date": str(entry_date),
+                                                "full_exit": True,
+                                            }
+                                        ),
+                                        "algo_phase6_portfolio_rotation",
+                                        "success",
                                     ),
                                 )
                                 exit_count += 1
