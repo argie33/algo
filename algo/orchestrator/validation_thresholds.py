@@ -2,7 +2,24 @@
 """
 ISSUE 4: Validation Thresholds Configuration
 
-Centralized configuration for all validation thresholds used in Phase 7/8.
+Centralized configuration for validation thresholds used in Phase 7/8.
+
+CORRECTNESS NOTE (2026-08-23 audit - see MIN_ENTRY_PRICE/MIN_ATR_THRESHOLD's own fix comments
+and [[sla_monitor_table_name_key_mismatches_fixed_20260823]]-style dead-config findings in
+memory): despite the claim above, most constants in this file are NOT actually read anywhere
+else in the codebase - confirmed via a full-repo grep for each name. Several were genuinely
+superseded by the newer regime/exposure-tier system (algo/risk/exposure_policy.py + Phase 5)
+or by live algo_config rows read directly in phase8_entry_execution.py, and were simply never
+removed here afterward. Do not assume a constant in this file is what's actually enforced -
+verify via grep before trusting it, and see
+[[validation_thresholds_dead_constants_audit_20260823]] in memory for the full breakdown of
+which are live vs dead as of that audit. `get_threshold()`/`log_threshold_values()` below are
+confirmed fully dead code (never called anywhere) as of the same audit.
+
+Confirmed still LIVE as of 2026-08-23: MIN_ENTRY_PRICE, MIN_ATR_THRESHOLD (both wired into real
+gates this session), REJECTION_REASON_MAX_LEN, BUY_SELL_DAILY_ANOMALY_THRESHOLD,
+LIQUIDITY_CHECK_LIMIT, PHASE7_LIQUIDITY_CHECK_WORKERS.
+
 These values can be dynamically adjusted via algo_config table for future
 tuning without code changes.
 
