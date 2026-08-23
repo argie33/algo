@@ -91,7 +91,7 @@ class TickValidator:
             return self.errors
 
         # 3. PRICE BOUNDS - prices in reasonable range for symbol
-        self._check_price_bounds(open_price, high, low, close)
+        self._check_price_bounds(open_price, high, low, close, volume)
         if self.errors:
             return self.errors
 
@@ -102,7 +102,7 @@ class TickValidator:
 
         # 5. SEQUENCE - can't jump >30% in one day
         if self.prior_close:
-            self._check_sequence(open_price, close)
+            self._check_sequence(open_price, close, volume)
         if self.errors:
             return self.errors
 
@@ -168,12 +168,27 @@ class TickValidator:
         if low > min_oc + tolerance_low:
             self.errors.append(f"low > min(open, close): {low} > min({open_price}, {close})")
 
+    # Volume-corroboration floor for the spread/gap sanity checks below (2026-08-23). A
+    # fabricated/stale/corrupted print (decimal-shift, vendor glitch, duplicated row) is
+    # essentially never accompanied by genuinely enormous real trading volume - that
+    # requires real market participants actually transacting. A real meme-stock-style
+    # event (short squeeze, FDA outcome, running penny-stock pump) DOES show this: live-
+    # confirmed against real vendor data for 3 micro-caps that were being silently
+    # rejected day after day (IPST: 103.9M shares the day it gapped 236%; LGCL: 51-140M
+    # shares/day across a genuine 4-day ~96% collapse; CDTG: 21-37M shares/day during a
+    # real spike) - no fixed percentage threshold can separate "real extreme move" from
+    # "bad data" for stocks this volatile, but volume can: real extreme moves come with
+    # real extreme volume, bad prints don't. Chosen well below every confirmed-real case
+    # above (1.9M-140M) but well above typical illiquid-ticker/single-bad-tick volume.
+    _VOLUME_CORROBORATION_THRESHOLD = 1_000_000
+
     def _check_price_bounds(
         self,
         open_price: float,
         high: float,
         low: float,
         close: float,
+        volume: int,
     ) -> None:
 
         prices = [open_price, high, low, close]
@@ -198,8 +213,14 @@ class TickValidator:
         else:
             spread_pct = (high - low) / low * 100
             if spread_pct > 50:
-                # More than 50% spread = likely bad data
-                self.errors.append(f"spread > 50%: {spread_pct:.1f}%")
+                if volume >= self._VOLUME_CORROBORATION_THRESHOLD:
+                    logger.info(
+                        f"[{self.symbol}] Spread {spread_pct:.1f}% exceeds 50% but volume "
+                        f"({volume:,}) corroborates real trading activity - not rejecting."
+                    )
+                else:
+                    # More than 50% spread with no volume corroboration = likely bad data
+                    self.errors.append(f"spread > 50%: {spread_pct:.1f}%")
 
     def _check_volume_sanity(self, volume: int) -> None:
         if volume < 0:
@@ -226,7 +247,26 @@ class TickValidator:
     _SPLIT_RATIOS = (1.25, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 25, 50, 100)
     _SPLIT_RATIO_TOLERANCE = 0.02  # 2% - tight enough that genuine bad data essentially never lands here
 
-    def _check_sequence(self, open_price: float, close: float) -> None:
+    def _check_sequence(self, open_price: float, close: float, volume: int) -> None:
+        """NOTE (2026-08-23): deliberately NOT given the same volume-corroboration exemption
+        as _check_price_bounds's spread check. This check already has its own, different,
+        tested recovery design (see tests/unit/test_price_transformer_sequence_check_recovery.py):
+        a genuine single-day crash/spike is still rejected on the day itself (conservative -
+        require the new price level to be confirmed, not trust one day's print/volume alone),
+        but PriceTransformer advances prior_close_by_symbol even on rejected rows, so the next
+        day is compared against the new (rejected-but-real) level, not the stale pre-move one -
+        self-healing within 1 day for a single anomaly, or gradually over several days for a
+        sustained multi-day move (live-verified: this generalizes fine, e.g. IPST's real 3-day
+        2026-08-17->08-20 spike/retreat would have self-resolved this way once the write-trim
+        visibility bug in load_prices.py was fixed - see
+        [[load_prices_symbols_failed_silently_swallowed_fixed_20260823]]). Adding a same-day
+        volume exemption HERE broke that design in testing (MYGN's real -46.7% crash on 15.1M
+        volume is exactly the case this test suite locks in as "must still be rejected, then
+        recover next day") - a same-day-volume shortcut is less conservative than "wait for
+        confirmation" for a single anomaly, so it was reverted here and kept only on the spread
+        check below, which has no next-day-confirmation concept at all (intraday high/low is a
+        same-day-only measure).
+        """
         if not self.prior_close or self.prior_close == 0:
             return
 
