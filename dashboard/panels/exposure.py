@@ -554,7 +554,14 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 f = {}
 
         pts_raw = f.get("pts") if f else None
-        if pts_raw is None:
+        # market_exposure.py's factor dicts mark unavailability with a plain
+        # "data_unavailable" key (not error_boundary's "_data_unavailable"), and always set
+        # "pts": 0.0 alongside it (so avail_max renormalization in market_exposure.py can
+        # still exclude the weight). error_boundary.has_error() above doesn't catch that
+        # naming, so pts_raw comes back as a real 0.0, not None - without this check it
+        # renders as a real, filled 0/max bar, indistinguishable from a factor that
+        # genuinely computed and scored zero.
+        if pts_raw is None or (f and f.get("data_unavailable")):
             # Factor has no data - show ⚠ N/A rather than a misleading 0-point bar
             reason_val = f.get("reason")
             if reason_val is None:

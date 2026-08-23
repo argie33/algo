@@ -291,6 +291,38 @@ class TestExposureExpandedMalformedFactorData:
         # Should return a Panel
         assert isinstance(result, Panel)
 
+    def test_factor_data_unavailable_with_pts_zero(self, caplog):
+        """market_exposure.py sets "pts": 0.0 (not None) alongside "data_unavailable": True
+        so its own avail_max renormalization can still exclude the weight - this must still
+        render as N/A, not a real filled 0-point bar indistinguishable from a genuine zero
+        score (see earnings_revision_breadth / valuation_extension_breadth in market_exposure.py).
+        """
+        exp_data = {
+            "raw_score": 50.0,
+            "exposure_pct": 50.0,
+            "regime": "normal",
+            "factors": {
+                "earnings_revision_breadth": {
+                    "data_unavailable": True,
+                    "reason": "Insufficient analyst-coverage sample on or before 2026-08-21 (need 200+ symbols)",
+                    "pts": 0.0,
+                    "max": 2.5,
+                },
+            },
+        }
+
+        with caplog.at_level(logging.ERROR):
+            result = panel_exposure_expanded(exp_data)
+
+        # Should hit the N/A branch (and surface the real reason), not render pts=0.0 as a
+        # genuine score.
+        assert any(
+            "data_unavailable" in record.message and "Earnings Revision Breadth" in record.message
+            for record in caplog.records
+            if record.levelno == logging.ERROR
+        )
+        assert isinstance(result, Panel)
+
     def test_stale_data_marker(self, caplog):
         """If factor marked as stale, should log explicitly."""
         exp_data = {
