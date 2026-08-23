@@ -93,7 +93,7 @@ from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.validation_thresholds import MIN_ENTRY_PRICE, REJECTION_REASON_MAX_LEN
+from algo.orchestrator.validation_thresholds import MIN_ATR_THRESHOLD, MIN_ENTRY_PRICE, REJECTION_REASON_MAX_LEN
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
@@ -2400,6 +2400,19 @@ def run(
                     # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0`/`< 0` never
                     # catch NaN - this gates which signals actually get entered (live
                     # qualified_trades_that_fit concentration loop).
+                    # BUG FOUND 2026-08-23 (same audit as MIN_ENTRY_PRICE): `atr < 0` was the
+                    # only ATR floor here, completely disconnected from MIN_ATR_THRESHOLD (0.01)
+                    # in validation_thresholds.py - identical structural gap to MIN_ENTRY_PRICE's
+                    # (a documented "excludes near-zero/stale ATR" threshold that was never
+                    # actually wired into any real comparison). A near-zero-but-positive ATR
+                    # (e.g. 0.001 - a stale/frozen stock, per that constant's own rationale)
+                    # passed this check and fed _calculate_dynamic_stop_loss() with a degenerate
+                    # volatility figure, producing a stop-loss placed essentially at entry price.
+                    # Widened to the documented threshold so this business-rule case is skipped
+                    # here (not raised - a stale-ATR stock is a data-quality signal, not
+                    # corruption) before it ever reaches the later real-order-submission path's
+                    # fatal RuntimeError check (which is reserved for genuinely negative/NaN/inf
+                    # values, not this business threshold).
                     if (
                         math.isnan(entry_price)
                         or math.isinf(entry_price)
@@ -2410,7 +2423,7 @@ def run(
                         or math.isnan(stop_loss)
                         or math.isinf(stop_loss)
                         or entry_price <= 0
-                        or atr < 0
+                        or atr < MIN_ATR_THRESHOLD
                         or sma_50 <= 0
                         or stop_loss <= 0
                     ):
