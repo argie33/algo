@@ -494,7 +494,14 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         # terminal just goes back to a bare prompt with zero indication anything ran - the
         # 30s-giveup log line only reaches the log file, never the user's screen.
         CONSOLE.print("\n[bold yellow]Dashboard exited: no data loaded within 30 seconds.[/]")
-        CONSOLE.print("[yellow]Check that dev_server.py is running (--local mode) or run check_system_health.py.[/]\n")
+        # NOTE (2026-08-23): check_system_health.py was previously suggested here but does not
+        # exist anywhere in this repo (confirmed via full-repo + git-history search) - same
+        # phantom-script bug class as start_dashboard_dev.py (see CLAUDE.md). Points at real,
+        # existing scripts instead.
+        CONSOLE.print(
+            "[yellow]Check that dev_server.py is running (--local mode) or run "
+            "scripts/monitor_data_staleness.py to check data freshness.[/]\n"
+        )
 
     preload_thread.join(timeout=5)
 

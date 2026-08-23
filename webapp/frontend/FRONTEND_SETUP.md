@@ -95,7 +95,7 @@ python lambda/api/dev_server.py
 ### Frontend shows "Data not available"
 1. Refresh page in browser
 2. Check DevTools → Network tab for failed requests
-3. Run: `python check_system_health.py` from project root
+3. Run: `python scripts/monitor_data_staleness.py` from project root to check data freshness
 
 ### Port 5173 already in use
 ```bash
@@ -154,5 +154,5 @@ python dashboard.py --local
 
 ---
 
-**Fixed:** 2026-07-19  
+**Fixed:** 2026-07-19
 **Status:** Stable for local development

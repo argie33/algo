@@ -32,7 +32,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCAN_DIRS = ["loaders", "utils", "algo", "scripts", "dashboard", ".pre-commit-scripts"]
-ROOT_FILES = ["check_system_health.py", "dashboard.py"]
+# check_system_health.py no longer exists (deleted at some point; confirmed via full-repo +
+# git-history search 2026-08-23 - see dashboard.py/FRONTEND_SETUP.md fixes same session) -
+# _iter_python_files()'s is_file() guard was silently skipping it already, so removing it here
+# changes nothing at runtime, just stops the list from claiming a file that isn't scanned.
+ROOT_FILES = ["dashboard.py"]
 
 
 def _iter_python_files():

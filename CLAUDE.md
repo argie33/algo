@@ -4,7 +4,17 @@
 
 **`start_dashboard_dev.py` does not exist** — it's referenced in old log messages and comments
 across the repo but was never a real file (confirmed via `git log --all`, 2026-08-09). Don't
-invoke it or tell users to. The real local dev components are separate processes:
+invoke it or tell users to.
+
+**`check_system_health.py` also does not exist** — same bug class, different phantom file
+(confirmed deleted at some point via `git log --all --diff-filter=D`, and via a full-repo search,
+2026-08-23). It was still being suggested as a real troubleshooting step in two user-facing
+spots — `dashboard/dashboard.py`'s "no data loaded" console message and
+`webapp/frontend/FRONTEND_SETUP.md` — both fixed to point at `scripts/monitor_data_staleness.py`
+instead. Don't invoke `check_system_health.py` or tell users to; if you see it referenced
+anywhere else in the repo, it's stale and should be corrected the same way.
+
+The real local dev components are separate processes:
 
 ```bash
 python lambda/api/dev_server.py                         # Local API server (port 3001)
