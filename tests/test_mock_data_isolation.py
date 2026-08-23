@@ -3,6 +3,26 @@
 
 Verifies that test/mock data cannot reach production code paths and that
 all safeguards are properly enforced.
+
+FIXED 2026-08-23 (goal: pre-real-money accuracy review): this file's own docstring claim
+was false for two of its test classes. `TestMockDataDetection` and (the former)
+`TestPositionSizerSafeguards` exercised `utils/test_data_detector.py::TestDataDetector` and
+`algo/risk/position_sizer_specialist.py::PositionSizerSpecialist` - neither was imported by
+any live production code path (`phase8_entry_execution.py` has always used
+`algo/trading/position_sizer.py::PositionSizer` instead; grep-confirmed
+`position_sizer_specialist` had exactly one non-test consumer - itself). The marker-dict
+scanner they tested was dead code from an old "Feature Envy fix" refactor extraction that
+never got wired in, so this suite was giving false assurance that mock data couldn't reach
+production position sizing, while the actual production class had no such check at all.
+Deleted both dead files and replaced the coverage with a real regression test below
+(`TestPositionSizerSafeguards.test_position_sizer_rejects_dict_shaped_portfolio_value`)
+against the live `PositionSizer` class - it turns out already protected against this exact
+scenario, just via a different, more general mechanism (fail-fast Decimal conversion, not a
+marker scan): a mock-marked dict passed as `portfolio_value` fails `Decimal(str(x))` with
+`InvalidOperation` before any sizing math runs, converted to `ValueError` by
+`_calculate_with_external_cursor`'s existing conversion guard. `TestDryRunBrokerAdapter`/
+`TestEnableTestMode`/`TestTestDataRegistry` below were unaffected - all three test real,
+live-wired safeguards (`ENVIRONMENT`/`ORCHESTRATOR_DRY_RUN` env-var gating), not orphaned code.
 """
 
 import os
@@ -10,42 +30,9 @@ from decimal import Decimal
 
 import pytest
 
-from algo.risk.position_sizer_specialist import PositionSizerSpecialist
 from algo.trading.executor import TradeExecutor
+from algo.trading.position_sizer import PositionSizer
 from tests.test_utilities import DryRunBrokerAdapter, enable_test_mode
-from utils.test_data_detector import TestDataDetector
-
-
-class TestMockDataDetection:
-    """Test that mock data markers are properly detected."""
-
-    def test_detector_identifies_mock_data_markers(self):
-        """Verify TestDataDetector finds all mock data markers."""
-        mock_obj = {"value": 100, "_is_mock_data": True, "symbol": "SPY"}
-        assert TestDataDetector.is_test_data(mock_obj)
-
-    def test_detector_ignores_real_data(self):
-        """Verify TestDataDetector accepts real data without markers."""
-        real_obj = {"value": 100, "symbol": "SPY", "price": 450.23}
-        assert not TestDataDetector.is_test_data(real_obj)
-
-    def test_detector_gets_markers(self):
-        """Verify TestDataDetector extracts marker list."""
-        mock_obj = {"_is_mock_data": True, "_is_testing_only": True, "value": 100}
-        markers = TestDataDetector.get_test_data_markers(mock_obj)
-        assert "_is_mock_data" in markers
-        assert "_is_testing_only" in markers
-
-    def test_detector_assert_raises_on_mock_data(self):
-        """Verify assertion fails when mock data detected."""
-        mock_obj = {"_is_mock_data": True, "value": 100}
-        with pytest.raises(RuntimeError, match="TEST_DATA_DETECTED_IN_PRODUCTION"):
-            TestDataDetector.assert_not_test_data(mock_obj, location="test_path")
-
-    def test_detector_assert_passes_on_real_data(self):
-        """Verify assertion passes for real data."""
-        real_obj = {"value": 100, "symbol": "SPY"}
-        TestDataDetector.assert_not_test_data(real_obj, location="test_path")
 
 
 class TestDryRunBrokerAdapter:
@@ -91,35 +78,46 @@ class TestDryRunBrokerAdapter:
 
 
 class TestPositionSizerSafeguards:
-    """Test that position sizer rejects mock data."""
+    """Test that the LIVE position sizer (algo/trading/position_sizer.py - the class
+    phase8_entry_execution.py actually imports) rejects mock-shaped data, not the orphaned
+    PositionSizerSpecialist this class used to test (deleted 2026-08-23 - see module
+    docstring)."""
 
-    def test_position_sizer_rejects_mock_portfolio(self):
-        """Verify PositionSizerSpecialist rejects mock data in portfolio value."""
-        config = {"base_risk_pct": 2.0, "max_position_size_pct": 10.0}
-        sizer = PositionSizerSpecialist(config)
+    _CONFIG = {
+        "base_risk_pct": 0.75,
+        "max_positions": 12,
+        "risk_reduction_at_minus_5": 0.75,
+        "risk_reduction_at_minus_10": 0.5,
+        "risk_reduction_at_minus_15": 0.25,
+        "risk_reduction_at_minus_20": 0,
+        "vix_caution_threshold": 25,
+        "vix_max_threshold": 35,
+        "vix_caution_risk_reduction": 0.5,
+        "max_position_size_pct": 8,
+        "max_concentration_pct": 20,
+        "max_total_invested_pct": 80,
+        "max_total_risk_pct": 8,
+        "min_risk_pct_floor": 0.25,
+    }
 
-        # Create a dict wrapper with mock data marker (TestDataDetector checks dict)
-        # The assertion in calculate_shares wraps portfolio_value in a dict
-        # To properly test, we verify the assertion is called with a dict containing the marker
-        # For now, we test by mocking what would trigger it
-        from unittest.mock import patch
+    def test_position_sizer_rejects_dict_shaped_portfolio_value(self):
+        """A mock-marked dict passed as portfolio_value (e.g. an accidentally-unwrapped test
+        fixture) must never silently flow into position-sizing math. The live PositionSizer
+        has no marker-scanning check, but its portfolio_value normalization
+        (`Decimal(str(portfolio_value))`, applied before any other calculation) already fails
+        closed on anything that isn't a real number - a dict's str() representation is never
+        a valid Decimal literal. This runs with zero DB access: the conversion happens before
+        any cursor use."""
+        sizer = PositionSizer(self._CONFIG)
+        mock_portfolio = {"_is_mock_data": True, "_is_testing_only": True, "portfolio_value": 100000}
 
-        with patch("utils.test_data_detector.TestDataDetector.assert_not_test_data") as mock_assert:
-            mock_assert.side_effect = RuntimeError("TEST_DATA_DETECTED_IN_PRODUCTION: mock detected")
-            with pytest.raises(RuntimeError, match="TEST_DATA_DETECTED_IN_PRODUCTION"):
-                sizer.calculate_shares(
-                    portfolio_value=Decimal("100000.0"), entry_price=Decimal("100.0"), stop_loss=Decimal("95.0")
-                )
-
-    def test_position_sizer_accepts_real_portfolio(self):
-        """Verify PositionSizerSpecialist works with real data."""
-        config = {"base_risk_pct": 2.0, "max_position_size_pct": 10.0}
-        sizer = PositionSizerSpecialist(config)
-
-        shares = sizer.calculate_shares(
-            portfolio_value=Decimal("100000.0"), entry_price=Decimal("100.0"), stop_loss=Decimal("95.0")
-        )
-        assert shares > 0
+        with pytest.raises(RuntimeError, match="Position sizing calculation failed"):
+            sizer.calculate_position_size(
+                symbol="AAPL",
+                entry_price=Decimal("100.0"),
+                stop_loss_price=Decimal("95.0"),
+                portfolio_value=mock_portfolio,
+            )
 
 
 class TestTradeExecutorSafeguards:
