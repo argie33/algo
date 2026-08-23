@@ -173,6 +173,18 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 1,
         "critical": False,
         "note": "Computed by algo/risk/market_exposure.py during orchestrator Phase 5, not a standalone loaders/ script",
+        # FIXED (goal session, "before real money" audit, dig-into-the-logs pass): the
+        # generic NULL-rate check below inspects whichever 3 columns
+        # information_schema.columns happens to return first for a table - for this
+        # table that's (id, date, market_exposure_pct), a column the 2026-08-20/22
+        # exposure-model redesign (see market_exposure_positioning_factor_replaces_naaim_20260820
+        # and the exposure_pass1-5 memory chain) superseded with `exposure_pct` and never
+        # wrote to again. Live-confirmed: exposure_pct is 26/26 populated with real,
+        # varying values on the exact same rows market_exposure_pct shows 0/26 (100% NULL)
+        # for - this script's dead-column check was raising a false "market exposure is
+        # completely broken" WARNING on every run for a legacy field nothing has written
+        # to since the redesign, not a real data gap.
+        "skip_null_check_columns": ["market_exposure_pct"],
     },
     "load_economic_data.py": {
         "output_table": "economic_data",
@@ -370,11 +382,12 @@ def verify_loader(conn: Any, loader_name: str, config: dict[str, Any]) -> dict[s
         # Check for excessive NULLs in key columns
         try:
             cur.execute(
-                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{config['output_table']}' LIMIT 5"
+                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{config['output_table']}' LIMIT 10"
             )
-            cols = [row[0] for row in cur.fetchall()]
+            skip_cols = set(config.get("skip_null_check_columns", ()))
+            cols = [row[0] for row in cur.fetchall() if row[0] not in skip_cols]
 
-            for col in cols[:3]:  # Check first 3 columns
+            for col in cols[:3]:  # Check first 3 columns (after skipping known-dead ones)
                 try:
                     cur.execute(f"SELECT COUNT(*) FROM {config['output_table']} WHERE {col} IS NULL")
                     null_row = cur.fetchone()
