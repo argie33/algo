@@ -38,6 +38,7 @@ def _fake_self(dry_run: bool) -> Orchestrator:
     self.run_id = f"test-evening-guard-{dry_run}"
     self.run_date = _TRADING_DAY
     self.dry_run = dry_run
+    self.execution_mode = "paper"
     self.config = {"execution_mode": "paper", "alpaca_paper_trading": True}
     self.execution_tracker = MagicMock()
     self._save_orchestrator_run_status = MagicMock()

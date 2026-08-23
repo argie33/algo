@@ -2135,6 +2135,28 @@ class Orchestrator:
         )
 
         allow_outside_hours = os.environ.get("ALLOW_OUTSIDE_MARKET_HOURS", "false").lower() == "true"
+
+        # SAFETY HARDENING (2026-08-23): ALLOW_OUTSIDE_MARKET_HOURS is a local-testing-only
+        # env var (not set by any deployed terraform/infra config - confirmed via full-repo
+        # grep), documented in CLAUDE.md for exercising phase logic outside real market hours.
+        # Nothing previously stopped it from ALSO bypassing this guard in execution_mode="auto"
+        # (real live trading) if left set by human error (stale shell env, copy-pasted .env).
+        # That would be more severe here than the equivalent gap already fixed in
+        # phase8_entry_execution.py's own copy of this same guard: unlike Phase 8, Phase 6
+        # (portfolio-rotation force-close) and Phase 9 (broker reconciliation/position-sync)
+        # have NO independent market-hours check of their own - they rely entirely on this one
+        # guard, so bypassing it here would let them run outside market hours with zero
+        # remaining safety net. Force off in live mode regardless of the env var, with a loud
+        # CRITICAL log so a real misconfiguration is never silently swallowed.
+        if self.execution_mode == "auto" and allow_outside_hours:
+            logger.critical(
+                "[MARKET_HOURS_GUARD SAFETY] ALLOW_OUTSIDE_MARKET_HOURS is set but "
+                "execution_mode='auto' (live trading) - ignoring it. This bypass is for "
+                "paper/dry/review testing only and is never honored in live mode. No override "
+                "may bypass the market-hours guard for real order execution."
+            )
+            allow_outside_hours = False
+
         now_et = datetime.now(EASTERN_TZ).time()
         # The evening/monitor-only run (dry_run=True, never places real orders - see
         # MONITOR_ONLY_RUN_IDENTIFIERS in lambda_function.py) is intentionally scheduled at
