@@ -11,11 +11,20 @@ SLA Targets (from steering/loader-strategy.md):
 - morning prep pipeline: 60-90 min total, 300 min alert threshold
 
 NOTE (2026-08-23): LOADER_SLA_TARGETS is keyed by the real loader's self.table_name, which
-SLAMonitor is instantiated with inside OptimalLoader.run() - but several of the biggest loaders
-(PriceLoader, the sector/industry loader, both quality/growth-metrics loaders) fully override
-run() and never call super().run() or instantiate SLAMonitor at all, so this dict's entries for
-their table names currently have no live effect for them regardless of whether the key is
-correct. See [[sla_monitor_table_name_key_mismatches_fixed_20260823]] in memory.
+SLAMonitor is instantiated with inside OptimalLoader.run(). Several of the biggest loaders
+(PriceLoader, VectorizedTechnicalLoader, ValueQualityGrowthMetricsLoader,
+EnhancedQualityGrowthMetricsLoader) fully override run() and never call super().run(), so they
+never got this telemetry. FIXED same day: each now instantiates SLAMonitor directly and calls
+log_status()/publish_metric() at every return path (mirroring OptimalLoader.run()'s pattern).
+SectorIndustryDailyLoader was flagged in the original audit but re-verified clean - its run()
+override just substitutes the pseudo-symbol and delegates to super().run(), so it already had
+live SLA telemetry the whole time. See [[sla_monitor_table_name_key_mismatches_fixed_20260823]]
+and [[sla_monitor_wired_into_overridden_run_loaders_20260823]] in memory.
+
+This remains after-the-fact telemetry, not live hang detection: log_status()/publish_metric()
+only run once a loader has already reached a return/except path. A genuinely hung loader (stuck
+mid-loop, no exception) never reaches those lines - real hang detection is the separate
+heartbeat/stall-watchdog mechanism in local_loader_scheduler.py.
 """
 
 import logging
@@ -66,6 +75,20 @@ LOADER_SLA_TARGETS = {
     # value. Same run()-override caveat as price_daily applies here too - see
     # [[sla_monitor_table_name_key_mismatches_fixed_20260823]].
     "sector_performance": (15 * 60, 20 * 60, 30 * 60),
+    # ADDED 2026-08-23 (same "meet our SLAs" audit): value_metrics/quality_metrics had NO
+    # entry at all, so ValueQualityGrowthMetricsLoader/EnhancedQualityGrowthMetricsLoader
+    # silently used the generic 60/180/300 min fallback even after SLAMonitor was wired
+    # into their run() methods (see [[sla_monitor_table_name_key_mismatches_fixed_20260823]]).
+    # value_metrics: ValueQualityGrowthMetricsLoader reads already-loaded SEC/valuations data
+    # from the DB (no per-symbol external fetches) - consistently 30-40s across every sampled
+    # 2026-08-21/22 run (logs/load_value_quality_growth_metrics_*.log).
+    "value_metrics": (60, 3 * 60, 5 * 60),  # Expect 1 min, warn at 3, critical at 5
+    # quality_metrics: EnhancedQualityGrowthMetricsLoader makes 3 yfinance calls per symbol
+    # across ~5,000 symbols - consistently ~114 min across every sampled 2026-08-20/21 full
+    # run (logs/load_enhanced_quality_growth_metrics_*.log), well inside its 300 min
+    # LOADER_TIMEOUT. Same-day retries with watermark-current symbols should be much faster;
+    # thresholds below target a genuine full-universe run.
+    "quality_metrics": (90 * 60, 150 * 60, 250 * 60),  # Expect 90 min, warn at 150, critical at 250
     # Supporting loaders
     # FIXED 2026-08-20 (goal: finance-accuracy audit): the old (10, 30, 60)-minute targets
     # were stale - live-confirmed via logs/scheduler_invocations.log: 8 real runs over

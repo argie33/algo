@@ -2518,6 +2518,29 @@ class PriceLoader(OptimalLoader):
 
         start = time.time()
         self._stats["start_time"] = datetime.now(timezone.utc)
+
+        # PriceLoader fully overrides OptimalLoader.run() (batch fetching + concurrent
+        # batches) and never calls super().run(), so it never got the SLAMonitor wiring the
+        # base class does for every other loader - confirmed 2026-08-23 during the goal
+        # session's "meet our SLAs" audit (see
+        # [[sla_monitor_table_name_key_mismatches_fixed_20260823]]). price_daily's
+        # LOADER_SLA_TARGETS entry was correctly keyed but had zero live effect. Wired
+        # directly here since this loader's control flow diverges too much to share the
+        # base class's single start/log call sites.
+        sla_monitor = None
+        try:
+            from utils.loaders.sla_monitor import SLAMonitor
+
+            sla_monitor = SLAMonitor(self.table_name)
+            sla_monitor.start()
+        except Exception as e:
+            logger.warning(f"[{self.table_name}] SLA monitoring failed: {e}")
+
+        def _log_sla_status() -> None:
+            if sla_monitor:
+                sla_monitor.log_status("info")
+                sla_monitor.publish_metric()
+
         symbols = list(symbols)
         mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
         logger.info(
@@ -2611,6 +2634,7 @@ class PriceLoader(OptimalLoader):
 
         if circuit_breaker_result.get("status") != "success":
             logger.debug("[BATCH_JOBS] Early halt triggered, returning circuit breaker result")
+            _log_sla_status()
             return circuit_breaker_result
 
         logger.info(
@@ -2641,6 +2665,7 @@ class PriceLoader(OptimalLoader):
             except (ValueError, AttributeError, OSError):
                 pass
 
+        _log_sla_status()
         return self._stats.to_dict()
 
     @staticmethod

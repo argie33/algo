@@ -132,7 +132,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     # Class attribute (not a run() local) so tests can shrink it instead of waiting 60s.
     per_symbol_timeout_seconds = 60.0
 
-    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
+    def run(  # noqa: C901
+        self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None
+    ) -> dict[str, Any]:
         """Override run() to write trend metrics to BOTH quality_metrics and growth_metrics.
 
         Args:
@@ -141,6 +143,27 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             backfill_days: Number of days to backfill (passed to parent)
         """
         from utils.loaders.config import get_default_parallelism
+
+        # This loader fully overrides OptimalLoader.run() and never calls super().run(), so
+        # it never got the SLAMonitor wiring the base class does - confirmed 2026-08-23
+        # during the goal session's "meet our SLAs" audit (see
+        # [[sla_monitor_table_name_key_mismatches_fixed_20260823]]). LOADER_SLA_TARGETS had
+        # no "quality_metrics" entry either; added one below calibrated from real log
+        # durations (consistently ~114 min across 2026-08-20/21 full runs, well inside the
+        # 300 min LOADER_TIMEOUT).
+        sla_monitor = None
+        try:
+            from utils.loaders.sla_monitor import SLAMonitor
+
+            sla_monitor = SLAMonitor(self.table_name)
+            sla_monitor.start()
+        except Exception as e:
+            logger.warning(f"[{self.table_name}] SLA monitoring failed: {e}")
+
+        def _log_sla_status() -> None:
+            if sla_monitor:
+                sla_monitor.log_status("info")
+                sla_monitor.publish_metric()
 
         symbols_succeeded = 0
         symbols_failed = 0
@@ -304,13 +327,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                         completion_pct=100.0 * symbols_succeeded / max(symbols_succeeded + symbols_failed, 1),
                     )
 
+            _log_sla_status()
             return {"symbols_succeeded": symbols_succeeded, "symbols_failed": symbols_failed, "success": success}
 
         except (psycopg2.Error, ValueError) as e:
             logger.error(f"[ENHANCED] Fatal error: {type(e).__name__}: {e}")
+            _log_sla_status()
             return {"success": False, "error": str(e)}
         except Exception as e:
             logger.error(f"[ENHANCED] Fatal unexpected error: {type(e).__name__}: {e}", exc_info=True)
+            _log_sla_status()
             return {"success": False, "error": str(e)}
 
     def _process_one_symbol(self, symbol: str, since_date: date | None, outcome: list[str]) -> None:

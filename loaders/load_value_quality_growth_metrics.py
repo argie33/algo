@@ -239,6 +239,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         from utils.loaders.config import get_default_parallelism
 
         start_time = time.time()
+
+        # This loader fully overrides OptimalLoader.run() (writes 3 tables per-symbol) and
+        # never calls super().run(), so it never got the SLAMonitor wiring the base class
+        # does - confirmed 2026-08-23 during the goal session's "meet our SLAs" audit (see
+        # [[sla_monitor_table_name_key_mismatches_fixed_20260823]]). LOADER_SLA_TARGETS had
+        # no "value_metrics" entry either; added one below calibrated from real log durations
+        # (consistently ~30-40s across multiple 2026-08-21/22 runs).
+        sla_monitor = None
+        try:
+            from utils.loaders.sla_monitor import SLAMonitor
+
+            sla_monitor = SLAMonitor(self.table_name)
+            sla_monitor.start()
+        except Exception as e:
+            logger.warning(f"[{self.table_name}] SLA monitoring failed: {e}")
+
+        def _log_sla_status() -> None:
+            if sla_monitor:
+                sla_monitor.log_status("info")
+                sla_monitor.publish_metric()
+
         value_inserts = 0
         quality_inserts = 0
         growth_inserts = 0
@@ -483,6 +504,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 logger.error(f"[VALUE_QUALITY_GROWTH] Failed to update watermarks: {e}")
                 # Don't fail the entire loader if watermark update fails - data was written successfully
 
+            _log_sla_status()
             return {
                 "symbols_succeeded": symbols_succeeded,
                 "symbols_loaded": symbols_succeeded,  # runner.py's completion log/mark_failed() read this key, not symbols_succeeded
@@ -502,6 +524,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                 manager = managers.get(table) or LoaderStatusManager(table)
                 manager.mark_failed(error_msg)
+            _log_sla_status()
             raise
 
     def fetch_incremental(

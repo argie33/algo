@@ -74,6 +74,26 @@ class VectorizedTechnicalLoader:
         """
         start_time = time.time()
 
+        # This class doesn't extend OptimalLoader (see class docstring: standalone vectorized
+        # implementation), so it never gets the SLAMonitor wiring OptimalLoader.run() does -
+        # confirmed 2026-08-23 via the same audit that found PriceLoader/quality-growth loaders
+        # have the identical gap (see [[sla_monitor_table_name_key_mismatches_fixed_20260823]]).
+        # technical_data_daily already has a real LOADER_SLA_TARGETS entry; it just never got
+        # started/logged. Wired directly here since there's no shared base to hook into.
+        sla_monitor = None
+        try:
+            from utils.loaders.sla_monitor import SLAMonitor
+
+            sla_monitor = SLAMonitor(self.table_name)
+            sla_monitor.start()
+        except Exception as e:
+            logger.warning(f"[{self.table_name}] SLA monitoring failed: {e}")
+
+        def _log_sla_status() -> None:
+            if sla_monitor:
+                sla_monitor.log_status("info")
+                sla_monitor.publish_metric()
+
         now_utc = datetime.now(ZoneInfo("UTC"))
         now_et = now_utc.astimezone(EASTERN_TZ)
         end_date = now_et.date()
@@ -88,6 +108,7 @@ class VectorizedTechnicalLoader:
                 f"[TECHNICAL_DATA] Skipping load: today ({end_date}) is not a trading day. "
                 f"Technical indicators will use last available trading day's data."
             )
+            _log_sla_status()
             return {
                 "rows_inserted": 0,
                 "latest_date": None,
@@ -191,6 +212,7 @@ class VectorizedTechnicalLoader:
                 f"VectorizedTechnicalLoader completed: {inserted} technical rows, "
                 f"{self.vcp_patterns_inserted} VCP patterns in {duration:.1f}s, latest_date={latest_date}"
             )
+            _log_sla_status()
 
             return {
                 "symbols_processed": len(symbols),
@@ -208,6 +230,7 @@ class VectorizedTechnicalLoader:
 
         except RuntimeError as e:
             logger.error(f"VectorizedTechnicalLoader failed: {e}", exc_info=True)
+            _log_sla_status()
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
@@ -218,6 +241,7 @@ class VectorizedTechnicalLoader:
             }
         except Exception as e:
             logger.error(f"VectorizedTechnicalLoader unexpected error: {e}", exc_info=True)
+            _log_sla_status()
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
