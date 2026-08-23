@@ -51,15 +51,22 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 1,
         "critical": False,
     },
-    "load_naaim.py": {
-        "output_table": "naaim",
-        "date_column": "date",
-        "min_rows": 100,
-        "critical": False,
-        # NAAIM Exposure Index is published weekly (Wednesdays) - trading-day staleness
-        # logic (built for daily sources) always false-flags this as stale by midweek.
-        "max_staleness_days": 9,
-    },
+    # load_naaim.py REMOVED from this dict (2026-08-23): NAAIM's free public page
+    # permanently transitioned to a subscription-based access model 2026-08-01 (confirmed
+    # live via the site's own banner - not a transient outage), and the market_exposure
+    # model was separately, deliberately redesigned 2026-08-20 to drop NAAIM entirely
+    # (replaced by the insider-buying-breadth + short-interest "Positioning & Flows"
+    # factor - see market_exposure_positioning_factor_replaces_naaim_20260820 in memory).
+    # The loader itself correctly returns an explicit data_unavailable governance marker
+    # every run (not a bug - working as designed), which is why data_loader_status shows
+    # status=COMPLETED/100%/no error despite latest_date being stuck since 2026-07-29:
+    # that 0-rows/0-expected outcome is legitimately "100% of nothing to do" for a
+    # source that's permanently gone, not a live problem. Kept firing a WARNING here
+    # every single run since, with the same header-comment problem this file already
+    # warns about for other deprecated loaders (checking something that can never
+    # improve produces noise an operator can't act on). Following the same precedent
+    # already used for load_yfinance_snapshot.py/load_yfinance_derived_metrics.py above:
+    # remove the dead entry instead of leaving a permanent, non-actionable warning.
     "load_aaii_sentiment.py": {
         "output_table": "aaii_sentiment",
         "date_column": "date",
