@@ -85,8 +85,25 @@ _CASHFLOW_CONCEPTS = [
 ]
 
 
+# Fallback-only alias target keys that a dedicated post-processing "fill" function (in
+# sec_statements.py, e.g. _fill_earnings_per_share_from_continuing_discontinued_split)
+# pops and sums into a real, already-mapped column before the row is ever returned - never
+# silently dropped, just never meant to reach field_mapping directly (same reasoning as
+# LongTermDebtCurrent/LongTermDebtNoncurrent, which this test doesn't track at all since
+# they're plain concepts, not IFRS aliases, and were simply left out of _BALANCE_CONCEPTS
+# above). Add here (not to field_mapping) whenever a new alias exists solely to feed a
+# fill-function sum, or this test will treat the deliberately-transient key as a real leak.
+_FALLBACK_ONLY_ALIAS_KEYS = {
+    "earnings_per_share_basic_continuing",
+    "earnings_per_share_basic_discontinued",
+    "earnings_per_share_diluted_continuing",
+    "earnings_per_share_diluted_discontinued",
+}
+
+
 def _unmapped(concepts: list[str], ifrs_aliases: list[tuple[str, str]], field_mapping: dict[str, str]) -> list[str]:
     target_keys = {_to_snake(c) for c in concepts} | {alias_key for _, alias_key in ifrs_aliases}
+    target_keys -= _FALLBACK_ONLY_ALIAS_KEYS
     return sorted(target_keys - set(field_mapping.keys()))
 
 

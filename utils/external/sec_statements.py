@@ -186,6 +186,27 @@ _INCOME_IFRS_ALIASES = [
     ("ComprehensiveIncome", "net_income_loss"),
     ("BasicEarningsLossPerShare", "earnings_per_share_basic"),
     ("DilutedEarningsLossPerShare", "earnings_per_share_diluted"),
+    # FIXED 2026-08-23 (goal: pre-real-money data-integrity review, "insufficient_history"
+    # eps_growth audit): IAS 33.68 requires filers with discontinued operations to present
+    # EPS split into Continuing/Discontinued components, and some filers ONLY tag the split
+    # - never a combined BasicEarningsLossPerShare/DilutedEarningsLossPerShare concept at
+    # all. Live-confirmed via TV (Grupo Televisa, real companyfacts JSON): tags ONLY
+    # DilutedEarningsLossPerShareFromContinuingOperations/...FromDiscontinuedOperations (no
+    # Basic-shaped concept whatsoever, no combined Diluted concept either) - real MXN/shares
+    # values on file for FY2020-2022 (e.g. FY2022 continuing=-0.03, discontinued=0.17), but
+    # annual_income_statement.earnings_per_share was NULL for every fiscal year on record
+    # despite 10+ years of real revenue/net_income already loaded, wrongly presenting
+    # downstream as growth_metrics "insufficient_history" for a well-covered filer. These
+    # four are fallback-only inputs summed by
+    # _fill_earnings_per_share_from_continuing_discontinued_split() below (genuinely
+    # different aggregation than _aggregate_concepts' one-column "last value wins" merge,
+    # same reasoning as _fill_long_term_debt_from_noncurrent_current_split above) - not
+    # listed as plain aliases, since that would let the Continuing-only portion silently
+    # overwrite a real combined total on last-listed-wins for filers that report both.
+    ("BasicEarningsLossPerShareFromContinuingOperations", "earnings_per_share_basic_continuing"),
+    ("BasicEarningsLossPerShareFromDiscontinuedOperations", "earnings_per_share_basic_discontinued"),
+    ("DilutedEarningsLossPerShareFromContinuingOperations", "earnings_per_share_diluted_continuing"),
+    ("DilutedEarningsLossPerShareFromDiscontinuedOperations", "earnings_per_share_diluted_discontinued"),
     # TRIED AND REJECTED 2026-08-03: ("NumberOfSharesOutstanding", "shares_outstanding_basic")
     # as an IFRS alias for foreign 20-F filers (TV/Grupo Televisa, FMX/Femsa, SRAD/Sportradar
     # all lack this data any other way). Live-verified this produces dangerously wrong
@@ -506,6 +527,44 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     return rows
 
 
+def _fill_earnings_per_share_from_continuing_discontinued_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: earnings_per_share_{basic,diluted} = ...FromContinuingOperations +
+    ...FromDiscontinuedOperations, for IFRS filers (IAS 33.68) that only tag the
+    continuing/discontinued EPS split rather than a single combined concept - see the
+    _INCOME_IFRS_ALIASES comment above these four concepts for the live-confirmed TV
+    (Grupo Televisa) case this recovers. Same "fallback-only, sum two real parts, never
+    overwrite a real combined value" pattern as
+    _fill_long_term_debt_from_noncurrent_current_split below. Discontinued defaults to 0
+    when absent (most filers most years have none, and the taxonomy only requires a
+    Discontinued tag when discontinued operations are real) rather than leaving the whole
+    figure NULL for the common case of a filer that only ever tags the Continuing concept.
+
+    Also falls diluted back into the basic-only "earnings_per_share_basic" key (downstream
+    field_mapping's sole source for annual_income_statement.earnings_per_share - see
+    load_financial_statements.py's _FIELD_MAPPING) when a filer tags no Basic-shaped EPS
+    concept at all, TV's case: it tags only the Diluted split, never Basic in any form.
+    Diluted is a close, honestly-approximate stand-in for Basic (differs only by the
+    dilutive effect of options/convertibles) - the same "blended figure beats permanently
+    NULL" judgment this file already makes for
+    WeightedAverageNumberOfShareOutstandingBasicAndDiluted share-count filers. Only fires
+    when a filer has no real Basic-shaped fact of its own; a filer reporting genuine Basic
+    EPS keeps it untouched.
+    """
+    for row in rows:
+        basic_cont = row.pop("earnings_per_share_basic_continuing", None)
+        basic_disc = row.pop("earnings_per_share_basic_discontinued", None)
+        if row.get("earnings_per_share_basic") is None and basic_cont is not None:
+            row["earnings_per_share_basic"] = basic_cont + (basic_disc or 0)
+
+        diluted_cont = row.pop("earnings_per_share_diluted_continuing", None)
+        diluted_disc = row.pop("earnings_per_share_diluted_discontinued", None)
+        if row.get("earnings_per_share_diluted") is None and diluted_cont is not None:
+            row["earnings_per_share_diluted"] = diluted_cont + (diluted_disc or 0)
+
+        if row.get("earnings_per_share_basic") is None and row.get("earnings_per_share_diluted") is not None:
+            row["earnings_per_share_basic"] = row["earnings_per_share_diluted"]
+
+
 def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: long_term_debt = LongTermDebtNoncurrent + LongTermDebtCurrent.
 
@@ -824,9 +883,11 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
     ]
-    return _aggregate_concepts(
+    rows = _aggregate_concepts(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
+    _fill_earnings_per_share_from_continuing_discontinued_split(rows)
+    return rows
 
 
 def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
