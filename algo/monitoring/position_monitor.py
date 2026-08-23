@@ -1261,6 +1261,29 @@ class PositionMonitor:
                         f"(50% of entry ${entry_price:.2f}) to prevent unlimited downside."
                     )
 
+        # BUG FOUND 2026-08-23 (goal session: real-money-readiness position-monitor audit):
+        # the "room to breathe" cap above only ran `if atr is not None and atr > 0` - the ONLY
+        # thing keeping every candidate <= cur_price. Outside that block (ATR temporarily
+        # unavailable - a real, reachable data gap, not hypothetical), `entry_price` is added
+        # to `candidates` unconditionally whenever target_hits >= 1 with no upper bound at all.
+        # If price later pulls back below entry after hitting T1 (a real, plausible sequence -
+        # spike to target, then retrace), `entry_price > cur_price` and `new_stop`/`final_stop`
+        # could land ABOVE the current market price - a live stop-sell order with a trigger
+        # above market executes essentially immediately upon submission. The caller
+        # (review_positions -> _evaluate_position) already has a defensive
+        # `if proposed_stop > cur_price: clamp` catch for exactly this - confirmed this is a
+        # real, previously-encountered condition (not purely theoretical), not just a
+        # theoretical gap - but per the same "don't rely on accidental caller-side correctness"
+        # principle already applied to the max_position_size_pct fix in position_sizer.py, this
+        # function's own contract ("stop ratchets up only... capped at entry-2*ATR") should hold
+        # unconditionally, not just when ATR happens to be available. Filter unconditionally so
+        # every candidate this function ever returns already respects "at least a cent of room
+        # below current price" - the caller's clamp becomes pure defense-in-depth, not the only
+        # thing preventing an above-market stop from reaching the broker.
+        candidates = [c for c in candidates if c < cur_price]
+        if not candidates:
+            candidates = [float(Decimal(str(cur_price)) - Decimal("0.01"))]
+
         # For a stop loss, pick the highest valid candidate (most conservative protection).
         # This ratchets stops UP as price rises, but never above current price - ATR.
         new_stop = max(candidates) if candidates else active_stop
