@@ -1776,7 +1776,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 ) s ON TRUE
                 WHERE b.signal = 'BUY' AND b.date = %s
                 {buy_sell_filter}
-                ORDER BY b.signal_quality_score DESC NULLS LAST
+                ORDER BY b.signal_quality_score DESC NULLS LAST, b.symbol ASC
                 LIMIT 40
                 """,
                 (latest_date, latest_date),
@@ -1825,7 +1825,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE b.signal = 'BUY' AND b.date = %s
                 {buy_sell_filter}
                   AND b.signal_quality_score BETWEEN 55 AND 69
-                ORDER BY b.signal_quality_score DESC NULLS LAST
+                ORDER BY b.signal_quality_score DESC NULLS LAST, b.symbol ASC
                 LIMIT 15
                 """,
                 (latest_date,),
@@ -1840,7 +1840,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE b.signal = 'BUY' AND b.date = %s
                 {buy_sell_filter}
                   AND b.signal_quality_score >= 80
-                ORDER BY b.signal_quality_score DESC NULLS LAST
+                ORDER BY b.signal_quality_score DESC NULLS LAST, b.symbol ASC
                 LIMIT 20
                 """,
                 (latest_date,),
