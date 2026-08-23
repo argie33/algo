@@ -166,6 +166,10 @@ class PositioningMetricsLoader(OptimalLoader):
         # divided by shares_outstanding - see short_percent_of_float_unavailable_reason
         # below for why this needs to be distinguished from a missing shares_outstanding.
         short_shares_reported = False
+        # sec_valuations.reason, when it explains why shares_outstanding wasn't usable there
+        # (e.g. "foreign_private_issuer_shares_unavailable") - see
+        # short_percent_of_float_unavailable_reason below.
+        short_percent_of_float_sec_reason = None
 
         try:
             with DatabaseContext("read") as cur:
@@ -253,12 +257,26 @@ class PositioningMetricsLoader(OptimalLoader):
                             # "missing_sec_data" have a usable sec_valuations.shares_outstanding.
                             cur.execute(
                                 """
-                                SELECT shares_outstanding FROM sec_valuations
-                                WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                                SELECT shares_outstanding, reason FROM sec_valuations
+                                WHERE symbol = %s
                                 """,
                                 (symbol,),
                             )
-                            shares_row = cur.fetchone()
+                            sv_row = cur.fetchone()
+                            shares_row = (sv_row[0],) if sv_row and sv_row[0] is not None and sv_row[0] > 0 else None
+                            # FIXED 2026-08-23 (goal session: real-money-readiness "missing
+                            # SEC/XBRL data" bucket audit): when sec_valuations has no usable
+                            # shares_outstanding either, its own `reason` column almost always
+                            # already explains why (live-confirmed 759/832 universe rows were
+                            # "foreign_private_issuer_shares_unavailable" - a permanent
+                            # regulatory exemption already mapped to "Legitimate / not
+                            # applicable" in lambda/api/routes/scores.py's coverage
+                            # categorization for every OTHER ownership field, not a real data
+                            # gap) - was discarded here and every such row fell through to the
+                            # generic "missing_sec_data" below, miscategorizing a permanent
+                            # non-issue as "Missing SEC/XBRL data" on the coverage dashboard.
+                            if not shares_row and sv_row and sv_row[1]:
+                                short_percent_of_float_sec_reason = sv_row[1]
 
                     if shares_row and shares_row[0] is not None and shares_row[0] > 0:
                         short_shares = float(short_rows[0][1])
@@ -389,7 +407,15 @@ class PositioningMetricsLoader(OptimalLoader):
                         # short_shares on file at all, mislabeled as an SEC gap when the real
                         # blocker is FINRA short-interest coverage, not a shares_outstanding
                         # lookup failure.
-                        "missing_finra_data" if not short_shares_reported else "missing_sec_data"
+                        #
+                        # FIXED 2026-08-23: when FINRA did report short_shares and the
+                        # shares_outstanding lookup is what failed, prefer sec_valuations'
+                        # own more specific reason (e.g. "foreign_private_issuer_shares_
+                        # unavailable") over the generic "missing_sec_data" fallback - see
+                        # short_percent_of_float_sec_reason above.
+                        "missing_finra_data"
+                        if not short_shares_reported
+                        else (short_percent_of_float_sec_reason or "missing_sec_data")
                     )
                     if short_percent_of_float is None
                     else None
