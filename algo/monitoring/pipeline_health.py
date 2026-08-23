@@ -173,7 +173,23 @@ class PipelineHealth:
         "algo_risk_daily": {"date_column": "updated_at", "sla_days": 1},
         "algo_performance_daily": {"date_column": "updated_at", "sla_days": 1},
         "signal_quality_scores": {"date_column": "date", "sla_days": 1},
-        "trend_template_data": {"date_column": "date", "sla_days": 1},
+        # sla_days=2, not 1 (2026-08-23, goal session): loaders/load_trend_analysis.py's own
+        # docstring documents this loader's real schedule as "~2:15 AM ET" with "Dependency:
+        # price_daily" - it necessarily computes off the PRIOR trading day's close, since that
+        # day's own close doesn't exist yet at 2:15 AM. Confirmed live via
+        # data_loader_status_history: every recent run (2026-08-18 through 2026-08-21) wrote
+        # data dated exactly one trading day before the run's own calendar date. This is a
+        # permanent structural lag, not staleness - with sla_days=1, a perfectly healthy run
+        # always shows age_days=1 on a normal weekday (1 == the old sla, so it scraped by
+        # HEALTHY) but crossed straight into false STALE the moment _gap_adjusted_sla() added
+        # any weekend/holiday padding on top of that pre-existing 1-day baseline (age_days=3
+        # vs effective_sla=2 across a 2-day weekend gap, live-confirmed 2026-08-23) - the
+        # padding was correct, the base sla_days it started from just didn't account for this
+        # loader's own inherent lag. See signal_quality_trend_template_weekend_staleness_
+        # open_question_20260823 in memory: signal_quality_scores shows the same symptom but
+        # was confirmed to be a local-dev sequencing artifact (upstream buy_sell_daily simply
+        # hadn't run yet), not a structural lag - deliberately NOT changed here.
+        "trend_template_data": {"date_column": "date", "sla_days": 2},
     }
 
     # Tables that only update once per trading day - a weekend/holiday gap since the

@@ -28,10 +28,19 @@ PREVIOUSLY_MISSING_TABLES = {
 
 class TestPipelineHealthCriticalTablesCompleteness:
     def test_previously_missing_tables_are_in_critical_tables_with_sla_1(self):
+        # trend_template_data EXCEPTED 2026-08-23: bumped to sla_days=2 because
+        # loaders/load_trend_analysis.py runs ~2:15 AM ET and structurally always computes
+        # off the PRIOR trading day's close (confirmed via its own docstring + live
+        # data_loader_status_history run pattern) - sla_days=1 was correct for every other
+        # table here (which all reflect the SAME day's own close) but under-counted this
+        # loader's permanent one-day baseline lag, causing a false STALE the moment
+        # _gap_adjusted_sla() added any weekend/holiday padding on top of it. See
+        # signal_quality_trend_template_weekend_staleness_open_question_20260823 in memory.
         for table in PREVIOUSLY_MISSING_TABLES:
             assert table in PipelineHealth.CRITICAL_TABLES, f"{table} missing from CRITICAL_TABLES"
-            assert PipelineHealth.CRITICAL_TABLES[table]["sla_days"] == 1, (
-                f"{table} sla_days should match freshness_config.py's canonical max_age_days=1"
+            expected_sla = 2 if table == "trend_template_data" else 1
+            assert PipelineHealth.CRITICAL_TABLES[table]["sla_days"] == expected_sla, (
+                f"{table} sla_days should be {expected_sla}"
             )
 
     def test_previously_missing_tables_are_trading_day_cadence(self):
