@@ -26,6 +26,7 @@ class TestPreserveOnMissingFields:
             "sic_description",
             "entity_type",
             "shares_outstanding",
+            "shares_outstanding_unavailable_reason",
             "has_annual_report_filing",
         ):
             assert field in preserved, (

@@ -85,6 +85,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 "sic_description",
                 "entity_type",
                 "shares_outstanding",
+                "shares_outstanding_unavailable_reason",
                 "has_annual_report_filing",
             }
         )
@@ -253,6 +254,20 @@ class CompanyInfoSECLoader(SecLoaderBase):
             if shares_outstanding is None:
                 shares_outstanding = self._fetch_shares_outstanding_from_filing_text(symbol, cik, submissions)
 
+            shares_outstanding_unavailable_reason = None
+            if shares_outstanding is None:
+                # Live audit (goal session, "Ownership data unresolved" bucket
+                # investigation, 2026-08-23) decomposed 1,237 active-universe NULL
+                # shares_outstanding rows into exactly these 3 buckets by hand - surface it
+                # directly instead of requiring the same manual SQL archaeology next time.
+                # See migration 1201's own comment for the full live evidence per bucket.
+                if is_foreign_private_issuer:
+                    shares_outstanding_unavailable_reason = "fpi_shares_excluded_domestic_only"
+                elif not has_annual_report_filing:
+                    shares_outstanding_unavailable_reason = "no_annual_report_filing"
+                else:
+                    shares_outstanding_unavailable_reason = "shares_outstanding_not_in_xbrl_or_filing_text"
+
             return [
                 {
                     "symbol": symbol,
@@ -262,6 +277,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     "sic_description": sic_description,
                     "entity_type": entity_type,
                     "shares_outstanding": shares_outstanding,
+                    "shares_outstanding_unavailable_reason": shares_outstanding_unavailable_reason,
                     "has_annual_report_filing": has_annual_report_filing,
                     "is_foreign_private_issuer": is_foreign_private_issuer,
                     "data_unavailable": False,
