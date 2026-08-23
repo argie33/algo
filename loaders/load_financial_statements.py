@@ -1328,6 +1328,23 @@ def _finalize_combo(
         loader._log_execution_history("failed", msg[:500])
         return False
 
+    # FIXED 2026-08-23: ALL MODE never went through run_loader()/runner.py, so
+    # ConsolidatedFinancialStatementsLoader.post_run() - which force-nulls the cells
+    # _reject_implausible_shares_outstanding()/_reject_implausible_eps() rejected this run
+    # (see its own docstring / the __init__ comment on why preserve_on_missing_fields can't
+    # do this itself) - was never actually called for this codebase's real production
+    # invocation path. The single statement/period mode (run_loader()) already picks this up
+    # via runner.py's own post_run hook; mirroring that same call+failure-handling here so
+    # ALL MODE gets the identical guarantee instead of a silent gap between the two paths.
+    if hasattr(loader, "post_run"):
+        try:
+            loader.post_run()
+        except Exception as post_run_err:
+            msg = f"post_run failed: {type(post_run_err).__name__}: {str(post_run_err)[:400]}"
+            logger.error(f"[{loader.table_name}] {msg}")
+            loader._log_execution_history("failed", msg[:500])
+            return False
+
     loader._update_final_status(symbol_count, symbols)
     loader._log_execution_history("success")
     return True
@@ -1560,8 +1577,68 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             "reason",
         }
 
+        # BUG FOUND 2026-08-23 (goal session: EPS remediation re-fetch turned up almost no
+        # change - 159->153 rows despite _reject_implausible_eps() logging a "Rejecting"
+        # warning for every one of them): preserve_on_missing_fields' ON CONFLICT clause is
+        # `COALESCE(EXCLUDED.col, table.col)` (utils/bulk_insert_manager.py) - this can't
+        # distinguish "this run's fetch simply didn't produce a value for this optional
+        # concept" (the legitimate PRI net_income case preserve_on_missing_fields exists
+        # for) from "this run fetched a value, computed it, and deliberately rejected it as
+        # implausible" (_reject_implausible_eps/_reject_implausible_shares_outstanding
+        # setting row[field]=None). Both look identical to COALESCE - EXCLUDED.col is NULL
+        # either way - so every deliberate rejection on a symbol/fiscal-year that already had
+        # a stored value was silently discarded in favor of the stale bad value, for every
+        # run since the shares_outstanding guard landed 2026-08-21. Live-confirmed: OLOX
+        # FY2024/PACK FY2017-2018/RAYA FY2020+2023/STSS FY2024 all still showed their exact
+        # pre-rejection garbage EPS after a live re-fetch that logged them as rejected.
+        # Track exactly which (primary key, field) cells the two reject_implausible_*
+        # methods null out this run, and force-null them directly in post_run() below via a
+        # real UPDATE (not routed through bulk_insert_manager) - the only way to actually
+        # overwrite a stale bad value that COALESCE would otherwise protect.
+        self._explicit_null_rejections: list[tuple[dict[str, Any], str]] = []
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         return super().fetch_incremental(symbol, since)
+
+    def _record_explicit_null_rejection(self, row: dict[str, Any], field: str) -> None:
+        """Record that `field` was deliberately nulled on this row so post_run() can force
+        it to NULL in the DB directly, bypassing preserve_on_missing_fields' COALESCE (see
+        the 2026-08-23 fix comment in __init__ for why that's necessary)."""
+        pk_values = {pk: row.get(pk) for pk in self._bulk_insert_mgr.primary_key}
+        self._explicit_null_rejections.append((pk_values, field))
+
+    def post_run(self) -> None:
+        """Force-null every cell _reject_implausible_shares_outstanding()/
+        _reject_implausible_eps() rejected this run, directly via UPDATE - the normal
+        bulk_insert() path already ran and, per this file's __init__ comment, silently
+        preserved the stale bad value for any row that already existed. This is the only
+        point in the run where the actual rejection can take effect against pre-existing
+        rows.
+        """
+        if not self._explicit_null_rejections:
+            return
+        pk_cols = list(self._bulk_insert_mgr.primary_key)
+        seen: set[tuple[Any, ...]] = set()
+        forced = 0
+        with DatabaseContext("write") as cur:
+            for pk_values, field in self._explicit_null_rejections:
+                key = (*[pk_values[c] for c in pk_cols], field)
+                if key in seen or any(v is None for v in pk_values.values()):
+                    continue
+                seen.add(key)
+                where_clause = " AND ".join(f"{c} = %s" for c in pk_cols)
+                cur.execute(
+                    f"UPDATE {self.table_name} SET {field} = NULL WHERE {where_clause} AND {field} IS NOT NULL",
+                    tuple(pk_values[c] for c in pk_cols),
+                )
+                forced += cur.rowcount
+        if forced:
+            logger.warning(
+                f"[{self.table_name}] post_run(): force-nulled {forced} previously-stored "
+                f"cell(s) across {len(seen)} unique (row, field) rejection(s) that "
+                "preserve_on_missing_fields would otherwise have silently kept at their "
+                "stale implausible value."
+            )
 
     def _reject_implausible_shares_outstanding(self, transformed: list[dict[str, Any]]) -> None:
         """Reject shares_outstanding_basic/diluted values that are confidently wrong due to
@@ -1606,6 +1683,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         "confidently-wrong share count."
                     )
                     row[field] = None
+                    self._record_explicit_null_rejection(row, field)
 
         shares_check_symbols = sorted({str(row.get("symbol")) for row in transformed if row.get("symbol")})
         reference_shares: dict[str, float] = {}
@@ -1653,6 +1731,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         "catch. Rejecting rather than storing a confidently-wrong share count."
                     )
                     row[field] = None
+                    self._record_explicit_null_rejection(row, field)
 
     def _reject_implausible_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Reject earnings_per_share/diluted_eps values that are confidently wrong due to
@@ -1697,6 +1776,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         "storing a confidently-wrong per-share value."
                     )
                     row[field] = None
+                    self._record_explicit_null_rejection(row, field)
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
