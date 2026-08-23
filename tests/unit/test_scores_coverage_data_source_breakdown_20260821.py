@@ -166,3 +166,18 @@ def test_summary_source_rollup_merges_same_label_across_tables():
     assert summary["source_totals"] == {"FINRA": 100}
     assert summary["source_order"] == ["FINRA"]
     assert summary["source_labels"] == {"FINRA": "FINRA"}
+
+
+def test_dual_class_yfinance_fallback_source_has_real_label_not_raw_fallthrough():
+    """FIX 2026-08-23 (goal: data-source accuracy review): load_sec_valuations.py tags dual-
+    class-share-resolution fallback rows with the real, deliberate data_source value
+    "sec_audited_except_dual_class_shares_yfinance" (see
+    tests/unit/test_sec_valuations_dual_class_yfinance_shares_fallback.py), but that value
+    was never added to _SOURCE_LABELS - so it fell through to _prettify_source()'s generic
+    token-capitalization fallback, rendering as the run-on "Sec Audited Except Dual Class
+    Shares Yfinance" instead of a real label. A live /api/algo/scores/coverage pull surfaced
+    this as a 9-row bar under that garbled text."""
+    assert (
+        scores_mod._prettify_source("sec_audited_except_dual_class_shares_yfinance")
+        == "SEC (audited, dual-class shares via Yahoo Finance)"
+    )

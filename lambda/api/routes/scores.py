@@ -2162,6 +2162,7 @@ def _coverage_order_col(cur: cursor, table: str, cols: set[str]) -> str:
 # showing a raw snake_case value.
 _SOURCE_LABELS: dict[str, str] = {
     "sec_audited": "SEC (audited financials)",
+    "sec_audited_except_dual_class_shares_yfinance": "SEC (audited, dual-class shares via Yahoo Finance)",
     "sec_edgar_submissions": "SEC EDGAR submissions",
     "sec_edgar_filings": "SEC EDGAR filings",
     "sec_13f": "SEC Form 13F",
