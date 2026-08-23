@@ -285,6 +285,33 @@ class PipelineHealth:
             # added here, so every health sweep reported it VERY_STALE - real noise, not a
             # real gap, since nothing currently reads or writes it.
             "algo_performance_metrics",
+            # ADDED 2026-08-23 (goal session, "run everything and dig into the logs" pass):
+            # live-confirmed via a local orchestrator run that this file's own registry was
+            # missing two exclusions already known and handled elsewhere in the codebase -
+            # same false-alarm-noise class every entry above exists to prevent, just not
+            # caught here before because this is a different health-check module from the
+            # ones already fixed (dashboard/monitoring.py's loader_health,
+            # scripts/verify_loaders_health.py's LOADERS dict).
+            #
+            # naaim: NAAIM's free public page permanently transitioned to a subscription
+            # model 2026-08-01 (confirmed live via the site's own banner), and the
+            # market_exposure model was separately, deliberately redesigned 2026-08-20 to
+            # drop NAAIM entirely (see market_exposure_positioning_factor_replaces_naaim_20260820
+            # in memory) - already removed from scripts/verify_loaders_health.py's LOADERS
+            # dict for the identical reason, but this file's own registry still reported it
+            # VERY_STALE (25 days and climbing forever) on every health sweep.
+            "naaim",
+            # algo_untracked_positions: NOT a deprecated loader - this table is actively
+            # written by algo/infrastructure/alpaca_sync_manager.py whenever a real
+            # broker/DB position mismatch is detected, and is CORRECTLY empty the vast
+            # majority of the time (no untracked positions = healthy state, not missing
+            # data). lambda/api/routes/algo_handlers/market.py already excludes it via its
+            # own PIPELINE_REMOVED_TABLES set for exactly this reason (see
+            # tests/unit/test_loader_health_pipeline_removed_tables_excluded.py), but this
+            # file's own registry had no equivalent exclusion, so every health sweep
+            # reported it MISSING and counted it against coverage_pct/healthy_count for a
+            # table that is doing exactly what it's supposed to do.
+            "algo_untracked_positions",
         }
     )
 
@@ -422,9 +449,16 @@ class PipelineHealth:
                 # KNOWN_DEPRECATED_TABLES exists to prevent (see is_healthy above).
                 if table_name in self.KNOWN_DEPRECATED_TABLES:
                     health.status = HealthStatus.DEPRECATED
-                    health.error_message = (
-                        "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
-                    )
+                    # algo_untracked_positions is not a deprecated loader - it's an actively
+                    # written anomaly table that's *correctly* empty almost always (see its
+                    # entry in KNOWN_DEPRECATED_TABLES above). The generic "deprecated loader"
+                    # message would be actively misleading for it, so give it its own.
+                    if table_name == "algo_untracked_positions":
+                        health.error_message = "Empty is the expected/healthy state (no untracked positions detected)"
+                    else:
+                        health.error_message = (
+                            "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+                        )
                 else:
                     health.status = HealthStatus.MISSING
                     health.error_message = "Table is empty"
