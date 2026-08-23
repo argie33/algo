@@ -362,6 +362,32 @@ class PositionContext:
         if bool(chandelier_enabled) and r_mult >= Decimal(1):
             chand_stop = engine._chandelier_or_ema_stop(self.cur, self.symbol, self.current_date, self.days_held)
             if chand_stop and Decimal(str(chand_stop)) > self.active_stop:
+                # BUG FOUND 2026-08-23 (goal session: real-money-readiness audit, same
+                # technique that found position_monitor.py's parallel
+                # _compute_trailing_stop() gap): both _chandelier_or_ema_stop() branches
+                # derive the new stop from lagging EOD reference data (price_daily/
+                # technical_data_daily's highest-high/ATR, or the 21-EMA of daily closes) -
+                # neither is bounded by self.cur_price, a live intraday quote that can have
+                # already gapped down well below what that stale reference data implies.
+                # Unlike position_monitor.py's parallel "hard stop" implementation (which
+                # has its own defensive `if proposed_stop > cur_price: clamp` right after
+                # calling its equivalent function), NOTHING in this chain -
+                # check_chandelier_trail -> execute_exit -> executor_exit_handler.py's
+                # _raise_stop_only - ever compares the new stop against current price;
+                # _raise_stop_only only checks it's higher than the EXISTING stop. An
+                # above-market stop written to algo_positions.current_stop_price would
+                # make the very next evaluation's `cur_price <= active_stop` check fire
+                # immediately, force-exiting the position without any further adverse
+                # price movement. Clamp here, at the same point position_monitor.py's
+                # equivalent check lives, rather than deep in the DB-write layer.
+                cur_price_dec = Decimal(str(self.cur_price))
+                if Decimal(str(chand_stop)) >= cur_price_dec:
+                    logger.error(
+                        f"[EXIT_ENGINE] {self.symbol}: Chandelier/EMA stop ${chand_stop:.2f} >= "
+                        f"current price ${self.cur_price:.2f} - clamping to just under market "
+                        f"instead of writing an above-market stop."
+                    )
+                    chand_stop = float((cur_price_dec - Decimal("0.01")).quantize(Decimal("0.01"), ROUND_HALF_UP))
                 return (
                     True,
                     {
