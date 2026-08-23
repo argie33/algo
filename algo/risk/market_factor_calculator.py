@@ -126,6 +126,14 @@ class MarketFactorCalculator:
         for i in range(period, len(gains)):
             avg_gain = (avg_gain * (period - 1) + gains[i]) / period
             avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        if avg_gain < 1e-9 and avg_loss < 1e-9:
+            # Genuinely zero movement over the whole window (stale/frozen feed, duplicate
+            # placeholder rows - same failure mode as the flat-OHLC/near-zero-ATR bugs
+            # found elsewhere in this codebase) is NOT the same thing as a real all-up-days
+            # rally: both hit the avg_loss<1e-9 branch below, but only the rally case is a
+            # genuine RSI=100 extreme. Report neutral rather than fabricating an extreme
+            # reading off data with no actual price action in it.
+            return 50.0
         if avg_loss < 1e-9:
             return 100.0
         rs = avg_gain / avg_loss
