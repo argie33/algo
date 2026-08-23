@@ -824,11 +824,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         except Exception as e:
             logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Fetch failed: {e}")
+            # FIXED 2026-08-23 (goal session: loader-quality sweep): this catch-all used to
+            # call _unavailable_marker() with no `reason`, so a real exception here (a bug in
+            # this loader, a malformed SEC response, anything unexpected - as opposed to a
+            # symbol that genuinely lacks the data) got the same generic
+            # "missing_sec_data"/"insufficient_history" every legitimate gap gets. Passing the
+            # actual exception through routes it to "Other (errors / excluded)" in the Scores
+            # Data Coverage categorization (lambda/api/routes/scores.py::_categorize_reason
+            # splits on ":", so "fetch_exception" as a base never matches a legitimate-gap
+            # reason set) instead of silently inflating the legitimate-gap buckets.
+            exc_reason = f"fetch_exception: {type(e).__name__}: {str(e)[:150]}"
             return [
                 (
-                    self._unavailable_marker("value_metrics", symbol),
-                    self._unavailable_marker("quality_metrics", symbol),
-                    self._unavailable_marker("growth_metrics", symbol),
+                    self._unavailable_marker("value_metrics", symbol, reason=exc_reason),
+                    self._unavailable_marker("quality_metrics", symbol, reason=exc_reason),
+                    self._unavailable_marker("growth_metrics", symbol, reason=exc_reason),
                 )
             ]
 
@@ -4215,16 +4225,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         so the database row has explicit reason codes explaining why metrics are NULL.
         Previously these were omitted, causing 600+ rows to have NULL reason codes.
 
-        reason: optional real, specific cause (value_metrics only - see call site in
-        _build_value_metrics). FIXED 2026-08-19 (goal: "no SEC data" audit): every
-        value_metrics field used to get the same hardcoded generic "missing_sec_data" here
-        regardless of cause, discarding the real, specific reason load_sec_valuations.py
+        reason: optional real, specific cause. FIXED 2026-08-19 (goal: "no SEC data" audit):
+        every value_metrics field used to get the same hardcoded generic "missing_sec_data"
+        here regardless of cause, discarding the real, specific reason load_sec_valuations.py
         already computed and stored in its own sec_valuations.reason column (e.g.
         "shares_outstanding_unavailable", "income_statement_revenue_and_eps_null"). Live-
         confirmed 771 of 817 universe "missing_sec_data" market_cap rows are actually
-        shares_outstanding_unavailable. Defaults to "missing_sec_data" (unchanged behavior)
-        when the caller has no more specific reason to pass (e.g. sec_valuations has no row
-        for this symbol at all, or a caller table other than value_metrics).
+        shares_outstanding_unavailable. Defaults to each table's generic reason (unchanged
+        behavior) when the caller has no more specific reason to pass.
+
+        FIXED 2026-08-23 (goal session: loader-quality sweep): extended the same
+        specific-reason plumbing to quality_metrics/growth_metrics, because
+        fetch_incremental's `except Exception` handler (this file's own catch-all around the
+        per-symbol fetch) used to call this with no `reason` at all for any of the three
+        tables - so a genuine bug/exception during fetch (KeyError, a malformed SEC response,
+        anything unexpected) silently landed in the DB as the same generic
+        "missing_sec_data"/"insufficient_history" every real data gap gets, indistinguishable
+        from a legitimate absence. The exception handler now passes
+        f"fetch_exception: {type(e).__name__}: {e}" as `reason`, which _categorize_reason()
+        (lambda/api/routes/scores.py) correctly buckets into "Other (errors / excluded)"
+        instead of quietly inflating "Missing SEC/XBRL data"/"Insufficient history" with what
+        are actually loader bugs.
         """
         if table == "value_metrics":
             specific_reason = reason or "missing_sec_data"
@@ -4266,6 +4287,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "updated_at": get_loader_timestamp(),
             }
         elif table == "quality_metrics":
+            specific_reason = reason or "missing_sec_data"
             return {
                 "symbol": symbol,
                 "roe": None,
@@ -4291,34 +4313,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "total_cash": None,
                 "cash_per_share": None,
                 "ebitda": None,
-                "ebitda_unavailable_reason": "missing_sec_data",
+                "ebitda_unavailable_reason": specific_reason,
                 "earnings_growth_yoy": None,
                 "revenue_growth_yoy": None,
                 # Reason codes for all metrics (Session 401 fix: were NULL before)
-                "roe_unavailable_reason": "missing_sec_data",
-                "roa_unavailable_reason": "missing_sec_data",
-                "operating_margin_unavailable_reason": "missing_sec_data",
-                "net_margin_unavailable_reason": "missing_sec_data",
-                "debt_to_equity_unavailable_reason": "missing_sec_data",
-                "current_ratio_unavailable_reason": "missing_sec_data",
-                "quick_ratio_unavailable_reason": "missing_sec_data",
-                "interest_coverage_unavailable_reason": "missing_sec_data",
-                "debt_to_assets_unavailable_reason": "missing_sec_data",
+                "roe_unavailable_reason": specific_reason,
+                "roa_unavailable_reason": specific_reason,
+                "operating_margin_unavailable_reason": specific_reason,
+                "net_margin_unavailable_reason": specific_reason,
+                "debt_to_equity_unavailable_reason": specific_reason,
+                "current_ratio_unavailable_reason": specific_reason,
+                "quick_ratio_unavailable_reason": specific_reason,
+                "interest_coverage_unavailable_reason": specific_reason,
+                "debt_to_assets_unavailable_reason": specific_reason,
                 "quality_score_unavailable_reason": None,
                 # Phase 3 reason codes
-                "gross_margin_unavailable_reason": "missing_sec_data",
-                "ebitda_margin_unavailable_reason": "missing_sec_data",
-                "roic_pct_unavailable_reason": "missing_sec_data",
-                "fcf_to_net_income_unavailable_reason": "missing_sec_data",
-                "ocf_to_net_income_unavailable_reason": "missing_sec_data",
-                "payout_ratio_unavailable_reason": "missing_sec_data",
-                "free_cash_flow_unavailable_reason": "missing_sec_data",
-                "operating_cash_flow_unavailable_reason": "missing_sec_data",
-                "total_debt_unavailable_reason": "missing_sec_data",
-                "total_cash_unavailable_reason": "missing_sec_data",
-                "cash_per_share_unavailable_reason": "missing_sec_data",
-                "earnings_growth_yoy_unavailable_reason": "missing_sec_data",
-                "revenue_growth_yoy_unavailable_reason": "missing_sec_data",
+                "gross_margin_unavailable_reason": specific_reason,
+                "ebitda_margin_unavailable_reason": specific_reason,
+                "roic_pct_unavailable_reason": specific_reason,
+                "fcf_to_net_income_unavailable_reason": specific_reason,
+                "ocf_to_net_income_unavailable_reason": specific_reason,
+                "payout_ratio_unavailable_reason": specific_reason,
+                "free_cash_flow_unavailable_reason": specific_reason,
+                "operating_cash_flow_unavailable_reason": specific_reason,
+                "total_debt_unavailable_reason": specific_reason,
+                "total_cash_unavailable_reason": specific_reason,
+                "cash_per_share_unavailable_reason": specific_reason,
+                "earnings_growth_yoy_unavailable_reason": specific_reason,
+                "revenue_growth_yoy_unavailable_reason": specific_reason,
                 # _SHARED_TREND_FIELDS (consecutive_positive_quarters, earnings_growth_4q_avg,
                 # eps_growth_stability, quarterly_growth_momentum, earnings_surprise_avg,
                 # earnings_beat_rate, and the *_yoy/*_trend fields) - these are also
@@ -4326,13 +4348,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # ~344-3,173 rows per field (whichever symbols hit this fully-unavailable path)
                 # with a NULL value AND no reason code, indistinguishable from a bug.
                 **dict.fromkeys(_SHARED_TREND_FIELDS),
-                **{f"{field}_unavailable_reason": "missing_sec_data" for field in _SHARED_TREND_FIELDS},
+                **{f"{field}_unavailable_reason": specific_reason for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient SEC financial data",
                 "updated_at": get_loader_timestamp(),
             }
         else:  # growth_metrics
+            specific_reason = reason or "insufficient_history"
             return {
                 "symbol": symbol,
                 "revenue_growth_1y": None,
@@ -4342,19 +4365,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_3y": None,
                 "eps_growth_5y": None,
                 # Reason codes for all metrics (Session 401 fix: were NULL before)
-                "revenue_growth_1y_unavailable_reason": "insufficient_history",
-                "revenue_growth_3y_unavailable_reason": "insufficient_history",
-                "revenue_growth_5y_unavailable_reason": "insufficient_history",
-                "eps_growth_1y_unavailable_reason": "insufficient_history",
-                "eps_growth_3y_unavailable_reason": "insufficient_history",
-                "eps_growth_5y_unavailable_reason": "insufficient_history",
+                "revenue_growth_1y_unavailable_reason": specific_reason,
+                "revenue_growth_3y_unavailable_reason": specific_reason,
+                "revenue_growth_5y_unavailable_reason": specific_reason,
+                "eps_growth_1y_unavailable_reason": specific_reason,
+                "eps_growth_3y_unavailable_reason": specific_reason,
+                "eps_growth_5y_unavailable_reason": specific_reason,
                 # Same _SHARED_TREND_FIELDS gap as the quality_metrics branch above (these
                 # columns are mirrored from quality_metrics on the success path - see
                 # _SHARED_TREND_FIELDS mirroring in fetch_incremental - but this fallback path
                 # never went through that mirror, so they were previously left NULL with no
                 # reason instead of an explained gap).
                 **dict.fromkeys(_SHARED_TREND_FIELDS),
-                **{f"{field}_unavailable_reason": "insufficient_history" for field in _SHARED_TREND_FIELDS},
+                **{f"{field}_unavailable_reason": specific_reason for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient historical data",
