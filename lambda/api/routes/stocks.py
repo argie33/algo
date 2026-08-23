@@ -148,16 +148,28 @@ def handle(  # noqa: C901
                     WHERE pe_ratio > 0 AND pe_ratio < 200
                 ),
                 income_ranked AS (
+                    -- FIXED (goal session, "so many from yfinance still" data-accuracy audit):
+                    -- this loader writes a data_unavailable=TRUE placeholder row for the
+                    -- CURRENT, not-yet-filed fiscal year (e.g. FY2026 while today is still
+                    -- 2026-08-22) alongside real, complete prior-year rows. Without this filter,
+                    -- ROW_NUMBER picks that all-NULL placeholder as rn=1 "current year" purely
+                    -- because its fiscal_year is highest - live-confirmed ~3,076 symbols in
+                    -- annual_income_statement alone - silently NULLing gross_margin_pct/
+                    -- op_margin_cur/roe_cur below for every affected symbol and mislabeling the
+                    -- real latest complete year as "prior" (op_margin_pri/roe_pri/trend fields).
+                    -- Same "once real, always real" guard load_value_quality_growth_metrics.py's
+                    -- own "latest row" helpers already apply.
                     SELECT symbol, fiscal_year, gross_profit, revenue, operating_income, net_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
-                    WHERE symbol IN (SELECT symbol FROM value_stocks)
+                    WHERE symbol IN (SELECT symbol FROM value_stocks) AND data_unavailable IS NOT TRUE
                 ),
                 balance_ranked AS (
+                    -- Same placeholder-row fix as income_ranked above.
                     SELECT symbol, stockholders_equity,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE symbol IN (SELECT symbol FROM value_stocks)
+                    WHERE symbol IN (SELECT symbol FROM value_stocks) AND data_unavailable IS NOT TRUE
                 ),
                 margin_data AS (
                     SELECT

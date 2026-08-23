@@ -2486,11 +2486,25 @@ def _get_scores_coverage(cur: cursor) -> Any:
                     # updated_at/created_at, either of which order_col can pick as the
                     # ordering column for OTHER tables too - both would otherwise be
                     # ambiguous between {table} and the joined _su copy.
+                    #
+                    # FIXED (goal session, "so many from yfinance still" data-accuracy audit):
+                    # a plain `ORDER BY {order_col} DESC` picks the row with the highest
+                    # fiscal_year/date even when THAT row is an unavailable placeholder (e.g.
+                    # annual_income_statement writes a data_unavailable=TRUE marker row for the
+                    # current, not-yet-filed fiscal year) while an older row for the same symbol
+                    # has real, usable data - live-confirmed on annual_income_statement (3,076
+                    # symbols) via stocks.py's identical bug in the deep-value screener CTEs,
+                    # fixed alongside this. Ordering by "(reason_val IS NULL) DESC" first prefers
+                    # a row where this factor is genuinely available, regardless of its
+                    # fiscal_year/date, before falling back to order_col DESC among rows where
+                    # it's never been available - same "once real, always real" rule
+                    # load_value_quality_growth_metrics.py's own "latest row" helpers already
+                    # apply when computing ratios from these same tables.
                     query = f"""
                         SELECT reason_val, COUNT(*) FROM (
                             SELECT DISTINCT ON ({table}.symbol) {table}.symbol, {table}.{column} AS reason_val
                             FROM {table}{active_join}
-                            ORDER BY {table}.symbol, {table}.{order_col} DESC
+                            ORDER BY {table}.symbol, ({table}.{column} IS NULL) DESC, {table}.{order_col} DESC
                         ) latest
                         WHERE reason_val IS NOT NULL
                         GROUP BY reason_val
