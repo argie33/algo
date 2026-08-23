@@ -1292,10 +1292,19 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         # Phase 4: Broker Reconciliation Health
         try:
+            # FIXED (migration 1216, goal session: "before real money" finance-accuracy
+            # audit): avg_match_pct alone can't distinguish "genuinely checked against
+            # Alpaca and it matched" from "no broker was available (paper mode), so
+            # mismatches was hardcoded 0 and match_pct came out to a vacuous 100% by
+            # construction" - both look identical in that one number. Surface
+            # broker_verified_count/unverified_count alongside it so a caller can tell
+            # whether this window's "100% match" means anything.
             cur.execute("""
                 SELECT COUNT(*) as sync_count,
                        MAX(reconciliation_date) as latest_sync,
-                       AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct
+                       AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct,
+                       COUNT(*) FILTER (WHERE broker_verified = TRUE) as broker_verified_count,
+                       COUNT(*) FILTER (WHERE broker_verified = FALSE) as broker_unverified_count
                 FROM algo_reconciliation_log
                 WHERE reconciliation_date >= CURRENT_DATE - INTERVAL '1 day'
             """)
@@ -1311,6 +1320,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "avg_match_pct": (
                         float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None
                     ),
+                    "broker_verified_count": int(recon_dict.get("broker_verified_count") or 0),
+                    "broker_unverified_count": int(recon_dict.get("broker_unverified_count") or 0),
                 }
             else:
                 execution_health["phase_4_broker_reconciliation"] = None

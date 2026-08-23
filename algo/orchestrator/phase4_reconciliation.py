@@ -177,12 +177,21 @@ def run(  # noqa: C901
                 else:
                     match_pct = 100.0  # No positions to reconcile - vacuously fully matched
 
+                # FIXED (migration 1216, goal session: "before real money" finance-accuracy
+                # audit): match_pct above is 100.0 in BOTH the "checked against Alpaca and it
+                # genuinely matched" case AND the no_broker paper-mode case (mismatches is
+                # hardcoded 0 when there's no broker to check - see check_partial_fills'
+                # own comment). Persist which one this was so a reader of this audit table
+                # (or /api/algo/health's phase_4_broker_reconciliation) can't mistake a
+                # vacuous "nothing was compared" 100% for a real verified match.
+                broker_verified = not bool(partial_fill_result.get("no_broker"))
+
                 try:
                     cur.execute(
                         """INSERT INTO algo_reconciliation_log
-                           (reconciliation_date, match_percentage, sync_count, created_at)
-                           VALUES (%s, %s, %s, NOW())""",
-                        (run_date, match_pct, positions_count),
+                           (reconciliation_date, match_percentage, sync_count, broker_verified, created_at)
+                           VALUES (%s, %s, %s, %s, NOW())""",
+                        (run_date, match_pct, positions_count, broker_verified),
                     )
                 except psycopg2.DatabaseError as db_err:
                     error_msg = (
