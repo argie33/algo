@@ -370,18 +370,28 @@ class TestEarningsRevisionBreadthFactor:
     docstring for why. Now a standalone factor: one query (rising, total), not three.
     """
 
+    # NOTE: _earnings_revision_breadth_factor now issues an earlier MIN(date)-anchor query
+    # (see "ADAPTIVE WINDOW" in its docstring) before the rising/total aggregate query, so
+    # every mock below must supply fetchone() side effects for BOTH calls in order: the
+    # anchor date first, then (rising, total). Anchor date(2026, 7, 1) is 50 days before the
+    # eval_date used throughout this class (2026, 8, 20), comfortably >= the full 30-day
+    # TARGET_BASELINE_WINDOW_DAYS, so window_days always resolves to the intended 30 and
+    # these tests exercise the same full-window behavior as before this change.
+    _FULL_HISTORY_ANCHOR = (date(2026, 7, 1),)
+
     def test_strong_revisions_scores_high(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (150, 200)  # 75% breadth
+        cur.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (150, 200)]  # 75% breadth
         me = MarketExposure()
         result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
         assert not result.get("data_unavailable")
         assert result["score"] == 100.0
         assert result["revision_breadth_pct"] == 75.0
+        assert result["window_days"] == 30
 
     def test_weak_revisions_scores_low(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (10, 200)  # 5% breadth
+        cur.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 200)]  # 5% breadth
         me = MarketExposure()
         result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
         assert not result.get("data_unavailable")
@@ -389,26 +399,49 @@ class TestEarningsRevisionBreadthFactor:
 
     def test_insufficient_sample_is_data_unavailable(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (10, 50)  # total=50 < 200 sample floor
+        cur.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 50)]  # total=50 < 200 sample floor
         me = MarketExposure()
         result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
         assert result["data_unavailable"] is True
 
     def test_no_rows_is_data_unavailable(self):
+        # No anchor date at all (e.g. table empty) - short-circuits before the second query.
         cur = MagicMock()
         cur.fetchone.return_value = None
         me = MarketExposure()
         result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
         assert result["data_unavailable"] is True
 
+    def test_below_min_baseline_window_is_data_unavailable(self):
+        # Anchor date only 10 days before eval_date - below MIN_BASELINE_WINDOW_DAYS (20),
+        # so this must bail out before ever issuing the second (rising/total) query.
+        cur = MagicMock()
+        cur.fetchone.return_value = (date(2026, 8, 10),)
+        me = MarketExposure()
+        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
+        assert result["data_unavailable"] is True
+        assert cur.execute.call_count == 1
+
+    def test_adaptive_window_below_30_days_still_scores(self):
+        # Anchor date 24 days before eval_date - above the 20-day floor but below the full
+        # 30-day target, so this must use a real, shortened window rather than sitting as
+        # data_unavailable (the whole point of the adaptive-window fix).
+        cur = MagicMock()
+        cur.fetchone.side_effect = [(date(2026, 7, 27),), (100, 200)]
+        me = MarketExposure()
+        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
+        assert not result.get("data_unavailable")
+        assert result["window_days"] == 24
+        assert result["revision_breadth_pct"] == 50.0
+
     def test_scores_the_same_regardless_of_technical_direction(self):
         # This factor never took a technical_bullish parameter in the first place (unlike
         # the old blended Fundamental Quality it replaced) - same inputs, same output,
         # always. Guards against that conditional gating ever creeping back in.
         cur_a = MagicMock()
-        cur_a.fetchone.return_value = (10, 200)
+        cur_a.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 200)]
         cur_b = MagicMock()
-        cur_b.fetchone.return_value = (10, 200)
+        cur_b.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 200)]
         me = MarketExposure()
         result_a = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur_a)
         result_b = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur_b)

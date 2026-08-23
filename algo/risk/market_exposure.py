@@ -2048,7 +2048,55 @@ class MarketExposure:
         than z-scoring against a history that doesn't exist - a first-pass calibration,
         flagged like every other not-yet-backtested threshold in this file, not a claim of
         precision it doesn't have.
+
+        ADAPTIVE WINDOW (added 2026-08-23, user-directed): analyst_sentiment_analysis is a
+        yfinance-backed daily snapshot table with NO historical API - the only way to ever
+        have a "30 days ago" baseline is to have actually been saving a snapshot every day
+        for 30 real days. The loader was dead for ~2 months and was only restored
+        2026-07-27 (git commit 1bb100afa), so a strict 30-day lookback is structurally
+        unsatisfiable before 2026-08-27 no matter what - not a bug, a wait for real
+        calendar time neither this function nor any backfill can shorten (target-price
+        history simply doesn't exist anywhere before that restore date). Rather than sit
+        as data_unavailable for that whole stretch, fall back to the OLDEST baseline
+        actually on record once at least MIN_BASELINE_WINDOW_DAYS (20) of history exists -
+        still a real, honestly-labeled revision-breadth reading over a shorter (reported)
+        window, just not yet the full 30-day one. Once real 30-day-old data exists this
+        naturally converges back to the intended window with no further change needed.
         """
+        min_baseline_window_days = 20
+        target_baseline_window_days = 30
+
+        # Anchor on the earliest date with a MEANINGFUL sample (>= 200 symbols, same floor
+        # used below), not the bare MIN(date) - live-found a stray 2-symbol day (2026-07-27,
+        # a partial/test run) one day before real coverage actually started (2026-07-28,
+        # 3898 symbols); using it as the anchor poisoned every window_days computation with
+        # an unreachable baseline (built to a baseline day that itself has ~2 rows).
+        cur.execute(
+            """
+            SELECT MIN(date) FROM (
+                SELECT date FROM analyst_sentiment_analysis
+                WHERE target_price IS NOT NULL AND data_unavailable IS NOT TRUE
+                GROUP BY date
+                HAVING COUNT(DISTINCT symbol) >= 200
+            ) sufficiently_covered_days
+            """
+        )
+        earliest_row = cur.fetchone()
+        earliest_date = earliest_row[0] if earliest_row else None
+        if earliest_date is None:
+            return {"data_unavailable": True, "reason": "No analyst target-price history recorded yet"}
+
+        available_days = (eval_date - earliest_date).days
+        if available_days < min_baseline_window_days:
+            return {
+                "data_unavailable": True,
+                "reason": (
+                    f"Only {available_days}d of analyst target-price history recorded as of "
+                    f"{eval_date} (need {min_baseline_window_days}+); earliest snapshot {earliest_date}"
+                ),
+            }
+        window_days = min(target_baseline_window_days, available_days)
+
         cur.execute(
             """
             WITH current_asof AS (
@@ -2060,7 +2108,7 @@ class MarketExposure:
             baseline_asof AS (
                 SELECT DISTINCT ON (symbol) symbol, target_price
                 FROM analyst_sentiment_analysis
-                WHERE date <= %s::date - INTERVAL '30 days' AND target_price IS NOT NULL
+                WHERE date <= %s::date - make_interval(days => %s) AND target_price IS NOT NULL
                     AND data_unavailable IS NOT TRUE
                 ORDER BY symbol, date DESC
             )
@@ -2071,18 +2119,25 @@ class MarketExposure:
             JOIN baseline_asof b ON c.symbol = b.symbol
             WHERE c.date >= %s::date - INTERVAL '10 days'
             """,
-            (eval_date, eval_date, eval_date),
+            (eval_date, eval_date, window_days, eval_date),
         )
         row = cur.fetchone()
         if not row or not row[1] or int(row[1]) < 200:
             return {
                 "data_unavailable": True,
-                "reason": f"Insufficient analyst-coverage sample on or before {eval_date} (need 200+ symbols)",
+                "reason": (
+                    f"Insufficient analyst-coverage sample on or before {eval_date} "
+                    f"(need 200+ symbols, {window_days}d window)"
+                ),
             }
         revision_breadth_pct = int(row[0]) * 100.0 / int(row[1])
         # Linear: 35% -> 0, 50% -> 50, 65% -> 100 (illustrative, uncalibrated - see docstring).
         score = min(100.0, max(0.0, (revision_breadth_pct - 35) / 0.3))
-        return {"score": round(score, 1), "revision_breadth_pct": round(revision_breadth_pct, 1)}
+        return {
+            "score": round(score, 1),
+            "revision_breadth_pct": round(revision_breadth_pct, 1),
+            "window_days": window_days,
+        }
 
     def _persist(self, eval_date: _date, result: dict[str, Any]) -> None:
         try:

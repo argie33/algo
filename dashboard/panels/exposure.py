@@ -268,7 +268,9 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             return f" z={z:+.1f} n={n}" if z is not None else "[yellow]⚠[/]"
         if key == "earnings_revision_breadth":
             rev = f.get("revision_breadth_pct")
-            return f" {rev:.0f}% rising" if isinstance(rev, (int, float)) else "[yellow]⚠[/]"
+            wd = f.get("window_days")
+            wd_s = f" ({wd:g}d)" if isinstance(wd, (int, float)) and wd != 30 else ""
+            return f" {rev:.0f}% rising{wd_s}" if isinstance(rev, (int, float)) else "[yellow]⚠[/]"
         if key == "valuation_extension_breadth":
             bp = f.get("breadth_pct")
             return f" {bp:.0f}% extended" if isinstance(bp, (int, float)) else "[yellow]⚠[/]"
@@ -716,7 +718,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
         elif key == "earnings_revision_breadth":
             rev = f.get("revision_breadth_pct")
-            val_s = f"{rev:.0f}% of universe rising" if isinstance(rev, (int, float)) else "--"
+            wd = f.get("window_days")
+            wd_s = f" ({wd:g}d window, ramping to 30d)" if isinstance(wd, (int, float)) and wd != 30 else ""
+            val_s = f"{rev:.0f}% of universe rising{wd_s}" if isinstance(rev, (int, float)) else "--"
         elif key == "valuation_extension_breadth":
             bp = f.get("breadth_pct")
             active = f.get("active_count")
