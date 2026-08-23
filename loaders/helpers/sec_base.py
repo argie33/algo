@@ -769,7 +769,26 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     sec_field in getattr(self, "_reit_only_fallback_fields", frozenset())
                     and db_field in row
                     and (
-                        r.get("symbol") in self._get_reit_symbols() or r.get("symbol") in self._get_insurance_symbols()
+                        r.get("symbol") in self._get_reit_symbols()
+                        or r.get("symbol") in self._get_insurance_symbols()
+                        # FIXED 2026-08-22 (goal session: real-money-readiness audit,
+                        # following the AROW/community-bank revenue-gap investigation):
+                        # same failure shape as the REIT/insurance cases above, bank/thrift
+                        # trigger this time. Depository institutions' real total revenue
+                        # (net interest income + noninterest income) is out of ASC 606's
+                        # scope, so their ASC-606 contract-revenue tag - when present at
+                        # all - is a minor ancillary fee-income line (deposit/wealth-
+                        # management fees), never the total. Live-confirmed via WAFDP
+                        # (Washington Federal, SIC 6035): real interest_and_dividend_
+                        # income_operating FY2018=$607.1M/FY2019=$671.5M (growing,
+                        # consistent with real net_income) vs. revenue_from_contract_
+                        # with_customer_excluding_assessed_tax FY2018=$25.9M/FY2019=
+                        # $24.9M (a minor fee line) was clobbering it - stored "revenue"
+                        # was the $25.9M figure, a ~23x understatement. A DB-wide scan
+                        # (bank/thrift SIC codes, revenue < 80% of net_income) found 40
+                        # more rows with the same signature (ALLY, AMTB, AUBN, and
+                        # others).
+                        or r.get("symbol") in self._get_depository_institution_symbols()
                     )
                 ):
                     # REIT filer: real lease revenue already populated this field.
@@ -777,6 +796,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # income) already populated this field - see _get_insurance_symbols's
                     # docstring for why ASC 606's contract-revenue concept must not supersede
                     # it, same reasoning as the REIT case, different XBRL concept trigger.
+                    # Depository institution (2026-08-22 fix): real interest-income-derived
+                    # revenue already populated this field - see this branch's own comment
+                    # above for the live-verified WAFDP case.
                     continue
                 # BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): a separate,
                 # stricter category from _reit_only_fallback_fields above. That set's

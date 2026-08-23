@@ -135,6 +135,13 @@ _INCOME_FIELD_MAPPING = {
     # sec_statements.py places this after revenues_net_of_interest_expense so it only wins for
     # filers that have nothing else.
     "interest_and_dividend_income_operating": "revenue",
+    # FIXED 2026-08-22: a small number of community banks (AROW live-confirmed) tag their
+    # combined interest+dividend income total under this concept instead of
+    # InterestAndDividendIncomeOperating - see sec_statements.py's comment on
+    # InvestmentIncomeInterestAndDividend for the live-verified arithmetic proving this is
+    # a real total, not a partial line item. Same target column as every revenue fallback
+    # above.
+    "investment_income_interest_and_dividend": "revenue",
     # FIXED 2026-08-19: regulated electric/gas utilities' post-ASC-606 revenue tags - see
     # sec_statements.py's comments on RegulatedOperatingRevenue/
     # RegulatedAndUnregulatedOperatingRevenue for the live-verified XEL/DTE/OGS cases this
@@ -261,6 +268,10 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "interest_income_operating",
         "interest_and_dividend_income_operating",
+        # FIXED 2026-08-22: same fallback-only reasoning as interest_and_dividend_income_
+        # operating just above - see sec_statements.py's comment on
+        # InvestmentIncomeInterestAndDividend and this dict's own comment on that key.
+        "investment_income_interest_and_dividend",
         # FIXED 2026-08-22 (goal session: "Insufficient history"/revenue-gap audit): IFRS 7
         # requires ALL filers with financial instruments (not just banks with no other
         # revenue tag) to disclose interest revenue/expense, so a filer that already reports

@@ -619,6 +619,28 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # combined figure, not this narrower one.
         "RegulatedOperatingRevenue",
         "RegulatedAndUnregulatedOperatingRevenue",
+        # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC live-confirmed via real
+        # companyfacts JSON) have neither the concepts above nor RevenuesNetOfInterestExpense
+        # (that one's for larger banks).
+        #
+        # ORDERING FIXED 2026-08-22 (goal session: real-money-readiness audit, live-confirmed
+        # via AMTB): this concept and InterestIncomeOperating (just below) used to be ordered
+        # the other way around, on the assumption that this file's normal "last-listed-wins"
+        # overwrite convention applied - true when that 2026-08-03 comment was written, but
+        # both concepts became fallback-only (skip if "revenue" already populated, never
+        # overwrite - see load_financial_statements.py's _REVENUE_FALLBACK_ONLY_FIELDS) in a
+        # separate 2026-08-09 fix that nobody cross-checked against this ordering comment.
+        # Under fallback-only semantics, "last-listed" no longer means "wins" - it means
+        # "processed last, so it only gets `revenue` if the earlier one left it empty" -
+        # exactly inverting the intended priority for any filer reporting both concepts.
+        # Live-confirmed via AMTB (a bank holding company, SIC 6022): FY2022
+        # InterestIncomeOperating=$200,000 (a minor, incidental line) vs.
+        # InterestAndDividendIncomeOperating=$338,776,000 (the real, complete total,
+        # consistent with AMTB's real net_income that year) - the $200,000 figure was winning
+        # and being stored as "revenue", a ~1,694x understatement. This concept now listed
+        # first so it gets first claim under fallback-only "first written wins" semantics,
+        # restoring the priority the 2026-08-03 comment always intended.
+        "InterestAndDividendIncomeOperating",
         # FIXED 2026-08-03: mortgage REITs (AGNC, NLY live-confirmed via real companyfacts
         # JSON) have none of the revenue concepts above - their primary revenue-equivalent
         # line is gross interest income (before subtracting interest expense on their own
@@ -627,17 +649,31 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # (AGNC FY2023: -246M) unlike a normal top-line revenue figure, which would distort
         # downstream margin/ratio calculations that assume revenue >= 0.
         # InterestIncomeOperating (gross, always positive in both AGNC's and NLY's real data)
-        # is the correct analog instead. MUST be listed BEFORE InterestAndDividendIncomeOperating:
-        # some community banks (FNWB, OCFC live-confirmed) report BOTH concepts, and the
-        # "+dividend" variant is the more complete figure for them - it must win the
-        # last-listed-wins overwrite, not this narrower one.
+        # is the correct analog instead. Listed after InterestAndDividendIncomeOperating (see
+        # that concept's own comment above for why) so it only wins under fallback-only
+        # semantics for filers with nothing more complete.
         "InterestIncomeOperating",
-        # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC live-confirmed via real
-        # companyfacts JSON) have neither the concepts above nor RevenuesNetOfInterestExpense
-        # (that one's for larger banks). Listed last in this revenue group so it only wins on
-        # overwrite for filers with nothing else - see load_financial_statements.py's
-        # _INCOME_FIELD_MAPPING comment for the live-verification details.
-        "InterestAndDividendIncomeOperating",
+        # FIXED 2026-08-22 (goal session: real-money-readiness audit, "Insufficient
+        # history" bucket sample): a small number of community banks (AROW/Arrow
+        # Financial Corp live-confirmed via real companyfacts JSON) tag neither
+        # "InterestAndDividendIncomeOperating" nor any other concept above at all -
+        # their combined interest+dividend income total lives under this differently-
+        # named concept instead. Live-verified AROW FY2015: InvestmentIncomeInterest
+        # AndDividend=$70,738,000 exactly equals the sum of AROW's itemized interest
+        # lines that year (InterestAndFeeIncomeLoansAndLeases $56,856,000 +
+        # InterestIncomeSecuritiesTaxable $8,043,000 + InterestIncomeSecuritiesTaxExempt
+        # $5,745,000 + InterestIncomeDomesticDeposits $94,000 = $70,738,000) - a real,
+        # correct total, not a partial line item. AROW had 13 straight years (2009-2021)
+        # of real, growing NetIncomeLoss but NULL revenue before this fix. Listed last
+        # in this revenue group (after InterestAndDividendIncomeOperating) so it only
+        # wins on overwrite for filers with nothing else, same convention as that
+        # concept's own comment above. NOTE: this does NOT generalize to every small
+        # bank with a revenue gap - live-checked BANR/CLBK/LSBK/PNFP (same "Insufficient
+        # history" sample) have none of the concepts in this list at all, only a filer-
+        # specific mix of itemized interest sub-line concepts with no single combined
+        # tag - that's a structurally different, harder problem (would need a per-filer-
+        # verified summation, not a single concept alias) and is NOT fixed here.
+        "InvestmentIncomeInterestAndDividend",
         "CostOfRevenue",
         # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" is the
         # standard us-gaap tag product/retail companies use for cost of goods sold - it was
