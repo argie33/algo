@@ -306,13 +306,30 @@ def _populate_missing_trade_ids_arr(log_phase_result_fn: Callable[..., Any]) -> 
 
 
 def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> None:
-    """Sync algo_trades.quantity from entry_quantity for every live (non-terminal) trade.
+    """Backfill algo_trades.quantity from entry_quantity for every live (non-terminal)
+    trade whose quantity was never set at all.
 
     CRITICAL FIX: previously hardcoded `status = 'open'`, which never matches a live
     (execution_mode=auto) filled order - those write status='filled'/'partially_filled'
     literally (see executor_entry_handler.py and the identical fix in exit_engine.py/
     position_monitor.py/exposure_policy.py). Use TradeStatus.all_open() so this sync
     actually covers live positions, not just paper-mode ones.
+
+    BUG FOUND (goal session, "before real money" finance-accuracy audit): this used to
+    also re-sync any row where `quantity != entry_quantity`, treating that as "sync
+    drift" to correct - but a partial exit legitimately reduces algo_trades.quantity
+    below entry_quantity (see executor_exit_handler.py's partial-exit UPDATE), and this
+    step runs every single orchestrator cycle. It was silently stomping that correct,
+    reduced quantity back up to the full original entry_quantity on the very next run,
+    every time - algo/orchestration/position_sync.py then propagated the now-wrong,
+    inflated total into algo_positions.quantity too. Live-reproduced via TRD-29F350E6A9
+    (RPM): a real partial exit correctly set algo_positions.quantity=11, but by the time
+    the final exit ran 2 days later, both algo_trades.quantity and algo_positions.quantity
+    read back 22 (the original full size) - in live/auto mode the final exit would have
+    submitted a sell order for 11 shares that no longer existed. Scoped to `quantity IS
+    NULL` only now - a genuine "this row's quantity was never populated at all" backfill
+    (the original migration-1106 problem this function was written for), never a
+    legitimately-differing value.
     """
     try:
         open_statuses = TradeStatus.all_open()
@@ -324,6 +341,7 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
                 SELECT COUNT(*) as invalid_count, STRING_AGG(DISTINCT trade_id::text, ',') as trade_ids
                 FROM algo_trades
                 WHERE status IN ({status_placeholders})
+                  AND quantity IS NULL
                   AND (entry_quantity IS NULL OR entry_quantity <= 0)
                 """,
                 tuple(open_statuses),
@@ -345,7 +363,7 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
                 f"""
                 UPDATE algo_trades
                 SET quantity = entry_quantity, updated_at = CURRENT_TIMESTAMP
-                WHERE status IN ({status_placeholders}) AND (quantity IS NULL OR quantity != entry_quantity)
+                WHERE status IN ({status_placeholders}) AND quantity IS NULL
                 """,
                 tuple(open_statuses),
             )
@@ -358,32 +376,29 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
                     SELECT trade_id, quantity, entry_quantity
                     FROM algo_trades
                     WHERE status IN ({status_placeholders})
-                      AND (quantity IS NULL OR quantity != entry_quantity)
+                      AND quantity IS NULL
                     LIMIT 10
                     """,
                     tuple(open_statuses),
                 )
-                verification_rows = cur.fetchall()
-                mismatches = [(row[0], row[1], row[2]) for row in verification_rows if row[1] != row[2]]
+                mismatches = cur.fetchall()
 
                 if mismatches:
                     logger.critical(
-                        f"[PHASE 9] Position quantity sync verification FAILED: {len(mismatches)} mismatches detected. "
-                        f"UPDATE statement did not properly sync quantities."
+                        f"[PHASE 9] Position quantity sync verification FAILED: {len(mismatches)} rows still NULL. "
+                        f"UPDATE statement did not properly backfill quantities."
                     )
                     for trade_id, qty, entry_qty in mismatches[:5]:
-                        logger.error(
-                            f"  Trade {trade_id}: quantity={qty}, entry_quantity={entry_qty} (expected to match)"
-                        )
+                        logger.error(f"  Trade {trade_id}: quantity={qty}, entry_quantity={entry_qty} (expected set)")
                     raise RuntimeError(
-                        f"Position quantity sync verification failed: {len(mismatches)} trades still have mismatched quantities "
+                        f"Position quantity sync verification failed: {len(mismatches)} trades still have NULL quantity "
                         f"after UPDATE. Database may be in an inconsistent state."
                     )
 
-                logger.info(f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)")
-                logger.info(f"[PHASE 9] Verification PASSED: All {synced_count} positions synced correctly")
+                logger.info(f"[PHASE 9] Backfilled quantity for {synced_count} open positions (was NULL)")
+                logger.info(f"[PHASE 9] Verification PASSED: All {synced_count} positions backfilled correctly")
             else:
-                logger.debug("[PHASE 9] No quantity sync needed - all open positions have quantity set")
+                logger.debug("[PHASE 9] No quantity backfill needed - all open positions have quantity set")
         log_phase_result_fn(
             9,
             "quantity_sync",

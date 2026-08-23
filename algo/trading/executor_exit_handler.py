@@ -1012,6 +1012,22 @@ class ExitHandler:
                     ),
                 )
         else:
+            # BUG FOUND (goal session, "before real money" finance-accuracy audit):
+            # algo_trades.quantity was never reduced on a partial exit - only
+            # algo_positions.quantity was. algo/orchestration/position_sync.py's
+            # sync_positions_from_trades() (runs before every Phase 1) computes
+            # algo_positions.quantity fresh from SUM(algo_trades.quantity) for every
+            # symbol's still-open trades, so the correct post-partial-exit
+            # algo_positions.quantity got silently overwritten back to the stale, too-high
+            # entry_quantity on the very next orchestrator run. Live-reproduced via
+            # TRD-29F350E6A9 (RPM): 11sh partial-exited on 2026-08-10, but the final exit
+            # on 2026-08-12 computed shares_to_exit=22 (the full original entry size, not
+            # the 11 remaining) - in live/auto mode this would submit a sell order for
+            # shares that no longer exist. It also corrupted the trade's own audit trail:
+            # profit_loss_dollars recorded -$85.25 when the true realized total across
+            # both legs was -$69.52 (11sh's final-leg P&L was double-counted against the
+            # full 22sh instead of the 11 actually remaining).
+            new_qty_partial = float(Decimal(str(current_qty)) - Decimal(str(shares_to_exit)))
             cur.execute(
                 """UPDATE algo_trades
                     SET partial_exits_log = COALESCE(partial_exits_log, '') ||
@@ -1020,10 +1036,12 @@ class ExitHandler:
                         partial_exit_count = partial_exit_count + 1,
                         last_partial_exit_date = CURRENT_DATE,
                         status = 'open',
-                        pending_exit_client_order_id = NULL
+                        pending_exit_client_order_id = NULL,
+                        quantity = %s
                     WHERE trade_id = %s""",
                 (
                     f"{shares_to_exit}sh @ ${final_exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",
+                    new_qty_partial,
                     trade_id,
                 ),
             )
