@@ -173,23 +173,25 @@ class PipelineHealth:
         "algo_risk_daily": {"date_column": "updated_at", "sla_days": 1},
         "algo_performance_daily": {"date_column": "updated_at", "sla_days": 1},
         "signal_quality_scores": {"date_column": "date", "sla_days": 1},
-        # sla_days=2, not 1 (2026-08-23, goal session): loaders/load_trend_analysis.py's own
-        # docstring documents this loader's real schedule as "~2:15 AM ET" with "Dependency:
-        # price_daily" - it necessarily computes off the PRIOR trading day's close, since that
-        # day's own close doesn't exist yet at 2:15 AM. Confirmed live via
-        # data_loader_status_history: every recent run (2026-08-18 through 2026-08-21) wrote
-        # data dated exactly one trading day before the run's own calendar date. This is a
-        # permanent structural lag, not staleness - with sla_days=1, a perfectly healthy run
-        # always shows age_days=1 on a normal weekday (1 == the old sla, so it scraped by
-        # HEALTHY) but crossed straight into false STALE the moment _gap_adjusted_sla() added
-        # any weekend/holiday padding on top of that pre-existing 1-day baseline (age_days=3
-        # vs effective_sla=2 across a 2-day weekend gap, live-confirmed 2026-08-23) - the
-        # padding was correct, the base sla_days it started from just didn't account for this
-        # loader's own inherent lag. See signal_quality_trend_template_weekend_staleness_
-        # open_question_20260823 in memory: signal_quality_scores shows the same symptom but
-        # was confirmed to be a local-dev sequencing artifact (upstream buy_sell_daily simply
-        # hadn't run yet), not a structural lag - deliberately NOT changed here.
-        "trend_template_data": {"date_column": "date", "sla_days": 2},
+        # sla_days=1 CONFIRMED CORRECT, REVERTED 2026-08-23 (goal session, same day): an
+        # earlier pass this session bumped this to 2, reasoning that
+        # loaders/load_trend_analysis.py's own docstring only documents a "~2:15 AM ET"
+        # morning schedule (necessarily prior-close) and that every LOCAL run history sample
+        # showed a 1-trading-day-behind write - concluding this was a permanent structural
+        # lag. That was wrong: terraform/modules/pipeline/main.tf's real EOD Step Function
+        # (ParallelEnrichment -> TrendTemplate, ~line 308-337) runs this SAME loader AGAIN at
+        # 4:05 PM ET, 5 min after market close, using that day's own real close - confirmed by
+        # scripts/local_loader_scheduler.py's own "signals" pipeline comment (2026-08-22 fix
+        # entry) describing exactly this same-day EOD refresh and why local dev needs it too.
+        # In production this table SHOULD be same-day fresh by evening every trading day -
+        # sla_days=1 correctly catches a real EOD-step failure the same day. The local 1-day-
+        # behind pattern observed was this local sandbox never having run the "signals"
+        # pipeline's trend_analysis step after a morning run - a local pipeline-completeness
+        # gap, the SAME root cause as signal_quality_scores' identical symptom (see
+        # signal_quality_trend_template_weekend_staleness_open_question_20260823 in memory),
+        # not two different bugs. Widening the SLA would have masked a genuine production
+        # incident (EOD TrendTemplate step failing) for an extra day - reverted.
+        "trend_template_data": {"date_column": "date", "sla_days": 1},
     }
 
     # Tables that only update once per trading day - a weekend/holiday gap since the
