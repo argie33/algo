@@ -6,9 +6,16 @@ Tracks loader execution times against SLA targets and provides alerts
 when loaders are approaching or exceeding their time budgets.
 
 SLA Targets (from steering/loader-strategy.md):
-- stock_prices_daily: 20-30 min expected, 120 min alert threshold
+- price_daily: 20-30 min expected, 120 min alert threshold
 - technical_data_daily: 15-25 min expected, 60 min alert threshold
 - morning prep pipeline: 60-90 min total, 300 min alert threshold
+
+NOTE (2026-08-23): LOADER_SLA_TARGETS is keyed by the real loader's self.table_name, which
+SLAMonitor is instantiated with inside OptimalLoader.run() - but several of the biggest loaders
+(PriceLoader, the sector/industry loader, both quality/growth-metrics loaders) fully override
+run() and never call super().run() or instantiate SLAMonitor at all, so this dict's entries for
+their table names currently have no live effect for them regardless of whether the key is
+correct. See [[sla_monitor_table_name_key_mismatches_fixed_20260823]] in memory.
 """
 
 import logging
@@ -28,7 +35,18 @@ logger = logging.getLogger(__name__)
 # Format: {loader_name: (expected_seconds, warning_threshold_seconds, critical_threshold_seconds)}
 LOADER_SLA_TARGETS = {
     # Critical loaders
-    "stock_prices_daily": (
+    # FIXED 2026-08-23 (goal session, "meet our SLAs" audit): this key was "stock_prices_daily",
+    # which no loader's self.table_name has ever matched - the real price loader
+    # (loaders/load_prices.py::PriceLoader) sets self.table_name = "price_daily". Renamed to the
+    # real value so SLAMonitor(self.table_name).get() actually finds this entry instead of
+    # silently falling through to the generic (60/180/300 min) default - a 6x more lenient
+    # threshold than intended for the single highest-volume, most time-sensitive daily loader.
+    # NOTE: PriceLoader.run() is a full override that never calls super().run() (confirmed via
+    # code read) and never instantiates SLAMonitor at all, so this key alone does not yet
+    # restore live telemetry for price_daily - see
+    # [[sla_monitor_table_name_key_mismatches_fixed_20260823]] in memory for the fuller finding
+    # (several of the biggest loaders bypass this mechanism entirely via run() overrides).
+    "price_daily": (
         20 * 60,
         90 * 60,
         120 * 60,
@@ -41,7 +59,13 @@ LOADER_SLA_TARGETS = {
     "technical_data_daily_vectorized": (20 * 60, 45 * 60, 60 * 60),
     "technical_data_daily": (60 * 60, 90 * 60, 120 * 60),  # Old non-vectorized version
     "buy_sell_daily": (30 * 60, 120 * 60, 180 * 60),
-    "sector_ranking": (15 * 60, 20 * 60, 30 * 60),
+    # FIXED 2026-08-23 (same audit as price_daily above): this key was "sector_ranking", one of
+    # load_sector_industry_daily.py's 3 output_tables, but SLAMonitor is only ever instantiated
+    # with self.table_name - that loader's PRIMARY table is "sector_performance", which had no
+    # entry at all (falling through to the generic 60/180/300 min default). Renamed to the real
+    # value. Same run()-override caveat as price_daily applies here too - see
+    # [[sla_monitor_table_name_key_mismatches_fixed_20260823]].
+    "sector_performance": (15 * 60, 20 * 60, 30 * 60),
     # Supporting loaders
     # FIXED 2026-08-20 (goal: finance-accuracy audit): the old (10, 30, 60)-minute targets
     # were stale - live-confirmed via logs/scheduler_invocations.log: 8 real runs over
