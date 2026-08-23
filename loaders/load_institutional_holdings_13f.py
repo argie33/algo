@@ -209,6 +209,15 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         """
         now_et = datetime.now(EASTERN_TZ)
 
+        # FIXED 2026-08-23 (goal session: loader exception-masking sweep, same bug shape as
+        # load_value_quality_growth_metrics.py's fetch_incremental fix): this used to catch
+        # ANY exception from the SELECT below (a real DB error, connection drop, etc.) and
+        # fall straight through to the generic "not_found_in_institutional_holdings_13f"
+        # marker - identical to what a genuine 0-row "no 13F coverage for this symbol" lookup
+        # produces. A transient DB problem hitting many symbols in one run would silently
+        # look like "ownership data legitimately missing" for all of them instead of
+        # surfacing as an error worth investigating.
+        unavailable_reason = "not_found_in_institutional_holdings_13f"
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -241,6 +250,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 ]
         except Exception as e:
             logger.debug(f"[13F] {symbol}: lookup failed - {e}")
+            unavailable_reason = f"fetch_exception: {type(e).__name__}: {str(e)[:150]}"
 
         # Not found in database - return data_unavailable marker
         return [
@@ -251,7 +261,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 "number_of_institutional_holders": None,
                 "top_10_institutions_pct": None,
                 "data_unavailable": True,
-                "reason": "not_found_in_institutional_holdings_13f",
+                "reason": unavailable_reason,
                 "sec_filing_url": None,
                 "most_recent_filing_date": None,
                 "data_source": "none",

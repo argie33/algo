@@ -72,6 +72,25 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         # Reason is explicit: data not found in 13F filings
         self.assertIn("not_found_in_institutional_holdings_13f", result[0]["reason"])
 
+    def test_institutional_loader_distinguishes_db_exception_from_not_found(self) -> None:
+        """FIX 2026-08-23 (goal session: loader exception-masking sweep): a real DB exception
+        during the lookup used to be silently relabeled as the same generic
+        "not_found_in_institutional_holdings_13f" a genuine 0-row lookup gets - indistinguishable
+        from real "no 13F coverage for this symbol" in the DB. Now the reason carries the real
+        exception so it doesn't masquerade as a legitimate ownership-data gap.
+        """
+        loader = InstitutionalHoldings13FLoader()
+
+        with patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.side_effect = RuntimeError("connection reset")
+
+            result = loader.fetch_incremental("AAPL", None)
+
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0]["data_unavailable"])
+        self.assertIn("fetch_exception: RuntimeError", result[0]["reason"])
+        self.assertNotIn("not_found_in_institutional_holdings_13f", result[0]["reason"])
+
     def test_insider_loader_explicit_failure_reason(self):
         """Loader should provide explicit failure reasons for debugging.
 
