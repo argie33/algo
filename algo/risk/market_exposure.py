@@ -169,6 +169,41 @@ scoring a different input now. UMCSENT itself is untouched everywhere else in th
 codebase (economic_data, the general Economic dashboard panel, load_economic_data.py's
 FRED loader) - this change only removes it from the exposure engine.
 
+Pass 7 (2026-08-23, user-directed: "make sure we do right things ... based on industry
+research") cross-checked this file's own factor choices against real published research
+(Chicago Fed NFCI/OFR FSI methodology, Engstrom-Sharpe near-term forward spread, Gilchrist-
+Zakrajsek excess bond premium, IMF equal-weight-vs-PCA financial-conditions-index study,
+AAII/Sahm/Follow-Through-Day independent validation - see conversation record) and fixed
+one real, data-confirmed problem it surfaced: T10Y2Y's local economic_data history was only
+274 rows (started 2025-07-21, zero recessions in-sample) because
+loaders/load_economic_data.py's regular run only maintains a rolling 365-day window and this
+series never got an initial deep backfill - the same disqualifying pattern this file already
+uses to reject ANFCI/STLFSI4/CFNAI elsewhere, just never checked for T10Y2Y specifically.
+Backfilled T10Y2Y, T10Y3M, T5YIE, T10YIE, and BAMLH0A0HYM2 to their full available FRED
+history via the new scripts/backfill_economic_data_history.py (T10Y2Y/T10Y3M/T5YIE/T10YIE
+now run 1990/2003-2026; BAMLH0A0HYM2 could only reach 2023-08 - FRED now caps ICE BofA index
+series to a rolling ~3yr window regardless of requested range, a permanent external
+constraint discovered live, not a bug here). Re-checked with the real long history: T10Y2Y
+vs T10Y3M is actually 0.941 correlated (not the -0.28 this file previously claimed, which
+was an artifact of testing against T10Y2Y's short unbackfilled sample) - see
+_yield_curve_factor's corrected docstring for the full finding and why both are still kept
+(shared weight budget, not the double-voting pattern that got Breadth merged).
+
+Two research-backed candidate upgrades were investigated with the same real-data discipline
+this file applies everywhere else, and both were tested and NOT shipped: the Near-Term
+Forward Spread (Engstrom & Sharpe, dominates 10Y-2Y in Fed research) - the only buildable
+local approximation (par-yield interpolation, no real zero-coupon/term-premium curve
+available) came back 0.845 correlated with T10Y3M, crossing this file's own merge bar,
+so shipping it under that research citation would overstate what the approximation actually
+delivers (see _yield_curve_factor's docstring); and the excess bond premium (Favara/
+Gilchrist/Lewis/Zakrajsek, the theoretically cleaner component of credit spread) - a real,
+reliable, permanent-URL Fed data source exists for it, but it came back 0.80 correlated with
+this file's existing HY-OAS-based Credit Spread factor over the only comparable window (36
+months), also crossing the bar (see _credit_spread's docstring). Both are documented as
+tested-and-declined rather than silently skipped, matching this file's treatment of every
+other candidate that didn't survive its own redundancy check (STLFSI4, ANFCI, CNN Fear &
+Greed).
+
 AAII Sentiment was relabeled RETAIL SENTIMENT (AAII) per the user's request - the
 underlying data and scoring are unchanged (still the real AAII survey, still contrarian-
 at-extremes only), this is a display-name change to the general category the factor
@@ -1289,7 +1324,7 @@ class MarketExposure:
         cur: PsycopgCursor[Any],
         series_id: str,
         higher_is_worse: bool,
-        lookback: int = 800,
+        lookback: int = 10000,
     ) -> dict[str, Any]:
         """Shared helper: z-score a single economic_data series against its own real
         history (standard Barra/Axioma-style normalization - see MarketFactorCalculator
@@ -1297,6 +1332,21 @@ class MarketExposure:
         composites (ANFCI, STLFSI4) rather than remixed with unrelated series into a new
         bespoke blend. Degrades to data_unavailable rather than raising - these are all
         optional, newer factors (see module docstring on why Sahm Rule is the exception).
+
+        FIXED 2026-08-23 (goal: exposure-model integrity review, industry-research pass):
+        default lookback raised from 800 to 10000. T10Y2Y and T10Y3M (this helper's only
+        remaining live callers, via _yield_curve_factor) were both z-scoring off dangerously
+        short local history - T10Y2Y had only 274 rows (starting 2025-07-21, zero recessions
+        in-sample) because loaders/load_economic_data.py's regular run only maintains a
+        rolling 365-day window and this series never got an initial deep backfill (T10Y3M
+        was better but still only went back to 2015). Same disqualifying pattern this file's
+        own module docstring already used to reject ANFCI/STLFSI4/CFNAI - just not caught
+        here because nobody checked these two series' OWN history depth, only their
+        correlation against each other. Backfilled both via
+        scripts/backfill_economic_data_history.py to their full real FRED history
+        (1990-01-02 to present, 9,166 rows, spans 2001/2008-09/2020) - lookback=10000 now
+        actually uses that depth instead of silently capping at the same ~3.2-year window
+        the old 800-row default gave even after the backfill.
         """
         cur.execute(
             "SELECT value::float FROM economic_data WHERE series_id = %s AND date <= %s "
@@ -1329,12 +1379,50 @@ class MarketExposure:
     def _yield_curve_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Yield curve factor: T10Y2Y + T10Y3M, each z-scored against own history, averaged.
 
-        Correlation-checked 2026-08-22 against real data in this DB: T10Y2Y vs T10Y3M is
-        only -0.28 correlated - genuinely distinct information (the short end can un-invert
-        well before the long end normalizes), so both are used rather than one being
-        dropped as redundant with the other. A more negative (more inverted) spread is the
-        bearish direction for both, so z is flipped before scoring (positive z = stress,
-        matching the convention every other z-scored factor in this file uses).
+        CORRECTED 2026-08-23 (goal: exposure-model integrity review, industry-research pass):
+        the -0.28 "genuinely distinct" correlation this docstring previously claimed
+        (2026-08-22 pass 3) was computed against T10Y2Y's local history as it stood then -
+        274 rows, starting 2025-07-21. Re-checked after backfilling both series to their
+        full real FRED history (1990-2026, see _single_series_zscore_factor's fix comment):
+        T10Y2Y and T10Y3M are actually 0.941 correlated over the real 26-year sample - far
+        past this file's own >0.7 action bar (higher even than Breadth's 0.77 merge case),
+        confirming the two series are substantially the same underlying curve-slope
+        information, not independent reads. The original short-sample test wasn't run
+        dishonestly, it was just testing the wrong thing: 13 months with zero recessions
+        can't distinguish "these move together" from "these happened not to move together
+        recently" - the same class of problem this file already disqualifies ANFCI/STLFSI4/
+        CFNAI for elsewhere, just not applied to this pair's OWN history depth before now.
+
+        Despite the high correlation, BOTH inputs are kept (not merged into a single
+        weighted vote the way Breadth's 50/200-DMA pair was, and not dropped the way
+        STLFSI4 was) - the reason is structural, not a re-litigation of the redundancy
+        finding: T10Y2Y and T10Y3M already share ONE combined weight budget here (averaged
+        into a single score below), unlike Breadth's pre-fix bug where two correlated reads
+        each had their OWN separate weight budget and so cast two votes for the same
+        information. Averaging two 0.941-correlated series is not free of the small,
+        deliberately-preserved divergence this file's design intent already called out (the
+        short end can un-invert before the long end normalizes - real in 2001 and 2019), it
+        just isn't double-counted in the composite total the way a true Breadth-style bug
+        would be. A more negative (more inverted) spread is the bearish direction for both,
+        so z is flipped before scoring (positive z = stress, matching the convention every
+        other z-scored factor in this file uses).
+
+        Near-Term Forward Spread (Engstrom & Sharpe, Federal Reserve working paper) was
+        investigated as a real research-backed alternative/addition - Fed research finds it
+        dominates the traditional 10Y-2Y spread, which becomes statistically redundant once
+        it's included. NOT shipped: the real NTFS needs a proper zero-coupon/OIS forward
+        curve (Fed's own construction uses a smoothed term-structure model); this DB only has
+        the raw par CMT tenors (DGS1/DGS2/DGS3MO/DGS10, etc.), so the only buildable version
+        here is a linear-interpolation approximation. Tested that approximation the same way
+        every other candidate in this file gets tested before shipping: 0.845 correlated with
+        the (now correctly long-history) T10Y3M - crosses this file's own merge bar. Shipping
+        an approximation that doesn't actually reproduce the real signal's claimed
+        independence, under the name of research that describes a more rigorous construction,
+        would be the same mistake the CNN Fear & Greed factor was rejected for (see module
+        docstring pass 5) - a plausible-sounding proxy that doesn't deliver what its citation
+        implies. Revisit only if a real zero-coupon/term-premium Treasury curve dataset gets
+        ingested (e.g. the Fed's Gurkaynak-Sack-Wright series) - not with par-yield
+        interpolation.
         """
         pieces = []
         detail: dict[str, Any] = {}
@@ -1371,7 +1459,7 @@ class MarketExposure:
             JOIN economic_data b ON a.date = b.date AND b.series_id = 'T10YIE'
             WHERE a.series_id = 'T5YIE' AND a.date <= %s
               AND a.value IS NOT NULL AND b.value IS NOT NULL
-            ORDER BY a.date DESC LIMIT 800
+            ORDER BY a.date DESC LIMIT 10000
             """,
             (eval_date,),
         )
@@ -1730,6 +1818,38 @@ class MarketExposure:
         Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
         Note: HY OAS is intentionally excluded from the economic regime overlay
         to avoid double-counting this data series.
+
+        INVESTIGATED 2026-08-23 (goal: exposure-model integrity review, industry-research
+        pass) and NOT adopted: the excess bond premium (EBP, Favara/Gilchrist/Lewis/
+        Zakrajsek, published monthly by the Federal Reserve Board at a permanent, reliable
+        CSV URL - https://www.federalreserve.gov/econres/notes/feds-notes/ebp_csv.csv,
+        no API key needed) is the academically "cleaner" credit signal - it strips the
+        pure-default-risk component out of a raw corporate spread, isolating the part that
+        reflects credit-market risk appetite specifically. Real research (Gilchrist-Zakrajsek
+        2012) finds THAT stripped-down component carries the recession-predictive power, not
+        the raw spread level this factor uses. Tested anyway with real data before shipping
+        (same discipline this file applies everywhere else): EBP vs. this factor's own HY OAS
+        correlates at 0.80 over the only window both can be compared on (36 overlapping
+        months, 2023-08 to 2026-07) - past this file's >0.7 action bar, and EBP is
+        conceptually a re-derivation of the same corporate-credit-spread market (Gilchrist-
+        Zakrajsek's own bond index, methodologically close kin to ICE BofA's HY OAS) rather
+        than a mechanically distinct measurement the way VIX and Credit Spread are distinct
+        markets that happen to co-move (see module docstring pass 4) - closer to the
+        STLFSI4-vs-HY-OAS case (0.748, dropped) than the VIX-vs-Credit-Spread case (0.757,
+        kept). Blending it in would have been adding a second vote for largely the same
+        information under a different name. Not built (no loader, no economic_data rows) -
+        shipping unused ingestion code for a source that failed its own adoption test would
+        be the same dead-weight this file's history has cleaned up before (ad_line/
+        credit_spread dead code, CNN Fear & Greed reverted rather than left half-wired).
+
+        Separately discovered while testing this: FRED changed its distribution policy for
+        ICE BofA index series (including this factor's own BAMLH0A0HYM2) in April 2026 -
+        only a rolling ~3-year window is served via the API now, regardless of request
+        range (confirmed live: requesting from 1990 still only returned 787 rows starting
+        2023-08-22). This is a permanent external ceiling on how much HY OAS history this
+        factor (or any future z-scored refinement of it) can ever pull from FRED directly -
+        not a bug in this loader/backfill, and not fixable without sourcing raw ICE data
+        directly from ICE Data Indices instead of via FRED.
         """
         cur.execute(
             """
