@@ -1175,6 +1175,34 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             # only available annual data, same fallback-of-last-resort precedent as
             # _PRIMARY_STATEMENT_FORMS above.
             has_annual_report_form = any(e.get("form") in _ANNUAL_REPORT_FORMS for e in entries)
+            # FIXED 2026-08-22 (goal session: real-money-readiness audit, quarterly_balance_
+            # sheet residual-contamination follow-up): some filers mistag EVERY 10-Q's fp as
+            # "FY" instead of "Q1"/"Q2"/"Q3" for a specific fiscal year (a filer-side XBRL
+            # tagging quirk, not per-fact noise - live-confirmed via AGNC/AGNC Investment
+            # Corp: every one of its FY2020 10-Qs tags fp="FY", while its FY2021 10-Qs
+            # correctly tag fp="Q1"/"Q2"/"Q3"). The strict `fp not in fp_filter` quarterly
+            # gate below then drops the ENTIRE fiscal year from quarterly extraction, even
+            # though real, distinct, correctly-deduped quarter-end instant values exist
+            # (AGNC FY2020: Q1=$85.137B, Q2=$89.853B, Q3=$79.968B, live-confirmed via real
+            # companyfacts JSON) - quarterly_balance_sheet was left showing 3 straight
+            # quarters frozen at the FY-end value ($81.817B) from a stale pre-fix write,
+            # untouched by the 2026-08-22 watermark-bypass backfill because the current
+            # (correct) extraction logic produces zero rows for that year at all, not a
+            # wrong value to overwrite it with. Derive a fallback quarter from the entry's
+            # own end-date month instead of trusting the filer's fp tag, but ONLY when: (a)
+            # it's an instant fact (no start - the accn+max-end-date dedup above already
+            # guarantees this is the filing's own genuine current-period value, never a
+            # comparative echo, so fp's unreliability here doesn't risk the contamination
+            # this file's other fp-trust fixes are guarding against), and (b) this filer's
+            # own fiscal year genuinely ends in December (checked below from its real
+            # 10-K/equivalent instant facts) - deliberately NOT extended to non-calendar
+            # fiscal years, where a bare calendar-month-to-quarter mapping would be wrong.
+            _fye_month: int | None = None
+            for _e in entries:
+                if _e.get("form") in _ANNUAL_REPORT_FORMS and not _e.get("start") and _e.get("end"):
+                    _fye_month = int(_e["end"][5:7])
+                    break
+            has_december_fiscal_year_end = _fye_month == 12
             # BUG FOUND 2026-08-22 (goal session: quarterly balance-sheet comparative-period
             # contamination): a single filing (one accession number, "accn") typically tags
             # an instant concept's value TWICE - once for its own current reporting period,
@@ -1296,7 +1324,18 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     else:
                         continue  # Skip other FP values
                 elif period == "quarterly" and fp not in fp_filter:
-                    continue
+                    # See has_december_fiscal_year_end's comment above this loop for the
+                    # full AGNC-verified rationale. Only ever a fallback when the filer's
+                    # own fp tag doesn't already give a real Q1-Q4 answer; derived_fp stays
+                    # None (entry skipped, same as before this fix) for every case this
+                    # doesn't narrowly apply to - duration facts, non-December fiscal
+                    # years, or an end date that isn't a clean quarter-boundary month.
+                    derived_fp = None
+                    if not start_date and has_december_fiscal_year_end and entry.get("end") and len(entry["end"]) >= 7:
+                        derived_fp = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}.get(entry["end"][5:7])
+                    if derived_fp is None:
+                        continue
+                    fp = derived_fp
 
                 # Use period end year as the fiscal year key, not SEC's fy field.
                 # SEC tags ALL periods in a 10-K with fy=FILING_YEAR - so prior-year
