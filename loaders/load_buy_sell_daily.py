@@ -13,6 +13,7 @@ setup_imports()
 
 import argparse
 import logging
+import time
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -1019,6 +1020,13 @@ def main() -> int:  # noqa: C901
     )
     args = parser.parse_args()
 
+    # BUG FIX (2026-08-23): this loader never tracked its own execution time, so both
+    # mark_completed() calls below never passed execution_duration_sec - data_loader_status.
+    # buy_sell_daily's execution_duration_sec was always NULL, making SLA monitoring
+    # (utils/loaders/sla_monitor.py's LOADER_SLA_TARGETS) unable to evaluate this loader's
+    # real runtime against its documented 30/120/180-minute targets.
+    start_time = time.time()
+
     try:
         if args.symbols:
             symbols = args.symbols.split(",")
@@ -1431,6 +1439,7 @@ def main() -> int:  # noqa: C901
                     current_run_symbols_loaded=symbols_successfully_processed,
                     current_run_symbol_count=effective_universe,
                     symbols_failed=result.get("symbols_failed"),
+                    execution_duration_sec=time.time() - start_time,
                 )
                 logger.info(
                     f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
@@ -1465,6 +1474,7 @@ def main() -> int:  # noqa: C901
                     latest_date=current_latest_date,
                     min_completion_pct=0,  # 0% threshold OK since we're not generating signals
                     symbols_failed=0,
+                    execution_duration_sec=time.time() - start_time,
                 )
                 logger.info("[STATUS] Marked buy_sell_daily as COMPLETED (zero-data day, no watermark advance)")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:

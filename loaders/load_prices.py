@@ -2303,11 +2303,28 @@ class PriceLoader(OptimalLoader):
                 # SESSION 88 FIX: Lowered threshold from 99% to 95% (allowing 5% failure)
                 # while still marking <95% loads as INCOMPLETE to prevent cascade failures.
                 status_mgr.mark_completed(
-                    execution_duration_sec=(time.time() - start_time) if hasattr(self, "_start_time") else None,
+                    # BUG FIX (2026-08-23): `hasattr(self, "_start_time")` checked a totally
+                    # different, nonexistent attribute - this class only ever sets
+                    # `self._rate_limit_error_start_time` (unrelated), never `self._start_time`.
+                    # That made this condition permanently False, so `execution_duration_sec`
+                    # was always None here - live-confirmed: data_loader_status.price_daily's
+                    # execution_duration_sec is NULL despite real runs completing successfully.
+                    # `start_time` (the local variable actually used in the arithmetic) is
+                    # already guaranteed non-None a few lines above (raises RuntimeError
+                    # otherwise) - no hasattr guard was ever needed.
+                    execution_duration_sec=time.time() - start_time,
                     latest_date=latest_date,
                     current_run_symbols_loaded=symbols_successfully_loaded,
                     current_run_symbol_count=symbols_expected,
                     min_completion_pct=95.0,  # Enforce minimum 95% completion
+                    # BUG FIX (2026-08-23): this was never passed, so
+                    # data_loader_status.symbols_failed stayed NULL on every COMPLETED
+                    # run regardless of how many individual symbols actually failed -
+                    # the only place that count was visible was in-process stats and
+                    # the run's own log line. Surfacing it makes real per-symbol
+                    # failures visible to health/staleness monitoring instead of only
+                    # existing where a human happens to be grepping logs.
+                    symbols_failed=self._stats.get("symbols_failed"),
                 )
 
                 # SESSION 112/113 FIX: Mark auxiliary output tables as COMPLETED
@@ -2356,9 +2373,10 @@ class PriceLoader(OptimalLoader):
                             # (see its comment): a check with no real data to validate against
                             # should not gate on a threshold it cannot meaningfully evaluate.
                             aux_mgr.mark_completed(
-                                execution_duration_sec=(time.time() - start_time)
-                                if hasattr(self, "_start_time")
-                                else None,
+                                # BUG FIX (2026-08-23): same dead hasattr(self, "_start_time")
+                                # check as the primary mark_completed() call above - see its
+                                # comment. `start_time` is already validated non-None.
+                                execution_duration_sec=time.time() - start_time,
                                 latest_date=latest_date,
                                 min_completion_pct=0.0,
                             )
@@ -3044,11 +3062,29 @@ class PriceLoader(OptimalLoader):
                         f"[{self.table_name}] {symbol}: trimmed {before_trim - len(rows)} already-loaded rows "
                         f"(own watermark {sym_wm}, batch window {previous_date})"
                     )
-                if not rows:
-                    # Everything fetched is already loaded - watermark current, not a failure.
+                if not rows and before_trim > 0:
+                    # Trimming actually removed rows (they existed pre-trim) - genuinely
+                    # already loaded, watermark current, not a failure.
                     self._stats["symbols_skipped_by_watermark"] += 1
                     self._stats["symbols_processed"] += 1
                     continue
+                # BUG FIX (2026-08-23): if `rows` was already empty walking into this
+                # block (before_trim == 0 - e.g. every fetched row was rejected by the
+                # quality validator a few lines up, or the fetch itself returned rows
+                # that transform()/_validate_row() then dropped), trimming a
+                # 0-length list is a no-op and this is NOT a benign watermark-skip.
+                # Previously this branch caught that case identically to the real
+                # skip case above and always credited symbols_skipped_by_watermark,
+                # which made the `if not rows:` failure-counting block immediately
+                # below permanently unreachable for any symbol that already has a
+                # watermark (i.e. every actively-tracked symbol, always). Live-
+                # confirmed: CDTG/IPST/LGCL/MDV and other volatile micro-caps had
+                # 66-100% of their fetched rows rejected by the spread/price-gap
+                # sanity check every day for over a week, with zero visible failure
+                # in symbols_failed, loader_watermarks.error_count, or
+                # data_loader_status - watermarks silently froze with no signal.
+                # Falling through here lets the correct failure-counting logic below
+                # actually run.
 
             if not rows:
                 # Symbol has no valid price data after validation.
