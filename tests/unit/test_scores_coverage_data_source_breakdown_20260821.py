@@ -58,11 +58,13 @@ def test_factor_gets_data_source_breakdown_and_summary_rollup():
         {"source": "yfinance_api", "label": "Yahoo Finance", "count": 20, "pct": 20.0},
     ]
 
+    # FIXED 2026-08-23: summary rollup is keyed by human label, not raw data_source string -
+    # see test_summary_source_rollup_merges_same_label_across_tables below for why.
     summary = body["summary"]
-    assert summary["source_totals"] == {"sec_audited": 80, "yfinance_api": 20}
-    assert summary["source_order"] == ["sec_audited", "yfinance_api"]
-    assert summary["source_labels"]["sec_audited"] == "SEC (audited financials)"
-    assert summary["source_labels"]["yfinance_api"] == "Yahoo Finance"
+    assert summary["source_totals"] == {"SEC (audited financials)": 80, "Yahoo Finance": 20}
+    assert summary["source_order"] == ["SEC (audited financials)", "Yahoo Finance"]
+    assert summary["source_labels"]["SEC (audited financials)"] == "SEC (audited financials)"
+    assert summary["source_labels"]["Yahoo Finance"] == "Yahoo Finance"
 
 
 def test_table_without_data_source_column_reports_no_sources():
@@ -124,3 +126,43 @@ def test_source_tracking_per_field_breakdown_wins_over_table_wide_data_source():
         {"source": "finra", "label": "FINRA", "count": 70, "pct": 70.0},
         {"source": "unavailable", "label": "Unavailable", "count": 30, "pct": 30.0},
     ]
+
+
+def test_summary_source_rollup_merges_same_label_across_tables():
+    """FIX 2026-08-23 (goal: data-source accuracy review): two tables can write different
+    literal data_source strings ("finra" vs "finra_query_api") that _prettify_source() maps
+    to the identical human label "FINRA". Before this fix, the summary rollup was keyed by
+    the raw string, so the KPI chart/legend showed two separate same-labeled "FINRA" entries
+    instead of one merged bar - exactly what a live /api/algo/scores/coverage pull surfaced
+    (two "FINRA" rows, 5,192 and 4,918, instead of one ~10,110 row)."""
+
+    class _TwoTablesSameLabelCursor(_DataSourceCursor):
+        def fetchall(self):
+            q = self._last_query
+            if "SELECT table_name, column_name" in q:
+                return [
+                    ("fake_a", "a_unavailable_reason"),
+                    ("fake_b", "b_unavailable_reason"),
+                ]
+            if "information_schema.columns" in q and "IN ('symbol','date'" in q:
+                return [("symbol",), ("date",), ("data_source",)]
+            if "data_source AS source_val" in q:
+                if "fake_a" in q:
+                    return [("finra", 60)]
+                if "fake_b" in q:
+                    return [("finra_query_api", 40)]
+                return []
+            if "a_unavailable_reason AS reason_val" in q:
+                return [("missing_sec_data", 5)]
+            if "b_unavailable_reason AS reason_val" in q:
+                return [("missing_sec_data", 5)]
+            return []
+
+    cursor = _TwoTablesSameLabelCursor()
+    resp = scores_mod._get_scores_coverage(cursor)
+    assert resp["statusCode"] == 200
+    summary = resp["data"]["summary"]
+
+    assert summary["source_totals"] == {"FINRA": 100}
+    assert summary["source_order"] == ["FINRA"]
+    assert summary["source_labels"] == {"FINRA": "FINRA"}

@@ -2575,6 +2575,15 @@ def _get_scores_coverage(cur: cursor) -> Any:
         # Table-wide source rollup for the summary KPI/chart - one table's data_source
         # breakdown counted once (not once per factor column on that table), same dedup
         # reasoning as table_source_cache being keyed by table above.
+        #
+        # FIXED 2026-08-23 (goal: data-source accuracy review): keyed by s["label"], not
+        # s["source"]. Different tables write different literal data_source strings that
+        # _prettify_source() maps to the SAME human label - e.g. "finra" (short_interest_finra)
+        # and "finra_query_api" (positioning_metrics) both -> "FINRA". Keying by the raw string
+        # left them as two separate same-labeled bars/legend entries in the summary chart
+        # (e.g. "FINRA 5,192" and "FINRA 4,918" shown side by side) instead of one merged
+        # ~10,110-count bar. Per-factor source breakdowns (_resolve_factor_sources) are
+        # unaffected - only this table-wide rollup used the raw string as its dict key.
         source_totals: dict[str, int] = {}
         source_labels: dict[str, str] = {}
         _seen_source_tables: set[str] = set()
@@ -2584,8 +2593,9 @@ def _get_scores_coverage(cur: cursor) -> Any:
                 continue
             _seen_source_tables.add(t)
             for s in table_source_cache.get(t) or []:
-                source_totals[s["source"]] = source_totals.get(s["source"], 0) + s["count"]
-                source_labels[s["source"]] = s["label"]
+                label = s["label"]
+                source_totals[label] = source_totals.get(label, 0) + s["count"]
+                source_labels[label] = label
         source_order = sorted(source_totals, key=lambda s: -source_totals[s])
 
         # stock_symbols is the actual universe registry - prefer it over other tables'

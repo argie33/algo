@@ -50,10 +50,15 @@ const hashStr = (s) => {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 };
-const sourceColor = (source) =>
-  source === "not_recorded" || source === "none" || source === "unavailable"
+// Accepts both raw data_source strings (per-factor breakdowns, e.g. "unavailable") and
+// pretty labels (the table-wide summary chart now keys by label - see scores.py's
+// 2026-08-23 source_totals fix) so the "no source" bucket stays gray either way.
+const sourceColor = (source) => {
+  const s = String(source || "").toLowerCase();
+  return s === "not_recorded" || s === "none" || s === "unavailable" || s === "not recorded"
     ? "#5b6478"
     : SOURCE_PALETTE[hashStr(source || "") % SOURCE_PALETTE.length];
+};
 
 const fmtInt = (n) => Number(n || 0).toLocaleString("en-US");
 
