@@ -495,6 +495,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         """Compute enhanced metrics for symbol."""
         with DatabaseContext("read") as cur:
             # Get historical financial data for trend computation
+            #
+            # FIXED (goal session, "so many from yfinance still" data-accuracy audit):
+            # annual_income_statement writes a data_unavailable=TRUE placeholder row for the
+            # current, not-yet-filed fiscal year - without the filter below, income_rows[0]
+            # (unconditionally treated as "current year" just below) was that all-NULL
+            # placeholder for ~3,076 symbols, so every growth_fields/quality_fields metric
+            # this loader computes silently went unset (curr_*_f is None -> the `is not None`
+            # guards below skip it) instead of computing from the real latest complete year.
+            # Not currently corrupting growth_metrics/quality_metrics (the UPDATE below only
+            # SETs a column when it actually computed a value, so a skip just leaves
+            # load_value_quality_growth_metrics.py's own correctly-guarded value in place) but
+            # made this loader's entire "enhanced" pass a silent no-op for those symbols. Same
+            # fix as lambda/api/routes/stocks.py's /deep-value screener.
             cur.execute(
                 """
                 SELECT i.fiscal_year, i.revenue, i.operating_income, i.net_income,
@@ -503,7 +516,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 FROM annual_income_statement i
                 LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
                 LEFT JOIN annual_cash_flow c ON c.symbol = i.symbol AND c.fiscal_year = i.fiscal_year
-                WHERE i.symbol = %s
+                WHERE i.symbol = %s AND i.data_unavailable IS NOT TRUE
                 ORDER BY i.fiscal_year DESC
                 LIMIT 5
             """,
