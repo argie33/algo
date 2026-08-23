@@ -938,7 +938,8 @@ function ExposureFactors({ markets }) {
               if (f.pct_above_200 != null)
                 sub.push(`200d:${num(f.pct_above_200, 0)}%`);
             } else if (key === "sahm_rule") {
-              if (f.value != null) sub.push(`${num(f.value, 2)}pp vs. 0.50pp trigger`);
+              if (f.value != null)
+                sub.push(`${num(f.value, 2)}pp vs. 0.50pp trigger`);
               if (f.triggered) sub.push("TRIGGERED");
             } else if (key === "inflation_expectations") {
               if (f.value != null) sub.push(`breakeven ${num(f.value, 2)}%`);
@@ -962,7 +963,9 @@ function ExposureFactors({ markets }) {
             } else if (key === "market_technicals") {
               if (f.rsi_14 != null) sub.push(`RSI ${num(f.rsi_14, 1)}`);
               if (f.macd_z != null)
-                sub.push(`MACD z=${f.macd_z > 0 ? "+" : ""}${num(f.macd_z, 1)}`);
+                sub.push(
+                  `MACD z=${f.macd_z > 0 ? "+" : ""}${num(f.macd_z, 1)}`
+                );
             } else {
               // Generic display for other factors
               if (f.value != null) sub.push(`val ${num(f.value, 2)}`);

@@ -55,7 +55,10 @@ const hashStr = (s) => {
 // 2026-08-23 source_totals fix) so the "no source" bucket stays gray either way.
 const sourceColor = (source) => {
   const s = String(source || "").toLowerCase();
-  return s === "not_recorded" || s === "none" || s === "unavailable" || s === "not recorded"
+  return s === "not_recorded" ||
+    s === "none" ||
+    s === "unavailable" ||
+    s === "not recorded"
     ? "#5b6478"
     : SOURCE_PALETTE[hashStr(source || "") % SOURCE_PALETTE.length];
 };
@@ -100,9 +103,7 @@ export default function ScoresDataCoverage({ active }) {
   const sourceOptions = useMemo(
     () =>
       Array.from(
-        new Set(
-          factors.map((f) => dominantSource(f)?.label).filter(Boolean)
-        )
+        new Set(factors.map((f) => dominantSource(f)?.label).filter(Boolean))
       ).sort(),
     [factors]
   );
@@ -186,8 +187,8 @@ export default function ScoresDataCoverage({ active }) {
             Which scoring factors are missing data across the universe, why —
             aggregated by root cause from every{" "}
             <code className="mono t-2xs">*_unavailable_reason</code> column in
-            the schema — and which upstream source (SEC, Yahoo Finance,
-            FINRA, ...) each factor's data actually comes from.
+            the schema — and which upstream source (SEC, Yahoo Finance, FINRA,
+            ...) each factor's data actually comes from.
           </div>
         </div>
         <button
@@ -306,9 +307,8 @@ export default function ScoresDataCoverage({ active }) {
                 <div>
                   <div className="card-title">Data Sources</div>
                   <div className="card-sub">
-                    Which upstream source each tracked factor's data comes
-                    from, summed across all tracked factors (latest row per
-                    symbol)
+                    Which upstream source each tracked factor's data comes from,
+                    summed across all tracked factors (latest row per symbol)
                   </div>
                 </div>
               </div>
@@ -565,9 +565,7 @@ export default function ScoresDataCoverage({ active }) {
                                 ))}
                               </div>
                             ) : (
-                              <span className="t-2xs faint">
-                                Not tracked
-                              </span>
+                              <span className="t-2xs faint">Not tracked</span>
                             )}
                           </td>
                           <td>
@@ -610,7 +608,8 @@ export default function ScoresDataCoverage({ active }) {
                                 <div
                                   style={{
                                     padding: "8px 0 8px 34px",
-                                    borderBottom: "1px solid var(--border-soft)",
+                                    borderBottom:
+                                      "1px solid var(--border-soft)",
                                   }}
                                 >
                                   <div
@@ -640,9 +639,7 @@ export default function ScoresDataCoverage({ active }) {
                                       >
                                         {fmtInt(s.count)}
                                       </span>
-                                      <span style={{ flex: 1 }}>
-                                        {s.label}
-                                      </span>
+                                      <span style={{ flex: 1 }}>{s.label}</span>
                                       <span className="t-2xs faint">
                                         {s.pct}%
                                       </span>
@@ -650,7 +647,11 @@ export default function ScoresDataCoverage({ active }) {
                                   ))}
                                 </div>
                               )}
-                              <div style={{ paddingTop: f.sources?.length ? 4 : 0 }}>
+                              <div
+                                style={{
+                                  paddingTop: f.sources?.length ? 4 : 0,
+                                }}
+                              >
                                 {f.sources?.length > 0 && (
                                   <div
                                     className="t-2xs faint"
@@ -689,9 +690,7 @@ export default function ScoresDataCoverage({ active }) {
                                     <span style={{ flex: 1 }}>{r.reason}</span>
                                     {f.denom && (
                                       <span className="t-2xs faint">
-                                        {((100 * r.count) / f.denom).toFixed(
-                                          1
-                                        )}
+                                        {((100 * r.count) / f.denom).toFixed(1)}
                                         % of table
                                       </span>
                                     )}

@@ -116,10 +116,10 @@ function ServiceHealthContent() {
   // NULL-rate or coverage problem this same page lists per-source. Caveat it instead of
   // letting the two disagree silently (mirrors the TUI fix, 2026-08-21).
   const qualityIssueCount = sources.filter(
-    (s) => s.quality_status === "warning" || s.quality_status === "error",
+    (s) => s.quality_status === "warning" || s.quality_status === "error"
   ).length;
   const coverageIssueCount = sources.filter(
-    (s) => s.coverage_status === "partial" || s.coverage_status === "sparse",
+    (s) => s.coverage_status === "partial" || s.coverage_status === "sparse"
   ).length;
   const executionHealth = dataStatus?.execution_health;
   const findings = plAccessDenied
@@ -243,21 +243,22 @@ function ServiceHealthContent() {
                   >
                     {ready ? "READY TO TRADE" : "NOT READY"}
                   </div>
-                  {ready && (qualityIssueCount > 0 || coverageIssueCount > 0) && (
-                    <div className="t-xs" style={{ color: "var(--amber)" }}>
-                      {[
-                        qualityIssueCount > 0
-                          ? `${qualityIssueCount} quality issue(s)`
-                          : null,
-                        coverageIssueCount > 0
-                          ? `${coverageIssueCount} coverage gap(s)`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}{" "}
-                      below
-                    </div>
-                  )}
+                  {ready &&
+                    (qualityIssueCount > 0 || coverageIssueCount > 0) && (
+                      <div className="t-xs" style={{ color: "var(--amber)" }}>
+                        {[
+                          qualityIssueCount > 0
+                            ? `${qualityIssueCount} quality issue(s)`
+                            : null,
+                          coverageIssueCount > 0
+                            ? `${coverageIssueCount} coverage gap(s)`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}{" "}
+                        below
+                      </div>
+                    )}
                 </div>
               </div>
               <div className="stile">
@@ -436,7 +437,9 @@ function ServiceHealthContent() {
                                   className={`badge ${flagQA ? "badge-amber" : STATUS_VARIANT[s.status] || "badge"}`}
                                   title={qaTitle}
                                 >
-                                  {flagQA ? "QA" : (s.status || "").toUpperCase()}
+                                  {flagQA
+                                    ? "QA"
+                                    : (s.status || "").toUpperCase()}
                                 </span>
                               </td>
                             </tr>
