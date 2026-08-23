@@ -24,14 +24,25 @@ class SignalPatternsMixin:
     # Pattern detection thresholds (extracted from hardcoded values)
     BASE_MIN_DEPTH_PCT = 8.0
     BASE_MAX_DEPTH_PCT = 35.0
+    # Same class of heuristic as BASE_MIN/MAX_DEPTH_PCT - no canonical primary source, just the
+    # commonly-cited IBD "wide and loose" outer bound for a deeper/looser-than-ideal but still
+    # recognized base (vs. a stock that's simply not basing at all beyond this).
+    BASE_WIDE_LOOSE_MAX_DEPTH_PCT = 50.0
     BASE_MIN_BARS = 10
     BASE_MIN_HISTORY = 20
     VCP_MIN_BARS = 30
     VCP_MIN_CONTRACTIONS = 2
     VCP_MIN_DEPTHS = 3
     VCP_TIGHT_PATTERN_PCT = 5.0
-    VCP_CONTRACTION_FACTOR = 0.7  # Depth must be <= 70% of previous
-    LOOKBACK_DAYS_DEFAULT = 60
+    VCP_CONTRACTION_FACTOR = 0.7  # Depth (and volume) must be <= 70% of previous leg
+    # General base pivot/shape search window: wide enough to cover most cited valid IBD base
+    # durations (commonly 8-24 weeks, i.e. 40-120 trading days) without pulling in stale, no-
+    # longer-relevant price structure from a full year back.
+    LOOKBACK_DAYS_DEFAULT = 130
+    # VCP is explicitly a shorter, tighter pattern than a general base (see vcp_detection()
+    # docstring) - kept on its own constant so widening LOOKBACK_DAYS_DEFAULT above can't drag
+    # stale multi-month-old peaks into VCP's contraction analysis.
+    VCP_LOOKBACK_DAYS = 60
     LOOKBACK_BARS_SHORT = 25
 
     def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any]) -> Any:
@@ -68,10 +79,10 @@ class SignalPatternsMixin:
     def base_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         def _fetch_and_analyze(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
-                """
+                f"""
                 SELECT date, high, low, close, volume FROM price_daily
                 WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 60
+                ORDER BY date DESC LIMIT {self.LOOKBACK_DAYS_DEFAULT}
                 """,
                 (symbol, eval_date),
             )
@@ -132,7 +143,10 @@ class SignalPatternsMixin:
             if base_high <= 0:
                 raise ValueError(f"Base high price invalid ({base_high}) for base detection - cannot calculate depth")
             base_depth = (base_high - base_low) / base_high * 100.0
-            weeks_in_base = len(base_highs) // 5
+            # Round to nearest whole week, not floor: classify_base_type's duration>=N gates
+            # compare against whole numbers, so a base at e.g. 34 bars (6.8 weeks) should clear
+            # a >=7-week gate rather than being truncated down to 6.
+            weeks_in_base = round(len(base_highs) / 5)
 
             cur_price = closes[-1]
             in_base = (self.BASE_MIN_DEPTH_PCT <= base_depth <= self.BASE_MAX_DEPTH_PCT) and len(
@@ -158,6 +172,9 @@ class SignalPatternsMixin:
                     "volume_dryup": None,
                     "volume_dryup_unavailable": True,
                     "volume_dryup_reason": "insufficient_history (< 50 bars)",
+                    # Full fetched window (not the peak-sliced base_highs/base_lows/base_vols) -
+                    # lets classify_base_type() reuse this instead of re-querying the same rows.
+                    "_price_history": {"highs": highs, "lows": lows, "closes": closes, "volumes": volumes},
                 }
 
             # Short but valid bases (BASE_MIN_BARS..LOOKBACK_BARS_SHORT) can't fill a full
@@ -177,6 +194,7 @@ class SignalPatternsMixin:
                 "pct_to_pivot": round(pct_to_pivot, 2),
                 "breakout_imminent": breakout_imminent,
                 "volume_dryup": volume_dryup,
+                "_price_history": {"highs": highs, "lows": lows, "closes": closes, "volumes": volumes},
             }
 
         try:
@@ -197,7 +215,9 @@ class SignalPatternsMixin:
             )
             raise  # Re-raise to propagate code bugs/configuration issues
 
-    def vcp_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
+    def vcp_detection(
+        self, symbol: str, eval_date: _date, _prefetched: dict[str, list[float]] | None = None
+    ) -> dict[str, Any]:
         """
         Volatility Contraction Pattern (Minervini's signature setup).
 
@@ -209,31 +229,60 @@ class SignalPatternsMixin:
           'is_vcp': bool,
           'contractions': int,
           'depth_progression': [pct, pct, ...],
+          'volume_dryup_confirmed': bool,  # last leg's avg volume <= 70% of first leg's
           'tight_pattern': bool   # last contraction <= 5% deep
         }
+
+        _prefetched: optional {"highs": [...], "lows": [...], "volumes": [...]} (chronological
+        order, oldest first) from a caller (classify_base_type()) that already fetched the same
+        price_daily window - avoids a redundant DB round-trip. Only the tail (VCP_LOOKBACK_DAYS
+        bars) is used, since VCP is a deliberately shorter/tighter window than a general base.
+        External callers (SignalAPI.detect_vcp()) never pass this and are unaffected.
         """
 
         def _analyze_vcp(cur: PsycopgCursor[Any]) -> dict[str, Any]:
-            cur.execute(
-                """
-                SELECT date, high, low, close FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 60
-                """,
-                (symbol, eval_date),
-            )
-            rows = cur.fetchall()
-            if len(rows) < self.VCP_MIN_BARS:
+            if _prefetched is not None:
+                highs = _prefetched["highs"][-self.VCP_LOOKBACK_DAYS :]
+                lows = _prefetched["lows"][-self.VCP_LOOKBACK_DAYS :]
+                volumes = _prefetched["volumes"][-self.VCP_LOOKBACK_DAYS :]
+            else:
+                cur.execute(
+                    f"""
+                    SELECT date, high, low, close, volume FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                    ORDER BY date DESC LIMIT {self.VCP_LOOKBACK_DAYS}
+                    """,
+                    (symbol, eval_date),
+                )
+                rows = cur.fetchall()
+                if len(rows) < self.VCP_MIN_BARS:
+                    return {
+                        "is_vcp": None,
+                        "contractions": 0,
+                        "data_unavailable": True,
+                        "reason": f"insufficient_price_history ({len(rows)}/{self.VCP_MIN_BARS} bars required)",
+                    }
+                # Same null-OHLCV bug class fixed in base_detection() on 2026-08-09 - a NULL
+                # volume on a real gap day would otherwise raise a bare TypeError below.
+                if any(r[1] is None or r[2] is None or r[4] is None for r in rows):
+                    return {
+                        "is_vcp": None,
+                        "contractions": 0,
+                        "data_unavailable": True,
+                        "reason": "null_ohlcv_in_price_history",
+                    }
+                rows = list(reversed(rows))
+                highs = [float(r[1]) for r in rows]
+                lows = [float(r[2]) for r in rows]
+                volumes = [float(r[4]) for r in rows]
+
+            if len(highs) < self.VCP_MIN_BARS:
                 return {
                     "is_vcp": None,
                     "contractions": 0,
                     "data_unavailable": True,
-                    "reason": f"insufficient_price_history ({len(rows)}/{self.VCP_MIN_BARS} bars required)",
+                    "reason": f"insufficient_price_history ({len(highs)}/{self.VCP_MIN_BARS} bars required)",
                 }
-
-            rows = list(reversed(rows))
-            highs = [float(r[1]) for r in rows]
-            lows = [float(r[2]) for r in rows]
 
             peaks = []
             for i in range(5, len(highs) - 5):
@@ -248,26 +297,43 @@ class SignalPatternsMixin:
                 }
 
             depths = []
+            vols_per_leg = []
             for j in range(len(peaks) - 1):
                 p1, p2 = peaks[j], peaks[j + 1]
-                window_low = min(lows[p1 : p2 + 1])
+                window = lows[p1 : p2 + 1]
+                window_low = min(window)
                 if highs[p1] <= 0:
                     logger.warning(f"VCP peak price invalid ({highs[p1]}) - skipping depth calculation for peak {j}")
                     continue
                 depth = (highs[p1] - window_low) / highs[p1] * 100.0
                 depths.append(round(depth, 1))
+                leg_volumes = volumes[p1 : p2 + 1]
+                vols_per_leg.append(sum(leg_volumes) / len(leg_volumes) if leg_volumes else 0.0)
 
             contractions = 0
             for i in range(1, len(depths)):
                 if depths[i] <= depths[i - 1] * self.VCP_CONTRACTION_FACTOR:
                     contractions += 1
-            is_vcp = contractions >= self.VCP_MIN_CONTRACTIONS and len(depths) >= self.VCP_MIN_DEPTHS
+
+            # Minervini's VCP requires volume to dry up alongside price tightening, not depth
+            # contraction alone - reuses the same VCP_CONTRACTION_FACTOR idiom already
+            # established above for depth (last leg's avg volume <= 70% of the first leg's).
+            volume_dryup_confirmed = (
+                bool(vols_per_leg) and vols_per_leg[-1] <= vols_per_leg[0] * self.VCP_CONTRACTION_FACTOR
+            )
+
+            is_vcp = (
+                contractions >= self.VCP_MIN_CONTRACTIONS
+                and len(depths) >= self.VCP_MIN_DEPTHS
+                and volume_dryup_confirmed
+            )
             tight_pattern = depths[-1] <= self.VCP_TIGHT_PATTERN_PCT if depths else False
 
             return {
                 "is_vcp": is_vcp,
                 "contractions": contractions,
                 "depth_progression": depths,
+                "volume_dryup_confirmed": volume_dryup_confirmed,
                 "tight_pattern": tight_pattern,
             }
 
@@ -287,37 +353,50 @@ class SignalPatternsMixin:
                 "reason": base_info.get("reason", "base_detection_unavailable"),
                 "characteristics": base_info,
             }
-        # Check if base detection failed to find a pattern
+        # Check if base detection failed to find a pattern. base_detection() always computes and
+        # returns base_depth_pct regardless of in_base, so a depth in the 35-50% "wide and loose"
+        # band (IBD's term for a deeper/looser-than-ideal but still recognized base) gets its own
+        # real classification here instead of collapsing into the generic no_base bucket.
         if base_info is None or not base_info.get("in_base"):
+            depth_for_gate = base_info.get("base_depth_pct") if base_info else None
+            if (
+                depth_for_gate is not None
+                and self.BASE_MAX_DEPTH_PCT < depth_for_gate <= self.BASE_WIDE_LOOSE_MAX_DEPTH_PCT
+            ):
+                return {
+                    "type": "wide_and_loose",
+                    "quality": "D",
+                    "depth_pct": depth_for_gate,
+                    "duration_weeks": base_info.get("weeks_in_base"),
+                    "pivot_high": base_info.get("pivot_high"),
+                    "breakout_imminent": base_info.get("breakout_imminent"),
+                    "volume_dryup": base_info.get("volume_dryup"),
+                }
+            # Strip the internal _price_history payload before exposing base_info as
+            # "characteristics" - it's a large array stashed for classify_base_type()'s own
+            # reuse (see fetch-consolidation above), not meant for API/log consumers.
+            public_characteristics = (
+                {k: v for k, v in base_info.items() if k != "_price_history"} if base_info else base_info
+            )
             return {
                 "type": "no_base",
                 "quality": "D",
                 "data_unavailable": False,
                 "reason": "pattern_not_detected",
-                "characteristics": base_info,
+                "characteristics": public_characteristics,
             }
 
         def _classify_with_cursor(cur: PsycopgCursor[Any]) -> dict[str, Any]:
-            cur.execute(
-                """
-                SELECT date, high, low, close, volume FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 60
-                """,
-                (symbol, eval_date),
-            )
-            rows = list(reversed(cur.fetchall()))
-            if len(rows) < 20:
-                return {
-                    "type": "no_base",
-                    "quality": "D",
-                    "data_unavailable": True,
-                    "reason": "insufficient_price_history",
-                }
-
-            highs = [float(r[1]) for r in rows]
-            lows = [float(r[2]) for r in rows]
-            closes = [float(r[3]) for r in rows]
+            price_history = base_info.get("_price_history") if base_info else None
+            if not price_history:
+                raise RuntimeError(
+                    f"[SIGNAL_PATTERNS] base_detection() for {symbol} did not return _price_history "
+                    f"despite in_base=True. This should be unreachable - base_detection() always "
+                    f"populates _price_history on any in_base-bearing success return."
+                )
+            highs = price_history["highs"]
+            lows = price_history["lows"]
+            closes = price_history["closes"]
 
             # CRITICAL: Validate all required pattern fields are present
             # NOTE: volume_dryup CAN be None for stocks with <50 bars history (new symbols)
@@ -333,7 +412,8 @@ class SignalPatternsMixin:
                     f"[SIGNAL_PATTERNS] Base pattern data incomplete for {symbol}: "
                     f"missing or None fields: {[required_fields[f] for f in missing_fields]}. "
                     f"Cannot generate pattern signals without complete base pattern analysis. "
-                    f"Verify load_base_patterns has run and all technical indicators are available."
+                    f"Verify base_detection() computed valid base_depth_pct/weeks_in_base/pivot_high "
+                    f"for {symbol} and price_daily has sufficient recent history."
                 )
 
             # GRACEFUL: Allow volume_dryup to be None if insufficient history (new stocks with <50 bars)
@@ -353,14 +433,12 @@ class SignalPatternsMixin:
                 "volume_dryup": volume_dryup,
             }
 
-            if depth > 35:
-                return {
-                    "type": "wide_and_loose",
-                    "quality": "D",
-                    **characteristics,
-                }
+            # No depth>BASE_MAX_DEPTH_PCT check here: reaching this closure already required
+            # in_base=True, which already required depth<=BASE_MAX_DEPTH_PCT (base_detection()
+            # line ~138) - that case can never occur here. The 35-50% wide-and-loose band is
+            # handled earlier, in the in_base=False branch above, before this closure runs.
 
-            vcp = self.vcp_detection(symbol, eval_date)
+            vcp = self.vcp_detection(symbol, eval_date, _prefetched=price_history)
             if vcp and vcp.get("is_vcp"):
                 # Explicit quality assignment: A if tight_pattern is True, B otherwise
                 tight_pattern = vcp.get("tight_pattern")
@@ -404,10 +482,6 @@ class SignalPatternsMixin:
                     return {
                         "type": "cup_with_handle",
                         "quality": ("A" if depth <= 30 and recent_dip <= 10 else "B"),
-                        "characteristics": {
-                            **characteristics,
-                            "handle_dip_pct": round(recent_dip, 1),
-                        },
                         "handle_dip_pct": round(recent_dip, 1),
                         **characteristics,
                     }
@@ -415,7 +489,6 @@ class SignalPatternsMixin:
                     return {
                         "type": "saucer",
                         "quality": "B" if duration >= 12 else "C",
-                        "characteristics": characteristics,
                         **characteristics,
                     }
 
@@ -436,10 +509,6 @@ class SignalPatternsMixin:
                     return {
                         "type": "double_bottom",
                         "quality": "B" if diff_pct <= 3 else "C",
-                        "characteristics": {
-                            **characteristics,
-                            "low_diff_pct": round(diff_pct, 2),
-                        },
                         "low_diff_pct": round(diff_pct, 2),
                         **characteristics,
                     }
@@ -456,10 +525,6 @@ class SignalPatternsMixin:
                         return {
                             "type": "ascending_base",
                             "quality": "B",
-                            "characteristics": {
-                                **characteristics,
-                                "rise_pct": round(rise_pct, 1),
-                            },
                             "rise_pct": round(rise_pct, 1),
                             **characteristics,
                         }
@@ -467,7 +532,6 @@ class SignalPatternsMixin:
             return {
                 "type": "consolidation",
                 "quality": "C" if depth <= 25 else "D",
-                "characteristics": characteristics,
                 **characteristics,
             }
 
