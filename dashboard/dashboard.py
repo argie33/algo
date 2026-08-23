@@ -76,31 +76,41 @@ def _is_dev_server_available() -> bool:
     return False
 
 
-# Parse --local flag early before any dashboard/API modules are imported
-_args_temp = argparse.ArgumentParser(add_help=False)
-_args_temp.add_argument("--local", action="store_true", help="Use local API (127.0.0.1:3001)")
-_temp_args, _ = _args_temp.parse_known_args()
+# FIX (2026-08-23): this whole auto-detect block ran unconditionally at import time - a real
+# TCP connect attempt (_is_dev_server_available()) plus os.environ mutation - with no
+# "pytest" not in sys.modules guard, unlike the UTF-8-stdout-wrapping block above it. 6 test
+# files import this module directly, so every such pytest run silently probed
+# localhost:3001 and could mutate DASHBOARD_API_URL/LOCAL_MODE for the whole test process
+# depending on whether a dev server happened to be running on the machine at that moment -
+# a real test-isolation/flakiness risk, not just a hypothetical one. argparse's own
+# parse_known_args() also runs against pytest's real sys.argv here, though it silently
+# ignores unrecognized args so that part alone was harmless.
+if "pytest" not in sys.modules:
+    # Parse --local flag early before any dashboard/API modules are imported
+    _args_temp = argparse.ArgumentParser(add_help=False)
+    _args_temp.add_argument("--local", action="store_true", help="Use local API (127.0.0.1:3001)")
+    _temp_args, _ = _args_temp.parse_known_args()
 
-# FORCE LOCAL MODE EARLY: If --local is passed, clear AWS credentials immediately
-# This must happen BEFORE any modules import and cache these env vars
-if _temp_args.local:
-    _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
-    _os_auto.environ["LOCAL_MODE"] = "true"
-    _os_auto.environ.pop("COGNITO_USERNAME", None)
-    _os_auto.environ.pop("COGNITO_PASSWORD", None)
-    _os_auto.environ.pop("COGNITO_USER_POOL_ID", None)
-    _os_auto.environ.pop("COGNITO_CLIENT_ID", None)
-else:
-    # CRITICAL FIX: Only auto-detect localhost if AWS config is NOT explicitly set
-    # This ensures AWS configuration is never overridden by localhost auto-detection.
-    # Respects explicit AWS setup while still providing convenience for dev-only scenarios.
-    _has_aws_config = _os_auto.environ.get("DASHBOARD_API_URL") is not None
-
-    # Enable local mode if:
-    # Dev server is running on 127.0.0.1:3001 AND no AWS config is explicitly set
-    if _is_dev_server_available() and not _has_aws_config:
+    # FORCE LOCAL MODE EARLY: If --local is passed, clear AWS credentials immediately
+    # This must happen BEFORE any modules import and cache these env vars
+    if _temp_args.local:
         _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
         _os_auto.environ["LOCAL_MODE"] = "true"
+        _os_auto.environ.pop("COGNITO_USERNAME", None)
+        _os_auto.environ.pop("COGNITO_PASSWORD", None)
+        _os_auto.environ.pop("COGNITO_USER_POOL_ID", None)
+        _os_auto.environ.pop("COGNITO_CLIENT_ID", None)
+    else:
+        # CRITICAL FIX: Only auto-detect localhost if AWS config is NOT explicitly set
+        # This ensures AWS configuration is never overridden by localhost auto-detection.
+        # Respects explicit AWS setup while still providing convenience for dev-only scenarios.
+        _has_aws_config = _os_auto.environ.get("DASHBOARD_API_URL") is not None
+
+        # Enable local mode if:
+        # Dev server is running on 127.0.0.1:3001 AND no AWS config is explicitly set
+        if _is_dev_server_available() and not _has_aws_config:
+            _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
+            _os_auto.environ["LOCAL_MODE"] = "true"
 
 if sys.platform == "win32":
     import msvcrt
@@ -405,7 +415,12 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     def warmup_render() -> None:
         try:
             ctx = DashboardContext({})
-            render_header_components(ctx, 0, None, None, False, "AWS")
+            # FIX (2026-08-23): hardcoded "AWS" here regardless of the real data_source param
+            # this run_once() call was actually given - run_watch()'s equivalent warmup (below)
+            # already passes the real variable. This warmup's own render output is discarded,
+            # so the drift was harmless in practice, but a --local run's warmup was silently
+            # exercising the AWS code path instead of the one about to be used for real.
+            render_header_components(ctx, 0, None, None, False, data_source)
         except Exception as e:
             # Warmup failure is non-fatal but should be logged for diagnostics
             logger.warning(f"[RENDER_WARMUP] Failed to warm up render pipeline: {type(e).__name__}: {e}")
