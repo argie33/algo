@@ -295,6 +295,20 @@ def _validate_against_registry() -> None:
 _validate_against_registry()
 
 
+def _explained_null_exclusion_clause(col: str, all_cols: set[str], has_data_unavailable: bool) -> str:
+    """Build a " AND (...)" SQL fragment excluding rows this codebase's own
+    data_unavailable / {column}_unavailable_reason governance convention already
+    explains, so the NULL-rate check only flags genuinely unexplained gaps.
+    """
+    reason_col = f"{col}_unavailable_reason"
+    exclude_clauses = []
+    if has_data_unavailable and col != "data_unavailable":
+        exclude_clauses.append("data_unavailable IS NOT TRUE")
+    if reason_col in all_cols:
+        exclude_clauses.append(f"{reason_col} IS NULL")
+    return f" AND ({' AND '.join(exclude_clauses)})" if exclude_clauses else ""
+
+
 def verify_loader(conn: Any, loader_name: str, config: dict[str, Any]) -> dict[str, Any]:
     """Verify a single loader's output."""
     cur = conn.cursor()
@@ -382,14 +396,33 @@ def verify_loader(conn: Any, loader_name: str, config: dict[str, Any]) -> dict[s
         # Check for excessive NULLs in key columns
         try:
             cur.execute(
-                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{config['output_table']}' LIMIT 10"
+                f"SELECT column_name FROM information_schema.columns "
+                f"WHERE table_name = '{config['output_table']}' ORDER BY ordinal_position"
             )
+            ordered_col_rows = cur.fetchall()
+            all_cols = {row[0] for row in ordered_col_rows}
             skip_cols = set(config.get("skip_null_check_columns", ()))
-            cols = [row[0] for row in cur.fetchall() if row[0] not in skip_cols]
+            cols = [row[0] for row in ordered_col_rows if row[0] not in skip_cols]
+
+            # FIXED (goal session, "before real money" audit, dig-into-the-logs pass): this
+            # check used to count EVERY NULL in a column as a data-quality problem, with no
+            # regard for this codebase's own data_unavailable / {column}_unavailable_reason
+            # governance convention - a column NULL because a loader explicitly, correctly
+            # determined "not applicable" (FPI exemption, non-dividend-payer, no segment
+            # disclosure, etc.) looks identical to a real unexplained gap. Live-confirmed
+            # across every remaining warning this produced (dividend_data.declaration_date,
+            # sec_segment_metrics.segment_count, positioning_metrics/insider_holdings_sec
+            # ownership_pct, company_profile.short_name): 100% of the NULLs in each case
+            # were rows already correctly marked data_unavailable=true (or had a populated
+            # {column}_unavailable_reason) - zero were unexplained. Scope the NULL check to
+            # exclude rows the loader itself already explained, so this only flags NULLs
+            # that have no accompanying explanation - a real signal, not governance noise.
+            has_data_unavailable = "data_unavailable" in all_cols
 
             for col in cols[:3]:  # Check first 3 columns (after skipping known-dead ones)
                 try:
-                    cur.execute(f"SELECT COUNT(*) FROM {config['output_table']} WHERE {col} IS NULL")
+                    where_extra = _explained_null_exclusion_clause(col, all_cols, has_data_unavailable)
+                    cur.execute(f"SELECT COUNT(*) FROM {config['output_table']} WHERE {col} IS NULL{where_extra}")
                     null_row = cur.fetchone()
                     null_count = null_row[0] if null_row and null_row[0] is not None else 0
                     null_pct = 100 * null_count / max(1, row_count)
