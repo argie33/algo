@@ -86,7 +86,19 @@ def check_dashboard_patterns(filepath: str) -> list[str]:
     # Pattern 1: Function with 5+ .get() calls without has_error() check
     func_pattern = re.compile(r"^\s*def\s+(\w+)\s*\(")
     get_pattern = re.compile(r"\.get\(")
-    has_error_pattern = re.compile(r"has_error\(")
+    # FALSE POSITIVE FIXED 2026-08-23 (goal session): dashboard/panels/portfolio.py's
+    # panel_portfolio and panel_performance_spark both already correctly implement the
+    # fail-fast error-boundary pattern this check exists to enforce - they call
+    # `_error_panel(data_name, data, title)` (dashboard/panels/_helpers.py), which calls
+    # `error_boundary.has_error(data)` internally and returns an error Panel on the
+    # caller's behalf. This regex only ever matched a literal `has_error(` substring
+    # written directly in the scanned function's own body, so it never recognized that
+    # equivalent, already-established indirection - live-confirmed false CRITICAL failure
+    # on a commit that never touched either function's .get() calls at all. Same false-
+    # positive class as the "dashboard" bare-substring bug already fixed in this same file
+    # 2026-08-11 (see check_dashboard_patterns' own comment above) - naive text matching
+    # missing a real, equivalent pattern instead of the literal one it was written for.
+    has_error_pattern = re.compile(r"has_error\(|_error_panel\(")
 
     in_function = None
     func_start_line = 0

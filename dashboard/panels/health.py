@@ -713,9 +713,12 @@ def _build_phase_execution_panel(
                 loss_color = R if max_loss_pct <= -5 else Y if max_loss_pct <= -2 else G
                 target_rows.append(Text.from_markup(f"      [dim]Max loss:[/] [{loss_color}]{max_loss_pct:.1f}%[/]"))
             if total_unrealized is not None:
+                # MISLABELED 2026-08-23 (goal session): sourced from total_unrealized_pnl
+                # (open-position P&L only, no closed trades in this Position Monitor phase) -
+                # "Total P&L:" falsely implied it included realized gains too.
                 pnl_color = G if total_unrealized >= 0 else R
                 target_rows.append(
-                    Text.from_markup(f"      [dim]Total P&L:[/] [{pnl_color}]${total_unrealized:,.0f}[/]")
+                    Text.from_markup(f"      [dim]Unrealized P&L:[/] [{pnl_color}]${total_unrealized:,.0f}[/]")
                 )
 
         elif phase_num == 4:  # Broker Reconciliation
@@ -5301,8 +5304,11 @@ def _build_results_panel(
                         target_rows.append(Text.from_markup(f"  Max Loss: [{loss_color}]{max_loss:.1f}%[/]"))
                     total_pnl = phase_data.get("total_unrealized_pnl")
                     if total_pnl is not None:
+                        # MISLABELED 2026-08-23 (goal session): same field/bug as the other
+                        # phase_num==3 branch above - total_unrealized_pnl is open-position-
+                        # only, not a real total including closed/realized trades.
                         pnl_color = G if total_pnl >= 0 else R
-                        target_rows.append(Text.from_markup(f"  Total P&L: [{pnl_color}]${total_pnl:,.0f}[/]"))
+                        target_rows.append(Text.from_markup(f"  Unrealized P&L: [{pnl_color}]${total_pnl:,.0f}[/]"))
 
                 elif phase_num == 4:  # Broker Reconciliation
                     sync_count = phase_data.get("sync_count")

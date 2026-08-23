@@ -796,7 +796,13 @@ def panel_portfolio_perf_expanded(
         unrlzd_color = (G if unrlzd_pnl >= 0 else R) if unrlzd_pnl is not None else "dim"
 
         perfblk.add_row(
-            "Total P&L:",
+            # MISLABELED 2026-08-23 (goal session): this is the same perf["pnl"] field the
+            # compact panel (panel_performance_spark, ~line 464) correctly labels "Realized
+            # P&L:" - it's sourced from total_pnl_dollars, computed alongside win/loss/
+            # profit-factor from CLOSED trades only (see dashboard/fetchers_portfolio.py).
+            # "Total P&L:" sitting directly above "Unrealized P&L:" falsely implied the two
+            # rows summed to a real total; they don't, this row IS the realized figure.
+            "Realized P&L:",
             Text(pnl_display, style=pnl_color),
             "Profit Factor:",
             Text(f"{pf:.2f}" if pf is not None else "--", style=pf_c),
