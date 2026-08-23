@@ -1654,6 +1654,50 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     )
                     row[field] = None
 
+    def _reject_implausible_eps(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject earnings_per_share/diluted_eps values that are confidently wrong due to
+        filer-side XBRL tagging errors, not a SEC API normalization issue like the shares
+        guard above. Mutates `transformed` in place.
+
+        FOUND 2026-08-23 (goal session: real-money-readiness "why does earnings_per_share
+        say -$24,852,333/share" audit): live-confirmed via GIBO's real companyfacts JSON -
+        the filer itself tagged EarningsPerShareBasic under the correct "USD/shares" unit
+        but with the SAME raw value as that year's NetIncomeLoss (FY2023: both exactly
+        -12,117,569; FY2024: both exactly -24,852,333) - i.e. the filer's own XBRL reports
+        total net income as if it were per-share, not a unit-parsing bug on our side (no
+        currency/unit filter would catch this - the unit tag is correct, the underlying
+        number is wrong). Also live-confirmed on BTTC, HQ, GROY, BRUN, and EP's FY2013/2014
+        (eps==net_income exactly), plus a related /1000 variant (FLOC: eps=32,729 vs
+        net_income=32,729,000 - implied ~1,000 shares). No consumer downstream (growth_metrics'
+        eps_growth_*) reliably catches this: the resulting YoY growth RATIO between two
+        similarly-corrupted years can look like an ordinary percentage (GIBO's eps_growth_1y
+        computed a plausible-looking -100.00), so a wrong-by-millions per-share value was
+        reaching stock_scores/growth_metrics undetected. Implied-shares floor deliberately
+        low (10,000) - BRK.A (~1.6M real shares) and foreign large-caps reporting in local
+        currency (BSAC ~471M CLP shares, EC ~2.06B COP shares) all clear it comfortably;
+        only implies-basically-no-real-float cases like the ones above trip it.
+        """
+        min_plausible_implied_shares = 10_000
+        for row in transformed:
+            net_income = row.get("net_income")
+            if net_income is None or net_income == 0:
+                continue
+            for field in ("earnings_per_share", "diluted_eps"):
+                eps = row.get(field)
+                if eps is None or eps == 0:
+                    continue
+                implied_shares = abs(float(net_income) / float(eps))
+                if implied_shares < min_plausible_implied_shares:
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"{field}={eps} implies only {implied_shares:,.0f} shares outstanding "
+                        f"against net_income={net_income:,.0f} - implausibly low for any real "
+                        "public float. Filer-side XBRL tagging error (raw net income reported "
+                        "as per-share), not a currency/scale issue. Rejecting rather than "
+                        "storing a confidently-wrong per-share value."
+                    )
+                    row[field] = None
+
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
 
@@ -1682,6 +1726,8 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         # present. Same MIN_PLAUSIBLE_SHARES_OUTSTANDING floor (100,000) already used in
         # load_company_info_sec.py.
         self._reject_implausible_shares_outstanding(transformed)
+        if self.statement_type == "income":
+            self._reject_implausible_eps(transformed)
 
         # Define REQUIRED metric fields (must have at least one non-NULL value) vs OPTIONAL fields
         # REQUIRED fields: core SEC metrics that should always be present for real filings

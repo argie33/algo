@@ -42,6 +42,12 @@ _BASE_TYPE_DISPLAY = {
     "saucer": "Saucer",
     "consolidation": "Consolidation",
     "wide_and_loose": "Wide & Loose",
+    # NOT missing data: classify_base_type() computed a definitive negative (in_base=False,
+    # e.g. too far below pivot to be consolidating) - a real, useful finding for a BUY signal
+    # that fired on pivot-breakout logic without a classic base. Previously collapsed to the
+    # same None as genuine data-unavailable/exception cases, making an analytical result
+    # indistinguishable from a real data gap on both the TUI and web dashboards.
+    "no_base": "No Base",
 }
 
 
@@ -665,6 +671,11 @@ class BuySignalGenerator:
         analysis has no bearing on whether a signal fires (pivot-breakout logic already decided
         that) and must never block or fail signal generation - any error here is caught and
         logged, returning (None, None) so the candidate is still emitted without pattern data.
+
+        None means "unknown" (data_unavailable, or classification raised) - never returned for
+        a definitive negative. "no_base" (in_base=False - a real computed finding, not missing
+        data) maps to the "No Base" display string via _BASE_TYPE_DISPLAY, distinguishing it
+        from a genuine data gap.
         """
         try:
             if self._pattern_classifier is None:
@@ -677,7 +688,7 @@ class BuySignalGenerator:
                 return None, None
 
             pattern_type = classification.get("type")
-            if pattern_type is None or pattern_type in ("no_base",):
+            if pattern_type is None:
                 return None, None
 
             display_name = _BASE_TYPE_DISPLAY.get(pattern_type, pattern_type.replace("_", " ").title())
