@@ -93,7 +93,7 @@ from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.validation_thresholds import REJECTION_REASON_MAX_LEN
+from algo.orchestrator.validation_thresholds import MIN_ENTRY_PRICE, REJECTION_REASON_MAX_LEN
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
@@ -1098,6 +1098,26 @@ def run(
     # TEST MODE: Allow override for testing outside market hours (PHASE_8_TEST_MODE=true or ALLOW_OUTSIDE_MARKET_HOURS=true)
     test_mode = os.environ.get("PHASE_8_TEST_MODE", "false").lower() == "true"
     allow_outside_hours = os.environ.get("ALLOW_OUTSIDE_MARKET_HOURS", "false").lower() == "true"
+
+    # SAFETY HARDENING (2026-08-23): these two env vars are never set by any deployed
+    # terraform/infra config (confirmed via full-repo grep) - they're a local-testing
+    # mechanism only, documented in CLAUDE.md for exercising Phase 8 outside real market
+    # hours. But nothing previously stopped either from ALSO taking effect in
+    # execution_mode="auto" (live trading with a real broker) if either var were ever left
+    # set by human error (e.g. a stale shell env, a copy-pasted .env). Force both off in
+    # live mode regardless of the env var, so this debug escape hatch can never bypass the
+    # market-hours guard for a real order - loud CRITICAL log if it would have mattered, so
+    # a real misconfiguration is never silently swallowed.
+    if execution_mode == "auto" and (test_mode or allow_outside_hours):
+        logger.critical(
+            "[PHASE 8 SAFETY] PHASE_8_TEST_MODE/ALLOW_OUTSIDE_MARKET_HOURS is set but "
+            "execution_mode='auto' (live trading) - ignoring both. These bypasses are for "
+            "paper/dry/review testing only and are never honored in live mode. If this was "
+            "intentional, it cannot be: no override may bypass the market-hours guard for "
+            "real order execution."
+        )
+        test_mode = False
+        allow_outside_hours = False
 
     # CRITICAL FIX (Session 30): Import EASTERN_TZ at function level to ensure availability
     # Previous: UnboundLocalError "cannot access local variable 'EASTERN_TZ'" due to scope shadowing
@@ -2351,6 +2371,30 @@ def run(
                     entry_price = float(close_val)
                     atr = float(atr_val)
                     sma_50 = float(sma_50_val)
+
+                    # MIN_ENTRY_PRICE (2026-08-23): real minimum-price entry filter. Previously
+                    # MIN_ENTRY_PRICE was defined in validation_thresholds.py with a comment
+                    # claiming it "excludes penny stocks" but was set to 0.0 (excludes nothing)
+                    # AND was never even imported here - every actual entry-price check in this
+                    # file was a hardcoded `<= 0`, completely disconnected from that constant.
+                    # Live-confirmed: sub-$3 micro-caps (e.g. one that fell ~96% over 4 trading
+                    # days on 100M+ share volume) were fully eligible for entry with no price
+                    # floor at all. Skip (not raise) - this is a business-rule rejection, not
+                    # data corruption, so it must not halt the rest of Phase 8.
+                    if entry_price < MIN_ENTRY_PRICE:
+                        skipped_reason_counts["below_min_entry_price"] = (
+                            skipped_reason_counts.get("below_min_entry_price", 0) + 1
+                        )
+                        _log_signal_rejection(
+                            symbol,
+                            "concentration_prefilter",
+                            f"below_min_entry_price: {entry_price} < {MIN_ENTRY_PRICE}",
+                            run_date,
+                            signal_entry_price_hint,
+                            None,
+                        )
+                        continue
+
                     stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 
                     # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0`/`< 0` never

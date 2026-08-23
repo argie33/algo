@@ -29,8 +29,17 @@ MIN_ATR_THRESHOLD = 0.01  # Minimum 1 cent average true range
 MIN_SMA_50_THRESHOLD = 0.0  # SMA must be positive (> 0)
 
 # Minimum entry price for valid signal
-# RATIONALE: Excludes penny stocks and ensures numeric stability
-MIN_ENTRY_PRICE = 0.0  # Prices must be positive (> 0)
+# FIXED (2026-08-23): previously 0.0 (documented as "excludes penny stocks" but actually
+# excluded nothing except zero/negative prices), AND wasn't even imported into
+# phase8_entry_execution.py - every real entry-price check there was a hardcoded `<= 0`,
+# completely disconnected from this constant. Live-confirmed real gap: sub-$3
+# micro-caps (one fell ~96% over 4 trading days on 100M+ share volume the same week)
+# were fully eligible for entry with no price floor at all. Now wired into the
+# concentration_prefilter skip path in phase8_entry_execution.py as a real gate.
+# RATIONALE: SEC's own regulatory definition of a "penny stock" (Rule 3a51-1) is a
+# security trading under $5/share - using that as the floor rather than inventing an
+# arbitrary number.
+MIN_ENTRY_PRICE = 5.0
 
 # Maximum number of concurrent open positions
 # RATIONALE: Portfolio risk and monitoring capacity
