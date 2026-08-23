@@ -110,7 +110,7 @@ class TestMarketExposureWeightSum:
             MarketExposure.W_EARNINGS_REVISION,
             MarketExposure.W_VALUATION_EXTENSION,
             MarketExposure.W_SAHM_RULE,
-            MarketExposure.W_CONSUMER_SENTIMENT,
+            MarketExposure.W_MARKET_TECHNICALS,
         ]
         assert len(weights) == 19
         assert sum(weights) == pytest.approx(100.0)

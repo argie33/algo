@@ -136,26 +136,38 @@ than shipped, and the CNN-specific loader/fetcher/migration/factor code was reve
 rather than left half-wired or shipped as an intentionally-redundant factor.
 
 University of Michigan Consumer Sentiment (UMCSENT, a FRED series) was used in its
-place - see _consumer_sentiment_factor's docstring for the full case: it measures
-household confidence about personal finances/the economy, a genuinely different
-dimension from every stock-market-technical or stock-investor-psychology signal already
-in this model, it was already being loaded into economic_data by the existing FRED
-loader (zero new data-source/scraping risk, unlike the CNN unofficial-endpoint approach
-that was dropped), and it has 318 monthly readings back to 2000 in this DB - long enough
-to span 2001/2008-09/2020, the same cycle-coverage bar Sahm's UNRATE history was held
-to. Live-checked in this DB: only 0.015 correlation against AAII's bull-bear spread on a
-monthly basis (the closest existing "sentiment" cousin) - genuinely distinct, not a
-repackaged AAII. W_CONSUMER_SENTIMENT was kept the same small size (2.0pt) as the
-originally-planned Fear & Greed weight regardless - it's still a first-pass addition
-with no persisted daily history of its own factor score yet (same caveat as Earnings
-Revision/Valuation Extension Breadth) - but funded differently: since this signal
-(unlike CNN's blend) doesn't specifically overlap with a handful of existing factors,
-its budget came from a small, roughly-even trim (0.25pt each) across the 8 largest
-existing pillars (Trend 30WK, SPY Momentum, Breadth, Selling Pressure, VIX, Credit
-Spread, Put/Call, New Highs-Lows) rather than targeting specific "overlapping" factors
-the way every other reallocation in this file does - the closest precedent is pass 1's
-original uniform 0.75x compression across all 12 original factors to free budget for six
-new ones at once.
+place: it measures household confidence about personal finances/the economy, a
+genuinely different dimension from every stock-market-technical or stock-investor-
+psychology signal already in this model, it was already being loaded into economic_data
+by the existing FRED loader (zero new data-source/scraping risk, unlike the CNN
+unofficial-endpoint approach that was dropped), and it has 318 monthly readings back to
+2000 in this DB - long enough to span 2001/2008-09/2020, the same cycle-coverage bar
+Sahm's UNRATE history was held to. Live-checked in this DB: only 0.015 correlation
+against AAII's bull-bear spread on a monthly basis (the closest existing "sentiment"
+cousin) - genuinely distinct, not a repackaged AAII. W_CONSUMER_SENTIMENT was kept the
+same small size (2.0pt) as the originally-planned Fear & Greed weight regardless - it's
+still a first-pass addition with no persisted daily history of its own factor score yet
+(same caveat as Earnings Revision/Valuation Extension Breadth) - but funded differently:
+since this signal (unlike CNN's blend) doesn't specifically overlap with a handful of
+existing factors, its budget came from a small, roughly-even trim (0.25pt each) across
+the 8 largest existing pillars (Trend 30WK, SPY Momentum, Breadth, Selling Pressure, VIX,
+Credit Spread, Put/Call, New Highs-Lows) rather than targeting specific "overlapping"
+factors the way every other reallocation in this file does - the closest precedent is
+pass 1's original uniform 0.75x compression across all 12 original factors to free
+budget for six new ones at once.
+
+Pass 6 (2026-08-23, user-directed) REMOVED Consumer Sentiment/UMCSENT from this slot -
+not a redundancy or soundness finding like every removal above, a direct product call:
+the user doesn't want UMCSENT standing alone as its own exposure factor yet ("we're not
+ready for that one"), and asked for this budget line to instead measure market
+technicals - the price of the S&P plus its moving averages, MACD, and RSI. Replaced with
+a SPY RSI(14) + MACD(12,26,9) blend (see _market_technicals_factor's docstring for the
+full design, including why it doesn't just re-add another SPY-vs-MA read on top of the
+existing Trend 30WK/Breadth factors). W_CONSUMER_SENTIMENT was renamed
+W_MARKET_TECHNICALS in place - same weight (2.0pt), same funding history above, just
+scoring a different input now. UMCSENT itself is untouched everywhere else in this
+codebase (economic_data, the general Economic dashboard panel, load_economic_data.py's
+FRED loader) - this change only removes it from the exposure engine.
 
 AAII Sentiment was relabeled RETAIL SENTIMENT (AAII) per the user's request - the
 underlying data and scoring are unchanged (still the real AAII survey, still contrarian-
@@ -241,13 +253,13 @@ docstring for its specific correlation/history-depth check.
                                     against UNRATE, still the same 0.50pp trigger methodology,
                                     just no longer able to unilaterally cap the whole portfolio
                                     off one monthly print
-     2.00pt  CONSUMER SENTIMENT     University of Michigan Consumer Sentiment (UMCSENT, FRED),
-                                    z-scored, contrarian at extremes - added 2026-08-22 pass 5,
-                                    replacing the originally-requested CNN Fear & Greed Index
-                                    (see "Pass 5" below for why: CNN's blend was found to
-                                    substantially re-derive factors already in this model, while
-                                    UMCSENT is genuinely distinct household-confidence
-                                    information, live-verified ~0 correlation with AAII)
+     2.00pt  MARKET TECHNICALS      SPY RSI(14) [contrarian at extremes, 40-60 dead zone] +
+                                    MACD(12,26,9) histogram/price, z-scored [direct, trend-
+                                    confirmation], blended 50/50 - added 2026-08-23, replacing
+                                    Consumer Sentiment (UMCSENT) in this slot per user request
+                                    (not a redundancy finding - see _market_technicals_factor's
+                                    docstring and "Pass 5" below for the UMCSENT history this
+                                    replaced)
 
 Removed factors vs prior versions:
   - FOLLOW-THROUGH DAY (was 10pt): ~50% reliability per independent backtests
@@ -348,7 +360,9 @@ class MarketExposure:
     # Merged 2026-08-22 pass 3 from W_BREADTH_200=7.5 + W_BREADTH_50=4.5 (two separately-
     # weighted, 0.77-correlated factors double-counting the same participation read) into
     # one blended factor - see module docstring "Breadth signal consolidation". Weight
-    # unchanged in total at merge time; -0.25pt pass 5 (see W_CONSUMER_SENTIMENT below).
+    # unchanged in total at merge time; -0.25pt pass 5 (see W_MARKET_TECHNICALS below,
+    # the current name for the slot this trim funded - renamed from W_CONSUMER_SENTIMENT
+    # 2026-08-23, see its own comment for why).
     W_BREADTH = 11.75
     # Pass 4 (2026-08-22) checked these three against each other: 0.57-0.76 corr pairwise,
     # crossing this file's own >0.7 action bar for VIX/Credit Spread specifically - but
@@ -378,35 +392,23 @@ class MarketExposure:
     # Demoted 2026-08-22 pass 2 from a hard veto to a small graded factor - see module
     # docstring for why (single lagging monthly print, real 2024 false-trigger precedent).
     W_SAHM_RULE = 2.0  # recession-onset ramp, anchored on Sahm's real 0.50pp trigger
-    # ADDED 2026-08-22 pass 5. User first asked to add CNN's Fear & Greed Index as a
-    # factor; that was built, then reconsidered (by the user, and independently confirmed
-    # here) and dropped before landing - CNN's own 7-input blend (momentum, strength,
-    # breadth, put/call, junk-bond demand, volatility, safe-haven demand) maps almost
-    # 1:1 onto factors this model already scores separately (Trend/Momentum, New Highs-
-    # Lows, Breadth, Put/Call, Credit Spread, VIX, Cross-Asset Confirmation
-    # respectively) - importing it would have re-scored most of the existing composite
-    # under one new name, the same double-counting bug class every other 2026-08-22 pass
-    # has been fixing. University of Michigan Consumer Sentiment (UMCSENT, FRED) was used
-    # instead - genuinely distinct information: a broad household survey about personal
-    # finances/the economy, not a stock-market-technical or stock-investor-psychology
-    # measure like everything above. Already loaded into economic_data by the existing
-    # load_economic_data.py FRED loader (zero new data-source risk, unlike the CNN
-    # unofficial-endpoint approach that was dropped) and long-history (318 monthly
-    # readings back to 2000 in this DB, spanning 2001/2008-09/2020 - same cycle coverage
-    # bar Sahm's UNRATE history was held to). Live-checked in this DB: 0.015 correlation
-    # against AAII's bull-bear spread (the closest existing "sentiment" cousin) on a
-    # monthly basis - genuinely uncorrelated, not a repackaged AAII. Scored contrarian at
-    # extremes (see _consumer_sentiment_factor) - the same convention used for AAII/
-    # Put-Call, and the framing supported by the academic literature on this specific
-    # series (deep pessimism readings have historically coincided with strong forward
-    # returns, not confirmed further downside). Funded the same way pass 1 originally
-    # freed budget for six new factors (a small, uniform-ish trim across the largest
-    # existing pillars) rather than targeting specific "overlapping" factors, since this
-    # signal - unlike CNN's blend - doesn't specifically overlap with any small subset;
-    # see the 8 "-0.25pt pass 5" comments above. New to being scored, no persisted daily
-    # history of ITS OWN factor score yet - same "revisit once more history accumulates"
-    # caveat as Earnings Revision/Valuation Extension Breadth.
-    W_CONSUMER_SENTIMENT = 2.0
+    # ADDED 2026-08-22 pass 5 as W_CONSUMER_SENTIMENT (University of Michigan Consumer
+    # Sentiment / UMCSENT, FRED) - see the module docstring's retained "Pass 5" section
+    # for that history (it replaced an originally-requested CNN Fear & Greed Index that
+    # was found to re-derive factors already scored elsewhere in this file). REPLACED
+    # 2026-08-23 (user-directed): the user doesn't want UMCSENT standing alone as its own
+    # factor yet ("not ready for that one"), and asked for this slot to instead be a
+    # market-technicals read - SPY RSI(14) + MACD(12,26,9), see
+    # _market_technicals_factor's docstring for the full design (why RSI/MACD rather than
+    # another SPY-vs-MA read, which would double-count Trend 30WK/Breadth). Same weight
+    # (2.0pt) and funding source preserved - this is a rename/re-derivation of the same
+    # budget line, not a new reallocation; the 8 "-0.25pt pass 5" trims to Trend 30WK/SPY
+    # Momentum/Breadth/Selling Pressure/VIX/Credit Spread/Put-Call/New Highs-Lows recorded
+    # elsewhere in this file still fund this slot, just under a different construction.
+    # Still new to being scored - no persisted daily history of ITS OWN factor score yet,
+    # same "revisit once more history accumulates" caveat as Earnings Revision/Valuation
+    # Extension Breadth.
+    W_MARKET_TECHNICALS = 2.0
 
     def __init__(self) -> None:
         self._validate_weights()
@@ -441,7 +443,7 @@ class MarketExposure:
             cls.W_EARNINGS_REVISION,
             cls.W_VALUATION_EXTENSION,
             cls.W_SAHM_RULE,
-            cls.W_CONSUMER_SENTIMENT,
+            cls.W_MARKET_TECHNICALS,
         ]
         total = sum(weights)
         if abs(total - 100.0) > 1e-6:
@@ -1055,36 +1057,36 @@ class MarketExposure:
                 factors["sahm_rule"] = {**sahm, "pts": round(sahm_pts, 1), "max": self.W_SAHM_RULE}
                 score += sahm_pts
 
-            # --- 19. Consumer Sentiment (University of Michigan / UMCSENT, added
-            # 2026-08-22 pass 5 - see module docstring for why this replaced the
-            # originally-requested CNN Fear & Greed Index) ---
+            # --- 19. Market Technicals (SPY RSI+MACD, added 2026-08-23, replacing
+            # University of Michigan Consumer Sentiment / UMCSENT in this slot - see
+            # _market_technicals_factor's docstring for why) ---
             try:
-                consumer_sentiment = self._consumer_sentiment_factor(eval_date, cur)
+                market_technicals = self._market_technicals_factor(eval_date, cur)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[CONSUMER_SENTIMENT] Query failed, treating as unavailable: {e}")
-                consumer_sentiment = {"data_unavailable": True, "reason": f"Query failed: {type(e).__name__}"}
-            if consumer_sentiment.get("data_unavailable"):
+                logger.warning(f"[MARKET_TECHNICALS] Query failed, treating as unavailable: {e}")
+                market_technicals = {"data_unavailable": True, "reason": f"Query failed: {type(e).__name__}"}
+            if market_technicals.get("data_unavailable"):
                 logger.info(
-                    f"[CONSUMER_SENTIMENT] Unavailable (optional factor skipped): {consumer_sentiment.get('reason')}"
+                    f"[MARKET_TECHNICALS] Unavailable (optional factor skipped): {market_technicals.get('reason')}"
                 )
                 # Weight NOT added to avail_max here - see the renormalization
                 # comment below compute()'s factor loop for why this matters.
-                factors["consumer_sentiment"] = {**consumer_sentiment, "pts": 0.0, "max": self.W_CONSUMER_SENTIMENT}
+                factors["market_technicals"] = {**market_technicals, "pts": 0.0, "max": self.W_MARKET_TECHNICALS}
             else:
-                csent_pts, csent_avail = self.calculator._wt_pts(consumer_sentiment, self.W_CONSUMER_SENTIMENT)
-                avail_max += csent_avail
-                factors["consumer_sentiment"] = {
-                    **consumer_sentiment,
-                    "pts": round(csent_pts, 1),
-                    "max": self.W_CONSUMER_SENTIMENT,
+                mtech_pts, mtech_avail = self.calculator._wt_pts(market_technicals, self.W_MARKET_TECHNICALS)
+                avail_max += mtech_avail
+                factors["market_technicals"] = {
+                    **market_technicals,
+                    "pts": round(mtech_pts, 1),
+                    "max": self.W_MARKET_TECHNICALS,
                 }
-                score += csent_pts
+                score += mtech_pts
 
             # CRITICAL: the 12 original factors are still required; the factors added
-            # 2026-08-22 (yield curve, inflation expectations, sector rotation, cross-asset,
-            # earnings revision breadth, valuation extension breadth, sahm rule, consumer
-            # sentiment) are all optional/graceful like put_call_ratio and positioning
-            # already were.
+            # 2026-08-22/23 (yield curve, inflation expectations, sector rotation,
+            # cross-asset, earnings revision breadth, valuation extension breadth, sahm
+            # rule, market technicals) are all optional/graceful like put_call_ratio and
+            # positioning already were.
             #
             # FIXED 2026-08-22: previously, when an optional factor went unavailable, its
             # full weight was still added to avail_max (purely to dodge this exact check)
@@ -1388,72 +1390,119 @@ class MarketExposure:
             }
         return {"score": self.calculator._zscore_to_score(z), "value": round(current, 3), "z": round(z, 2)}
 
-    def _consumer_sentiment_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Consumer Sentiment factor: University of Michigan Consumer Sentiment Index
-        (UMCSENT, FRED), z-scored against its own real history, scored contrarian.
+    def _market_technicals_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Market Technicals factor: SPY RSI(14) + MACD(12,26,9) histogram, blended.
 
-        ADDED 2026-08-22 pass 5 - see module docstring for the full reasoning (replaced
-        the originally-requested CNN Fear & Greed Index, which was found to substantially
-        re-derive factors already scored here; UMCSENT instead measures a genuinely
-        distinct thing - broad household confidence about personal finances/the economy,
-        not stock-market technicals or investor psychology).
+        REPLACED University of Michigan Consumer Sentiment (UMCSENT) here 2026-08-23
+        (user-directed: "we're not ready for that one yet" - UMCSENT was a genuinely
+        distinct household-confidence signal on its own merits, see the module docstring's
+        retained "Pass 5" writeup for that history, but the user wants this factor slot
+        to be a market-technicals read instead, not standing alone as a macro/sentiment
+        series). Same funding slot, same weight (W_MARKET_TECHNICALS, still 2.0pt), same
+        "new factor, no persisted daily history of its own score yet" caveat as every
+        other first-pass addition in this file.
 
-        Contrarian, not direct: elevated consumer optimism (high z) scores LOW (more
-        bearish contribution) and consumer pessimism/despair (low z) scores HIGH (more
-        bullish) - deep UMCSENT troughs have historically coincided with strong forward
-        equity returns (2008-09, 2020, 2022), not confirmed further downside, the same
-        "extremes are contrarian" convention already used for AAII/Put-Call rather than
-        the direct "higher_is_worse" treatment given to Yield Curve/Inflation
-        Expectations (objective financial-stress measures, not investor psychology).
-        Reuses `_single_series_zscore_factor` was considered and rejected: that shared
-        helper has no staleness check (fine for the roughly-daily FRED series it already
-        serves - T10Y2Y/T10Y3M/T5YIE/T10YIE), but UMCSENT is monthly with a real,
-        live-confirmed lag risk (this DB's own most recent reading was 82 days stale
-        against a 2026-08-22 eval_date at the time this was written) - a bespoke 45-day
-        bound here (one normal month's publication lag plus a buffer) catches a
-        stalled/un-run economic loader the same way aaii()'s 21-day bound catches a dead
-        AAII scrape, without affecting the other z-scored factors that share the helper.
+        Deliberately does NOT re-derive SPY price vs its 30-week MA (already TREND_30WK)
+        or vs the 50/200-DMA breadth reads (already BREADTH) - those are this file's
+        existing long-term-trend/participation reads and adding another SPY-vs-MA
+        sub-metric here would be exactly the double-counting bug class this file's
+        redundancy audits (see module docstring) have been finding and fixing all along.
+        RSI and MACD are genuinely distinct constructs - not represented anywhere else in
+        this model - so they're what plug into this slot instead:
+
+          - RSI(14): a bounded (0-100), universally-thresholded oscillator (70/30
+            overbought/oversold is the standard convention, not something this file needs
+            to derive via z-score the way an unbounded macro series like UMCSENT did).
+            Scored contrarian-at-extremes with a neutral dead-zone, the same convention
+            already used for AAII/Put-Call: 40-60 is neutral (50pts), ramping to 100 by
+            RSI<=20 (oversold -> bullish contrarian) and down to 0 by RSI>=80 (overbought
+            -> bearish contrarian).
+          - MACD histogram, normalized by price (histogram/close, not raw points, since
+            raw MACD magnitude drifts with SPY's price level over decades) and z-scored
+            against its own trailing history (same Barra/Axioma-style normalization used
+            everywhere else in this file) - scored DIRECTLY (higher_is_worse=False, like
+            Yield Curve/Inflation Expectations' objective treatment), not contrarian:
+            strengthening positive histogram is real trend-confirming bullish momentum,
+            not an investor-psychology extreme to fade.
+
+        Blended 50/50 - one is a short-term mean-reversion oscillator, the other a
+        medium-term trend-confirmation signal, deliberately kept as a simple average
+        rather than favoring one, since neither dominates the other's information content
+        (unlike Breadth's 200/50-DMA blend, which was weighted to preserve a prior,
+        already-tuned relative importance - there's no such precedent to preserve here,
+        this factor is new).
         """
         cur.execute(
-            "SELECT value::float, date FROM economic_data WHERE series_id = 'UMCSENT' "
-            "AND date <= %s AND value IS NOT NULL ORDER BY date DESC LIMIT 400",
+            "SELECT close, date FROM price_daily WHERE symbol = 'SPY' AND date <= %s "
+            "AND close IS NOT NULL ORDER BY date DESC LIMIT 400",
             (eval_date,),
         )
         rows = cur.fetchall()
-        if not rows:
+        if len(rows) < 220:
             return {
                 "data_unavailable": True,
-                "reason": f"No UMCSENT data on or before {eval_date}",
+                "reason": f"Insufficient SPY price history for technicals (have {len(rows)}, need 220+)",
             }
 
-        current, reading_date = rows[0][0], rows[0][1]
-        staleness_days = (eval_date - reading_date).days
-        if staleness_days > 45:
+        from algo.infrastructure import MarketCalendar
+
+        most_recent_date = rows[0][1]
+        expected_date = eval_date - timedelta(days=1)
+        for _ in range(10):
+            if MarketCalendar.is_trading_day(expected_date):
+                break
+            expected_date -= timedelta(days=1)
+        if most_recent_date < expected_date:
             return {
                 "data_unavailable": True,
                 "reason": (
-                    f"UMCSENT stale: most recent reading from {reading_date} "
-                    f"({staleness_days} days before eval_date {eval_date}), exceeds 45-day "
-                    f"tolerance for a monthly source."
+                    f"SPY price data is stale: most recent close from {most_recent_date}, "
+                    f"but eval_date is {eval_date} (expected data from {expected_date})."
                 ),
             }
-        if math.isnan(current) or math.isinf(current):
-            return {"data_unavailable": True, "reason": f"Non-finite UMCSENT reading for {reading_date}"}
 
-        history = [r[0] for r in rows]
-        z = self.calculator._sample_zscore(current, history)
-        if z is None:
+        closes = [float(r[0]) for r in reversed(rows)]
+        if any(math.isnan(c) or math.isinf(c) or c <= 0 for c in closes):
+            return {"data_unavailable": True, "reason": "Non-finite or non-positive SPY close in technicals window"}
+
+        rsi = self.calculator._compute_rsi(closes, period=14)
+        if rsi is None:
+            return {"data_unavailable": True, "reason": "RSI computation failed (insufficient data)"}
+
+        hist_pct_series = self.calculator._macd_histogram_pct_series(closes)
+        warm_up = 200
+        zscore_window = hist_pct_series[warm_up:]
+        if len(zscore_window) < 15:
             return {
                 "data_unavailable": True,
-                "reason": f"Insufficient UMCSENT history to z-score (have {len(history)}, need 15+)",
-                "value": round(current, 1),
+                "reason": f"Insufficient MACD history after warm-up to z-score (have {len(zscore_window)}, need 15+)",
             }
-        # No sign flip: a HIGH raw reading (consumer optimism, positive z) should map to a
-        # LOW score (contrarian-bearish) - _zscore_to_score already treats positive z as
-        # the low-score direction, so this is the direct pass-through, same as
-        # put_call_ratio's flip-then-pass-through achieves the equivalent contrarian
-        # result for a metric where the raw sign convention runs the other way.
-        return {"score": round(self.calculator._zscore_to_score(z), 1), "value": round(current, 1), "z": round(z, 2)}
+        current_hist_pct = zscore_window[-1]
+        macd_z = self.calculator._sample_zscore(current_hist_pct, zscore_window)
+        if macd_z is None:
+            return {"data_unavailable": True, "reason": "Cannot z-score MACD histogram (zero variance in history)"}
+
+        if rsi >= 80:
+            rsi_score = 0.0
+        elif rsi <= 20:
+            rsi_score = 100.0
+        elif rsi >= 60:
+            rsi_score = 50.0 - (rsi - 60) / 20.0 * 50.0
+        elif rsi <= 40:
+            rsi_score = 50.0 + (40 - rsi) / 20.0 * 50.0
+        else:
+            rsi_score = 50.0
+
+        macd_score = self.calculator._zscore_to_score(-macd_z)
+        composite = round(0.5 * rsi_score + 0.5 * macd_score, 1)
+        return {
+            "score": composite,
+            "rsi_14": round(rsi, 1),
+            "rsi_score": round(rsi_score, 1),
+            "macd_histogram_pct": round(current_hist_pct, 4),
+            "macd_z": round(macd_z, 2),
+            "macd_score": round(macd_score, 1),
+        }
 
     def _sector_rotation_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Sector Rotation factor: defensive vs. cyclical sector leadership.

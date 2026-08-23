@@ -106,6 +106,60 @@ class MarketFactorCalculator:
         score = 50.0 - (z / cap) * 50.0
         return max(0.0, min(100.0, score))
 
+    @staticmethod
+    def _compute_rsi(closes: list[float], period: int = 14) -> float | None:
+        """Wilder's RSI (the original, standard smoothing - not a naive rolling average),
+        computed over the full `closes` series (oldest first) and returned as the final
+        (most recent) value only. Returns None if there aren't enough points to seed the
+        smoothing window.
+        """
+        if len(closes) < period + 1:
+            return None
+        gains = []
+        losses = []
+        for i in range(1, len(closes)):
+            diff = closes[i] - closes[i - 1]
+            gains.append(max(diff, 0.0))
+            losses.append(max(-diff, 0.0))
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+        for i in range(period, len(gains)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        if avg_loss < 1e-9:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return 100.0 - (100.0 / (1.0 + rs))
+
+    @staticmethod
+    def _ema_series(values: list[float], period: int) -> list[float]:
+        """Exponential moving average, seeded with the first value (pandas' `ewm(adjust=
+        False)` convention) rather than an SMA warm-up - simplest correct implementation,
+        and any early-window transient bias washes out given the long buffer callers keep
+        before their actual analysis window (see _macd_histogram_pct_series).
+        """
+        alpha = 2.0 / (period + 1)
+        ema = [values[0]]
+        for v in values[1:]:
+            ema.append(alpha * v + (1 - alpha) * ema[-1])
+        return ema
+
+    @classmethod
+    def _macd_histogram_pct_series(
+        cls, closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9
+    ) -> list[float]:
+        """Standard MACD(12,26,9) histogram (macd_line - signal_line), normalized by price
+        (histogram / close * 100) so the series is comparable across price regimes/levels
+        rather than raw dollar magnitude (which trends up with SPY's price over decades).
+        Returns one value per input close (oldest first) - callers should discard an early
+        warm-up slice before treating the series as stationary enough to z-score.
+        """
+        ema_fast = cls._ema_series(closes, fast)
+        ema_slow = cls._ema_series(closes, slow)
+        macd_line = [f - s for f, s in zip(ema_fast, ema_slow, strict=True)]
+        signal_line = cls._ema_series(macd_line, signal)
+        return [(m - s) / c * 100.0 for m, s, c in zip(macd_line, signal_line, closes, strict=True)]
+
     def _pct_above_ma(self, eval_date: _date, ma_days: int, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Calculate % of stocks trading above N-day MA (critical).
 

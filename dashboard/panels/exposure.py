@@ -274,11 +274,11 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if key == "valuation_extension_breadth":
             bp = f.get("breadth_pct")
             return f" {bp:.0f}% extended" if isinstance(bp, (int, float)) else "[yellow]⚠[/]"
-        if key == "consumer_sentiment":
-            v = safe_float(f.get("value"), default=None)
-            z = safe_float(f.get("z"), default=None)
-            z_s = f" z={z:+.1f}" if z is not None else ""
-            return f" {v:.0f}{z_s}" if v is not None else "[yellow]⚠[/]"
+        if key == "market_technicals":
+            rsi = safe_float(f.get("rsi_14"), default=None)
+            macd_z = safe_float(f.get("macd_z"), default=None)
+            macd_s = f" MACD={macd_z:+.1f}z" if macd_z is not None else ""
+            return f" RSI={rsi:.0f}{macd_s}" if rsi is not None else "[yellow]⚠[/]"
         return "[yellow]⚠[/]"  # Unknown factor key
 
     factor_map = [
@@ -300,7 +300,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         ("earnings_revision_breadth", "Earnings Revisions", 2.5),
         ("valuation_extension_breadth", "Valuation Ext", 1.5),
         ("sahm_rule", "Sahm Rule", 2),
-        ("consumer_sentiment", "Consumer Sentiment", 2),
+        ("market_technicals", "Market Technicals", 2),
     ]
 
     tbl = Table.grid(padding=(0, 2), expand=True)
@@ -498,10 +498,10 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         ("valuation_extension_breadth", "Valuation Extension Breadth", 1.5, "% of universe at extended P/E or P/S"),
         ("sahm_rule", "Sahm Rule", 2, "Recession-onset ramp, 3mo avg unemployment vs. trailing-12mo low"),
         (
-            "consumer_sentiment",
-            "Consumer Sentiment (UMich)",
+            "market_technicals",
+            "Market Technicals",
             2,
-            "UMCSENT z-scored vs own history, contrarian at extremes",
+            "SPY RSI(14) contrarian-at-extremes + MACD histogram z-scored, blended 50/50",
         ),
     ]
 
@@ -734,11 +734,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 if isinstance(v, (int, float))
                 else "--"
             )
-        elif key == "consumer_sentiment":
-            v = f.get("value")
-            z = f.get("z")
-            z_s = f" (z={z:+.1f})" if isinstance(z, (int, float)) else ""
-            val_s = f"UMCSENT {v:.1f}{z_s}" if isinstance(v, (int, float)) else "--"
+        elif key == "market_technicals":
+            rsi = f.get("rsi_14")
+            macd_z = f.get("macd_z")
+            macd_s = f" MACD(z={macd_z:+.1f})" if isinstance(macd_z, (int, float)) else ""
+            val_s = f"RSI {rsi:.1f}{macd_s}" if isinstance(rsi, (int, float)) else "--"
 
         tbl.add_row(
             Text(label, style=fc),

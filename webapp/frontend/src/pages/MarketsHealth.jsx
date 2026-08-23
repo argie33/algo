@@ -852,7 +852,7 @@ function ExposureFactors({ markets }) {
     ["earnings_revision_breadth", "EARNINGS REVISION BREADTH", 2.5],
     ["valuation_extension_breadth", "VALUATION EXTENSION BREADTH", 1.5],
     ["sahm_rule", "SAHM RULE (RECESSION-ONSET RAMP)", 2],
-    ["consumer_sentiment", "CONSUMER SENTIMENT (UMICH, CONTRARIAN)", 2],
+    ["market_technicals", "MARKET TECHNICALS (SPY RSI + MACD)", 2],
   ];
 
   return (
@@ -959,9 +959,10 @@ function ExposureFactors({ markets }) {
               if (f.breadth_pct != null)
                 sub.push(`${num(f.breadth_pct, 0)}% extended`);
               if (f.active_count != null) sub.push(`n=${f.active_count}`);
-            } else if (key === "consumer_sentiment") {
-              if (f.value != null) sub.push(`UMCSENT ${num(f.value, 1)}`);
-              if (f.z != null) sub.push(`z=${f.z > 0 ? "+" : ""}${num(f.z, 1)}`);
+            } else if (key === "market_technicals") {
+              if (f.rsi_14 != null) sub.push(`RSI ${num(f.rsi_14, 1)}`);
+              if (f.macd_z != null)
+                sub.push(`MACD z=${f.macd_z > 0 ? "+" : ""}${num(f.macd_z, 1)}`);
             } else {
               // Generic display for other factors
               if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
