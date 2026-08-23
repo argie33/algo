@@ -108,6 +108,23 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
                 }
             ]
 
+        # FIXED (goal session, "so many from yfinance still" data-accuracy audit): unlike
+        # load_analyst_upgrade_downgrade.py (its sibling, already fixed 2026-08-19), this
+        # success path never retracted a pre-existing data_unavailable=true marker for this
+        # symbol - the retraction above only fires on the "still no coverage today" branch.
+        # A symbol whose marker predates the fix that stopped writing new ones (or predates
+        # this symbol regaining coverage) keeps that dead marker row forever even while real
+        # rows accumulate on top of it. Live-confirmed: 446 symbols (e.g. FTEK, marker dated
+        # 2026-08-03 sitting alongside real coverage through 2026-08-21) - "latest row per
+        # symbol" reads self-correct in practice since the marker's date can never advance
+        # past when real coverage started, but the dead row itself never gets cleaned up.
+        # Retract unconditionally whenever a real value lands, matching the sibling loader.
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "DELETE FROM analyst_earnings_estimates WHERE symbol = %s AND data_unavailable = true",
+                (symbol,),
+            )
+
         return [
             {
                 "symbol": symbol,

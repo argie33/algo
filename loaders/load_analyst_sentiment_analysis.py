@@ -105,6 +105,21 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
                 }
             ]
 
+        # FIXED (goal session, "so many from yfinance still" data-accuracy audit): unlike
+        # load_analyst_upgrade_downgrade.py (its sibling, already fixed 2026-08-19), this
+        # success path never retracted a pre-existing data_unavailable=true marker for this
+        # symbol - the retraction above only fires on the "still no coverage today" branch.
+        # Live-confirmed: 2,251 symbols (e.g. BRK.A, marker dated 2026-08-11 sitting
+        # alongside real coverage through 2026-08-21) - "latest row per symbol" reads
+        # self-correct in practice (the marker's date can never advance past when real
+        # coverage started), but the dead row itself never gets cleaned up. Retract
+        # unconditionally whenever a real value lands, matching the sibling loader.
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "DELETE FROM analyst_sentiment_analysis WHERE symbol = %s AND data_unavailable = true",
+                (symbol,),
+            )
+
         summary["date"] = today
         return [summary]
 
