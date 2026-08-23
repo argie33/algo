@@ -112,16 +112,38 @@ Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_regi
 1. **Data Freshness Check** — Validates upstream loader data freshness; halts if >1 trading day stale.
 2. **Circuit Breakers** — Runs all 14 checks in `algo/risk/circuit_breaker.py`'s `_check_registry` (not 8, not 13 - both stale counts; sector_drawdown (CB9) was added in commit `f20b6e42a` without a steering update, closing a real gap where `sector_drawdown_halt_pct` was seeded/admin-editable config with no enforcing check). Halting checks: drawdown ≥10% (`halt_drawdown_pct` - code default is 20%, but this dev environment's admin-editable config has been tightened to -10%, verified live 2026-08-20; don't assume the code-level default without checking the live value), drawdown re-engagement (post-halt: equity must recover + N days elapse + optional Follow-Through Day before resuming), daily loss ≥2%, loss streak ≥3, open risk ≥8% (`max_total_risk_pct` - bumped from a stale-doc'd 4%, see commit referenced in `_check_total_risk`'s own "CRITICAL FIX 2026-08-06: Use config value to stay in sync with Phase 8 and circuit breaker"; verified live 2026-08-10), VIX spike ≥35, market stage break, weekly loss ≥5%, win rate <30% (`min_win_rate_pct`, not the previously-doc'd 40% - verified live 2026-08-10) (rolling ~30 trades, closed + open unrealized), data freshness (stale price data), intraday market health (SPY fell >2% the prior day), **sector drawdown** (cost-basis-weighted per-sector unrealized P&L ≤ `sector_drawdown_halt_pct`, e.g. -12%). Advisory-only (warn, don't halt): sector concentration, daily profit cap. Sets halt flag on any halting check.
 3. **Position Monitor** — Reviews open positions, checks against risk limits, validates data integrity. `always_run=True`.
-4. **Reconciliation** — Reconciles broker positions vs. algo_trades table.
-5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess.
+4. **Reconciliation** — Reconciles broker positions vs. algo_trades table. `always_run=True` (see Key Principle below - verified live 2026-08-23, not reflected in this doc's older text).
+5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess. `always_run=True` (same correction as Phase 4).
 6. **Exit Execution** — Executes stop-loss/target exits. `always_run=True`.
-7. **Signal Generation & Ranking** — Generates BUY/SELL signals from technical + fundamental scores.
+7. **Signal Generation & Ranking** — Generates BUY/SELL signals from technical + fundamental scores. `always_run=True` (same correction as Phase 4).
 8. **Entry Execution** — Executes BUY trades from ranked signals; also runs the proactive total-risk check (blocks new entries at ≥4% risk before the reactive circuit breaker would fire). `always_run=True` (added in commit `3a132945c` specifically so this proactive check isn't skipped by an earlier halt - see the Key Principle below).
 9. **Reconciliation & Snapshot** — Final portfolio reconciliation, creates snapshot for dashboard. `always_run=True`.
 
-**Key Principle — read this before treating a "skipped" phase as evidence of a bug.** Only phases 3, 6, 8, 9 (`always_run=True`) are guaranteed to execute every single run. Every other phase (1, 2, 4, 5, 7) runs **only until the first one halts** — the instant any non-`always_run` phase fails or halts (`algo/orchestrator/phase_executor.py::OrchestratorPhaseExecutor.run()`), every remaining non-`always_run` phase for that cycle is marked `status="skipped"` and never executes, regardless of whether it individually "always runs" per its own docstring. This is why a halted run's health-panel detail commonly shows one phase `HALTED`, several phases `SKIPPED`, and phases 3/6/8/9 still `COMPLETED` - this is the designed cascade protecting against catastrophic losses (position monitoring, exit execution, proactive entry risk enforcement, and portfolio reconciliation must continue during emergencies), not a bypass or an inconsistency. (Phase 8 joined this group later than 3/6/9 - see commit `3a132945c` - so an example run predating that commit would legitimately show Phase 8 skipped; check `phase_registry.py`'s current `always_run` values, not an old log, if in doubt.)
+**Key Principle — read this before treating a "skipped" phase as evidence of a bug.** As of
+2026-08-23 (verified live against `algo/orchestrator/phase_registry.py`), **all of phases 3
+through 9** carry `always_run=True` - only phases 1 and 2 can gate anything. This is a
+correction to this doc's own prior claim ("only phases 3, 6, 8, 9") - phases 4, 5, and 7 were
+switched to `always_run=True` at some point after that claim was written (each is now essential
+risk-management/signal logic in its own right: reconciliation, exposure enforcement, and signal
+generation all need to keep running during a halt, same reasoning already applied to 3/6/8/9).
+Practically this means a normal Phase 1/2 halt no longer produces any `SKIPPED` phases at all in
+the 3-9 range - every phase from 3 onward runs regardless, each handling a halted/degraded
+upstream state on its own terms (see `phase_executor.py`'s dependency-check path, which now
+carries this responsibility - see next paragraph). Only phases 1 and 2 themselves, or a
+catastrophic exception, can still produce a genuine `SKIPPED` for phase 1 or 2. If you see this
+doc describe a specific phase's `always_run` value, always cross-check
+`phase_registry.py`'s current values - this field has changed multiple times as the system's
+safety requirements evolved, most recently for 4/5/7.
 
-Separately, phases 4/5/7 also carry `skip_if_halted=True`, which independently skips them if a **persistent** halt flag is already active from a prior event (e.g. an unexpired drawdown-recovery cooldown) even when phases 1-2 both succeed in the current run. Phase 8 no longer carries `skip_if_halted=True` (also changed in `3a132945c`) precisely so its proactive risk check keeps running under that same condition.
+**The `skip_if_halted=True` mechanism described in earlier versions of this doc for phases
+4/5/7 is now dead code, not a live behavior** - confirmed via `phase_executor.py`'s own comment
+("BUG FOUND 2026-08-10: since every phase from 3-9 is now always_run... the direct halt-flag-
+check branch above... became unreachable for ALL of them - `if not phase.always_run and
+phase.skip_if_halted` is never true anymore"). A genuine halt for one of these phases now has to
+propagate through the dependency-check path (written for real failures, not "my dependency
+correctly halted") instead of the older, cleaner direct skip-and-log path. Do not rely on
+`skip_if_halted` as a live mechanism for any phase currently marked `always_run=True` - check
+whether it's actually reachable for a given phase before citing it in a debugging session.
 
 ---
 
