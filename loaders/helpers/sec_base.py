@@ -885,6 +885,28 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
                 row["fiscal_quarter"] = quarter_num
 
+            # DEFENSIVE BACKFILL (2026-08-24, real-money-readiness audit): fetch_incremental()
+            # sets r.setdefault("data_source", "sec_audited")/_try_yfinance_fallback() sets
+            # r["data_source"]="yfinance" on the RAW rows before transform() runs, and the
+            # per-field loop above copies it through via the identity field_mapping entry
+            # ("data_source" -> "data_source", see _MARKER_FIELDS in load_financial_statements.py) -
+            # but that copy only happens if "data_source" survives as a literal key on this
+            # specific `r`/`row` pair through every skip/continue branch above. Live-confirmed
+            # via DB audit: real-data annual_balance_sheet/quarterly_balance_sheet rows
+            # (SLN, UCB, SKT, XPL, and others - genuine SEC-EDGAR filers) were written with
+            # data_source=NULL as recently as 2026-08-22, well after migration 1202's tagging
+            # fix was believed to have closed this gap - bulk_insert_manager.py's CSV writer
+            # (csv.DictWriter, default restval='') turns any row dict missing this key into an
+            # empty string, and COPY's FORCE_NULL then turns that into a real DB NULL,
+            # indistinguishable from "we don't know the source" for governance purposes. Rather
+            # than fully re-derive which specific skip branch above drops the key for which
+            # symbols, close the gap unconditionally here: every non-marker row leaving
+            # transform() gets a source tag, exactly mirroring the raw-row guarantee this class
+            # already makes upstream. Marker rows (data_unavailable=True) are untouched -
+            # they correctly carry no data_source since there is no data to source-tag.
+            if not row.get("data_unavailable"):
+                row.setdefault("data_source", "sec_audited")
+
             transformed.append(row)
 
         seen: dict[tuple[Any, ...], dict[str, Any]] = {}
