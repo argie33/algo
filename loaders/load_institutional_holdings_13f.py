@@ -86,6 +86,42 @@ _CURRENCY_TICKER_SUFFIXES = (
     "USD", "EUR", "GBP", "GBX", "CAD", "CHF", "JPY", "AUD", "HKD", "SEK", "NOK", "DKK", "ZAR", "SGD", "MXN",
 )  # fmt: skip
 
+# FIX 2026-08-24 (goal session, "no cheats/perfect before real money" audit, resolving the
+# WAB/13F false-reject flagged but not yet fixed on 2026-08-22): names_plausibly_match()'s
+# token-overlap heuristic correctly rejects OpenFIGI's real 2026-07-27 XOM/"EXXONMOBIL
+# HOLDINGS CORP" wrong-entity collision, but that same defense also wrongly rejects real
+# companies whose SEC legal name and common/brand name share zero tokens, e.g. WAB: crosswalk
+# resolved_name="WABTEC CORP" (OpenFIGI, matches the CUSIP-authoritative 929740108 exactly)
+# vs our own SEC-sourced entity_name="WESTINGHOUSE AIR BRAKE TECHNOLOGIES CORP" - "Wabtec" IS
+# literally Westinghouse Air Brake Technologies Corporation's own short/trade name (same
+# public company, not a different entity), but shares no token with the legal name.
+#
+# A blanket "trust every exact ticker match" fix was tried and correctly reverted (see
+# wab_13f_name_plausibility_false_reject memory) because it would silently readmit the XOM
+# class of bug - "exact ticker match" alone isn't sufficient evidence, since OpenFIGI can also
+# resolve a DIFFERENT CUSIP to a ticker that coincidentally collides with one we track.
+#
+# This is the safe alternative floated but not built at the time: a small, manually-curated
+# alias table, one entry per case, each individually verified (not a blanket heuristic
+# change) - matches this project's existing discipline for the currency-conversion and
+# revenue-concept fixes. Keyed by (ticker, exact resolved_name) so an entry can NEVER apply
+# to a different resolved_name that happens to share the same ticker - if OpenFIGI ever
+# resolves a WAB-ticker CUSIP to some other name, this alias does not fire and the normal
+# names_plausibly_match() defense still applies in full.
+#
+# Checked the rest of the 2026-08-22 "no_resolved_13f_holdings" sample this alias was
+# suspected to generalize to (STZ, CACI, AWK, DD, UTHR, FHN) - live-checked 2026-08-24, none
+# of them have ANY sec_13f_cusip_crosswalk row at all (a different, more mundane "CUSIP not
+# yet crosswalked" backlog situation, not this name-mismatch mechanism) - so WAB is the only
+# individually-verified case today. Add more entries here only after the same live-CUSIP-plus-
+# entity-name verification done for WAB, never by pattern-matching alone.
+_VERIFIED_BRAND_NAME_ALIASES: dict[str, str] = {
+    # ticker -> the exact OpenFIGI resolved_name verified (2026-08-24) to be the same real
+    # company as our tracked WAB (CUSIP 929740108, local entity_name "WESTINGHOUSE AIR BRAKE
+    # TECHNOLOGIES CORP") under its public brand/trade name.
+    "WAB": "WABTEC CORP",
+}
+
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
     """Load institutional ownership % from SEC Form 13F bulk INFOTABLE datasets.
@@ -363,6 +399,12 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     else:
                         return None
         if not names_plausibly_match(resolved_name, local_names.get(ticker)):
+            # Individually-verified brand-name/legal-name exception (see
+            # _VERIFIED_BRAND_NAME_ALIASES's own comment) - checked BEFORE the name-index
+            # rescue below so a verified alias always wins over a coincidental name-index
+            # match for the same ticker.
+            if _VERIFIED_BRAND_NAME_ALIASES.get(ticker) == resolved_name:
+                return ticker
             name_match = name_index.find(resolved_name)
             if name_match and name_match != ticker:
                 ticker = name_match

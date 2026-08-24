@@ -228,6 +228,72 @@ def test_crosswalk_to_tickers_rejects_the_live_verified_xom_wrong_entity_match(m
     assert result == {}
 
 
+def test_crosswalk_to_tickers_admits_the_verified_wab_brand_name_alias(monkeypatch):
+    """Live-verified 2026-08-24: WAB's crosswalk CUSIP (929740108) resolves via OpenFIGI to
+    resolved_name="WABTEC CORP", an exact CUSIP match, but our own SEC-sourced entity_name is
+    "WESTINGHOUSE AIR BRAKE TECHNOLOGIES CORP" - Wabtec's own trade/brand name, same real
+    company, zero shared tokens with the legal name. names_plausibly_match() alone would
+    reject this (same shape as the XOM wrong-entity case above), so it's real, correctly-
+    resolved institutional ownership data was being silently dropped. Fixed via
+    _VERIFIED_BRAND_NAME_ALIASES, a small individually-verified exception - NOT a blanket
+    "trust every exact ticker match" fix (that was tried and correctly reverted, since it
+    would have also readmitted the XOM wrong-entity collision above)."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("929740108", "WAB", "WABTEC CORP")],
+        local_name_rows=[("WAB", "WESTINGHOUSE AIR BRAKE TECHNOLOGIES CORP")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["WAB"])
+
+    result, _manager_result = loader._crosswalk_to_tickers({"929740108": 12345})
+
+    assert result == {"WAB": 12345}
+
+
+def test_verified_brand_name_alias_does_not_admit_a_different_resolved_name_for_the_same_ticker(monkeypatch):
+    """The alias is keyed on (ticker, exact resolved_name) - if OpenFIGI ever resolves some
+    OTHER CUSIP to the WAB ticker with a different resolved_name (not "WABTEC CORP"), the
+    alias must NOT fire and the normal wrong-entity defense must still apply. Otherwise this
+    fix would silently degrade into the same "trust every exact ticker match" bug class the
+    XOM case exists to catch."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("999999999", "WAB", "SOME UNRELATED HOLDINGS CORP")],
+        local_name_rows=[("WAB", "WESTINGHOUSE AIR BRAKE TECHNOLOGIES CORP")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["WAB"])
+
+    result, _manager_result = loader._crosswalk_to_tickers({"999999999": 999})
+
+    assert result == {}
+
+
 def test_get_known_tracked_cusips_applies_same_rescues_as_crosswalk_to_tickers(monkeypatch):
     """FIXED 2026-08-21 (goal session: "Ownership data unresolved" root-cause audit):
     _get_known_tracked_cusips() used to do a naive `ticker = ANY(symbols)` match with
