@@ -40,7 +40,10 @@ DB_STATEMENT_TIMEOUT_MS = 30000  # 30s timeout for large table scans (increased 
 
 # ── Portfolio & Risk Management ─────────────────────────────────────────────
 
-# Regime-based position sizing multipliers (applied to max_position_size_pct)
+# Regime-based position sizing multipliers - display-only now (algo/reporting/daily_report.py
+# reads these via RegimeManager.REGIME_PARAMS for report display); the position-sizing
+# consumer (get_position_size_multiplier_from_regime()) was deleted 2026-08-24 for
+# double-counting exposure_pct - see algo/orchestration/regime_manager.py's REGIME_PARAMS comment.
 REGIME_POSITION_SIZE_CONFIRMED_UPTREND = 1.0
 REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE = 0.75
 REGIME_POSITION_SIZE_CAUTION = 0.5

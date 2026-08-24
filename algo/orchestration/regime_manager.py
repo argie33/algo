@@ -52,6 +52,14 @@ class RegimeManager:
     ]
 
     # Parameter overrides by regime (see algo.infrastructure.constants for values and rationale)
+    # position_size_mult (2026-08-24): NOT dead - algo/reporting/daily_report.py's
+    # _fetch_regime() reads this key directly via get_regime_params() for report display.
+    # get_position_size_multiplier() (the wrapper method) and get_adjusted_config()'s
+    # write-only config["_regime_position_size_mult"] WERE dead (their only real consumer,
+    # get_position_size_multiplier_from_regime() in algo/trading/position_sizer.py, was
+    # deleted the same day for double-counting exposure_pct against
+    # get_market_exposure_multiplier() - see test_position_sizer_no_regime_double_count_20260824.py)
+    # and were removed; this dict key and its REGIME_POSITION_SIZE_* constants were not.
     REGIME_PARAMS: ClassVar[dict[str, Any]] = {
         "confirmed_uptrend": {
             "position_size_mult": REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
@@ -200,10 +208,6 @@ class RegimeManager:
             self.REGIME_PARAMS[regime],
         )
 
-    def get_position_size_multiplier(self, as_of_date: _date | None = None) -> float:
-        params = self.get_regime_params(as_of_date)
-        return float(params["position_size_mult"])
-
     def get_adjusted_config(
         self,
         base_config: dict[str, Any],
@@ -255,7 +259,6 @@ class RegimeManager:
         # Add metadata
         config["_regime_adjusted"] = True
         config["_regime"] = self.get_current_regime(as_of_date)
-        config["_regime_position_size_mult"] = params["position_size_mult"]
         config["_regime_weight_update_alpha"] = params["weight_update_alpha"]
 
         return config
@@ -360,4 +363,3 @@ if __name__ == "__main__":
     params = rm.get_regime_params()
     logger.info(f"Current regime: {regime}")
     logger.info(f"Params: {params}")
-    logger.info(f"Position size mult: {rm.get_position_size_multiplier()}")
