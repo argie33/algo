@@ -106,14 +106,6 @@ const REGIME_COLOR = {
   correction: C.danger,
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
-// snake_case backend enum ("bearish_divergence") -> "Bearish Divergence"
-const humanize = (s) =>
-  typeof s === "string"
-    ? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    : s;
 
 const TOOLTIP_STYLE = {
   background: "var(--surface)",
@@ -820,64 +812,57 @@ function IndexCell({ idx, prices = [] }) {
 function ExposureFactors({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  // FIXED 2026-08-22 (exposure-model integrity review, 2 passes same day): sector_rotation,
-  // economic_overlay, cross_asset_confirmation, and the old fundamental_quality (now split
-  // into earnings_revision_breadth and valuation_extension_breadth) used to be a separate
-  // "modifier" category - post-score point-deltas around zero, rendered as their own cards
-  // below with a different bar style (deltaBarPct) than every budget factor above. Sahm
-  // Rule used to keep its own card below too, as a hard veto. Pass 2 found 2 of the
-  // economic overlay's 4 factors (Financial Conditions/ANFCI, Financial Stress/STLFSI4)
-  // substantially redundant with the pre-existing Credit Spread/Yield Curve rows (live
-  // correlation-checked: 0.75/0.53/-0.76) and thin on local history (~3yr, no recession
-  // in-sample) - both dropped entirely, their 6pt budget returned to Credit Spread (+3),
-  // Yield Curve (+1), and Sahm Rule (+2, now a normal graded row here instead of its own
-  // veto card) - see algo/risk/market_exposure.py's module docstring for the full
-  // reasoning. Every remaining signal is a normal weighted factor, one row in this list.
-  const list = [
-    ["trend_30wk", "30-WEEK MA TREND", 11.0],
-    ["spy_momentum", "SPY 12-MONTH MOMENTUM", 7.25],
-    ["breadth", "BREADTH (% > 50/200-DMA)", 11.75],
-    ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 7.25],
-    ["vix_regime", "VIX REGIME + TREND", 7.25],
-    ["credit_spread", "HY CREDIT SPREAD", 10.25],
-    ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 5.75],
-    ["new_highs_lows", "NEW HIGHS - LOWS", 5],
-    ["ad_line", "A/D LINE CONFIRMATION", 4.5],
-    ["positioning", "POSITIONING & FLOWS", 3.75],
-    ["aaii_sentiment", "RETAIL SENTIMENT (AAII, EXTREMES ONLY)", 2.25],
-    ["yield_curve", "YIELD CURVE (T10Y2Y + T10Y3M)", 5],
-    ["inflation_expectations", "INFLATION EXPECTATIONS (BREAKEVEN)", 1],
-    ["sector_rotation", "SECTOR ROTATION", 5],
-    ["cross_asset_confirmation", "CROSS-ASSET CONFIRMATION", 5],
-    ["earnings_revision_breadth", "EARNINGS REVISION BREADTH", 2.5],
-    ["valuation_extension_breadth", "VALUATION EXTENSION BREADTH", 1.5],
-    ["sahm_rule", "SAHM RULE (RECESSION-ONSET RAMP)", 2],
-    ["market_technicals", "MARKET TECHNICALS (SPY RSI + MACD)", 2],
+  // FIXED 2026-08-24 (dashboard-integration audit): this card previously read a flat list
+  // of 19 pre-redesign factor keys (trend_30wk, breadth, distribution_days, sector_rotation,
+  // etc.) directly off `factors`. Those keys stopped existing at the top level of `factors`
+  // the moment the 2026-08-23 pillar redesign landed - they moved under pillar_trend/
+  // pillar_risk/pillar_confirm.components.*, and several (sector_rotation, positioning,
+  // cross_asset_confirmation, earnings_revision_breadth, valuation_extension_breadth) were
+  // dropped as signals entirely (see market_exposure.py's "Dropped entirely" docstring
+  // section). Every row's `factors[key]` lookup was therefore always undefined and the
+  // fail-fast `if (!f...) return null` silently rendered this card with zero rows in
+  // production - no test caught it since nothing here was mock-covered. Rewritten to read
+  // the real pillar structure: Pillar 1 (Trend & Momentum) is the only scored pillar since
+  // the 2026-08-24 reweight (W_PILLAR_TREND=100, others=0 - a deliberate Faber/TSMOM-only
+  // composite, not a bug), shown with its 3 real sub-components including RSI/MACD
+  // (market_technicals, 10% of the pillar). Pillar 2/3 render as "not scored" with their
+  // real internal 0-100 reading - their own sub-signal detail (VIX, credit spread, breadth,
+  // AAII, etc.) is already correctly shown elsewhere on this page (VixCard, BreadthCard,
+  // MarketPulse, SentimentCard).
+  const pillars = [
+    ["pillar_trend", "PILLAR 1 · TREND & MOMENTUM (Faber/TSMOM)"],
+    ["pillar_risk", "PILLAR 2 · INDEPENDENT RISK LAYERS"],
+    ["pillar_confirm", "PILLAR 3 · BREADTH & SENTIMENT"],
+  ];
+  const trendComponents = [
+    ["trend_30wk", "30-Week MA Trend", 0.55],
+    ["spy_momentum", "SPY 12-Month Momentum", 0.35],
+    ["market_technicals", "Market Technicals (RSI + MACD)", 0.1],
   ];
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">
-            {list.length}-Factor Exposure Composite
-          </div>
+          <div className="card-title">Exposure Composite</div>
           <div className="card-sub">
             {safeCurrent
               ? `Raw ${num(safeCurrent.raw_score, 1)} → capped ${safeCurrent.exposure_pct}%`
-              : "Each factor independently scored, summed for total exposure"}
+              : "Trend & Momentum is the only scored pillar; Risk/Breadth feed vetoes only"}
           </div>
         </div>
       </div>
       <div className="card-body">
-        {list
-          .map(([key, label, max]) => {
+        {pillars
+          .map(([key, label]) => {
             const f = factors[key];
-            // FAIL-FAST: Skip factors with missing data; don't default to 0%
-            if (!f || f.max == null || f.pts == null) {
-              return null;
-            }
-            const pct = Math.max(0, Math.min(100, (f.pts / f.max) * 100));
+            // FAIL-FAST: Skip pillars with missing data; don't default to 0%
+            if (!f) return null;
+            const notScored = f.max == null || f.max <= 0;
+            const pct =
+              !notScored && f.pts != null
+                ? Math.max(0, Math.min(100, (f.pts / f.max) * 100))
+                : 0;
             const fillClass =
               pct >= 70
                 ? "success"
@@ -886,117 +871,79 @@ function ExposureFactors({ markets }) {
                   : pct >= 20
                     ? "warn"
                     : "danger";
-            const sub = [];
-            // Factor-specific detail display
-            if (key === "aaii_sentiment") {
-              if (f.bullish_pct != null)
-                sub.push(`Bull:${num(f.bullish_pct, 1)}%`);
-              if (f.bearish_pct != null)
-                sub.push(`Bear:${num(f.bearish_pct, 1)}%`);
-              if (f.spread != null) sub.push(`Spread:${num(f.spread, 1)}`);
-            } else if (key === "positioning") {
-              if (f.insider_buying_breadth_pct != null)
-                sub.push(`Insider:${num(f.insider_buying_breadth_pct, 1)}%`);
-              if (f.short_interest_chg_pct != null)
-                sub.push(`Short Chg:${num(f.short_interest_chg_pct, 1)}%`);
-              if (f.insider_active_count != null)
-                sub.push(`${f.insider_active_count} active`);
-            } else if (key === "distribution_days") {
-              if (f.count != null) sub.push(`${f.count} days`);
-              if (f.regime) sub.push(humanize(f.regime));
-            } else if (key === "new_highs_lows") {
-              if (f.new_highs != null)
-                sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
-              if (f.nh_pct != null) sub.push(`${num(f.nh_pct, 1)}% highs`);
-            } else if (key === "ad_line") {
-              if (f.relation) sub.push(humanize(f.relation));
-              if (f.ad_change_20d != null)
-                sub.push(
-                  `A/D 20d:${f.ad_change_20d > 0 ? "+" : ""}${num(f.ad_change_20d, 4)}`
-                );
-              if (f.spy_change_pct_20d != null)
-                sub.push(`SPY 20d:${num(f.spy_change_pct_20d, 2)}%`);
-            } else if (key === "credit_spread") {
-              if (f.value != null) sub.push(`OAS ${num(f.value, 2)}%`);
-              if (f.hy_20d_ago != null)
-                sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
-              if (f.widening_rapidly) sub.push("⚠ widening");
-            } else if (key === "spy_momentum") {
-              if (f.value != null) sub.push(`12mo:${num(f.value, 2)}%`);
-            } else if (key === "trend_30wk") {
-              if (f.value) sub.push(humanize(f.value));
-              if (f.price_vs_ma_pct != null)
-                sub.push(`${num(f.price_vs_ma_pct, 2)}% above MA`);
-            } else if (key === "yield_curve") {
-              if (f.t10y2y?.value != null)
-                sub.push(`2s10s ${num(f.t10y2y.value, 2)}%`);
-              if (f.t10y3m?.value != null)
-                sub.push(`3m10y ${num(f.t10y3m.value, 2)}%`);
-            } else if (key === "breadth") {
-              if (f.pct_above_50 != null)
-                sub.push(`50d:${num(f.pct_above_50, 0)}%`);
-              if (f.pct_above_200 != null)
-                sub.push(`200d:${num(f.pct_above_200, 0)}%`);
-            } else if (key === "sahm_rule") {
-              if (f.value != null)
-                sub.push(`${num(f.value, 2)}pp vs. 0.50pp trigger`);
-              if (f.triggered) sub.push("TRIGGERED");
-            } else if (key === "inflation_expectations") {
-              if (f.value != null) sub.push(`breakeven ${num(f.value, 2)}%`);
-            } else if (key === "sector_rotation") {
-              if (f.signal) sub.push(humanize(f.signal));
-              if (f.defensive_lead_score != null)
-                sub.push(`lead ${num(f.defensive_lead_score, 0)}/100`);
-            } else if (key === "cross_asset_confirmation") {
-              if (f.composite_z != null)
-                sub.push(
-                  `z=${f.composite_z > 0 ? "+" : ""}${num(f.composite_z, 1)}`
-                );
-              if (f.n_signals != null) sub.push(`n=${f.n_signals}`);
-            } else if (key === "earnings_revision_breadth") {
-              if (f.revision_breadth_pct != null)
-                sub.push(`${num(f.revision_breadth_pct, 0)}% rising`);
-            } else if (key === "valuation_extension_breadth") {
-              if (f.breadth_pct != null)
-                sub.push(`${num(f.breadth_pct, 0)}% extended`);
-              if (f.active_count != null) sub.push(`n=${f.active_count}`);
-            } else if (key === "market_technicals") {
-              if (f.rsi_14 != null) sub.push(`RSI ${num(f.rsi_14, 1)}`);
-              if (f.macd_z != null)
-                sub.push(
-                  `MACD z=${f.macd_z > 0 ? "+" : ""}${num(f.macd_z, 1)}`
-                );
-            } else {
-              // Generic display for other factors
-              if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
-              if (f.state) sub.push(humanize(f.state));
-              if (f.relation) sub.push(humanize(f.relation));
-            }
             return (
-              <div key={key} style={{ marginBottom: "var(--space-3)" }}>
+              <div key={key} style={{ marginBottom: "var(--space-4)" }}>
                 <div
                   className="flex items-center justify-between"
                   style={{ marginBottom: 4 }}
                 >
                   <span className="eyebrow">{label}</span>
                   <span className="mono tnum t-xs strong">
-                    <SafeMetricValue
-                      value={f.pts}
-                      formatter="decimal2"
-                      fallback="0"
-                    />{" "}
-                    / {f.max || max}
+                    {notScored ? (
+                      <>not scored · reads {num(f.score, 0)}/100</>
+                    ) : (
+                      <>
+                        <SafeMetricValue
+                          value={f.pts}
+                          formatter="decimal2"
+                          fallback="0"
+                        />{" "}
+                        / {f.max}
+                      </>
+                    )}
                   </span>
                 </div>
-                <div className="bar">
-                  <div
-                    className={`bar-fill ${fillClass}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                {sub.length > 0 && (
+                {!notScored && (
+                  <div className="bar">
+                    <div
+                      className={`bar-fill ${fillClass}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                )}
+                {notScored && (
                   <div className="t-2xs muted" style={{ marginTop: 4 }}>
-                    {sub.join(" · ")}
+                    veto/context only - see the cards below for VIX, credit
+                    spread, breadth, and sentiment detail
+                  </div>
+                )}
+                {key === "pillar_trend" && (
+                  <div style={{ marginTop: 8 }}>
+                    {trendComponents.map(([ck, clabel, weight]) => {
+                      const c = f.components?.[ck];
+                      if (!c) return null;
+                      let val = "—";
+                      if (ck === "trend_30wk" && c.price_vs_ma_pct != null) {
+                        val = `${c.price_vs_ma_pct >= 0 ? "+" : ""}${num(c.price_vs_ma_pct, 2)}% vs MA`;
+                      } else if (ck === "spy_momentum" && c.value != null) {
+                        val = `${c.value >= 0 ? "+" : ""}${num(c.value, 2)}% (12mo)`;
+                      } else if (ck === "market_technicals") {
+                        if (c.data_unavailable) {
+                          val = `⚠ ${c.reason || "unavailable"}`;
+                        } else {
+                          const parts = [];
+                          if (c.rsi_14 != null)
+                            parts.push(`RSI ${num(c.rsi_14, 1)}`);
+                          if (c.macd_z != null)
+                            parts.push(
+                              `MACD z=${c.macd_z >= 0 ? "+" : ""}${num(c.macd_z, 1)}`
+                            );
+                          val = parts.length ? parts.join(" · ") : "—";
+                        }
+                      }
+                      return (
+                        <div
+                          key={ck}
+                          className="flex items-center justify-between t-2xs muted"
+                          style={{ padding: "2px 0" }}
+                        >
+                          <span>
+                            {clabel} ({Math.round(weight * 100)}% of pillar)
+                          </span>
+                          <span className="mono">{val}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
