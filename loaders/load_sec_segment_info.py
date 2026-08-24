@@ -176,16 +176,16 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
             # Use whatever segment data we found, or mark unavailable
             if not segment_data or not segment_data.get("data_available"):
-                return [
-                    self._unavailable_marker(
-                        symbol, segment_data.get("reason", "no_segment_data") if segment_data else "no_segment_data"
-                    )
-                ]
+                marker = self._unavailable_marker(
+                    symbol, segment_data.get("reason", "no_segment_data") if segment_data else "no_segment_data"
+                )
+                return [marker] if marker else []
 
             # Extract individual segments
             segments = segment_data.get("segments") if "segments" in segment_data else []
             if not segments:
-                return [self._unavailable_marker(symbol, "no_segments_found")]
+                marker = self._unavailable_marker(symbol, "no_segments_found")
+                return [marker] if marker else []
 
             records = []
 
@@ -202,7 +202,8 @@ class SecSegmentInfoLoader(SecLoaderBase):
             if filing_date is None:
                 # Segment revenue was found but we can't attribute it to a fiscal year/date
                 # from any official source - fail-fast rather than fabricate today()'s date.
-                return [self._unavailable_marker(symbol, "filing_date_unavailable")]
+                marker = self._unavailable_marker(symbol, "filing_date_unavailable")
+                return [marker] if marker else []
             fiscal_year = filing_date.year
             fiscal_period = "FY"  # Simplified: assume annual for now
 
@@ -271,7 +272,8 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         except Exception as e:
             logger.error(f"[{symbol}] Segment extraction failed: {type(e).__name__}: {str(e)[:300]}", exc_info=True)
-            return [self._unavailable_marker(symbol, f"extraction_error:{type(e).__name__}")]
+            marker = self._unavailable_marker(symbol, f"extraction_error:{type(e).__name__}")
+            return [marker] if marker else []
 
     # FIXED 2026-08-19 ("no SEC data"/loader audit): _find_latest_annual_filing only ever
     # matched the literal form "10-K", so this tier-2 raw-XBRL-XML fallback (the only source
@@ -453,19 +455,31 @@ class SecSegmentInfoLoader(SecLoaderBase):
         CRD.B, GEF.B, GTN.A, HEI.A, HVT.A, LEN.B, MOG.A, MOG.B, MKC.V): a fresh,
         unretried `symbol_to_cik()` call resolves every one of them correctly right now,
         proving the stored "symbol_not_found" marker was a one-off transient miss, not a
-        real resolution failure. Skip writing a fresh data_unavailable marker when real
-        segment data is already on record, and retract any data_unavailable=true marker
-        row already sitting there from before this guard existed - not a silent
-        fallback, this run genuinely has nothing new to report for an already-covered
-        symbol.
+        real resolution failure.
+        """
+        marker = self._unavailable_marker(symbol, "symbol_not_found")
+        return [marker] if marker else []
+
+    def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any] | None:
+        """Build a data_unavailable row for a symbol with no segment disclosure this run,
+        or None if real historical segment data is already on record (in which case any
+        stale marker is retracted instead).
+
+        BUG FOUND 2026-08-24 (goal session logic-soundness audit): the 2026-08-21 fix
+        above (see _handle_symbol_not_found's docstring for the full "fresh marker
+        outranks real data" mechanics) was only ever applied at that one call site. Four
+        other call sites in fetch_incremental() (no_segment_data, no_segments_found,
+        filing_date_unavailable, extraction_error:*) constructed this same
+        fiscal_year=today()-tagged marker directly, unguarded - so a symbol with real,
+        multi-year segment data already on record could still get a fresh current-year
+        marker written on any transient failure (an SEC API hiccup, a temporary XBRL
+        parse error), which then outranks the real data in any naive
+        `ORDER BY fiscal_year DESC LIMIT 1` read. Moved the guard here so every caller is
+        protected uniformly instead of relying on each one remembering to check.
         """
         if self._has_prior_real_coverage(symbol):
             self._retract_stale_marker(symbol)
-            return []
-        return [self._unavailable_marker(symbol, "symbol_not_found")]
-
-    def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any | None]:
-        """Build a data_unavailable row for a symbol with no segment disclosure."""
+            return None
         return {
             "symbol": symbol,
             "fiscal_year": date.today().year,
