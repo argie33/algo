@@ -765,7 +765,15 @@ class ValueAtRisk:
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 
                 result = {
-                    "portfolio_value": round(portfolio_value, 2),
+                    # BUG FOUND 2026-08-23 (goal session: unaudited var.py functions sweep):
+                    # round() on a Decimal returns a Decimal, not a float - unlike every other
+                    # field in this dict, which rounds an already-float value (position_value/
+                    # position_pct are float() by line ~717/732). Live-reproduced: json.dumps()
+                    # on this function's real return value crashes with "Object of type Decimal
+                    # is not JSON serializable" - any API endpoint or dashboard fetch consuming
+                    # concentration_report() output would 500. beta_exposure() (this file's
+                    # sibling function) already gets this right via float(portfolio_value...).
+                    "portfolio_value": round(float(portfolio_value), 2),
                     "position_count": len(positions),
                     "top_holdings": top_holdings[:5],
                     "top_5_concentration_pct": round(top_5_pct, 1),
