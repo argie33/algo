@@ -178,7 +178,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 WHERE cp.industry IS NOT NULL AND cp.industry != ''
                 GROUP BY cp.industry
             ) ip ON ip.industry = ir.industry
-            WHERE ir.date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
+            WHERE ir.date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking WHERE date_recorded <= CURRENT_DATE)
             ORDER BY ir.current_rank
             LIMIT %s OFFSET %s
         """,
@@ -259,7 +259,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         )
 
     cur.execute(
-        "SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)"
+        "SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking WHERE date_recorded <= CURRENT_DATE)"
     )
     total_row = cur.fetchone()
     total = total_row["count"] if total_row else len(industries)

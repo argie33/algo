@@ -93,3 +93,44 @@ def test_uses_today_directly_when_coverage_is_adequate():
         assert date(2026, 8, 10) in params, (
             "today() has adequate price_daily coverage - should use it directly, not fall back unnecessarily."
         )
+
+
+def test_sector_and_industry_ranking_use_target_date_not_now():
+    """Bug found 2026-08-23 (live-reproduced: sector_ranking carried a row dated tomorrow,
+    written by a run whose wall-clock had already crossed midnight UTC while it was still
+    today in US market terms). The sector_ranking/industry_ranking INSERTs used NOW()::date
+    directly in SQL instead of the already-corrected target_date, completely bypassing the
+    fallback this file's other test locks in - the exact failure mode predicted in the
+    2026-08-10 fix's own comment: these two tables "kept succeeding normally" on the wrong
+    date because they never depended on price_daily's fallback check to begin with."""
+    loader = _make_loader()
+    mock_cur = MagicMock()
+    mock_cur.rowcount = 5
+    # today_count = 1, well below MIN_EXPECTED_SYMBOLS - triggers the fallback to 2026-08-07.
+    mock_cur.fetchone.return_value = (1,)
+
+    with (
+        patch(
+            "loaders.load_sector_industry_daily.MarketCalendar.get_previous_trading_day",
+            return_value=date(2026, 8, 7),
+        ),
+        patch("loaders.load_sector_industry_daily.date") as mock_date,
+        patch("loaders.load_sector_industry_daily.DatabaseContext") as mock_db_ctx,
+    ):
+        mock_date.today.return_value = date(2026, 8, 10)
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+
+        loader.fetch_incremental("market", None)
+
+        for table in ("sector_ranking", "industry_ranking"):
+            insert_calls = [call for call in mock_cur.execute.call_args_list if f"INSERT INTO {table}" in str(call)]
+            assert insert_calls, f"{table} INSERT was never executed"
+            sql, params = insert_calls[0][0][0], insert_calls[0][0][1]
+            assert "NOW()::date" not in sql, f"{table} INSERT must not read the DB server's raw NOW()::date"
+            assert params is not None and date(2026, 8, 7) in params, (
+                f"{table} INSERT must use the fallback target_date (2026-08-07), not today()"
+            )
+            assert date(2026, 8, 10) not in (params or ()), (
+                f"{table} INSERT used today()'s date despite the price_daily fallback resolving to 2026-08-07"
+            )

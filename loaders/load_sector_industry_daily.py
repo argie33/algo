@@ -276,6 +276,19 @@ class SectorIndustryDailyLoader(OptimalLoader):
 
                 # ===== SECTOR RANKINGS =====
                 # Rank sectors by average composite score + compute momentum
+                # BUG FOUND 2026-08-23 (live-reproduced: sector_ranking carried a row dated
+                # 2026-08-24, a Monday that hadn't opened yet, written by a run whose wall-clock
+                # had already crossed midnight UTC while it was still Sunday evening in US
+                # market terms - MEMORY.md: "date math via MarketCalendar only, never raw
+                # datetime"). This query used NOW()::date directly in SQL instead of the
+                # target_date the Python code above already corrected via the price_daily/
+                # MarketCalendar fallback (see the BUG FOUND 2026-08-10 comment above) -
+                # completely bypassing that correction. Exactly the failure mode the comment on
+                # that fix already predicted: "sector_ranking/industry_ranking are computed from
+                # stock_scores, not today's price_daily, so they kept succeeding normally and
+                # masked this." Now parameterized on target_date, including the 1w/4w/12w
+                # lookback boundaries below (they must anchor to the trading date being
+                # recorded, not literal wall-clock now, for the same reason).
                 # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - no fabricated scores
                 # Only include sectors with stocks that have real scores
                 # Deliberately NOT the Session 279 SIC-description switch used by sector_performance
@@ -306,7 +319,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                        rank_1w_ago, rank_4w_ago, rank_12w_ago, stock_count, avg_score)
                     SELECT
                         ss.sector_name,
-                        NOW()::date,
+                        %s::date,
                         ss.current_rank,
                         -- Sign convention: positive = improving (rank number went DOWN, e.g.
                         -- 5 -> 2 means climbing toward #1). This previously computed
@@ -331,19 +344,19 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     LEFT JOIN LATERAL (
                         SELECT sr.current_rank AS rank FROM sector_ranking sr
                         WHERE sr.sector_name = ss.sector_name
-                          AND sr.date <= NOW()::date - INTERVAL '7 days'
+                          AND sr.date <= %s::date - INTERVAL '7 days'
                         ORDER BY sr.date DESC LIMIT 1
                     ) r1 ON TRUE
                     LEFT JOIN LATERAL (
                         SELECT sr.current_rank AS rank FROM sector_ranking sr
                         WHERE sr.sector_name = ss.sector_name
-                          AND sr.date <= NOW()::date - INTERVAL '28 days'
+                          AND sr.date <= %s::date - INTERVAL '28 days'
                         ORDER BY sr.date DESC LIMIT 1
                     ) r4 ON TRUE
                     LEFT JOIN LATERAL (
                         SELECT sr.current_rank AS rank FROM sector_ranking sr
                         WHERE sr.sector_name = ss.sector_name
-                          AND sr.date <= NOW()::date - INTERVAL '84 days'
+                          AND sr.date <= %s::date - INTERVAL '84 days'
                         ORDER BY sr.date DESC LIMIT 1
                     ) r12 ON TRUE
                     ON CONFLICT (sector_name, date) DO UPDATE SET
@@ -357,6 +370,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         avg_score = EXCLUDED.avg_score,
                         updated_at = NOW()
                     """,
+                    (target_date, target_date, target_date, target_date),
                 )
                 rank_count = cur.rowcount
                 row_counts["sector_ranking"] = rank_count
@@ -385,7 +399,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                        rank_1w_ago, rank_4w_ago, rank_12w_ago, stock_count, avg_score)
                     SELECT
                         i_stats.industry_name,
-                        NOW()::date,
+                        %s::date,
                         i_stats.current_rank,
                         -- Sign convention: positive = improving (rank went DOWN), matching the
                         -- sector_ranking fix above and sector_rotation.py's own
@@ -405,19 +419,19 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
                         WHERE ir.industry = i_stats.industry_name
-                          AND ir.date_recorded <= NOW()::date - INTERVAL '7 days'
+                          AND ir.date_recorded <= %s::date - INTERVAL '7 days'
                         ORDER BY ir.date_recorded DESC LIMIT 1
                     ) r1 ON TRUE
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
                         WHERE ir.industry = i_stats.industry_name
-                          AND ir.date_recorded <= NOW()::date - INTERVAL '28 days'
+                          AND ir.date_recorded <= %s::date - INTERVAL '28 days'
                         ORDER BY ir.date_recorded DESC LIMIT 1
                     ) r4 ON TRUE
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
                         WHERE ir.industry = i_stats.industry_name
-                          AND ir.date_recorded <= NOW()::date - INTERVAL '84 days'
+                          AND ir.date_recorded <= %s::date - INTERVAL '84 days'
                         ORDER BY ir.date_recorded DESC LIMIT 1
                     ) r12 ON TRUE
                     ON CONFLICT (industry, date_recorded) DO UPDATE SET
@@ -431,6 +445,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         avg_score = EXCLUDED.avg_score,
                         updated_at = NOW()
                     """,
+                    (target_date, target_date, target_date, target_date),
                 )
                 ind_count = cur.rowcount
                 row_counts["industry_ranking"] = ind_count

@@ -2148,7 +2148,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             cur.execute("""
                     SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
                     FROM sector_ranking
-                    WHERE date = (SELECT MAX(date) FROM sector_ranking)
+                    WHERE date = (SELECT MAX(date) FROM sector_ranking WHERE date <= CURRENT_DATE)
                     ORDER BY current_rank ASC NULLS LAST
                 """)
             for sr in cur.fetchall():
