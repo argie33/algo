@@ -2349,8 +2349,6 @@ class AlgoConfig:
                     )
 
                 # Write audit trail (note: include original requested value if fail-closed)
-                # TEMPORARY: Wrapped in try-except to allow operation even if audit table doesn't exist
-                # This lets the system run while schema is being built
                 # Skip no-op writes (old_value == final_value, not fail-closed): callers like
                 # run_local_orchestrator.py's per-run "force paper mode" guard call set() on
                 # every single orchestrator run regardless of whether the value already matches,
@@ -2368,9 +2366,18 @@ class AlgoConfig:
                         """,
                             (key, old_value, str(final_value) + audit_note, changed_by),
                         )
-                    except Exception as audit_err:
-                        # Audit table missing - log but don't crash
-                        logger.debug(f"[CONFIG] Could not write audit trail: {audit_err}")
+                    except psycopg2.errors.UndefinedTable as audit_err:
+                        # Genuinely missing table (e.g. a fresh DB before migrations run) is
+                        # survivable, but silent at DEBUG level hid this real degraded state -
+                        # a live finance system should never lose its config-change audit trail
+                        # without someone noticing (2026-08-24 real-money-readiness audit: found
+                        # this except was also swallowing unrelated DB errors - transient
+                        # connection issues, deadlocks, real bugs - for the config_key/old_value/
+                        # new_value/changed_by INSERT below, indistinguishable from the "table
+                        # doesn't exist" case this was written for. Table has existed and held
+                        # 1,998 rows since well before this fix, so that original justification
+                        # is stale; narrowed to the specific exception it actually describes).
+                        logger.warning(f"[CONFIG] audit_config table missing, audit trail not recorded: {audit_err}")
 
             self._config[key] = self._parse_value(str(final_value), value_type)
             self._sources[key] = "database" if not was_fail_closed else "fail_closed_default"
