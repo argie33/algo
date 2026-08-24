@@ -1312,10 +1312,15 @@ class EntryHandler:
 
             if existing_position:
                 # Position exists - fetch current status to determine if reopening or adding
-                cur.execute("SELECT trade_ids_arr, status FROM algo_positions WHERE position_id = %s", (position_id,))
+                cur.execute(
+                    "SELECT trade_ids_arr, status, quantity, avg_entry_price FROM algo_positions WHERE position_id = %s",
+                    (position_id,),
+                )
                 fetch_result = cur.fetchone()
                 existing_trades_result = fetch_result
                 existing_status = fetch_result[1] if fetch_result and len(fetch_result) > 1 else None
+                existing_quantity = fetch_result[2] if fetch_result and len(fetch_result) > 2 else None
+                existing_avg_entry_price = fetch_result[3] if fetch_result and len(fetch_result) > 3 else None
 
                 is_reopening_closed_position = existing_status == "closed"
                 if is_reopening_closed_position:
@@ -1382,7 +1387,39 @@ class EntryHandler:
                         ),
                     )
                 else:
-                    # Adding to open position: preserve current_stop_price
+                    # Adding to open position: preserve current_stop_price.
+                    #
+                    # BUG FOUND 2026-08-24 (real-money-readiness goal, phase8/position-sizer
+                    # audit): this branch used to set quantity=actual_shares and
+                    # avg_entry_price/entry_price=executed_price directly - i.e. this trade's
+                    # OWN fill quantity/price, not blended with whatever the position already
+                    # held. Reachability check: trade_validator.py's check_duplicate_position()
+                    # (called earlier in this same entry flow, always given a real entry_date
+                    # from Phase 8's own run_date) blocks any new entry into a symbol that
+                    # already has is_open=true for that entry_date - so this specific branch
+                    # (existing position found AND its status isn't 'closed', i.e. genuinely
+                    # still open) should be unreachable in the current call graph, same as
+                    # get_phase_size_multiplier()'s phase_climax branch in position_sizer.py.
+                    # Hardening anyway, defense-in-depth: if that upstream guard is ever
+                    # weakened/bypassed (e.g. a future entry_date=None call path), this must
+                    # not silently corrupt the position's cost basis by discarding the prior
+                    # entry's contribution - quantity is summed and avg_entry_price/entry_price
+                    # become the quantity-weighted average across old + new shares, matching
+                    # how a real broker computes cost basis on an add.
+                    prior_qty = Decimal(str(existing_quantity)) if existing_quantity else Decimal(0)
+                    prior_avg_price = (
+                        Decimal(str(existing_avg_entry_price)) if existing_avg_entry_price is not None else None
+                    )
+                    new_shares_dec = Decimal(str(actual_shares))
+                    total_quantity = prior_qty + new_shares_dec
+                    if prior_qty > 0 and prior_avg_price is not None and total_quantity > 0:
+                        blended_avg_price = (
+                            (prior_qty * prior_avg_price) + (new_shares_dec * Decimal(str(executed_price)))
+                        ) / total_quantity
+                    else:
+                        blended_avg_price = Decimal(str(executed_price))
+                    blended_position_value = total_quantity * Decimal(str(executed_price))
+
                     cur.execute(
                         """
                         UPDATE algo_positions
@@ -1397,11 +1434,11 @@ class EntryHandler:
                         WHERE position_id = %s
                         """,
                         (
-                            actual_shares,
+                            total_quantity,
+                            blended_avg_price,
+                            blended_avg_price,
                             executed_price,
-                            executed_price,
-                            executed_price,
-                            position_value,
+                            blended_position_value,
                             0,
                             0,
                             position_status,
