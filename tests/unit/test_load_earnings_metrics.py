@@ -181,6 +181,57 @@ def test_volatile_earnings_dampen_quality_score_below_consistency(monkeypatch) -
     assert 0.0 <= r["earnings_quality_score"] <= 100.0
 
 
+def test_zero_mean_eps_with_high_variance_gets_maximum_dampening(monkeypatch) -> None:
+    """BUG FOUND 2026-08-24: quarters oscillating +2,-2,+2,-2 (avg_eps == 0 exactly, but
+    wildly volatile) must NOT get zero dampening just because dividing by |avg_eps| is
+    undefined at exactly zero - that's the most unstable pattern possible, not the most
+    stable. Same 50% consistency_score as test_volatile_earnings_dampen_quality_score_
+    below_consistency, but earnings_quality_score must still be strictly dampened below
+    it, not left equal to it."""
+    import loaders.load_earnings_metrics as mod
+
+    cursor = _FakeCursor(
+        [
+            (2026, 2, 2.0),
+            (2026, 1, -2.0),
+            (2025, 4, 2.0),
+            (2025, 3, -2.0),
+        ]
+    )
+    monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+
+    records = _make_loader().fetch_incremental("SEESAW", since=None)
+
+    r = records[0]
+    assert r["consistency_score"] == 50.0
+    assert r["earnings_quality_score"] < r["consistency_score"]
+
+
+def test_zero_mean_zero_variance_eps_does_not_crash(monkeypatch) -> None:
+    """Control/regression guard: all four quarters exactly 0.0 means avg_eps == 0 AND
+    stdev_eps == 0 simultaneously (the one avg_eps==0 case where zero dampening is
+    actually correct - genuinely flat, not offsetting swings). Mainly guards against a
+    naive stdev_eps/abs(avg_eps) reintroduction raising ZeroDivisionError here; the
+    output is 0 either way since 0.0 doesn't count as a positive quarter."""
+    import loaders.load_earnings_metrics as mod
+
+    cursor = _FakeCursor(
+        [
+            (2026, 2, 0.0),
+            (2026, 1, 0.0),
+            (2025, 4, 0.0),
+            (2025, 3, 0.0),
+        ]
+    )
+    monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+
+    records = _make_loader().fetch_incremental("FLATZERO", since=None)
+
+    r = records[0]
+    assert r["consistency_score"] == 0.0
+    assert r["earnings_quality_score"] == 0.0
+
+
 def test_more_than_four_quarters_only_uses_trailing_four(monkeypatch) -> None:
     """The query itself is LIMIT 4 ORDER BY fiscal_year/quarter DESC - verifies the
     fake cursor's query assertion holds and a 4-row response is handled as exactly
