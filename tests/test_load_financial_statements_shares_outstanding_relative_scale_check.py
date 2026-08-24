@@ -19,6 +19,7 @@ trusts) whenever available, in addition to the absolute floor.
 from unittest.mock import MagicMock, patch
 
 from loaders.load_financial_statements import ConsolidatedFinancialStatementsLoader, get_income_statement_config
+from utils.bulk_insert_manager import BulkInsertManager
 
 
 def _make_loader() -> ConsolidatedFinancialStatementsLoader:
@@ -29,6 +30,11 @@ def _make_loader() -> ConsolidatedFinancialStatementsLoader:
     loader.statement_type = "income"
     loader._schema_cols = config["schema_cols"]
     loader._field_mapping = config["field_mapping"]
+    # _record_explicit_null_rejection() (2026-08-23 fix) reads _bulk_insert_mgr.primary_key
+    # and appends to _explicit_null_rejections - both normally set in __init__, which this
+    # __new__()-based lightweight fixture bypasses.
+    loader._bulk_insert_mgr = BulkInsertManager(config["table_name"], config["primary_key"])
+    loader._explicit_null_rejections = []
     return loader
 
 
