@@ -209,9 +209,25 @@ class SectorIndustryDailyLoader(OptimalLoader):
 
             with DatabaseContext("write") as cur:
                 # ===== SECTOR PERFORMANCE =====
-                # Calculate daily % return per sector (weighted by price as market cap proxy)
+                # Calculate daily % return per sector, weighted by real market cap
+                # (close * shares_outstanding).
                 # FIXED (Session 279): Use company_info_sec.sic_description (SEC data) instead of
                 # broken company_profile.sector (76% "Unknown" due to deprecated yfinance loader)
+                # FIXED (2026-08-24 goal-session finance-accuracy audit): this previously used
+                # raw closing price itself as the weight ("market_cap_proxy"), despite the
+                # module docstring already claiming "weighted by market cap" - price has no
+                # relationship to actual market cap (a $500 stock with 10M shares outstanding
+                # is a $5B company; a $500 stock with 10B shares is a $5T company - the old
+                # query weighted them identically). No major real-world index uses raw-price
+                # weighting except the Dow, which is a well-known historical anachronism, not a
+                # methodology to emulate. Switched to real market_cap = close * shares_outstanding
+                # from company_info_sec (already joined here for sic_description) - live-checked
+                # 2026-08-24: 4187/5556 (75%) of symbols have shares_outstanding > 0, and no
+                # sector in the live universe has zero coverage (worst case ~6%, most 60-95%+),
+                # so SUM(market_cap) never zeroes out a whole sector. Rows with NULL/missing
+                # shares_outstanding simply drop out of the weighted SUMs (NULL propagates,
+                # SUM ignores it) but still count toward stock_count - preserves stock_count's
+                # existing meaning as sector breadth, not narrowed to "cap-eligible only".
                 cur.execute(
                     """
                     WITH daily_changes AS (
@@ -219,7 +235,9 @@ class SectorIndustryDailyLoader(OptimalLoader):
                             COALESCE(c.sic_description, 'Unknown') as sector,
                             pd_today.symbol,
                             (pd_today.close - pd_prev.close) / NULLIF(pd_prev.close, 0) as daily_return,
-                            pd_today.close as market_cap_proxy
+                            CASE WHEN c.shares_outstanding > 0
+                                 THEN pd_today.close * c.shares_outstanding
+                            END as market_cap
                         FROM price_daily pd_today
                         INNER JOIN price_daily pd_prev
                             ON pd_today.symbol = pd_prev.symbol
@@ -230,7 +248,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     sector_weighted_avg AS (
                         SELECT
                             sector,
-                            SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct,
+                            SUM(daily_return * market_cap) / NULLIF(SUM(market_cap), 0) as return_pct,
                             COUNT(DISTINCT symbol) as stock_count
                         FROM daily_changes
                         WHERE sector != ''
@@ -242,7 +260,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     -- benchmark stays available even on days a benchmark symbol is missing.
                     market_weighted_avg AS (
                         SELECT
-                            SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct
+                            SUM(daily_return * market_cap) / NULLIF(SUM(market_cap), 0) as return_pct
                         FROM daily_changes
                     )
                     INSERT INTO sector_performance (sector, date, return_pct, relative_strength, stock_count, created_at, updated_at)
