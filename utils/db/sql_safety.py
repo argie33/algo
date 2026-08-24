@@ -113,6 +113,14 @@ SAFE_TABLES = {
     "economic_data",
     "earnings_history",
     "earnings_calendar",
+    # ADDED 2026-08-24 (real-money-readiness goal session): a full orchestrator run
+    # logged "Could not infer date column for economic_calendar, skipping age check" even
+    # though the table has 41 rows with fully-populated updated_at - assert_safe_table()
+    # was silently raising ValueError (caught by _infer_date_column's broad except) because
+    # this table was never added to this whitelist, not because no date column exists.
+    # Result: zero staleness monitoring for this table despite pipeline_health.py's own
+    # "CRITICAL FIX... Now ALL tables are monitored" comment above its caller.
+    "economic_calendar",
     "earnings_estimates",
     "earnings_estimate_revisions",
     "earnings_revisions",
