@@ -199,7 +199,7 @@ class ExitHandler:
         def _raise_stop(cursor: PsycopgCursor[Any]) -> dict[str, Any]:
             # Validate position has existing stop price (cannot raise NULL stop)
             cursor.execute(
-                """SELECT p.current_stop_price, t.alpaca_order_id FROM algo_positions p
+                """SELECT p.current_stop_price, t.alpaca_order_id, p.quantity FROM algo_positions p
                    JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                    WHERE t.trade_id = %s
                      AND p.status = %s
@@ -240,8 +240,10 @@ class ExitHandler:
             # wider price forever, so a fast move between orchestrator runs could blow through
             # the stop we thought we'd raised with nothing live at the exchange to catch it.
             # Fail closed: if we can't confirm the broker is actually protecting at this level,
-            # don't tell our own system it is.
-            sync_result = self.context._sync_bracket_stop_loss(existing_stop[1], new_stop_price)
+            # don't tell our own system it is. Also passes the CURRENT quantity - if a partial
+            # exit happened since this leg was last touched, this opportunistically corrects
+            # its size too (see sync_bracket_stop_loss's new_qty docstring).
+            sync_result = self.context._sync_bracket_stop_loss(existing_stop[1], new_stop_price, existing_stop[2])
             if not sync_result.get("success"):
                 return {
                     "success": False,
@@ -1080,6 +1082,25 @@ class ExitHandler:
 
         # TRANSACTION GUARD 4: Update position with safety checks
         effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
+
+        # A PARTIAL exit (T1/T2/T3 profit-taking, or any other fraction<1 exit) sells
+        # shares via a SEPARATE order from the bracket's resting legs - full_exit already
+        # cancels the bracket outright above, but a partial exit leaves it resting,
+        # still sized for the ORIGINAL full entry quantity. Left uncorrected, that stale,
+        # oversized stop-loss leg could try to sell more shares than the account holds if
+        # it ever fires. Unlike _raise_stop_only's fail-closed contract, the share sale
+        # here has ALREADY happened for real by this point - we must not abandon
+        # recording it just because the broker-side resize fails, so this fails OPEN
+        # (log loudly, keep going) rather than closed.
+        if not (full_exit or new_qty <= 0) and alpaca_order_id:
+            resize_result = self.context._sync_bracket_stop_loss(alpaca_order_id, effective_stop, new_qty)
+            if not resize_result.get("success"):
+                logger.error(
+                    f"[EXIT_HANDLER] {symbol}: partial exit succeeded but failed to resize the "
+                    f"resting bracket stop-loss leg to {new_qty} shares @ ${effective_stop:.2f} - "
+                    f"{resize_result.get('message')}. The broker's stop-loss order may still be "
+                    f"sized for the pre-partial-exit quantity until the next stop-raise corrects it."
+                )
 
         # When closing a position, pass P&L values to be persisted in algo_positions
         close_pnl_dollars = cumulative_pnl_dollars if (full_exit or new_qty <= 0) else None

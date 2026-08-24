@@ -501,8 +501,18 @@ class OrderManager:
             f"[GET_ORDER] Unable to fetch order {alpaca_order_id} after {max_attempts} attempts: {last_error}"
         )
 
-    def replace_order_stop_price(self, order_id: str, new_stop_price: float) -> dict[str, Any]:
-        """PATCH /v2/orders/{order_id} to move a resting stop order's trigger price.
+    def replace_order_stop_price(
+        self, order_id: str, new_stop_price: float, new_qty: float | None = None
+    ) -> dict[str, Any]:
+        """PATCH /v2/orders/{order_id} to move a resting stop order's trigger price,
+        optionally also resizing its quantity.
+
+        new_qty matters because a PARTIAL exit (T1/T2/T3 profit-taking, or any other
+        fraction<1 exit) sells shares via a SEPARATE order from the bracket's resting
+        legs - it does not touch them. Left alone, a bracket's stop-loss/take-profit
+        legs stay sized for the ORIGINAL full entry quantity forever, even after we
+        hold far fewer shares. If the stale, oversized stop-loss leg ever fires, it
+        would attempt to sell more shares than the account actually holds.
 
         Alpaca implements order replacement as cancel-and-recreate under the hood:
         a successful response is a NEW order object with a new id (the original is
@@ -512,6 +522,10 @@ class OrderManager:
         """
         if not self.alpaca_key or not self.alpaca_secret:
             return {"success": False, "synced": False, "message": "Cannot replace order - Alpaca credentials missing"}
+
+        body: dict[str, Any] = {"stop_price": _quantize_price(new_stop_price)}
+        if new_qty is not None:
+            body["qty"] = str(new_qty)
 
         max_attempts = 3
         last_error = "No attempts made"
@@ -524,7 +538,7 @@ class OrderManager:
                         "APCA-API-SECRET-KEY": self.alpaca_secret,
                         "Content-Type": "application/json",
                     },
-                    data=json.dumps({"stop_price": _quantize_price(new_stop_price)}),
+                    data=json.dumps(body),
                     timeout=get_api_timeout(),
                 )
                 if resp.status_code == 200:
@@ -566,8 +580,11 @@ class OrderManager:
             "message": f"Failed to replace order {order_id} after {max_attempts} attempts: {last_error}",
         }
 
-    def sync_bracket_stop_loss(self, parent_alpaca_order_id: str | None, new_stop_price: float) -> dict[str, Any]:
-        """Push a trailed/raised stop-loss to the live resting broker order.
+    def sync_bracket_stop_loss(
+        self, parent_alpaca_order_id: str | None, new_stop_price: float, new_qty: float | None = None
+    ) -> dict[str, Any]:
+        """Push a trailed/raised stop-loss (and, on a partial exit, a corrected
+        quantity) to the live resting broker order.
 
         This is the fix for a real gap: exit_engine.py computes an improved stop
         (breakeven move at T1, chandelier ATR trail, etc.) and persists it to
@@ -577,6 +594,16 @@ class OrderManager:
         stop back to Alpaca, so the "trail" was purely a belief in our own database:
         the position was only really protected at the wider, stale entry-time level
         between orchestrator runs, not at the level we thought we'd raised it to.
+
+        new_qty (optional) keeps the leg's size correct after a partial exit -
+        executor_exit_handler.py._execute_exit() sells partial shares via a SEPARATE
+        order and never touched the bracket's legs before this fix, so a stop-loss
+        leg left at the original full quantity could try to sell more shares than
+        the account actually holds if it ever fires. Pass the current remaining
+        share count any time you call this after a fill may have changed it -
+        _raise_stop_only also passes it now so a partial exit's stale qty gets
+        corrected the next time a stop is simply raised, not just at the moment of
+        the partial exit itself.
 
         Deliberately not implemented as an Alpaca-native `trailing_stop` order type:
         our stop logic isn't a fixed trail percent/dollar amount - it jumps to
@@ -623,7 +650,7 @@ class OrderManager:
         if not stop_leg_id:
             return {"success": False, "synced": False, "message": "Stop-loss leg missing order id"}
 
-        return self.replace_order_stop_price(stop_leg_id, new_stop_price)
+        return self.replace_order_stop_price(stop_leg_id, new_stop_price, new_qty=new_qty)
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.

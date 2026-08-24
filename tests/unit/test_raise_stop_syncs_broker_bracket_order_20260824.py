@@ -32,9 +32,9 @@ def _make_context(sync_result):
     return context
 
 
-def _make_cursor(existing_stop_price, alpaca_order_id, rowcount=1):
+def _make_cursor(existing_stop_price, alpaca_order_id, quantity=10.0, rowcount=1):
     cur = MagicMock()
-    cur.fetchone.return_value = (existing_stop_price, alpaca_order_id)
+    cur.fetchone.return_value = (existing_stop_price, alpaca_order_id, quantity)
     cur.rowcount = rowcount
     return cur
 
@@ -55,7 +55,7 @@ class TestRaiseStopSyncsBrokerBeforeDbWrite:
             cur=cur,
         )
 
-        context._sync_bracket_stop_loss.assert_called_once_with("alpaca-abc-123", 105.0)
+        context._sync_bracket_stop_loss.assert_called_once_with("alpaca-abc-123", 105.0, 10.0)
         assert result["success"] is True
 
     def test_db_not_updated_when_broker_sync_fails(self):
