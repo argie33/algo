@@ -173,7 +173,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     vm.intrinsic_value_unavailable_reason,
                     vm.margin_of_safety_pct,
                     vm.margin_of_safety_unavailable_reason,
-                    vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
                     qm.roe_unavailable_reason,
@@ -293,8 +292,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     sm.max_drawdown_1y_unavailable_reason,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
-                    pm.insider_ownership_pct AS insider_own_val,
-                    pm.insider_ownership_pct_unavailable_reason AS insider_ownership_unavailable_reason,
                     pm.short_interest_pct AS short_pct_val,
                     pm.short_interest_pct_unavailable_reason AS short_interest_unavailable_reason,
                     pm.shares_short_prior_month AS shares_short_prior_month_val,
@@ -682,8 +679,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "institutional_holders_count_unavailable_reason": data.get(
                     "institutional_holders_count_unavailable_reason"
                 ),
-                "insider_ownership_pct": data.get("insider_own_val"),
-                "insider_ownership_pct_unavailable_reason": data.get("insider_ownership_unavailable_reason"),
                 "short_interest_pct": data.get("short_pct_val"),
                 "short_interest_pct_unavailable_reason": data.get("short_interest_unavailable_reason"),
                 "short_percent_of_float": data.get("short_pct_float"),
@@ -1005,7 +1000,6 @@ def _get_stock_scores(  # noqa: C901
                     vm.intrinsic_value_unavailable_reason,
                     vm.margin_of_safety_pct,
                     vm.margin_of_safety_unavailable_reason,
-                    vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
                     qm.roe_unavailable_reason,
@@ -1125,8 +1119,6 @@ def _get_stock_scores(  # noqa: C901
                     sm.max_drawdown_1y_unavailable_reason,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
-                    pm.insider_ownership_pct AS insider_own_val,
-                    pm.insider_ownership_pct_unavailable_reason AS insider_ownership_unavailable_reason,
                     pm.short_interest_pct AS short_pct_val,
                     pm.short_interest_pct_unavailable_reason AS short_interest_unavailable_reason,
                     pm.shares_short_prior_month AS shares_short_prior_month_val,
@@ -1486,9 +1478,9 @@ def _get_stock_scores(  # noqa: C901
             d["positioning_inputs"] = {
                 "institutional_ownership_pct": d.get("inst_own_val"),
                 # See matching comment in _get_stock_details - frontend looks up
-                # institutional_ownership_pct_unavailable_reason/insider_ownership_pct_.../
-                # short_interest_pct_..., the missing "_pct" meant a real null value here
-                # rendered as a bare "No data" instead of the actual reason.
+                # institutional_ownership_pct_unavailable_reason/short_interest_pct_...,
+                # the missing "_pct" meant a real null value here rendered as a bare
+                # "No data" instead of the actual reason.
                 "institutional_ownership_pct_unavailable_reason": d.get("institutional_ownership_unavailable_reason"),
                 "top_10_institutions_pct": d.get("top_10_institutions_pct"),
                 "top_10_institutions_pct_unavailable_reason": d.get("top_10_institutions_pct_unavailable_reason"),
@@ -1496,8 +1488,6 @@ def _get_stock_scores(  # noqa: C901
                 "institutional_holders_count_unavailable_reason": d.get(
                     "institutional_holders_count_unavailable_reason"
                 ),
-                "insider_ownership_pct": d.get("insider_own_val"),
-                "insider_ownership_pct_unavailable_reason": d.get("insider_ownership_unavailable_reason"),
                 "short_interest_pct": d.get("short_pct_val"),
                 "short_interest_pct_unavailable_reason": d.get("short_interest_unavailable_reason"),
                 "short_percent_of_float": d.get("short_pct_float"),

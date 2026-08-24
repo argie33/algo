@@ -498,7 +498,6 @@ export const getFactorFieldLabel = (fieldName) => {
 
     // Positioning
     institution_count: "Institutional Holders",
-    insider_ownership_pct: "Insider Ownership",
     // NOTE: computed as short_shares / shares_outstanding (SEC doesn't expose a true
     // public-float figure), same denominator as short_interest_pct - labeled "O/S" not
     // "Float" so it doesn't overclaim precision (true float <= shares outstanding, so
@@ -506,7 +505,6 @@ export const getFactorFieldLabel = (fieldName) => {
     short_percent_of_float: "Short % of Shares O/S",
     institutional_ownership_pct: "Institutional Ownership",
     institutional_ownership: "Institutional Ownership",
-    insider_ownership: "Insider Ownership",
     short_ratio: "Short Ratio",
     acc_dist_rating: "Accumulation/Distribution",
   };

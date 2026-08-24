@@ -71,7 +71,6 @@ LOADER_TABLES: dict[str, list[str]] = {
     # load_sec_cash_flow_metrics.py REMOVED 2026-07-27: duplicated quality_metrics formulas
     # exactly, zero incremental signal for real SEC API cost - see steering/DATA_LOADERS.md.
     "load_institutional_holdings_13f.py": ["institutional_holdings_13f"],
-    "load_insider_holdings_sec.py": ["insider_holdings_sec"],
     "load_positioning_metrics.py": ["positioning_metrics"],
     # Consolidated Session 275: replaces load_quality_growth_metrics.py and the
     # yfinance-derived-metrics portion of the old yfinance_derived_metrics loader.
@@ -237,7 +236,6 @@ SHORTHAND_TO_FILENAME: dict[str, str] = {
     # Holdings & positioning
     "positioning": "load_positioning_metrics.py",
     "institutional": "load_institutional_holdings_13f.py",
-    "insider_holdings": "load_insider_holdings_sec.py",
     "short_interest": "load_short_interest_finra.py",
     "insider_velocity": "load_insider_transaction_velocity.py",
     # Earnings calendar & SEC data

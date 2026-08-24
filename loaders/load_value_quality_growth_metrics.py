@@ -1130,17 +1130,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
 
         # Fetch held_percent fields from positioning_metrics (FIXED 2026-08-18)
-        (
-            held_percent_insiders,
-            held_percent_insiders_reason,
-            held_percent_institutions,
-            held_percent_institutions_reason,
-        ) = self._fetch_positioning_metrics(symbol)
+        held_percent_institutions, held_percent_institutions_reason = self._fetch_positioning_metrics(symbol)
 
-        # Track which fields are unavailable (Session 389). No yfinance fallback remains
-        # (removed 2026-08-17 - see comment above data_source_peg/data_source_dividend), so
-        # this is always "sec_audited" now regardless of which individual field is populated.
-        overall_data_source = "sec_audited"
+        # Track which fields are unavailable (Session 389). No yfinance fallback remains for
+        # pe/pb/ps/fcf_yield/dividend/ev/market_cap/intrinsic_value (removed 2026-08-17 - see
+        # comment above data_source_peg/data_source_dividend) - those are always SEC-sourced.
+        # forward_pe is the one exception: it's computed from analyst_earnings_estimates
+        # (real yfinance consensus data - SEC filings never carry forward estimates, see the
+        # comment above the forward_pe block). FIXED 2026-08-24 (real-money-readiness goal
+        # session): this was hardcoded to "sec_audited" unconditionally, silently mislabeling
+        # every row with a populated forward_pe (live-confirmed 2,658 rows) as pure-SEC when
+        # they actually blend in a yfinance-derived field - same "sec_audited_except_X_yfinance"
+        # composite-label convention this codebase already uses for the dual-class-shares case
+        # (see load_sec_valuations.py), just not applied here. Feeds directly into
+        # lambda/api/routes/scores.py's data-source coverage dashboard, so the mislabel was
+        # under-reporting real yfinance dependency for this table.
+        overall_data_source = "sec_audited_except_forward_pe_yfinance" if forward_pe is not None else "sec_audited"
 
         return {
             "symbol": symbol,
@@ -1178,10 +1183,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "market_cap_unavailable_reason": "missing_sec_data" if market_cap is None else None,
             "intrinsic_value_unavailable_reason": intrinsic_value_reason,
             "margin_of_safety_unavailable_reason": margin_of_safety_reason,
-            "held_percent_insiders": held_percent_insiders,
-            "held_percent_insiders_unavailable_reason": held_percent_insiders_reason
-            if held_percent_insiders is None
-            else None,
             "held_percent_institutions": held_percent_institutions,
             "held_percent_institutions_unavailable_reason": held_percent_institutions_reason
             if held_percent_institutions is None
@@ -1198,14 +1199,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return None
         return value
 
-    def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None, float | None, str | None]:
-        """Fetch held_percent fields from positioning_metrics.
+    def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]:
+        """Fetch held_percent_institutions from positioning_metrics.
 
-        Returns tuple of (held_percent_insiders, held_percent_insiders_reason,
-                         held_percent_institutions, held_percent_institutions_reason)
+        Returns tuple of (held_percent_institutions, held_percent_institutions_reason)
         """
-        held_percent_insiders = None
-        held_percent_insiders_reason = None
         held_percent_institutions = None
         held_percent_institutions_reason = None
 
@@ -1213,8 +1211,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT insider_ownership_pct, insider_ownership_pct_unavailable_reason,
-                           institutional_ownership_pct, institutional_ownership_pct_unavailable_reason
+                    SELECT institutional_ownership_pct, institutional_ownership_pct_unavailable_reason
                     FROM positioning_metrics
                     WHERE symbol = %s
                     ORDER BY updated_at DESC LIMIT 1
@@ -1224,25 +1221,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 pos_row = cur.fetchone()
 
             if pos_row:
-                held_percent_insiders = self._nan_to_none(
-                    safe_float(pos_row[0], f"{symbol}.insider_ownership_pct", allow_none=True)
-                )
-                held_percent_insiders_reason = pos_row[1]
                 held_percent_institutions = self._nan_to_none(
-                    safe_float(pos_row[2], f"{symbol}.institutional_ownership_pct", allow_none=True)
+                    safe_float(pos_row[0], f"{symbol}.institutional_ownership_pct", allow_none=True)
                 )
-                held_percent_institutions_reason = pos_row[3]
+                held_percent_institutions_reason = pos_row[1]
         except Exception as e:
             logger.debug(f"[VALUE_METRICS] {symbol}: Failed to fetch positioning_metrics: {e}")
-            held_percent_insiders_reason = "positioning_metrics_unavailable"
             held_percent_institutions_reason = "positioning_metrics_unavailable"
 
-        return (
-            held_percent_insiders,
-            held_percent_insiders_reason,
-            held_percent_institutions,
-            held_percent_institutions_reason,
-        )
+        return (held_percent_institutions, held_percent_institutions_reason)
 
     def _get_analyst_forward_eps(self, symbol: str) -> float | None:
         """Fetch latest analyst forward EPS estimate for symbol from analyst_earnings_estimates table.
@@ -3777,9 +3764,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, market_cap, intrinsic_value_per_share, margin_of_safety_pct, value_score, data_unavailable, reason, data_source, updated_at,
              pe_ratio_unavailable_reason, pb_ratio_unavailable_reason, ps_ratio_unavailable_reason, peg_ratio_unavailable_reason,
              dividend_yield_unavailable_reason, fcf_yield_unavailable_reason, forward_pe_unavailable_reason, ev_ebitda_unavailable_reason, ev_revenue_unavailable_reason,
-             market_cap_unavailable_reason, held_percent_insiders_unavailable_reason, held_percent_institutions_unavailable_reason,
+             market_cap_unavailable_reason, held_percent_institutions_unavailable_reason,
              intrinsic_value_unavailable_reason, margin_of_safety_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -3805,7 +3792,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 ev_ebitda_unavailable_reason = EXCLUDED.ev_ebitda_unavailable_reason,
                 ev_revenue_unavailable_reason = EXCLUDED.ev_revenue_unavailable_reason,
                 market_cap_unavailable_reason = EXCLUDED.market_cap_unavailable_reason,
-                held_percent_insiders_unavailable_reason = EXCLUDED.held_percent_insiders_unavailable_reason,
                 held_percent_institutions_unavailable_reason = EXCLUDED.held_percent_institutions_unavailable_reason,
                 intrinsic_value_unavailable_reason = EXCLUDED.intrinsic_value_unavailable_reason,
                 margin_of_safety_unavailable_reason = EXCLUDED.margin_of_safety_unavailable_reason,
@@ -3844,7 +3830,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("ev_ebitda_unavailable_reason"),
                 row.get("ev_revenue_unavailable_reason"),
                 row.get("market_cap_unavailable_reason"),
-                row.get("held_percent_insiders_unavailable_reason"),
                 row.get("held_percent_institutions_unavailable_reason"),
                 row.get("intrinsic_value_unavailable_reason"),
                 row.get("margin_of_safety_unavailable_reason"),
@@ -4277,7 +4262,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "ev_revenue_unavailable_reason": specific_reason,
                 "market_cap": None,
                 "market_cap_unavailable_reason": specific_reason,
-                "held_percent_insiders_unavailable_reason": None,
                 "held_percent_institutions_unavailable_reason": None,
                 "intrinsic_value_unavailable_reason": specific_reason,
                 "margin_of_safety_unavailable_reason": specific_reason,

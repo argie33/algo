@@ -134,7 +134,6 @@ def _get_table_date_column(table_name: str) -> str | None:
         "momentum_metrics": "date",
         "positioning_metrics": "updated_at",  # 13F/short interest data
         "institutional_holdings_13f": "updated_at",
-        "insider_holdings_sec": "updated_at",  # Form 4/5 filings
         "insider_transaction_velocity": "updated_at",
         "insider_velocity": "updated_at",
         "short_interest_finra": "updated_at",
@@ -221,7 +220,7 @@ RETRY_WAIT_SECONDS = 5
 # - Subprocess keeps running in background (still marked RUNNING in DB)
 # - Phase 1's next data freshness check sees >5min RUNNING, marks as FAILED
 # - Loader never actually completes because Phase 1 keeps failing it
-# This affected: sec_valuations (20m), insider_holdings_sec (30m), sec_segment_info (30m).
+# This affected: sec_valuations (20m), institutional_holdings_13f (30m), sec_segment_info (30m).
 # 30 minutes accommodates company_info_sec (120m is AWS-only; local subprocess 30m is safe).
 RETRY_MONITOR_TIMEOUT_SECONDS = 1800
 
@@ -409,7 +408,6 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         "analyst_upgrade_downgrade": "analyst_upgrades",
         # Holdings & positioning
         "institutional_holdings_13f": "institutional",
-        "insider_holdings_sec": "insider_holdings",
         "insider_transaction_velocity": "insider_velocity",
         "short_interest_finra": "short_interest",
         "positioning_metrics": "positioning",

@@ -1995,11 +1995,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogValueQualityGrowthFailure"
           ResultPath  = "$.loaderError"
         }]
-        # FIX 2026-07-20: was "PositioningMetrics", which skips InstitutionalHoldings13F and
-        # InsiderHoldingsSec entirely. Commit 5327a555b (Session 294) added those two states
-        # "to restore the positioning metrics pipeline" but never repointed this predecessor's
-        # Next at them - they were defined but structurally unreachable (nothing transitions
-        # into InstitutionalHoldings13F), so institutional_holdings_13f has never actually been
+        # FIX 2026-07-20: was "PositioningMetrics", which skips InstitutionalHoldings13F
+        # entirely. Commit 5327a555b (Session 294) added that state "to restore the
+        # positioning metrics pipeline" but never repointed this predecessor's Next at it -
+        # it was defined but structurally unreachable (nothing transitions into
+        # InstitutionalHoldings13F), so institutional_holdings_13f has never actually been
         # populated by this pipeline since. Matches the live-DB finding that
         # institutional_ownership_pct is ~0% populated (2 of 4,826 stocks).
         Next = "EnhancedQualityGrowthMetrics"
@@ -2457,7 +2457,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogInstitutionalHoldingsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "InsiderHoldingsSec"
+        Next = "InsiderTransactionVelocity"
       }
 
       LogInstitutionalHoldingsFailure = {
@@ -2465,67 +2465,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "institutional_holdings_13f"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "InsiderHoldingsSec"
-          ResultPath  = "$.logError"
-        }]
-        Next = "InsiderHoldingsSec"
-      }
-
-      # ── PHASE 3c: Insider Holdings (SEC Form 4/5) ──
-      # CRITICAL DEPENDENCY: load_positioning_metrics.py reads from insider_holdings_sec table
-      # Must run BEFORE PositioningMetrics to ensure data available (fail-open if delayed)
-      InsiderHoldingsSec = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        # FIX 2026-08-18: was 1800s (30m) - lower than the insider_holdings_sec ECS task-def
-        # timeout itself (terraform/modules/loaders/main.tf, 2700s), so this would kill the
-        # task before ECS's own timeout ever got a chance to fire. Synced to ECS timeout +
-        # 300s SFN margin.
-        TimeoutSeconds = 3000  # FIX 2026-08-18: synced to ECS timeout (2700s) + 300s SFN margin
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["insider_holdings_sec"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 0
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogInsiderHoldingsFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        # FIX 2026-07-28: same structurally-unreachable-state bug already documented
-        # elsewhere in this file (SecCashFlowMetrics/SecSegmentInfo) - was
-        # "PositioningMetrics", skipping InsiderTransactionVelocity entirely on the
-        # success path even though only this state's OWN failure handler
-        # (LogInsiderHoldingsFailure.Next below) pointed at it. Net effect:
-        # InsiderTransactionVelocity only ran when InsiderHoldingsSec itself FAILED -
-        # practically unreachable on any normal run.
-        Next = "InsiderTransactionVelocity"
-      }
-
-      LogInsiderHoldingsFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "insider_holdings_sec"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
@@ -2547,7 +2486,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # ── PHASE 3d: Insider Transaction Velocity (Session 444+) ──
       # Extracts insider confidence score from SEC Form 3/4/5 transaction counts
       # Detects insider buying sprees, executive departures, lockup periods
-      # Uses same SEC bulk datasets as insider_holdings_sec (Form 3/4/5)
       InsiderTransactionVelocity = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -2723,10 +2661,13 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "PositioningMetrics"
       }
 
-      # ── Positioning Metrics (writes institutional ownership, insider ownership, short interest) ──
-      # FIXED Session 294: Added upstream dependencies InstitutionalHoldings13F + InsiderHoldingsSec.
+      # ── Positioning Metrics (writes institutional ownership, short interest) ──
+      # FIXED Session 294: Added upstream dependency InstitutionalHoldings13F.
       # Short interest is now optional (FINRA source broken). Positioning metrics will populate
-      # with institutional + insider data when available, mark data_unavailable only if ALL sources missing.
+      # with institutional data when available, mark data_unavailable only if ALL sources missing.
+      # REMOVED (insider ownership deletion): InsiderHoldingsSec/insider_holdings_sec dropped
+      # entirely - static governance metric, not a real positioning signal, and a recurring
+      # source of real bugs (FPI exemption handling, shares-outstanding edge cases).
       PositioningMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"

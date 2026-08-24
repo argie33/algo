@@ -85,7 +85,6 @@ class TestPositioningScoreWeightBadges:
     def test_weights_match_code(self):
         src = inspect.getsource(StockScoresLoader._score_positioning)
         _assert_pct_matches("institutional_ownership_pct", _weight_for_score_var(src, "io"))
-        _assert_pct_matches("insider_ownership_pct", _weight_for_score_var(src, "min(100, ins_score)"))
         _assert_pct_matches("short_interest_pct", _weight_for_score_var(src, "max(0, min(100, score))"))
         _assert_pct_matches("short_interest_pct_change", _weight_for_score_var(src, "pct_change_score"))
         _assert_pct_matches("ad_rating", _weight_for_score_var(src, 'metrics["ad_rating"]'))

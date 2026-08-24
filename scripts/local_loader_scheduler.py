@@ -416,8 +416,8 @@ PIPELINES = {
     # feedback_always_use_pipeline_scheduler_for_backfills). segment_metrics depends on
     # segment_info (see LOADER_DEPENDENCIES below - terraform/modules/pipeline/main.tf
     # documents this as a CRITICAL DEPENDENCY: "SecSegmentMetrics depends on sec_segment_info
-    # being freshly populated"), so it's listed after. institutional/insider_holdings feed
-    # positioning_metrics (also a terraform-documented CRITICAL DEPENDENCY) but are NOT wired
+    # being freshly populated"), so it's listed after. institutional feeds
+    # positioning_metrics (also a terraform-documented CRITICAL DEPENDENCY) but is NOT wired
     # as a same-run LOADER_DEPENDENCIES entry here deliberately - unlike financial statements,
     # these are slow-changing filings (13F is quarterly) that positioning_metrics reads from
     # whatever's already in the table, not from this specific run; forcing a same-run
@@ -427,7 +427,6 @@ PIPELINES = {
         "company_info",
         "profile",
         "institutional",
-        "insider_holdings",
         "insider_velocity",
         "sec_reports",
         "short_interest",
@@ -461,6 +460,13 @@ PIPELINES = {
         # in the separate "metrics" pipeline above, not here.
         "constituents",
         "economic",
+        # ADDED 2026-08-24 (real-money-readiness goal session): load_economic_calendar.py
+        # was registered in loader_registry.py's SHORTHAND_TO_FILENAME (built the same day)
+        # but never wired into any PIPELINES list here - same "registered but reachable from
+        # no PIPELINES list" gap already fixed 10+ times above for other loaders (see the
+        # 2026-08-10 comments on this pipeline). Distinct from "economic" above
+        # (load_economic_data.py, FRED macro series) - this is calendar EVENTS.
+        "economic_calendar",
         "naaim",
         "aaii",
         "dividends",
@@ -534,11 +540,6 @@ LOADER_DEPENDENCIES = {
     "valuations": ["company_info"],
     # earnings_sec requires company_info for CIK lookups (SESSION 89 FIX - missing dependency)
     "earnings_sec": ["company_info"],
-    # insider_holdings requires company_info for shares_outstanding lookups (SESSION 90 FIX)
-    # When company_info is stale/missing, insider holdings calculations use wrong denominators
-    "insider_holdings": ["company_info"],
-    # insider_velocity depends on insider_holdings for transaction history
-    "insider_velocity": ["insider_holdings"],
     # SESSION 92 FIX: positioning_metrics reads company_info_sec shares_outstanding
     # Without this dependency, if company_info fails, positioning_metrics has missing data
     "positioning": ["company_info"],
@@ -1620,7 +1621,7 @@ def _acquire_scheduler_lock(scheduler_lock: Path, pipeline_name: str) -> int | N
 def _lock_paths_for_pipeline(pipeline_name: str) -> list[Path]:
     """Which physical lock file(s) a pipeline needs held before it's safe to run.
 
-    ADDED 2026-08-17: "reference" (company profile/13F/insider holdings/SEC filings/short
+    ADDED 2026-08-17: "reference" (company profile/13F/insider velocity/SEC filings/short
     interest/segment info+metrics/earnings-calendar-SEC/index constituents/economic/NAAIM/
     AAII/dividends) is 100% SEC EDGAR/FRED/FINRA/NASDAQ - confirmed via PIPELINES["reference"]
     above, it never touches yfinance. SEC EDGAR already has its own cross-process rate gate

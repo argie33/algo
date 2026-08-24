@@ -118,12 +118,6 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 1000,
         "critical": False,
     },
-    "load_insider_holdings_sec.py": {
-        "output_table": "insider_holdings_sec",
-        "date_column": "updated_at",
-        "min_rows": 1000,
-        "critical": False,
-    },
     "load_positioning_metrics.py": {
         "output_table": "positioning_metrics",
         "date_column": "updated_at",

@@ -985,7 +985,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
   const s = scoreRow?.stability_inputs || {};
   const p = scoreRow?.positioning_inputs || {};
 
-  // Fetch insider ownership and segment metrics
+  // Fetch business segment metrics
   const { data: ownershipData } = useApiQuery(
     ["ownership", symbol],
     () => api.get(`/api/financials/${symbol}/ownership`),
@@ -1084,25 +1084,6 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
           ? fmtPct(Number(km.held_percent_institutions) * 100, 1)
           : "—",
     ],
-    [
-      "Insider Ownership",
-      p.insider_ownership_pct != null
-        ? fmtPct(p.insider_ownership_pct, 1)
-        : km?.held_percent_insiders != null
-          ? fmtPct(Number(km.held_percent_insiders) * 100, 1)
-          : "—",
-    ],
-    [
-      "Insiders (SEC Form 4/5)",
-      o.insider_ownership_pct != null
-        ? fmtPct(o.insider_ownership_pct, 1)
-        : "—",
-    ],
-    [
-      "# of Insiders",
-      o.number_of_insiders != null ? o.number_of_insiders : "—",
-    ],
-    ["Recent Insider Buys (90d)", o.recent_buys != null ? o.recent_buys : "—"],
     ["Business Segments", o.segment_count != null ? o.segment_count : "—"],
     [
       "Largest Segment % Rev",

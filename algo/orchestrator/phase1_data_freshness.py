@@ -333,7 +333,7 @@ def _validate_dependency_freshness(
     - value_metrics requires: annual_income_statement, annual_balance_sheet, sec_valuations
       (produced by: load_financial_statements.py, load_sec_valuations.py)
     - sec_segment_metrics requires: sec_segment_info (loader: load_sec_segment_info.py)
-    - positioning_metrics requires: institutional_holdings_13f, insider_holdings_sec
+    - positioning_metrics requires: institutional_holdings_13f
     - stock_scores requires: value_metrics, stability_metrics
 
     Returns: PhaseResult halt if a dependency is stale, None if all dependencies OK
@@ -344,8 +344,8 @@ def _validate_dependency_freshness(
         "value_metrics": ["annual_income_statement", "annual_balance_sheet", "sec_valuations"],
         # sec_segment_metrics produced by load_sec_segment_metrics.py
         "sec_segment_metrics": ["sec_segment_info"],
-        # positioning_metrics requires insider/institutional holdings
-        "positioning_metrics": ["institutional_holdings_13f", "insider_holdings_sec"],
+        # positioning_metrics requires institutional holdings
+        "positioning_metrics": ["institutional_holdings_13f"],
         # stock_scores requires computed metrics
         "stock_scores": ["value_metrics", "stability_metrics"],
     }
@@ -371,7 +371,6 @@ def _validate_dependency_freshness(
                     "annual_balance_sheet",
                     "sec_segment_info",
                     "institutional_holdings_13f",
-                    "insider_holdings_sec",
                     "stability_metrics",
                     "value_metrics",
                 ):

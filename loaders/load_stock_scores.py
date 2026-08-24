@@ -747,7 +747,7 @@ class StockScoresLoader(OptimalLoader):
                 "value": ["financial_statements", "sec_valuations", "dividend_data"]
                 if extract_score_value(clamped_value)
                 else [],
-                "positioning": ["institutional_holdings_13f", "insider_holdings_sec", "short_interest_finra"]
+                "positioning": ["institutional_holdings_13f", "short_interest_finra"]
                 if extract_score_value(clamped_positioning)
                 else [],
                 "stability": ["risk_metrics_daily", "technical_data_daily", "financial_statements"]
@@ -2341,6 +2341,7 @@ class StockScoresLoader(OptimalLoader):
         # tables), THEN run the audit - a coverage problem should still fail the run for
         # visibility, but must not collaterally block an unrelated, Phase-7-critical step.
         self.update_rs_percentiles()
+        self.snapshot_score_history()
         self.audit_upstream_coverage()
 
     def update_rs_percentiles(self) -> None:
@@ -2398,6 +2399,62 @@ class StockScoresLoader(OptimalLoader):
             logger.info("RS percentiles updated via batch rank (post_run completed)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             error_msg = f"RS percentile batch update failed - stock scores cannot be finalized: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+
+    def snapshot_score_history(self) -> None:
+        """Batch pass: snapshot today's stock_scores into stock_scores_history.
+
+        Must run after update_rs_percentiles() so the snapshot includes the finalized
+        rs_percentile from this same run, not a stale value from the prior run.
+
+        One row per (symbol, score_date): re-running post_run() on the same calendar day
+        (e.g. a retry) updates that day's snapshot in place rather than appending a
+        duplicate, so history stays one data point per trading day regardless of how many
+        times the loader runs that day.
+
+        composite_rank is computed once here (not at read time) so a stock's historical
+        rank reflects the universe actually scored that day, not today's universe size.
+
+        CRITICAL: Raises on failure, same as update_rs_percentiles() - a broken snapshot
+        pass should be visible, not silently swallowed.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute("""
+                    INSERT INTO stock_scores_history (
+                        symbol, score_date, composite_score, composite_rank,
+                        momentum_score, quality_score, growth_score, value_score,
+                        positioning_score, stability_score, rs_percentile,
+                        data_completeness, updated_at
+                    )
+                    SELECT
+                        symbol,
+                        CURRENT_DATE,
+                        composite_score,
+                        RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS composite_rank,
+                        momentum_score, quality_score, growth_score, value_score,
+                        positioning_score, stability_score, rs_percentile,
+                        data_completeness, CURRENT_TIMESTAMP
+                    FROM stock_scores
+                    WHERE data_unavailable IS NOT TRUE AND composite_score IS NOT NULL
+                    ON CONFLICT (symbol, score_date) DO UPDATE SET
+                        composite_score = EXCLUDED.composite_score,
+                        composite_rank = EXCLUDED.composite_rank,
+                        momentum_score = EXCLUDED.momentum_score,
+                        quality_score = EXCLUDED.quality_score,
+                        growth_score = EXCLUDED.growth_score,
+                        value_score = EXCLUDED.value_score,
+                        positioning_score = EXCLUDED.positioning_score,
+                        stability_score = EXCLUDED.stability_score,
+                        rs_percentile = EXCLUDED.rs_percentile,
+                        data_completeness = EXCLUDED.data_completeness,
+                        updated_at = CURRENT_TIMESTAMP
+                """)
+                snapshotted = cur.rowcount
+            logger.info(f"Score history snapshot written for {snapshotted} symbols (post_run completed)")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            error_msg = f"Score history snapshot failed: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 

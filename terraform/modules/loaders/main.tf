@@ -419,7 +419,7 @@ locals {
     # Single consolidated loader: computes momentum (1m/3m/6m/12m) + stability (vol/beta)
     "stability_metrics" = "load_risk_metrics_daily.py"
 
-    # Positioning: short interest + institutional/insider holdings
+    # Positioning: short interest + institutional holdings
     "positioning_metrics"  = "load_positioning_metrics.py"
     "short_interest_finra" = "load_short_interest_finra.py"
 
@@ -434,9 +434,8 @@ locals {
     # Reference data
     "market_constituents" = "load_market_constituents.py"
 
-    # SEC holdings (Phase 2 complete - institutional + insider from SEC filings)
+    # SEC holdings (Phase 2 complete - institutional from SEC filings)
     "institutional_holdings_13f"   = "load_institutional_holdings_13f.py"
-    "insider_holdings_sec"         = "load_insider_holdings_sec.py"
     "insider_transaction_velocity" = "load_insider_transaction_velocity.py"
 
     # SEC segment metrics (Session 445: XBRL segment disclosure extraction)
@@ -619,23 +618,21 @@ locals {
     "earnings_calendar" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 1 }
 
     # ============================================================
-    # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)
+    # PHASE 2 COMPLETE: Institutional Holdings from SEC (Session 274+)
     # ============================================================
-    # Replaces yfinance held_percent_institutions/held_percent_insiders
-    # Data source: SEC SCHEDULE 13G (institutional) + SEC Form 4/5 (insider)
+    # Replaces yfinance held_percent_institutions
+    # Data source: SEC SCHEDULE 13G (institutional)
     # Quality: SEC-published data > yfinance estimates; quarterly updates acceptable for scoring
     # Session 92+: increased from 30m to 45m due to bulk download + rate limiting
     # Timeout: 2700s (45 min) for bulk SEC downloads with rate-limit backoff
     "institutional_holdings_13f" = { cpu = 256, memory = 512, timeout = 2700, parallelism = 2 }
-    "insider_holdings_sec"       = { cpu = 256, memory = 512, timeout = 2700, parallelism = 2 }
 
     # ============================================================
     # NEW: Insider Transaction Velocity (Session 444+)
     # ============================================================
     # Insider confidence scoring from SEC Form 3/4/5 transaction counts
-    # Data source: Same as insider_holdings_sec (Form 3/4/5 bulk datasets)
     # Detects insider buying sprees, executive departures, lockup periods
-    # Timeout: 2700s (45 min) - same as insider_holdings_sec (shared SEC Form 3/4/5 workload)
+    # Timeout: 2700s (45 min) for bulk SEC Form 3/4/5 downloads with rate-limit backoff
     "insider_transaction_velocity" = { cpu = 256, memory = 512, timeout = 2700, parallelism = 2 }
 
     # ============================================================
@@ -666,7 +663,7 @@ locals {
     # Timeout: 1800s (30 min) - lightweight statistical calculations
     "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
-    # Positioning metrics: short interest (FINRA) + institutional/insider holdings (SEC)
+    # Positioning metrics: short interest (FINRA) + institutional holdings (SEC)
     # Timeout: 1800s (30 min) - aggregation of FINRA short interest + SEC data
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
 
@@ -781,7 +778,6 @@ locals {
     "earnings_calendar_sec",
     "earnings_calendar",
     "institutional_holdings_13f",
-    "insider_holdings_sec",
     "insider_transaction_velocity",
     "sec_segment_info",
     "sec_segment_metrics",

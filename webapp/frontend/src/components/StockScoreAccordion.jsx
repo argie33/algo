@@ -8,6 +8,14 @@ import {
   Shield,
   Inbox,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { formatNumber, formatPercentageChange } from "../utils/formatters";
 import { api } from "../services/api";
 
@@ -73,9 +81,6 @@ const formatReasonDisplay = (reason) => {
     no_resolved_13f_holdings: "No 13F filer reported holding this stock",
     shares_outstanding_unavailable: "Shares outstanding unavailable",
     not_found_in_institutional_holdings_13f: "Not found in 13F filings",
-    no_form345_filings_in_lookback_window: "No recent insider filings",
-    shares_outstanding_unavailable_for_pct_calc:
-      "Shares outstanding unavailable",
     short_float_data_not_calculated: "Short float metrics not calculated",
     ad_rating_not_available: "A/D rating not available",
     no_dividend_paying_stock: "Non-dividend payer",
@@ -126,10 +131,6 @@ const reasonTooltips = {
     "Institutional ownership percentage requires shares outstanding, which isn't available for this stock",
   not_found_in_institutional_holdings_13f:
     "This stock hasn't been processed by the 13F institutional-ownership pipeline yet",
-  no_form345_filings_in_lookback_window:
-    "No SEC Form 4/5 insider transaction filings in the recent lookback window - typically means no insider trading activity to report, not missing data",
-  shares_outstanding_unavailable_for_pct_calc:
-    "Insider ownership percentage requires shares outstanding, which isn't available for this stock",
   reit_special_entity:
     "REITs, banks, and insurers report an unclassified balance sheet (no current/non-current split) or omit gross profit as a permanent feature of their accounting model, not a data gap - traditional ratio metrics don't apply",
   interest_expense_not_itemized:
@@ -290,6 +291,107 @@ const SignalsForStock = ({ symbol }) => {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+// ─── composite score / rank history (stock_scores_history, one snapshot per
+// trading day - see loaders/load_stock_scores.py's snapshot_score_history()) ──
+const ScoreHistoryForStock = ({ symbol }) => {
+  const [history, setHistory] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    api
+      .get(`/api/scores/history/${symbol}?days=90`)
+      .then((res) => {
+        setHistory(res.data || null);
+      })
+      .catch(() => {
+        setHistory(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [symbol]);
+
+  // Fewer than 2 snapshots means there's nothing to plot a trend from yet
+  // (a stock new to scoring, or the feature's first day) - omit rather than
+  // show an empty/misleading chart.
+  if (loading || !history || !Array.isArray(history.points) || history.points.length < 2) {
+    return null;
+  }
+
+  const chartData = history.points.map((p) => ({
+    date: p.score_date,
+    score: p.composite_score != null ? Number(p.composite_score) : null,
+    rank: p.composite_rank,
+  }));
+
+  const { movement } = history;
+  const scoreUp = movement.score_change != null && movement.score_change > 0;
+  const rankImproved = movement.rank_change != null && movement.rank_change > 0;
+
+  return (
+    <div className="card" style={{ marginBottom: "var(--space-5)" }}>
+      <div className="card-head flex items-center gap-2">
+        <div
+          className="card-title"
+          style={{
+            fontSize: "var(--t-xs)",
+            textTransform: "uppercase",
+            letterSpacing: "0.3px",
+          }}
+        >
+          Score &amp; Rank History
+        </div>
+        <span className="t-2xs muted">
+          since {movement.start_date || "—"}
+        </span>
+        <div className="flex gap-2" style={{ marginLeft: "auto" }}>
+          {movement.score_change != null && (
+            <span
+              className={`badge ${scoreUp ? "badge-success" : movement.score_change < 0 ? "badge-danger" : ""}`}
+            >
+              Score {scoreUp ? "+" : ""}
+              {num(movement.score_change, 1)}
+            </span>
+          )}
+          {movement.rank_change != null && movement.rank_change !== 0 && (
+            <span className={`badge ${rankImproved ? "badge-success" : "badge-danger"}`}>
+              Rank {rankImproved ? "▲" : "▼"} {Math.abs(movement.rank_change)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: "var(--space-3)" }}>
+        <ResponsiveContainer width="100%" height={140}>
+          <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <YAxis domain={[0, 100]} width={30} tick={{ fontSize: 10 }} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "rgba(0,0,0,0.9)",
+                border: "1px solid #666",
+                borderRadius: 4,
+                color: "#fff",
+              }}
+              labelStyle={{ color: "#fff" }}
+              formatter={(value) => [value, "Composite Score"]}
+            />
+            <Line
+              type="monotone"
+              dataKey="score"
+              stroke="#4FC3F7"
+              strokeWidth={2}
+              dot={false}
+              name="Composite Score"
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
@@ -504,6 +606,9 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           </span>
         )}
       </div>
+
+      {/* Composite score / rank trend */}
+      <ScoreHistoryForStock symbol={stock.symbol} />
 
       {/* Factor scores vs sector/market */}
       <div className="eyebrow" style={{ marginBottom: "var(--space-2)" }}>
@@ -1046,6 +1151,12 @@ const GROWTH_SCHEMA = [
 // insider 20% not 30%, short interest 25% not 35%), and ad_rating (15% weight, wired
 // into positioning_score by commit 2bd12fcb5 the same day) was still shown as a plain
 // unweighted number - the display never caught up with that fix.
+//
+// REMOVED 2026-08-24: insider_ownership_pct (20% weight) dropped entirely - static
+// governance/alignment metric, near-zero information content for this system's
+// weeks-scale swing trading, recurring source of real bugs. See
+// loaders/DEPRECATED_LOADERS.md. Weights below are re-normalized automatically by
+// _score_positioning's weighted_sum/total_weight (no rebalancing needed here).
 const POSITIONING_SCHEMA = [
   {
     key: "institutional_ownership_pct",
@@ -1053,13 +1164,6 @@ const POSITIONING_SCHEMA = [
     fmt: (v) => pct(v, 1),
     used: true,
     weight: "55%",
-  },
-  {
-    key: "insider_ownership_pct",
-    label: "Insider Own %",
-    fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "20%",
   },
   {
     key: "short_interest_pct",

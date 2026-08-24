@@ -45,7 +45,6 @@ STOCKS_ONLY_SNAPSHOT_TABLES = [
     "positioning_metrics",
     "stock_scores",
     "institutional_holdings_13f",
-    "insider_holdings_sec",
     "short_interest_finra",
     "company_info_sec",
     "sec_valuations",

@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""Positioning Metrics Loader - CRITICAL for stock scoring (institutional/insider/short data).
+"""Positioning Metrics Loader - CRITICAL for stock scoring (institutional/short data).
 
 PURPOSE:
-- Fetch positioning metrics (institutional ownership %, insider ownership %, short interest %)
+- Fetch positioning metrics (institutional ownership %, short interest %)
 - These are REQUIRED by load_stock_scores.py (minimum 30% coverage needed)
 - 100% SEC-based sources (no yfinance dependency)
 
 DATA SOURCES (Session 275+):
 - short_interest: FINRA Reg SHO Transparency Data (load_short_interest_finra.py)
 - institutional_ownership: SEC 13F filings (load_institutional_holdings_13f.py)
-- insider_ownership: SEC Form 4/5 filings (load_insider_holdings_sec.py)
 - Writes to: positioning_metrics table (READ BY stock_scores.py)
 
 DEPENDENCIES:
 - load_short_interest_finra.py must run FIRST (populates short_interest_finra table)
 - load_institutional_holdings_13f.py must run (populates institutional_holdings_13f table)
-- load_insider_holdings_sec.py must run (populates insider_holdings_sec table)
 
 Run:
     python3 loaders/load_positioning_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
@@ -83,7 +81,7 @@ class PositioningMetricsLoader(OptimalLoader):
     CRITICAL LOADER: Stock scores require 30% coverage of positioning metrics.
     Without this data, stock scoring fails pre-flight validation.
 
-    Reads from: SEC 13F (institutional holdings), SEC Form 4/5 (insider holdings), FINRA (short interest).
+    Reads from: SEC 13F (institutional holdings), FINRA (short interest).
     Writes to positioning_metrics table (read by stock_scores.py).
     """
 
@@ -146,8 +144,6 @@ class PositioningMetricsLoader(OptimalLoader):
         TIER 1 (Authoritative, only tier):
         - short_interest: FINRA Reg SHO
         - institutional_ownership: SEC 13F filings
-        - insider_ownership: SEC Form 4/5 filings
-
         Returns positioning data or data_unavailable marker if all sources exhausted.
         """
         now_et = datetime.now(EASTERN_TZ)
@@ -330,53 +326,18 @@ class PositioningMetricsLoader(OptimalLoader):
         institutional_holders_count = sec_inst_row[3] if sec_inst_row else None
         top_10_institutions_pct = sec_inst_row[4] if sec_inst_row else None
 
-        # TIER 1: Fetch insider ownership from SEC Form 4/5
-        insider_pct = None
-        insider_source = None
-
-        with DatabaseContext("read") as cur:
-            # NOTE: Removed data_unavailable = FALSE filter to allow processing
-            # even if upstream insider holdings loader hasn't marked data available yet
-            cur.execute(
-                """
-                SELECT insider_ownership_pct, data_unavailable, reason
-                FROM insider_holdings_sec
-                WHERE symbol = %s
-                ORDER BY filing_date DESC LIMIT 1
-                """,
-                (symbol,),
-            )
-            sec_insider_row = cur.fetchone()
-
-        if sec_insider_row and sec_insider_row[0] is not None:
-            insider_pct = sec_insider_row[0]
-            insider_source = "sec_form4"
-        else:
-            insider_source = "unavailable"
-
-        # FIXED 2026-08-18 (goal: "no SEC data" audit): same propagation gap as
-        # institutional_reason above - insider_holdings_sec already tracks a specific reason
-        # (no_form345_filings_in_lookback_window, shares_outstanding_unavailable_for_pct_calc)
-        # via the `reason` column selected above (sec_insider_row[2]), never used.
-        insider_reason = sec_insider_row[2] if sec_insider_row else None
-
         # CRITICAL (Session 275+): Removed TIER 2 yfinance_snapshot fallback.
         # Governance rule: no silent fallbacks. If SEC data unavailable, report data_unavailable explicitly.
-        # yfinance_snapshot is deprecated; institutional_holdings_13f and insider_holdings_sec
-        # are authoritative sources. If they fail to produce data, that's a real failure to report.
+        # yfinance_snapshot is deprecated; institutional_holdings_13f is the authoritative source.
+        # If it fails to produce data, that's a real failure to report.
 
-        # Final availability check: data_unavailable only if ALL three metrics are missing
-        all_unavailable = (
-            short_interest_source == "unavailable"
-            and institutional_source == "unavailable"
-            and insider_source == "unavailable"
-        )
+        # Final availability check: data_unavailable only if BOTH metrics are missing
+        all_unavailable = short_interest_source == "unavailable" and institutional_source == "unavailable"
 
         return [
             {
                 "symbol": symbol,
                 "institutional_ownership_pct": institutional_pct,
-                "insider_ownership_pct": insider_pct,
                 "short_interest_pct": short_interest_pct,
                 "shares_short_prior_month": shares_short_prior_month,
                 "short_interest_pct_change": short_interest_pct_change,
@@ -385,9 +346,6 @@ class PositioningMetricsLoader(OptimalLoader):
                 # Session 395+: Add unavailable_reason for each metric
                 "institutional_ownership_pct_unavailable_reason": (
                     (institutional_reason or "missing_sec_data") if institutional_pct is None else None
-                ),
-                "insider_ownership_pct_unavailable_reason": (
-                    (insider_reason or "missing_sec_data") if insider_pct is None else None
                 ),
                 "short_interest_pct_unavailable_reason": "missing_finra_data" if short_interest_pct is None else None,
                 "shares_short_prior_month_unavailable_reason": (
@@ -438,7 +396,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 "ad_rating_unavailable_reason": ad_rating_reason,
                 "data_unavailable": all_unavailable,
                 "reason": (
-                    f"short_interest:{short_interest_source};institutional:{institutional_source};insider:{insider_source}"
+                    f"short_interest:{short_interest_source};institutional:{institutional_source}"
                     if all_unavailable
                     else None
                 ),
@@ -446,19 +404,12 @@ class PositioningMetricsLoader(OptimalLoader):
                     # Set data_source to the primary available source, or "none" if all unavailable
                     short_interest_source
                     if short_interest_source != "unavailable"
-                    else (
-                        institutional_source
-                        if institutional_source != "unavailable"
-                        else insider_source
-                        if insider_source != "unavailable"
-                        else "none"
-                    )
+                    else (institutional_source if institutional_source != "unavailable" else "none")
                 ),
                 "source_tracking": json.dumps(
                     {
                         "short_interest": short_interest_source,
                         "institutional": institutional_source,
-                        "insider": insider_source,
                     }
                 ),
                 "updated_at": now_et,

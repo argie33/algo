@@ -123,10 +123,8 @@ def get_loader_timeouts() -> dict[str, int]:
         # synced to it, so every run through the shorthand enforced only a 900s Python-level
         # timeout regardless of the real 2700s budget.
         "institutional": 45 * 60,  # 45 min - SEC Form 13F institutional holdings parsing
-        "insider_holdings": 45 * 60,  # 45 min - Session 92+ fix: SEC Form 4/5 bulk downloads + backoff
-        "insider_holdings_sec": 45 * 60,  # 45 min - Alias for insider_holdings
         "short_interest": 10 * 60,  # 10 min - FINRA data
-        "insider_velocity": 45 * 60,  # 45 min - Session 92+ fix: depends on insider_holdings
+        "insider_velocity": 45 * 60,  # 45 min - Session 92+ fix: SEC Form 3/4/5 bulk downloads + backoff
         "insider_transaction_velocity": 45 * 60,  # 45 min - Alias for insider_velocity
         # Earnings calendar & SEC data
         # SESSION 99 FIX: All increased by 25-100% for SEC rate limiting

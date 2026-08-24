@@ -1,16 +1,21 @@
 """Regression test: institutional_ownership_pct/institutional_holders_count/
-top_10_institutions_pct/insider_ownership_pct_unavailable_reason must propagate the specific
-reason already tracked by institutional_holdings_13f/insider_holdings_sec, not collapse it into
-the generic "missing_sec_data"/"institutional_data_not_available".
+top_10_institutions_pct_unavailable_reason must propagate the specific reason already
+tracked by institutional_holdings_13f, not collapse it into the generic
+"missing_sec_data"/"institutional_data_not_available".
 
-Found live 2026-08-18 (goal: "no SEC data" audit): both source-table queries in
-load_positioning_metrics.py already SELECT a `reason` column (no_resolved_13f_holdings,
-shares_outstanding_unavailable, not_found_in_institutional_holdings_13f for 13F;
-no_form345_filings_in_lookback_window, shares_outstanding_unavailable_for_pct_calc for insider
-Form 4/5) - real, already-diagnosed causes sitting one column over - but the value was fetched
-and never used, so every one of these collapsed into the generic reason instead, reading as an
-unexplained loader gap. Live-confirmed 1,668 of institutional_holdings_13f's rows and 794 of
-insider_holdings_sec's rows carry one of these specific reasons.
+Found live 2026-08-18 (goal: "no SEC data" audit): the institutional source-table query in
+load_positioning_metrics.py already SELECTs a `reason` column (no_resolved_13f_holdings,
+shares_outstanding_unavailable, not_found_in_institutional_holdings_13f) - a real,
+already-diagnosed cause sitting one column over - but the value was fetched and never used,
+so every one of these collapsed into the generic reason instead, reading as an unexplained
+loader gap. Live-confirmed 1,668 of institutional_holdings_13f's rows carry one of these
+specific reasons.
+
+REMOVED 2026-08-24: the insider_ownership_pct-propagation tests that used to live here
+(insider_holdings_sec's no_form345_filings_in_lookback_window/
+shares_outstanding_unavailable_for_pct_calc reasons) - insider_ownership_pct was removed
+entirely (static governance metric, near-zero information content for weeks-scale swing
+trading, recurring source of real bugs). See loaders/DEPRECATED_LOADERS.md.
 """
 
 from unittest.mock import patch
@@ -27,9 +32,8 @@ class _RoutingCursor:
     table so the surrounding short-interest/A-D-rating logic reaches "unavailable" cleanly
     without extra DB round trips to mock."""
 
-    def __init__(self, institutional_row=None, insider_row=None):
+    def __init__(self, institutional_row=None):
         self._institutional_row = institutional_row
-        self._insider_row = insider_row
         self._last_query = ""
 
     def execute(self, query, params=None):
@@ -38,18 +42,16 @@ class _RoutingCursor:
     def fetchone(self):
         if "institutional_holdings_13f" in self._last_query:
             return self._institutional_row
-        if "insider_holdings_sec" in self._last_query:
-            return self._insider_row
         return None
 
     def fetchall(self):
         return []
 
 
-def _run(monkeypatch, institutional_row=None, insider_row=None):
+def _run(monkeypatch, institutional_row=None):
     import loaders.load_positioning_metrics as mod
 
-    cursor = _RoutingCursor(institutional_row=institutional_row, insider_row=insider_row)
+    cursor = _RoutingCursor(institutional_row=institutional_row)
 
     class _FakeDatabaseContext:
         def __enter__(self):
@@ -87,24 +89,9 @@ class TestPositioningReasonPropagation:
         assert result["institutional_holders_count_unavailable_reason"] == "institutional_data_not_available"
         assert result["top_10_institutions_pct_unavailable_reason"] == "institutional_data_not_available"
 
-    def test_insider_ownership_propagates_no_form345_filings(self, monkeypatch):
-        # (insider_ownership_pct, data_unavailable, reason)
-        row = (None, True, "no_form345_filings_in_lookback_window")
-        result = _run(monkeypatch, insider_row=row)
-
-        assert result["insider_ownership_pct_unavailable_reason"] == "no_form345_filings_in_lookback_window"
-
-    def test_insider_ownership_no_row_falls_back_to_generic_reason(self, monkeypatch):
-        result = _run(monkeypatch, insider_row=None)
-
-        assert result["insider_ownership_pct_unavailable_reason"] == "missing_sec_data"
-
     def test_real_values_still_populate_with_no_reason(self, monkeypatch):
         institutional_row = (42.5, False, None, 12, 30.1)
-        insider_row = (5.5, False, None)
-        result = _run(monkeypatch, institutional_row=institutional_row, insider_row=insider_row)
+        result = _run(monkeypatch, institutional_row=institutional_row)
 
         assert result["institutional_ownership_pct"] == 42.5
         assert result.get("institutional_ownership_pct_unavailable_reason") is None
-        assert result["insider_ownership_pct"] == 5.5
-        assert result.get("insider_ownership_pct_unavailable_reason") is None

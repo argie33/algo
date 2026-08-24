@@ -84,7 +84,6 @@ CREATE TABLE IF NOT EXISTS value_metrics (
     forward_pe_unavailable_reason VARCHAR(255),
     ev_ebitda_unavailable_reason VARCHAR(255),
     market_cap_unavailable_reason VARCHAR(255),
-    held_percent_insiders_unavailable_reason VARCHAR(255),
     held_percent_institutions_unavailable_reason VARCHAR(255),
     data_unavailable BOOLEAN DEFAULT FALSE,
     data_source VARCHAR(50),
@@ -97,7 +96,6 @@ CREATE TABLE IF NOT EXISTS positioning_metrics (
     symbol VARCHAR(20) NOT NULL PRIMARY KEY,
     institutional_ownership_pct NUMERIC(6, 2),
     short_interest_pct NUMERIC(6, 2),
-    insider_ownership_pct NUMERIC(6, 2),
     float_pct NUMERIC(6, 2),
     institutional_ownership_pct_unavailable_reason VARCHAR(255),
     data_unavailable BOOLEAN DEFAULT FALSE,
@@ -162,6 +160,27 @@ CREATE TABLE IF NOT EXISTS stock_scores (
 );
 CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_score DESC);
 CREATE INDEX IF NOT EXISTS idx_stock_scores_updated_at ON stock_scores(updated_at DESC);
+
+-- Daily snapshot of stock_scores, written once per trading day by
+-- load_stock_scores.py's post_run() - see migrations/versions/1221_add_stock_scores_history.sql
+CREATE TABLE IF NOT EXISTS stock_scores_history (
+    symbol VARCHAR(20) NOT NULL,
+    score_date DATE NOT NULL,
+    composite_score NUMERIC(5, 2),
+    composite_rank INTEGER,
+    momentum_score NUMERIC(5, 2),
+    quality_score NUMERIC(5, 2),
+    growth_score NUMERIC(5, 2),
+    value_score NUMERIC(5, 2),
+    positioning_score NUMERIC(5, 2),
+    stability_score NUMERIC(5, 2),
+    rs_percentile NUMERIC(5, 2),
+    data_completeness NUMERIC(5, 2),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, score_date)
+);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_history_symbol_date ON stock_scores_history(symbol, score_date DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_history_date_rank ON stock_scores_history(score_date, composite_rank);
 
 -- ============================================================================
 -- PRICE DATA (Historical price information)

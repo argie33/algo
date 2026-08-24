@@ -545,16 +545,18 @@ clamped to parallelism 1-2 to protect rate limits.
   cost) - live-verified to be catastrophically incomplete (~7.4% of AAPL's real
   institutional shares carry any FIGI tag), self-caught and replaced before shipping. This
   doc previously still described that rejected approach as current; corrected 2026-07-27.
-- **Insider holdings (Form 4/5):** implemented (Session 304) via SEC's official bulk
-  "Insider Transactions Data Sets" (sec.gov/data-research/sec-markets-data/
-  insider-transactions-data-sets - quarterly ZIPs of SUBMISSION/REPORTINGOWNER/
-  NONDERIV_HOLDING/NONDERIV_TRANS TSVs, pre-joined by issuer ticker). This sidesteps the
-  per-filing XML crawl the ~8-16h estimate above was based on: a dozen quarterly ZIP
-  downloads instead of one HTTP request per Form 4. See
-  `utils/external/sec_form345_bulk.py` for the aggregation methodology (latest
-  SHRS_OWND_FOLWNG_TRANS per issuer/reporting-owner pair, ~3yr lookback) and
-  `loaders/load_insider_holdings_sec.py`. Foreign private issuers commonly exempt from
-  Section 16 correctly report `data_unavailable` (no Form 3/4/5 filings exist for them).
+- **Insider holdings (Form 4/5) - REMOVED 2026-08-24:** `insider_ownership_pct` (and the
+  `load_insider_holdings_sec.py` loader / `insider_holdings_sec` table that fed it) was
+  removed entirely - a static, slow-moving governance/alignment metric with near-zero
+  information content for this system's weeks-scale swing/breakout trading timeframe, and a
+  recurring source of real bugs (foreign-private-issuer exemption handling, shares-outstanding
+  edge cases). See `loaders/DEPRECATED_LOADERS.md`. `Form345BulkAggregator`
+  (`utils/external/sec_form345_bulk.py`, the class this loader used) has zero remaining
+  production callers - the separate, unrelated insider *transaction velocity* signal
+  (`loaders/load_insider_transaction_velocity.py`) has its own independent
+  `Form345TransactionVelocityAggregator` (`utils/external/sec_form345_transaction_velocity.py`)
+  that does not import it. Left in place (not deleted) since deleting dead code wasn't in
+  scope for this change.
 - **Cash flow health metrics (`sec_cash_flow_metrics`):** fixed 2026-07-20. The loader
   (`load_sec_cash_flow_metrics.py`, table registered "critical" in terraform since Session
   274) had NO destination table anywhere in migrations/schema.sql - every run failed
@@ -1189,7 +1191,6 @@ backfill is available via `--backfill N` flag if needed for historical recovery.
 | technical_data_daily | 1 day | incremental write past per-symbol watermark |
 | sec_valuations | 7 days | SEC EDGAR companyfacts batch |
 | institutional_holdings_13f | 30 days | SEC Form 13-F filings (quarterly) |
-| insider_holdings_sec | 7 days | SEC Form 4/5 filings |
 | quality/growth/value/stability metrics | 7 days | computed from SEC + holdings tables |
 | stock_scores | 4 hours | batch-context panel computation |
 

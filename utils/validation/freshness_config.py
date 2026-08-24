@@ -214,7 +214,7 @@ FRESHNESS_RULES = {
     "positioning_metrics": {
         "critical": False,
         "max_age_days": 7,
-        "description": "Positioning metrics (short interest, insider ownership)",
+        "description": "Positioning metrics (short interest, institutional ownership)",
         "purpose": "Positioning factor scoring, sentiment analysis",
         "applies_to": ["orchestrator_phase1", "dashboard"],
     },

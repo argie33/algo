@@ -285,12 +285,6 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             ("value_metrics", "fcf_yield_unavailable_reason", "VARCHAR(255)", "FCF yield unavailable reason"),
             (
                 "value_metrics",
-                "held_percent_insiders_unavailable_reason",
-                "VARCHAR(255)",
-                "Insider ownership unavailable reason",
-            ),
-            (
-                "value_metrics",
                 "held_percent_institutions_unavailable_reason",
                 "VARCHAR(255)",
                 "Institutional ownership unavailable reason",
