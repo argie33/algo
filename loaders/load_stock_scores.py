@@ -350,8 +350,14 @@ class StockScoresLoader(OptimalLoader):
             # short_interest_trend enum column in migration 1203) but never read here before -
             # the existing short_interest weight only used the latest %-of-float snapshot, with
             # no signal for which direction it's moving.
+            # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven sweep): a
+            # concurrent session's commit ("REMOVE: drop insider_ownership_pct entirely -
+            # not a positioning metric") dropped the column from positioning_metrics but
+            # missed this SELECT - live-confirmed this crashed EVERY stock_scores run since
+            # that commit landed (column "insider_ownership_pct" does not exist), the most
+            # critical loader in the pipeline (feeds every trading decision).
             cur.execute(
-                "SELECT symbol, institutional_ownership_pct, insider_ownership_pct, short_interest_pct, "
+                "SELECT symbol, institutional_ownership_pct, short_interest_pct, "
                 "shares_short_prior_month, short_interest_pct_change, ad_rating, data_unavailable "
                 "FROM positioning_metrics"
             )
@@ -1044,10 +1050,11 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 7 columns (institutional_ownership, insider_ownership,
+        - Row length validation: Must have 6 columns (institutional_ownership,
           short_interest_percent, shares_short_prior_month, short_interest_pct_change, ad_rating,
-          data_unavailable)
-        - Schema mismatch (len(row) < 7) → raises ValueError immediately
+          data_unavailable) - insider_ownership_pct removed 2026-08-24 (column dropped from
+          positioning_metrics entirely, "not a positioning metric")
+        - Schema mismatch (len(row) < 6) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_positioning_metrics_found"
@@ -1061,13 +1068,13 @@ class StockScoresLoader(OptimalLoader):
         """
         row = self._positioning_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 7 columns before accessing indices
-            if len(row) < 7:
+            # CRITICAL: Validate row has expected 6 columns before accessing indices
+            if len(row) < 6:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 7. "
+                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 6. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[6]
+            data_unavailable = row[5]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1078,11 +1085,10 @@ class StockScoresLoader(OptimalLoader):
             # Row exists and data is available
             return {
                 "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
-                "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
-                "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
-                "shares_short_prior_month": safe_float(row[3], f"{symbol}.shares_short_prior_month", allow_none=True),
-                "short_interest_pct_change": safe_float(row[4], f"{symbol}.short_interest_pct_change", allow_none=True),
-                "ad_rating": safe_float(row[5], f"{symbol}.ad_rating", allow_none=True),
+                "short_interest": safe_float(row[1], f"{symbol}.short_interest"),
+                "shares_short_prior_month": safe_float(row[2], f"{symbol}.shares_short_prior_month", allow_none=True),
+                "short_interest_pct_change": safe_float(row[3], f"{symbol}.short_interest_pct_change", allow_none=True),
+                "ad_rating": safe_float(row[4], f"{symbol}.ad_rating", allow_none=True),
             }
         # No row exists at all
         logger.debug(
@@ -1741,9 +1747,17 @@ class StockScoresLoader(OptimalLoader):
         and uses them for positioning metric computation. Position weight redistribution
         applies if positioning unavailable.
 
-        MINIMUM DATA REQUIREMENT: At least one of institutional_ownership/insider_ownership/
-        short_interest metrics must be non-NULL. If all positioning metrics are None,
+        MINIMUM DATA REQUIREMENT: At least one of institutional_ownership/short_interest
+        metrics must be non-NULL. If all positioning metrics are None,
         returns data_unavailable marker. Optional for REITs/special securities.
+
+        REMOVED 2026-08-24: insider_ownership scoring component - a concurrent session's
+        commit ("REMOVE: drop insider_ownership_pct entirely - not a positioning metric")
+        dropped the underlying column from positioning_metrics but missed this scoring
+        block, which crashed the loader referencing it via the now-nonexistent SELECT
+        column (see _get_positioning_metrics's own fix note). Removing this block needs no
+        manual weight redistribution - the remaining weights are already normalized via
+        weighted_sum / total_weight below, using only whatever fields are actually present.
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.warning(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
@@ -1758,20 +1772,6 @@ class StockScoresLoader(OptimalLoader):
             io = min(metrics["institutional_ownership"], 95)
             weighted_sum += io * 0.55
             total_weight += 0.55
-
-        # Insider ownership: moderate insider ownership (5-20%) is a positive signal
-        if metrics.get("insider_ownership") is not None:
-            ins = metrics["insider_ownership"]  # stored as percentage (e.g., 5.2 = 5.2%)
-            if ins >= 20:
-                ins_score = 100
-            elif ins >= 5:
-                ins_score = 60 + (ins - 5) / 15 * 40
-            elif ins >= 1:
-                ins_score = 40 + (ins - 1) / 4 * 20
-            else:
-                ins_score = ins * 40
-            weighted_sum += min(100, ins_score) * 0.20
-            total_weight += 0.20
 
         # Short interest: lower is better (target <5%)
         if metrics.get("short_interest") is not None:
