@@ -454,6 +454,37 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         return FetcherValidator.build_error_response(error_msg)
 
 
+def fetch_capital_routing(c: None) -> dict[str, Any]:
+    """Fetch capital-routing data (GLD/IEF/DBC/cash). See algo/risk/capital_routing.py's
+    module docstring. Uses /api/algo/markets (public, already fetched) - same cached-call
+    pattern as fetch_exp_factors.
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    try:
+        data = _get_markets_cached()
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("capital_routing", "api_call", "api_error", error_msg or "Unknown API error")
+            return FetcherValidator.build_error_response(error_msg)
+        if not isinstance(data, dict) or "capital_routing" not in data:
+            return {"data_unavailable": True, "reason": "capital_routing not provided by API"}
+        cr = data["capital_routing"]
+        if not isinstance(cr, dict):
+            return {"data_unavailable": True, "reason": "capital_routing has invalid type"}
+        if cr.get("data_unavailable"):
+            return {"data_unavailable": True, "reason": cr.get("reason") or "data_unavailable"}
+        result: dict[str, Any] = dict(cr)
+        result["timestamp"] = datetime.now(ET)
+        result["data_freshness"] = data.get("data_freshness")
+        return result
+    except Exception as e:
+        error_msg = format_fetcher_error("capital_routing", e)
+        logger.error(error_msg)
+        record_data_quality_issue("capital_routing", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
+
+
 def fetch_risk_metrics(c: None) -> dict[str, Any]:
     """API-only risk metrics. Fail-fast: error if critical risk metrics are missing.
 

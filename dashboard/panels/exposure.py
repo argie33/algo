@@ -715,7 +715,77 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     )
 
 
+@register_panel(
+    "cap_route",
+    endpoint_deps=["capital_routing"],
+    optional=True,
+    description="Capital Routing",
+)
+def panel_capital_routing(cr: Any) -> Any:
+    """GLD/IEF/DBC/cash leftover-capital routing - see algo/risk/capital_routing.py."""
+    err_panel = _error_panel("capital routing", cr, "CAPITAL ROUTING", border="blue")
+    if err_panel:
+        return err_panel
+
+    if not isinstance(cr, dict) or cr.get("data_unavailable"):
+        reason = cr.get("reason") if isinstance(cr, dict) else "no data"
+        return Panel(
+            Text.from_markup(f"[dim]Capital routing unavailable: {reason}[/]"),
+            title="[bold blue]CAPITAL ROUTING[/]",
+            border_style="blue",
+            padding=(0, 1),
+        )
+
+    uninvested = cr.get("uninvested_capital_pct")
+    uninvested_s = f"{uninvested:.1f}%" if isinstance(uninvested, (int, float)) else "--"
+
+    tbl = Table.grid(padding=(0, 2), expand=True)
+    tbl.add_column("leg", ratio=1)
+    tbl.add_column("trend", ratio=1)
+    tbl.add_column("weight", ratio=1)
+
+    legs = [
+        ("GLD", cr.get("gld_trend_up"), cr.get("gld_weight")),
+        ("IEF", cr.get("ief_trend_up"), cr.get("ief_weight")),
+        ("DBC", cr.get("dbc_trend_up"), cr.get("dbc_weight")),
+    ]
+    for symbol, trend_up, weight in legs:
+        if trend_up is True:
+            trend_s = f"[{G}]UP[/]"
+        elif trend_up is False:
+            trend_s = f"[{R}]DOWN[/]"
+        else:
+            trend_s = "[dim]--[/]"
+        if symbol == "IEF" and cr.get("move_veto"):
+            trend_s += f" [{Y}](MOVE veto)[/]"
+        weight_s = f"{weight * 100:.1f}%" if isinstance(weight, (int, float)) else "--"
+        tbl.add_row(Text(symbol, style="bold"), Text.from_markup(trend_s), Text(weight_s))
+
+    cash_weight = cr.get("cash_weight")
+    cash_s = f"{cash_weight * 100:.1f}%" if isinstance(cash_weight, (int, float)) else "--"
+    tbl.add_row(Text("CASH", style="bold"), Text("--", style="dim"), Text(cash_s))
+
+    move_index = cr.get("move_index")
+    move_s = f"MOVE: {move_index:.1f}" if isinstance(move_index, (int, float)) else "MOVE: [dim]unavailable[/]"
+
+    rows: list[Any] = [
+        Text.from_markup(f"[dim]Uninvested capital:[/] {uninvested_s}   [dim]{move_s}[/]"),
+        Rule(style="dim"),
+        tbl,
+    ]
+
+    timestamp_val = cr.get("timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    return Panel(
+        Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
+        title=f"[bold blue]CAPITAL ROUTING[/]{age_s}",
+        border_style="blue",
+        padding=(0, 1),
+    )
+
+
 __all__ = [
+    "panel_capital_routing",
     "panel_exposure_compact",
     "panel_exposure_expanded",
 ]

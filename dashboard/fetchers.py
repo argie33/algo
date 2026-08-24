@@ -45,6 +45,7 @@ from .fetchers_external import (
 )
 from .fetchers_market import (
     clear_markets_cache,
+    fetch_capital_routing,
     fetch_exp_factors,
     fetch_market,
     fetch_risk_metrics,
@@ -73,6 +74,7 @@ __all__ = [
     "fetch_algo_config",
     "fetch_algo_metrics",
     "fetch_audit_log",
+    "fetch_capital_routing",
     "fetch_circuit",
     "fetch_completed_trades",
     "fetch_data_coverage",
@@ -133,6 +135,7 @@ FETCHERS = {
     "exec_stats": fetch_execution_stats,
     "exec_patterns": fetch_execution_patterns,
     "exp_factors": fetch_exp_factors,
+    "capital_routing": fetch_capital_routing,
     "scores": fetch_scores,
     "inventory": fetch_table_inventory,
     "data_coverage": fetch_data_coverage,
@@ -296,6 +299,7 @@ def load_all() -> dict[str, Any]:
         "risk": 8.0,
         "exp_factors": 8.0,
         # Optional fetchers: 6 second timeout (nice-to-have)
+        "capital_routing": 6.0,
         "srank": 6.0,
         "activity": 6.0,
         "eco": 6.0,
@@ -334,6 +338,7 @@ def load_all() -> dict[str, Any]:
         "exp_factors",  # Market exposure factors - REQUIRED for exposure panel
     }
     optional_fetchers = {
+        "capital_routing",  # GLD/IEF/DBC/cash leftover-capital routing (2026-08-24)
         "srank",  # Nice-to-have sector rankings
         "activity",  # Activity log (informational)
         "eco",  # Economic data (optional enrichment)

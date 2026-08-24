@@ -336,6 +336,17 @@ function MarketsHealthPage() {
         )}
         {!mkError ? (
           <ErrorBoundary>
+            <CapitalRoutingCard markets={m} />
+          </ErrorBoundary>
+        ) : (
+          <div className="card">
+            <div className="card-body">
+              <div className="alert alert-danger">Markets data failed</div>
+            </div>
+          </div>
+        )}
+        {!mkError ? (
+          <ErrorBoundary>
             <MarketPulse markets={m} />
           </ErrorBoundary>
         ) : (
@@ -958,6 +969,88 @@ function ExposureFactors({ markets }) {
             );
           })
           .filter(Boolean)}
+      </div>
+    </div>
+  );
+}
+
+function CapitalRoutingCard({ markets }) {
+  // GLD/IEF/DBC/cash leftover-capital router - see algo/risk/capital_routing.py's module
+  // docstring for the full design (routes the (100 - exposure_pct)% NOT going into stocks,
+  // each leg judged on its own trend, inverse-vol sized, MOVE-index veto on IEF).
+  const cr = markets && typeof markets === "object" ? markets.capital_routing : null;
+
+  if (!cr || cr.data_unavailable) {
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">Capital Routing</div>
+        </div>
+        <div className="card-body">
+          <div className="t-2xs muted">
+            {cr?.reason
+              ? `Unavailable: ${cr.reason}`
+              : "Capital routing data unavailable"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const legs = [
+    ["GLD", cr.gld_trend_up, cr.gld_weight],
+    ["IEF", cr.ief_trend_up, cr.ief_weight],
+    ["DBC", cr.dbc_trend_up, cr.dbc_weight],
+  ];
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Capital Routing</div>
+          <div className="card-sub">
+            Uninvested capital: {num(cr.uninvested_capital_pct, 1)}% · MOVE:{" "}
+            {cr.move_index != null ? num(cr.move_index, 1) : "unavailable"}
+          </div>
+        </div>
+      </div>
+      <div className="card-body">
+        {legs.map(([symbol, trendUp, weight]) => (
+          <div
+            key={symbol}
+            className="flex items-center justify-between t-2xs"
+            style={{ padding: "4px 0" }}
+          >
+            <span>
+              <span className="mono strong">{symbol}</span>{" "}
+              {trendUp === true ? (
+                <span style={{ color: "var(--success, #2ecc71)" }}>UP</span>
+              ) : trendUp === false ? (
+                <span style={{ color: "var(--danger, #e74c3c)" }}>DOWN</span>
+              ) : (
+                <span className="muted">--</span>
+              )}
+              {symbol === "IEF" && cr.move_veto && (
+                <span style={{ color: "var(--amber, #f39c12)" }}>
+                  {" "}
+                  (MOVE veto)
+                </span>
+              )}
+            </span>
+            <span className="mono tnum">
+              {weight != null ? `${num(weight * 100, 1)}%` : "--"}
+            </span>
+          </div>
+        ))}
+        <div
+          className="flex items-center justify-between t-2xs muted"
+          style={{ padding: "4px 0" }}
+        >
+          <span className="mono strong">CASH</span>
+          <span className="mono tnum">
+            {cr.cash_weight != null ? `${num(cr.cash_weight * 100, 1)}%` : "--"}
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -2297,6 +2297,75 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
 
         current_date = row.get("date")
 
+        # Capital routing (2026-08-24, user-directed /goal) - see algo/risk/capital_routing.py's
+        # module docstring. Non-critical/optional - degrades gracefully, must not 503 this endpoint.
+        capital_routing: dict[str, Any] = {"data_unavailable": True, "reason": "no_data"}
+        try:
+            cur.execute("""
+                    SELECT date, exposure_pct, uninvested_capital_pct, gld_trend_up, ief_trend_up,
+                           dbc_trend_up, gld_vol_20d, ief_vol_20d, dbc_vol_20d, gld_weight, ief_weight,
+                           dbc_weight, cash_weight, move_index, move_veto, factors, data_unavailable, reason
+                    FROM capital_routing_daily
+                    WHERE date <= CURRENT_DATE
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+            cr_row = cur.fetchone()
+            if cr_row:
+                cr_row = safe_json_serialize(safe_dict_convert(cr_row))
+                if cr_row.get("data_unavailable"):
+                    capital_routing = {
+                        "data_unavailable": True,
+                        "reason": cr_row.get("reason") or "data_unavailable",
+                        "date": cr_row.get("date"),
+                    }
+                else:
+                    cr_factors = {}
+                    if cr_row.get("factors"):
+                        try:
+                            cr_factors_val = (
+                                json.loads(cr_row["factors"])
+                                if isinstance(cr_row["factors"], str)
+                                else cr_row["factors"]
+                            )
+                            cr_factors = cr_factors_val if isinstance(cr_factors_val, dict) else {}
+                        except (json.JSONDecodeError, TypeError):
+                            cr_factors = {}
+                    capital_routing = {
+                        "data_unavailable": False,
+                        "date": cr_row.get("date"),
+                        "exposure_pct": (
+                            float(cr_row["exposure_pct"]) if cr_row.get("exposure_pct") is not None else None
+                        ),
+                        "uninvested_capital_pct": (
+                            float(cr_row["uninvested_capital_pct"])
+                            if cr_row.get("uninvested_capital_pct") is not None
+                            else None
+                        ),
+                        "gld_trend_up": cr_row.get("gld_trend_up"),
+                        "ief_trend_up": cr_row.get("ief_trend_up"),
+                        "dbc_trend_up": cr_row.get("dbc_trend_up"),
+                        "gld_vol_20d": (
+                            float(cr_row["gld_vol_20d"]) if cr_row.get("gld_vol_20d") is not None else None
+                        ),
+                        "ief_vol_20d": (
+                            float(cr_row["ief_vol_20d"]) if cr_row.get("ief_vol_20d") is not None else None
+                        ),
+                        "dbc_vol_20d": (
+                            float(cr_row["dbc_vol_20d"]) if cr_row.get("dbc_vol_20d") is not None else None
+                        ),
+                        "gld_weight": (float(cr_row["gld_weight"]) if cr_row.get("gld_weight") is not None else 0.0),
+                        "ief_weight": (float(cr_row["ief_weight"]) if cr_row.get("ief_weight") is not None else 0.0),
+                        "dbc_weight": (float(cr_row["dbc_weight"]) if cr_row.get("dbc_weight") is not None else 0.0),
+                        "cash_weight": (float(cr_row["cash_weight"]) if cr_row.get("cash_weight") is not None else 1.0),
+                        "move_index": (float(cr_row["move_index"]) if cr_row.get("move_index") is not None else None),
+                        "move_veto": bool(cr_row.get("move_veto")),
+                        "factors": cr_factors,
+                    }
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as cr_e:
+            logger.warning(f"[MARKETS API] Capital routing fetch failed (non-fatal, optional): {cr_e}")
+            capital_routing = {"data_unavailable": True, "reason": f"query_failed: {type(cr_e).__name__}"}
+
         # Validate vix_regime is present in factors; fail-fast if missing (critical market signal)
         # 2026-08-23 pillar redesign moved vix_regime from a top-level factors key to
         # factors.pillar_risk.components.vix_regime (see algo/risk/market_exposure.py's module
@@ -2363,6 +2432,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "history_data_unavailable": history_data_unavailable,
                 "sectors": sectors,
                 "sectors_data_unavailable": sectors_data_unavailable,
+                "capital_routing": capital_routing,
                 "market_health": market_health,
                 # Add breadth indicators at top level
                 "adr": (

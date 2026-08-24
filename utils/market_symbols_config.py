@@ -36,8 +36,11 @@ class MarketSymbolsConfig:
     # QQQ, IWM: used by correlation matrix and market regime logic
     # GLD/TLT: used by correlation matrix and macro regime logic
     # ^VIX: CRITICAL for circuit breaker VIX >= 35 halt logic (Session 335 fix)
+    # IEF/DBC (2026-08-24): capital_routing_daily trend/sizing legs - see algo/risk/capital_routing.py
+    # ^MOVE (2026-08-24): bond-market vol veto for capital_routing_daily, same price_daily-read
+    #   pattern as ^VIX (both yfinance-sourced - Alpaca rejects ^-prefixed symbols)
     # Removed DIA (Session 196): Redundant with SPY
-    DEFAULT_ESSENTIAL_STOCKS = ["SPY", "QQQ", "IWM", "GLD", "TLT", "^VIX"]
+    DEFAULT_ESSENTIAL_STOCKS = ["SPY", "QQQ", "IWM", "GLD", "TLT", "IEF", "DBC", "^VIX", "^MOVE"]
 
     # Essential ETFs (Session 196 optimization): Keep only CRITICAL ETFs
     # Removed 14 wasteful ETFs that were never used by any algorithm:
@@ -49,8 +52,10 @@ class MarketSymbolsConfig:
         "SPY",  # S&P 500: Russell vs SPY small-cap factor, correlation matrix, breadth
         "QQQ",  # Nasdaq-100: market regime, correlation matrix
         "IWM",  # Russell 2000: small-cap leadership signal
-        "GLD",  # Gold: correlation matrix, macro regime (inflation/deflation)
+        "GLD",  # Gold: correlation matrix, macro regime (inflation/deflation); capital_routing_daily leg
         "TLT",  # 20Y Treasury: correlation matrix, yield curve/macro regime
+        "IEF",  # 7-10Y Treasury: capital_routing_daily bond leg (2026-08-24)
+        "DBC",  # Broad commodities (GSCI-based): capital_routing_daily commodity leg (2026-08-24)
     ]
 
     # Default orchestrator schedule (fallback when API unavailable)
