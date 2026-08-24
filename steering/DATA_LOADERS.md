@@ -557,12 +557,18 @@ clamped to parallelism 1-2 to protect rate limits.
   `Form345TransactionVelocityAggregator` (`utils/external/sec_form345_transaction_velocity.py`)
   that does not import it. Left in place (not deleted) since deleting dead code wasn't in
   scope for this change.
-- **Cash flow health metrics (`sec_cash_flow_metrics`):** fixed 2026-07-20. The loader
-  (`load_sec_cash_flow_metrics.py`, table registered "critical" in terraform since Session
-  274) had NO destination table anywhere in migrations/schema.sql - every run failed
-  outright on INSERT. Added migration 1131 + `sql_safety.py` whitelist entry + registered
-  in `scripts/local_loader_scheduler.py`'s metrics pipeline (was also missing there).
-  Verified live end-to-end (AAPL/MSFT/GOOGL rows written).
+- **Cash flow health metrics (`sec_cash_flow_metrics`):** fixed 2026-07-20, then
+  **REMOVED entirely 2026-07-27** (7 days later, same session cycle) - this entry was
+  stale until 2026-08-24 and described `load_sec_cash_flow_metrics.py` as a live "critical"
+  loader with no mention of the removal. Audit found its 3 fields exactly duplicated
+  formulas `load_value_quality_growth_metrics.py` already writes to `quality_metrics` -
+  zero incremental signal for real SEC API cost. File kept on disk for historical
+  reference but removed from `loaders/loader_registry.py`, `scripts/local_loader_scheduler.py`,
+  and `terraform/modules/{loaders,pipeline}/main.tf`; `sec_cash_flow_metrics` is frozen at
+  5508 rows (last run 2026-07-27) and listed in `algo/monitoring/pipeline_health.py`'s
+  `KNOWN_DEPRECATED_TABLES` so it reports DEPRECATED, not a false STALE/CRITICAL alarm.
+  See `loaders/DEPRECATED_LOADERS.md` for the full writeup - that file is the current
+  source of truth for this loader's status, not this entry.
 - **Business segment metrics (`sec_segment_info`/`sec_segment_metrics`):** IMPLEMENTED and
   live-verified (2026-07-26/27) - this entry was stale for a long time and should not be
   trusted as current without re-checking. `sec_segment_info` (migration 1157) and
@@ -609,6 +615,18 @@ clamped to parallelism 1-2 to protect rate limits.
 ---
 
 ## FIXED 2026-07-27: sec_segment_metrics (real XBRL diversification data) had zero consumers
+
+**SUPERSEDED 2026-08-17 (commit `2bb95dae3`) - stale as of 2026-08-24, corrected:** the
+`revenue_concentration_hhi`-into-Stability wiring this section describes was removed again,
+per explicit user request - `_score_stability` was found to be blending balance-sheet/
+business-concentration signals into what should be a pure price-volatility factor.
+`revenue_concentration_hhi` is now dropped from scoring entirely (not moved elsewhere, unlike
+debt/liquidity/cash which moved to Quality's `_enhance_quality_score`). The test file this
+section cites (`tests/unit/test_stock_scores_segment_diversification.py`) no longer exists -
+replaced by `tests/unit/test_stock_scores_stability_financial_ratios_wiring.py`. `sec_segment_metrics`
+itself is still loaded and still displayed via `lambda/api/routes/scores.py`'s segment fields
+(see `tests/unit/test_sec_segment_metrics_marker.py`) - only the *scoring* wiring described
+below was reverted. Kept below for history; do not treat the "Fixed" paragraph as current.
 
 Continuation of the loader-review goal ("scores should factor in inputs all loaded and used
 ... and displayed ... on the site too"). `sec_segment_metrics` (revenue concentration HHI,
