@@ -1672,9 +1672,9 @@ function SignalDetail({ row, kind, onSymbolClick }) {
         <DetailGroup
           title="Targets & exits"
           items={[
-            ["Target T1 (+8%)", fmtMoney(row.profit_target_8pct)],
-            ["Target T2 (+20%)", fmtMoney(row.profit_target_20pct)],
-            ["Target T3 (+25%)", fmtMoney(row.profit_target_25pct)],
+            ["ATR target (1.5x)", fmtMoney(row.profit_target_8pct)],
+            ["ATR target (3x)", fmtMoney(row.profit_target_20pct)],
+            ["ATR target (4.5x)", fmtMoney(row.profit_target_25pct)],
             ["Exit trigger 1", fmtMoney(row.exit_trigger_1_price)],
             ["Exit trigger 2", fmtMoney(row.exit_trigger_2_price)],
             ["Sell level", fmtMoney(row.sell_level)],
