@@ -81,6 +81,34 @@ def test_symbol_not_found_for_never_covered_symbol_still_gets_the_marker() -> No
     assert result[0]["reason"] == "symbol_not_found"
 
 
+def test_no_segment_data_for_already_covered_symbol_skips_and_retracts_marker() -> None:
+    """A DIFFERENT call site than symbol_not_found (no_segment_data, hit when no annual
+    filing is found this run) must ALSO respect the coverage guard. Deliberately not
+    redundant with the symbol_not_found test above even though both exercise the same
+    shared _unavailable_marker() implementation: this guards against a regression in one
+    call site's own wiring (e.g. a future edit reverting `marker = ...; return [marker]
+    if marker else []` back to an unconditional `return [self._unavailable_marker(...)]`)
+    that a single-call-site test can never catch. Live-reproduced 2026-08-24: this exact
+    class of regression happened same-day (see _unavailable_marker's own docstring) - a
+    "simplification" commit silently dropped the guard from 4 of 5 call sites while a
+    test covering only the symbol_not_found path kept passing throughout."""
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {"filings": {"recent": {"form": [], "accessionNumber": []}}}
+    ctx, cur = _fake_db_context()
+
+    with (
+        patch.object(loader, "_has_prior_real_coverage", return_value=True),
+        patch("loaders.load_sec_segment_info.DatabaseContext", return_value=ctx),
+    ):
+        result = loader.fetch_incremental("TEST", since=None)
+
+    assert result == []
+    query, params = cur.execute.call_args[0]
+    assert "DELETE FROM sec_segment_info" in query
+    assert "data_unavailable = true" in query
+    assert params == ("TEST",)
+
+
 _XML_WITH_SEGMENTS = """<?xml version="1.0"?>
 <xbrl xmlns:us-gaap="http://fasb.org/us-gaap/2024" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
   <context id="c1">
