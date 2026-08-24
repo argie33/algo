@@ -65,5 +65,4 @@ class TestSourceTrackingIsJsonSerialized:
         assert json.loads(source_tracking) == {
             "short_interest": "unavailable",
             "institutional": "unavailable",
-            "insider": "unavailable",
         }

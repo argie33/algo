@@ -147,15 +147,15 @@ python scripts/local_loader_scheduler.py --now metrics --LOADER_PARALLELISM=2
 **ALSO STALE 2026-08-24**: `loaders/loader_dynamic_config.py` and `scripts/test_yfinance_parallelism.py`
 below never existed in this repo (`git log --all --follow` on both returns nothing) - same
 phantom-file bug class as `start_dashboard_dev.py`/`check_system_health.py` (see CLAUDE.md).
-Real current locations, confirmed live: `LOADER_CONSTRAINTS` lives in `utils/loaders/config.py`
-(`positioning_metrics`/`value_metrics` still locked to `(1, 1)` exactly as this doc's Phase 1
-plan intended to leave them; `analyst_sentiment` is already at `(1, 2)` - the Phase 1
-experiment this doc proposed appears to have already run and been adopted). The test harness
-scripts that actually exist are `scripts/test_yfinance_parallelism_2.py` and
-`scripts/test_yfinance_parallelism_optimization.py`, not `test_yfinance_parallelism.py`.
+The real current locations, confirmed live 2026-08-24: `LOADER_CONSTRAINTS` lives in
+`utils/loaders/config.py` (currently `positioning_metrics`/`value_metrics` still locked to
+`(1, 1)` exactly as this doc's Phase 1 plan intended to leave them; `analyst_sentiment` is
+already at `(1, 2)` - the Phase 1 experiment this doc proposed appears to have already run and
+been adopted); the test harness scripts that exist are `scripts/test_yfinance_parallelism_2.py`
+and `scripts/test_yfinance_parallelism_optimization.py`, not `test_yfinance_parallelism.py`.
 `scripts/check_yfinance_circuit_breaker_state.py` also doesn't exist - `get_diagnostics()` on
-`YFinanceIPCircuitBreaker` (its own docstring: "currently unused, but this is the method a
-future dashboard/health-panel integration would reach for") is the closest existing
+`YFinanceIPCircuitBreaker` (its own docstring calls it "currently unused, but this is the
+method a future dashboard/health-panel integration would reach for") is the closest existing
 equivalent.
 
 - circuit_breaker: utils/external/yfinance_circuit_breaker.py (IP ban state tracking)

@@ -120,10 +120,20 @@ class TestPipelineStateMachineReachability:
     def test_insider_transaction_velocity_reachable_on_success(self):
         """FIX 2026-07-28: InsiderHoldingsSec's success Next used to skip straight to
         PositioningMetrics, bypassing InsiderTransactionVelocity - only its OWN failure
-        handler pointed at it, so it only ran when InsiderHoldingsSec itself failed."""
+        handler pointed at it, so it only ran when InsiderHoldingsSec itself failed.
+
+        UPDATED (insider ownership deletion, 2026-08-24): InsiderHoldingsSec was removed
+        entirely (see migrations/versions/1219_drop_insider_ownership.sql) -
+        InstitutionalHoldings13F now chains directly to InsiderTransactionVelocity. This
+        still guards the original bug class: the success path must reach
+        InsiderTransactionVelocity directly, not only via a failure handler.
+        """
         content = PIPELINE_TF.read_text()
-        match = re.search(r"InsiderHoldingsSec\s*=\s*\{.*?\n\s{6}\}", content, re.DOTALL)
-        assert match, "could not locate the InsiderHoldingsSec state block"
+        assert not re.search(r"InsiderHoldingsSec\s*=\s*\{", content), (
+            "InsiderHoldingsSec state block was deliberately removed - if it's back, check that was intentional"
+        )
+        match = re.search(r"InstitutionalHoldings13F\s*=\s*\{.*?\n\s{6}\}", content, re.DOTALL)
+        assert match, "could not locate the InstitutionalHoldings13F state block"
         assert 'Next = "InsiderTransactionVelocity"' in match.group(0), (
-            "InsiderHoldingsSec's success path must chain to InsiderTransactionVelocity, not skip past it"
+            "InstitutionalHoldings13F's success path must chain to InsiderTransactionVelocity, not skip past it"
         )

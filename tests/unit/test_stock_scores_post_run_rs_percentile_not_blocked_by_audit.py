@@ -57,3 +57,38 @@ class TestPostRunOrdering:
 
         loader.update_rs_percentiles.assert_called_once()
         loader.audit_upstream_coverage.assert_called_once()
+
+
+class TestScoreHistorySnapshotOrdering:
+    """2026-08-24 (goal session: track score/rank movement): snapshot_score_history() was
+    added as a third post_run() step. It reads the finalized rs_percentile written by
+    update_rs_percentiles(), so it must run after that - and, like update_rs_percentiles(),
+    it doesn't depend on the tables audit_upstream_coverage() checks, so it runs before the
+    audit for the same reason: a coverage-audit failure shouldn't collaterally block it.
+    """
+
+    def test_runs_after_rs_percentiles_and_before_audit(self):
+        loader = _loader()
+        calls = []
+        loader.update_rs_percentiles = MagicMock(side_effect=lambda: calls.append("rs"))
+        loader.snapshot_score_history = MagicMock(side_effect=lambda: calls.append("snapshot"))
+        loader.audit_upstream_coverage = MagicMock(side_effect=lambda: calls.append("audit"))
+
+        loader.post_run()
+
+        assert calls == ["rs", "snapshot", "audit"], f"expected rs -> snapshot -> audit order, got: {calls}"
+
+    def test_snapshot_failure_still_propagates_after_rs_percentiles_ran(self):
+        loader = _loader()
+        loader.update_rs_percentiles = MagicMock()
+        loader.snapshot_score_history = MagicMock(side_effect=RuntimeError("stock_scores_history unavailable"))
+        loader.audit_upstream_coverage = MagicMock()
+
+        try:
+            loader.post_run()
+            raise AssertionError("expected the snapshot's RuntimeError to propagate")
+        except RuntimeError:
+            pass
+
+        loader.update_rs_percentiles.assert_called_once()
+        loader.audit_upstream_coverage.assert_not_called()
