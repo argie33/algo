@@ -12,6 +12,8 @@ of which the sweep failed on when live-verifying this fix (the first with no vis
 at all, the second with "Unknown column 'snapshot_date' (not in whitelist)").
 """
 
+import inspect
+
 from algo.monitoring.pipeline_health import PipelineHealth
 from utils.db.sql_safety import SAFE_COLUMNS
 
@@ -75,3 +77,31 @@ class TestStockScoresSlaMatchesRealCadence:
             "stock_scores needs weekend-gap adjustment now that its sla_days is tight (1) - "
             "it's only computed from price_daily/technical_data_daily, both already trading-day cadence"
         )
+
+
+class TestDataPatrolStalenessUsesUpdatedAt:
+    """Regression test for the same 2026-08-24 goal session: algo/monitoring/data_patrol/
+    checks/staleness.py's StalenessChecker checked stock_scores and growth_metrics
+    staleness against `created_at`, but both tables are one row per symbol, upserted via
+    `ON CONFLICT (symbol) DO UPDATE` - created_at is a static insert-time stamp never
+    touched again, not a freshness signal. On a stable universe MAX(created_at) stays old
+    indefinitely (permanent false WARN/INFO staleness regardless of real refresh recency),
+    or reads falsely fresh off a single new-symbol insert while every other row is stale.
+    Same bug class already fixed for stock_scores in
+    lambda/api/routes/algo_handlers/signals.py:610, just never applied here. updated_at is
+    written on every refresh by both loaders (load_stock_scores.py,
+    load_value_quality_growth_metrics.py) and is in utils/db/sql_safety.py's SAFE_COLUMNS.
+    """
+
+    def test_stock_scores_and_growth_metrics_use_updated_at(self) -> None:
+        from algo.monitoring.data_patrol.checks.staleness import StalenessChecker
+
+        source = inspect.getsource(StalenessChecker.run)
+        assert '"stock_scores",\n                "updated_at"' in source, (
+            "stock_scores staleness check must use updated_at, not the static created_at insert stamp"
+        )
+        assert '"growth_metrics",\n                "updated_at"' in source, (
+            "growth_metrics staleness check must use updated_at, not the static created_at insert stamp"
+        )
+        assert '"stock_scores",\n                "created_at"' not in source
+        assert '"growth_metrics",\n                "created_at"' not in source

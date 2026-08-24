@@ -91,8 +91,21 @@ class StalenessChecker(BaseCheck):
                 INFO,
             ),
             (
+                # BUG FIX (goal 2026-08-24: "scores stale but loader health OK"
+                # investigation): was "created_at" - stock_scores is one row per symbol,
+                # refreshed via `ON CONFLICT (symbol) DO UPDATE` (loaders/load_stock_scores.py),
+                # which never touches created_at after the initial insert. MAX(created_at)
+                # across the table reflects only when the newest *symbol* was first added,
+                # not when scores were last refreshed - on a stable universe this stays old
+                # indefinitely (permanent false-stale WARN regardless of real refresh
+                # recency), or reads falsely fresh off a single new-symbol insert while every
+                # other row is actually stale. Same bug class already fixed for this exact
+                # table in lambda/api/routes/algo_handlers/signals.py:610 ("created_at is a
+                # static one-time insert stamp, not a freshness signal - updated_at is"),
+                # just never applied here. updated_at is written on every refresh - see
+                # load_stock_scores.py's `SET updated_at = CURRENT_TIMESTAMP`.
                 "stock_scores",
-                "created_at",
+                "updated_at",
                 "weekly",
                 staleness_thresholds["stock_scores"],
                 WARN,
@@ -105,8 +118,13 @@ class StalenessChecker(BaseCheck):
                 INFO,
             ),
             (
+                # BUG FIX (goal 2026-08-24, same pass as stock_scores above): growth_metrics
+                # is also one row per symbol via `ON CONFLICT (symbol) DO UPDATE` (see
+                # loaders/load_value_quality_growth_metrics.py's _insert_growth_metrics -
+                # created_at isn't even in the UPDATE SET list, only updated_at is), so
+                # created_at is the same static insert-time stamp, not a freshness signal.
                 "growth_metrics",
-                "created_at",
+                "updated_at",
                 "monthly",
                 staleness_thresholds["growth_metrics"],
                 INFO,
