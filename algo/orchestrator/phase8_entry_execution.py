@@ -3391,25 +3391,36 @@ def run(
                             # signal_date is None or unexpected type
                             sig_date = run_date
 
-                        # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven
-                        # sweep continued): stage_phase/market_exposure_at_entry/
-                        # exposure_tier_at_entry were never passed here at all - live-
-                        # confirmed 0/100 real algo_trades rows had any of the three
-                        # populated, despite TradeContext.from_params/
-                        # _insert_trade_record already correctly plumbing them through
-                        # once given a value (same "computed but never passed through"
-                        # shape as the position_size_pct gap fixed the same session, just
-                        # one call-site hop earlier). stage_phase's real value was already
-                        # available on `signal` (this file's own line ~3258 already logs
-                        # signal.get("stage_phase") elsewhere), just never threaded into
-                        # this call - str()-wrapped since `signal` is a loosely-typed dict
-                        # and TradeContext.stage_phase is str | None.
-                        # market_exposure_at_entry/exposure_tier_at_entry come from
-                        # `exposure_constraints` (Phase 5's ExposureConstraints, already in
-                        # scope throughout this function) - exposure_pct/tier_name are
-                        # exactly the values these two columns are meant to snapshot at
-                        # entry time.
-                        stage_phase_raw = signal.get("stage_phase")
+                        # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven sweep
+                        # continued): market_exposure_at_entry/exposure_tier_at_entry were
+                        # never passed here at all - live-confirmed 0/100 real algo_trades
+                        # rows had either populated, despite TradeContext.from_params/
+                        # _insert_trade_record already correctly plumbing them through once
+                        # given a value (same "computed but never passed through" shape as
+                        # the position_size_pct gap fixed the same session, just one
+                        # call-site hop earlier). Sourced from `exposure_constraints`
+                        # (Phase 5's ExposureConstraints, already in scope throughout this
+                        # function) - exposure_pct/tier_name are exactly the values these two
+                        # columns are meant to snapshot at entry time.
+                        #
+                        # stage_phase deliberately NOT wired here (corrected from an earlier,
+                        # wrong attempt this same session): `signal.get("stage_phase")`
+                        # always returns None (QualifiedTrade has no such field), and the
+                        # only real candidate replacement - `signal.get("market_stage")`,
+                        # buy_sell_daily's real "Stage 1".."Stage 4" Weinstein-cycle label -
+                        # is NOT what this column means. executor_entry_handler.py's own
+                        # STAGE_PHASE_MAPPING ({"early":1,"mid":2,"late":3}) and
+                        # _validate_stage_phase() prove algo_trades.stage_phase (integer) was
+                        # designed for an early/mid/late base-pattern-entry-timing concept -
+                        # a completely different, unrelated semantic from Weinstein market
+                        # stage - and no code anywhere in algo/signals/ or Phase 7 computes
+                        # that concept at all. This is an unimplemented feature (dead
+                        # mapping/validator with no real producer), not a "computed but
+                        # unwired" gap like the other three fields - forcing market_stage
+                        # into it would silently mislabel Weinstein stage as pattern-entry
+                        # timing, a worse bug than leaving it NULL. See
+                        # [[trade_entry_fields_computed_but_never_written_fixed_20260824]]
+                        # for the full trace.
                         trade_result = trade_executor.execute_trade(
                             symbol=symbol,
                             entry_price=entry_price,
@@ -3425,7 +3436,6 @@ def run(
                             trend_score=trend_score,
                             base_type=signal.get("base_type"),
                             base_quality=signal.get("base_quality"),
-                            stage_phase=(str(stage_phase_raw) if stage_phase_raw is not None else None),
                             market_exposure_at_entry=exposure_constraints.get("exposure_pct"),
                             exposure_tier_at_entry=exposure_constraints.get("tier_name"),
                         )
