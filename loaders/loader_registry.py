@@ -128,7 +128,8 @@ LOADER_TABLES: dict[str, list[str]] = {
 # orchestrator Phase 5, not by a standalone loaders/*.py script - kept as a
 # pseudo-entry so scripts that report per-"loader" status have somewhere to
 # attribute it, since load_market_status_daily.py also writes it as one of
-# three tables in a single atomic run and callers may want to check it alone.
+# four tables (health/exposure/sentiment/capital_routing) in a single atomic
+# run and callers may want to check it alone.
 PSEUDO_LOADER_TABLES: dict[str, list[str]] = {
     "load_market_exposure_daily.py": ["market_exposure_daily"],
 }
