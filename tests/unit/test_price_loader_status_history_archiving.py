@@ -12,6 +12,7 @@ Fixed by adding the same SAVEPOINT-wrapped archive INSERT + 100-row retention DE
 by utils/optimal_loader.py and utils/loader_infrastructure.py.
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from loaders.load_prices import PriceLoader
@@ -21,7 +22,14 @@ def _make_loader():
     loader = PriceLoader.__new__(PriceLoader)
     loader.table_name = "price_daily"
     loader.interval = "1d"
-    loader._stats = {"symbols_total": 10, "symbols_processed": 10, "start_time": 1_700_000_000.0}
+    # start_time matches production (loaders/load_prices.py run(): self._stats["start_time"]
+    # = datetime.now(timezone.utc)), not a time.time() float - see the 2026-08-24 fix in
+    # load_prices.py for why this distinction matters.
+    loader._stats = {
+        "symbols_total": 10,
+        "symbols_processed": 10,
+        "start_time": datetime.now(timezone.utc) - timedelta(seconds=5),
+    }
     return loader
 
 

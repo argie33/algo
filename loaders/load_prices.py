@@ -2312,7 +2312,19 @@ class PriceLoader(OptimalLoader):
                     # `start_time` (the local variable actually used in the arithmetic) is
                     # already guaranteed non-None a few lines above (raises RuntimeError
                     # otherwise) - no hasattr guard was ever needed.
-                    execution_duration_sec=time.time() - start_time,
+                    #
+                    # BUG FIX (2026-08-24): the 2026-08-23 fix above replaced the dead
+                    # hasattr guard but subtracted `start_time` as if it were a `time.time()`
+                    # float. It's actually `self._stats["start_time"] = datetime.now(timezone.utc)`
+                    # (set near the top of run(), see below) - `time.time() - start_time` is a
+                    # float-minus-datetime TypeError. This crashed AFTER all data was already
+                    # loaded/committed (verified live: price_daily was 98.6% complete and FRESH
+                    # in the DB while data_loader_status showed FAILED) - the real load never
+                    # failed, only this final status-write step did, but that still aborted
+                    # main() with exit code 1, corrupting the operational status record and
+                    # tripping consecutive_failures/scheduler retry logic for a run that
+                    # actually succeeded.
+                    execution_duration_sec=(datetime.now(timezone.utc) - start_time).total_seconds(),
                     latest_date=latest_date,
                     current_run_symbols_loaded=symbols_successfully_loaded,
                     current_run_symbol_count=symbols_expected,
@@ -2376,7 +2388,9 @@ class PriceLoader(OptimalLoader):
                                 # BUG FIX (2026-08-23): same dead hasattr(self, "_start_time")
                                 # check as the primary mark_completed() call above - see its
                                 # comment. `start_time` is already validated non-None.
-                                execution_duration_sec=time.time() - start_time,
+                                # BUG FIX (2026-08-24): same float-minus-datetime TypeError as
+                                # the primary call above - see its comment.
+                                execution_duration_sec=(datetime.now(timezone.utc) - start_time).total_seconds(),
                                 latest_date=latest_date,
                                 min_completion_pct=0.0,
                             )
