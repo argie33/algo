@@ -18,6 +18,7 @@ from routes.utils import (
     extract_param,
     handle_db_error,
     json_response,
+    safe_days,
     safe_limit,
     safe_offset,
 )
@@ -44,6 +45,16 @@ def handle(
             if not detail_symbol or not detail_symbol.replace("-", "").replace("^", "").isalnum():
                 return error_response(400, "bad_request", "Invalid symbol format")
             return _get_stock_details(cur, detail_symbol)
+
+        # Handle /api/scores/history/:symbol endpoint - historical composite score/rank
+        # movement, sourced from stock_scores_history (one snapshot per trading day,
+        # written by load_stock_scores.py's post_run()).
+        if path.startswith("/api/scores/history/"):
+            history_symbol = path.split("/api/scores/history/")[-1].split("?")[0].upper()
+            if not history_symbol or not history_symbol.replace("-", "").replace("^", "").isalnum():
+                return error_response(400, "bad_request", "Invalid symbol format")
+            days = safe_days(extract_param(params, "days"), max_val=365, default=90)
+            return _get_score_history(cur, history_symbol, days)
 
         # Handle /api/scores/incomplete endpoint (new) - stocks with insufficient data
         if path in ["/api/scores/incomplete", "/api/algo/scores/incomplete"] or path.startswith(
@@ -749,6 +760,73 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get stock details")
+        return error_response(code, error_type, message)
+
+
+def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
+    """Historical composite score / rank movement for one symbol.
+
+    Sourced from stock_scores_history - one snapshot per trading day, written by
+    load_stock_scores.py's post_run() after RS percentiles are finalized for that run.
+    A symbol new to scoring, or one that only recently started passing the completeness
+    gate, will simply have fewer points than `days` - not an error.
+    """
+    try:
+        query = """
+            SELECT
+                score_date, composite_score, composite_rank, rs_percentile,
+                momentum_score, quality_score, growth_score, value_score,
+                positioning_score, stability_score, data_completeness
+            FROM stock_scores_history
+            WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
+            ORDER BY score_date ASC
+        """
+        rows = execute_with_timeout(cur, query, [symbol, days], timeout_sec=20, max_attempts=1)
+
+        points = [dict(row) for row in rows]
+        for p in points:
+            if p.get("score_date") is not None:
+                p["score_date"] = p["score_date"].isoformat()
+
+        movement: dict[str, Any] = {
+            "score_change": None,
+            "rank_change": None,
+            "rs_percentile_change": None,
+            "start_date": None,
+            "end_date": None,
+        }
+        if len(points) >= 2:
+            first, last = points[0], points[-1]
+            movement["start_date"] = first["score_date"]
+            movement["end_date"] = last["score_date"]
+            if first.get("composite_score") is not None and last.get("composite_score") is not None:
+                movement["score_change"] = round(float(last["composite_score"]) - float(first["composite_score"]), 2)
+            if first.get("composite_rank") is not None and last.get("composite_rank") is not None:
+                # Negative rank_change = improved (moved toward rank 1)
+                movement["rank_change"] = int(first["composite_rank"]) - int(last["composite_rank"])
+            if first.get("rs_percentile") is not None and last.get("rs_percentile") is not None:
+                movement["rs_percentile_change"] = round(
+                    float(last["rs_percentile"]) - float(first["rs_percentile"]), 2
+                )
+
+        result = {
+            "symbol": symbol,
+            "days": days,
+            "points": points,
+            "movement": movement,
+        }
+
+        freshness = check_data_freshness(cur, "stock_scores_history", "updated_at", warning_days=3)
+        return json_response(200, result, data_freshness=freshness, preserve_arrays=True)
+
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "get score history")
         return error_response(code, error_type, message)
 
 
@@ -2153,6 +2231,7 @@ def _coverage_order_col(cur: cursor, table: str, cols: set[str]) -> str:
 _SOURCE_LABELS: dict[str, str] = {
     "sec_audited": "SEC (audited financials)",
     "sec_audited_except_dual_class_shares_yfinance": "SEC (audited, dual-class shares via Yahoo Finance)",
+    "sec_audited_except_forward_pe_yfinance": "SEC (audited, forward P/E via Yahoo Finance)",
     "sec_edgar_submissions": "SEC EDGAR submissions",
     "sec_edgar_filings": "SEC EDGAR filings",
     "sec_13f": "SEC Form 13F",
