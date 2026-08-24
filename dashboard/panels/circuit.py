@@ -186,7 +186,16 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             return f"[{R}]{lbl_s}:[/] [red]✗ BAD DATA[/]"
         if thr_f is not None and cur_f is not None:
             if thr_f > 0:
-                util = cur_f / thr_f
+                # BUG FOUND 2026-08-24 (real-money-readiness goal, dashboard.py panel
+                # sweep): a negative cur_f against a positive thr_f (a data glitch, not a
+                # real breaker state - this panel doesn't render a bar here, only the
+                # `pct_s` percentage text below, so this is display-only) produced a
+                # negative util, showing e.g. "-40%" instead of a sane floor. Floored at
+                # 0.0, matching the shared hbar() utility's (dashboard/formatters.py)
+                # already-correct `max(0.0, ...)` clamp - upper bound intentionally left
+                # uncapped, unlike hbar(), since pct_s below deliberately shows a real
+                # >100% overage as text rather than hiding it.
+                util = max(0.0, cur_f / thr_f)
             elif thr_f < 0 and cur_f < 0:
                 util = min(cur_f / thr_f, 1.0)
             else:
@@ -368,7 +377,13 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                 else:
                     if thr_f is not None and cur_f is not None:
                         if thr_f > 0:
-                            util = cur_f / thr_f
+                            # Same floor fix as panel_circuit's fmt_b() above - a
+                            # negative cur_f against a positive thr_f produced a
+                            # negative util, which fed a negative bar_f below
+                            # (int(min(util, 1.0) * 12)) and silently rendered an
+                            # empty bar via Python's negative-multiplier behavior
+                            # instead of showing 0%.
+                            util = max(0.0, cur_f / thr_f)
                         elif thr_f < 0 and cur_f < 0:
                             util = min(cur_f / thr_f, 1.0)
                         else:

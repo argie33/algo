@@ -84,7 +84,19 @@ def check_dashboard_patterns(filepath: str) -> list[str]:
         return [f"Could not read file: {e}"]
 
     # Pattern 1: Function with 5+ .get() calls without has_error() check
-    func_pattern = re.compile(r"^\s*def\s+(\w+)\s*\(")
+    # BUG FOUND 2026-08-24 (real-money-readiness goal, dashboard.py panel sweep): this
+    # matched ANY `def`, indented or not, so a nested helper function (e.g.
+    # panel_circuit's own `def fmt_b(br):`, defined inside panel_circuit's body after it
+    # already called `_error_panel(...)`) reset the has_error_check tracker to False and
+    # got scanned as if it were its own top-level function - flagging its .get() calls as
+    # unchecked even though the ENCLOSING function's check already covers every item
+    # `fmt_b` is called on. Same false-positive class as the 2026-08-23 fix just above
+    # (panel_portfolio/panel_performance_spark's `_error_panel` indirection) - this time
+    # via nesting instead of indirection. Anchoring to column 0 (`^def`, no `\s*` prefix)
+    # means only genuine top-level function definitions reset the tracker; a nested `def`
+    # (always indented in valid Python) is treated as part of its enclosing function's
+    # own body, inheriting whatever has_error()/_error_panel() check already fired there.
+    func_pattern = re.compile(r"^def\s+(\w+)\s*\(")
     get_pattern = re.compile(r"\.get\(")
     # FALSE POSITIVE FIXED 2026-08-23 (goal session): dashboard/panels/portfolio.py's
     # panel_portfolio and panel_performance_spark both already correctly implement the
