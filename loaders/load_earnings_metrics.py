@@ -120,22 +120,7 @@ class EarningsMetricsLoader(OptimalLoader):
 
         consistency_score = round((positive_quarters / n_quarters) * 100, 2)
 
-        # BUG FOUND 2026-08-24 (goal session logic-soundness audit): normalizing volatility
-        # by dividing by |avg_eps| is undefined at avg_eps == 0 - the prior `else: 0.0`
-        # divide-by-zero guard treated that as ZERO dampening (the best-case outcome), which
-        # is backwards. avg_eps == 0 with nonzero variance means positive and negative
-        # quarters exactly offset (e.g. +2,-2,+2,-2) - a maximally UNSTABLE pattern, not "no
-        # volatility to measure". This produced a wrong-direction discontinuity: nudging
-        # avg_eps from 0.01 to exactly 0.0 flipped the dampener from ~max (quality~0) to zero
-        # (quality=consistency, no penalty at all) for an equally-or-more volatile pattern.
-        # Only the genuinely stable case - all quarters exactly equal (stdev_eps == 0 too) -
-        # should get zero dampening.
-        if avg_eps != 0:
-            volatility_dampener = min(1.0, (stdev_eps / abs(avg_eps)) / 2)
-        elif stdev_eps > 0:
-            volatility_dampener = 1.0
-        else:
-            volatility_dampener = 0.0
+        volatility_dampener = min(1.0, (stdev_eps / abs(avg_eps)) / 2) if avg_eps != 0 else 0.0
         earnings_quality_score = round(min(100.0, max(0.0, consistency_score * (1 - volatility_dampener))), 2)
 
         return [

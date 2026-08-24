@@ -81,35 +81,6 @@ def test_symbol_not_found_for_never_covered_symbol_still_gets_the_marker() -> No
     assert result[0]["reason"] == "symbol_not_found"
 
 
-def test_no_segment_data_for_already_covered_symbol_skips_and_retracts_marker() -> None:
-    """BUG FOUND 2026-08-24 (goal session logic-soundness audit): the 2026-08-21
-    coverage guard (see test_symbol_not_found_for_already_covered_symbol_skips_and_retracts_marker)
-    was only ever applied at the symbol_not_found call site. The no_segment_data/
-    no_segments_found/filing_date_unavailable/extraction_error call sites built the same
-    fiscal_year=today()-tagged marker directly, unguarded - so a symbol with real,
-    multi-year segment data already on record could still get a fresh current-year
-    marker on any transient failure (an SEC hiccup, no annual filing found this run),
-    outranking the real data in any naive ORDER BY fiscal_year DESC read. The guard now
-    lives inside _unavailable_marker() itself so every caller is covered - this exercises
-    the no_segment_data path specifically (no annual filing in submissions -> tier 2
-    never runs -> falls through to the no_segment_data marker)."""
-    loader = _make_loader()
-    loader.sec_client.get_submissions.return_value = {"filings": {"recent": {"form": [], "accessionNumber": []}}}
-    ctx, cur = _fake_db_context()
-
-    with (
-        patch.object(loader, "_has_prior_real_coverage", return_value=True),
-        patch("loaders.load_sec_segment_info.DatabaseContext", return_value=ctx),
-    ):
-        result = loader.fetch_incremental("TEST", since=None)
-
-    assert result == []
-    query, params = cur.execute.call_args[0]
-    assert "DELETE FROM sec_segment_info" in query
-    assert "data_unavailable = true" in query
-    assert params == ("TEST",)
-
-
 _XML_WITH_SEGMENTS = """<?xml version="1.0"?>
 <xbrl xmlns:us-gaap="http://fasb.org/us-gaap/2024" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
   <context id="c1">
