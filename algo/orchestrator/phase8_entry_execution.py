@@ -313,6 +313,45 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
     return max(stop_loss, PHASE8_STOP_LOSS_MIN)  # Ensure stop is never negative or zero
 
 
+def _check_pdt_limit_breach(account_data: dict[str, Any]) -> tuple[bool, str | None]:
+    """Check whether this account is one same-day round-trip away from exceeding the
+    rolling 5-business-day PDT day-trade limit.
+
+    PROACTIVE PDT CHECK (2026-08-24 fix): crossing this limit triggers a real, severe
+    consequence (Alpaca/FINRA Reg T: a 90-day day-trading lockout on accounts under $25k
+    equity). This system intentionally generates same-day stop-loss exits (exit_engine.py's
+    own docstring), so this isn't hypothetical. Phase 2 already fetches this exact same
+    account data but only logs a warning - nothing previously stopped Phase 8 from
+    submitting an entry that could become the trade that crosses the threshold (see
+    pdt_day_trade_limit_reactive_only_not_proactively_enforced_20260824 in memory).
+
+    Args:
+        account_data: Alpaca account dict, must contain 'pattern_day_trader' (raises
+            KeyError if missing - fail-fast, matching this file's other pre-checks).
+
+    Returns:
+        (breach: bool, reason: str | None) - breach=True means block new entries this run.
+    """
+    if "pattern_day_trader" not in account_data:
+        raise KeyError(
+            "[PHASE 8] Account data missing required 'pattern_day_trader' field. "
+            "Cannot verify PDT status before submitting live entries."
+        )
+    if not bool(account_data["pattern_day_trader"]):
+        return False, None
+    daytrade_count = account_data.get("daytrade_count")
+    if daytrade_count is None or int(daytrade_count) < 3:
+        return False, None
+    return True, (
+        f"[PHASE 8 PDT LIMIT] Account flagged pattern_day_trader=True with "
+        f"daytrade_count={daytrade_count} (>=3 of the rolling 5-business-day limit) - one "
+        "more same-day round-trip would trigger Alpaca's PDT restriction (90-day "
+        "day-trading lockout on accounts under $25k equity). Blocking new entries this "
+        "run; existing positions and their protective stops (Phase 6, already executed) "
+        "are unaffected."
+    )
+
+
 def _calculate_current_total_risk_pct(
     max_risk_limit_pct: float = 4.0, run_date: _date | None = None
 ) -> tuple[float, float]:
@@ -1958,6 +1997,39 @@ def run(
     # execution_rejection_rate - that section of the panel always rendered nothing.
     entered_symbols: list[str] = []
     entered_prices: list[float] = []
+
+    # PROACTIVE PDT CHECK (2026-08-24 fix): see _check_pdt_limit_breach()'s docstring for
+    # the full rationale. Blocks new entries only, same "blocked" (not "halted") contract
+    # as the max_positions/max_total_risk_pct guards below - Phase 6 (exits) already ran
+    # before this phase, so protective stops are never affected. Gated to
+    # execution_mode=="auto" only: PDT is a real-broker-account restriction, meaningless in
+    # paper/dry-run mode, matching Phase 2's own identical gate.
+    if execution_mode == "auto":
+        try:
+            from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
+
+            pdt_account_data = AlpacaBrokerAdapter(config).fetch_account()
+            pdt_breach, pdt_msg = _check_pdt_limit_breach(pdt_account_data)
+            if pdt_breach:
+                logger.warning(pdt_msg)
+                log_phase_result_fn(8, "entry_execution", "blocked", pdt_msg)
+                return PhaseResult(
+                    8,
+                    "entry_execution",
+                    "blocked",
+                    {"entered": 0, "emergency_closes": 0},
+                    False,  # halted=False: guard worked but didn't halt orchestration
+                    pdt_msg,
+                )
+        except Exception as e:
+            msg = (
+                f"[PHASE 8 CRITICAL] PDT pre-check failed: {e}. "
+                "Cannot verify PDT status before submitting live entries. Must halt to "
+                "prevent an entry that could trigger a 90-day day-trading lockout."
+            )
+            logger.critical(msg, exc_info=True)
+            log_phase_result_fn(8, "entry_execution", "halt", msg)
+            raise RuntimeError(msg) from e
 
     # PROACTIVE RISK CHECK: Before entering positions, verify we won't exceed 4% risk limit
     # CRITICAL FIX 2026-08-01: Add position count limit check (was missing - allowed 17 positions)

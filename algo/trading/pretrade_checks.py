@@ -28,6 +28,28 @@ Validates:
 - Exchange/symbol status
 - Order size limits
 - Sector/industry concentration limits (Issue #2 fix)
+
+Does NOT itself validate account buying power or margin requirements (found stale/
+inaccurate 2026-08-24 - the docstring here previously claimed both, but no such check
+exists in run_all() below; confirmed via full-file grep). `portfolio_value` passed in is
+TOTAL account equity (position_sizer.py's get_portfolio_value(), cash + open positions'
+market value), not available cash/buying power - the max_position_size_pct check here caps
+position size relative to total equity, it does not itself verify enough uncommitted cash
+exists to fill the order.
+
+Traced 2026-08-24: the practical cumulative-exposure concern this docstring's claim was
+gesturing at IS covered, just in position_sizer.py rather than here -
+PositionSizer.size_position()'s max_total_invested_pct check (line ~1130) computes
+total_invested = get_active_positions_value() [a fresh DB query, so it reflects any
+positions already entered earlier in the same Phase 8 run] + this candidate's position
+value, and rejects if that would exceed the configured percentage of total equity. So the
+system does prevent over-committing capital across a run; this file just isn't where that
+enforcement lives. What remains genuinely reactive-only (Alpaca's own order-time rejection
+is the backstop, not a proactive check anywhere in this codebase) is a hard dollar-for-
+dollar buying-power/margin check - distinct from the total-invested-pct cap, which is
+sized as a percentage of equity, not a check against actual settled cash. Same reactive-
+vs-proactive shape as the PDT gap fixed the same day (see
+pdt_day_trade_limit_reactive_only_not_proactively_enforced_20260824 in memory).
 """
 
 logger = logging.getLogger(__name__)
