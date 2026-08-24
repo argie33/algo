@@ -27,6 +27,20 @@ logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
 
 
+def _quantize_price(v: float) -> str:
+    """Quantize a price for broker submission - SEC Rule 612 sub-penny rule.
+
+    Securities priced under $1.00 must be quoted in $0.0001 increments, not $0.01 - Alpaca
+    enforces this. Uses Decimal.quantize(ROUND_HALF_UP), not Python's round() (binary-float
+    round-half-to-even can silently submit an order 1 cent off, e.g. round(2.675, 2) == 2.67).
+    Shared by every order-submission path (bracket entries, exit limit orders) so this logic
+    exists exactly once - see _build_bracket_order_payload's history for why that mattered.
+    """
+    v_dec = Decimal(str(v))
+    places = Decimal("0.0001") if v_dec < 1 else Decimal("0.01")
+    return str(v_dec.quantize(places, rounding=ROUND_HALF_UP))
+
+
 class OrderManager:
     """Manage order lifecycle via Alpaca API."""
 
@@ -95,10 +109,8 @@ class OrderManager:
         # anticipated high-volatility case) - this was the one place in the actual
         # broker-submission path that silently threw that precision away right before hitting
         # the API. No existing test/code path in this repo compensated for it.
-        def _quantize_price(v: float) -> str:
-            v_dec = Decimal(str(v))
-            places = Decimal("0.0001") if v_dec < 1 else Decimal("0.01")
-            return str(v_dec.quantize(places, rounding=ROUND_HALF_UP))
+        # (_quantize_price is now a module-level function shared with send_market_exit's
+        # marketable-limit path - see its docstring.)
 
         # CRITICAL: Always build a bracket order - stop loss protection is mandatory
         order_data: dict[str, Any] = {
@@ -1037,9 +1049,14 @@ class OrderManager:
         return ("fallthrough", None)
 
     def send_market_exit(
-        self, symbol: str, shares: float, execution_mode: str, client_order_id: str | None = None
+        self,
+        symbol: str,
+        shares: float,
+        execution_mode: str,
+        client_order_id: str | None = None,
+        limit_price: float | None = None,
     ) -> dict[str, Any]:
-        """Send a market sell order to Alpaca.
+        """Send an exit (sell) order to Alpaca - market, or marketable limit when limit_price is given.
 
         Returns { success, order_id, filled_price }.
         Never returns None - always returns dict with success/error fields.
@@ -1054,6 +1071,21 @@ class OrderManager:
         separate calls/days, since unlike entries, one trade can have multiple legitimate
         partial exits over its lifetime; a key stable forever per trade_id would cause Alpaca
         to reject a later, genuinely different partial exit as a duplicate of an earlier one.
+
+        limit_price: When provided (non-urgent exits - see executor.py's _send_alpaca_exit),
+        submits a single "day" limit order at this price instead of a market order. The caller
+        is responsible for computing an aggressive/marketable price (a small buffer through the
+        current bid) - this method does not adjust the price further. Deliberately a single
+        order at a fixed price, not a limit-then-market-fallback sequence: that would need a
+        second client_order_id for the fallback leg, which the crash-recovery machinery above
+        (keyed on exactly one id per exit attempt, persisted before submission) isn't designed
+        for. If the limit doesn't fill (rare - only when price gaps past the buffer), the
+        position stays open and gets re-evaluated on the next exit-engine pass; the existing
+        403/"held_for_orders" handling below already treats a still-resting order on this
+        symbol as normal (falls back to the close-position endpoint), so this doesn't introduce
+        a new stuck-order failure mode. None (the default) preserves the original unconditional
+        market-order behavior exactly - hard stop-loss exits always call this with limit_price
+        omitted, since certainty of exit outweighs price control for capital preservation.
         """
         if execution_mode in ("paper", "dry", "review"):
             logger.info(f"[SEND_EXIT] {symbol}: Paper mode exit - {shares}sh")
@@ -1073,7 +1105,20 @@ class OrderManager:
                 "message": "Alpaca credentials not configured",
             }
 
-        logger.info(f"[SEND_EXIT] {symbol}: Sending exit order - {shares}sh market sell")
+        # Same NaN/Infinity/non-positive guard discipline as _build_bracket_order_payload's
+        # caller (position_sizer.py etc.) - a corrupted limit_price must fall back to a plain
+        # market order, not flow into _quantize_price() and produce a garbage order field.
+        use_limit = limit_price is not None and math.isfinite(limit_price) and limit_price > 0
+        if limit_price is not None and not use_limit:
+            logger.error(
+                f"[SEND_EXIT] {symbol}: limit_price={limit_price!r} is not a valid finite positive "
+                "price - falling back to a market order for this exit."
+            )
+
+        logger.info(
+            f"[SEND_EXIT] {symbol}: Sending exit order - {shares}sh "
+            + (f"limit sell @ ${limit_price:.4f}" if use_limit else "market sell")
+        )
 
         max_attempts = 3
         last_error = None
@@ -1083,9 +1128,11 @@ class OrderManager:
                     "symbol": symbol,
                     "qty": shares,
                     "side": "sell",
-                    "type": "market",
+                    "type": "limit" if use_limit else "market",
                     "time_in_force": "day",
                 }
+                if use_limit:
+                    order_data["limit_price"] = _quantize_price(cast(float, limit_price))
                 if client_order_id:
                     order_data["client_order_id"] = client_order_id
                 resp = requests.post(

@@ -726,7 +726,9 @@ class ExitHandler:
         is_estimated_price = execution_mode == "auto" or price_is_estimated
 
         if execution_mode == "auto":
-            exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit, trade_id)
+            exit_order_result = self.context._send_alpaca_exit(
+                symbol, shares_to_exit, trade_id, exit_price=exit_price, exit_stage=exit_stage
+            )
 
             # Validate result structure
             if "success" not in exit_order_result:

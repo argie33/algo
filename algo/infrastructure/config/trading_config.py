@@ -135,6 +135,7 @@ class TradingConfig:
                 "chandelier_atr_mult": 3.0,
                 "move_be_at_r": 1.0,
                 "max_stop_distance_pct": 12.0,
+                "exit_limit_slippage_buffer_bps": 50.0,
             }
         """
         return {
@@ -154,4 +155,5 @@ class TradingConfig:
             "chandelier_atr_mult": self.get("chandelier_atr_mult"),
             "move_be_at_r": self.get("move_be_at_r"),
             "max_stop_distance_pct": self.get("max_stop_distance_pct"),
+            "exit_limit_slippage_buffer_bps": self.get("exit_limit_slippage_buffer_bps"),
         }

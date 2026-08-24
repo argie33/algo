@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 import uuid
@@ -751,7 +752,44 @@ class TradeExecutor:
         """
         return self.order_manager.wait_for_order_fill(symbol, alpaca_order_id, max_wait_seconds)
 
-    def _send_alpaca_exit(self, symbol: str, shares: float, trade_id: int) -> dict[str, Any]:
+    def _compute_exit_limit_price(self, exit_price: float | None, exit_stage: str | None) -> float | None:
+        """Marketable-limit price for non-urgent exits, or None to submit a plain market order.
+
+        exit_stage="stop" is the hard capital-preservation stop-loss (bypasses min_hold_days,
+        unconditional) - certainty of exit outweighs price control there, so it always stays a
+        pure market order. Every other exit (profit targets, time exit, chandelier/TD/pattern
+        exits, portfolio rotation, concentration trims) has no such urgency and gets a limit
+        order priced a small buffer below exit_price - aggressive enough to fill like a market
+        order in normal conditions, while capping worst-case slippage if price gaps.
+
+        Fails open to None (market order - today's original behavior) rather than raising if
+        exit_price is missing/non-finite or the buffer config is unset: this is a fill-price
+        optimization on top of an exit that must still happen, not a risk gate - a missing
+        tuning value must not block the exit itself the way a missing risk threshold would.
+        """
+        if exit_stage == "stop":
+            return None
+        if exit_price is None or not math.isfinite(exit_price) or exit_price <= 0:
+            return None
+        buffer_bps = self.config.get("exit_limit_slippage_buffer_bps")
+        if buffer_bps is None or not math.isfinite(buffer_bps) or buffer_bps <= 0:
+            logger.warning(
+                "[EXIT] exit_limit_slippage_buffer_bps config missing/invalid - "
+                "falling back to a market order for this non-urgent exit."
+            )
+            return None
+        exit_price_dec = Decimal(str(exit_price))
+        buffer_dec = Decimal(str(buffer_bps)) / Decimal(10000)
+        return float(exit_price_dec * (Decimal(1) - buffer_dec))
+
+    def _send_alpaca_exit(
+        self,
+        symbol: str,
+        shares: float,
+        trade_id: int,
+        exit_price: float | None = None,
+        exit_stage: str | None = None,
+    ) -> dict[str, Any]:
         # CRITICAL: id is persisted BEFORE calling Alpaca, in its own immediately-committed
         # transaction (_with_cursor opens a fresh DatabaseContext) independent of the caller's
         # still-open exit transaction - so it survives a crash between Alpaca confirming a fill
@@ -788,7 +826,10 @@ class TradeExecutor:
             return new_id
 
         client_order_id = self._with_cursor(_get_or_set_pending_id)
-        return self.order_manager.send_market_exit(symbol, shares, self.execution_mode, client_order_id)
+        limit_price = self._compute_exit_limit_price(exit_price, exit_stage)
+        return self.order_manager.send_market_exit(
+            symbol, shares, self.execution_mode, client_order_id, limit_price=limit_price
+        )
 
     # ---------- Entry ----------
 

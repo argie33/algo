@@ -124,6 +124,11 @@ VALIDATION_SCHEMA = {
     "eight_week_rule_window_days": ("int", 1, 100, False, 21),
     "chandelier_atr_mult": ("float", 0.5, 10.0, False, 3.0),
     "move_be_at_r": ("float", 0.5, 10.0, False, 1.0),
+    # Non-urgent exits (targets/time/rotation/discretionary - NOT hard stop-loss) are submitted
+    # as a marketable limit order at exit_price*(1 - this/10000) instead of a naked market order,
+    # to cap slippage while staying aggressive enough to fill like a market order in practice.
+    # Hard stop-loss exits always stay pure market orders (capital-preservation certainty wins).
+    "exit_limit_slippage_buffer_bps": ("float", 5.0, 300.0, False, 50.0),
     # Drawdown Re-engagement
     "re_engage_recovery_pct": ("float", 0.0, 100.0, False, 8.0),
     "re_engage_min_days": ("int", 0, 100, False, 5),
