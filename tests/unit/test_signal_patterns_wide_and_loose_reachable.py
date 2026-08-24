@@ -17,7 +17,7 @@ than just relabeled - reaching that closure at all already requires in_base=True
 requires depth<=35.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from algo.signals.signal_patterns import SignalPatternsMixin
 
@@ -89,10 +89,15 @@ class TestWideAndLooseReachable:
         # Sanity: in_base=True with a depth inside the wide-and-loose band should be impossible
         # in real base_detection() output (in_base's own formula already caps depth at 35), but
         # if it somehow happened, classify_base_type must not treat it as wide_and_loose via the
-        # early-return gate - it should fall through to real shape classification instead.
-        # _price_history must be present here: base_detection() always populates it whenever
-        # in_base=True (that's the invariant _classify_with_cursor's RuntimeError guards), so a
-        # realistic mock of this scenario has to include it too.
+        # early-return gate - it must fall through to real shape classification instead (which
+        # can never itself produce "wide_and_loose" either, since that dead branch was deleted).
+        # Monotonically increasing, low-volatility series -> falls through cup/saucer/double-
+        # bottom/ascending-base gates to the deterministic "consolidation" fallback.
+        n = 40
+        highs = [100.0 + i * 0.01 for i in range(n)]
+        lows = [99.0 + i * 0.01 for i in range(n)]
+        closes = [99.5 + i * 0.01 for i in range(n)]
+        volumes = [1000.0] * n
         mixin = SignalPatternsMixin()
         mixin.base_detection = MagicMock(
             return_value={
@@ -103,13 +108,15 @@ class TestWideAndLooseReachable:
                 "pct_to_pivot": 12.0,
                 "breakout_imminent": False,
                 "volume_dryup": False,
-                "_price_history": {
-                    "highs": [1.0] * 130,
-                    "lows": [1.0] * 130,
-                    "closes": [1.0] * 130,
-                    "volumes": [1.0] * 130,
-                },
+                "_price_history": {"highs": highs, "lows": lows, "closes": closes, "volumes": volumes},
             }
         )
-        result = mixin.classify_base_type("SHOULDNOTHAPPEN", "2026-08-21")
-        assert result["type"] != "wide_and_loose" or "characteristics" not in result
+        fake_cursor = MagicMock()
+
+        def fake_with_cursor(operation):
+            return operation(fake_cursor)
+
+        with patch.object(mixin, "_with_cursor", side_effect=fake_with_cursor):
+            result = mixin.classify_base_type("SHOULDNOTHAPPEN", "2026-08-21")
+        assert result["type"] != "wide_and_loose"
+        assert result["type"] == "consolidation"
