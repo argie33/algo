@@ -117,13 +117,17 @@ def _pillar_detail(key: str, f: dict[str, Any]) -> str:
         return "[yellow]⚠[/]"
 
     if key == "pillar_trend":
+        # PASS 2026-08-24b: trend_30wk is the sole scored input (SUBW_TREND_30WK=1.0);
+        # spy_momentum/market_technicals are computed/shown but no longer scored - see
+        # market_exposure.py's "PILLAR 1 SUB-WEIGHT EVIDENCE". Tagged "(ctx)" so this
+        # doesn't read as if momentum still moves the score.
         ma_pct = _component_value(components, "trend_30wk", "price_vs_ma_pct")
         mom_val = _component_value(components, "spy_momentum", "value")
         parts = []
         if ma_pct is not None:
             parts.append(f"MA:{'+' if ma_pct >= 0 else ''}{ma_pct:.1f}%")
         if mom_val is not None:
-            parts.append(f"Mom:{mom_val:+.1f}%")
+            parts.append(f"Mom:{mom_val:+.1f}%(ctx)")
         return f" {' '.join(parts)}" if parts else "[yellow]⚠[/]"
 
     if key == "pillar_risk":
@@ -319,6 +323,12 @@ def _pillar_expanded_rows(
     rows: list[tuple[str, str, str]] = []
 
     if key == "pillar_trend":
+        # PASS 2026-08-24b: trend_30wk alone is scored (SUBW_TREND_30WK=1.0); momentum
+        # and market_technicals are still computed/persisted every run but contribute
+        # zero to pillar_trend_score - see market_exposure.py's "PILLAR 1 SUB-WEIGHT
+        # EVIDENCE" for the backtest that dropped their weight. Labeled "not scored" here
+        # rather than the stale "35%/10% of pillar" so this panel can't imply they still
+        # move the score.
         t30 = _safe_component(components, "trend_30wk")
         mom = _safe_component(components, "spy_momentum")
         mtech = _safe_component(components, "market_technicals")
@@ -327,7 +337,7 @@ def _pillar_expanded_rows(
             (
                 "  30-Week Trend",
                 f"{v:+.1f}% vs MA" if isinstance(v, (int, float)) else "--",
-                "SPY vs 30-week MA (55% of pillar)",
+                "SPY vs 30-week MA (100% of pillar - the sole scored input)",
             )
         )
         v = mom.get("value")
@@ -335,12 +345,16 @@ def _pillar_expanded_rows(
             (
                 "  SPY 12mo Momentum",
                 f"{v:+.1f}%" if isinstance(v, (int, float)) else "--",
-                "Trailing 12-month return, TSMOM (35% of pillar)",
+                "Trailing 12-month return, TSMOM (not scored - context/dashboard only)",
             )
         )
         if mtech.get("data_unavailable"):
             rows.append(
-                ("  Market Technicals", f"⚠ {mtech.get('reason', '')[:30]}", "RSI(14)+MACD, blended (10% of pillar)")
+                (
+                    "  Market Technicals",
+                    f"⚠ {mtech.get('reason', '')[:30]}",
+                    "RSI(14)+MACD, blended (not scored - context/dashboard only)",
+                )
             )
         else:
             rsi = mtech.get("rsi_14")
@@ -350,7 +364,7 @@ def _pillar_expanded_rows(
                 (
                     "  Market Technicals",
                     f"RSI {rsi:.1f}{macd_s}" if isinstance(rsi, (int, float)) else "--",
-                    "RSI(14)+MACD, blended (10% of pillar)",
+                    "RSI(14)+MACD, blended (not scored - context/dashboard only)",
                 )
             )
 
@@ -525,7 +539,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     rows.append(Rule(style="dim"))
 
     pillar_context = {
-        "pillar_trend": "Anchor pillar (Faber/TSMOM) - the most robustly out-of-sample-replicated timing signal",
+        "pillar_trend": "100% Faber 30wk-MA trend (sole scored input) - backtest-confirmed vs TSMOM blend, 2026-08-24b",
         "pillar_risk": "Equal-weighted: VIX, Credit Spread, Selling Pressure - mechanically distinct, co-move in risk-off",
         "pillar_confirm": "Confirmation role - Participation (breadth/NH-NL/A-D) + Sentiment (AAII/Put-Call), 50/50",
     }
