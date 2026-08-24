@@ -212,7 +212,16 @@ python -m dashboard
 
 **Symptom:** Changed code, deployed via GitHub Actions, but Lambda still uses old code.
 
-**Solution:**
+**KNOWN ISSUE as of 2026-08-24 (still unresolved)**: `deploy-api-lambda.yml` and every other
+`deploy-*.yml` workflow (they all assume the same shared IAM role) fail on EVERY run with
+`Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity` -
+nothing currently deploys to AWS via GitHub Actions at all, not a Lambda-specific caching or
+staleness issue. CI passing on `main` is NOT evidence this deployed. Diagnosing the actual
+denied `sub`/`aud` claims requires real AWS credentials (CloudTrail) - see
+`aws_deploy_ecs_oidc_broken_since_at_least_20260820` in memory before spending time on the
+steps below; they won't help until that's fixed.
+
+**Solution (once OIDC is fixed):**
 
 1. Verify deployment completed:
 ```bash
@@ -427,11 +436,18 @@ make coverage        # Coverage report
 3. ✓ Type checking passes: `make type-check`
 4. ✓ Pre-commit passes: `git commit` (don't use `--no-verify`)
 5. ✓ Push to main: `git push origin main`
-6. ✓ GitHub Actions runs CI/CD automatically
-7. ✓ Monitor Lambda: `aws lambda get-function --function-name algo-api-dev`
+6. ✓ GitHub Actions runs CI automatically - **but CD (actual deploy) currently does not
+   complete**: every `deploy-*.yml` workflow fails on OIDC role assumption (see the "Problem:
+   AWS Lambda Not Updated After Deployment" section above and
+   `aws_deploy_ecs_oidc_broken_since_at_least_20260820` in memory) - CI going green is NOT
+   evidence step 7/8 below will show new code
+7. ✓ Monitor Lambda: `aws lambda get-function --function-name algo-api-dev
+   --query 'Configuration.LastModified'` - confirm the timestamp actually moved, don't assume
 8. ✓ Test API: `curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/scores?limit=1`
 
-See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
+(`OPERATIONS.md` referenced here in earlier versions of this doc does not exist anywhere in
+this repo - same phantom-file-reference class as `start_dashboard_dev.py`/
+`check_system_health.py` in CLAUDE.md. Removed the dead link.)
 
 ---
 
@@ -537,11 +553,18 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 
 | Issue | Guide |
 |-------|-------|
-| Database/AWS setup | [QUICKSTART_LOCAL.md](../QUICKSTART_LOCAL.md) (local DB) / [GOVERNANCE.md](GOVERNANCE.md#credentials--deployment) (AWS) |
+| Database/AWS setup | [CLAUDE.md](../CLAUDE.md) "Quick Start" (local DB) / [GOVERNANCE.md](GOVERNANCE.md#credentials--deployment) (AWS) |
 | Data flow & loader issues | [DATA_LOADERS.md](DATA_LOADERS.md) |
 | Code quality | `make lint`/`make type-check` ([GOVERNANCE.md](GOVERNANCE.md#code-cleanliness-pre-commit-enforced)) |
 | Architecture questions | [GOVERNANCE.md](GOVERNANCE.md) |
-| Configuration & monitoring | [OPERATIONS.md](OPERATIONS.md) |
-| Deployment | [OPERATIONS.md](OPERATIONS.md) |
+| Configuration & monitoring | [GOVERNANCE.md](GOVERNANCE.md#key-configuration-points) |
+| Deployment | This file's "AWS Lambda Not Updated After Deployment" / "Deploying Changes to Production" sections above, plus [GOVERNANCE.md](GOVERNANCE.md#credentials--deployment) |
+
+(`QUICKSTART_LOCAL.md` and `OPERATIONS.md`, both referenced in earlier versions of this table,
+do not exist anywhere in this repo - `OPERATIONS.md` was deleted 2026-07-26 as AWS-only/unused
+for local dev, see [DATA_LOADERS.md](DATA_LOADERS.md)'s own note on this; `QUICKSTART_LOCAL.md`
+appears to have never existed. Same phantom-file-reference class CLAUDE.md calls out for
+`start_dashboard_dev.py`/`check_system_health.py` - if you see either referenced anywhere else,
+it's stale.)
 
 ---

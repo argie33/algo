@@ -14,6 +14,14 @@ spots — `dashboard/dashboard.py`'s "no data loaded" console message and
 instead. Don't invoke `check_system_health.py` or tell users to; if you see it referenced
 anywhere else in the repo, it's stale and should be corrected the same way.
 
+**`steering/OPERATIONS.md` and `QUICKSTART_LOCAL.md` also don't exist** — same bug class again.
+`OPERATIONS.md` was deliberately deleted 2026-07-26 (commit `6e81a267c`, "AWS-only, local dev
+doesn't use"); `QUICKSTART_LOCAL.md` appears to have never existed. Both were still linked from
+`steering/COMMON_OPERATIONS.md` (3 places) and referenced in a code comment in
+`algo/monitoring/data_patrol/checks/staleness.py` (found and fixed 2026-08-24) — if you see
+either referenced anywhere else, it's stale and should be corrected the same way, pointing at
+`steering/GOVERNANCE.md` or this file instead as appropriate.
+
 The real local dev components are separate processes:
 
 ```bash

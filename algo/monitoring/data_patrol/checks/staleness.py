@@ -20,7 +20,9 @@ class StalenessChecker(BaseCheck):
         self.results = []
 
         # EXPLICIT FRESHNESS THRESHOLDS: These are operational requirements, not configurable
-        # Based on data load schedules and trading requirements from OPERATIONS.md
+        # Based on data load schedules and trading requirements from steering/GOVERNANCE.md's
+        # Schedule section (OPERATIONS.md, referenced here originally, was deleted 2026-07-26
+        # as AWS-only/unused for local dev - see steering/DATA_LOADERS.md's own note on this)
         staleness_thresholds = {
             "price_daily": 1,  # Loaded 2:15 AM + 4:05 PM, max 1 day old
             "technical_data_daily": 1,  # Computed from prices, max 1 day old

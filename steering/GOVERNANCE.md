@@ -194,11 +194,17 @@ whether it's actually reachable for a given phase before citing it in a debuggin
 
 **Local:** PostgreSQL setup + `DB_HOST=localhost DB_USER=stocks DB_PASSWORD=stocks DB_NAME=stocks python migrations/run.py apply --all` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
 
-**Production:** `git push main` → deploy-all-infrastructure.yml (auto) — **this file does not exist**
-(verified 2026-08-20: no `.github/workflows/` content of any kind existed before this date, on any
-branch, in this repo's full git history). Nothing currently auto-deploys on push. Until a real
-deploy pipeline is built and verified, treat any production deployment as manual and confirm the
-actual mechanism before relying on this line.
+**Production:** `git push main` → CI (`.github/workflows/ci.yml`) → `deploy-ecs-image.yml`
+(`workflow_run`-triggered on CI success) → ECR push. **The pipeline architecture now exists**
+(built after the 2026-08-20 "no workflows at all" state this line used to describe - see
+`[[ci_cd_pipeline_never_existed_20260820]]` in memory) but **deploy-ecs-image.yml has had zero
+successful runs since at least 2026-07-17**: OIDC `AssumeRoleWithWebIdentity` fails on every
+attempt (`Not authorized to perform sts:AssumeRoleWithWebIdentity`), confirmed still failing
+live 2026-08-24 - see `[[aws_deploy_ecs_oidc_broken_since_at_least_20260820]]` in memory. CI
+green on `main` is NOT evidence AWS has current code - verify with
+`gh run list --workflow=deploy-ecs-image.yml --limit 3` shows `success`, not just that CI
+passed. Root cause needs real AWS credentials (CloudTrail's actual denied `sub`/`aud` claims)
+to diagnose - not yet done as of this writing.
 
 **Rotation:** Quarterly (first Monday), immediately if leaked. No `.env` files ever.
 

@@ -40,8 +40,9 @@ default, matching this codebase's existing fail-fast/no-guessing convention. New
 confirmed fail-before/pass-after via `git stash` on the loader file alone - the pre-fix 2-column
 unpack crashes against the new 3-column debt row shape this test's fixtures use).
 
-**Not yet live-verified end-to-end against a full-universe run** (no scheduled loader run
-triggered this session) - the fix is code + migration + unit-tested only. `long_term_debt`
+**Live-verified end-to-end 2026-08-24** (goal-session follow-up): `sec_valuations.total_debt`
+now correctly matches `long_term_debt + short_term_debt` in real production data - AAPL
+$84.297B = $82.3B + $1.997B exactly, not the old $275.7B `total_liabilities` bug. `long_term_debt`
 coverage itself is real but partial (~58% of symbols ever report it, per a live DB count this
 session: 3,412/5,852) - some real gaps remain for filers that tag debt under neither `LongTermDebt`
 nor the two new short-term concepts (live-confirmed GOOGL's own `long_term_debt` column is

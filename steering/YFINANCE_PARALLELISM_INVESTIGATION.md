@@ -8,6 +8,20 @@ project has since settled as unsafe. Don't act on this doc's Phase 1/2 without f
 checking whether that rule has since been relaxed in CLAUDE.md — the rate-limit math and
 root-cause analysis below are still accurate background, just not the current plan.
 
+**ALSO STALE 2026-08-24 (goal-session data-source audit)**: the "Affected Loaders"
+dependency list below listing `growth_metrics`/`quality_metrics` as yfinance-dependent
+"(earnings data)"/"(eps data)" no longer reflects the loader as it exists today. Live
+data-coverage check (`lambda/api/routes/scores.py::_get_scores_coverage`) shows
+`growth_metrics.eps_growth_1y/3y/5y` and `quality_metrics.fcf_growth_yoy` are now
+97.1-99.5% sourced from `sec_audited` (SEC XBRL), not yfinance - consistent with the
+extensive EPS-from-XBRL correctness work done since this doc was written (see MEMORY.md's
+"EPS corruption sweep" entries, 2026-08-23). `value_metrics`/`positioning_metrics` (the
+`(1,1)` "locked" rows below) still have real yfinance dependency for forward-looking
+analyst estimates and the `analyst_*` loaders remain yfinance-sourced - only the
+growth/quality EPS numbers moved off it. Don't trust the per-loader list below for
+"what still depends on yfinance" without re-checking live; the parallelism math and root
+cause remain accurate background regardless.
+
 ## Current State (Analysis 2026-08-12)
 
 ### Problem
