@@ -569,6 +569,38 @@ def _check_failsafe_retry_result(
     return None
 
 
+def _compute_pipeline_context(now_et: Any) -> tuple[bool, bool, str, Any]:
+    """Returns (is_market_open, is_after_market_close, pipeline_context, market_close_time).
+
+    BUG FIX 2026-08-24 (goal session: real-money accuracy audit): is_market_open was
+    `now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)` - an hour check with NO
+    upper bound (true for every hour from 9:30 AM to midnight, every single day) and NO
+    trading-day check at all. On any weekend or market holiday, this stayed True from 9:30 AM
+    to 4 PM (misclassifying pipeline_context as INTRADAY - implying live trading - on a day
+    the market never opened), then True the rest of the day too, masked only by
+    is_after_market_close's separate hour>=16 check forcing "EOD" after 4 PM regardless.
+    is_after_market_close itself had a second, narrower bug: no early-close awareness. NYSE/
+    NASDAQ early closes (day before July 4th, day after Thanksgiving, Christmas Eve) close at
+    1:00 PM ET, not 4:00 PM - MarketCalendar already correctly special-cases this (see that
+    module's own comment: "this was previously wrong by 2 hours", the same bug class already
+    found and fixed there once, and again independently for phase8_entry_execution.py's own
+    market-hours guard - see test_phase8_market_hours_early_close.py), but this copy never
+    got the same fix - is_after_market_close stayed False for the 3 hours between the real
+    1 PM close and this check's hardcoded 4 PM cutoff. Delegate to MarketCalendar (single
+    source of truth for trading-day/early-close logic elsewhere in this codebase) instead of
+    re-deriving from now_et.hour/minute.
+    """
+    from datetime import time as _time
+
+    from algo.infrastructure import MarketCalendar
+
+    market_close_time = _time(13, 0) if MarketCalendar.is_early_close(now_et.date()) else _time(16, 0)
+    is_market_open = MarketCalendar.is_market_open(now_et)
+    is_after_market_close = now_et.time() >= market_close_time
+    pipeline_context = "EOD" if is_after_market_close else "INTRADAY" if is_market_open else "MORNING"
+    return is_market_open, is_after_market_close, pipeline_context, market_close_time
+
+
 def _validate_config(config: Any) -> tuple[int, int, int, int, int]:
     """Extract and validate required configuration parameters.
 
@@ -724,10 +756,7 @@ def run(  # noqa: C901
     from datetime import datetime as dt
 
     now_et = dt.now(EASTERN_TZ)
-    # Market hours: 9:30 AM - 4:00 PM ET
-    is_market_open = now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)
-    is_after_market_close = now_et.hour >= 16
-    pipeline_context = "EOD" if is_after_market_close else "INTRADAY" if is_market_open else "MORNING"
+    _is_market_open, _is_after_market_close, pipeline_context, market_close_time = _compute_pipeline_context(now_et)
 
     logger.info(
         f"[PHASE 1] Starting comprehensive freshness check (Pipeline: {pipeline_context}, Time: {now_et.strftime('%H:%M:%S ET')})"
@@ -1011,8 +1040,16 @@ def run(  # noqa: C901
             # below and the log line at 16:36 both claim - stale same-day data would be masked by
             # falling back to the prior trading day for up to 30 extra minutes. Compare against
             # an actual time boundary instead of an hour/float mismatch.
-            grace_period_end = now_et.replace(hour=16, minute=30, second=0, microsecond=0)
-            market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            # BUG FIX 2026-08-24: same early-close blindness as is_after_market_close above -
+            # hardcoded to 16:00/16:30 regardless of day, so on a real 1:00 PM early close this
+            # 30-minute data-provider-delay grace period fired 3 hours late (4:00-4:30 PM,
+            # when providers already had same-day data ready) instead of the actual post-close
+            # window (1:00-1:30 PM) when it would matter. Reuses market_close_time computed
+            # above from MarketCalendar, not a fresh hardcoded hour=16.
+            market_close = now_et.replace(
+                hour=market_close_time.hour, minute=market_close_time.minute, second=0, microsecond=0
+            )
+            grace_period_end = market_close + td(minutes=30)
             if pipeline_context == "EOD" and market_close <= now_et < grace_period_end:
                 # Allow previous trading day as fallback if same-day not yet available
                 # (ONLY in immediate aftermath of market close, within 30 min)
