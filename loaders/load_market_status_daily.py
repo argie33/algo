@@ -582,6 +582,22 @@ class MarketStatusDailyLoader(OptimalLoader):
             # but BulkInsertManager silently drops columns that don't exist in market_health_daily
             # (the base table_name). Without this persist, market_exposure_daily never gets updated.
             self._persist_market_exposure(eval_date, result_with_data)
+
+            # Capital routing (2026-08-24, user-directed /goal): decides what to do with the
+            # (100 - exposure_pct)% of capital NOT going into stocks (GLD/IEF/DBC/cash), each
+            # judged by its own trend signal. Runs immediately after exposure persists, since
+            # it reads market_exposure_daily.exposure_pct for eval_date (see
+            # algo/risk/capital_routing.py's module docstring). Deliberately non-fatal here -
+            # this is a satellite decision on top of the primary equity exposure computation,
+            # not foundational to it, so a failure here must not fail the exposure computation
+            # that everything else in this loader (and Phase 1-9) depends on.
+            try:
+                from algo.risk.capital_routing import CapitalRouting
+
+                CapitalRouting().compute(eval_date, force_recompute=force_recompute)
+            except Exception as routing_err:
+                logger.error(f"[MARKET_STATUS] Capital routing computation failed (non-fatal): {routing_err}")
+
             return result_with_data
 
         except Exception as e:
