@@ -722,9 +722,26 @@ class MarketStatusDailyLoader(OptimalLoader):
             else:
                 logger.debug(f"[MARKET_STATUS] AAII sentiment not available for {eval_date}")
 
+            # BUG FOUND 2026-08-24 (goal session logic-soundness audit): sentiment_score was
+            # unconditionally None here despite this comment already claiming "computed from
+            # bull/bear/neutral if available" - no code ever actually did that computation.
+            # The only real consumer (lambda/api/routes/algo_handlers/market.py's
+            # /api/algo/market-sentiment endpoint) fails fast on sentiment_score is None
+            # (returns 503 "incomplete_data"), so this endpoint would 503 on every single
+            # call regardless of whether bullish/bearish data was actually available -
+            # currently has zero live callers (dead API surface, not actively broken for any
+            # user), but it's genuinely unfinished, not just unused. 0-100 scale centered at
+            # 50 to match that endpoint's own >60/40 BULLISH/NEUTRAL/BEARISH bucketing:
+            # bullish_pct==bearish_pct -> 50 (neutral); 100% bullish/0% bearish -> 100;
+            # 0% bullish/100% bearish -> 0. Naturally bounded to [0,100] since bullish_pct
+            # and bearish_pct are each already in [0,100].
+            sentiment_score = None
+            if bullish_pct is not None and bearish_pct is not None:
+                sentiment_score = round(50 + (bullish_pct - bearish_pct) / 2, 2)
+
             result = {
                 "fear_greed_index": round(fear_greed, 2),
-                "sentiment_score": None,  # Computed from bull/bear/neutral if available
+                "sentiment_score": sentiment_score,
                 # `is not None`, not truthiness: a genuine 0.0% reading (all bearish,
                 # zero bullish) is a real, meaningful value and must not collapse to NULL.
                 "bullish_pct": round(bullish_pct, 2) if bullish_pct is not None else None,
