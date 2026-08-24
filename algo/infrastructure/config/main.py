@@ -534,6 +534,12 @@ class AlgoConfig:
         "eight_week_rule_window_days": ("21", "int", "Days to check for 20%+ gain", "Exit Rules"),
         "chandelier_atr_mult": ("3.0", "float", "ATR multiplier for chandelier stop", "Exit Strategy"),
         "move_be_at_r": ("1.0", "float", "R-multiple to trigger breakeven stop raise", "Exit Strategy"),
+        "exit_limit_slippage_buffer_bps": (
+            "50.0",
+            "float",
+            "Marketable-limit buffer (bps below exit_price) for non-urgent exits",
+            "Exit Strategy",
+        ),
         # Drawdown Re-engagement (Sprint 3)
         "re_engage_recovery_pct": (
             "8.0",
