@@ -1615,29 +1615,81 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         point in the run where the actual rejection can take effect against pre-existing
         rows.
         """
-        if not self._explicit_null_rejections:
-            return
-        pk_cols = list(self._bulk_insert_mgr.primary_key)
-        seen: set[tuple[Any, ...]] = set()
-        forced = 0
-        with DatabaseContext("write") as cur:
-            for pk_values, field in self._explicit_null_rejections:
-                key = (*[pk_values[c] for c in pk_cols], field)
-                if key in seen or any(v is None for v in pk_values.values()):
-                    continue
-                seen.add(key)
-                where_clause = " AND ".join(f"{c} = %s" for c in pk_cols)
-                cur.execute(
-                    f"UPDATE {self.table_name} SET {field} = NULL WHERE {where_clause} AND {field} IS NOT NULL",
-                    tuple(pk_values[c] for c in pk_cols),
+        if self._explicit_null_rejections:
+            pk_cols = list(self._bulk_insert_mgr.primary_key)
+            seen: set[tuple[Any, ...]] = set()
+            forced = 0
+            with DatabaseContext("write") as cur:
+                for pk_values, field in self._explicit_null_rejections:
+                    key = (*[pk_values[c] for c in pk_cols], field)
+                    if key in seen or any(v is None for v in pk_values.values()):
+                        continue
+                    seen.add(key)
+                    where_clause = " AND ".join(f"{c} = %s" for c in pk_cols)
+                    cur.execute(
+                        f"UPDATE {self.table_name} SET {field} = NULL WHERE {where_clause} AND {field} IS NOT NULL",
+                        tuple(pk_values[c] for c in pk_cols),
+                    )
+                    forced += cur.rowcount
+            if forced:
+                logger.warning(
+                    f"[{self.table_name}] post_run(): force-nulled {forced} previously-stored "
+                    f"cell(s) across {len(seen)} unique (row, field) rejection(s) that "
+                    "preserve_on_missing_fields would otherwise have silently kept at their "
+                    "stale implausible value."
                 )
-                forced += cur.rowcount
-        if forced:
+        if self.statement_type == "income":
+            self._sweep_stale_implausible_eps()
+
+    def _sweep_stale_implausible_eps(self) -> None:
+        """Table-wide implausible-EPS sweep, independent of what this run happened to fetch.
+
+        FOUND 2026-08-24 (goal session: real-money-readiness sweep): the per-run rejection
+        path above (_explicit_null_rejections) can only force-null a cell if THIS run's SEC
+        fetch actually returned a value for that (symbol, fiscal_year, field) - live-confirmed
+        via a scoped --symbols remediation re-fetch of 38 known-bad symbols (SWK, LNG, ICE,
+        FITB, NU, CRVO, and 32 others) that only cleared 5 of 85 known-bad rows. The other 80
+        are older fiscal years (mostly pre-2015) that SEC's live companyfacts API no longer
+        serves fresh data for on a routine re-fetch, so _reject_implausible_eps() never even
+        sees them and post_run()'s force-null above has nothing to act on - re-fetching can
+        NEVER reach these rows no matter how many times it runs. Since the implausibility
+        criterion (abs(net_income/eps) < 10,000 implied shares) only needs the value already
+        stored in the DB, not a fresh SEC response, this sweep applies the identical,
+        already-tested rule directly against the full table on every income-statement run -
+        not new unverified data, just removing values already known to be confidently wrong
+        by the same rule the fresh-fetch path uses. Same 10,000 floor as
+        _reject_implausible_eps() (BRK.A/BSAC/EC all clear it comfortably).
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                f"""
+                UPDATE {self.table_name}
+                SET earnings_per_share = CASE
+                        WHEN earnings_per_share IS NOT NULL AND earnings_per_share != 0
+                             AND net_income IS NOT NULL AND net_income != 0
+                             AND abs(net_income / earnings_per_share) < 10000
+                        THEN NULL ELSE earnings_per_share END,
+                    diluted_eps = CASE
+                        WHEN diluted_eps IS NOT NULL AND diluted_eps != 0
+                             AND net_income IS NOT NULL AND net_income != 0
+                             AND abs(net_income / diluted_eps) < 10000
+                        THEN NULL ELSE diluted_eps END
+                WHERE net_income IS NOT NULL AND net_income != 0
+                  AND (
+                        (earnings_per_share IS NOT NULL AND earnings_per_share != 0
+                         AND abs(net_income / earnings_per_share) < 10000)
+                        OR
+                        (diluted_eps IS NOT NULL AND diluted_eps != 0
+                         AND abs(net_income / diluted_eps) < 10000)
+                      )
+                """
+            )
+            swept = cur.rowcount
+        if swept:
             logger.warning(
-                f"[{self.table_name}] post_run(): force-nulled {forced} previously-stored "
-                f"cell(s) across {len(seen)} unique (row, field) rejection(s) that "
-                "preserve_on_missing_fields would otherwise have silently kept at their "
-                "stale implausible value."
+                f"[{self.table_name}] _sweep_stale_implausible_eps(): force-nulled implausible "
+                f"earnings_per_share/diluted_eps on {swept} row(s) that this run's fetch never "
+                "touched (stale historical data the live SEC API no longer re-serves)."
             )
 
     def _reject_implausible_shares_outstanding(self, transformed: list[dict[str, Any]]) -> None:

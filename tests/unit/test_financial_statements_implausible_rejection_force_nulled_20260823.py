@@ -19,6 +19,16 @@ UPDATE ... WHERE <pk> = ... AND <field> IS NOT NULL - bypassing bulk_insert_mana
 entirely, since that's the only way to actually overwrite a stale bad value it would
 otherwise protect. Wired into both the single-combo path (runner.py's existing post_run hook)
 and ALL MODE's _finalize_combo() (which never went through runner.py at all).
+
+FOLLOW-UP FIX (2026-08-24, real-money-readiness goal session): the explicit-rejection path
+above can only force-null a cell if THIS run's fetch actually returned a value for that
+(symbol, fiscal_year, field) - live-confirmed a scoped 38-symbol remediation re-fetch only
+cleared 5 of 85 known-bad rows, because the other 80 are older fiscal years SEC's live
+companyfacts API no longer serves fresh data for, so _reject_implausible_eps() never even
+sees them. post_run() now also calls _sweep_stale_implausible_eps() (income-statement tables
+only), which applies the identical abs(net_income/eps) < 10,000 rule as a table-wide UPDATE
+independent of what this run fetched, so every test below that exercises post_run() now sees
+one extra DatabaseContext/execute call for the sweep.
 """
 
 from decimal import Decimal
@@ -132,21 +142,29 @@ class TestPostRunForcesNull:
         mock_ctx, mock_cur = _mock_write_context()
         with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
-        assert mock_cur.execute.call_count == 2
+        # 2 explicit-rejection UPDATEs + 1 table-wide sweep UPDATE
+        assert mock_cur.execute.call_count == 3
         queries = [c.args[0] for c in mock_cur.execute.call_args_list]
         assert any("earnings_per_share = NULL" in q and "symbol = %s AND fiscal_year = %s" in q for q in queries)
         assert any("diluted_eps = NULL" in q for q in queries)
+        assert any("abs(net_income / earnings_per_share) < 10000" in q for q in queries)
 
     def test_post_run_no_op_when_nothing_rejected(self) -> None:
+        """No per-row explicit rejections this run, but the table-wide sweep still runs -
+        it's independent of what this run fetched."""
         loader = _make_loader()
         assert loader._explicit_null_rejections == []
-        with patch("loaders.load_financial_statements.DatabaseContext") as mock_dc:
+        mock_ctx, mock_cur = _mock_write_context()
+        with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx) as mock_dc:
             loader.post_run()
-        mock_dc.assert_not_called()
+        mock_dc.assert_called_once()
+        assert mock_cur.execute.call_count == 1
+        assert "abs(net_income / earnings_per_share) < 10000" in mock_cur.execute.call_args.args[0]
 
     def test_post_run_dedupes_identical_rejections(self) -> None:
         """Same (row, field) recorded twice (e.g. both reject_implausible_* methods happened
-        to touch the same cell) must only issue one UPDATE."""
+        to touch the same cell) must only issue one UPDATE for the explicit-rejection path
+        (plus the always-on table-wide sweep)."""
         loader = _make_loader()
         loader._explicit_null_rejections = [
             ({"symbol": "PACK", "fiscal_year": 2017}, "shares_outstanding_basic"),
@@ -155,17 +173,19 @@ class TestPostRunForcesNull:
         mock_ctx, mock_cur = _mock_write_context()
         with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
-        assert mock_cur.execute.call_count == 1
+        assert mock_cur.execute.call_count == 2
 
     def test_post_run_skips_rejection_with_missing_pk_value(self) -> None:
         """Defensive: a row missing a primary-key value (shouldn't happen for a real fetched
-        row) must not produce a malformed UPDATE with a NULL in the WHERE clause."""
+        row) must not produce a malformed UPDATE with a NULL in the WHERE clause. The
+        table-wide sweep still runs regardless."""
         loader = _make_loader()
         loader._explicit_null_rejections = [({"symbol": "ZZZZ", "fiscal_year": None}, "earnings_per_share")]
         mock_ctx, mock_cur = _mock_write_context()
         with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
-        mock_cur.execute.assert_not_called()
+        assert mock_cur.execute.call_count == 1
+        assert "abs(net_income / earnings_per_share) < 10000" in mock_cur.execute.call_args.args[0]
 
     def test_post_run_uses_quarterly_primary_key_in_where_clause(self) -> None:
         loader = _make_loader(period="quarterly")
@@ -175,7 +195,8 @@ class TestPostRunForcesNull:
         mock_ctx, mock_cur = _mock_write_context()
         with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
-        query, params = mock_cur.execute.call_args.args
+        # First call is the explicit-rejection UPDATE; second is the table-wide sweep (no params).
+        query, params = mock_cur.execute.call_args_list[0].args
         assert "fiscal_quarter = %s" in query
         assert params == ("HAL", 2021, 2)
 
@@ -202,5 +223,6 @@ class TestFinalizeComboCallsPostRun:
             ok = _finalize_combo(loader, symbol_count=1, duration_sec=1.0, symbols=["OLOX"])
 
         assert ok is True
-        mock_cur.execute.assert_called_once()
+        # 1 explicit-rejection UPDATE + 1 table-wide sweep UPDATE
+        assert mock_cur.execute.call_count == 2
         loader._log_execution_history.assert_called_once_with("success")
