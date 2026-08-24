@@ -37,6 +37,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -240,7 +241,10 @@ def run_backtest(  # noqa: C901
         for symbol in list(positions.keys()):
             pos = positions[symbol]
             current_price = current_prices[symbol]
-            hold_days = (sim_date - pos["entry_date"]).days
+            # Trading-day-aware (not calendar days) to match the live max_hold_days semantics
+            # in algo/trading/exit_engine.py - a naive calendar diff would let a weekend
+            # inflate hold_days and trigger max_hold earlier here than live actually would.
+            hold_days = MarketCalendar.trading_days_elapsed(pos["entry_date"], sim_date)
 
             if pos["entry_price"] <= 0:
                 raise ValueError(f"Invalid entry price for {symbol}: {pos['entry_price']} <= 0. Cannot calculate P&L.")
@@ -353,7 +357,7 @@ def run_backtest(  # noqa: C901
             exit_price = final_prices[symbol]
             pnl_dollars = (exit_price - pos["entry_price"]) * pos["shares"]
             pnl_pct_final = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
-            hold_days = (final_date - pos["entry_date"]).days
+            hold_days = MarketCalendar.trading_days_elapsed(pos["entry_date"], final_date)
             capital += pos["shares"] * exit_price
 
             completed_trades.append(

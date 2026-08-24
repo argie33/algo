@@ -1321,6 +1321,30 @@ def run(
                             with DatabaseContext("write") as cur:
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
+                                    # BROKER SYNC (2026-08-24): this write only ever updated our own DB's
+                                    # belief about the stop. The bracket order's stop-loss leg placed once at
+                                    # entry (order_manager.send_bracket_order) kept resting at the broker at
+                                    # its ORIGINAL, wider price forever - nothing pushed a trailed stop back
+                                    # to Alpaca, so a fast move between orchestrator runs could blow through
+                                    # the stop we thought we'd raised with nothing live at the exchange to
+                                    # catch it. Same fix as executor_exit_handler.py's _raise_stop - fail
+                                    # closed: don't record the raise if we can't confirm the broker matches.
+                                    cur.execute(
+                                        "SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s",
+                                        (rec["trade_id"],),
+                                    )
+                                    order_id_row = cur.fetchone()
+                                    alpaca_order_id = order_id_row[0] if order_id_row else None
+                                    if trade_executor is None:
+                                        raise RuntimeError(
+                                            "[PHASE 6] trade_executor unavailable - cannot sync stop-loss to broker"
+                                        )
+                                    sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
+                                        alpaca_order_id, rec["new_stop_recommended"]
+                                    )
+                                    if not sync_result.get("success"):
+                                        raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
+
                                     # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
                                     # Position monitor recommends updates to current_stop_price for trailing stop adjustments
                                     # DB-LEVEL MONOTONICITY GUARD (2026-08-10): position_monitor.py's own recommendation

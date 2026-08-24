@@ -199,7 +199,7 @@ class ExitHandler:
         def _raise_stop(cursor: PsycopgCursor[Any]) -> dict[str, Any]:
             # Validate position has existing stop price (cannot raise NULL stop)
             cursor.execute(
-                """SELECT p.current_stop_price FROM algo_positions p
+                """SELECT p.current_stop_price, t.alpaca_order_id FROM algo_positions p
                    JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                    WHERE t.trade_id = %s
                      AND p.status = %s
@@ -231,6 +231,28 @@ class ExitHandler:
                     "full_exit": False,
                     "is_estimated_price": False,
                     "message": f"Stop raise rejected: new stop ${new_stop_price:.2f} not above existing ${existing_stop[0]:.2f}",
+                }
+
+            # Push the raised stop to the live resting broker order BEFORE recording it as
+            # "raised" in our own DB. Without this, current_stop_price was purely a belief in
+            # our database - the bracket order's stop-loss leg placed once at entry (see
+            # order_manager.send_bracket_order) kept resting at the broker at its ORIGINAL,
+            # wider price forever, so a fast move between orchestrator runs could blow through
+            # the stop we thought we'd raised with nothing live at the exchange to catch it.
+            # Fail closed: if we can't confirm the broker is actually protecting at this level,
+            # don't tell our own system it is.
+            sync_result = self.context._sync_bracket_stop_loss(existing_stop[1], new_stop_price)
+            if not sync_result.get("success"):
+                return {
+                    "success": False,
+                    "trade_id": trade_id,
+                    "shares_exited": 0,
+                    "profit_loss_dollars": None,
+                    "profit_loss_pct": None,
+                    "r_multiple": None,
+                    "full_exit": False,
+                    "is_estimated_price": False,
+                    "message": f"Stop raise rejected: broker sync failed - {sync_result.get('message')}",
                 }
 
             cursor.execute(

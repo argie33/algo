@@ -4,8 +4,10 @@ Migration 010: Add mfe_pct and mae_pct columns to algo_trades table.
 
 These columns track Maximum Favorable Excursion (MFE) and Maximum Adverse
 Excursion (MAE) - the best and worst prices reached during a trade's lifetime.
-They are computed by algo_daily_reconciliation.py and used by the API to
-display trade analysis and performance metrics.
+They are computed by utils/trade_metrics.py (wired into
+DailyReconciliation.run_daily_reconciliation() in algo/infrastructure/reconciliation.py,
+formerly algo_daily_reconciliation.py before the module consolidation in `dbe4a650c`) and
+used by the API to display trade analysis and performance metrics.
 """
 
 from utils.db.context import DatabaseContext

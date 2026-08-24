@@ -231,6 +231,7 @@ class TradeExecutor:
             validate_entry_conditions_fn=self._validate_entry_conditions,
             submit_and_validate_order_fn=self._submit_and_validate_order,
             cancel_bracket_orders_fn=self._cancel_bracket_orders,
+            sync_bracket_stop_loss_fn=self._sync_bracket_stop_loss,
             verify_order_status_fn=self._verify_order_status,
             get_order_filled_quantity_fn=self._get_order_filled_quantity,
             send_alpaca_exit_fn=self._send_alpaca_exit,
@@ -736,6 +737,9 @@ class TradeExecutor:
 
     def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
         return self.order_manager.cancel_bracket_orders(alpaca_order_id)
+
+    def _sync_bracket_stop_loss(self, alpaca_order_id: str | None, new_stop_price: float) -> dict[str, Any]:
+        return self.order_manager.sync_bracket_stop_loss(alpaca_order_id, new_stop_price)
 
     def _verify_order_status(self, alpaca_order_id: str) -> str | None:
         return self.order_manager.verify_order_status(alpaca_order_id)

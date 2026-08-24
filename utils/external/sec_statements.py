@@ -1435,6 +1435,42 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     if derived_fp is None:
                         continue
                     fp = derived_fp
+                elif (
+                    period == "quarterly"
+                    and not start_date
+                    and has_december_fiscal_year_end
+                    and entry.get("end")
+                    and len(entry["end"]) >= 7
+                ):
+                    # BUG FOUND 2026-08-24 (goal session: real-money-readiness audit,
+                    # quarterly_balance_sheet residual follow-up): an instant fact's own fp
+                    # tag reflects the FILING's reporting period, not the fact's own period -
+                    # the exact same filing-context-vs-fact-identity conflation this file
+                    # already documents for fy (see "Use period end year..." below) and for
+                    # fp when it's mistagged 'FY' (the AGNC case just above). This is a THIRD
+                    # variant: fp already looks like a normal Q1-Q4 tag (so the branch above
+                    # never fires), but the fact is actually a prior-period comparative echo
+                    # that its own filing never re-tagged with a genuine current-period value
+                    # for this concept - live-confirmed via CCLD: its Q1/Q2/Q3 2021 10-Qs each
+                    # have exactly ONE Assets fact, end=2020-12-31 (the FY2020 year-end
+                    # comparative), tagged fp='Q1'/'Q2'/'Q3' (borrowed from the FILING's own
+                    # quarter) - so it passes the accn-latest-end-date filter above (it's the
+                    # only Assets fact in that accn) and, untouched, would collide with the
+                    # real Q1/Q2/Q3 2020 facts' own (2020, 'Q1'/'Q2'/'Q3') keys, winning via
+                    # the "prefer latest end date" tiebreak below and silently overwriting
+                    # them with the FY-end value. A universe-wide scan for this exact
+                    # single-quarter-aliasing signature found 53 symbols, including
+                    # actively-traded large/mid-caps (BX, BN, AES), not just micro-caps.
+                    # Always deriving fp from the fact's own end date (already trusted
+                    # elsewhere in this file - see period_year below - as more reliable than
+                    # any SEC period label) instead of trusting a syntactically-valid-looking
+                    # fp tag closes this: when the filer's own fp already agrees with the
+                    # end-date-derived quarter, this is a no-op; when it doesn't, the derived
+                    # quarter is the fact's real period, and the key it produces will
+                    # correctly collide with (not overwrite) the genuine same-period fact.
+                    derived_fp = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}.get(entry["end"][5:7])
+                    if derived_fp is not None:
+                        fp = derived_fp
 
                 # Use period end year as the fiscal year key, not SEC's fy field.
                 # SEC tags ALL periods in a 10-K with fy=FILING_YEAR - so prior-year

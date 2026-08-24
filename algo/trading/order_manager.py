@@ -439,6 +439,192 @@ class OrderManager:
             f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id} after {max_attempts} attempts: {last_error}"
         )
 
+    def get_order(self, alpaca_order_id: str) -> dict[str, Any] | None:
+        """Fetch the full order object (including nested `legs`) from Alpaca.
+
+        Used to discover the live child order id of a bracket's stop-loss leg -
+        Alpaca's GET /v2/orders/{id} on the PARENT bracket order returns the
+        current state of its `legs`, including whichever id is presently live
+        (the leg's original submission-time id, or a later replacement's id if
+        sync_bracket_stop_loss has already moved it once - see that method's
+        docstring for why we never cache a leg id ourselves).
+
+        Returns:
+            dict: the order object as returned by Alpaca
+            None: for paper mode orders (LOCAL-*/PENDING-* prefixes, no Alpaca record exists)
+
+        Raises OrderExecutionError if unable to fetch after retries (live mode only).
+        """
+        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
+            raise RuntimeError("Cannot fetch order without credentials and order_id")
+
+        if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            logger.debug(f"[ORDER_MANAGER] Order {alpaca_order_id} is paper mode (no live Alpaca record)")
+            return None
+
+        max_attempts = 3
+        last_error = "No attempts made"
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.get(
+                    f"{self.alpaca_base_url}/v2/orders/{alpaca_order_id}",
+                    headers={
+                        "APCA-API-KEY-ID": self.alpaca_key,
+                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                    },
+                    timeout=get_api_timeout(),
+                )
+                if resp.status_code == 200:
+                    try:
+                        data: dict[str, Any] = resp.json()
+                    except (requests.RequestException, requests.Timeout, ValueError) as e:
+                        raise RuntimeError(f"[GET_ORDER] Invalid JSON for order {alpaca_order_id}: {e}") from e
+                    return data
+
+                last_error = f"Failed to fetch order: {resp.status_code}"
+                if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[GET_ORDER] {alpaca_order_id}: {last_error} - transient, "
+                        f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                raise RuntimeError(f"[GET_ORDER] Failed to fetch order {alpaca_order_id}: {last_error}")
+            except (requests.RequestException, requests.Timeout) as e:
+                last_error = f"Error fetching order: {e!s}"
+                logger.warning(f"[GET_ORDER] {alpaca_order_id}: {last_error} (attempt {attempt + 1}/{max_attempts})")
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+
+        raise OrderExecutionError(
+            f"[GET_ORDER] Unable to fetch order {alpaca_order_id} after {max_attempts} attempts: {last_error}"
+        )
+
+    def replace_order_stop_price(self, order_id: str, new_stop_price: float) -> dict[str, Any]:
+        """PATCH /v2/orders/{order_id} to move a resting stop order's trigger price.
+
+        Alpaca implements order replacement as cancel-and-recreate under the hood:
+        a successful response is a NEW order object with a new id (the original is
+        marked 'replaced'). Callers must not cache the returned id for reuse across
+        future updates - always re-resolve the live leg via sync_bracket_stop_loss()
+        on the next trail, which re-fetches the parent order fresh each time.
+        """
+        if not self.alpaca_key or not self.alpaca_secret:
+            return {"success": False, "synced": False, "message": "Cannot replace order - Alpaca credentials missing"}
+
+        max_attempts = 3
+        last_error = "No attempts made"
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.patch(
+                    f"{self.alpaca_base_url}/v2/orders/{order_id}",
+                    headers={
+                        "APCA-API-KEY-ID": self.alpaca_key,
+                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                        "Content-Type": "application/json",
+                    },
+                    data=json.dumps({"stop_price": _quantize_price(new_stop_price)}),
+                    timeout=get_api_timeout(),
+                )
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                    except (requests.RequestException, requests.Timeout, ValueError) as e:
+                        return {
+                            "success": False,
+                            "synced": False,
+                            "message": f"Replace order response is invalid JSON: {e}",
+                        }
+                    new_id = data.get("id")
+                    return {
+                        "success": True,
+                        "synced": True,
+                        "new_order_id": new_id,
+                        "message": f"Stop-loss order {order_id} replaced, new stop_price={new_stop_price:.4f} (new order id {new_id})",
+                    }
+
+                last_error = f"Failed to replace order: {resp.status_code} {resp.text[:200]}"
+                if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[REPLACE_ORDER] {order_id}: {last_error} - transient, "
+                        f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                return {"success": False, "synced": False, "message": last_error}
+            except (requests.RequestException, requests.Timeout) as e:
+                last_error = f"Error replacing order: {e!s}"
+                logger.warning(f"[REPLACE_ORDER] {order_id}: {last_error} (attempt {attempt + 1}/{max_attempts})")
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+
+        return {
+            "success": False,
+            "synced": False,
+            "message": f"Failed to replace order {order_id} after {max_attempts} attempts: {last_error}",
+        }
+
+    def sync_bracket_stop_loss(self, parent_alpaca_order_id: str | None, new_stop_price: float) -> dict[str, Any]:
+        """Push a trailed/raised stop-loss to the live resting broker order.
+
+        This is the fix for a real gap: exit_engine.py computes an improved stop
+        (breakeven move at T1, chandelier ATR trail, etc.) and persists it to
+        algo_positions.current_stop_price - but the bracket order's stop-loss leg,
+        submitted once at entry (send_bracket_order), otherwise keeps resting at the
+        broker at its ORIGINAL price forever. Nothing previously pushed a trailed
+        stop back to Alpaca, so the "trail" was purely a belief in our own database:
+        the position was only really protected at the wider, stale entry-time level
+        between orchestrator runs, not at the level we thought we'd raised it to.
+
+        Deliberately not implemented as an Alpaca-native `trailing_stop` order type:
+        our stop logic isn't a fixed trail percent/dollar amount - it jumps to
+        breakeven at T1, trails 3xATR (chandelier) or 21-EMA after that, per
+        exit_engine.py's documented exit hierarchy. A native trailing_stop order
+        can't express that, so we keep our own computation and push it to a plain
+        stop order via replace instead.
+
+        Returns success=True, synced=False (not an error) when there's no live
+        broker order to sync - paper-mode LOCAL-/PENDING- orders, or a position
+        with no alpaca_order_id at all (e.g. manually imported) - callers should
+        still proceed with their own DB update in that case, same as every other
+        broker-optional path in this class.
+        """
+        if not parent_alpaca_order_id or parent_alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            return {"success": True, "synced": False, "message": "No live Alpaca order to sync (paper/local mode)"}
+
+        order = self.get_order(parent_alpaca_order_id)
+        if order is None:
+            return {"success": True, "synced": False, "message": "No live Alpaca order to sync (paper/local mode)"}
+
+        legs = order.get("legs") or []
+        live_statuses = {"new", "accepted", "held", "pending_new", "accepted_for_bidding"}
+        stop_leg = next(
+            (
+                leg
+                for leg in legs
+                if isinstance(leg, dict) and leg.get("order_type") == "stop" and leg.get("status") in live_statuses
+            ),
+            None,
+        )
+        if stop_leg is None:
+            return {
+                "success": False,
+                "synced": False,
+                "message": (
+                    f"No live stop-loss leg found on order {parent_alpaca_order_id} - "
+                    f"leg statuses: {[(leg.get('order_type'), leg.get('status')) for leg in legs if isinstance(leg, dict)]}. "
+                    "Position may already be closing at the broker."
+                ),
+            }
+
+        stop_leg_id = stop_leg.get("id")
+        if not stop_leg_id:
+            return {"success": False, "synced": False, "message": "Stop-loss leg missing order id"}
+
+        return self.replace_order_stop_price(stop_leg_id, new_stop_price)
+
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
 

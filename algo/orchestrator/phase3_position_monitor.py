@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.error_classifier import PhaseErrorClassifier
 from algo.orchestrator.phase_data_contract import validate_phase_data
@@ -387,7 +388,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                         # Calculate enrichment fields: days held and ladder % to stop
                         # Use authoritative db_today from database (not run_date parameter which may be stale)
-                        days_since_entry = (db_today - entry_date).days if entry_date else 0
+                        # Trading-day-aware (not calendar days) so a weekend/holiday inside the hold
+                        # period doesn't inflate this past algo/trading/exit_engine.py's real days_held -
+                        # same bug class fixed there and in algo/monitoring/position_monitor.py.
+                        days_since_entry = (
+                            MarketCalendar.trading_days_elapsed(entry_date, db_today) if entry_date else 0
+                        )
                         # CRITICAL FIX: Clamp negative days to 0 (same-day entries should be 0, not negative)
                         # Negative values indicate data corruption (e.g., entry_date > current_date)
                         # which causes the exit engine to block all exits
