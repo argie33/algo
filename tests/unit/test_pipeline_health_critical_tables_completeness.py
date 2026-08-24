@@ -47,3 +47,31 @@ class TestPipelineHealthCriticalTablesCompleteness:
             f"'{date_column}' must be in SAFE_COLUMNS or check_table_health() raises "
             "'Unknown column ... (not in whitelist)' for algo_portfolio_snapshots"
         )
+
+
+class TestStockScoresSlaMatchesRealCadence:
+    """Regression test for the 2026-08-24 fix ("scores stale but loader health OK"
+    goal session): stock_scores sat at sla_days=5 in CRITICAL_TABLES since this table
+    was first added, 5x looser than utils/validation/freshness_config.py's canonical
+    max_age_days=1 and phase1_data_freshness.py's real ~1-trading-day requirement.
+
+    log_health_check() writes this sweep's HEALTHY/STALE verdict straight to
+    data_loader_status.status, which lambda/api/routes/algo_handlers/monitoring.py's
+    loader_health check (`/api/algo/freshness/extended`) trusts with no independent
+    age check - so a real 2-4 day stock_scores staleness (correctly flagged STALE by
+    the dashboard SCORES panel's check_data_freshness(warning_days=1)) still wrote
+    status='HEALTHY' here, making the Loader Health panel report "all healthy" while
+    SCORES showed "STALE" for days. Same bug class as the 2026-08-16 fix for
+    market_exposure_daily/market_health_daily/algo_risk_daily above.
+    """
+
+    def test_stock_scores_sla_matches_freshness_config(self):
+        assert PipelineHealth.CRITICAL_TABLES["stock_scores"]["sla_days"] == 1, (
+            "stock_scores sla_days should match freshness_config.py's canonical max_age_days=1"
+        )
+
+    def test_stock_scores_is_trading_day_cadence(self):
+        assert "stock_scores" in PipelineHealth.TRADING_DAY_CADENCE_TABLES, (
+            "stock_scores needs weekend-gap adjustment now that its sla_days is tight (1) - "
+            "it's only computed from price_daily/technical_data_daily, both already trading-day cadence"
+        )

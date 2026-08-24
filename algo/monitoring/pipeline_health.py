@@ -146,7 +146,27 @@ class PipelineHealth:
         "price_daily": {"date_column": "date", "sla_days": 1},
         "buy_sell_daily": {"date_column": "date", "sla_days": 1},
         "technical_data_daily": {"date_column": "date", "sla_days": 1},
-        "stock_scores": {"date_column": "updated_at", "sla_days": 5},
+        # FIX (goal 2026-08-24: "scores stale but loader health OK" investigation):
+        # sla_days was 5 here (unchanged since this table was first added) despite
+        # utils/validation/freshness_config.py's canonical FRESHNESS_RULES already
+        # documenting max_age_days=1 for stock_scores, and despite
+        # phase1_data_freshness.py enforcing the same real ~1-trading-day cadence.
+        # This sweep runs unconditionally on every orchestrator run and writes its
+        # verdict straight to data_loader_status.status/stale_threshold_days
+        # (log_health_check() below) - lambda/api/routes/algo_handlers/monitoring.py's
+        # loader_health check (`/api/algo/freshness/extended`) trusts that status
+        # string directly with no independent age check of its own. With sla_days=5,
+        # a real 2-4 day staleness in stock_scores (which Phase 1 and the dashboard
+        # SCORES panel's check_data_freshness(warning_days=1) both correctly flag)
+        # still wrote status='HEALTHY' here, so the Loader Health panel reported "all
+        # healthy" for days while the SCORES panel showed "STALE" - the exact
+        # contradiction this goal session was opened to explain. Same bug class as the
+        # 2026-08-16 fix for market_exposure_daily/market_health_daily/algo_risk_daily
+        # (see their own comments above) - not a stale-SLA false positive fixed with a
+        # config bump, but a too-generous SLA masking a real one, so the fix here
+        # tightens the pipeline_health.py value down to match, rather than loosening
+        # freshness_config.py to match it.
+        "stock_scores": {"date_column": "updated_at", "sla_days": 1},
         "economic_data": {"date_column": "date", "sla_days": 7},
         "market_health_daily": {"date_column": "date", "sla_days": 1},
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
@@ -218,6 +238,12 @@ class PipelineHealth:
             "algo_performance_daily",
             "signal_quality_scores",
             "trend_template_data",
+            # ADDED alongside the sla_days 5->1 fix above (goal 2026-08-24): stock_scores
+            # is computed from price_daily/technical_data_daily, both already trading-day
+            # cadence tables - without this, tightening its SLA to 1 day would produce a
+            # false STALE every Monday/after a market holiday, the exact false-positive
+            # this set exists to prevent.
+            "stock_scores",
         }
     )
 
