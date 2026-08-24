@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from algo.infrastructure.market_calendar import MarketCalendar
 from utils.validation.framework import safe_float
 
 from .api_data_layer import api_call
@@ -27,40 +26,24 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
     (>7 days old), Phase 9 orchestration may be halted or failed - check orchestration
     logs and algo_portfolio_snapshots table for recent updates.
 
-    Non-trading days: On weekends and holidays, portfolio data is NOT updated because
-    Phase 9 only runs during trading days. Freshness check is relaxed on non-trading days
-    to accept data from the last trading day.
+    Freshness (including the Friday->Monday gap and non-trading-day grace periods) is
+    determined entirely by the API's own `data_freshness.is_stale` field below - see the
+    is_stale_from_api check - not computed locally. The API has direct database access
+    and can timestamp accurately; a client-side wall-clock/MarketCalendar recomputation
+    here would just be a second, weaker copy of that same judgment.
+
+    REMOVED 2026-08-24 (real-money-readiness goal session): this docstring used to
+    describe a local "1 hour / 72 hour grace period" computation (is_trading_day,
+    now_et, market_close_time) that looked like it enforced the policy described above -
+    every one of its branches was a bare `pass`, so it computed real values and then
+    discarded them, doing nothing. The real enforcement was always the is_stale_from_api
+    check further down (same class of bug already fixed for the TRADES panel in
+    `7b7352c13` - "backend freshness data silently dropped" - just the inverse: here the
+    backend check was real and a dead local check sat unused beside it, not missing).
     """
     try:
         data = api_call("/api/algo/portfolio")
         port = data
-
-        # Determine appropriate max_age_seconds based on market status
-        # CRITICAL FIX: Account for Friday→Monday gap where portfolio data can be 60+ hours old
-        # On trading days AFTER market opens: data must be fresh (5 min) since Phase 9 runs daily at close
-        # On trading days BEFORE/EARLY: accept data from previous trading day (up to 72 hours for Fri→Mon)
-        # On non-trading days: accept data from last trading day
-        is_trading_day = MarketCalendar.is_trading_day()
-        if is_trading_day:
-            # TRADING DAY: Check if market has closed (4:00 PM ET)
-            from datetime import datetime
-            from datetime import time as dt_time
-            from zoneinfo import ZoneInfo
-
-            et = ZoneInfo("America/New_York")
-            now_et = datetime.now(et)
-            market_close_time = dt_time(16, 0)  # 4:00 PM ET
-
-            if now_et.time() >= market_close_time:
-                # After market close (4:00 PM): Phase 9 should run soon, expect fresh data
-                pass  # 1 minute grace
-            else:
-                # Before/during market hours: accept data from previous trading day (up to 72 hours)
-                # This handles Friday→Monday gap where data from Friday (4 PM) is still valid Mon morning
-                pass  # 1 hour grace for trading day pre-close
-        else:
-            # Non-trading days (weekends/holidays): accept data from last trading day (extended to account for long gaps)
-            pass  # 1 hour grace period for non-trading days (clock skew, processing delays)
 
         # Comprehensive validation using FetcherValidator
         required_fields = [
