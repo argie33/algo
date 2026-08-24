@@ -136,6 +136,21 @@ class MarketCalendar:
         return set(MarketCalendar.get_trading_days(start, end))
 
     @staticmethod
+    def trading_days_elapsed(start: _date, end: _date) -> int:
+        """Count full trading sessions between two dates - trading-day aware (not
+        calendar days) so weekends/holidays don't inflate holding-period math (e.g.
+        an entry held over a weekend shouldn't count 2 extra "days held" for rules
+        like max_hold_days that are meant to measure market sessions).
+
+        Returns 0 when start == end. Returns a negative count when end < start
+        (signals bad input to callers, matching the pre-existing clamp-and-warn
+        pattern in exit_engine.py/position_monitor.py rather than raising here).
+        """
+        if end < start:
+            return -(len(MarketCalendar.get_trading_days(end, start)) - 1)
+        return len(MarketCalendar.get_trading_days(start, end)) - 1
+
+    @staticmethod
     def is_early_close(check_date: _date | None = None) -> bool:
         if not check_date:
             # Eastern Time, not system-local date.today() - see is_trading_day's identical fix.

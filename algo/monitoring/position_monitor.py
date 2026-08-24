@@ -37,6 +37,7 @@ from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.config.api_endpoints import get_alpaca_base_url
 from algo.config.credential_manager import get_alpaca_credentials, get_credential_manager
+from algo.infrastructure.market_calendar import MarketCalendar
 from algo.trading.exceptions import ExchangeAPIError
 from algo.trading.quote_fetcher import fetch_live_quote
 from utils.db import DatabaseContext
@@ -739,7 +740,25 @@ class PositionMonitor:
             )
             raise ValueError(f"Position {symbol}: target_hits missing. Cannot evaluate target progress.")
         target_hits = int(target_hits)
-        days_held = (current_date - trade_date).days
+        # Trading-day-aware (not calendar days) so a weekend/holiday inside the hold
+        # period doesn't inflate days_held past max_hold_days early - same bug class
+        # fixed in algo/trading/exit_engine.py's days_held/stale_trading_days.
+        _current_date_for_hold = current_date.date() if isinstance(current_date, datetime) else current_date
+        days_held = MarketCalendar.trading_days_elapsed(trade_date, _current_date_for_hold)
+        # FIXED 2026-08-24 (real-money-readiness goal session): exit_engine.py's identical
+        # days_held computation clamps a negative result to 0 and logs a data-corruption
+        # warning (trade_date in the future - e.g. a bad DB write); this call site computed
+        # the same quantity but silently used the raw negative value with no warning. Harmless
+        # for today's `days_held >= N` comparisons below (a negative value just never trips
+        # them), but it hid a real corruption signal and diverged from the sibling fix's own
+        # stated behavior. Matched here for consistency.
+        if days_held < 0:
+            logger.warning(
+                f"{symbol}: days_held is negative ({days_held}) - data corruption detected. "
+                f"Clamping to 0 for position evaluation. "
+                f"trade_date={trade_date}, current_date={_current_date_for_hold}"
+            )
+            days_held = 0
         try:
             max_hold = int(self.config["max_hold_days"])
         except KeyError as e:

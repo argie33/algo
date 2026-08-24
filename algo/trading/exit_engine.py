@@ -1020,7 +1020,10 @@ class ExitEngine:
                         if prev_close is not None and (math.isnan(prev_close) or math.isinf(prev_close)):
                             raise ValueError(f"{symbol}: prev_close={prev_close} is not a finite number")
 
-                        days_held = (current_date - trade_date).days
+                        # Trading-day-aware (not calendar days) so a weekend/holiday inside the
+                        # hold period doesn't inflate days_held past max_hold_days early - same
+                        # bug class as the market_dist_days staleness check below in this file.
+                        days_held = MarketCalendar.trading_days_elapsed(trade_date, current_date)
 
                         # CRITICAL FIX: Clamp negative days_held to 0 (same-day entries should have 0 days, not negative)
                         # Negative values indicate data corruption (e.g., entry_date set to future date by mistake)
@@ -1822,7 +1825,7 @@ class ExitEngine:
         row_date = row[3]
         check_date = current_date.date() if isinstance(current_date, datetime) else current_date
         if row_date < check_date:
-            stale_trading_days = len(MarketCalendar.get_trading_days(row_date, check_date)) - 1
+            stale_trading_days = MarketCalendar.trading_days_elapsed(row_date, check_date)
             if stale_trading_days > MARKET_DIST_DAYS_MAX_STALE_TRADING_DAYS:
                 raise RuntimeError(
                     f"[MARKET_DIST_DAYS_STALE] Market distribution data for {current_date} falls back to "
