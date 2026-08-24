@@ -75,9 +75,19 @@ from .data_extractors import safe_get_field
 
 
 def _rdelta(r: Any, wk: str = "rank_1w_ago", wk4: str | None = None) -> str:
-    """Format rank delta: show change and direction arrow."""
+    """Format rank delta: show change and direction arrow.
+
+    BUG FOUND 2026-08-24 (real-money-readiness goal, dashboard.py panel sweep): `wk4` was
+    accepted as a parameter but never referenced in the body - every caller passing
+    `wk4="rank_4w_ago"` (sector rankings, both compact and expanded views) silently got the
+    1-week delta anyway, mislabeled by the panel's own header text ("rank change vs
+    1wk/4wk"). Industries intentionally use only `wk` (1wk, per their own "↑↓1wk" header) -
+    unaffected. `rank_4w_ago` is a real field both lambda/api/routes/sectors.py and
+    industries.py already return.
+    """
     cur = safe_get_field(r, "current_rank")
-    prev = safe_get_field(r, wk)
+    field = wk4 if wk4 is not None else wk
+    prev = safe_get_field(r, field)
     if cur is None or prev is None:
         return "--"
     delta = prev - cur
