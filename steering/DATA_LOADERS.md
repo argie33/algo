@@ -4,6 +4,35 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## ADDED 2026-08-24: capital_routing_daily - NOT a standalone loader, computed inline
+
+`capital_routing_daily` (GLD/IEF/DBC/cash leftover-capital router - see
+`algo/risk/capital_routing.py`'s module docstring for the full design) does not have its own
+entry in the 4 Step Functions pipelines above and never will by design - it is computed inline
+by `loaders/load_market_status_daily.py` immediately after `MarketExposure().compute()`
+(same file, same run), not scheduled as a separate loader. If you're looking for a
+"load_capital_routing.py" script or a Step Functions state for it, it doesn't exist - check
+`load_market_status_daily.py`'s success/failure instead when troubleshooting a stale or
+missing `capital_routing_daily` row.
+
+**Freshness troubleshooting:** `monitor_data_staleness.py` and Phase 1 do NOT track this table
+(it's downstream of exposure, not a phase input) - the only freshness signal is
+`capital_routing_daily.date`/`updated_at` itself, or the per-leg staleness fields inside
+`factors.legs.<SYMBOL>.reason` (each of GLD/IEF/DBC independently guards against >3 trading
+days stale on `price_daily`, >10 on `price_weekly`; `^MOVE` allows 5). A leg going
+`data_unavailable` here almost always means its underlying `price_daily`/`price_weekly` feed
+stopped, not a bug in this module - check `SELECT symbol, max(date) FROM price_daily WHERE
+symbol IN ('IEF','DBC','^MOVE') GROUP BY symbol` first (IEF/DBC only started being fetched
+2026-08-24 when they were added to `MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS` - a fresh
+local DB won't have history for them until the price loader has run at least once since).
+
+**Surfaced to operators** (2026-08-24, `528f7c81d`/`872a9e8f9`): `/api/algo/markets`'s
+`capital_routing` key, the TUI's "CAPITAL ROUTING" panel (row r2 of the main dashboard layout),
+and the web Markets Health page's Capital Routing card all read the same latest row - no
+separate endpoint or table to keep in sync.
+
+---
+
 ## FIXED 2026-08-17: sec_valuations.total_debt was total_liabilities the entire time, not any debt concept
 
 Continuation of the loader-review goal ("getting all the data we can and should from SEC XBRL
