@@ -228,6 +228,26 @@ class DailyReconciliation:
                 if resolve_result["resolved"] > 0:
                     logger.info(f"[RECONCILIATION] {resolve_result['message']}")
 
+                # BUG FOUND 2026-08-24 (goal session): backfill_all_trade_metrics() (MFE/MAE/
+                # R-multiple/duration) was wired into run_daily_reconciliation() by an earlier
+                # fix this same day (see mfe_mae_never_computed_wired_into_reconciliation_20260824
+                # in memory) - but only into the execution_mode=="auto" branch further down this
+                # method, past the `if self.broker is None: ... return result` this whole branch
+                # ends with. Every paper/dry/local-mode run (which is 100% of what local dev, and
+                # this system's entire pre-live-money verification phase, actually executes) took
+                # THIS branch and returned before ever reaching that call - so mfe_pct/mae_pct
+                # stayed permanently NULL for every paper trade despite the "fix" being live on
+                # main, confirmed via a live DB check (algo_trades: 0/66+ closed trades across
+                # 2026-08-12 through today have a non-NULL mfe_pct going back to before the fix
+                # even existed). Idempotent (see backfill_all_trade_metrics()'s own docstring),
+                # safe to call unconditionally here too, mirroring the auto-mode call site.
+                backfill_result = backfill_all_trade_metrics(resolve_cur)
+                if "total_updated" in backfill_result:
+                    logger.info(
+                        f"[RECONCILIATION] Paper mode: backfilled MFE/MAE/R-multiple/duration for "
+                        f"{backfill_result['total_updated']} trade(s)"
+                    )
+
             # Query actual positions and portfolio value from database instead of hardcoding
             from decimal import Decimal
 
