@@ -598,6 +598,7 @@ class LivePerformance:
                     avg_loss_pct_val = None
                     avg_r_val = avg_win_r_val  # avg_win_r is the avg R-multiple
 
+                    profit_factor_val = None
                     if wr:
                         total_trades_val = wr.get("win_count", 0) + wr.get("loss_count", 0)
                         num_wins_val = wr.get("win_count")
@@ -605,14 +606,34 @@ class LivePerformance:
                         avg_win_pct_val = wr.get("avg_win_pct")
                         avg_loss_pct_val = wr.get("avg_loss_pct")
 
+                        # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven sweep):
+                        # profit_factor was never in this INSERT's column list at all, despite
+                        # daily_report.py already reading and displaying algo_performance_daily's
+                        # own profit_factor column (with a graceful "N/A" fallback for exactly
+                        # this NULL case) and reconciliation_analytics.py already implementing
+                        # the equivalent dollar-based calculation elsewhere for a different
+                        # table - live-confirmed permanently NULL across every existing row.
+                        # This uses the same %-based inputs already computed above (win_rate()
+                        # reports avg_win_pct/avg_loss_pct, not dollar amounts) - gross win% /
+                        # gross loss% is the standard percentage-based profit factor proxy.
+                        # Matches reconciliation_analytics.py's own documented convention: do
+                        # NOT fabricate 0.0 when undefined (no losing trades yet) - leave NULL,
+                        # a real "not enough data" signal, not a false "breakeven" reading.
+                        if num_wins_val and num_losses_val and avg_win_pct_val is not None and avg_loss_pct_val:
+                            gross_loss_pct = abs(float(avg_loss_pct_val) * num_losses_val)
+                            if gross_loss_pct > 0:
+                                gross_win_pct = float(avg_win_pct_val) * num_wins_val
+                                profit_factor_val = round(gross_win_pct / gross_loss_pct, 3)
+
                     cur.execute(
                         """
                         INSERT INTO algo_performance_daily (
                             report_date, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
                             win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
                             max_drawdown_pct, total_trades, num_wins, num_losses,
-                            avg_win, avg_loss, avg_r, win_rate_all, total_pnl_dollars, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()::timestamp)
+                            avg_win, avg_loss, avg_r, win_rate_all, total_pnl_dollars,
+                            profit_factor, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()::timestamp)
                         ON CONFLICT (report_date) DO UPDATE SET
                             rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                             rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
@@ -630,6 +651,7 @@ class LivePerformance:
                             avg_r = EXCLUDED.avg_r,
                             win_rate_all = EXCLUDED.win_rate_all,
                             total_pnl_dollars = EXCLUDED.total_pnl_dollars,
+                            profit_factor = EXCLUDED.profit_factor,
                             updated_at = NOW()::timestamp
                         """,
                         (
@@ -650,6 +672,7 @@ class LivePerformance:
                             avg_r_val,
                             win_rate_val,
                             total_pnl_val,
+                            profit_factor_val,
                         ),
                     )
                     logger.info(
