@@ -702,7 +702,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogFredFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "NaaimSentiment"
+        Next = "EconomicCalendar"
       }
 
       LogFredFailure = {
@@ -710,6 +710,63 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name        = "economic_data"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "EconomicCalendar"
+          ResultPath  = "$.logError"
+        }]
+        Next = "EconomicCalendar"
+      }
+
+      # ── Step 8c-bis: Economic calendar (real-money-readiness goal, 2026-08-24) ──
+      # FRED release-dates (CPI/NFP/GDP/PCE) + static FOMC meeting dates. Built the same
+      # session that found terraform/modules/monitoring/loader-monitoring.tf had been
+      # monitoring this table since creation with no loader ever wired to write it - this
+      # is the production Step Functions wiring (was still missing here when the loader
+      # itself was built; local dev scheduler already had it). Fail-open like
+      # FredEconomicData right above it: forward-looking calendar dates change rarely, a
+      # missed run doesn't invalidate today's earnings_blackout/regime checks which read
+      # already-loaded rows, not worth halting the whole EOD pipeline.
+      EconomicCalendar = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["economic_calendar"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogEconomicCalendarFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "NaaimSentiment"
+      }
+
+      LogEconomicCalendarFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "economic_calendar"
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = false

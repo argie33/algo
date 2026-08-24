@@ -464,6 +464,15 @@ locals {
     # correctly fail-fast on stale data rather than serving it (was doing so for ~2 months with
     # no writer at all).
     "analyst_sentiment_analysis" = "load_analyst_sentiment_analysis.py"
+
+    # Economic calendar: forward-looking macro event dates (CPI/NFP/GDP/PCE release dates
+    # via FRED, FOMC meeting dates from the Fed's published calendar). Built 2026-08-24
+    # (real-money-readiness goal session) after finding terraform/modules/monitoring/
+    # loader-monitoring.tf had been monitoring this table since it was created, but no
+    # loader ever existed for it in git history - added to the local dev scheduler the same
+    # session; this entry is the matching production wiring (was still missing here as of
+    # 2026-08-24, found and fixed in a later same-day session).
+    "economic_calendar" = "load_economic_calendar.py"
   }
 
   # ============================================================
@@ -688,6 +697,9 @@ locals {
     # Economic data: FRED API + DXY index - straightforward data fetch
     # Timeout: 600s (10 min) - simple time-series fetch, no volume computation
     "economic_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Economic calendar: FRED release-dates API + a small static FOMC date list - same
+    # profile as economic_data above (simple, fast, no per-symbol volume).
+    "economic_calendar" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Financial statements (SEC EDGAR, all 8 statement/period combos in single task)
     # Session 92: per-symbol incremental loading @ 2 req/sec SEC API = ~40 min base + overhead
