@@ -2612,7 +2612,28 @@ def _get_scores_coverage(cur: cursor) -> Any:
             if t in _seen_source_tables:
                 continue
             _seen_source_tables.add(t)
-            for s in table_source_cache.get(t) or []:
+            # BUG FOUND 2026-08-24 (goal session data-source audit): a table with
+            # source_tracking (positioning_metrics today) has MULTIPLE independently-sourced
+            # fields (short_interest/institutional/insider) but only ONE flat table-wide
+            # data_source column, which picks a single winning field per row (see
+            # load_positioning_metrics.py: short_interest_source wins over
+            # institutional/insider whenever short-interest data exists, true for ~95% of
+            # symbols). Summing table_source_cache here counted every row as "FINRA" even
+            # for symbols whose institutional_ownership_pct/insider_ownership_pct came from
+            # SEC 13F/Form 4-5 - live-confirmed this collapsed ~4,100 real SEC-sourced rows
+            # for each of those two fields into the FINRA bucket, undercounting SEC Form
+            # 13F/Form 4-5 in this summary by >99% versus their true per-factor breakdown
+            # (_resolve_factor_sources, unaffected by this bug). Sum each of the table's
+            # source_tracking fields separately when present - each field is a real,
+            # independent source population - falling back to the flat data_source rollup
+            # only for tables with no source_tracking column at all.
+            st_detail = table_source_tracking_cache.get(t)
+            per_table_sources = (
+                [s for field_breakdown in st_detail.values() for s in field_breakdown]
+                if st_detail
+                else (table_source_cache.get(t) or [])
+            )
+            for s in per_table_sources:
                 label = s["label"]
                 source_totals[label] = source_totals.get(label, 0) + s["count"]
                 source_labels[label] = label

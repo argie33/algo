@@ -168,6 +168,54 @@ def test_summary_source_rollup_merges_same_label_across_tables():
     assert summary["source_labels"] == {"FINRA": "FINRA"}
 
 
+def test_summary_rollup_sums_source_tracking_fields_not_flat_table_winner():
+    """FIX 2026-08-24 (goal: data-source accuracy review): the summary rollup counted each
+    table's data_source distribution ONCE per table using the flat winner-take-all
+    `data_source` column - fine for a single-source table, but positioning_metrics has THREE
+    independently-sourced fields (short_interest/institutional/insider) collapsed into one
+    column that always picks short_interest_source when short-interest data exists (true for
+    ~95% of symbols). Live-confirmed this misattributed ~4,100 real SEC 13F/Form 4-5 rows per
+    field to FINRA in the summary while the per-factor breakdown (unaffected) showed the
+    correct split - the top-level Data Sources chart understated real SEC coverage by >99%
+    for those two fields. Now sums each source_tracking field separately when present."""
+
+    class _MultiFieldTableCursor(_DataSourceCursor):
+        def fetchall(self):
+            q = self._last_query
+            if "SELECT table_name, column_name" in q:
+                return [("fake_positioning", "short_interest_pct_unavailable_reason")]
+            if "information_schema.columns" in q and "IN ('symbol','date'" in q:
+                return [("symbol",), ("date",), ("data_source",), ("source_tracking",)]
+            if "data_source AS source_val" in q:
+                # Flat table-wide winner: FINRA dominates every row since short-interest data
+                # exists almost everywhere - must NOT be what the summary sums.
+                return [("finra", 95), ("unavailable", 5)]
+            if "kv.field_key" in q:
+                return [
+                    ("short_interest", "finra", 95),
+                    ("short_interest", "unavailable", 5),
+                    ("institutional", "sec_13f", 80),
+                    ("institutional", "unavailable", 20),
+                    ("insider", "sec_form4", 70),
+                    ("insider", "unavailable", 30),
+                ]
+            if "short_interest_pct_unavailable_reason AS reason_val" in q:
+                return [("missing_finra_data", 5)]
+            return []
+
+    cursor = _MultiFieldTableCursor()
+    resp = scores_mod._get_scores_coverage(cursor)
+    assert resp["statusCode"] == 200
+    summary = resp["data"]["summary"]
+
+    # All three fields' real source populations must be counted, not just the flat
+    # short_interest-dominated winner repeated once.
+    assert summary["source_totals"]["FINRA"] == 95
+    assert summary["source_totals"]["SEC Form 13F"] == 80
+    assert summary["source_totals"]["SEC Form 4/5"] == 70
+    assert summary["source_totals"]["Unavailable"] == 5 + 20 + 30
+
+
 def test_top_10_institutions_pct_matches_institutional_source_tracking_key():
     """FIX 2026-08-24 (goal: data-source accuracy review): _resolve_factor_sources() used a
     plain `field_key in factor_name` substring check. positioning_metrics' source_tracking
