@@ -610,6 +610,18 @@ class EntryHandler:
                 f"entry_price={request.executed_price}, qty={request.shares}, "
                 f"stop={request.stop_loss_price}"
             )
+            # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven sweep continued):
+            # position_size_pct was computed (_calculate_position_size_pct) and set on every
+            # TradeInsertionRequest, but this INSERT's own column list never included it at
+            # all - not a calculation bug, a column omitted entirely from the write path,
+            # same shape as the profit_factor gap in algo/reporting/performance.py fixed
+            # earlier this session. Live-confirmed: 100/100 real algo_trades rows had
+            # position_size_pct NULL, silently degrading lambda/api/routes/risk_dashboard.py's
+            # own position-sizing audit (which explicitly logs "Position sizing audit
+            # incomplete" when this column is NULL - that log line has likely been firing on
+            # every trade). Added to ON CONFLICT UPDATE too, matching entry_price's own
+            # treatment - it's derived from entry_price/shares/portfolio_value at write time,
+            # so it should stay in sync if a retry updates entry_price for the same trade.
             cur.execute(
                 """
                 INSERT INTO algo_trades (
@@ -617,13 +629,13 @@ class EntryHandler:
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
                     signal_quality_score, trend_template_score, base_type, base_quality, stage_phase,
                     rs_percentile, market_exposure_at_entry, exposure_tier_at_entry, stop_reasoning, advanced_components,
-                    status, sector, industry, execution_mode, idempotency_key, position_id
+                    status, sector, industry, execution_mode, idempotency_key, position_id, position_size_pct
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
@@ -636,6 +648,7 @@ class EntryHandler:
                     position_id = EXCLUDED.position_id,
                     execution_mode = EXCLUDED.execution_mode,
                     status = EXCLUDED.status,
+                    position_size_pct = EXCLUDED.position_size_pct,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -667,6 +680,7 @@ class EntryHandler:
                     request.execution_mode,
                     request.idempotency_key,
                     request.position_id,
+                    request.position_size_pct,
                 ),
             )
             logger.info(

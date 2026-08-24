@@ -3391,6 +3391,25 @@ def run(
                             # signal_date is None or unexpected type
                             sig_date = run_date
 
+                        # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven
+                        # sweep continued): stage_phase/market_exposure_at_entry/
+                        # exposure_tier_at_entry were never passed here at all - live-
+                        # confirmed 0/100 real algo_trades rows had any of the three
+                        # populated, despite TradeContext.from_params/
+                        # _insert_trade_record already correctly plumbing them through
+                        # once given a value (same "computed but never passed through"
+                        # shape as the position_size_pct gap fixed the same session, just
+                        # one call-site hop earlier). stage_phase's real value was already
+                        # available on `signal` (this file's own line ~3258 already logs
+                        # signal.get("stage_phase") elsewhere), just never threaded into
+                        # this call - str()-wrapped since `signal` is a loosely-typed dict
+                        # and TradeContext.stage_phase is str | None.
+                        # market_exposure_at_entry/exposure_tier_at_entry come from
+                        # `exposure_constraints` (Phase 5's ExposureConstraints, already in
+                        # scope throughout this function) - exposure_pct/tier_name are
+                        # exactly the values these two columns are meant to snapshot at
+                        # entry time.
+                        stage_phase_raw = signal.get("stage_phase")
                         trade_result = trade_executor.execute_trade(
                             symbol=symbol,
                             entry_price=entry_price,
@@ -3406,6 +3425,9 @@ def run(
                             trend_score=trend_score,
                             base_type=signal.get("base_type"),
                             base_quality=signal.get("base_quality"),
+                            stage_phase=(str(stage_phase_raw) if stage_phase_raw is not None else None),
+                            market_exposure_at_entry=exposure_constraints.get("exposure_pct"),
+                            exposure_tier_at_entry=exposure_constraints.get("tier_name"),
                         )
                         logger.debug(f"[PHASE 8] {symbol}: Executed trade with sqs={sqs}, trend_score={trend_score}")
 
