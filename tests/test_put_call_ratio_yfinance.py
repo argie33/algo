@@ -5,9 +5,14 @@ GOVERNANCE: no official free put/call feed exists (real CBOE data is a paid feed
 PutCallRatioFetcher deliberately keeps a best-effort yfinance SPY options-chain fetch as its
 one real source - same "unofficial but real, transparently documented" tradeoff as the OHLCV
 yfinance residual fallback in utils/data/source_router.py. It is NOT dead/disabled code: real
-values it returns feed an 8%-weighted market exposure factor
-(algo/risk/factors/put_call_ratio_factor.py). A prior version of this docstring claimed
-fetch() "always returns data_unavailable... never calls yfinance" - that was false when
+values it returns feed `MarketFactorCalculator.put_call_ratio()`
+(algo/risk/market_factor_calculator.py), blended into Pillar 3's (Breadth & Sentiment) sentiment
+sub-score in algo/risk/market_exposure.py. As of the 2026-08-24 redesign, Pillar 3 carries ZERO
+composite weight (W_PILLAR_CONFIRM=0.0) - put_call_ratio is still computed and persisted for
+dashboard/context use, not as a scored composite input; the old `algo/risk/factors/
+put_call_ratio_factor.py` "8%-weighted factor" this docstring used to describe no longer exists
+(deleted in the 2026-08-23 19-factor -> pillar redesign). A prior version of this docstring
+claimed fetch() "always returns data_unavailable... never calls yfinance" - that was false when
 written and stayed false uncorrected for a while (corrected 2026-07-27, see
 steering/DATA_LOADERS.md). This test exercises the real contract: either a live-fetched value
 or an explicit data_unavailable marker on failure (no silent fallback to a fake number).

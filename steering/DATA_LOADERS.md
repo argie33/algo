@@ -812,9 +812,15 @@ NOT "unconditionally return a `data_unavailable` marker" and the yfinance option
 NOT dead code. Live-checked: `PutCallRatioFetcher._fetch_from_yfinance()`
 (`loaders/market_health_fetchers.py`) still does a real `yf.Ticker("SPY").option_chain(...)`
 call behind its own circuit breaker, `fetch()` returns real `put_call_ratio` values when it
-succeeds, and those real values are actively consumed as an 8%-weighted "HIGH-priority
-enrichment" factor in market exposure scoring (`algo/risk/factors/put_call_ratio_factor.py`,
-`algo/risk/market_factor_calculator.py`) - not inert. `tests/test_put_call_ratio_yfinance.py`
+succeeds, and those real values are actively consumed by `MarketFactorCalculator.
+put_call_ratio()` (`algo/risk/market_factor_calculator.py`), blended into Pillar 3's (Breadth &
+Sentiment) sentiment sub-score in `algo/risk/market_exposure.py` - not inert. **Update
+(2026-08-24):** the "8%-weighted... factor in market exposure scoring" description below is now
+stale on two counts - `algo/risk/factors/put_call_ratio_factor.py` no longer exists (deleted in
+the 2026-08-23 19-factor -> pillar redesign), and as of the 2026-08-24 redesign Pillar 3 itself
+carries ZERO composite weight (`W_PILLAR_CONFIRM=0.0` - see `market_exposure.py`'s "PILLAR 3
+VETO SCOPE" docstring section); put_call_ratio is still computed and persisted for
+dashboard/context use, not as a scored composite input. `tests/test_put_call_ratio_yfinance.py`
 itself already flagged this contradiction in its own docstring ("Despite Session 291 comment
 saying yfinance was removed, it still works") rather than being corrected to match. Since no
 free official CBOE put/call feed exists, keeping this working yfinance-sourced signal is the
