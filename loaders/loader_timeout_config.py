@@ -204,6 +204,12 @@ def get_loader_timeouts() -> dict[str, int]:
         "stock_symbols": 10 * 60,  # Alias for constituents
         "etf_symbols": 10 * 60,  # Alias for constituents
         "economic_data": 10 * 60,  # Alias for economic
+        # FIX 2026-08-24 (real-money-readiness goal, continued): terraform's all_loaders map
+        # added an "economic_calendar" entry (timeout=600s) the same session
+        # load_economic_calendar.py was built, but never got a matching Python config entry -
+        # test_every_terraform_loader_key_has_a_python_timeout_entry caught it as a live CI
+        # failure. Same lightweight FRED-release-dates profile as economic_data above.
+        "economic_calendar": 10 * 60,  # Matches terraform's 600s budget for load_economic_calendar.py
         "aaii_sentiment": 10 * 60,  # Alias for aaii
         "analyst_upgrade_downgrade": 90 * 60,  # Alias for analyst_upgrades (Session 99: 90m)
         "analyst_sentiment_analysis": 120 * 60,  # Alias for analyst_sentiment (Session 99: 120m)
