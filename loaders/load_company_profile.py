@@ -360,6 +360,21 @@ class CompanyProfileLoader(OptimalLoader):
             return [
                 {
                     "ticker": symbol,
+                    # BUG FOUND 2026-08-23 (goal session: sector_ranking "Unknown" bucket audit):
+                    # every fallback branch in this method omitted "symbol", unlike the success
+                    # path below (line ~433) which sets both "ticker" and "symbol". Since this
+                    # loader's UPSERT never updates "symbol" on ON CONFLICT (only sets it from the
+                    # dict on first INSERT), any ticker whose first-ever company_profile write
+                    # happened to hit a fallback branch got symbol=NULL permanently - no later run
+                    # could fix it, even after transitioning to the success path or a different
+                    # fallback branch. Live-confirmed 4 real active symbols (QVC, RCBC, BNC, SAR)
+                    # stuck with ticker set but symbol NULL, silently excluded from every other
+                    # table's `... JOIN company_profile cp ON x.symbol = cp.symbol` (the standard
+                    # join pattern used almost everywhere else in this codebase), including
+                    # algo/signals/sector_rotation.py's sector-ranking source query, where they
+                    # landed in an unexplained "Unknown" sector bucket instead of Consumer
+                    # Cyclical/Financial Services/whatever their real SIC maps to.
+                    "symbol": symbol,
                     "data_unavailable": True,
                     "reason": f"No data in company_info_sec for {symbol}",
                     "updated_at": datetime.now(EASTERN_TZ),
@@ -389,6 +404,8 @@ class CompanyProfileLoader(OptimalLoader):
             return [
                 {
                     "ticker": symbol,
+                    # See the "row is None" branch above for the full "symbol" story - same fix.
+                    "symbol": symbol,
                     "data_unavailable": True,
                     "reason": "no_sic_code_available",
                     # WATERMARK FIX (2026-08-17) - see the `row is None` branch above for the
@@ -419,6 +436,8 @@ class CompanyProfileLoader(OptimalLoader):
             return [
                 {
                     "ticker": symbol,
+                    # See the "row is None" branch above for the full "symbol" story - same fix.
+                    "symbol": symbol,
                     "data_unavailable": True,
                     "reason": f"sic_code_unmapped:{sic_code}",
                     # WATERMARK FIX (2026-08-17) - see the `row is None` branch above for the
