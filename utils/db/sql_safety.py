@@ -224,6 +224,12 @@ SAFE_COLUMNS = {
     "trade_date",
     "exit_date",
     "earnings_date",
+    # FIXED (real-money-readiness goal session, 2026-08-24): real column on
+    # earnings_calendar_sec/institutional_holdings_13f/company_info_sec/sec_segment_info/
+    # current_reports_8k/sec_material_events (confirmed via information_schema) - was missing,
+    # rejecting a legitimate staleness-check query as "not in whitelist" (see
+    # algo/monitoring/data_patrol/checks/staleness.py's earnings_calendar_sec entry).
+    "filing_date",
     "quarter",
     "date_recorded",
     "transaction_date",

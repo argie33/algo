@@ -84,15 +84,37 @@ class StalenessChecker(BaseCheck):
                 WARN,
             ),
             (
-                "insider_transactions",
-                "trade_date",
+                # FIXED (real-money-readiness goal session, 2026-08-24): "insider_transactions"
+                # is a real table in the schema (passes assert_safe_table) but has been
+                # permanently empty (0 rows) - live-confirmed. Real insider-transaction data is
+                # written to insider_transaction_velocity by
+                # loaders/load_insider_transaction_velocity.py (21,722 rows, refreshed daily).
+                # This check has therefore never actually verified insider-data freshness -
+                # every run silently logged "EMPTY table insider_transactions" at INFO and
+                # moved on, since the code already handles an empty table gracefully rather
+                # than crashing (which is exactly why this went unnoticed rather than erroring).
+                "insider_transaction_velocity",
+                "updated_at",
                 "daily",
                 staleness_thresholds["insider_transactions"],
                 INFO,
             ),
             (
+                # BUG FIX (goal 2026-08-24: "scores stale but loader health OK"
+                # investigation): was "created_at" - stock_scores is one row per symbol,
+                # refreshed via `ON CONFLICT (symbol) DO UPDATE` (loaders/load_stock_scores.py),
+                # which never touches created_at after the initial insert. MAX(created_at)
+                # across the table reflects only when the newest *symbol* was first added,
+                # not when scores were last refreshed - on a stable universe this stays
+                # old indefinitely and would WARN-stale forever regardless of real refresh
+                # recency, or falsely read fresh off one new symbol insert while every other
+                # row is actually stale. Same bug class already fixed for this exact table in
+                # lambda/api/routes/algo_handlers/signals.py:610 ("created_at is a static
+                # one-time insert stamp, not a freshness signal - updated_at is"), just never
+                # applied here. updated_at is written on every refresh - see
+                # load_stock_scores.py's `SET updated_at = CURRENT_TIMESTAMP`.
                 "stock_scores",
-                "created_at",
+                "updated_at",
                 "weekly",
                 staleness_thresholds["stock_scores"],
                 WARN,
@@ -105,15 +127,26 @@ class StalenessChecker(BaseCheck):
                 INFO,
             ),
             (
+                # BUG FIX (goal 2026-08-24, same pass as stock_scores above): growth_metrics
+                # is also one row per symbol via `ON CONFLICT (symbol) DO UPDATE` (see
+                # loaders/load_value_quality_growth_metrics.py's _insert_growth_metrics -
+                # created_at isn't even in the UPDATE SET list, only updated_at is), so
+                # created_at is the same static insert-time stamp, not a freshness signal.
                 "growth_metrics",
-                "created_at",
+                "updated_at",
                 "monthly",
                 staleness_thresholds["growth_metrics"],
                 INFO,
             ),
             (
-                "earnings_history",
-                "earnings_date",
+                # FIXED (real-money-readiness goal session, 2026-08-24): same bug class as
+                # insider_transactions above - "earnings_history" is a real, permanently-empty
+                # (0-row) table. Real earnings-calendar data is written to earnings_calendar_sec
+                # by loaders/load_earnings_calendar_sec.py (81,211 rows, refreshed daily; no
+                # earnings_date column exists on this table, filing_date is the real per-row
+                # SEC filing date). This check has never verified earnings-data freshness.
+                "earnings_calendar_sec",
+                "filing_date",
                 "quarterly",
                 staleness_thresholds["earnings_history"],
                 INFO,
