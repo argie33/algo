@@ -1510,7 +1510,7 @@ def run(  # noqa: C901
         # Fallback to config value if regime lookup fails
         logger.warning(f"[PHASE 7] Could not get regime-based min score: {e}. Falling back to config value.")
         min_composite_score = get_config_float(
-            config, "phase7_min_composite_score", "phase_7_signal_generation", default=50.0
+            config, "phase7_min_composite_score", "phase_7_signal_generation", default=60.0
         )
 
     phase_start = time.time()

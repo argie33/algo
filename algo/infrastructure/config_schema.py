@@ -180,7 +180,7 @@ VALIDATION_SCHEMA = {
     "phase1_recent_cutoff_days": ("int", 1, 30, False, 2),
     "phase1_prior_cutoff_days": ("int", 1, 30, False, 2),
     "phase1_halt_table_max_tolerance_days": ("int", 0, 10, False, 1),
-    "phase7_min_composite_score": ("int", 0, 100, False, 50),
+    "phase7_min_composite_score": ("int", 0, 100, False, 60),
     "advanced_filters_grade_threshold_aplus": ("int", 0, 100, False, 90),
     "advanced_filters_grade_threshold_a": ("int", 0, 100, False, 80),
     "advanced_filters_grade_threshold_b": ("int", 0, 100, False, 70),
