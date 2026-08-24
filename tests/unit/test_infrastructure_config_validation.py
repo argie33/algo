@@ -33,6 +33,20 @@ class TestAlgoConfigDefaults:
         assert isinstance(AlgoConfig.DEFAULTS, dict)
         assert len(AlgoConfig.DEFAULTS) > 0
 
+    def test_defaults_and_validation_schema_stay_in_sync(self):
+        """Regression test (2026-08-24, real-money-readiness goal session): a live
+        end-to-end orchestrator run crashed on EVERY phase (morning/afternoon/preclose/
+        evening) at config load with "exit_limit_slippage_buffer_bps: in DEFAULTS but NOT
+        in VALIDATION_SCHEMA" - a key was added to DEFAULTS (bb80a9947) without also
+        adding it to config_schema.py's VALIDATION_SCHEMA. AlgoConfig._validate_schema_consistency()
+        already exists specifically to catch exactly this drift, but nothing exercised it
+        before a real DB-backed orchestrator run did - this test calls the real method
+        directly (not a reimplementation of its logic) against the actual class-level
+        DEFAULTS/VALIDATION_SCHEMA dicts, with no DB access required, so this class of bug
+        fails fast in CI instead of surfacing only when the orchestrator actually runs.
+        """
+        AlgoConfig._validate_schema_consistency(AlgoConfig)
+
     def test_base_risk_pct_default_is_reasonable(self):
         """Test that base risk % is a safe default (< 1%)."""
         base_risk = AlgoConfig.DEFAULTS.get("base_risk_pct")
