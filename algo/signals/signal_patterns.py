@@ -53,29 +53,6 @@ class SignalPatternsMixin:
         except (ValueError, TypeError, IndexError, RuntimeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_signal_pattern_thresholds(self) -> dict[str, int]:
-        """Load signal pattern date thresholds from algo.config."""
-        thresholds = {
-            "signal_patterns_signal_age_days": 7,
-            "signal_patterns_intermediate_lookback_days": 10,
-            "signal_patterns_extended_lookback_days": 14,
-            "signal_patterns_medium_lookback_days": 20,
-            "signal_patterns_longer_lookback_days": 35,
-            "signal_patterns_60d_lookback_days": 60,
-        }
-        try:
-            with DatabaseContext("read") as cur:
-                # SEC-001 FIX: Use parameterized query to prevent SQL injection
-                keys_list = list(thresholds.keys())
-                param_marks = ", ".join(["%s"] * len(keys_list))
-                query = f"SELECT key, value FROM algo_config WHERE key IN ({param_marks})"
-                cur.execute(query, keys_list)
-                for k, v in cur.fetchall():
-                    thresholds[k] = int(v)
-        except (ValueError, TypeError, KeyError, RuntimeError) as e:
-            logger.debug(f"Could not load signal pattern thresholds: {e} - using defaults")
-        return thresholds
-
     def base_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         def _fetch_and_analyze(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
