@@ -1077,7 +1077,17 @@ class Orchestrator:
                 # on trading days, confirmed by the preflight market-calendar check).
                 from algo.infrastructure import MarketCalendar
 
-                reference_day = now_et.date() if now_et.hour >= 16 else now_et.date() - timedelta(days=1)
+                # BUG FIX 2026-08-24 (goal session: real-money accuracy audit): `hour >= 16` is
+                # the same early-close-blind pattern already found and fixed in
+                # phase1_data_freshness.py/phase8_entry_execution.py this session - on a NYSE/
+                # NASDAQ early close (real close 1:00 PM ET), reference_day stayed "yesterday"
+                # until 4 PM instead of flipping to "today" at the real close, making
+                # stale_threshold one full trading day too lenient for the 1-4 PM window on
+                # those days.
+                market_close_today = dt_time(13, 0) if MarketCalendar.is_early_close(now_et.date()) else dt_time(16, 0)
+                reference_day = (
+                    now_et.date() if now_et.time() >= market_close_today else now_et.date() - timedelta(days=1)
+                )
                 prev_trading_day = MarketCalendar.get_previous_trading_day(reference_day)
                 if prev_trading_day is not None:
                     # Floor at the START of the reference trading day (midnight ET), not its
