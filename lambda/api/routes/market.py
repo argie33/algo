@@ -253,16 +253,22 @@ def _handle_technicals(cur: cursor) -> Any:
     # net advance/decline change under "ad_change_20d" instead. This query still
     # read the old "value" key, so it silently returned zero rows on every call -
     # the chart never had any data to render.
+    # 2026-08-23 pillar redesign moved ad_line again, from a top-level factors key to
+    # factors.pillar_confirm.components.participation.ad_line - same failure mode as the
+    # note above (silent zero-rows, not an error) would have recurred here if left
+    # pointing at the old path.
     try:
         cur.execute("SET LOCAL statement_timeout = '3000ms'")
         cur.execute("""
             SELECT date,
-                   (factors->'ad_line'->>'ad_change_20d')::float AS advance_decline_line
+                   (factors->'pillar_confirm'->'components'->'participation'->'ad_line'->>'ad_change_20d')::float
+                       AS advance_decline_line
             FROM market_exposure_daily
             WHERE date >= CURRENT_DATE - INTERVAL '35 days'
                   AND factors IS NOT NULL
-                  AND factors->'ad_line' IS NOT NULL
-                  AND (factors->'ad_line'->>'ad_change_20d') IS NOT NULL
+                  AND factors->'pillar_confirm'->'components'->'participation'->'ad_line' IS NOT NULL
+                  AND (factors->'pillar_confirm'->'components'->'participation'->'ad_line'->>'ad_change_20d')
+                      IS NOT NULL
             ORDER BY date DESC
             LIMIT 30
         """)

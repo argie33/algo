@@ -1020,9 +1020,12 @@ function MarketPulse({ markets }) {
     );
   const factors = safeGetFactors(safeCurrent);
   const dd = safeCurrent.distribution_days || 0;
-  const ddRegime = factors.distribution_days?.regime || "—";
+  // 2026-08-23 pillar redesign: selling_pressure moved from a top-level "distribution_days"
+  // factor into Pillar 2 (Independent Risk Layers)'s components; put_call_ratio moved into
+  // Pillar 3 (Breadth & Sentiment)'s sentiment sub-score components.
+  const ddRegime = factors.pillar_risk?.components?.selling_pressure?.regime || "—";
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
-  const pcRatio = factors.put_call_ratio?.value;
+  const pcRatio = factors.pillar_confirm?.components?.sentiment?.put_call_ratio?.value;
   const pcSignal =
     pcRatio == null
       ? "—"
@@ -1266,11 +1269,12 @@ function ExposureHistory({ markets }) {
 function BreadthCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  // Merged 2026-08-22 pass 3: breadth_50dma/breadth_200dma are now one "breadth" factor
-  // with both raw values as sub-fields (see algo/risk/market_exposure.py module docstring).
+  // 2026-08-23 pillar redesign: breadth/ad_line moved into Pillar 3 (Breadth & Sentiment)'s
+  // participation sub-score components (see algo/risk/market_exposure.py module docstring).
+  const participation = factors?.pillar_confirm?.components?.participation || {};
   const breadth =
-    factors?.breadth && typeof factors.breadth === "object"
-      ? factors.breadth
+    participation?.breadth && typeof participation.breadth === "object"
+      ? participation.breadth
       : {};
   const data = [
     {
@@ -1366,8 +1370,8 @@ function BreadthCard({ markets }) {
           <div className="stile">
             <div className="stile-label">A/D Signal</div>
             <div className="stile-value">
-              {factors.ad_line?.relation
-                ? factors.ad_line.relation.replace(/_/g, " ")
+              {participation.ad_line?.relation
+                ? participation.ad_line.relation.replace(/_/g, " ")
                 : "—"}
             </div>
             <div className="stile-sub">vs SPY 20d</div>
@@ -1385,7 +1389,8 @@ function BreadthCard({ markets }) {
 function NewHighsLowsCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  const nhnl = factors.new_highs_lows || {};
+  // 2026-08-23 pillar redesign: new_highs_lows moved into Pillar 3's participation sub-score.
+  const nhnl = factors.pillar_confirm?.components?.participation?.new_highs_lows || {};
   const data = [
     { name: "New Highs", value: nhnl?.new_highs ?? null, fill: C.success },
     {
@@ -1681,7 +1686,8 @@ function SentimentCard({ markets, sentiment, loading, error }) {
 function VixCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  const vix = factors.vix_regime || {};
+  // 2026-08-23 pillar redesign: vix_regime moved into Pillar 2 (Independent Risk Layers).
+  const vix = factors.pillar_risk?.components?.vix_regime || {};
   const level = vix.value;
   const regime =
     level != null

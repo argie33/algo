@@ -362,10 +362,10 @@ def fetch_market(c: None) -> dict[str, Any]:
 
 
 def fetch_exp_factors(c: None) -> dict[str, Any]:
-    """Fetch 12-factor market exposure data. Uses /api/algo/markets (public, already fetched).
+    """Fetch market exposure data. Uses /api/algo/markets (public, already fetched).
 
-    Extracts factors from data.current.factors which has the full 12-factor breakdown
-    needed by the exposure panel.
+    Extracts factors from data.current.factors which has the full 3-pillar breakdown
+    needed by the exposure panel (see algo/risk/market_exposure.py's module docstring).
 
     Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
     when fetch_market also needs the same data.

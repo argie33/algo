@@ -1,36 +1,28 @@
-"""Regression coverage for the exposure-model factors touched by the 2026-08-22 redesign
-(goal: exposure-model integrity review - see market_exposure.py's module docstring).
+"""Regression coverage for the exposure-model macro-watch factors and slow macro veto.
 
-This file was originally written for redesign pass 1 (2026-08-22) and rewritten again for
-pass 2 the same day. Pass 2 findings: _sahm_rule -> _sahm_rule_factor (demoted from a hard
-veto to a graded factor, scored via _sahm_ramp_score's threshold-anchored ramp instead of a
-binary trigger - see module docstring for why a raw z-score against Sahm's own
-right-skewed history would have been the wrong tool). _financial_conditions_factor and
-_financial_stress_factor (ANFCI/STLFSI4) were deleted entirely - live-verified
-substantially redundant with the pre-existing Credit Spread/Yield Curve factors, not just
-with each other - so TestFinancialConditionsVeto is gone with them.
-
-_valuation_extension_breadth (unchanged 2026-08-20) keeps its original tests.
-_cross_asset_confirmation -> _cross_asset_factor (z-scored composite, no more binary
-"count >= 2 of 4" rule, no more technical_bullish gate) and _fundamental_quality ->
-_fundamental_quality_factor (scores unconditionally, returns "score" not "penalty") are
-unchanged from pass 1. The old _economic_regime_overlay's breakeven-inflation signal is
-still its own standalone _inflation_expectations_factor; T10Y2Y/T10Y3M's overlay signal is
-still _yield_curve_factor, built on the shared _single_series_zscore_factor helper (which
-stays, still exercised generically below even though ANFCI/STLFSI4 no longer have their
-own factory functions calling it).
+REWRITTEN 2026-08-23 for the pillar redesign (see market_exposure.py's module
+docstring): Sahm Rule, Yield Curve, and Inflation Expectations are no longer scored in
+the composite - Estrella & Mishkin (1998) show yield-curve inversion leads recessions
+by 6-24 months, the wrong horizon for this system's responsive exposure dial, so all
+three now feed only a slow, wide, rare tail-risk veto (_slow_macro_veto) instead of
+earning composite weight. sector_rotation, cross_asset_confirmation,
+earnings_revision_breadth, and valuation_extension_breadth were dropped entirely (not
+covered by the redesign's evidence framework, or structurally unbacktestable) - their
+test classes (TestSectorRotationFactor, TestCrossAssetFactor,
+TestEarningsRevisionBreadthFactor, TestValuationExtensionBreadth) are removed along
+with the methods they covered.
 """
 
 import math
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from algo.risk.market_exposure import MarketExposure
 
-# --- Sahm Rule (demoted 2026-08-22 pass 2 from a hard veto to a graded factor - see
-# market_exposure.py module docstring for why) ---
+# --- Sahm Rule (macro-watch only since 2026-08-23 - feeds _slow_macro_veto, no longer
+# scored in the composite at all, graded or otherwise) ---
 
 
 def _unrate_rows(values):
@@ -86,19 +78,6 @@ class TestSahmRuleFactor:
         assert result["triggered"] is False
         assert result["score"] == 100.0
 
-    def test_triggered_sahm_no_longer_caps_exposure_directly(self):
-        # Pass 2: Sahm Rule is a graded factor now, not a hard veto - it can only ever
-        # contribute up to its own W_SAHM_RULE=2.0pt weight to the composite, it cannot
-        # cap the whole portfolio to 25% by itself the way the old veto did.
-        me = MarketExposure()
-        cur = MagicMock()
-        values = [4.7, 4.7, 4.7] + [4.0] * 17
-        cur.fetchall.return_value = _unrate_rows(values)
-        sahm = me._sahm_rule_factor(date(2026, 8, 20), cur)
-        assert sahm["triggered"] is True
-        pts, _ = me.calculator._wt_pts(sahm, me.W_SAHM_RULE)
-        assert 0.0 <= pts <= me.W_SAHM_RULE
-
 
 class TestSahmRampScore:
     """_sahm_ramp_score's threshold-anchored curve (real 0.50pp trigger, not a generic
@@ -121,9 +100,8 @@ class TestSahmRampScore:
         assert scores == sorted(scores, reverse=True)
 
 
-# --- Single-series z-score factor (shared helper, still used by _yield_curve_factor's two
-# components even though ANFCI/STLFSI4 no longer have their own factory functions calling
-# it - see module docstring on why those two were dropped entirely in pass 2) ---
+# --- Single-series z-score factor (shared helper - still used by _yield_curve_factor's
+# two components, now macro-watch-only, see module docstring) ---
 
 
 class TestSingleSeriesZscoreFactor:
@@ -183,7 +161,7 @@ class TestSingleSeriesZscoreFactor:
         assert result["data_unavailable"] is True
 
 
-# --- Yield Curve factor (T10Y2Y + T10Y3M average) ---
+# --- Yield Curve reading (T10Y2Y + T10Y3M average) - macro-watch only ---
 
 
 class TestYieldCurveFactor:
@@ -213,7 +191,34 @@ class TestYieldCurveFactor:
         assert not result.get("data_unavailable")
 
 
-# --- Inflation Expectations factor (T5YIE + T10YIE average, z-scored) ---
+class TestYieldCurveInvertedPersistent:
+    """New for the 2026-08-23 slow macro veto: a persistence check (every session in the
+    trailing window inverted), distinct from _yield_curve_factor's single-day z-score."""
+
+    def test_full_window_inverted_returns_true(self):
+        cur = MagicMock()
+        cur.fetchall.return_value = [(date(2026, 8, 20) - timedelta(days=i), -0.15) for i in range(63)]
+        me = MarketExposure()
+        assert me._yield_curve_inverted_persistent(date(2026, 8, 20), cur) is True
+
+    def test_one_non_inverted_session_returns_false(self):
+        cur = MagicMock()
+        rows = [(date(2026, 8, 20) - timedelta(days=i), -0.15) for i in range(63)]
+        rows[30] = (rows[30][0], 0.05)  # one positive (un-inverted) session breaks persistence
+        cur.fetchall.return_value = rows
+        me = MarketExposure()
+        assert me._yield_curve_inverted_persistent(date(2026, 8, 20), cur) is False
+
+    def test_insufficient_window_returns_false_not_unavailable(self):
+        # A veto input must never trip on an incomplete signal - short history degrades to
+        # "not triggered", not data_unavailable (this isn't a scored composite factor).
+        cur = MagicMock()
+        cur.fetchall.return_value = [(date(2026, 8, 20) - timedelta(days=i), -0.15) for i in range(10)]
+        me = MarketExposure()
+        assert me._yield_curve_inverted_persistent(date(2026, 8, 20), cur) is False
+
+
+# --- Inflation Expectations reading (T5YIE + T10YIE average, z-scored) - macro-watch only ---
 
 
 class TestInflationExpectationsFactor:
@@ -225,7 +230,6 @@ class TestInflationExpectationsFactor:
         assert result["data_unavailable"] is True
 
     def test_elevated_breakeven_scores_low(self):
-        # History flat at 2.2, current reading spikes to 3.2 -> stress, low score.
         cur = MagicMock()
         rows = [(date(2026, 8, 20), 3.2)] + [(date(2026, 8, 20) - timedelta(days=i), 2.2) for i in range(1, 30)]
         cur.fetchall.return_value = rows
@@ -244,251 +248,72 @@ class TestInflationExpectationsFactor:
         assert result["data_unavailable"] is True
 
 
-# --- Sector Rotation factor ---
+# --- Slow macro veto (new 2026-08-23: Sahm / persistent yield-curve inversion /
+# inflation-expectations tail extreme, caps exposure to 45% - see module docstring) ---
 
 
-class TestSectorRotationFactor:
-    def test_high_defensive_lead_inverts_to_low_score(self):
-        with patch("algo.signals.sector_rotation.SectorRotationDetector") as mock_cls:
-            mock_cls.return_value.compute.return_value = {
-                "defensive_lead_score": 80.0,
-                "signal": "severe_defensive_rotation",
-            }
-            me = MarketExposure()
-            cur = MagicMock()
-            result = me._sector_rotation_factor(date(2026, 8, 20), cur)
-        assert result["score"] == 20.0
-        assert result["defensive_lead_score"] == 80.0
-
-    def test_data_unavailable_passes_through(self):
-        with patch("algo.signals.sector_rotation.SectorRotationDetector") as mock_cls:
-            mock_cls.return_value.compute.return_value = {
-                "data_unavailable": True,
-                "reason": "insufficient_12w_sector_history",
-                "reduce_exposure_pts": 0,
-            }
-            me = MarketExposure()
-            cur = MagicMock()
-            result = me._sector_rotation_factor(date(2026, 8, 20), cur)
-        assert result["data_unavailable"] is True
-
-
-# --- Cross-Asset Confirmation factor ---
-
-
-def _jittered_series(current_date, n=280, base=0.0, amplitude=0.5, current_value=None):
-    """A deterministic, non-constant historical series (real variance, needed for
-    _sample_zscore - a perfectly flat/zero-variance series is correctly treated as
-    unscoreable, not a neutral reading) via a fixed oscillation, not random (test
-    determinism). `current_value`, if given, overrides just the most recent (today's) row -
-    used to inject a genuine, isolated outlier against otherwise-routine history.
-    """
-    rows = [(current_date - timedelta(days=i), base + amplitude * math.sin(i * 0.7)) for i in range(n)]
-    if current_value is not None:
-        rows[0] = (current_date, current_value)
-    return rows
-
-
-class TestCrossAssetFactor:
-    def test_no_spy_history_returns_none(self):
+class TestSlowMacroVeto:
+    def _cur_no_inversion(self):
         cur = MagicMock()
-        cur.fetchall.return_value = []
-        me = MarketExposure()
-        assert me._cross_asset_factor(date(2026, 8, 20), cur) is None
+        cur.fetchall.return_value = [(date(2026, 8, 20) - timedelta(days=i), 0.1) for i in range(63)]
+        return cur
 
-    def test_routine_variation_scores_near_neutral(self):
-        eval_date = date(2026, 8, 20)
-        series = _jittered_series(eval_date)
+    def test_nothing_triggered_is_clear(self):
+        me = MarketExposure()
+        sahm = {"triggered": False, "value": 0.0}
+        infl = {"z": 0.2}
+        result = me._slow_macro_veto(date(2026, 8, 20), self._cur_no_inversion(), sahm, infl)
+        assert result["triggered"] is False
+        assert result["cap"] == 100.0
+
+    def test_sahm_triggered_caps_to_45(self):
+        me = MarketExposure()
+        sahm = {"triggered": True, "value": 0.7}
+        infl = {"z": 0.2}
+        result = me._slow_macro_veto(date(2026, 8, 20), self._cur_no_inversion(), sahm, infl)
+        assert result["triggered"] is True
+        assert result["cap"] == 45.0
+        assert any("Sahm" in r for r in result["reasons"])
+
+    def test_persistent_inversion_caps_to_45(self):
+        me = MarketExposure()
         cur = MagicMock()
-        cur.fetchall.side_effect = [series, series, series, series, series]  # spy, gld, tlt, usd, oil
-        me = MarketExposure()
-        result = me._cross_asset_factor(eval_date, cur)
-        assert result is not None
-        assert 30.0 <= result["score"] <= 70.0
+        cur.fetchall.return_value = [(date(2026, 8, 20) - timedelta(days=i), -0.2) for i in range(63)]
+        sahm = {"triggered": False, "value": 0.0}
+        infl = {"z": 0.2}
+        result = me._slow_macro_veto(date(2026, 8, 20), cur, sahm, infl)
+        assert result["triggered"] is True
+        assert result["cap"] == 45.0
+        assert any("Yield curve" in r for r in result["reasons"])
 
-    def test_gold_and_bonds_diverging_from_spy_scores_low(self):
-        # Gold and bonds have genuinely outperformed SPY by a wide, historically-unusual
-        # margin today (routine +/-0.5 jitter historically, spikes to +10 today) -> two real
-        # z-score outliers -> composite risk-off -> low score (divergence penalized).
-        eval_date = date(2026, 8, 20)
-        spy_series = _jittered_series(eval_date, amplitude=0.0)  # keep SPY itself flat/neutral
-        gld_spike = _jittered_series(eval_date, current_value=10.0)
-        tlt_spike = _jittered_series(eval_date, current_value=10.0)
-        usd_series = _jittered_series(eval_date)
-        oil_series = _jittered_series(eval_date)
+    def test_inflation_tail_extreme_caps_to_45(self):
+        me = MarketExposure()
+        sahm = {"triggered": False, "value": 0.0}
+        infl = {"z": 2.5}
+        result = me._slow_macro_veto(date(2026, 8, 20), self._cur_no_inversion(), sahm, infl)
+        assert result["triggered"] is True
+        assert result["cap"] == 45.0
+        assert any("Inflation" in r for r in result["reasons"])
+
+    def test_multiple_triggers_still_cap_to_45_not_stacked_lower(self):
+        # All three are correlated reads of the same macro-stress regime, not independent
+        # risks that compound - see _slow_macro_veto's docstring.
+        me = MarketExposure()
         cur = MagicMock()
-        cur.fetchall.side_effect = [spy_series, gld_spike, tlt_spike, usd_series, oil_series]
+        cur.fetchall.return_value = [(date(2026, 8, 20) - timedelta(days=i), -0.2) for i in range(63)]
+        sahm = {"triggered": True, "value": 0.7}
+        infl = {"z": 2.5}
+        result = me._slow_macro_veto(date(2026, 8, 20), cur, sahm, infl)
+        assert result["triggered"] is True
+        assert result["cap"] == 45.0
+        assert len(result["reasons"]) == 3
+
+    def test_data_unavailable_sahm_and_inflation_do_not_trigger(self):
         me = MarketExposure()
-        result = me._cross_asset_factor(eval_date, cur)
-        assert result is not None
-        assert result["score"] < 20.0
-        assert result["composite_z"] > 0
-
-    def test_agreement_gives_bounded_bonus_not_symmetric(self):
-        # Gold/bonds underperforming SPY (negative spread outlier = risk-ON agreement) -
-        # composite z well below 0. Response curve is asymmetric: this should raise the
-        # score above 50 but stop short of the ceiling divergence would hit going the other
-        # way, since the curve deliberately weights divergence more than agreement.
-        eval_date = date(2026, 8, 20)
-        spy_series = _jittered_series(eval_date, amplitude=0.0)
-        gld_dip = _jittered_series(eval_date, current_value=-3.0)
-        tlt_dip = _jittered_series(eval_date, current_value=-3.0)
-        usd_series = _jittered_series(eval_date)
-        oil_series = _jittered_series(eval_date)
-        cur = MagicMock()
-        cur.fetchall.side_effect = [spy_series, gld_dip, tlt_dip, usd_series, oil_series]
-        me = MarketExposure()
-        result = me._cross_asset_factor(eval_date, cur)
-        assert result is not None
-        assert 50.0 < result["score"] < 100.0
-
-    def test_insufficient_asset_history_degrades_only_that_signal(self):
-        eval_date = date(2026, 8, 20)
-        spy_series = _jittered_series(eval_date)
-        cur = MagicMock()
-        # GLD has only 5 overlapping points with SPY (< 15 minimum) - should be excluded,
-        # not crash, and the rest still combine into a result.
-        cur.fetchall.side_effect = [
-            spy_series,
-            _jittered_series(eval_date, n=5),
-            _jittered_series(eval_date),
-            _jittered_series(eval_date),
-            _jittered_series(eval_date),
-        ]
-        me = MarketExposure()
-        result = me._cross_asset_factor(eval_date, cur)
-        assert result is not None
-        assert result["gld_vs_spy_chg_20d"] is None
-
-
-# --- Earnings Revision Breadth factor ---
-
-
-class TestEarningsRevisionBreadthFactor:
-    """Split 2026-08-22 from the old 3-way "Fundamental Quality" blend - see
-    market_exposure.py's module docstring and _earnings_revision_breadth_factor's own
-    docstring for why. Now a standalone factor: one query (rising, total), not three.
-    """
-
-    # NOTE: _earnings_revision_breadth_factor now issues an earlier MIN(date)-anchor query
-    # (see "ADAPTIVE WINDOW" in its docstring) before the rising/total aggregate query, so
-    # every mock below must supply fetchone() side effects for BOTH calls in order: the
-    # anchor date first, then (rising, total). Anchor date(2026, 7, 1) is 50 days before the
-    # eval_date used throughout this class (2026, 8, 20), comfortably >= the full 30-day
-    # TARGET_BASELINE_WINDOW_DAYS, so window_days always resolves to the intended 30 and
-    # these tests exercise the same full-window behavior as before this change.
-    _FULL_HISTORY_ANCHOR = (date(2026, 7, 1),)
-
-    def test_strong_revisions_scores_high(self):
-        cur = MagicMock()
-        cur.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (150, 200)]  # 75% breadth
-        me = MarketExposure()
-        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
-        assert not result.get("data_unavailable")
-        assert result["score"] == 100.0
-        assert result["revision_breadth_pct"] == 75.0
-        assert result["window_days"] == 30
-
-    def test_weak_revisions_scores_low(self):
-        cur = MagicMock()
-        cur.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 200)]  # 5% breadth
-        me = MarketExposure()
-        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
-        assert not result.get("data_unavailable")
-        assert result["score"] == 0.0
-
-    def test_insufficient_sample_is_data_unavailable(self):
-        cur = MagicMock()
-        cur.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 50)]  # total=50 < 200 sample floor
-        me = MarketExposure()
-        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
-        assert result["data_unavailable"] is True
-
-    def test_no_rows_is_data_unavailable(self):
-        # No anchor date at all (e.g. table empty) - short-circuits before the second query.
-        cur = MagicMock()
-        cur.fetchone.return_value = None
-        me = MarketExposure()
-        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
-        assert result["data_unavailable"] is True
-
-    def test_below_min_baseline_window_is_data_unavailable(self):
-        # Anchor date only 10 days before eval_date - below MIN_BASELINE_WINDOW_DAYS (20),
-        # so this must bail out before ever issuing the second (rising/total) query.
-        cur = MagicMock()
-        cur.fetchone.return_value = (date(2026, 8, 10),)
-        me = MarketExposure()
-        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
-        assert result["data_unavailable"] is True
-        assert cur.execute.call_count == 1
-
-    def test_adaptive_window_below_30_days_still_scores(self):
-        # Anchor date 24 days before eval_date - above the 20-day floor but below the full
-        # 30-day target, so this must use a real, shortened window rather than sitting as
-        # data_unavailable (the whole point of the adaptive-window fix).
-        cur = MagicMock()
-        cur.fetchone.side_effect = [(date(2026, 7, 27),), (100, 200)]
-        me = MarketExposure()
-        result = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur)
-        assert not result.get("data_unavailable")
-        assert result["window_days"] == 24
-        assert result["revision_breadth_pct"] == 50.0
-
-    def test_scores_the_same_regardless_of_technical_direction(self):
-        # This factor never took a technical_bullish parameter in the first place (unlike
-        # the old blended Fundamental Quality it replaced) - same inputs, same output,
-        # always. Guards against that conditional gating ever creeping back in.
-        cur_a = MagicMock()
-        cur_a.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 200)]
-        cur_b = MagicMock()
-        cur_b.fetchone.side_effect = [self._FULL_HISTORY_ANCHOR, (10, 200)]
-        me = MarketExposure()
-        result_a = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur_a)
-        result_b = me._earnings_revision_breadth_factor(date(2026, 8, 20), cur_b)
-        assert result_a["score"] == result_b["score"] == 0.0
-
-
-class TestValuationExtensionBreadth:
-    """Unchanged 2026-08-22's edits to this method - still its own standalone factor now
-    (split from the old blended Fundamental Quality, see module docstring)."""
-
-    def test_insufficient_sample_returns_none(self):
-        cur = MagicMock()
-        cur.fetchone.return_value = (150, 40)  # total=150 < 200 sample floor
-        me = MarketExposure()
-        assert me._valuation_extension_breadth(date(2026, 8, 20), cur) is None
-
-    def test_no_rows_returns_none(self):
-        cur = MagicMock()
-        cur.fetchone.return_value = None
-        me = MarketExposure()
-        assert me._valuation_extension_breadth(date(2026, 8, 20), cur) is None
-
-    def test_low_froth_scores_high(self):
-        cur = MagicMock()
-        cur.fetchone.return_value = (1000, 50)
-        me = MarketExposure()
-        result = me._valuation_extension_breadth(date(2026, 8, 20), cur)
-        assert result is not None
-        assert result["breadth_pct"] == 5.0
-        assert result["score"] == 100.0
-
-    def test_high_froth_scores_low(self):
-        cur = MagicMock()
-        cur.fetchone.return_value = (1000, 600)
-        me = MarketExposure()
-        result = me._valuation_extension_breadth(date(2026, 8, 20), cur)
-        assert result is not None
-        assert result["breadth_pct"] == 60.0
-        assert result["score"] == 0.0
-
-    def test_midpoint_breadth_scores_midpoint(self):
-        cur = MagicMock()
-        cur.fetchone.return_value = (1000, 350)
-        me = MarketExposure()
-        result = me._valuation_extension_breadth(date(2026, 8, 20), cur)
-        assert result is not None
-        assert result["score"] == 50.0
+        sahm = {"data_unavailable": True, "reason": "no data"}
+        infl = {"data_unavailable": True, "reason": "no data"}
+        result = me._slow_macro_veto(date(2026, 8, 20), self._cur_no_inversion(), sahm, infl)
+        assert result["triggered"] is False
 
 
 class TestZscoreToScoreMapping:

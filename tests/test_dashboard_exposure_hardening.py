@@ -3,6 +3,14 @@
 This test suite verifies that exposure panels handle missing/malformed data
 with explicit error logging and data_unavailable markers instead of silent
 empty returns.
+
+REWRITTEN 2026-08-23 for the pillar redesign (see algo/risk/market_exposure.py's
+module docstring and dashboard/panels/exposure.py's PILLAR_MAP): the flat 19-key
+factors dict ("trend_30wk", "positioning", "aaii_sentiment", ...) was replaced by 3
+top-level pillar keys ("pillar_trend", "pillar_risk", "pillar_confirm"), each carrying
+its own sub-signal detail under "components". The panel's log wording changed from
+"factor %s ..." to "pillar %s ..." to match - test assertions below were updated to
+match, not just the mock data shape.
 """
 
 import logging
@@ -58,7 +66,7 @@ class TestExposureCompactMissingFields:
             "raw_score": 45.0,
             "exposure_pct": 55.0,
             # Missing 'regime' field entirely
-            "factors": {"trend_30wk": {"pts": 10.0}},
+            "factors": {"pillar_trend": {"pts": 30.0, "max": 45.0}},
         }
 
         with caplog.at_level(logging.ERROR):
@@ -70,63 +78,63 @@ class TestExposureCompactMissingFields:
         assert result is not None
         assert not isinstance(result, list)
 
-    def test_missing_factor_in_list(self, caplog):
-        """If a factor is missing from response, should log debug."""
+    def test_missing_pillar_in_response(self, caplog):
+        """If a pillar is missing from the response, should log warning."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {"pts": 12.0},
-                # Missing many other factors
+                "pillar_trend": {"pts": 30.0, "max": 45.0},
+                # Missing pillar_risk and pillar_confirm
             },
         }
 
         with caplog.at_level(logging.WARNING):
             panel_exposure_compact(exp_data)
 
-        # Should log warning for missing factors
+        # Should log warning for missing pillar
         assert any(
-            "factor" in record.message and "not in response" in record.message
+            "pillar" in record.message and "not in response" in record.message
             for record in caplog.records
             if record.levelno == logging.WARNING
         )
 
 
 class TestExposureCompactInvalidFactorData:
-    """Compact panel should handle invalid factor data gracefully."""
+    """Compact panel should handle invalid pillar data gracefully."""
 
-    def test_factor_is_not_dict(self, caplog):
-        """If a factor value is not a dict, should log warning."""
+    def test_pillar_is_not_dict(self, caplog):
+        """If a pillar value is not a dict, should log warning."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": "not_a_dict",  # WRONG TYPE
+                "pillar_trend": "not_a_dict",  # WRONG TYPE
             },
         }
 
         with caplog.at_level(logging.WARNING):
             result = panel_exposure_compact(exp_data)
 
-        # Should log warning about invalid factor type
+        # Should log warning about invalid pillar type
         assert any(
-            "factor" in record.message and "invalid type" in record.message
+            "pillar" in record.message and "invalid type" in record.message
             for record in caplog.records
             if record.levelno == logging.WARNING
         )
         # Should still return a result (not crash or return None/[])
         assert result is not None
 
-    def test_missing_pts_field_in_factor(self, caplog):
+    def test_missing_pts_field_in_pillar(self, caplog):
         """If pts is missing, should show explicit reason."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {
+                "pillar_trend": {
                     "reason": "insufficient_data",
                     # Missing 'pts' field
                 },
@@ -144,41 +152,41 @@ class TestExposureCompactInvalidFactorData:
         assert result is not None
 
 
-class TestExposureCompactOptionalFactors:
-    """Optional factors like sector_rotation should not fail silently."""
+class TestExposureCompactOptionalPillars:
+    """A pillar missing from the response should not fail silently."""
 
-    def test_optional_factor_not_available(self, caplog):
-        """If optional factor like positioning is missing, should log warning (not silent)."""
+    def test_pillar_not_available(self, caplog):
+        """If a pillar like pillar_confirm is missing, should log warning (not silent)."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {"pts": 10.0},
-                # Missing positioning and other factors
+                "pillar_trend": {"pts": 30.0, "max": 45.0},
+                # Missing pillar_risk and pillar_confirm
             },
         }
 
         with caplog.at_level(logging.WARNING):
             result = panel_exposure_compact(exp_data)
 
-        # Should log warning for missing factors (not silent)
+        # Should log warning for missing pillar (not silent)
         assert any(
-            "factor" in record.message and "not in response" in record.message
+            "pillar" in record.message and "not in response" in record.message
             for record in caplog.records
             if record.levelno == logging.WARNING
         )
         assert result is not None
 
-    def test_optional_factor_invalid_type(self, caplog):
-        """If optional factor has wrong type, should log warning."""
+    def test_pillar_invalid_type(self, caplog):
+        """If a pillar has wrong type, should log warning."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {"pts": 10.0},
-                "positioning": "not_a_dict",  # WRONG TYPE (should be dict with "value")
+                "pillar_trend": {"pts": 30.0, "max": 45.0},
+                "pillar_confirm": "not_a_dict",  # WRONG TYPE (should be a dict)
             },
         }
 
@@ -187,7 +195,7 @@ class TestExposureCompactOptionalFactors:
 
         # Should log about invalid type
         assert any(
-            "positioning" in record.message and "invalid type" in record.message
+            "pillar_confirm" in record.message and "invalid type" in record.message
             for record in caplog.records
             if record.levelno == logging.WARNING
         )
@@ -220,7 +228,7 @@ class TestExposureExpandedMissingFields:
             # Missing raw_score
             "exposure_pct": 55.0,
             "regime": "normal",
-            "factors": {"trend_30wk": {"pts": 10.0}},
+            "factors": {"pillar_trend": {"pts": 30.0, "max": 45.0}},
         }
 
         with caplog.at_level(logging.WARNING):
@@ -237,7 +245,7 @@ class TestExposureExpandedMissingFields:
             "raw_score": 45.0,
             # Missing exposure_pct
             "regime": "normal",
-            "factors": {"trend_30wk": {"pts": 10.0}},
+            "factors": {"pillar_trend": {"pts": 30.0, "max": 45.0}},
         }
 
         with caplog.at_level(logging.WARNING):
@@ -254,7 +262,7 @@ class TestExposureExpandedMissingFields:
             "raw_score": 45.0,
             "exposure_pct": 55.0,
             "regime": "",  # Empty
-            "factors": {"trend_30wk": {"pts": 10.0}},
+            "factors": {"pillar_trend": {"pts": 30.0, "max": 45.0}},
         }
 
         with caplog.at_level(logging.WARNING):
@@ -267,16 +275,16 @@ class TestExposureExpandedMissingFields:
 
 
 class TestExposureExpandedMalformedFactorData:
-    """Expanded panel should handle malformed factor data."""
+    """Expanded panel should handle malformed pillar data."""
 
-    def test_factor_missing_pts(self, caplog):
-        """If factor has no pts, should show explicit reason (not silent)."""
+    def test_pillar_missing_pts(self, caplog):
+        """If a pillar has no pts, should show explicit reason (not silent)."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {
+                "pillar_trend": {
                     "reason": "stale_data",
                     # Missing 'pts'
                 },
@@ -291,22 +299,22 @@ class TestExposureExpandedMalformedFactorData:
         # Should return a Panel
         assert isinstance(result, Panel)
 
-    def test_factor_data_unavailable_with_pts_zero(self, caplog):
-        """market_exposure.py sets "pts": 0.0 (not None) alongside "data_unavailable": True
-        so its own avail_max renormalization can still exclude the weight - this must still
-        render as N/A, not a real filled 0-point bar indistinguishable from a genuine zero
-        score (see earnings_revision_breadth / valuation_extension_breadth in market_exposure.py).
+    def test_pillar_data_unavailable_with_pts_zero(self, caplog):
+        """A pillar flagged data_unavailable with pts=0.0 must still render as N/A, not a
+        real filled 0-point bar indistinguishable from a genuine zero score - defensive
+        handling for malformed/legacy cached rows, even though compute() itself never
+        marks a whole pillar data_unavailable today (only individual components within it).
         """
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "earnings_revision_breadth": {
+                "pillar_risk": {
                     "data_unavailable": True,
-                    "reason": "Insufficient analyst-coverage sample on or before 2026-08-21 (need 200+ symbols)",
+                    "reason": "Independent Risk Layers pillar could not be computed",
                     "pts": 0.0,
-                    "max": 2.5,
+                    "max": 30.0,
                 },
             },
         }
@@ -317,20 +325,20 @@ class TestExposureExpandedMalformedFactorData:
         # Should hit the N/A branch (and surface the real reason), not render pts=0.0 as a
         # genuine score.
         assert any(
-            "data_unavailable" in record.message and "Earnings Revision Breadth" in record.message
+            "data_unavailable" in record.message and "pillar=pillar_risk" in record.message
             for record in caplog.records
             if record.levelno == logging.ERROR
         )
         assert isinstance(result, Panel)
 
     def test_stale_data_marker(self, caplog):
-        """If factor marked as stale, should log explicitly."""
+        """If a pillar is marked as stale, should log explicitly."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {
+                "pillar_trend": {
                     "stale": True,
                     # Missing 'pts' and 'reason'
                 },
@@ -345,14 +353,14 @@ class TestExposureExpandedMalformedFactorData:
         # Should return a Panel
         assert isinstance(result, Panel)
 
-    def test_factor_invalid_type(self, caplog):
-        """If factor value is not a dict, should log warning."""
+    def test_pillar_invalid_type(self, caplog):
+        """If a pillar value is not a dict, should log warning."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": "not_a_dict",  # WRONG TYPE
+                "pillar_trend": "not_a_dict",  # WRONG TYPE
             },
         }
 
@@ -365,18 +373,18 @@ class TestExposureExpandedMalformedFactorData:
         assert isinstance(result, Panel)
 
 
-class TestExposureExpandedOptionalAdjustments:
-    """Optional adjustments should be handled explicitly."""
+class TestExposureExpandedRemainingPillars:
+    """Every declared pillar should be handled explicitly, not just pillar_trend."""
 
-    def test_positioning_missing_pts(self, caplog):
-        """If positioning present but pts missing, should log error."""
+    def test_pillar_risk_missing_pts(self, caplog):
+        """If pillar_risk is present but pts missing, should log error."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {"pts": 10.0},
-                "positioning": {
+                "pillar_trend": {"pts": 30.0, "max": 45.0},
+                "pillar_risk": {
                     "reason": "data_unavailable",
                     # Missing 'pts'
                 },
@@ -388,22 +396,22 @@ class TestExposureExpandedOptionalAdjustments:
 
         # Should log error about data unavailable (missing pts)
         assert any(
-            "data_unavailable" in record.message and "positioning" in record.message
+            "data_unavailable" in record.message and "pillar_risk" in record.message
             for record in caplog.records
             if record.levelno == logging.ERROR
         )
         # Should return a Panel (not crash)
         assert isinstance(result, Panel)
 
-    def test_aaii_sentiment_missing_pts(self, caplog):
-        """If aaii_sentiment present but pts missing, should log error."""
+    def test_pillar_confirm_missing_pts(self, caplog):
+        """If pillar_confirm is present but pts missing, should log error."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
-                "trend_30wk": {"pts": 10.0},
-                "aaii_sentiment": {
+                "pillar_trend": {"pts": 30.0, "max": 45.0},
+                "pillar_confirm": {
                     "reason": "delayed_report",
                     # Missing 'pts'
                 },
@@ -415,7 +423,7 @@ class TestExposureExpandedOptionalAdjustments:
 
         # Should log error about data unavailable (missing pts)
         assert any(
-            "data_unavailable" in record.message and "aaii_sentiment" in record.message
+            "data_unavailable" in record.message and "pillar_confirm" in record.message
             for record in caplog.records
             if record.levelno == logging.ERROR
         )

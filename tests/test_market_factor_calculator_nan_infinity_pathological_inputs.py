@@ -7,11 +7,12 @@ phase8_entry_execution.py, exit_engine.py, order_manager.py, and phase7_signal_g
 `max(0.0, min(100.0, ...))`-style clamps silently launder NaN into a fixed boundary value via
 Python's min()/max() short-circuit comparison behavior (`nan < x` is always False), rather than
 raising. This is the highest-leverage instance found so far: market_factor_calculator.py feeds
-10 of the 12 factors behind MarketExposure.compute() (the other 2 - ad_line, credit_spread -
-are MarketExposure's own local methods, not this calculator's, per its module docstring's
-"canonical implementations... not yet migrated to MarketFactorCalculator" comment; see
-tests/unit/test_market_exposure_nan_guards.py for their NaN-guard coverage), which gates
-real-money exposure tier / position sizing for the whole portfolio - not just a single symbol.
+most of the sub-signals behind MarketExposure.compute()'s 3-pillar composite (a few - ad_line,
+credit_spread, market_technicals - are MarketExposure's own local methods, not this
+calculator's, per its module docstring's "canonical implementations... not yet migrated to
+MarketFactorCalculator" comment; see tests/unit/test_market_exposure_nan_guards.py for their
+NaN-guard coverage), which gates real-money exposure tier / position sizing for the whole
+portfolio - not just a single symbol.
 
 CORRECTION (2026-08-20): this calculator ALSO had its own ad_line()/credit_spread() methods
 at the time this file was written, and the TestCreditSpreadRejectsNonFiniteOAS test below
@@ -133,82 +134,9 @@ class TestAaiiRejectsNonFiniteSentiment:
             calc.aaii(date(2026, 8, 10), cur)
 
 
-class TestPositioningRejectsNonFiniteShortInterestAvg:
-    """positioning() replaced naaim() 2026-08-20 (NAAIM's source went subscription-only).
-
-    Unlike naaim()'s single-column exposure read, _short_interest_trend()'s NaN exposure
-    (a corrupted AVG(short_pct)) can't reach the same min/max-clamp laundering bug directly,
-    since the caller (positioning()) never clamps a raw score through min()/max() the way
-    the old naaim() did - but a NaN average must still be REJECTED (treated as unavailable,
-    not silently propagated as a fabricated chg_pct%), not laundered into a confident-looking
-    but meaningless percentage. This is deliberately a graceful-degrade (returns None,
-    positioning() falls back to insider-only), not a raise - positioning is optional
-    enrichment (see its own docstring), unlike naaim()'s old hard-fail contract.
-    """
-
-    def test_nan_current_avg_short_interest_degrades_gracefully_not_fabricated(self):
-        calc = MarketFactorCalculator()
-        cur = MagicMock()
-        # insider breadth: 60 active symbols, 40 net buyers -> valid
-        # short interest: 4 cycles, current avg is NaN (corrupted), baseline avg is fine
-        cur.fetchone.side_effect = [
-            (60, 40),  # _insider_buying_breadth
-            (float("nan"),),  # _short_interest_trend current_avg (corrupted)
-            (5.0,),  # _short_interest_trend baseline_avg (never used - current is NaN)
-        ]
-        cur.fetchall.side_effect = [
-            [(date(2026, 8, 15),), (date(2026, 8, 1),), (date(2026, 7, 15),), (date(2026, 7, 1),)],
-        ]
-        result = calc.positioning(date(2026, 8, 20), cur)
-        assert not result.get("data_unavailable")
-        # short_interest_chg_pct must be None (unavailable), not a NaN-derived number
-        assert result["short_interest_chg_pct"] is None
-        # falls back to insider-only score, not a NaN-poisoned blend
-        assert not math.isnan(result["score"])
-
-    def test_finite_positioning_blends_both_inputs(self):
-        calc = MarketFactorCalculator()
-        cur = MagicMock()
-        cur.fetchone.side_effect = [
-            (100, 60),  # insider: 100 active, 60 net buyers -> 60% breadth
-            (5.0,),  # current avg short interest
-            (5.0,),  # baseline avg short interest (flat, 0% change)
-        ]
-        cur.fetchall.side_effect = [
-            [(date(2026, 8, 15),), (date(2026, 8, 1),), (date(2026, 7, 15),), (date(2026, 7, 1),)],
-        ]
-        result = calc.positioning(date(2026, 8, 20), cur)
-        assert not result.get("data_unavailable")
-        assert result["insider_buying_breadth_pct"] == 60.0
-        assert result["short_interest_chg_pct"] == 0.0
-        assert not math.isnan(result["score"])
-
-    def test_both_inputs_unavailable_returns_data_unavailable_marker(self):
-        calc = MarketFactorCalculator()
-        cur = MagicMock()
-        cur.fetchone.side_effect = [
-            (10, 5),  # insider: only 10 active symbols, below the 50-symbol minimum sample
-        ]
-        cur.fetchall.side_effect = [
-            [(date(2026, 8, 15),)],  # only 1 cycle, need at least 2
-        ]
-        result = calc.positioning(date(2026, 8, 20), cur)
-        assert result.get("data_unavailable") is True
-
-    def test_short_interest_uses_2_cycles_when_thats_all_thats_available(self):
-        """A 4-cycle floor made this signal permanently unavailable on a DB with only 3
-        cycles of FINRA history yet (live-verified 2026-08-20) - it must work with 2+.
-        """
-        calc = MarketFactorCalculator()
-        cur = MagicMock()
-        cur.fetchone.side_effect = [
-            (100, 60),  # insider: 100 active, 60 net buyers
-            (6.0,),  # current avg short interest
-            (5.0,),  # baseline avg short interest (2 cycles back, not 4)
-        ]
-        cur.fetchall.side_effect = [
-            [(date(2026, 8, 15),), (date(2026, 8, 1),)],  # only 2 cycles available
-        ]
-        result = calc.positioning(date(2026, 8, 20), cur)
-        assert not result.get("data_unavailable")
-        assert result["short_interest_chg_pct"] == 20.0  # (6.0 - 5.0) / 5.0 * 100
+# TestPositioningRejectsNonFiniteShortInterestAvg removed 2026-08-23 (pillar redesign):
+# positioning()/_insider_buying_breadth()/_short_interest_trend() were deleted from
+# MarketFactorCalculator - not covered by the redesign's evidence framework, and
+# short_interest_finra had only 3 FINRA settlement cycles of local history, too thin to
+# trust regardless. See algo/risk/market_exposure.py's module docstring, "Dropped
+# entirely" section.

@@ -87,40 +87,56 @@ class TestMarketExposureCacheStaleness:
 
 
 class TestMarketExposureWeightSum:
+    """2026-08-23 pillar redesign (see algo/risk/market_exposure.py module docstring):
+    the flat 19-factor weight table was replaced by 3 coarse pillar weights (Trend &
+    Momentum / Independent Risk Layers / Breadth & Sentiment) per DeMiguel/Garlappi/
+    Uppal's finding that naive/coarse weighting beats precision-tuned weighting
+    out-of-sample. Individual sub-signals within a pillar are blended by
+    MarketExposure._blend_scores(), which renormalizes over whatever's available and
+    has no fixed-sum invariant of its own - only the top-level pillar allocation is a
+    real invariant worth a hard fail-fast check.
+    """
+
     def test_current_weights_sum_to_100(self):
         MarketExposure()  # must not raise
 
-    def test_weights_are_the_documented_19_factors(self):
+    def test_weights_are_the_documented_3_pillars(self):
         weights = [
-            MarketExposure.W_TREND_30WK,
-            MarketExposure.W_SPY_MOMENTUM,
-            MarketExposure.W_BREADTH,
-            MarketExposure.W_SELLING_PRESSURE,
-            MarketExposure.W_VIX,
-            MarketExposure.W_CREDIT_SPREAD,
-            MarketExposure.W_PUT_CALL,
-            MarketExposure.W_NEW_HIGHS_LOWS,
-            MarketExposure.W_AD_LINE,
-            MarketExposure.W_POSITIONING,
-            MarketExposure.W_AAII,
-            MarketExposure.W_YIELD_CURVE,
-            MarketExposure.W_INFLATION_EXPECTATIONS,
-            MarketExposure.W_SECTOR_ROTATION,
-            MarketExposure.W_CROSS_ASSET,
-            MarketExposure.W_EARNINGS_REVISION,
-            MarketExposure.W_VALUATION_EXTENSION,
-            MarketExposure.W_SAHM_RULE,
-            MarketExposure.W_MARKET_TECHNICALS,
+            MarketExposure.W_PILLAR_TREND,
+            MarketExposure.W_PILLAR_RISK,
+            MarketExposure.W_PILLAR_CONFIRM,
         ]
-        assert len(weights) == 19
+        assert len(weights) == 3
         assert sum(weights) == pytest.approx(100.0)
 
     def test_drifted_weight_sum_raises(self, monkeypatch):
-        monkeypatch.setattr(MarketExposure, "W_AAII", MarketExposure.W_AAII + 1)
+        monkeypatch.setattr(MarketExposure, "W_PILLAR_CONFIRM", MarketExposure.W_PILLAR_CONFIRM + 1)
         with pytest.raises(ValueError, match="must sum to exactly 100"):
             MarketExposure()
 
     def test_drifted_weight_sum_below_100_raises(self, monkeypatch):
-        monkeypatch.setattr(MarketExposure, "W_TREND_30WK", MarketExposure.W_TREND_30WK - 5)
+        monkeypatch.setattr(MarketExposure, "W_PILLAR_TREND", MarketExposure.W_PILLAR_TREND - 5)
         with pytest.raises(ValueError, match="must sum to exactly 100"):
             MarketExposure()
+
+
+class TestMarketExposureBlendScores:
+    """MarketExposure._blend_scores() renormalizes a pillar's sub-signal weights over
+    whatever's actually available - the mechanism that replaced the prior design's
+    avail_max renormalization at the flat-19-factor level.
+    """
+
+    def test_full_weight_blend_is_plain_weighted_average(self):
+        result = MarketExposure._blend_scores([(80.0, 0.55), (60.0, 0.35), (40.0, 0.10)])
+        assert result == pytest.approx(80.0 * 0.55 + 60.0 * 0.35 + 40.0 * 0.10)
+
+    def test_renormalizes_when_an_optional_input_is_missing(self):
+        # market_technicals (0.10 weight) unavailable -> renormalize over the remaining
+        # 0.55/0.35 (summing to 0.90) rather than leaving 10% of the pillar unspent.
+        result = MarketExposure._blend_scores([(80.0, 0.55), (60.0, 0.35)])
+        expected = (80.0 * 0.55 + 60.0 * 0.35) / 0.90
+        assert result == pytest.approx(expected)
+
+    def test_raises_when_no_weight_available(self):
+        with pytest.raises(ValueError, match="No weight available"):
+            MarketExposure._blend_scores([])

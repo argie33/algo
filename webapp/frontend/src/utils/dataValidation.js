@@ -124,77 +124,31 @@ export const safeGetFactors = (current) => {
     return {};
   }
   const f = current.factors;
+  // 2026-08-23 pillar redesign (see algo/risk/market_exposure.py's module docstring):
+  // the flat 19-key factors dict was replaced by 3 scored pillars (each carrying its
+  // own sub-signal detail under "components"), a "macro_watch" section for signals
+  // demoted to a slow veto-only role (Sahm Rule / Yield Curve / Inflation
+  // Expectations - no longer composite-scored), and "vol_managed_scaling" (Layer 2,
+  // currently inert). Guards below cover this new top-level shape; ...f still spreads
+  // everything through so an unrecognized/future key survives unchanged rather than
+  // being dropped.
   return {
     ...f,
-    distribution_days:
-      f.distribution_days && typeof f.distribution_days === "object"
-        ? f.distribution_days
+    pillar_trend:
+      f.pillar_trend && typeof f.pillar_trend === "object"
+        ? f.pillar_trend
         : {},
-    new_highs_lows:
-      f.new_highs_lows && typeof f.new_highs_lows === "object"
-        ? f.new_highs_lows
+    pillar_risk:
+      f.pillar_risk && typeof f.pillar_risk === "object" ? f.pillar_risk : {},
+    pillar_confirm:
+      f.pillar_confirm && typeof f.pillar_confirm === "object"
+        ? f.pillar_confirm
         : {},
-    vix_regime:
-      f.vix_regime && typeof f.vix_regime === "object" ? f.vix_regime : {},
-    // Merged 2026-08-22 pass 3: breadth_50dma/breadth_200dma -> one "breadth" factor
-    // with both raw values as sub-fields (pct_above_50/pct_above_200).
-    breadth: f.breadth && typeof f.breadth === "object" ? f.breadth : {},
-    spy_momentum:
-      f.spy_momentum && typeof f.spy_momentum === "object"
-        ? f.spy_momentum
-        : {},
-    put_call_ratio:
-      f.put_call_ratio && typeof f.put_call_ratio === "object"
-        ? f.put_call_ratio
-        : {},
-    ad_line: f.ad_line && typeof f.ad_line === "object" ? f.ad_line : {},
-    // FIXED 2026-08-22 (exposure-model integrity review, 2 passes same day): economic_overlay
-    // was removed from the exposure engine's factors dict (split into standalone factors
-    // below) but this guard kept type-checking it anyway - dead code, always resolving to {}
-    // since that key can never appear in a real response anymore. Pass 2 then dropped
-    // financial_conditions/financial_stress entirely (substantially redundant with
-    // credit_spread/yield_curve, see market_exposure.py's module docstring) - their guards
-    // are gone too, replaced by sahm_rule's (demoted from its own hard-veto field to a
-    // normal factor). Guards below cover the factors that actually replaced economic_overlay,
-    // plus other post-2026-08-22 factors whose sub-fields the ExposureFactors component
-    // reads directly (yield_curve.t10y2y, cross_asset_confirmation.composite_z, etc.).
-    yield_curve:
-      f.yield_curve && typeof f.yield_curve === "object" ? f.yield_curve : {},
-    sahm_rule:
-      f.sahm_rule && typeof f.sahm_rule === "object" ? f.sahm_rule : {},
-    inflation_expectations:
-      f.inflation_expectations && typeof f.inflation_expectations === "object"
-        ? f.inflation_expectations
-        : {},
-    sector_rotation:
-      f.sector_rotation && typeof f.sector_rotation === "object"
-        ? f.sector_rotation
-        : {},
-    cross_asset_confirmation:
-      f.cross_asset_confirmation &&
-      typeof f.cross_asset_confirmation === "object"
-        ? f.cross_asset_confirmation
-        : {},
-    earnings_revision_breadth:
-      f.earnings_revision_breadth &&
-      typeof f.earnings_revision_breadth === "object"
-        ? f.earnings_revision_breadth
-        : {},
-    valuation_extension_breadth:
-      f.valuation_extension_breadth &&
-      typeof f.valuation_extension_breadth === "object"
-        ? f.valuation_extension_breadth
-        : {},
-    // ADDED 2026-08-22 (goal: exposure-model integrity review), REPLACED 2026-08-23
-    // (user-directed: UMICH consumer sentiment shouldn't stand alone as its own exposure
-    // factor yet - see MarketExposure._market_technicals_factor). Distinct from
-    // safeGetSentimentData's "fearGreed" key below - that one guards
-    // market_sentiment.fear_greed_index (a VIX-derived proxy, unrelated display on the
-    // Sentiment page); this "market_technicals" is the exposure engine's own factor,
-    // sourced from SPY RSI(14) + MACD(12,26,9), not UMCSENT.
-    market_technicals:
-      f.market_technicals && typeof f.market_technicals === "object"
-        ? f.market_technicals
+    macro_watch:
+      f.macro_watch && typeof f.macro_watch === "object" ? f.macro_watch : {},
+    vol_managed_scaling:
+      f.vol_managed_scaling && typeof f.vol_managed_scaling === "object"
+        ? f.vol_managed_scaling
         : {},
   };
 };

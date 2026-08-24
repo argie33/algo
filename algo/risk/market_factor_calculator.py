@@ -3,9 +3,19 @@
 Market Factor Calculator - Compute individual market factors
 
 Responsibilities:
-- Calculate 12 market factors (trend, momentum, breadth, VIX, credit, etc.)
+- Calculate market factors (trend, momentum, breadth, VIX, sentiment, etc.) consumed by
+  algo/risk/market_exposure.py's 3-pillar composite (see that module's docstring for the
+  pillar architecture and the evidence framework behind it)
 - Provide utility methods for common calculations (_pct_above_ma, _vix_score, etc.)
 - Return structured factor data for scoring
+
+REMOVED 2026-08-23 (pillar redesign, goal: evidence-based exposure model): positioning()
+and its two helpers (_insider_buying_breadth, _short_interest_trend) - insider buying
+breadth + short interest trend was a real signal in principle, but not covered by the
+redesign's evidence framework and its short-interest leg had only 3 FINRA settlement
+cycles of local history, too thin to trust regardless. Confirmed zero other callers
+before removal (grep across the repo). See market_exposure.py's module docstring,
+"Dropped entirely" section, for the full reasoning.
 """
 
 from __future__ import annotations
@@ -734,174 +744,5 @@ class MarketFactorCalculator:
                 f"[AAII CRITICAL] AAII sentiment query failed: {e}. Cannot proceed without contrarian sentiment data."
             ) from e
 
-    def positioning(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Positioning & flows (5pt factor - OPTIONAL enrichment, replaces NAAIM 2026-08-20).
-
-        NAAIM's public page transitioned to a subscription-based access model 2026-08-01, with
-        no free source left. Rather than replace it with another scraped survey, this factor
-        aggregates two datasets already ingested for other purposes into a universe-wide
-        "smart money positioning" read - immune to paywalling since both are official-source
-        filings (SEC Form 4, FINRA), not a voluntary self-reported poll:
-
-        - Insider buying breadth (60% weight): % of the actively-reporting universe with net
-          insider buying over the trailing 90 days (insider_transaction_velocity, Form 4).
-          Scored as a DIRECT signal, not contrarian - academic research on aggregate insider
-          trading (Seyhun 1998, Lakonishok & Lee 2001) finds insider buying breadth positively
-          predicts forward market returns, most strongly at extremes (insiders collectively
-          "buying the dip" near lows).
-        - Short interest trend (40% weight): change in market-wide average short interest %
-          over the last ~4 FINRA settlement cycles (short_interest_finra, bi-weekly). Scored as
-          a direct bearish-conviction signal (rising aggregate short interest = more informed
-          bearish positioning building), not the contrarian squeeze-risk reading - that's a
-          tactical trade-level signal, not a risk-model input.
-
-        Score thresholds below are a first pass, not backtested (see the exposure-model design
-        memo's validation section) - reasonable starting points pending real calibration once
-        enough history accumulates.
-
-        Returns explicit data_unavailable marker if either input can't be computed, mirroring
-        put_call_ratio's graceful-degradation pattern - this is new, unvalidated signal and
-        must not take the whole 12-factor composite down if it's temporarily unavailable.
-        """
-        try:
-            insider = self._insider_buying_breadth(eval_date, cur)
-            short_int = self._short_interest_trend(eval_date, cur)
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            return {"data_unavailable": True, "reason": f"Positioning query failed: {type(e).__name__}: {e}"}
-
-        if insider is None and short_int is None:
-            return {
-                "data_unavailable": True,
-                "reason": (
-                    f"Positioning data unavailable on or before {eval_date}: neither insider "
-                    f"buying breadth nor short interest trend could be computed (insufficient "
-                    f"sample size or no data)."
-                ),
-            }
-
-        parts: list[tuple[float, float]] = []  # (score, weight)
-        detail: dict[str, Any] = {}
-        if insider is not None:
-            parts.append((insider["score"], 0.60))
-            detail["insider_buying_breadth_pct"] = insider["breadth_pct"]
-            detail["insider_active_count"] = insider["active_count"]
-        else:
-            detail["insider_buying_breadth_pct"] = None
-        if short_int is not None:
-            parts.append((short_int["score"], 0.40))
-            detail["short_interest_chg_pct"] = short_int["chg_pct"]
-        else:
-            detail["short_interest_chg_pct"] = None
-
-        total_weight = sum(w for _, w in parts)
-        blended = sum(s * w for s, w in parts) / total_weight
-        return {"value": round(blended, 1), "score": round(blended, 1), **detail}
-
-    def _insider_buying_breadth(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
-        """% of actively-reporting universe with net insider buying over trailing 30d.
-
-        Uses the latest measurement per symbol on or before eval_date (this table is a
-        rolling per-symbol watermark panel, not a fixed daily snapshot - MAX(measurement_date)
-        across the whole table does not mean every symbol was refreshed that day). A 120-day
-        staleness bound per symbol excludes rows too old to reflect a genuine "trailing 90d"
-        window; a minimum 50-symbol active sample guards against noise when coverage is thin.
-
-        Uses the 90-day columns, not 30-day: live-verified 2026-08-20 that
-        buy_transactions_30d/sell_transactions_30d are 0 for effectively the entire universe
-        (0/4878 active even in a full-universe loader pass dated 2026-08-13) while the 90-day
-        columns show healthy activity (1998/5604 active as of the same check) - looks like a
-        real bug in the loader's 30-day window computation, not a quiet market. Not
-        investigated/fixed here (out of scope for the exposure-model work this factor is part
-        of); using the 90-day columns sidesteps it and is arguably the better choice anyway
-        for a slower-moving positioning signal less prone to zero-activity gaps.
-        """
-        cur.execute(
-            """
-            WITH latest AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol, buy_transactions_90d, sell_transactions_90d, net_buy_transactions_90d
-                FROM insider_transaction_velocity
-                WHERE measurement_date <= %s AND measurement_date >= %s::date - INTERVAL '120 days'
-                ORDER BY symbol, measurement_date DESC
-            )
-            SELECT
-                COUNT(*) FILTER (WHERE COALESCE(buy_transactions_90d, 0) + COALESCE(sell_transactions_90d, 0) > 0)
-                    AS active_count,
-                COUNT(*) FILTER (
-                    WHERE COALESCE(buy_transactions_90d, 0) + COALESCE(sell_transactions_90d, 0) > 0
-                    AND COALESCE(net_buy_transactions_90d, 0) > 0
-                ) AS net_buyers
-            FROM latest
-            """,
-            (eval_date, eval_date),
-        )
-        row = cur.fetchone()
-        if not row or row[0] is None:
-            return None
-        active_count, net_buyers = int(row[0]), int(row[1] or 0)
-        if active_count < 50:
-            logger.info(
-                f"[POSITIONING] Insider breadth sample too small ({active_count} active symbols) for {eval_date}, skipping."
-            )
-            return None
-        breadth_pct = net_buyers * 100.0 / active_count
-        # Linear: 30% net-buyer breadth -> 0, 50% -> 50, 70% -> 100. Illustrative bounds
-        # (most companies show some routine insider selling for tax/diversification reasons,
-        # so 50%+ net-buyer breadth is already an elevated reading) - see docstring on
-        # positioning() re: calibration.
-        score = min(100.0, max(0.0, (breadth_pct - 30) / 0.4))
-        return {"score": score, "breadth_pct": round(breadth_pct, 1), "active_count": active_count}
-
-    def _short_interest_trend(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
-        """Change in market-wide average short interest % over the available FINRA settlement cycles.
-
-        FINRA settlement cycles are bi-weekly (15th/EOM); up to 4 cycles back (~8 weeks) is
-        used when available. Requires at least 2 cycles (current + one baseline) rather than
-        a hard 4 - live-verified 2026-08-20 this local DB only has 3 cycles of history yet
-        (a real backfill-depth limitation, not a bug), and a 4-cycle floor made this signal
-        permanently unavailable rather than using a shorter, still-meaningful lookback. Rising
-        aggregate short interest is scored as a direct bearish-conviction signal (see
-        positioning() docstring), not contrarian squeeze risk.
-
-        Uses the MEDIAN of short_pct, not AVG, and excludes values outside a sane 0-100%
-        range - live-verified 2026-08-20 that short_pct carries real outlier corruption
-        (max observed 1,035,388.96% and 3,486.01% in different cycles, presumably a
-        shares_outstanding computation issue upstream - see short_interest_finra's own
-        short_pct = short_shares / company_info_sec.shares_outstanding derivation per
-        steering/DATA_LOADERS.md). A plain AVG() over ~4,400-4,900 rows swung from 9.5% to
-        220% between adjacent cycles purely from a handful of these corrupted rows - not
-        investigated/fixed at the source here (out of scope for this factor), but a
-        market-wide positioning signal cannot be built on an aggregate that a few corrupted
-        rows can dominate.
-        """
-        cur.execute(
-            "SELECT DISTINCT settlement_date FROM short_interest_finra WHERE settlement_date <= %s "
-            "ORDER BY settlement_date DESC LIMIT 4",
-            (eval_date,),
-        )
-        cycles = [r[0] for r in cur.fetchall()]
-        if len(cycles) < 2:
-            return None
-        current_cycle, baseline_cycle = cycles[0], cycles[-1]
-
-        median_sql = (
-            "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY short_pct) FROM short_interest_finra "
-            "WHERE settlement_date = %s AND data_unavailable IS NOT TRUE AND short_pct IS NOT NULL "
-            "AND short_pct BETWEEN 0 AND 100"
-        )
-        cur.execute(median_sql, (current_cycle,))
-        current_row = cur.fetchone()
-        cur.execute(median_sql, (baseline_cycle,))
-        baseline_row = cur.fetchone()
-        if not current_row or current_row[0] is None or not baseline_row or baseline_row[0] is None:
-            return None
-        current_avg, baseline_avg = float(current_row[0]), float(baseline_row[0])
-        if math.isnan(current_avg) or math.isinf(current_avg) or math.isnan(baseline_avg) or math.isinf(baseline_avg):
-            return None
-        if baseline_avg <= 0:
-            return None
-        chg_pct = (current_avg - baseline_avg) / baseline_avg * 100.0
-        # Linear: -15% (short interest falling, covering) -> 80, 0% (flat) -> 50,
-        # +15% (short interest rising, bearish conviction building) -> 20. Illustrative bounds.
-        score = min(100.0, max(0.0, 50.0 - chg_pct * 2.0))
-        return {"score": score, "chg_pct": round(chg_pct, 1)}
+    # positioning() / _insider_buying_breadth() / _short_interest_trend() removed
+    # 2026-08-23 - see module docstring.

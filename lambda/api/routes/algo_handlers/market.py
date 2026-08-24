@@ -2298,9 +2298,13 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         current_date = row.get("date")
 
         # Validate vix_regime is present in factors; fail-fast if missing (critical market signal)
-        if "vix_regime" not in factors or factors.get("vix_regime") is None:
+        # 2026-08-23 pillar redesign moved vix_regime from a top-level factors key to
+        # factors.pillar_risk.components.vix_regime (see algo/risk/market_exposure.py's module
+        # docstring) - this check must follow it or the endpoint would 503 on every call.
+        pillar_risk_vix = ((factors.get("pillar_risk") or {}).get("components") or {}).get("vix_regime")
+        if pillar_risk_vix is None:
             error_msg = (
-                f"vix_regime missing/null in factors for {current_date}: "
+                f"vix_regime missing/null in factors.pillar_risk.components for {current_date}: "
                 f"market exposure computation has not completed successfully. "
                 f"Check market_exposure_daily table and load_market_exposure_daily logs."
             )
