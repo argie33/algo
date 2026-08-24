@@ -80,15 +80,55 @@ record that produced this design):
     entirely into a slow, wide, rare tail-risk veto instead (see "Slow macro veto"
     below), rather than dropped, since the underlying signals are real.
 
-PILLAR 1 - TREND & MOMENTUM (45pt, the anchor - largest single share of the composite):
-    trend_30wk (55% of pillar):     SPY price vs rising/flat/falling 30-week MA
-    spy_momentum (35% of pillar):   trailing 12-month return (TSMOM)
-    market_technicals (10%,
-      optional, degrades gracefully): SPY RSI(14) + MACD(12,26,9), blended 50/50 -
-      deliberately does NOT re-derive SPY-vs-MA (already trend_30wk); RSI/MACD are
-      distinct constructs not represented elsewhere in this pillar.
-    If market_technicals is unavailable, the pillar renormalizes over trend_30wk/
-    spy_momentum alone (55/35 -> ~61/39) rather than leaving weight unspent.
+PILLAR 1 - TREND & MOMENTUM (100pt, the anchor and now the entire composite):
+    trend_30wk (100% of pillar, SUBW_TREND_30WK=1.0): SPY price vs rising/flat/falling
+      30-week MA - pure Faber (2007) binary trend signal, the sole scored input.
+    spy_momentum (0% of pillar, SUBW_SPY_MOMENTUM=0.0):   trailing 12-month return
+      (TSMOM) - still COMPUTED and persisted (components.spy_momentum, shown on both
+      dashboards) but no longer scored. See "PILLAR 1 SUB-WEIGHT EVIDENCE" below.
+    market_technicals (0% of pillar, SUBW_MARKET_TECHNICALS=0.0): SPY RSI(14) +
+      MACD(12,26,9) - still computed/persisted, no longer scored, same reason.
+
+    PILLAR 1 SUB-WEIGHT EVIDENCE (PASS 2026-08-24b): the 55/35/10 blend above (trend_30wk/
+    spy_momentum/market_technicals) was itself never backtested against this system's own
+    data before this pass - it was assembled from literature review (Rapach/Strauss/Zhou's
+    "combine weak signals simply" + DeMiguel/Garlappi/Uppal's "naive equal-weighting beats
+    optimized weighting"), not validated on real returns. Backtested here for the first
+    time: a pre-specified, non-fitted comparison of {trend_30wk alone, spy_momentum alone,
+    the 55/35/10 blend} as an exposure-scaling signal on SPY's real price history (local
+    DB backfilled 1993-2026, 32 years) AND independently on QQQ (1999-2026, 26 years, a
+    genuinely different asset - covers the 83%-drawdown dot-com crash from the other side).
+    Weekly rebalance, no lookahead (signal at close(t) applied to return t->t+1), no fitted
+    parameters - a confirmatory test of pre-specified candidates, not a combinatorial
+    search (searching many indicator combinations on this system's own thin local history
+    would be exactly the overfitting trap DeMiguel/Garlappi/Uppal warns about; comparing 3
+    named, literature-motivated variants is not).
+    Result on both assets: trend_30wk ALONE has higher Sharpe and CAGR than the 55/35/10
+    blend (SPY: Sharpe 1.10 vs 1.03, CAGR 12.3% vs 8.2%; QQQ: Sharpe 0.99 vs 0.81, CAGR
+    15.2% vs 9.6%) - momentum's slower 12-month lookback net DRAGS on risk-adjusted return
+    relative to the faster 30-week trend signal in this system's specific implementation,
+    across every full-period aggregate tested. spy_momentum alone (100% weight) is clearly
+    the weakest of any variant on both assets (SPY Sharpe 0.58, QQQ Sharpe 0.31) - this
+    isn't "drop momentum entirely was untested," it's "momentum alone is worse, and the
+    blend is worse than trend alone too."
+    Important nuance, NOT swept under the rug: regime-by-regime on SPY, trend_30wk-alone
+    beat the blend in all 8 tested regimes (dot-com/GFC/COVID/2022 bears and the 4
+    intervening bulls) - a clean sweep. On QQQ it did NOT replicate as cleanly: the blend
+    gave better (smaller) drawdowns in 3 of 4 crisis regimes (GFC -7.9% vs -10.4%, COVID
+    -12.4% vs -14.2%, 2022 -6.1% vs -6.9%), losing only on bull-market upside capture - the
+    aggregate Sharpe/CAGR edge for trend-alone holds because the bull-market gap dwarfs the
+    crisis-regime gap, not because trend-alone dominates every regime on every asset. This
+    is a real, asset-dependent tradeoff (somewhat worse crash protection for meaningfully
+    better bull-market capture), decided here in favor of the metric the composite is
+    actually built to optimize (aggregate risk-adjusted return), not a claim that momentum
+    has zero defensive value anywhere.
+    Caveats: single-signal-family two-asset test (SPY/QQQ, both US large-cap equity
+    indices, not a cross-market sample the way TSMOM's original literature used); weekly
+    (not daily) rebalancing; no transaction costs; cash modeled at 0% return (understates
+    the blend's relative appeal slightly, doesn't reverse the direction). Revisit if a
+    third, structurally different asset class or a real walk-forward/out-of-sample harness
+    (see _vol_managed_multiplier's own docstring on the same data-depth constraint)
+    contradicts this.
 
 PILLAR 2 - INDEPENDENT RISK LAYERS (30pt, equal-weighted simple average per Rapach et
 al. - three mechanically distinct measurements that co-move in risk-off regimes without
@@ -229,11 +269,16 @@ class MarketExposure:
     W_PILLAR_RISK = 0.0  # Independent Risk Layers - veto/context only, not scored
     W_PILLAR_CONFIRM = 0.0  # Breadth & Sentiment - veto/context only, not scored
 
-    # --- Internal sub-weights within Pillar 1 (Trend & Momentum). Renormalized over
-    # whatever's available if market_technicals is unavailable (see _blend_scores).
-    SUBW_TREND_30WK = 0.55
-    SUBW_SPY_MOMENTUM = 0.35
-    SUBW_MARKET_TECHNICALS = 0.10
+    # --- Internal sub-weights within Pillar 1 (Trend & Momentum).
+    # PASS 2026-08-24b (backtest-driven): spy_momentum and market_technicals dropped to
+    # 0 weight - see "PILLAR 1 SUB-WEIGHT EVIDENCE" in the module docstring for the full
+    # backtest. Both sub-signals are still COMPUTED every run (persisted in
+    # pillar_trend.components, still shown on both dashboards) - this is a scoring-weight
+    # change, not a signal removal, the same distinction PASS 2026-08-24's Pillar 2/3
+    # zero-weighting already established.
+    SUBW_TREND_30WK = 1.0
+    SUBW_SPY_MOMENTUM = 0.0
+    SUBW_MARKET_TECHNICALS = 0.0
 
     # --- Pillar 3 internal split: Participation vs. Sentiment sub-scores, equal weight.
     SUBW_PARTICIPATION = 0.5
