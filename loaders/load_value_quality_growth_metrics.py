@@ -4267,7 +4267,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "margin_of_safety_unavailable_reason": specific_reason,
                 "data_unavailable": True,
                 "data_source": "none",
-                "reason": "Insufficient SEC valuation data",
+                # FIXED 2026-08-24 (real-money-readiness goal, log-audit pass): this whole-row
+                # reason used to be hardcoded to "Insufficient SEC valuation data" regardless of
+                # specific_reason above - every per-field *_unavailable_reason correctly carried
+                # a real exception message (f"fetch_exception: {type}: {e}") when this fallback
+                # was reached via a genuine loader bug, but the whole-row reason silently
+                # discarded it, masking real bugs behind a generic "no data" message even on
+                # this table's own bare `reason` column (though live-confirmed dead for
+                # reporting purposes - value_metrics is deliberately excluded from scores.py's
+                # bare_reason_tables in favor of these more granular per-field columns, so this
+                # was misleading to direct inspection/debugging, not a live dashboard bug).
+                "reason": specific_reason,
                 "updated_at": get_loader_timestamp(),
             }
         elif table == "quality_metrics":
@@ -4335,7 +4345,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 **{f"{field}_unavailable_reason": specific_reason for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
-                "reason": "Insufficient SEC financial data",
+                # Same fix as value_metrics above - was hardcoded, ignoring specific_reason.
+                "reason": specific_reason,
                 "updated_at": get_loader_timestamp(),
             }
         else:  # growth_metrics
@@ -4364,7 +4375,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 **{f"{field}_unavailable_reason": specific_reason for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
-                "reason": "Insufficient historical data",
+                # Same fix as value_metrics above - was hardcoded, ignoring specific_reason.
+                "reason": specific_reason,
                 "updated_at": get_loader_timestamp(),
             }
 

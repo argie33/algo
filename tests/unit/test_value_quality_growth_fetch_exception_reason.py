@@ -52,20 +52,49 @@ def test_fetch_exception_reason_is_not_generic_missing_data() -> None:
 
 def test_unavailable_marker_defaults_unchanged_when_no_reason_passed() -> None:
     loader = _loader()
+    value = loader._unavailable_marker("value_metrics", "TEST")
     quality = loader._unavailable_marker("quality_metrics", "TEST")
     growth = loader._unavailable_marker("growth_metrics", "TEST")
 
+    assert value["pe_ratio_unavailable_reason"] == "missing_sec_data"
     assert quality["roe_unavailable_reason"] == "missing_sec_data"
     assert growth["eps_growth_5y_unavailable_reason"] == "insufficient_history"
 
 
 def test_unavailable_marker_uses_specific_reason_when_passed() -> None:
     loader = _loader()
+    value = loader._unavailable_marker("value_metrics", "TEST", reason="fetch_exception: KeyError: 'x'")
     quality = loader._unavailable_marker("quality_metrics", "TEST", reason="fetch_exception: KeyError: 'x'")
     growth = loader._unavailable_marker("growth_metrics", "TEST", reason="fetch_exception: KeyError: 'x'")
 
+    assert value["pe_ratio_unavailable_reason"] == "fetch_exception: KeyError: 'x'"
     assert quality["roe_unavailable_reason"] == "fetch_exception: KeyError: 'x'"
     assert growth["eps_growth_5y_unavailable_reason"] == "fetch_exception: KeyError: 'x'"
+
+
+def test_unavailable_marker_whole_row_reason_matches_specific_reason() -> None:
+    """BUG FOUND 2026-08-24 (real-money-readiness goal, log-audit pass): the whole-row
+    `reason` key was hardcoded per-table ("Insufficient SEC valuation data" / "Insufficient
+    SEC financial data" / "Insufficient historical data") regardless of the real cause -
+    diverging from every per-field *_unavailable_reason above it, which correctly carries a
+    real exception message. Live-confirmed 1,298 value_metrics rows universe-wide all shared
+    this one generic whole-row reason. Confirmed dead for the Scores Data Coverage dashboard
+    (value_metrics/quality_metrics/growth_metrics are deliberately excluded from scores.py's
+    bare_reason_tables in favor of the granular per-field columns), but still misleading to
+    direct DB inspection/debugging - a real fetch exception would read as a generic "no data"
+    message at the row level."""
+    loader = _loader()
+    for table, field in (
+        ("value_metrics", "pe_ratio_unavailable_reason"),
+        ("quality_metrics", "roe_unavailable_reason"),
+        ("growth_metrics", "eps_growth_5y_unavailable_reason"),
+    ):
+        no_reason = loader._unavailable_marker(table, "TEST")
+        assert no_reason["reason"] == no_reason[field]
+
+        with_reason = loader._unavailable_marker(table, "TEST", reason="fetch_exception: KeyError: 'x'")
+        assert with_reason["reason"] == "fetch_exception: KeyError: 'x'"
+        assert with_reason["reason"] == with_reason[field]
 
 
 def test_categorize_reason_routes_fetch_exception_to_other_bucket() -> None:
