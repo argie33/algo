@@ -181,8 +181,9 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     drawdown next to a real, circuit-breaker-confirmed 28.75% drawdown) without any
     explicit staleness flag - a silent-fallback violation of this project's own
     data-integrity rule. algo_performance_daily is the table actually kept current;
-    it lacks some columns (total_pnl_dollars, avg_holding_days, cagr_pct, streaks)
-    that algo_performance_metrics used to carry, so those are returned as None
+    it lacked total_pnl_dollars until migration 1222 (2026-08-24) added it - see
+    algo/reporting/performance.py's total_pnl(). It still lacks avg_holding_days,
+    cagr_pct, and streaks (nothing computes these), so those are returned as None
     (all optional per the "perf" response contract) rather than served stale.
 
     FAIL-FAST: Raises error if metrics unavailable. No silent defaults or graceful degradation.
@@ -193,7 +194,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 SELECT
                     report_date AS metric_date, rolling_sharpe_252d AS sharpe_ratio,
                     rolling_sortino_252d AS sortino_ratio, max_drawdown_pct, calmar_ratio,
-                    updated_at
+                    total_pnl_dollars, updated_at
                 FROM algo_performance_daily
                 ORDER BY report_date DESC
                 LIMIT 1
@@ -213,10 +214,14 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     try:
         metrics = safe_dict_convert(row)
 
-        # Trade counts computed live from algo_trades - algo_performance_daily does not
-        # populate its own total_trades/num_wins/num_losses columns (always NULL as of
-        # this writing; nothing in the current pipeline writes them), and the old
-        # algo_performance_metrics source for these counts is a dead table (see above).
+        # Trade counts computed live from algo_trades, not read from algo_performance_daily's
+        # own total_trades/num_wins/num_losses columns (corrected 2026-08-24: those ARE
+        # populated, contrary to this comment's prior claim - live-verified non-NULL). They
+        # represent a different, narrower thing on purpose: win_rate()'s rolling
+        # `lookback_trades` window (see algo/reporting/performance.py, column names
+        # win_rate_50t/avg_win_r_50t), not the all-time lifetime count this endpoint reports.
+        # The old algo_performance_metrics source for all-time counts is a dead table (see
+        # above), so this query is the only live source for the true all-time total.
         try:
             cur.execute("""
                     SELECT
@@ -480,10 +485,13 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         max_drawdown_pct = get_optional_field(metrics, "max_drawdown_pct")
         calmar_ratio = get_optional_field(metrics, "calmar_ratio")
 
-        # No live source for these (algo_performance_metrics, which used to carry them,
-        # has had no writer since 2026-06-30 - see docstring above). All optional per
-        # the "perf" response contract; None is honest, a 3-week-stale number is not.
-        total_pnl_dollars = None
+        # total_pnl_dollars: real, live since migration 1222 (2026-08-24) - see
+        # algo/reporting/performance.py's total_pnl() and this file's docstring above.
+        # total_pnl_pct/cagr_pct/avg_trade_pct/best_trade_pct still have no live source
+        # (algo_performance_metrics, which used to carry them, has had no writer since
+        # 2026-06-30). All optional per the "perf" response contract; None is honest, a
+        # 3-week-stale number is not.
+        total_pnl_dollars = get_optional_field(metrics, "total_pnl_dollars")
         total_pnl_pct = None
         cagr_pct = None
         avg_trade_pct = None

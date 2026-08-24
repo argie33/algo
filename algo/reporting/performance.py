@@ -462,6 +462,27 @@ class LivePerformance:
         except (FileNotFoundError, OSError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
+    def total_pnl(self) -> float | None:
+        """Lifetime realized P&L across every closed trade, not just the rolling window
+        win_rate()/expectancy() use (those are deliberately scoped to `lookback_trades` for
+        recency-weighted risk metrics - this is the simple, unscoped "how much have we made
+        total" number, added 2026-08-24 real-money-readiness audit after finding
+        total_pnl_dollars had been permanently None in the dashboard: algo_performance_daily
+        never had a column for it, and the table it replaced (algo_performance_metrics) has
+        had no writer since 2026-06-30. See migrations/versions/1222_add_total_pnl_to_
+        performance_daily.sql.
+
+        Returns:
+            Sum of profit_loss_dollars over all closed trades, or None if there are none yet
+            (expected during account ramp-up, not an error).
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT SUM(profit_loss_dollars) FROM algo_trades WHERE status = 'closed'")
+            row = cur.fetchone()
+        if row is None or row[0] is None:
+            return None
+        return float(row[0])
+
     def generate_daily_report(self, report_date: date | None = None) -> dict[str, Any]:
         """Generate comprehensive daily performance report.
 
@@ -515,6 +536,8 @@ class LivePerformance:
                 logger.debug(f"  Expectancy: {expectancy}")
             max_dd = self.max_drawdown()
             logger.debug(f"  Max drawdown: {max_dd}%")
+            total_pnl_dollars = self.total_pnl()
+            logger.debug(f"  Total P&L: {total_pnl_dollars}")
             comparison = self.backtest_vs_live_comparison()
             logger.debug(f"  Backtest vs live: {comparison}")
 
@@ -540,6 +563,9 @@ class LivePerformance:
             if max_dd is not None:
                 result["max_drawdown_pct"] = max_dd
 
+            if total_pnl_dollars is not None:
+                result["total_pnl_dollars"] = total_pnl_dollars
+
             if comparison:
                 result["live_vs_backtest"] = comparison
                 # Flag warning if Sharpe drops below 70% of backtest
@@ -561,6 +587,7 @@ class LivePerformance:
                 avg_loss_r_val = float(wr["avg_loss_r"]) if wr and wr["avg_loss_r"] is not None else None
                 expectancy_val = float(expectancy) if expectancy is not None else None
                 max_dd_val = float(max_dd) if max_dd is not None else None
+                total_pnl_val = float(total_pnl_dollars) if total_pnl_dollars is not None else None
 
                 with DatabaseContext("write") as cur:
                     # Extract trade counts and percentages from win_rate result
@@ -584,8 +611,8 @@ class LivePerformance:
                             report_date, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
                             win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
                             max_drawdown_pct, total_trades, num_wins, num_losses,
-                            avg_win, avg_loss, avg_r, win_rate_all, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()::timestamp)
+                            avg_win, avg_loss, avg_r, win_rate_all, total_pnl_dollars, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()::timestamp)
                         ON CONFLICT (report_date) DO UPDATE SET
                             rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                             rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
@@ -602,6 +629,7 @@ class LivePerformance:
                             avg_loss = EXCLUDED.avg_loss,
                             avg_r = EXCLUDED.avg_r,
                             win_rate_all = EXCLUDED.win_rate_all,
+                            total_pnl_dollars = EXCLUDED.total_pnl_dollars,
                             updated_at = NOW()::timestamp
                         """,
                         (
@@ -621,6 +649,7 @@ class LivePerformance:
                             avg_loss_pct_val,
                             avg_r_val,
                             win_rate_val,
+                            total_pnl_val,
                         ),
                     )
                     logger.info(

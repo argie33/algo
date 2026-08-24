@@ -219,6 +219,16 @@ MIGRATIONS = [
         "ALTER TABLE quarterly_cash_flow ADD COLUMN IF NOT EXISTS data_source VARCHAR(20)",
         "Add data_source to quarterly_cash_flow",
     ),
+    # Migration 1222 (2026-08-24): total_pnl_dollars had been permanently None in the
+    # dashboard (source table algo_performance_metrics had no writer since 2026-06-30, and
+    # its replacement algo_performance_daily never had this column) - see
+    # migrations/versions/1222_add_total_pnl_to_performance_daily.sql
+    (
+        "algo_performance_daily.total_pnl_dollars",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='algo_performance_daily' AND column_name='total_pnl_dollars'",
+        "ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_pnl_dollars NUMERIC(14, 2)",
+        "Add total_pnl_dollars to algo_performance_daily",
+    ),
 ]
 
 
