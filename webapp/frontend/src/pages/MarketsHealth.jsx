@@ -830,14 +830,18 @@ function ExposureFactors({ markets }) {
   // AAII, etc.) is already correctly shown elsewhere on this page (VixCard, BreadthCard,
   // MarketPulse, SentimentCard).
   const pillars = [
-    ["pillar_trend", "PILLAR 1 · TREND & MOMENTUM (Faber/TSMOM)"],
+    ["pillar_trend", "PILLAR 1 · TREND & MOMENTUM (Faber, trend-only)"],
     ["pillar_risk", "PILLAR 2 · INDEPENDENT RISK LAYERS"],
     ["pillar_confirm", "PILLAR 3 · BREADTH & SENTIMENT"],
   ];
+  // PASS 2026-08-24b: backtested trend_30wk alone against the prior 55/35/10 blend on
+  // SPY (1993-2026) and QQQ (1999-2026) - trend_30wk alone won on Sharpe/CAGR on both
+  // assets (see market_exposure.py's "PILLAR 1 SUB-WEIGHT EVIDENCE"). spy_momentum and
+  // market_technicals are still computed/persisted every run but no longer scored.
   const trendComponents = [
-    ["trend_30wk", "30-Week MA Trend", 0.55],
-    ["spy_momentum", "SPY 12-Month Momentum", 0.35],
-    ["market_technicals", "Market Technicals (RSI + MACD)", 0.1],
+    ["trend_30wk", "30-Week MA Trend", 1.0],
+    ["spy_momentum", "SPY 12-Month Momentum", 0],
+    ["market_technicals", "Market Technicals (RSI + MACD)", 0],
   ];
 
   return (
@@ -938,7 +942,11 @@ function ExposureFactors({ markets }) {
                           style={{ padding: "2px 0" }}
                         >
                           <span>
-                            {clabel} ({Math.round(weight * 100)}% of pillar)
+                            {clabel} (
+                            {weight > 0
+                              ? `${Math.round(weight * 100)}% of pillar - sole scored input`
+                              : "not scored - context only"}
+                            )
                           </span>
                           <span className="mono">{val}</span>
                         </div>
