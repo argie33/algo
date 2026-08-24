@@ -676,7 +676,7 @@ class AlgoConfig:
             "Advanced Filters",
         ),
         "phase7_min_composite_score": (
-            "50",
+            "60",
             "int",
             "Phase 7: Minimum composite score 0-100 for signal filtering",
             "Signal Generation",

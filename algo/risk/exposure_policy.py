@@ -105,6 +105,42 @@ class ExposurePolicyConstraints:
 # (phase6_exit_execution.py's separate _check_sector_concentration(), a diversification
 # control, not an exposure-score one) is untouched by this change - it generates its own
 # force_exit actions independently of this class.
+#
+# TUNING (2026-08-24, user-directed - "buy the best stocks, don't load up on shitty stocks",
+# floor of 60 minimum, tighten further above that): min_composite_score raised 50/60/70/80 ->
+# 60/65/70/75 (a first pass at +2/tier was rejected by the user as too timid and replaced with
+# this).
+#
+# RE-APPLIED (2026-08-24, same day, real-money-readiness /goal session): this exact change
+# had already landed once earlier the same day but was found reverted back to 50/60/70/80 in
+# both the working tree and git history - EXPOSURE_TIERS has no database backing (unlike
+# phase7_min_composite_score below, which survived only because migration 1224's DB row
+# protected it), so a concurrent session's edit/race silently dropped it with nothing to
+# catch the loss. Landed a THIRD time (found reverted again mid-session by a new regression
+# test written specifically to catch this - see
+# tests/unit/test_exposure_tiers_min_composite_score_values_20260824.py) via an isolated git
+# worktree to avoid the same race a fourth time.
+#
+# Basis: composite_score itself has no historical per-trade record (stock_scores is
+# overwritten every run; stock_scores_history, migration 1221, only started 2026-08-24), so it
+# can't be backtested directly yet. As a proxy, rs_percentile - a real input to composite_score's
+# momentum pillar (loaders/load_stock_scores.py) - DOES have history via algo_trades, and shows
+# a real, monotonic relationship between score and outcome across the 96 closed trades on
+# record: top-quintile RS entries (80-99.6) average +0.47% P&L / 44.9% win rate (n=69) vs. the
+# 40-59 RS band at -0.48 to -0.70% / 25-29% win rate (n=11). Small sample and a proxy metric,
+# not composite_score itself - re-validate against real composite_score-at-entry once
+# stock_scores_history has enough days accumulated.
+#
+# Thresholds anchored to the live composite_score distribution (local `stocks` DB, 2026-08-24
+# universe snapshot, n=5122, max ever observed=75.08): 60~=p90 (471/5122 qualify), 65~=p99
+# (95/5122), 70~=top 12/5122, 75 = the current all-time max (1/5122) - deliberately at the edge
+# of reachable, not beyond it. A uniform +10 shift (60/70/80/90) was considered and rejected:
+# composite_score is a 6-factor weighted blend (quality/growth/value/positioning/stability/
+# momentum, load_stock_scores.py) that empirically never exceeds ~75, so 80 and 90 would be
+# permanently unreachable by any stock - that would silently make the caution and correction
+# tiers behave identically to a permanent halt without saying so, which is different from "more
+# selective." caution (70) and correction (75, moot regardless since halt_new_entries=True
+# already blocks it) both land at genuinely rare-but-reachable levels instead.
 EXPOSURE_TIERS: list[dict[str, Any]] = [
     {
         "name": "confirmed_uptrend",
@@ -113,7 +149,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "description": "Confirmed bull market - full deployment",
         "risk_multiplier": 1.0,
         "max_new_positions_today": 4,
-        "min_composite_score": 50.0,
+        "min_composite_score": 60.0,
         "tighten_winners_at_r": None,
         "force_partial_at_r": None,
         "halt_new_entries": False,
@@ -128,7 +164,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "description": "Uptrend intact but weakening - reduced position size",
         "risk_multiplier": 0.65,
         "max_new_positions_today": 3,
-        "min_composite_score": 60.0,
+        "min_composite_score": 65.0,
         "tighten_winners_at_r": None,
         "force_partial_at_r": None,
         "halt_new_entries": False,
@@ -158,7 +194,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "description": "Market correction - preserve capital, no new entries",
         "risk_multiplier": 0.0,
         "max_new_positions_today": 0,
-        "min_composite_score": 80.0,
+        "min_composite_score": 75.0,
         "tighten_winners_at_r": None,
         "force_partial_at_r": None,
         "halt_new_entries": True,

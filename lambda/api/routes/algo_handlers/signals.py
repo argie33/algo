@@ -25,6 +25,7 @@ from routes.utils import (
 )
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
+from algo.risk.exposure_policy import EXPOSURE_TIERS
 from utils.validation import (
     format_decimal_string,
     safe_float,
@@ -513,55 +514,42 @@ def _get_rejection_funnel(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
+# BUG FOUND 2026-08-24 (real-money-readiness goal, position-sizing re-verification pass):
+# this used to be an independent, hand-maintained copy of algo/risk/exposure_policy.py's
+# EXPOSURE_TIERS - drifted out of sync with the real values the trading system actually
+# uses (confirmed_uptrend max_new 5 vs real 4; uptrend_under_pressure/caution/correction
+# risk_mult 0.6/0.3/0.2 vs real 0.65/0.35/0.0; caution halt=True vs real
+# halt_new_entries=False). Since this dict backs a live, user-facing endpoint
+# (lambda/api/routes/algo_handlers/market.py's active_tier response, rendered directly by
+# webapp/frontend/src/pages/MarketsHealth.jsx as risk_mult/max_new/a HALTED-ALLOWED badge),
+# the drift meant the dashboard was showing an operator the WRONG risk posture - most
+# seriously, claiming "caution" entries are HALTED when the live system is not halted in
+# that tier at all (only "correction" halts). Rebuilt to derive from EXPOSURE_TIERS
+# directly so this can't drift again - single source of truth, matching this codebase's own
+# established fix for the equivalent position_sizer.py regime_mult double-counting bug
+# (one signal, one place it's read from).
 _TIER_CONFIG = {
-    "confirmed_uptrend": {
-        "description": "Confirmed uptrend - full deployment",
-        "min_pct": 70,
-        "max_pct": 100,
-        "risk_mult": 1.0,
-        "risk_multiplier": 1.0,
-        "max_new": 5,
-        "max_new_positions_today": 5,
-        "halt": False,
-        "halt_new_entries": False,
-        "min_grade": "B",
-    },
-    "uptrend_under_pressure": {
-        "description": "Uptrend under pressure - reduced exposure",
-        "min_pct": 45,
-        "max_pct": 70,
-        "risk_mult": 0.6,
-        "risk_multiplier": 0.6,
-        "max_new": 3,
-        "max_new_positions_today": 3,
-        "halt": False,
-        "halt_new_entries": False,
-        "min_grade": "B",
-    },
-    "caution": {
-        "description": "Caution - entries halted unless exceptional",
-        "min_pct": 25,
-        "max_pct": 45,
-        "risk_mult": 0.3,
-        "risk_multiplier": 0.3,
-        "max_new": 1,
-        "max_new_positions_today": 1,
-        "halt": True,
-        "halt_new_entries": True,
-        "min_grade": "A",
-    },
-    "correction": {
-        "description": "Market correction - preserve capital",
-        "min_pct": 0,
-        "max_pct": 25,
-        "risk_mult": 0.2,
-        "risk_multiplier": 0.2,
-        "max_new": 0,
-        "max_new_positions_today": 0,
-        "halt": True,
-        "halt_new_entries": True,
-        "min_grade": "A+",
-    },
+    tier["name"]: {
+        "description": tier["description"],
+        "min_pct": tier["min_pct"],
+        "max_pct": tier["max_pct"],
+        "risk_mult": tier["risk_multiplier"],
+        "risk_multiplier": tier["risk_multiplier"],
+        "max_new": tier["max_new_positions_today"],
+        "max_new_positions_today": tier["max_new_positions_today"],
+        "halt": tier["halt_new_entries"],
+        "halt_new_entries": tier["halt_new_entries"],
+        # min_grade has no equivalent in EXPOSURE_TIERS (a display-only field with zero
+        # confirmed consumers anywhere in webapp/frontend as of this fix) - kept as its own
+        # static mapping rather than invented, since there's no canonical source for it.
+        "min_grade": {
+            "confirmed_uptrend": "B",
+            "uptrend_under_pressure": "B",
+            "caution": "A",
+            "correction": "A+",
+        }[tier["name"]],
+    }
+    for tier in EXPOSURE_TIERS
 }
 
 
