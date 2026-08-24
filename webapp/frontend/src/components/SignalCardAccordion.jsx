@@ -771,17 +771,17 @@ const SignalCardAccordion = ({ signals = [] }) => {
                     Profit Targets
                   </Typography>
                   <DataField
-                    label="Target 1 (1.5x ATR)"
+                    label="Target +8%"
                     value={signal.profit_target_8pct}
                     format="currency"
                   />
                   <DataField
-                    label="Target 2 (3x ATR)"
+                    label="Target +20%"
                     value={signal.profit_target_20pct}
                     format="currency"
                   />
                   <DataField
-                    label="Target 3 (4.5x ATR)"
+                    label="Target +25%"
                     value={signal.profit_target_25pct}
                     format="currency"
                   />

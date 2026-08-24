@@ -21,6 +21,7 @@ from algo.infrastructure.broker_adapter import BrokerAdapter
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
 from utils.db import DatabaseContext
+from utils.trade_metrics import backfill_all_trade_metrics
 from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
@@ -990,6 +991,20 @@ class DailyReconciliation:
                             )
 
                 # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
+                # BUG FOUND 2026-08-24: this step only ever READ mfe_pct/mae_pct (via the
+                # AVG() query below) - nothing wrote them. The only writer,
+                # utils.trade_metrics.update_trade_metrics(), was never called from any
+                # production code path (executor_exit_handler.py sets exit_r_multiple/
+                # trade_duration_days directly via SQL at close time but never mfe_pct/
+                # mae_pct), so every closed trade's mfe_pct/mae_pct stayed permanently NULL
+                # and the TUI/API always rendered "--" for them. backfill_all_trade_metrics()
+                # is idempotent (only touches rows with a NULL metric) so it's safe to run
+                # on every reconciliation pass.
+                backfill_result = backfill_all_trade_metrics(cur)
+                if "total_updated" in backfill_result:
+                    logger.info(
+                        f"   Backfilled MFE/MAE/R-multiple/duration for {backfill_result['total_updated']} trade(s)"
+                    )
                 mae_result = self.compute_closed_trade_metrics(cur)
                 logger.info("\n1c. MAE/MFE Metrics:")
                 logger.info(f"   {mae_result['reason']}")
