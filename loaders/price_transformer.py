@@ -289,8 +289,22 @@ class PriceTransformer:
         trading_day_set: set[Any] | None,
         prior_close_by_symbol: dict[str, float | None],
         tracker: Any,
-    ) -> tuple[bool, int, int]:
-        """Process single row; returns (was_valid, non_trading_count, parse_error_count)."""
+    ) -> tuple[bool, int, int, int]:
+        """Process single row; returns (was_valid, non_trading_count, parse_error_count,
+        validation_rejected_count).
+
+        BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven sweep): parse_error_count
+        used to also cover price-validation rejections (bad OHLC, NULLs, price gap > 30% with
+        no matching split) via the same counter - so validate_and_transform()'s aggregate
+        "High rejection rate: N parse errors" WARNING log was factually wrong for those rows.
+        Live-confirmed: e.g. LGCL's 2026-08-24 run logged "4 parse errors out of 5 rows" but
+        the actual per-row reason logged one line above was "price gap > 30%: 0.083 -> 0.057" -
+        a real, correctly-caught data-quality rejection (this penny stock's price genuinely
+        moved that much), not a parse failure at all. Misleading during exactly the kind of
+        log-driven debugging this was found during. Split into two distinct counters so the
+        aggregate log says what actually happened; the underlying accept/reject decision and
+        DB writes are unchanged.
+        """
         row_date_str: str | None = row["date"] if "date" in row else None
         symbol: str | None = row["symbol"] if "symbol" in row else None
 
@@ -303,14 +317,14 @@ class PriceTransformer:
             row_date = datetime.fromisoformat(row_date_str).date()
             if not self._validate_row_trading_day(row_date_str, row_date, trading_day_set, symbol, tracker):
                 logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
-                return False, 1, 0
+                return False, 1, 0, 0
         except (ValueError, TypeError) as e:
             logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
-            return False, 0, 1
+            return False, 0, 1, 0
 
         if not symbol or not isinstance(symbol, str):
             logger.warning("[unknown] Missing symbol, skipping row")
-            return False, 0, 1
+            return False, 0, 1, 0
 
         is_valid, error_msg = self._validate_row_prices(row, symbol, prior_close_by_symbol, tracker)
         if not is_valid:
@@ -333,7 +347,7 @@ class PriceTransformer:
                 # following day's data, typically within one extra rejected day.
                 if error_msg.startswith("price gap > 30%") and "close" in row:
                     prior_close_by_symbol[symbol] = row["close"]
-            return False, 0, 1
+            return False, 0, 0, 1
 
         if tracker:
             tracker.record_tick(
@@ -343,7 +357,7 @@ class PriceTransformer:
                 source_api="yfinance",
             )
         prior_close_by_symbol[symbol] = row["close"] if "close" in row else None
-        return True, 0, 0
+        return True, 0, 0, 0
 
     def validate_and_transform(self, rows: list[dict[str, Any]], tracker: Any = None) -> list[dict[str, Any]]:
         """Validate and filter rows with trading day filtering and provenance tracking.
@@ -382,29 +396,34 @@ class PriceTransformer:
         prior_close_by_symbol: dict[str, float | None] = {}
         non_trading_filtered = 0
         parse_errors = 0
+        validation_rejected = 0
 
         for row in rows:
-            is_valid, non_trading, parse_error = self._process_row(row, trading_day_set, prior_close_by_symbol, tracker)
+            is_valid, non_trading, parse_error, val_rejected = self._process_row(
+                row, trading_day_set, prior_close_by_symbol, tracker
+            )
             if is_valid:
                 final_validated.append(row)
             else:
                 non_trading_filtered += non_trading
                 parse_errors += parse_error
+                validation_rejected += val_rejected
 
         # Log data quality summary
-        if non_trading_filtered > 0 or parse_errors > 0:
+        if non_trading_filtered > 0 or parse_errors > 0 or validation_rejected > 0:
             total_input = len(rows)
             if total_input <= 0:
                 logger.critical(
                     f"[PRICE_TRANSFORMER] Data quality calculation failed: total_input={total_input} "
-                    f"but detected {non_trading_filtered} non-trading + {parse_errors} parse errors. "
+                    f"but detected {non_trading_filtered} non-trading + {parse_errors} parse errors + "
+                    f"{validation_rejected} validation rejections. "
                     f"This indicates data structure corruption or logic error."
                 )
                 raise RuntimeError(
                     "Data quality metric calculation failed with invalid input count. "
                     "Cannot validate transformation quality."
                 )
-            filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100
+            filtered_pct = (non_trading_filtered + parse_errors + validation_rejected) / total_input * 100
             if rows:
                 # CRITICAL: Validate symbol field exists in first row (fail-fast if missing)
                 symbol = rows[0]["symbol"] if "symbol" in rows[0] else None
@@ -413,16 +432,22 @@ class PriceTransformer:
                         f"[TRANSFORMER] First row in batch missing required 'symbol' field. "
                         f"Cannot identify which symbol had rejection issues. Row: {rows[0]}"
                     )
+                # BUG FOUND 2026-08-24: this used to fold validation_rejected into "parse
+                # errors" too, so a normal price-gap/OHLC rejection (the validator correctly
+                # doing its job) was misreported as a parsing bug - see _process_row's
+                # docstring for a live example (LGCL). Reported separately now; parse_errors
+                # here means an actual unparseable date/missing symbol, nothing else.
                 if filtered_pct > 5:
                     logger.warning(
                         f"[{symbol}] High rejection rate: {non_trading_filtered} non-trading + "
-                        f"{parse_errors} parse errors out of {total_input} rows ({filtered_pct:.1f}%). "
+                        f"{parse_errors} parse errors + {validation_rejected} validation rejections "
+                        f"out of {total_input} rows ({filtered_pct:.1f}%). "
                         f"This may indicate bad data or API issues."
                     )
                 else:
                     logger.info(
                         f"[{symbol}] Filtered {non_trading_filtered} non-trading-day + {parse_errors} parse errors "
-                        f"from {total_input} rows ({filtered_pct:.1f}%)"
+                        f"+ {validation_rejected} validation rejections from {total_input} rows ({filtered_pct:.1f}%)"
                     )
 
         return final_validated
