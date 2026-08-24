@@ -112,11 +112,39 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
         logger.debug("Economic calendar: no upcoming events available")
         return rows
 
-    from datetime import date
+    from datetime import date, timedelta
+
+    # BUG FOUND 2026-08-24 (real-money-readiness goal, dashboard.py sweep): the API
+    # (lambda/api/routes/economic.py::_get_calendar) returns events `ORDER BY event_date
+    # DESC` (furthest-future date first) over a default window of the last 90 days through
+    # unbounded future - fine for a bounded date-range query, but this panel (titled
+    # "ECONOMIC CALENDAR (UPCOMING)") takes the first 6 items expecting the NEAREST
+    # upcoming events. Without correcting for this here, valid_cal[:6] silently showed the
+    # 6 events furthest out in that window, not the next 6 actually coming up - invisible
+    # while economic_calendar only had 13 stale June rows with no loader, became a real
+    # display bug the moment the loader (built the same session) started writing real
+    # forward-looking events across the next year. A plain ascending sort alone isn't
+    # enough either: CPI/NFP/GDP/PCE/FOMC releases average ~1/week, so the trailing 90-day
+    # window alone can hold 10+ past events - more than enough to crowd out every real
+    # upcoming one from the first 6 slots. Filter to yesterday-forward (1-day grace so a
+    # just-released print still shows) before sorting, matching the "UPCOMING" framing.
+    # webapp/frontend/src/pages/EconomicDashboard.jsx defensively re-sorts client-side for
+    # the same underlying API-order issue - mirrored here rather than changing the shared
+    # API's order (AlgoTradingDashboard.jsx/MarketsHealth.jsx also consume it with their
+    # own bounded date ranges).
+    today = date.today()
+    try:
+        cutoff_iso = (today - timedelta(days=1)).isoformat()
+        upcoming = sorted(
+            (e for e in valid_cal if str(e.get("event_date") or "") >= cutoff_iso),
+            key=lambda e: str(e.get("event_date") or ""),
+        )
+        valid_cal = upcoming if upcoming else sorted(valid_cal, key=lambda e: str(e.get("event_date") or ""))
+    except (TypeError, AttributeError) as e:
+        logger.warning(f"Economic calendar: could not sort/filter events by date, using API order: {e}")
 
     rows.append(Rule(style="dim"))
     imp_c = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
-    today = date.today()
     seen_keys = set()
 
     for ev in valid_cal[:6]:
