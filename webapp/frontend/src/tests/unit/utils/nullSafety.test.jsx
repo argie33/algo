@@ -58,6 +58,11 @@ describe("Null Safety Utilities", () => {
     });
 
     it("returns safe defaults for all sub-objects", () => {
+      // 2026-08-23 pillar redesign (see dataValidation.js's safeGetFactors) replaced the
+      // flat 19-key factors dict (which included breadth/spy_momentum, guarded here until
+      // this test was updated) with 3 scored pillars + macro_watch + vol_managed_scaling.
+      // Unrecognized keys like vix_regime/distribution_days still pass through unchanged
+      // via the spread - only the 5 known complex-object keys get object-or-{} guarding.
       const current = {
         factors: {
           vix_regime: { value: 20, rising: true },
@@ -67,8 +72,11 @@ describe("Null Safety Utilities", () => {
       const result = safeGetFactors(current);
       expect(result.vix_regime.value).toBe(20);
       expect(result.distribution_days.regime).toBe("strong");
-      expect(result.breadth).toEqual({});
-      expect(result.spy_momentum).toEqual({});
+      expect(result.pillar_trend).toEqual({});
+      expect(result.pillar_risk).toEqual({});
+      expect(result.pillar_confirm).toEqual({});
+      expect(result.macro_watch).toEqual({});
+      expect(result.vol_managed_scaling).toEqual({});
     });
   });
 
