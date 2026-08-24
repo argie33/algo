@@ -87,6 +87,14 @@ class PositionSizer:
                 f"Cannot proceed with position sizing without explicit risk configuration."
             )
 
+        # Cache for get_data_maturity_multiplier(): a system-wide constant (same real/synthetic
+        # split for every symbol - see that method's docstring), not per-symbol like
+        # exposure_mult/vix_mult. Phase 8 constructs one PositionSizer per run and reuses it
+        # across every symbol sized that run, so caching here avoids re-running an expensive
+        # full-table price_daily GROUP BY once per symbol for a value that cannot change within
+        # a single run.
+        self._data_maturity_mult_cache: Decimal | None = None
+
     def _calculate_trading_days_elapsed(self, start_date: _date, end_date: _date) -> int:
         """Count the number of trading days elapsed between two dates (inclusive of start, exclusive of end).
 
@@ -624,6 +632,81 @@ class PositionSizer:
             return cast(Decimal, result)
         raise RuntimeError("Could not fetch VIX from database. Cannot calculate safe position size.")
 
+    def get_data_maturity_multiplier(self) -> Decimal:
+        """Discount risk while long-lookback technical indicators (roc_252d, beta,
+        volatility_252d, max_drawdown_1y) are still substantially built on the
+        pre-2026-05-26 bulk historical price_daily seed rather than real, incrementally
+        loaded data.
+
+        FOUND 2026-08-24 (real-money-readiness goal session): scripts/check_synthetic_price_data.py
+        already documents that a one-time bulk seed covers ~90% of price_daily
+        (2021-05-18 .. 2026-05-22), and full-universe real collection only began
+        2026-07-16. As of this fix, only ~21 of the 252 real trading days a full-year
+        lookback needs have accumulated. The only existing guard
+        (ROC_OVERFLOW_SKIP/CLIP in loaders/load_technical_indicators.py) catches just the
+        most extreme seed-period corruption - values large enough to overflow
+        NUMERIC(14,4) (live-confirmed on BRID/CGTL/BYFC). Anything less extreme still
+        silently drives momentum/trend scores and position sizing at full confidence
+        today, with zero visibility anywhere in scoring or risk. No amount of re-fetching
+        fixes this - it closes only as real trading days accumulate (~231 more needed).
+
+        This is a SYSTEM-WIDE constant, not a per-symbol signal like exposure_mult/vix_mult:
+        real full-universe collection began on one date for the whole universe, so every
+        symbol's 252-day lookback has roughly the same real/synthetic split right now.
+
+        Returns 1.0 (no discount) once REQUIRED_LOOKBACK_DAYS of real trading days have
+        accumulated. Floored at 0.5 - discounts position size, never blocks entries
+        outright, since seed-period data still carries real signal, just less trustworthy
+        than fully-real data. Cached per-instance (see __init__) since Phase 8 reuses one
+        PositionSizer across every symbol sized in a run.
+        """
+        if self._data_maturity_mult_cache is not None:
+            return self._data_maturity_mult_cache
+
+        required_lookback_days = 252
+        floor_mult = Decimal("0.5")
+        # Matches scripts/check_synthetic_price_data.py's _FULL_UNIVERSE_ROW_THRESHOLD - a
+        # per-date row count in the same ballpark as the active universe, so an isolated
+        # early backfill for a handful of symbols doesn't get counted as "full coverage".
+        full_universe_row_threshold = 5000
+
+        def fetch_maturity(cur: PsycopgCursor[Any]) -> Decimal:
+            cur.execute(
+                """
+                SELECT MIN(date) FROM (
+                    SELECT date FROM price_daily WHERE data_source IS NOT NULL
+                    GROUP BY date HAVING COUNT(*) >= %s
+                ) full_coverage_dates
+                """,
+                (full_universe_row_threshold,),
+            )
+            row = cur.fetchone()
+            full_coverage_start = row[0] if row else None
+            if full_coverage_start is None:
+                # No real full-universe coverage detected at all yet - maximally conservative.
+                return floor_mult
+
+            today = _datetime.now(EASTERN_TZ).date()
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM (
+                    SELECT date FROM price_daily
+                    WHERE date > %s AND date <= %s AND data_source IS NOT NULL
+                    GROUP BY date HAVING COUNT(*) >= %s
+                ) full_coverage_dates
+                """,
+                (full_coverage_start - timedelta(days=1), today, full_universe_row_threshold),
+            )
+            row = cur.fetchone()
+            real_trading_days = int(row[0]) if row and row[0] is not None else 0
+
+            coverage_ratio = min(Decimal(1), Decimal(real_trading_days) / Decimal(required_lookback_days))
+            return floor_mult + (Decimal(1) - floor_mult) * coverage_ratio
+
+        result: Decimal = self._with_cursor(fetch_maturity)
+        self._data_maturity_mult_cache = result
+        return result
+
     def get_phase_size_multiplier(self) -> float:
         """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
         return 1.0
@@ -899,8 +982,11 @@ class PositionSizer:
         exposure_mult = self.get_market_exposure_multiplier()
         phase_mult = self.get_phase_size_multiplier()
         vix_mult = self.get_vix_caution_multiplier()
+        data_maturity_mult = self.get_data_maturity_multiplier()
 
-        adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult
+        adjusted_risk_pct = (
+            base_risk_pct * risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult * data_maturity_mult
+        )
         risk_dollars = (pv_dec * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
         # NOTE (confirmed 2026-08-10, checked git history back to this file's first commit):
@@ -951,7 +1037,9 @@ class PositionSizer:
         if min_risk_val is None:
             raise ValueError("CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor.")
         min_risk_floor = Decimal(str(min_risk_val)) / Decimal(100)
-        has_safety_reduction = exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
+        has_safety_reduction = (
+            exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0 or data_maturity_mult < 1.0
+        )
         if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
             adjusted_risk_pct = min_risk_floor
             risk_dollars = pv_dec * adjusted_risk_pct
@@ -1244,18 +1332,24 @@ class PositionSizer:
             * Decimal(str(exposure_mult))
             * Decimal(str(phase_mult))
             * Decimal(str(vix_mult))
+            * Decimal(str(data_maturity_mult))
         )
         multipliers = {
             "risk_adjustment": float(risk_adjustment),
             "exposure_mult": float(exposure_mult),
             "phase_mult": float(phase_mult),
             "vix_mult": float(vix_mult),
+            "data_maturity_mult": float(data_maturity_mult),
         }
         multiplier_reasons = {
             "risk_adjustment": f"drawdown-based risk adjustment: {multipliers['risk_adjustment']:.2f}x",
             "exposure_mult": f"market exposure multiplier: {multipliers['exposure_mult']:.2f}x",
             "phase_mult": f"stage/phase multiplier: {multipliers['phase_mult']:.2f}x",
             "vix_mult": f"VIX caution multiplier: {multipliers['vix_mult']:.2f}x",
+            "data_maturity_mult": (
+                f"historical data maturity multiplier: {multipliers['data_maturity_mult']:.2f}x "
+                "(long-lookback indicators still partly built on the pre-2026-05-26 seed)"
+            ),
         }
         self._record_sizing_audit(
             symbol=symbol,

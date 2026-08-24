@@ -67,6 +67,7 @@ class TestPositionSizerHasNoRegimeMultiplier:
             patch.object(sizer, "get_market_exposure_multiplier", return_value=Decimal("0.5")),
             patch.object(sizer, "get_phase_size_multiplier", return_value=1.0),
             patch.object(sizer, "get_vix_caution_multiplier", return_value=Decimal("1.0")),
+            patch.object(sizer, "get_data_maturity_multiplier", return_value=Decimal("1.0")),
         ):
             result = sizer._calculate_with_external_cursor(
                 symbol="AAPL",
