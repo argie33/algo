@@ -2306,6 +2306,24 @@ def _fetch_table_source_tracking(
         return None
 
 
+# BUG FOUND 2026-08-24 (goal session data-source audit): a plain `field_key in factor_name`
+# substring check missed positioning_metrics' top_10_institutions_pct - the source_tracking
+# field key is "institutional" (from load_positioning_metrics.py's institutional_source), but
+# the column is spelled "institutions" (no trailing "al"), so the two words never matched as
+# substrings of each other. top_10_institutions_pct is always SEC Form 13F-sourced (same
+# sec_inst_row as institutional_ownership_pct/institutional_holders_count, which DO match) but
+# silently fell through to the table-wide data_source breakdown instead - which, for
+# positioning_metrics, is dominated by FINRA (load_positioning_metrics.py's data_source column
+# picks short_interest_source over institutional_source/insider_source whenever short-interest
+# data exists, which is true for most symbols) - so this one factor's SEC-sourced data was
+# misattributed to FINRA in the Data Sources dashboard. Aliases below cover known field_key /
+# factor_name spelling mismatches; add to this list rather than the substring check itself if
+# another one turns up.
+_SOURCE_TRACKING_FACTOR_ALIASES: dict[str, tuple[str, ...]] = {
+    "institutional": ("institutional", "institutions"),
+}
+
+
 def _resolve_factor_sources(
     table_source_cache: dict[str, list[dict[str, Any]] | None],
     table_source_tracking_cache: dict[str, dict[str, list[dict[str, Any]]] | None],
@@ -2319,7 +2337,8 @@ def _resolve_factor_sources(
     st_detail = table_source_tracking_cache.get(table)
     if st_detail:
         for field_key, breakdown in st_detail.items():
-            if field_key in factor_name:
+            aliases = _SOURCE_TRACKING_FACTOR_ALIASES.get(field_key, (field_key,))
+            if any(alias in factor_name for alias in aliases):
                 return breakdown
     return table_source_cache.get(table)
 

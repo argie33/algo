@@ -168,6 +168,43 @@ def test_summary_source_rollup_merges_same_label_across_tables():
     assert summary["source_labels"] == {"FINRA": "FINRA"}
 
 
+def test_top_10_institutions_pct_matches_institutional_source_tracking_key():
+    """FIX 2026-08-24 (goal: data-source accuracy review): _resolve_factor_sources() used a
+    plain `field_key in factor_name` substring check. positioning_metrics' source_tracking
+    field key is "institutional" (from load_positioning_metrics.py's institutional_source),
+    but the column is spelled "institutions" (no trailing "al") - top_10_institutions_pct -
+    so the two never matched. This factor is always SEC Form 13F-sourced (same sec_inst_row
+    as institutional_ownership_pct/institutional_holders_count, which DO match via the plain
+    substring check), but silently fell through to the table-wide data_source breakdown -
+    dominated by FINRA for this table - misattributing SEC-sourced data to FINRA."""
+
+    class _TopTenInstitutionsCursor(_DataSourceCursor):
+        def fetchall(self):
+            q = self._last_query
+            if "SELECT table_name, column_name" in q:
+                return [("fake_positioning", "top_10_institutions_pct_unavailable_reason")]
+            if "information_schema.columns" in q and "IN ('symbol','date'" in q:
+                return [("symbol",), ("date",), ("data_source",), ("source_tracking",)]
+            if "data_source AS source_val" in q:
+                # Table-wide primary source (FINRA-dominant) - must NOT be what
+                # top_10_institutions_pct shows below.
+                return [("finra", 100)]
+            if "kv.field_key" in q:
+                return [("institutional", "sec_13f", 100)]
+            if "top_10_institutions_pct_unavailable_reason AS reason_val" in q:
+                return [("no_resolved_13f_holdings", 5)]
+            return []
+
+    cursor = _TopTenInstitutionsCursor()
+    resp = scores_mod._get_scores_coverage(cursor)
+    assert resp["statusCode"] == 200
+    factors = {f["factor"]: f for f in resp["data"]["factors"]}
+    assert "top_10_institutions_pct" in factors
+    assert factors["top_10_institutions_pct"]["sources"] == [
+        {"source": "sec_13f", "label": "SEC Form 13F", "count": 100, "pct": 100.0},
+    ]
+
+
 def test_dual_class_yfinance_fallback_source_has_real_label_not_raw_fallthrough():
     """FIX 2026-08-23 (goal: data-source accuracy review): load_sec_valuations.py tags dual-
     class-share-resolution fallback rows with the real, deliberate data_source value
