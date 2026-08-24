@@ -941,7 +941,7 @@ def _signal_age_trading_days(sig_date_obj: _date, run_date_obj: _date) -> int:
     return trading_days
 
 
-def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
+def _check_price_data_freshness(run_date: _date, now_et: Any = None) -> tuple[bool, str]:
     """Validate price_daily data is fresh enough for Phase 8 entry execution.
 
     CRITICAL DATA FRESHNESS GUARD (Phase 8 revalidation):
@@ -954,21 +954,44 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
     MARKET-HOURS-AWARE FRESHNESS:
     During INTRADAY hours (9:30 AM - 4:00 PM ET), today's close is NOT published yet.
     We expect the previous trading day's close, which is appropriate for technical analysis.
-    Only after market close (4:00 PM+) do we expect today's data.
+    Only after market close (4 PM ET, or 1 PM ET on a NYSE/NASDAQ early-close day) do we
+    expect today's data.
+
+    Args:
+        run_date: Trading date this Phase 8 run is executing for.
+        now_et: Current Eastern-Time datetime; defaults to the real current time. Exposed as
+            a parameter (2026-08-24) so tests can exercise early-close/weekend behavior
+            deterministically instead of depending on the real wall clock - see
+            tests/unit/test_phase8_price_data_freshness_early_close_20260824.py.
 
     Returns:
         (is_fresh, message) - is_fresh=True if price_daily is current for the market phase
     """
     from datetime import datetime as dt
+    from datetime import time as _time
     from datetime import timedelta as td
 
+    from algo.infrastructure.market_calendar import MarketCalendar
     from utils.infrastructure import EASTERN_TZ as _TZ_LOCAL
 
     try:
         # Determine market context (matching Phase 1 logic)
-        now_et = dt.now(_TZ_LOCAL)
-        is_market_open = now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)
-        is_after_market_close = now_et.hour >= 16
+        # BUG FIX 2026-08-24 (goal session: real-money accuracy audit): this docstring already
+        # claimed to match Phase 1's logic, but was actually the same naive, pre-fix hour check
+        # Phase 1 itself had (`now_et.hour > 9 or ...` / `now_et.hour >= 16` - no trading-day or
+        # early-close awareness). Phase 1 already got the real fix (see
+        # phase1_data_freshness.py::_compute_pipeline_context) and this file's OWN separate
+        # entry-time market-hours guard a few hundred lines below already correctly uses
+        # MarketCalendar.is_market_open()/is_early_close() - this price-freshness revalidation
+        # (which runs immediately before Phase 8 submits real entry orders) was the one copy
+        # that still had neither fix, so on a NYSE/NASDAQ early close (real close 1:00 PM ET)
+        # this stayed in INTRADAY context until 4:00 PM, expecting yesterday's close as the
+        # freshness baseline for 3 hours after today's close had already posted.
+        if now_et is None:
+            now_et = dt.now(_TZ_LOCAL)
+        is_market_open = MarketCalendar.is_market_open(now_et)
+        market_close_time = _time(13, 0) if MarketCalendar.is_early_close(now_et.date()) else _time(16, 0)
+        is_after_market_close = now_et.time() >= market_close_time
 
         # Determine expected price date based on market context
         if is_after_market_close:
