@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import json
 import logging
 import math
 import time
@@ -22,7 +21,7 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
-from utils.trading.status import PositionStatus
+from utils.trading.status import PositionStatus, TradeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -1487,80 +1486,76 @@ def run(
                             """)
                             oldest = cur_w.fetchone()
                             if oldest:
-                                pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
-                                # CRITICAL FIX 2026-08-08: Set profit_loss_dollars when closing position
-                                # Previous bug: only set exit_reason, leaving P/L as NULL
-                                pnl_dollars = float(pnl) if pnl is not None else 0.0
-                                cur_w.execute(
-                                    "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, "
-                                    "exit_reason = %s, profit_loss_dollars = %s, unrealized_pnl = NULL, "
-                                    "current_price = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                                    (
-                                        "portfolio_rotation_safety_check",
-                                        pnl_dollars,
-                                        float(current_price) if current_price is not None else None,
-                                        pos_id,
-                                    ),
-                                )
-                                # Also update algo_trades for audit trail (if they exist)
-                                cur_w.execute(
-                                    "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP, exit_price = %s, "
-                                    "profit_loss_dollars = %s, "
-                                    "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s "
-                                    "RETURNING trade_id",
-                                    (
-                                        float(current_price) if current_price is not None else None,
-                                        pnl_dollars,
-                                        "portfolio_rotation_safety_check",
-                                        pos_uuid,
-                                    ),
-                                )
-                                # BUG FOUND (goal session, "before real money" audit,
-                                # compliance/audit-log completeness pass): unlike every other
-                                # exit path (executor_exit_handler.py's _execute_exit()
-                                # writes to algo_audit_log as part of the SAME atomic
-                                # transaction as the position/trade UPDATE, "TRANSACTION
-                                # GUARD 6"), this force-close path never wrote an
-                                # algo_audit_log entry at all. Live-confirmed: TRD-313426C1FA
-                                # (AII, closed 2026-08-20 via this exact path) has 15 routine
-                                # position_review entries but zero record of the actual
-                                # closure event - invisible to any audit/compliance query
-                                # scoped to real exit events (e.g. the same
-                                # action_type LIKE 'exit_%' pattern _compute_cumulative_pnl
-                                # uses), and never reaches TCA/slippage tracking either. Log
-                                # it in the same transaction as the position/trade close, so
-                                # a failure here correctly rolls back the whole force-close
-                                # as one atomic unit - matching the executor's own
-                                # established "audit log is part of atomic transaction" rule.
-                                trade_id_row = cur_w.fetchone()
-                                cur_w.execute(
-                                    """INSERT INTO algo_audit_log (action_type, symbol, action_date,
-                                                                    details, actor, status, created_at)
-                                        VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, CURRENT_TIMESTAMP)""",
-                                    (
-                                        "exit_portfolio_rotation_safety_check",
-                                        symbol,
-                                        json.dumps(
-                                            {
-                                                "trade_id": trade_id_row[0] if trade_id_row else None,
-                                                "position_id": pos_uuid,
-                                                "exit_price": float(current_price)
-                                                if current_price is not None
-                                                else None,
-                                                "pnl_dollars": pnl_dollars,
-                                                "reason": "portfolio_rotation_safety_check",
-                                                "entry_date": str(entry_date),
-                                                "full_exit": True,
-                                            }
-                                        ),
-                                        "algo_phase6_portfolio_rotation",
-                                        "success",
-                                    ),
-                                )
-                                exit_count += 1
-                                logger.warning(
-                                    f"[PHASE 6 PORTFOLIO_ROTATION] Closed {symbol} (oldest, entry {entry_date}, P&L ${pnl}) to enable daily rotation"
-                                )
+                                _pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
+                                # BUG FOUND (goal session, "before real money" audit, exit-path
+                                # completeness sweep): this force-close used to write
+                                # algo_positions/algo_trades status='closed' directly via raw
+                                # SQL - completely bypassing ExitHandler.execute_exit(). That
+                                # meant the broker-side bracket order (stop-loss + take-profit)
+                                # was NEVER cancelled and NO real sell order was ever submitted
+                                # in auto mode: the DB recorded the position as closed while the
+                                # real position - and its real capital at risk - stayed fully
+                                # open at the broker, invisible to every downstream system
+                                # (exposure/risk calcs, circuit breaker, position_monitor,
+                                # exit_engine) from that point on, since they all key off
+                                # algo_positions.status. A prior pass
+                                # ([[phase6_portfolio_rotation_missing_audit_log_fixed_20260823]])
+                                # fixed the missing audit-log write on this same block but didn't
+                                # catch that the "close" itself was fictional.
+                                #
+                                # Fixed by routing through trade_executor.exit_trade() - the
+                                # exact same path every other real exit in this system uses
+                                # (exit_engine.py calls it identically). This gives real bracket
+                                # cancellation, a real order submission in auto mode, and
+                                # automatic algo_audit_log writes (execute_exit()'s own
+                                # "TRANSACTION GUARD 6") - the old manual audit_log INSERT below
+                                # is now redundant and removed. A position can have more than
+                                # one open trade_id (pyramided entries) - loop over all of them,
+                                # matching exit_engine.py's own per-trade_id query pattern,
+                                # rather than assuming exactly one.
+                                if current_price is None:
+                                    logger.error(
+                                        f"[PHASE 6 PORTFOLIO_ROTATION] {symbol}: no current_price available - "
+                                        f"refusing to force-close without a valid exit price (this used to "
+                                        f"silently write exit_price=NULL)."
+                                    )
+                                else:
+                                    open_statuses = TradeStatus.all_open()
+                                    placeholders = ", ".join(["%s"] * len(open_statuses))
+                                    cur_w.execute(
+                                        f"SELECT trade_id FROM algo_trades "
+                                        f"WHERE position_id = %s AND status IN ({placeholders})",
+                                        (pos_uuid, *open_statuses),
+                                    )
+                                    open_trade_ids = [row[0] for row in cur_w.fetchall()]
+                                    if not open_trade_ids:
+                                        logger.error(
+                                            f"[PHASE 6 PORTFOLIO_ROTATION] {symbol}: position {pos_uuid} is "
+                                            f"'open' but has no open trade_id - cannot force-close."
+                                        )
+                                    for force_trade_id in open_trade_ids:
+                                        force_result = trade_executor.exit_trade(
+                                            trade_id=force_trade_id,
+                                            exit_price=float(current_price),
+                                            exit_reason="portfolio_rotation_safety_check",
+                                            exit_fraction=1.0,
+                                            exit_stage="portfolio_rotation_safety_check",
+                                            cur=cur_w,
+                                        )
+                                        if force_result.get("success"):
+                                            exit_count += 1
+                                            logger.warning(
+                                                f"[PHASE 6 PORTFOLIO_ROTATION] Closed {symbol} trade_id="
+                                                f"{force_trade_id} (oldest, entry {entry_date}, P&L ${pnl}) "
+                                                f"to enable daily rotation"
+                                            )
+                                        else:
+                                            errors += 1
+                                            logger.error(
+                                                f"[PHASE 6 PORTFOLIO_ROTATION] {symbol} trade_id="
+                                                f"{force_trade_id}: force-close exit_trade failed - "
+                                                f"{force_result.get('message')}"
+                                            )
             except Exception as e:
                 logger.error(f"[PHASE 6] Portfolio rotation safety check failed: {e}")
         elif dry_run:

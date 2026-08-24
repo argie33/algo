@@ -86,10 +86,6 @@ class DashboardContext:
         return self.data.get("exp_factors")
 
     @property
-    def capital_routing(self) -> Any:
-        return self.data.get("capital_routing")
-
-    @property
     def eco(self) -> Any:
         return self.data.get("eco")
 

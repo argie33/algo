@@ -22,7 +22,6 @@ from dashboard.panels import (
     _expanded_layout,
     panel_algo_health,
     panel_algo_health_expanded,
-    panel_capital_routing,
     panel_circuit,
     panel_circuit_expanded,
     panel_completed_trades,
@@ -212,16 +211,11 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         if not has_error(ctx.eco)
         else Panel("[red]Economic data unavailable[/]", border_style="red")
     )
-    # capital_routing is optional/degrades gracefully on its own (see panel_capital_routing's
-    # internal _error_panel/data_unavailable handling) - no has_error() guard needed here,
-    # unlike the required panels above.
-    cap_route_panel = safe_render(panel_capital_routing, ctx.capital_routing)
 
     outer["r2"].split_row(
-        Layout(port_panel, name="portfolio", ratio=3),
-        Layout(perf_panel, name="perf", ratio=3),
-        Layout(eco_panel, name="eco", ratio=3),
-        Layout(cap_route_panel, name="cap_route", ratio=2),
+        Layout(port_panel, name="portfolio"),
+        Layout(perf_panel, name="perf"),
+        Layout(eco_panel, name="eco"),
     )
 
     scores_panel = (
