@@ -44,14 +44,27 @@ logger = logging.getLogger(__name__)
 
 
 class MarketStatusDailyLoader(OptimalLoader):
-    """Consolidated market status loader: health + exposure + sentiment.
+    """Consolidated market status loader: health + exposure + sentiment + capital routing.
 
     Market-wide loader (pseudo-symbol "market"). Fetches all market metrics once,
-    computes regime/exposure/sentiment, writes to all 3 output tables atomically.
+    computes regime/exposure/sentiment/capital-routing, writes to all 4 output tables
+    atomically.
     """
 
     table_name = "market_health_daily"  # Primary table for watermark tracking
-    output_tables = ["market_health_daily", "market_exposure_daily", "market_sentiment"]
+    # capital_routing_daily (2026-08-24): computed by algo/risk/capital_routing.py's
+    # CapitalRouting().compute() call within this same run (see below) - listed here so it
+    # shares this run's row_count/completion_pct/status verdict via the generic output_tables
+    # UPSERT (utils/optimal_loader.py), same convention market_exposure_daily/market_sentiment
+    # already use. Without this, data_loader_status.capital_routing_daily was left seeded at
+    # whatever migration 1228 initialized it to (completion_pct=0.0, status=NULL) forever -
+    # never touched again despite the table itself being correctly populated every run.
+    output_tables = [
+        "market_health_daily",
+        "market_exposure_daily",
+        "market_sentiment",
+        "capital_routing_daily",
+    ]
     primary_key = ("date",)
     watermark_field = "date"
     is_symbol_based = False

@@ -35,7 +35,15 @@ LOADER_TABLES: dict[str, list[str]] = {
     "load_trend_analysis.py": ["trend_template_data"],
     # Consolidated Session 275: replaces the old load_market_health_daily.py,
     # load_market_exposure_daily.py, load_market_sentiment.py.
-    "load_market_status_daily.py": ["market_health_daily", "market_exposure_daily", "market_sentiment"],
+    # capital_routing_daily (2026-08-24): computed inline by algo/risk/capital_routing.py's
+    # CapitalRouting().compute(), called from this same loader's run() right after
+    # MarketExposure().compute() - not a separate loader script.
+    "load_market_status_daily.py": [
+        "market_health_daily",
+        "market_exposure_daily",
+        "market_sentiment",
+        "capital_routing_daily",
+    ],
     "load_naaim.py": ["naaim"],
     "load_aaii_sentiment.py": ["aaii_sentiment"],
     "load_short_interest_finra.py": ["short_interest_finra"],
