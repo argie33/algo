@@ -161,13 +161,6 @@ FRESHNESS_RULES = {
         "purpose": "Signal validation, pattern confirmation, position lifecycle tracking",
         "applies_to": ["orchestrator_phase5", "dashboard"],
     },
-    "grade_distribution_daily": {
-        "critical": False,
-        "max_age_days": 7,
-        "description": "Grade distribution (A/B/C/D) counts",
-        "purpose": "Dashboard quality metrics, distribution analysis",
-        "applies_to": ["dashboard"],
-    },
     "algo_config": {
         "critical": False,
         "max_age_days": 30,
@@ -196,13 +189,6 @@ FRESHNESS_RULES = {
         "description": "Growth metrics (earnings growth, revenue growth, guidance)",
         "purpose": "Growth factor scoring, fundamental analysis",
         "applies_to": ["orchestrator_phase1", "dashboard"],
-    },
-    "growth_metrics_daily": {
-        "critical": False,
-        "max_age_days": 30,
-        "description": "Daily growth metrics (earnings growth, revenue growth, guidance)",
-        "purpose": "Growth factor scoring, fundamental analysis, daily updates",
-        "applies_to": ["orchestrator_phase1", "dashboard", "data_patrol"],
     },
     "value_metrics": {
         "critical": False,
@@ -239,10 +225,16 @@ FRESHNESS_RULES = {
         "purpose": "Momentum factor scoring, trend analysis",
         "applies_to": ["orchestrator_phase1", "dashboard"],
     },
-    "earnings_history_daily": {
+    "earnings_calendar_sec": {
+        # RENAMED (real-money-readiness goal session, 2026-08-24): was "earnings_history_daily",
+        # a phantom table name that has never existed in the schema - freshness_config.py's own
+        # docstring claims to be "the single source of truth" for staleness thresholds, but this
+        # entry pointed at nothing real. Real earnings-calendar data lives in
+        # earnings_calendar_sec (loaders/load_earnings_calendar_sec.py, 81,211 rows) - see the
+        # matching fix in algo/monitoring/data_patrol/checks/staleness.py.
         "critical": False,
         "max_age_days": 7,
-        "description": "Daily earnings history and announcements",
+        "description": "SEC earnings calendar and announcements",
         "purpose": "Earnings blackout tracking, fundamental analysis",
         "applies_to": ["orchestrator_phase1", "orchestrator_phase2", "data_patrol"],
     },
@@ -260,26 +252,12 @@ FRESHNESS_RULES = {
         "purpose": "Sector selection, allocation, fundamental analysis",
         "applies_to": ["orchestrator_phase1", "dashboard", "data_patrol"],
     },
-    "sector_ranking_daily": {
-        "critical": False,
-        "max_age_days": 7,
-        "description": "Daily sector rankings and rotation signals",
-        "purpose": "Daily sector selection, allocation, fundamental analysis",
-        "applies_to": ["orchestrator_phase1", "orchestrator_phase2", "dashboard", "data_patrol"],
-    },
     "industry_ranking": {
         "critical": False,
         "max_age_days": 7,
         "description": "Industry rankings and signals",
         "purpose": "Industry selection, analysis",
         "applies_to": ["orchestrator_phase1", "dashboard", "data_patrol"],
-    },
-    "industry_ranking_daily": {
-        "critical": False,
-        "max_age_days": 7,
-        "description": "Daily industry rankings and signals",
-        "purpose": "Daily industry selection, analysis",
-        "applies_to": ["orchestrator_phase1", "orchestrator_phase2", "dashboard", "data_patrol"],
     },
     "algo_metrics_daily": {
         "critical": False,
@@ -294,31 +272,26 @@ FRESHNESS_RULES = {
         "purpose": "Performance tracking, P&L analysis",
         "applies_to": ["orchestrator_phase7", "dashboard", "data_patrol"],
     },
-    "execution_logs": {
-        "critical": False,
-        "max_age_days": 1,
-        "description": "Trade execution and order logs",
-        "purpose": "Trade audit, execution analysis",
-        "applies_to": ["orchestrator_phase6", "dashboard", "data_patrol"],
-    },
-    "circuit_breaker_state": {
-        "critical": False,
-        "max_age_days": 1,
-        "description": "Circuit breaker halt/resume history",
-        "purpose": "Risk monitoring, halt event tracking",
-        "applies_to": ["orchestrator_phase2", "dashboard", "data_patrol"],
-    },
-    "insider_transactions_daily": {
+    "insider_transaction_velocity": {
+        # RENAMED (real-money-readiness goal session, 2026-08-24): was
+        # "insider_transactions_daily", a phantom table name that has never existed in the
+        # schema. Real insider-transaction data lives in insider_transaction_velocity
+        # (loaders/load_insider_transaction_velocity.py, 21,722 rows) - see the matching fix
+        # in algo/monitoring/data_patrol/checks/staleness.py.
         "critical": False,
         "max_age_days": 30,
-        "description": "Daily insider transaction data",
+        "description": "Insider buy/sell transaction velocity",
         "purpose": "Sentiment analysis, insider activity tracking",
         "applies_to": ["orchestrator_phase1", "dashboard", "data_patrol"],
     },
-    "analyst_upgrades_daily": {
+    "analyst_upgrade_downgrade": {
+        # RENAMED (real-money-readiness goal session, 2026-08-24): was
+        # "analyst_upgrades_daily", a phantom table name that has never existed in the schema.
+        # Real analyst upgrade/downgrade data lives in analyst_upgrade_downgrade
+        # (loaders/load_analyst_upgrade_downgrade.py, 147,305 rows).
         "critical": False,
         "max_age_days": 30,
-        "description": "Daily analyst upgrades and downgrades",
+        "description": "Analyst upgrades and downgrades",
         "purpose": "Sentiment analysis, recommendation tracking",
         "applies_to": ["orchestrator_phase1", "dashboard", "data_patrol"],
     },

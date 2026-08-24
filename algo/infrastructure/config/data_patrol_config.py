@@ -102,7 +102,13 @@ class DataPatrolConfig:
                 ...
             }
         """
-        # Map patrol table names to freshness_config table names
+        # Map patrol table names to freshness_config table names.
+        # FIXED (real-money-readiness goal session, 2026-08-24): 6 of these pointed at phantom
+        # "_daily"-suffixed table names that have never existed in the schema (confirmed via
+        # information_schema) - dead lookups that happened to resolve without erroring (the
+        # phantom names existed as FRESHNESS_RULES dict keys, just never backed by a real
+        # table), silently defeating this function's own docstring claim to be the "single
+        # source of truth" for staleness thresholds. Repointed at the real, active table names.
         table_name_map = {
             "price_daily": "price_daily",
             "technical_data_daily": "technical_data_daily",
@@ -112,12 +118,12 @@ class DataPatrolConfig:
             "market_health": "market_health_daily",
             "stock_scores": "stock_scores",
             "aaii_sentiment": "aaii_sentiment",
-            "growth_metrics": "growth_metrics_daily",
-            "earnings_history": "earnings_history_daily",
-            "sector_ranking": "sector_ranking_daily",
-            "industry_ranking": "industry_ranking_daily",
-            "insider_transactions": "insider_transactions_daily",
-            "analyst_upgrades": "analyst_upgrades_daily",
+            "growth_metrics": "growth_metrics",
+            "earnings_history": "earnings_calendar_sec",
+            "sector_ranking": "sector_ranking",
+            "industry_ranking": "industry_ranking",
+            "insider_transactions": "insider_transaction_velocity",
+            "analyst_upgrades": "analyst_upgrade_downgrade",
         }
 
         windows = {}
