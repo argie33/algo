@@ -429,6 +429,44 @@ class SecEdgarStatementLoader(SecLoaderBase):
             self._insurance_symbols = cached
         return cached
 
+    # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable" audit):
+    # a small, individually-verified allowlist of insurers confirmed to have ZERO capex-
+    # related XBRL concept (PP&E family, REIT family, or the insurer investment-real-estate
+    # concepts - see sec_statements.py's get_cash_flow() comment) across their entire
+    # filing history. NOT SIC-based like DEPOSITORY_INSTITUTION_SIC_CODES below - insurance
+    # SIC codes (6311/6321/6331/6351/6361/6399) are NOT uniformly capex-less the way
+    # banking is: ALL (Allstate) and HIG (Hartford) both tag real, material
+    # "PaymentsToAcquirePropertyPlantAndEquipment" ($267M/$215M FY2023). Source of truth
+    # for the verification evidence: load_sec_valuations.py's
+    # SecValuationsLoader.INSURANCE_CAPEX_EXEMPT_SYMBOLS (same list, kept in sync manually -
+    # same duplication convention already used for DEPOSITORY_INSTITUTION_SIC_CODES's SIC
+    # codes between this file and that one).
+    _INSURANCE_CAPEX_EXEMPT_SYMBOLS = frozenset(
+        {
+            "CRBG",
+            "FG",
+            "GNW",
+            "JXN",
+            "LNC",
+            "PRU",
+            "AFL",
+            "CNO",
+            "AFG",
+            "AXS",
+            "CB",
+            "EG",
+            "GBLI",
+            "HG",
+            "HMN",
+            "KG",
+            "RNR",
+            "SPNT",
+            "AGO",
+            "ORI",
+            "OSG",
+        }
+    )
+
     def _get_depository_institution_symbols(self) -> frozenset[str]:
         """Bulk-fetch bank/depository-institution symbols once per loader run, not per-row.
 
@@ -867,7 +905,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # fcf_yield, margin_of_safety, intrinsic_value_per_share) was structurally
                 # uncomputable forever for the entire banking sector, not a transient
                 # extraction gap a future fetch could fix.
-                if capex is None and r.get("symbol") in self._get_depository_institution_symbols():
+                # FIXED 2026-08-24 (same audit, insurance-sector continuation): see
+                # _INSURANCE_CAPEX_EXEMPT_SYMBOLS's docstring above for why this is a
+                # verified symbol allowlist, not a SIC-code check like the bank case.
+                if capex is None and (
+                    r.get("symbol") in self._get_depository_institution_symbols()
+                    or r.get("symbol") in self._INSURANCE_CAPEX_EXEMPT_SYMBOLS
+                ):
                     capex = 0
                 if ocf is not None and capex is not None:
                     row["free_cash_flow"] = ocf - capex

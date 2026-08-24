@@ -537,6 +537,17 @@ _CASHFLOW_FIELD_MAPPING = {
     # LLY/ADP tag it ONLY under "OtherPropertyPlantAndEquipment" (same failure shape).
     "payments_to_acquire_other_productive_assets": "capex",
     "payments_to_acquire_other_property_plant_and_equipment": "capex",
+    # FIXED 2026-08-24 (goal: "Margin of Safety (DCF)" cash-flow-coverage audit): REIT-sector
+    # capex concepts - see sec_statements.py's get_cash_flow() comment for the live AAT/AHT/
+    # AHR/ABR evidence. Same "capex" target column as the PP&E-family concepts above.
+    "payments_to_acquire_and_develop_real_estate": "capex",
+    "payments_to_acquire_real_estate": "capex",
+    "payments_for_capital_improvements": "capex",
+    # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurer investment-
+    # real-estate capex concepts - see sec_statements.py's get_cash_flow() comment for the
+    # live MET/RGA/BHF/PFG/TRV/WRB evidence.
+    "payments_to_acquire_real_estate_and_real_estate_joint_ventures": "capex",
+    "payments_to_acquire_real_estate_held_for_investment": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but

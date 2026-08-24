@@ -117,6 +117,49 @@ class SecValuationsLoader(OptimalLoader):
     # standard equity-research convention for this sector, not a guess.
     DEPOSITORY_INSTITUTION_SIC_CODES = frozenset({6020, 6021, 6022, 6029, 6035, 6036, 6712})
 
+    # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable" audit):
+    # unlike depository institutions above, insurance SIC codes (6311/6321/6331/6351/6361/
+    # 6399) are NOT uniformly capex-less - live-confirmed ALL (Allstate, $267M FY2023) and
+    # HIG (Hartford, $215M FY2023) both tag standard "PaymentsToAcquirePropertyPlantAnd
+    # Equipment" with real, material values, so a blanket SIC-based coercion (like
+    # DEPOSITORY_INSTITUTION_SIC_CODES) would incorrectly zero out their real capex. This is
+    # a small, individually-verified symbol allowlist instead (same "verified alias table"
+    # pattern as the WAB/Wabtec 13F fix, not a SIC-code allowlist) - each symbol below was
+    # live-checked against its full companyfacts JSON and confirmed to have ZERO of: any
+    # PP&E-family concept, any REIT-family concept, any insurer investment-real-estate
+    # concept (PaymentsToAcquireRealEstateAndRealEstateJointVentures/
+    # PaymentsToAcquireRealEstateHeldForInvestment - see sec_statements.py's get_cash_flow()
+    # comment), or any other Payments/Purchase/Acquisition concept naming PP&E or real
+    # estate, across their ENTIRE filing history (not just the current interim year) as of
+    # 2026-08-24. A structural gap for these specific filers, not a transient extraction
+    # gap a future fetch could fix - same rationale as the depository-institution case,
+    # verified per-symbol rather than by SIC code because this sector isn't uniform.
+    INSURANCE_CAPEX_EXEMPT_SYMBOLS = frozenset(
+        {
+            "CRBG",
+            "FG",
+            "GNW",
+            "JXN",
+            "LNC",
+            "PRU",
+            "AFL",
+            "CNO",
+            "AFG",
+            "AXS",
+            "CB",
+            "EG",
+            "GBLI",
+            "HG",
+            "HMN",
+            "KG",
+            "RNR",
+            "SPNT",
+            "AGO",
+            "ORI",
+            "OSG",
+        }
+    )
+
     # FIXED 2026-08-18 (goal session, currency-poisoned-row cleanup follow-up): live-crashed
     # via NMR (Nomura Holdings, a JPY-reporting IFRS filer - JPY is FX-CONVERTED not rejected
     # outright, unlike KRW/VND above, since it's in MAJOR_CURRENCIES): the derived-shares-out
@@ -891,16 +934,20 @@ class SecValuationsLoader(OptimalLoader):
                 # Depository institutions never report capex at all (see
                 # DEPOSITORY_INSTITUTION_SIC_CODES above) - treat it as 0 rather than
                 # unknowable, for both the latest year and every year in the multi-year
-                # average below.
-                is_depository_institution = sic_code in self.DEPOSITORY_INSTITUTION_SIC_CODES
-                if is_depository_institution and capex is None:
+                # average below. Same treatment for the small, individually-verified
+                # INSURANCE_CAPEX_EXEMPT_SYMBOLS allowlist above (symbol-based, not SIC-based
+                # - insurance isn't a uniformly capex-less sector the way banking is).
+                is_capex_exempt = (
+                    sic_code in self.DEPOSITORY_INSTITUTION_SIC_CODES or symbol in self.INSURANCE_CAPEX_EXEMPT_SYMBOLS
+                )
+                if is_capex_exempt and capex is None:
                     capex = 0
                 yearly_fcfs = []
                 for row_ocf, row_capex, _row_dividends in cash_rows:
                     if row_ocf is None:
                         continue
                     if row_capex is None:
-                        if not is_depository_institution:
+                        if not is_capex_exempt:
                             continue
                         row_capex = 0
                     yearly_fcfs.append(float(row_ocf) - float(row_capex))

@@ -958,6 +958,44 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # for a payroll/HR-services company with light physical footprint) - both
         # confirmed via direct live SEC companyfacts lookup, not guessed.
         "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+        # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable"
+        # audit): REITs (SIC 6798) never tag any of the PP&E-family concepts above - their
+        # capex is real property investment, tagged under a completely different concept
+        # family. Live-confirmed via real companyfacts JSON: AAT (American Assets Trust)
+        # tags "PaymentsForCapitalImprovements" ($70.2M FY2024, $108.0M for AHT/Ashford
+        # Hospitality Trust same concept same year); AHR (American Healthcare REIT) and ABR
+        # (Arbor Realty Trust, a commercial mortgage REIT that still holds some real estate)
+        # tag "PaymentsToAcquireRealEstate"/"PaymentsToAcquireAndDevelopRealEstate" ($60.4M/
+        # $3.47M respectively). None of these filers report under any PP&E-family concept at
+        # all - this was a genuine unextracted-data gap, not a structural absence, for 134
+        # SIC-6798 symbols found with intrinsic_value_unavailable_reason=
+        # 'missing_cash_flow_data'. Excluded "PaymentsToAcquireCommercialRealEstate" (AAT
+        # tags it too, but at $0 the one year checked - and "PaymentsToAcquireBusinesses*"
+        # M&A-style concepts stay excluded here same as for industrials above) pending
+        # separate verification. Pure agency-mortgage REITs with no real estate at all
+        # (e.g. AGNC, which only tags MBS-purchase concepts) will still correctly end up
+        # with capex=None after this - a real structural gap for that subclass, not fixed
+        # here.
+        "PaymentsToAcquireAndDevelopRealEstate",
+        "PaymentsToAcquireRealEstate",
+        "PaymentsForCapitalImprovements",
+        # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurers (SIC
+        # 6311/6321/6331/6351/6361/6399) hold investment real estate as part of their
+        # portfolio, tagged under these two insurer-specific concepts rather than any
+        # PP&E-family or REIT concept above. Live-confirmed via real companyfacts JSON:
+        # MET (MetLife) $633M FY2025, RGA (Reinsurance Group of America) $1.073B FY2025,
+        # and BHF (Brighthouse Financial) under
+        # "PaymentsToAcquireRealEstateAndRealEstateJointVentures"; PFG (Principal
+        # Financial) $135.5M FY2025, TRV (Travelers) $48M FY2025, and WRB (W.R. Berkley)
+        # under "PaymentsToAcquireRealEstateHeldForInvestment". Confirmed a genuinely
+        # heterogeneous sector, not a blanket structural gap like depository institutions -
+        # ALL (Allstate) and HIG (Hartford) already report standard
+        # "PaymentsToAcquirePropertyPlantAndEquipment" ($267M/$215M FY2023) and were
+        # already correctly extracted before this fix, so no SIC-wide capex=0 coercion is
+        # applied for this sector (see SecValuationsLoader.DEPOSITORY_INSTITUTION_SIC_CODES'
+        # comment for why that coercion is bank-specific only).
+        "PaymentsToAcquireRealEstateAndRealEstateJointVentures",
+        "PaymentsToAcquireRealEstateHeldForInvestment",
         # FIXED 2026-08-18 (missing factor inputs audit): ACGL/FRT/VSH-class filers report
         # dividends under this concept instead of any "PaymentsOf*Dividend*" tag below - see
         # load_financial_statements.py's _CASHFLOW_FIELD_MAPPING comment for the live
