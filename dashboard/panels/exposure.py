@@ -71,13 +71,18 @@ from ._helpers import _error_panel
 
 _tier_formatter = TierFormatter()
 
-# 3-pillar architecture (2026-08-23 redesign - see algo/risk/market_exposure.py's module
-# docstring for the full evidence framework). Each pillar's "factors" entry carries a
-# "components" sub-dict with the individual sub-signal detail used below for display.
+# 3-pillar architecture (2026-08-23 redesign, reweighted 2026-08-24 to Trend-only - see
+# algo/risk/market_exposure.py's module docstring for the full evidence framework). Each
+# pillar's "factors" entry carries a "components" sub-dict with the individual sub-signal
+# detail used below for display. Deliberately no hardcoded max_pts here: the 2026-08-24
+# pass dropped pillar_risk/pillar_confirm to 0 weight (veto/context only) while
+# pillar_trend rose to 100 - the real weight always comes from each pillar's own "max"
+# field in the API response so this file can't silently drift out of sync with
+# market_exposure.py's W_PILLAR_* constants the way it did before this fix.
 PILLAR_MAP = [
-    ("pillar_trend", "Trend & Momentum", 45.0),
-    ("pillar_risk", "Independent Risk", 30.0),
-    ("pillar_confirm", "Breadth & Sentiment", 25.0),
+    ("pillar_trend", "Trend & Momentum"),
+    ("pillar_risk", "Independent Risk"),
+    ("pillar_confirm", "Breadth & Sentiment"),
 ]
 
 
@@ -201,37 +206,63 @@ def panel_exposure_compact(exp_f: Any) -> Any:
     tbl.add_column("b", ratio=1)
 
     items = []
-    for key, label, max_pts in PILLAR_MAP:
+    for key, label in PILLAR_MAP:
         if not factors or key not in factors:
             logger.warning("[EXPOSURE] pillar %s not in response - data unavailable", key)
-            items.append(f"[dim]{label}:[/] [yellow]⚠ pillar unavailable[/][dim] /{max_pts:g}[/]")
+            items.append(f"[dim]{label}:[/] [yellow]⚠ pillar unavailable[/]")
             continue
 
         f: dict[str, Any] = factors[key]
         if not isinstance(f, dict):
             logger.warning("[EXPOSURE] pillar %s has invalid type: %s, expected dict", key, type(f).__name__)
-            items.append(f"[dim]{label}:[/] [yellow]⚠ invalid data type[/][dim] /{max_pts:g}[/]")
+            items.append(f"[dim]{label}:[/] [yellow]⚠ invalid data type[/]")
             continue
 
         pts_raw = f.get("pts")
         if pts_raw is None:
             reason = f.get("reason") or "data unavailable"
             logger.warning("[EXPOSURE] pillar %s missing pts field: %s", key, reason)
-            items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/][dim] /{max_pts:g}[/]")
+            items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/]")
+            continue
+
+        try:
+            pts = safe_float(pts_raw, field_name=f"{label}_pts", strict=True)
+        except StrictValidationError as e:
+            items.append(f"[dim]{label}:[/] [yellow]⚠ {str(e)[:30]}[/]")
+            continue
+        if not isinstance(pts, float):
+            items.append(f"[dim]{label}:[/] [yellow]⚠ pts conversion failed[/]")
+            continue
+
+        max_raw = f.get("max")
+        if max_raw is None:
+            logger.warning("[EXPOSURE] pillar %s missing max field", key)
+            items.append(f"[dim]{label}:[/] [yellow]⚠ pillar weight unavailable[/]")
+            continue
+        try:
+            max_pts = safe_float(max_raw, field_name=f"{label}_max", strict=True)
+        except StrictValidationError as e:
+            items.append(f"[dim]{label}:[/] [yellow]⚠ {str(e)[:30]}[/]")
+            continue
+        if not isinstance(max_pts, float):
+            logger.warning("[EXPOSURE] pillar %s missing max field", key)
+            items.append(f"[dim]{label}:[/] [yellow]⚠ pillar weight unavailable[/]")
+            continue
+
+        det = _pillar_detail(key, f)
+        det_s = f" [dim]{det.strip()}[/]" if det else ""
+
+        if max_pts <= 0:
+            # Zero-weight pillar (veto/context only, e.g. pillar_risk/pillar_confirm since
+            # the 2026-08-24 reweight) - a colored 0/N bar here would misleadingly read as
+            # "failing" rather than "not part of the composite by design". Show its raw
+            # 0-100 internal reading instead, with no bar.
+            score_raw = f.get("score")
+            score_s = f"{score_raw:.0f}/100" if isinstance(score_raw, (int, float)) else "--"
+            items.append(f"[dim]{label}:[/] [dim]not scored (veto/context only) · reads {score_s}[/]{det_s}")
         else:
-            try:
-                pts = safe_float(pts_raw, field_name=f"{label}_pts")
-            except StrictValidationError as e:
-                items.append(f"[dim]{label}:[/] [yellow]⚠ {str(e)[:30]}[/]")
-                continue
             bar = mini_bar(pts, max_pts, w=4)
-            fc = (
-                G
-                if pts is not None and pts >= max_pts * 0.75
-                else (Y if pts is not None and pts >= max_pts * 0.35 else R)
-            )
-            det = _pillar_detail(key, f)
-            det_s = f" [dim]{det.strip()}[/]" if det else ""
+            fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
             items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts:g}[/]{det_s}")
 
     macro_watch = factors.get("macro_watch") if isinstance(factors, dict) else None
@@ -514,7 +545,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     tbl.add_column("Value", no_wrap=False, ratio=2, min_width=16, max_width=36)
     tbl.add_column("Context", style="dim", no_wrap=False, ratio=3, min_width=18)
 
-    for key, label, max_pts in PILLAR_MAP:
+    for key, label in PILLAR_MAP:
         f: dict[str, Any] = {}
         if error_boundary.has_error(factors):
             f = {}
@@ -529,18 +560,22 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             elif error_boundary.has_error(f):
                 f = {}
 
+        max_raw = f.get("max") if f else None
+        max_pts = safe_float(max_raw, default=None) if max_raw is not None else None
+
         pts_raw = f.get("pts") if f else None
-        if pts_raw is None or (f and f.get("data_unavailable")):
+        if pts_raw is None or max_pts is None or (f and f.get("data_unavailable")):
             reason_val = f.get("reason") if f else None
             if reason_val is None:
                 reason_val = "stale" if f and f.get("stale") else "no data"
             reason = reason_val[:18]
             logger.error("[EXPOSURE_EXPANDED] data_unavailable: pillar=%s, reason=%s", key, reason)
-            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>7}[/]  [dim]--/{max_pts:g}[/]")
+            max_s = f"{max_pts:g}" if max_pts is not None else "?"
+            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>7}[/]  [dim]--/{max_s}[/]")
             tbl.add_row(
                 Text(label, style="yellow bold"),
                 Text("--", style="yellow"),
-                Text(f"{max_pts:g}", style="dim"),
+                Text(max_s, style="dim"),
                 bar_s,
                 Text(f"⚠ {reason}", style="yellow"),
                 pillar_context.get(key, ""),
@@ -548,7 +583,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             continue
 
         try:
-            pts = safe_float(pts_raw, field_name=f"{label}_pts")
+            pts = safe_float(pts_raw, field_name=f"{label}_pts", strict=True)
         except StrictValidationError as e:
             reason = f"invalid: {str(e)[:12]}"
             bar_s = Text.from_markup(f"[red]✗ ERR{'':>7}[/]  [dim]--/{max_pts:g}[/]")
@@ -561,18 +596,47 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 pillar_context.get(key, ""),
             )
             continue
-        bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 and pts is not None else 12
-        fc = G if pts is not None and pts >= max_pts * 0.75 else (Y if pts is not None and pts >= max_pts * 0.35 else R)
-        bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts:g}[/]")
+        if not isinstance(pts, float):
+            bar_s = Text.from_markup(f"[red]✗ ERR{'':>7}[/]  [dim]--/{max_pts:g}[/]")
+            tbl.add_row(
+                Text(label, style="red bold"),
+                Text("--", style="red"),
+                Text(f"{max_pts:g}", style="dim"),
+                bar_s,
+                Text("✗ pts conversion failed", style="red"),
+                pillar_context.get(key, ""),
+            )
+            continue
+
         score_val = f.get("score")
-        tbl.add_row(
-            Text(label, style=f"{fc} bold"),
-            Text(f"{pts:.1f}", style=fc),
-            Text(f"{max_pts:g}", style="dim"),
-            bar_s,
-            Text(f"score {score_val:.1f}/100" if isinstance(score_val, (int, float)) else "--", style="white"),
-            pillar_context.get(key, ""),
-        )
+        if max_pts <= 0:
+            # Zero-weight pillar (veto/context only since the 2026-08-24 reweight) - a
+            # pts/max bar here would either divide by zero or (worse) render as a
+            # misleadingly full/empty bar. Show its raw 0-100 internal reading instead.
+            score_s = f"{score_val:.1f}/100" if isinstance(score_val, (int, float)) else "--"
+            bar_s = Text.from_markup(f"[dim]not scored{'':>2}[/]  [dim]--/0[/]")
+            tbl.add_row(
+                Text(label, style="dim bold"),
+                Text("--", style="dim"),
+                Text("0", style="dim"),
+                bar_s,
+                Text(f"veto/context only · reads {score_s}", style="dim"),
+                pillar_context.get(key, ""),
+            )
+        else:
+            bar_f = int(min(pts / max_pts, 1.0) * 12)
+            fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
+            bar_s = Text.from_markup(
+                f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts:g}[/]"
+            )
+            tbl.add_row(
+                Text(label, style=f"{fc} bold"),
+                Text(f"{pts:.1f}", style=fc),
+                Text(f"{max_pts:g}", style="dim"),
+                bar_s,
+                Text(f"score {score_val:.1f}/100" if isinstance(score_val, (int, float)) else "--", style="white"),
+                pillar_context.get(key, ""),
+            )
         for sub_label, val_s, ctx in _pillar_expanded_rows(key, label, max_pts, "", f):
             tbl.add_row(Text(sub_label, style="dim"), Text(""), Text(""), Text(""), Text(val_s, style="white"), ctx)
 
