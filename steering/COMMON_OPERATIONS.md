@@ -38,6 +38,51 @@ curl -X POST http://localhost:3001/api/admin/sync-stock-scores-rds
 
 ---
 
+## EMERGENCY: Halting Trading / Closing All Positions
+
+**Built 2026-08-24** (real-money-readiness review) after finding this procedure existed only
+as undocumented scripts an operator would have to already know about or read code for under
+pressure. Two separate tools, two separate scopes - use the right one for what's actually wrong:
+
+### Stop new trades from opening (routine halt - most common case)
+
+```bash
+python scripts/manage_halt_flag.py --status                          # check current state
+python scripts/manage_halt_flag.py --set "reason for halting"        # halt new entries
+python scripts/manage_halt_flag.py --clear "reason for resuming"     # resume
+```
+
+Blocks new entries (Phase 7/8 gates check this flag) within the *same* orchestrator run, not
+just the next scheduled invocation - it takes effect as soon as it's set. **Existing open
+positions and their broker-side bracket stop/take-profit orders keep running untouched** -
+that's deliberate, those bracket legs are the position's own protection, and Phase 6 exits are
+never halt-gated by design (exits always run regardless of halt state). This is the right tool
+for "something looks off, stop digging the hole deeper while I investigate."
+
+### Close every open position right now (true emergency - rare, destructive)
+
+```bash
+python scripts/flatten_all_positions.py --status                                          # list open positions, read-only
+python scripts/flatten_all_positions.py --confirm --reason "why this is happening"         # close everything
+```
+
+Use this ONLY when you need every position closed immediately - e.g. a runaway bug in
+signal/exit logic, a confirmed data-corruption event, or anything else where "stop new trades"
+isn't enough and you need flat. This sets the halt flag first (so nothing races a new entry in
+while positions are closing), then exits every open position through the exact same code path
+(`TradeExecutor.exit_trade`) every other real exit in this system uses - same transaction
+safety, bracket cancellation, and audit logging as a normal target/stop/time exit. It is a real,
+hard-to-reverse action against a live account: real sell orders get sent. If any symbol fails to
+close (bad quote, broker rejection), it's printed clearly and the script exits non-zero - check
+those symbols manually, they are still open.
+
+**When NOT to use `flatten_all_positions.py`:** for anything `manage_halt_flag.py --set` alone
+would handle (most halts). Closing winning positions early to "be safe" defeats the point of the
+broker-side bracket protection already in place - only reach for this when the positions
+themselves are the actual problem.
+
+---
+
 ## Problem: Dashboard Shows "Data Not Available"
 
 **Symptom:** Dashboard displays "data not available" on all panels.
