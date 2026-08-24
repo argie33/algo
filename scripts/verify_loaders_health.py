@@ -146,7 +146,22 @@ LOADERS: dict[str, dict[str, Any]] = {
     "load_buy_sell_daily.py": {
         "output_table": "buy_sell_daily",
         "date_column": "date",
+        # FIXED (real-money-readiness goal session, 2026-08-24): a lifetime COUNT(*) floor is
+        # the wrong check shape for this table specifically - buy_sell_daily is sparse/
+        # event-driven (a symbol only gets a row on a day it actually triggers a BUY/SELL
+        # breakout/breakdown, ~118-302 rows/day observed), so it grows slowly and organically
+        # regardless of whether the loader is healthy right now. A fresh/reset table (or one
+        # that's been running correctly for only a few weeks) would DEGRADED-flag forever on
+        # this check even with zero real problem - already lived through exactly that
+        # (9118 lifetime rows, min_rows=10000, self-resolving in ~4-5 more trading days purely
+        # from time passing). min_rows_recency_days switches this specific loader to a
+        # recency-window count instead - real signal about whether it's producing output
+        # RIGHT NOW, not a slowly-filling lifetime bucket. Every other loader in this dict is
+        # unaffected (min_rows_recency_days defaults to None => unchanged lifetime-count check).
         "min_rows": 10000,
+        "min_rows_recency_days": 5,
+        "min_rows_recency_threshold": 50,  # well under the observed 118-302/day - catches a
+        # genuinely broken loader (near-zero output for 5 straight sessions), not a quiet week.
         "critical": True,
     },
     "load_signal_quality_scores.py": {
@@ -296,6 +311,37 @@ def _validate_against_registry() -> None:
 _validate_against_registry()
 
 
+def _check_row_count(cur: Any, config: dict[str, Any]) -> tuple[int, list[str]]:
+    """Row-count health check. Most tables are dense (every run touches ~the whole
+    universe), so a lifetime COUNT(*) floor is a reasonable healthy-vs-broken signal for
+    them. A sparse/event-driven table (min_rows_recency_days set) instead checks rows
+    written in the last N days - see load_buy_sell_daily.py's config entry for the full
+    rationale. Returns (row_count, issue strings) - row_count is the recency-window count
+    when that mode is active (also used by the caller's NULL-rate/status logic), or the
+    lifetime count otherwise.
+    """
+    recency_days = config.get("min_rows_recency_days")
+    if recency_days is not None and config["date_column"]:
+        cur.execute(
+            f"SELECT COUNT(*) FROM {config['output_table']} "
+            f"WHERE {config['date_column']}::date >= CURRENT_DATE - INTERVAL '{int(recency_days)} days'"
+        )
+        count_row = cur.fetchone()
+        row_count = count_row[0] if count_row and count_row[0] is not None else 0
+        recency_threshold = config.get("min_rows_recency_threshold", config["min_rows"])
+        if row_count < recency_threshold:
+            issue = f"Low recent row count: {row_count} in the last {recency_days}d (expected >= {recency_threshold})"
+            return row_count, [issue]
+        return row_count, []
+
+    cur.execute(f"SELECT COUNT(*) FROM {config['output_table']}")
+    count_row = cur.fetchone()
+    row_count = count_row[0] if count_row and count_row[0] is not None else 0
+    if row_count < config["min_rows"]:
+        return row_count, [f"Low row count: {row_count} (expected >= {config['min_rows']})"]
+    return row_count, []
+
+
 def _explained_null_exclusion_clause(col: str, all_cols: set[str], has_data_unavailable: bool) -> str:
     """Build a " AND (...)" SQL fragment excluding rows this codebase's own
     data_unavailable / {column}_unavailable_reason governance convention already
@@ -334,13 +380,8 @@ def verify_loader(conn: Any, loader_name: str, config: dict[str, Any]) -> dict[s
             results["issues"].append(f"Output table {config['output_table']} does not exist")
             return results
 
-        # Check row count
-        cur.execute(f"SELECT COUNT(*) FROM {config['output_table']}")
-        count_row = cur.fetchone()
-        row_count = count_row[0] if count_row and count_row[0] is not None else 0
-
-        if row_count < config["min_rows"]:
-            results["issues"].append(f"Low row count: {row_count} (expected >= {config['min_rows']})")
+        row_count, row_count_issues = _check_row_count(cur, config)
+        results["issues"].extend(row_count_issues)
 
         # Check data freshness if date column exists
         if config["date_column"]:
