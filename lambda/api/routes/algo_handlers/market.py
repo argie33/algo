@@ -383,6 +383,64 @@ def _is_stale_by_trading_days(data_date: date, today: date, max_age: int) -> boo
     return trading_days_elapsed > max_age
 
 
+# Tables written once per trading day whose elapsed-hours staleness thresholds (below) need
+# the same weekend/holiday gap allowance as _is_stale_by_trading_days above - kept in sync
+# with monitor_data_staleness.py's own THRESHOLDS gap-allowance whitelist (same table set,
+# same reasoning: an intraday-refreshed table should NOT get this allowance).
+DAILY_TABLE_WEEKEND_GAP_ALLOWANCE = frozenset(
+    {
+        "price_daily",
+        "technical_data_daily",
+        "market_exposure_daily",
+        "market_health_daily",
+        "sector_rotation_signal",
+        "trend_template_data",
+        "algo_signals",
+        "algo_reconciliation_log",
+        "industry_ranking",
+        "growth_metrics",
+        "quality_metrics",
+        "value_metrics",
+        "stability_metrics",
+        "positioning_metrics",
+        "sector_ranking",
+        "buy_sell_daily",
+        "circuit_breaker_status",
+        "annual_income_statement",
+        "company_info_sec",
+        "stock_scores",
+        "algo_trades",
+        "algo_positions",
+        "algo_performance_daily",
+        "earnings_calendar",
+    }
+)
+
+
+def _daily_table_staleness_cutoffs(table_name: str, today: date, expected_date: date) -> tuple[float, float]:
+    """(stale_cutoff_hours, critical_cutoff_hours) for the max_age<=1 elapsed-hours branch.
+
+    BUG FIX 2026-08-23 (goal session: "42/47 NOT READY" dashboard audit): that branch's own
+    comment claims to "match monitor_data_staleness.py", but only matched its flat 24h/48h
+    threshold numbers, not the weekend/holiday gap-scaling logic that script applies on top of
+    them (see its check_all_tables()) - this endpoint drives the dashboard's actual "DATA
+    FRESHNESS" panel and `ready_to_trade` flag, so the gap was a real, visible false alarm, not
+    just an inconsistency between two read-only scripts. Live-confirmed 2026-08-23 (a Sunday):
+    price_daily/stock_scores/algo_trades/buy_sell_daily all correctly read FRESH in
+    monitor_data_staleness.py while this endpoint flagged them stale/error purely from the
+    Friday->Sunday gap. `expected_date` is already this file's own "walk back to the last real
+    trading day" result (computed once, above, from the same MarketCalendar source of truth) -
+    reused here rather than re-derived.
+    """
+    if table_name not in DAILY_TABLE_WEEKEND_GAP_ALLOWANCE:
+        return 24.0, 48.0
+    gap_days = (today - expected_date).days
+    if gap_days <= 1:
+        return 24.0, 48.0
+    gap_hours = gap_days * 24
+    return 24.0 + gap_hours, 48.0 + gap_hours
+
+
 REAPED_SELF_HEAL_GRACE = timedelta(hours=2)
 
 
@@ -820,12 +878,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 if max_age <= 1:
                     # Daily tables: use elapsed-time thresholds to match monitor_data_staleness.py
                     # This fixes false-positive "OK" for data from yesterday that's 40+ hours old.
-                    # Thresholds: fresh <24h, stale 24-48h, critical >48h (see CLAUDE.md)
+                    # Thresholds: fresh <24h, stale 24-48h, critical >48h (see CLAUDE.md), scaled
+                    # across weekend/holiday gaps for tables on the whitelist - see
+                    # _daily_table_staleness_cutoffs's own docstring for the full story.
+                    stale_cutoff, critical_cutoff = _daily_table_staleness_cutoffs(table_name, today, expected_date)
                     if age_hours is not None:
                         # Use elapsed time for accurate freshness
-                        if age_hours > 48:
+                        if age_hours > critical_cutoff:
                             status = "critical"  # Will be override to "error" below if critical table
-                        elif age_hours > 24:
+                        elif age_hours > stale_cutoff:
                             status = "stale"
                         else:
                             status = "ok"
