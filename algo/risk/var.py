@@ -335,7 +335,7 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def beta_exposure(self) -> dict[str, Any]:
+    def beta_exposure(self, report_date: date | None = None) -> dict[str, Any]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""
@@ -357,8 +357,17 @@ class ValueAtRisk:
                         "portfolio_value": 0.0,
                     }
 
+                # BUG FOUND (goal session, "before real money" finance-accuracy audit):
+                # generate_daily_risk_report(report_date) accepted a caller-supplied report
+                # date (Phase 9 passes its run_date) but never threaded it down here - this
+                # bounded against CURRENT_DATE (real wall-clock) regardless. Harmless for a
+                # same-day live run, but any historical-date test/replay (see CLAUDE.md's
+                # `--date` + ALLOW_OUTSIDE_MARKET_HOURS workflow) would pick a snapshot
+                # bounded by real-today instead of the date under test.
+                snapshot_upper_bound = report_date if report_date else datetime.now(EASTERN_TZ).date()
                 cur.execute(
-                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date <= CURRENT_DATE ORDER BY snapshot_date DESC LIMIT 1"
+                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1",
+                    (snapshot_upper_bound,),
                 )
                 portfolio_row = cur.fetchone()
                 if portfolio_row is None or len(portfolio_row) < 1 or portfolio_row[0] is None:
@@ -394,7 +403,19 @@ class ValueAtRisk:
                     # false "Portfolio snapshot is stale... calendar age: -1 days" error - confirmed
                     # live 2026-07-20/21: a snapshot dated 2026-07-21 (correct, ET-based) rejected
                     # as stale by a "today" of 2026-07-20 (system-local Central Time).
-                    today = datetime.now(EASTERN_TZ).date()
+                    #
+                    # BUG FOUND (goal session, "before real money" audit): this also ignored
+                    # report_date when the caller supplied one (Phase 9 passes its run_date
+                    # through generate_daily_risk_report(run_date)), always comparing against
+                    # real wall-clock "today" instead. Live-reproduced: three separate
+                    # `--date 2026-08-21` local test runs (2026-08-23 13:11, 2026-08-23 14:22,
+                    # 2026-08-24 07:17) each correctly wrote/found the 2026-08-21 snapshot via
+                    # reconciliation (status=success every time, identical $73,364.58 value),
+                    # but this check then compared that correct snapshot_date against real
+                    # today (2026-08-23/24) and raised "stale... requires manual clear" -
+                    # masking a working reconciliation behind a false governance halt on every
+                    # historical-date replay.
+                    today = report_date if report_date else datetime.now(EASTERN_TZ).date()
                     is_trading_today = MarketCalendar.is_trading_day(today)
 
                     # CRITICAL FIX: Use trading-day logic, not calendar days
@@ -604,7 +625,7 @@ class ValueAtRisk:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def concentration_report(self) -> dict[str, Any]:
+    def concentration_report(self, report_date: date | None = None) -> dict[str, Any]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""
@@ -633,8 +654,11 @@ class ValueAtRisk:
                         "portfolio_value": 0.0,
                     }
 
+                # Same report_date threading fix as beta_exposure() above - see its comment.
+                snapshot_upper_bound = report_date if report_date else datetime.now(EASTERN_TZ).date()
                 cur.execute(
-                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date <= CURRENT_DATE ORDER BY snapshot_date DESC LIMIT 1"
+                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1",
+                    (snapshot_upper_bound,),
                 )
                 portfolio_row = cur.fetchone()
                 if portfolio_row is None or len(portfolio_row) < 1 or portfolio_row[0] is None:
@@ -661,8 +685,9 @@ class ValueAtRisk:
 
                 # Same fix as beta_exposure()'s identical staleness check above: use Eastern
                 # Time, not the system's local timezone, to match how Phase 9 writes
-                # snapshot_date.
-                today = datetime.now(EASTERN_TZ).date()
+                # snapshot_date. Also threads report_date through instead of always using
+                # real wall-clock "today" - see the matching bug comment in beta_exposure().
+                today = report_date if report_date else datetime.now(EASTERN_TZ).date()
                 is_trading_today = MarketCalendar.is_trading_day(today)
 
                 # CRITICAL FIX: Use trading-day logic, not calendar days
@@ -852,7 +877,7 @@ class ValueAtRisk:
                 ) from e
 
             try:
-                beta = self.beta_exposure()
+                beta = self.beta_exposure(report_date)
             except Exception as e:
                 # CRITICAL FIX: beta_exposure() already returns an explicit
                 # {"portfolio_beta": 0.0, "data_unavailable": False} dict for the genuine
@@ -874,7 +899,7 @@ class ValueAtRisk:
                 )
 
             try:
-                concentration = self.concentration_report()
+                concentration = self.concentration_report(report_date)
             except Exception as e:
                 # CRITICAL FIX: same fabrication bug as beta above - concentration_report()
                 # already returns an explicit zero dict for "no open positions"; any

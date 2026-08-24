@@ -33,8 +33,8 @@ def _stub_out_everything_except(var_calculator, **overrides):
         "historical_var": lambda: None,
         "cvar": lambda: None,
         "stressed_var": lambda: None,
-        "beta_exposure": lambda: {"portfolio_beta": 0.5, "data_unavailable": False},
-        "concentration_report": lambda: {"top_5_concentration_pct": 10.0, "data_unavailable": False},
+        "beta_exposure": lambda report_date=None: {"portfolio_beta": 0.5, "data_unavailable": False},
+        "concentration_report": lambda report_date=None: {"top_5_concentration_pct": 10.0, "data_unavailable": False},
     }
     defaults.update(overrides)
     for name, fn in defaults.items():
@@ -43,7 +43,7 @@ def _stub_out_everything_except(var_calculator, **overrides):
 
 class TestBetaExposureFailFast:
     def test_beta_exposure_exception_raises_not_fabricates_zero(self, var_calculator):
-        def _raise():
+        def _raise(report_date=None):
             raise RuntimeError("[VAR CRITICAL] Portfolio snapshot is stale")
 
         _stub_out_everything_except(var_calculator, beta_exposure=_raise)
@@ -52,7 +52,7 @@ class TestBetaExposureFailFast:
             var_calculator.generate_daily_risk_report(date(2026, 8, 4))
 
     def test_beta_exposure_missing_key_raises(self, var_calculator):
-        _stub_out_everything_except(var_calculator, beta_exposure=lambda: {"data_unavailable": False})
+        _stub_out_everything_except(var_calculator, beta_exposure=lambda report_date=None: {"data_unavailable": False})
 
         with pytest.raises(RuntimeError, match="portfolio_beta"):
             var_calculator.generate_daily_risk_report(date(2026, 8, 4))
@@ -74,7 +74,7 @@ class TestBetaExposureFailFast:
 
 class TestConcentrationReportFailFast:
     def test_concentration_report_exception_raises_not_fabricates_zero(self, var_calculator):
-        def _raise():
+        def _raise(report_date=None):
             raise RuntimeError("[CONCENTRATION CRITICAL] Portfolio snapshot has NULL date")
 
         _stub_out_everything_except(var_calculator, concentration_report=_raise)
@@ -83,7 +83,9 @@ class TestConcentrationReportFailFast:
             var_calculator.generate_daily_risk_report(date(2026, 8, 4))
 
     def test_concentration_report_missing_key_raises(self, var_calculator):
-        _stub_out_everything_except(var_calculator, concentration_report=lambda: {"data_unavailable": False})
+        _stub_out_everything_except(
+            var_calculator, concentration_report=lambda report_date=None: {"data_unavailable": False}
+        )
 
         with pytest.raises(RuntimeError, match="top_5_concentration_pct"):
             var_calculator.generate_daily_risk_report(date(2026, 8, 4))

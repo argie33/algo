@@ -80,6 +80,31 @@ class ExposurePolicyConstraints:
 #   correction           < 25%
 #
 # Upper bounds are exclusive (except the top tier) - no boundary overlap.
+#
+# REDESIGNED 2026-08-24 (user-directed): tighten_winners_at_r/force_partial_at_r/
+# force_exit_negative_r are permanently None/False/False across every tier now - exposure
+# is a lever on future buying (halt_new_entries, max_new_positions_today,
+# max_concentration_pct at entry, plus position_sizer.py's continuous exposure_pct/100
+# sizing multiplier), never a reason to trim or exit a position already held. An existing
+# position's own stop-loss/exit logic (exit_engine.py's 11-step hierarchy - initial/trailed
+# stop, Minervini trend break, time exit, T1/T2/T3 targets, chandelier trail, TD Sequential
+# exhaustion, first-red-day, climax exhaustion, and market-distribution-day count) is what
+# decides whether THAT position gets sold, independent of the broad market's exposure
+# score - a stock's own price/volume action can stay bullish while the market-wide exposure
+# score drops (or vice versa), and forcing an exit on a good position because a portfolio-
+# level dial moved was exactly the bug: correction tier's force_exit_negative_r used to
+# force-exit ANY red position the moment exposure crossed below 25%, and
+# uptrend_under_pressure/caution's tighten_winners_at_r/force_partial_at_r used to ratchet
+# stops and take partial profits off winners on the same exposure-score trigger - both
+# regardless of what that specific position's own stop/target/trend-break logic said. This
+# was live-confirmed as the actual behavior (Phase 5 generated these actions every run,
+# Phase 6 executed them as real force_exit/partial_exit/tighten_stop orders), not merely a
+# theoretical risk. The 4 tiers below still differ on entry-side risk (fewer/no new
+# positions, smaller ones, tighter concentration caps) as market conditions worsen - that
+# part of "exposure = lever" is unchanged and correct. Sector-concentration rebalancing
+# (phase6_exit_execution.py's separate _check_sector_concentration(), a diversification
+# control, not an exposure-score one) is untouched by this change - it generates its own
+# force_exit actions independently of this class.
 EXPOSURE_TIERS: list[dict[str, Any]] = [
     {
         "name": "confirmed_uptrend",
@@ -104,7 +129,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "risk_multiplier": 0.65,
         "max_new_positions_today": 3,
         "min_composite_score": 60.0,
-        "tighten_winners_at_r": 2.5,
+        "tighten_winners_at_r": None,
         "force_partial_at_r": None,
         "halt_new_entries": False,
         "force_exit_negative_r": False,
@@ -119,8 +144,8 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "risk_multiplier": 0.35,
         "max_new_positions_today": 2,
         "min_composite_score": 70.0,
-        "tighten_winners_at_r": 1.5,
-        "force_partial_at_r": 2.5,
+        "tighten_winners_at_r": None,
+        "force_partial_at_r": None,
         "halt_new_entries": False,
         "force_exit_negative_r": False,
         "max_concentration_pct": 12.0,
@@ -134,10 +159,10 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "risk_multiplier": 0.0,
         "max_new_positions_today": 0,
         "min_composite_score": 80.0,
-        "tighten_winners_at_r": 1.0,
-        "force_partial_at_r": 1.5,
+        "tighten_winners_at_r": None,
+        "force_partial_at_r": None,
         "halt_new_entries": True,
-        "force_exit_negative_r": True,
+        "force_exit_negative_r": False,
         "max_concentration_pct": 10.0,
         "color": "red",
     },
@@ -266,6 +291,17 @@ class ExposurePolicy:
 
         Returns list of recommended actions per position:
           { trade_id, symbol, action, reason, new_stop, exit_fraction }
+
+        REDESIGNED 2026-08-24: every tier's tighten_winners_at_r/force_partial_at_r/
+        force_exit_negative_r is now None/False/False (see EXPOSURE_TIERS), so
+        _evaluate_position() always returns {"action": "hold", ...} and this always
+        returns []. Kept (not deleted) as the real, tested seam Phase 5/6 call through -
+        exposure tier should only ever gate NEW entries, never trim/exit a position
+        already held (that's exit_engine.py's job, independent of the market-wide
+        exposure score) - so if a future tier config ever re-adds a non-None/True value
+        here, this method's existing plumbing and Phase 6 execution path are still
+        correct and ready to use, without reintroducing the removed exposure-driven
+        selling as new code.
 
         Actions are recommendations - orchestrator decides whether to execute.
         """

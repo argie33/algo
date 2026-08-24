@@ -51,7 +51,6 @@ def _patched(sizer):
         patch.object(sizer, "get_market_exposure_multiplier", return_value=Decimal("1.0")),
         patch.object(sizer, "get_phase_size_multiplier", return_value=1.0),
         patch.object(sizer, "get_vix_caution_multiplier", return_value=Decimal("1.0")),
-        patch.object(sizer, "get_position_size_multiplier_from_regime", return_value=1.0),
     )
 
 
@@ -72,7 +71,6 @@ def _call_with_broken_risk_query(sizer, **kwargs):
         patches[3],
         patches[4],
         patches[5],
-        patches[6],
         patch("algo.trading.position_sizer.DatabaseContext", side_effect=RuntimeError("DB unavailable")),
     ):
         return sizer._calculate_with_external_cursor(**defaults)
@@ -101,7 +99,7 @@ class TestPositionSizerRiskLimitFailsClosed:
         }
         patches = _patched(sizer)
         mock_cur = patch("algo.trading.position_sizer.DatabaseContext")
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], mock_cur as MockDB:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], mock_cur as MockDB:
             MockDB.return_value.__enter__.return_value.fetchone.return_value = (Decimal("500"),)
             result = sizer._calculate_with_external_cursor(**defaults)
 
@@ -135,7 +133,7 @@ class TestPositionSizerRiskLimitScaleDownRounding:
         }
         patches = _patched(sizer)
         mock_cur = patch("algo.trading.position_sizer.DatabaseContext")
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], mock_cur as MockDB:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], mock_cur as MockDB:
             MockDB.return_value.__enter__.return_value.fetchone.return_value = (Decimal("3500"),)
             result = sizer._calculate_with_external_cursor(**defaults)
 

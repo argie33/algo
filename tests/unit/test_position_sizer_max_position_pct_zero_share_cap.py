@@ -52,7 +52,6 @@ def _patched(sizer):
         patch.object(sizer, "get_market_exposure_multiplier", return_value=Decimal("1.0")),
         patch.object(sizer, "get_phase_size_multiplier", return_value=1.0),
         patch.object(sizer, "get_vix_caution_multiplier", return_value=Decimal("1.0")),
-        patch.object(sizer, "get_position_size_multiplier_from_regime", return_value=1.0),
     )
 
 
@@ -63,7 +62,7 @@ class TestMaxPositionPctZeroShareCap:
         a fake 'ok' success at shares=0."""
         sizer = _make_sizer()
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = sizer._calculate_with_external_cursor(
                 symbol="EXPENSIVE",
                 entry_price=Decimal("600"),
@@ -84,7 +83,7 @@ class TestMaxPositionPctZeroShareCap:
         """Sanity check: the fix must not affect the normal (cap not binding) path."""
         sizer = _make_sizer()
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = sizer._calculate_with_external_cursor(
                 symbol="AAPL",
                 entry_price=Decimal("100"),
@@ -101,7 +100,7 @@ class TestMaxPositionPctZeroShareCap:
         exactly 1 share within the cap - must NOT be incorrectly rejected."""
         sizer = _make_sizer()
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = sizer._calculate_with_external_cursor(
                 symbol="BORDERLINE",
                 entry_price=Decimal("499"),

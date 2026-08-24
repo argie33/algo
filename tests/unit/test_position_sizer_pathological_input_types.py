@@ -61,7 +61,6 @@ def _patched(sizer):
         patch.object(sizer, "get_market_exposure_multiplier", return_value=Decimal("1.0")),
         patch.object(sizer, "get_phase_size_multiplier", return_value=1.0),
         patch.object(sizer, "get_vix_caution_multiplier", return_value=Decimal("1.0")),
-        patch.object(sizer, "get_position_size_multiplier_from_regime", return_value=1.0),
     )
 
 
@@ -75,7 +74,7 @@ def _call(sizer, **kwargs):
     }
     defaults.update(kwargs)
     patches = _patched(sizer)
-    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
         return sizer.calculate_position_size(**defaults)
 
 

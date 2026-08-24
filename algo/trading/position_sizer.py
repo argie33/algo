@@ -23,7 +23,6 @@ from datetime import timedelta
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, cast
 
-import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
@@ -629,27 +628,6 @@ class PositionSizer:
         """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
         return 1.0
 
-    def get_position_size_multiplier_from_regime(self, signal_date: _date | None = None) -> float:
-        """Get position size multiplier from current market regime.
-
-        Fail-fast  -" if regime cannot be determined, raises exception. Position sizing
-        must account for current market regime to avoid inappropriate sizing.
-        """
-        try:
-            from algo.orchestration import RegimeManager
-
-            regime_mgr = RegimeManager()
-            regime_mult = regime_mgr.get_position_size_multiplier(signal_date)
-            if regime_mult is None:
-                raise ValueError("Regime multiplier is None")
-            return regime_mult
-        except ValueError:
-            raise
-        except (ImportError, AttributeError) as e:
-            raise ValueError(f"Could not load RegimeManager: {e}") from e
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Regime multiplier calculation failed: {type(e).__name__}: {e}") from e
-
     def get_active_positions_value(self) -> Decimal:
 
         def fetch_positions_value(cur: PsycopgCursor[Any]) -> Decimal:
@@ -905,19 +883,24 @@ class PositionSizer:
         if base_risk_val is None:
             raise KeyError("[POSITION_SIZER] Config missing 'base_risk_pct'")
         base_risk_pct = Decimal(str(base_risk_val)) / Decimal(100)
+        # BUG FOUND 2026-08-24 (exposure-score audit): this cascade used to also multiply by
+        # regime_mult (RegimeManager.get_position_size_multiplier(), REGIME_POSITION_SIZE_*
+        # constants keyed by market_exposure_daily.regime). regime IS tier_for_exposure() of
+        # the exact same market_exposure_daily.exposure_pct that exposure_mult already reads
+        # continuously two lines below - regime_mult was a coarse re-bucketing of the same
+        # signal exposure_mult already applies smoothly, so multiplying both compounded one
+        # market read twice (e.g. exposure_pct=35% in "caution": 0.35 exposure_mult x 0.5
+        # regime_mult = 0.175x combined, roughly half the intended single-application
+        # reduction). Removed - exposure_mult alone is the documented, continuous mechanism
+        # (see market_exposure.py's module docstring: "position_sizer.py's continuous
+        # exposure_pct/100 multiplier"). get_position_size_multiplier_from_regime() is deleted
+        # below since this was its only call site; RegimeManager itself is untouched (still
+        # used for reporting/display and weight-optimization gating elsewhere).
         exposure_mult = self.get_market_exposure_multiplier()
         phase_mult = self.get_phase_size_multiplier()
         vix_mult = self.get_vix_caution_multiplier()
-        regime_mult = self.get_position_size_multiplier_from_regime(signal_date)
 
-        adjusted_risk_pct = (
-            base_risk_pct
-            * risk_adjustment
-            * exposure_mult
-            * Decimal(str(phase_mult))
-            * vix_mult
-            * Decimal(str(regime_mult))
-        )
+        adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult
         risk_dollars = (pv_dec * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
         # NOTE (confirmed 2026-08-10, checked git history back to this file's first commit):
@@ -1261,21 +1244,18 @@ class PositionSizer:
             * Decimal(str(exposure_mult))
             * Decimal(str(phase_mult))
             * Decimal(str(vix_mult))
-            * Decimal(str(regime_mult))
         )
         multipliers = {
             "risk_adjustment": float(risk_adjustment),
             "exposure_mult": float(exposure_mult),
             "phase_mult": float(phase_mult),
             "vix_mult": float(vix_mult),
-            "regime_mult": float(regime_mult),
         }
         multiplier_reasons = {
             "risk_adjustment": f"drawdown-based risk adjustment: {multipliers['risk_adjustment']:.2f}x",
             "exposure_mult": f"market exposure multiplier: {multipliers['exposure_mult']:.2f}x",
             "phase_mult": f"stage/phase multiplier: {multipliers['phase_mult']:.2f}x",
             "vix_mult": f"VIX caution multiplier: {multipliers['vix_mult']:.2f}x",
-            "regime_mult": f"market regime multiplier: {multipliers['regime_mult']:.2f}x",
         }
         self._record_sizing_audit(
             symbol=symbol,
@@ -1321,7 +1301,7 @@ class PositionSizer:
 
         This table's schema (base_shares/final_shares/cascade_multiplier/reasons_json) was added
         by migration but never written to - the exact multiplier cascade it exists to capture
-        (risk_adjustment/exposure_mult/phase_mult/vix_mult/regime_mult, computed above) was always
+        (risk_adjustment/exposure_mult/phase_mult/vix_mult, computed above) was always
         computed here, just never persisted. Left the table permanently empty, which made
         lambda/api/routes/risk_dashboard.py's comprehensive risk dashboard 503 unconditionally
         (its position_sizing_stats section raises when the table has zero rows) and the dedicated

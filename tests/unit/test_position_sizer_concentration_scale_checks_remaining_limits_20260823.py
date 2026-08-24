@@ -53,7 +53,6 @@ def _patched(sizer, active_position_value):
         patch.object(sizer, "get_market_exposure_multiplier", return_value=Decimal("1.0")),
         patch.object(sizer, "get_phase_size_multiplier", return_value=1.0),
         patch.object(sizer, "get_vix_caution_multiplier", return_value=Decimal("1.0")),
-        patch.object(sizer, "get_position_size_multiplier_from_regime", return_value=1.0),
     )
 
 
@@ -66,7 +65,7 @@ class TestConcentrationScaleChecksRemainingLimits:
         status='no_room', not reported as a fake 'ok' success at the concentration-scaled size."""
         sizer = _make_sizer()
         patches = _patched(sizer, active_position_value=8500)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = sizer._calculate_with_external_cursor(
                 symbol="OVERINVESTED",
                 entry_price=Decimal("50"),
@@ -87,7 +86,7 @@ class TestConcentrationScaleChecksRemainingLimits:
         into a rejection, only ones that genuinely violate a subsequent check."""
         sizer = _make_sizer()
         patches = _patched(sizer, active_position_value=0)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = sizer._calculate_with_external_cursor(
                 symbol="ROOM_TO_SPARE",
                 entry_price=Decimal("50"),

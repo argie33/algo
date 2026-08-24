@@ -113,6 +113,28 @@ evidence base than Pillars 1-2, so smallest of the three scored pillars):
     blended with put_call_ratio when available (optional, renormalizes to aaii alone
     if not).
 
+PILLAR 3 VETO SCOPE (decided 2026-08-24, user-directed evidence review - "is there a
+proven reason to keep these lingering, or use them only as confirmation/at extremes"):
+breadth's 50-DMA reading (b50) already feeds Hard Veto 1 below (SPY < 30wk MA AND weak
+breadth) - that stays, it's a real, decades-old technical-analysis convention (weak
+breadth confirming a broken trend). new_highs_lows, ad_line, aaii, and put_call_ratio
+do NOT feed any veto and are staying that way: unlike Pillar 2's veto inputs (VIX>40,
+credit spread>8.5%, distribution-day counts - genuine institutional risk-desk
+conventions with real multi-decade track records across 2008/2011/2020), there is no
+comparably real, out-of-sample-proven extreme threshold for these four. AAII survey
+sentiment specifically has been shown (DeVault, Sias & Starks, "Sentiment Metrics and
+Investor Demand," Journal of Finance 2019) to mostly extrapolate recent price action
+rather than carry independent predictive content; breadth-divergence "blowoff" signals
+in the Hindenburg Omen family have a documented poor real-world out-of-sample record
+despite popularity. Inventing a veto threshold for any of the four here would repeat
+the exact unproven-addition mistake this file's own "Dropped entirely" list below
+exists to avoid. They stay computed, persisted, and displayed (dashboard/market-
+internals use, e.g. lambda/api/routes/market.py's A/D line chart) - informational only,
+not because no one got around to wiring them in, but because the evidence doesn't
+support a veto or composite-score role for them. Revisit only if a real backtest
+against this system's own history (once one exists - see _vol_managed_multiplier's
+docstring for why that harness doesn't exist yet) demonstrates otherwise.
+
 SLOW MACRO VETO (Layer 3, new): Sahm Rule, Yield Curve inversion, and Inflation
 Expectations are real recession/stress signals but lead by 6-24 months (Estrella-
 Mishkin) - too slow for this system's responsive exposure dial, so they no longer earn
@@ -478,6 +500,27 @@ class MarketExposure:
         not compute a real vol_mult here until that validation exists - an untested
         multiplier moving live position sizing is exactly the kind of unproven addition
         this redesign is trying to avoid.
+
+        DATA AUDIT (2026-08-24, checked live against this system's own DB rather than
+        assumed): VIXCLS in economic_data has real, ample history for a backtest signal
+        (26 years, 2000-01-03 to present, 6692 rows) - VIX is NOT the blocker. Credit
+        spread (BAMLH0A0HYM2) is permanently capped at a rolling ~3-year window - not a
+        backfill gap but an external FRED distribution-policy change (April 2026, see
+        _credit_spread's own docstring), unfixable without sourcing raw ICE data
+        directly. The real binding constraint is price_daily itself: SPY (and the rest
+        of the live trading universe - AAPL/MSFT/QQQ checked, same start) only goes
+        back to 2021-05-19 locally (~5.25 years, 1321 rows) - a handful of unrelated
+        legacy tickers (ERIC/DEO/ELLO/EDN/EC/CVE) have older history but aren't SPY or a
+        usable market-wide proxy. 5.25 years is one bear-market sample (2022) - nowhere
+        near the decades of data the Moreira-Muir/Cederburg/Barroso-Detzel literature
+        itself used to reach even their CONTESTED conclusions, so a backtest run today
+        would produce a result indistinguishable from noise on a single historical path,
+        not real statistical proof - exactly what this docstring already said not to
+        ship. Concrete unblock (not attempted this session - a historical price backfill
+        is a real infrastructure action with API rate-limit/cost implications, must go
+        through the pipeline scheduler per [[feedback_always_use_pipeline_scheduler_for_backfills]],
+        not be run ad hoc): extend SPY's (and ideally the broader universe's) price
+        history further back before attempting Phase B again.
         """
         return 1.0
 

@@ -192,11 +192,11 @@ class TCAEngine:
                 row = cur.fetchone()
 
                 if row is None or len(row) < 1:
-                    return {
-                        "report_date": report_date,
-                        "fill_count": 0,
-                        "status": "no_data",
-                    }
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Daily report query returned no row at all for {report_date}. "
+                        "A bare COUNT(*) aggregate (no GROUP BY) must always return exactly one row - "
+                        "this indicates a broken query or connection, not merely an empty result set."
+                    )
 
                 (
                     fill_count,
@@ -206,6 +206,23 @@ class TCAEngine:
                     avg_fill_rate,
                     avg_latency,
                 ) = row
+
+                # BUG FOUND (goal session, "before real money" finance-accuracy audit): a bare
+                # `COUNT(*) ... FROM algo_tca WHERE signal_date = %s` with no GROUP BY always
+                # returns exactly one row, even when zero fills match - fill_count=0 and every
+                # other aggregate (AVG/MIN/MAX over zero rows) NULL. The `row is None or
+                # len(row) < 1` check above this comment can therefore never be true, so this
+                # was the actual (unreachable) intended "no data today" path - any day with
+                # zero trade fills (a completely normal, expected day) instead fell through to
+                # the `avg_abs_slippage is None` check below and raised a misleading
+                # "[TCA CRITICAL] ... Cannot compute TCA metrics without valid execution data"
+                # RuntimeError. Checking fill_count directly here is the real fix.
+                if fill_count == 0:
+                    return {
+                        "report_date": report_date,
+                        "fill_count": 0,
+                        "status": "no_data",
+                    }
 
                 # Count adverse fills > 100 bps
                 cur.execute(
@@ -321,10 +338,11 @@ class TCAEngine:
                 row = cur.fetchone()
 
                 if row is None or len(row) < 1:
-                    return {
-                        "period": f"{year}-{month:02d}",
-                        "status": "no_data",
-                    }
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Monthly summary query returned no row at all for {year}-{month:02d}. "
+                        "A bare COUNT(*) aggregate (no GROUP BY) must always return exactly one row - "
+                        "this indicates a broken query or connection, not merely an empty result set."
+                    )
 
                 (
                     fill_count,
@@ -334,6 +352,19 @@ class TCAEngine:
                     avg_fill_rate,
                     high_slippage_count,
                 ) = row
+
+                # Same bug/fix as daily_report() above: a bare COUNT(*) with no GROUP BY always
+                # returns one row (fill_count=0, every other aggregate NULL) for a month with
+                # zero fills - the `row is None` check above can never catch that case. Without
+                # this, `Decimal(high_slippage_count)` below raised TypeError on `Decimal(None)`
+                # for any month with no trades, surfacing as a misleading "generation failed"
+                # RuntimeError instead of a normal no-data result.
+                if fill_count == 0:
+                    return {
+                        "period": f"{year}-{month:02d}",
+                        "fill_count": 0,
+                        "status": "no_data",
+                    }
 
                 avg_abs_slippage_dec = Decimal(str(avg_abs_slippage)) if avg_abs_slippage else Decimal(0)
                 p95_slippage_dec = Decimal(str(p95_slippage)) if p95_slippage else Decimal(0)
