@@ -22,6 +22,7 @@ from .economic import (
     panel_economic_pulse,
 )
 from .exposure import (
+    panel_capital_routing,
     panel_exposure_compact,
     panel_exposure_expanded,
 )
@@ -87,6 +88,8 @@ __all__ = [
     "mascot_pose",
     "panel_algo_health",
     "panel_algo_health_expanded",
+    # Capital routing panel
+    "panel_capital_routing",
     # Circuit breaker panels
     "panel_circuit",
     "panel_circuit_expanded",
