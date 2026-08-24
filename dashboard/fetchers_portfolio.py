@@ -387,11 +387,13 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         # Comprehensive validation using FetcherValidator
         # win_rate_pct/total_pnl_dollars deliberately excluded: win_rate_pct is honestly null
-        # until at least one closed trade exists, and total_pnl_dollars is unconditionally None
-        # in the API response right now (its source table has had no writer since 2026-06-30 -
-        # see lambda/api/routes/algo_handlers/metrics.py::_get_algo_performance's docstring).
-        # Requiring either here would make this fetcher fail-fast permanently, not just when
-        # data is genuinely missing.
+        # until at least one closed trade exists, and total_pnl_dollars is null on any
+        # algo_performance_daily row written before migration 1222 (2026-08-24) added the
+        # column - live-confirmed 2026-08-24: today's row has a real value ($276.52), but
+        # 2026-08-21/08-20 rows are still NULL (not backfilled retroactively) - see
+        # lambda/api/routes/algo_handlers/metrics.py::_get_algo_performance's docstring.
+        # Requiring either here would make this fetcher fail-fast whenever the latest row
+        # happens to predate the column, not just when data is genuinely missing.
         required_fields = [
             "total_trades",
             "winning_trades",
@@ -485,8 +487,9 @@ def fetch_perf(c: None) -> dict[str, Any]:
         # exists (generate_daily_report raises before writing a row if either is unavailable -
         # see algo/reporting/performance.py). win_rate_pct/total_pnl_dollars/profit_factor are
         # NOT core: win_rate_pct needs a closed trade, profit_factor needs both a win and a loss
-        # to divide, and total_pnl_dollars is unconditionally None right now (see required_fields
-        # comment above) - all honestly nullable, not pipeline failures.
+        # to divide, and total_pnl_dollars can be None on report rows written before migration
+        # 1222 added the column (see required_fields comment above) - all honestly nullable,
+        # not pipeline failures.
         core_metrics = {
             "sharpe_annualized": "sharpe",
             "max_drawdown_pct": "maxdd",
