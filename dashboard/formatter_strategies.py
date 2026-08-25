@@ -40,14 +40,21 @@ class GradeFormatter(FormatterStrategy):
 
 
 class TierFormatter(FormatterStrategy):
-    """Converts percentage to market tier classification."""
+    """Converts percentage to market tier classification.
 
-    TIER_MAP = {
-        80: "confirmed_uptrend",
-        60: "uptrend_under_pressure",
-        40: "caution",
-        0: "correction",
-    }
+    BUG FOUND 2026-08-25 (goal session, exposure dashboard audit): TIER_MAP used to be its
+    own hardcoded copy of the tier boundaries (80/60/40/0) that had drifted from the real
+    EXPOSURE_TIERS in algo/risk/exposure_policy.py (70/45/25/0) - same "duplicate copy of a
+    tuned constant drifts out of sync" bug class already fixed once for
+    lambda/api/routes/algo_handlers/signals.py's _TIER_CONFIG (see that file's own
+    2026-08-24 fix comment). The drift meant every panel using this formatter - the compact
+    and expanded exposure score panels' header tier badge, plus the market panel's
+    exposure-% bar color in 3 places (dashboard/panels/market.py's exp_bar callers) - showed
+    the WRONG tier/color for exposure_pct in [70,80), [45,60), and [25,40), directly
+    contradicting the correct tier name shown by the same panel's "Policy Tier:" row (which
+    reads the real active_tier from the API). Now derives thresholds from EXPOSURE_TIERS
+    directly so it can't drift again - single source of truth.
+    """
 
     def format(self, percentage: Any) -> str:
         """Convert percentage to tier name."""
@@ -59,9 +66,11 @@ class TierFormatter(FormatterStrategy):
         except (ValueError, TypeError):
             return "unknown"
 
-        for threshold in sorted(self.TIER_MAP.keys(), reverse=True):
-            if p >= threshold:
-                return self.TIER_MAP[threshold]
+        from algo.risk.exposure_policy import EXPOSURE_TIERS
+
+        for tier in EXPOSURE_TIERS:
+            if p >= tier["min_pct"]:
+                return str(tier["name"])
         return "unknown"
 
 
