@@ -7,13 +7,14 @@ accumulate forever instead of resolving to a terminal status. This is a standalo
 script, deliberately not wired into the live orchestrator phases.
 """
 
-from datetime import date
+from datetime import date, datetime, tzinfo
 from unittest.mock import MagicMock, patch
 
 from scripts.expire_stale_pending_signals import (
     expire_stale_pending_signals,
     find_stale_pending_signals,
 )
+from utils.infrastructure.timezone import EASTERN_TZ
 
 
 def _mock_cursor(rows: list[tuple[int, str, date, float]]) -> MagicMock:
@@ -54,11 +55,29 @@ class TestFindStalePendingSignals:
         assert "execution_status = 'pending'" in sql
 
 
+class _FrozenDatetime(datetime):
+    """A fixed `datetime.now()` so `expire_stale_pending_signals()`'s internal
+    `datetime.now(EASTERN_TZ).date()` call is deterministic in tests. Without this, the
+    "FRESH" fixture below (a hardcoded literal signal_date meant to be "0 trading days old")
+    silently ages past the 1-trading-day threshold as real time passes since this test was
+    written - live-confirmed 2026-08-25: `signal_date=2026-08-22` was fresh when written, but
+    by the time real trading days advanced to 2026-08-25 it was 2 trading days old, exceeding
+    the 24h/1-trading-day threshold and flipping `found` from 1 to 2. Freezing "now" makes the
+    fixture's freshness invariant hold regardless of when the test actually runs."""
+
+    @classmethod
+    def now(cls, tz: tzinfo | None = None) -> "_FrozenDatetime":
+        # Only ever called here as datetime.now(EASTERN_TZ) - always frozen to that same tz,
+        # so no real tz-conversion is needed for this test double's one call site.
+        return cls(2026, 8, 22, 16, 0, tzinfo=tz or EASTERN_TZ)
+
+
 class TestExpireStalePendingSignals:
     def test_dry_run_makes_no_database_writes(self) -> None:
         with (
             patch("scripts.expire_stale_pending_signals._get_max_signal_age_hours", return_value=24),
             patch("scripts.expire_stale_pending_signals.DatabaseContext") as mock_ctx,
+            patch("scripts.expire_stale_pending_signals.datetime", _FrozenDatetime),
         ):
             mock_ctx.return_value.__enter__.return_value = _mock_cursor([(1, "WHWK", date(2026, 8, 7), 4.76)])
             result = expire_stale_pending_signals(dry_run=True)
@@ -71,6 +90,8 @@ class TestExpireStalePendingSignals:
             assert call.args[0] != "write"
 
     def test_real_run_updates_only_the_stale_ids(self) -> None:
+        # FRESH's signal_date matches _FrozenDatetime's frozen "today" (2026-08-22) - always
+        # exactly 0 trading days old under the frozen clock, regardless of real wall-clock time.
         read_cur = _mock_cursor([(1, "WHWK", date(2026, 8, 7), 4.76), (2, "FRESH", date(2026, 8, 22), 10.0)])
         write_cur = MagicMock()
         write_cur.rowcount = 1
@@ -83,6 +104,7 @@ class TestExpireStalePendingSignals:
         with (
             patch("scripts.expire_stale_pending_signals._get_max_signal_age_hours", return_value=24),
             patch("scripts.expire_stale_pending_signals.DatabaseContext", side_effect=_context),
+            patch("scripts.expire_stale_pending_signals.datetime", _FrozenDatetime),
         ):
             result = expire_stale_pending_signals(dry_run=False)
 
