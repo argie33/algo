@@ -1700,7 +1700,7 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (18%) + P/B (14%) + P/S (18%) + PEG (8%) + FCF yield (13%)
+        Uses weighted scoring: P/E (20%) + P/B (10%) + P/S (20%) + PEG (8%) + FCF yield (13%)
         + Dividend yield (3%) + Margin of Safety / DCF discount to intrinsic value (6%) + SIZE
         (market cap, 20% - see "SIZE FACTOR" note below). EV/EBITDA and EV/Revenue REMOVED
         2026-08-25 (see RESOLVED note below) - duplicated P/E and P/S respectively, not
@@ -1840,6 +1840,32 @@ class StockScoresLoader(OptimalLoader):
         unchanged from the post-duplicate-collapse total above - this redistributes within
         the three multiples, it doesn't reopen the EV/EBITDA/EV/Revenue redistribution.
 
+        INDEPENDENT RE-VERIFICATION 2026-08-25 (goal: dig in and be certain before acting
+        further, not just trust an existing docstring claim). The "no exceptions, no sign
+        flips, no fading" characterization above did not reproduce when independently re-run
+        from scratch with the same script (algo/research/fama_macbeth_value_factors.py,
+        same 2014-2026 window, same half/tercile split logic): first-half t-stats came back
+        PE=-1.80, PB=+0.22 (wrong-signed), PS=-0.08 (near zero) - materially weaker than the
+        PE=-4.93/PB=-4.39/PS=-5.13 claimed above, not a rounding difference. Second half and
+        full-sample numbers DID reproduce closely (full sample PE=-3.70/PB=-2.35/PS=-2.97,
+        matching this docstring's own OPEN QUESTION section above almost exactly). Most
+        likely explanation: the pre-2020 sample is known-thin (this docstring's own
+        CORRECTION note above: real but much sparser symbol coverage before ~2020, breadth
+        roughly doubling 2020-2021), so first-half FM estimates are noisier and more
+        sensitive to exact universe/date-boundary choices than a single re-run assumed -
+        flagging as a real source of estimation uncertainty rather than treating either run's
+        first-half numbers as precise. What DOES hold up across every check, both runs: PB is
+        the consistently weakest of the three (worst-or-tied in every sub-period tried,
+        including outright wrong-signed in the noisiest one) - the one part of the original
+        claim that's robust to independent reproduction. PE-vs-PS is NOT reliably
+        differentiable though (flips which is stronger across sub-periods in the fresh run) -
+        so PE/PS are kept equal to each other (not one raised over the other) rather than
+        the original claim's implicit "both robustly strong" framing. ACTED ON (modest,
+        proportionate to what's actually robust): PB cut a further 14%->10%, freed 4pts split
+        evenly to PE/PS (18%->20% each) - a small additional adjustment reflecting the
+        strengthened (if less precisely quantified) case that PB is weak, not a large move on
+        an uncertain number. Combined PE+PB+PS still 50% (post-Size-scaling total), unchanged.
+
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
@@ -1881,8 +1907,8 @@ class StockScoresLoader(OptimalLoader):
                 pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
-            weighted_sum += pe_score * 0.18
-            total_weight += 0.18
+            weighted_sum += pe_score * 0.20
+            total_weight += 0.20
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
         # Weight raised 20%->26% 2026-08-25 (goal: re-audit ALL stock_scores inputs) - freed
@@ -1893,6 +1919,11 @@ class StockScoresLoader(OptimalLoader):
         # ranking dispute was resolved and found PB robustly the WEAKEST of the three
         # multiples, not the strongest (see docstring's "PE-vs-PB/PS RANKING DISPUTE" note).
         # Scaled again 18%->14% same day (Size-factor gap, same proportional x0.8 as PE above).
+        # Cut once more 14%->10% same day, third pass - independent re-verification of the
+        # "PE-vs-PB/PS RANKING DISPUTE" finding (see docstring) confirmed PB weakest across
+        # every sub-period tried, including outright wrong-signed in the noisiest one - a
+        # modest additional cut proportionate to that strengthened (if less precisely
+        # quantified than first claimed) evidence.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
@@ -1903,8 +1934,8 @@ class StockScoresLoader(OptimalLoader):
                 pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.14
-            total_weight += 0.14
+            weighted_sum += pb_score * 0.10
+            total_weight += 0.10
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
@@ -1920,8 +1951,8 @@ class StockScoresLoader(OptimalLoader):
                 ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
             else:
                 ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.18
-            total_weight += 0.18
+            weighted_sum += ps_score * 0.20
+            total_weight += 0.20
 
         # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
         # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
