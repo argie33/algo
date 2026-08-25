@@ -271,10 +271,18 @@ class DailyFinanceReport:
     def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """IC and weight for each component.
 
-        SignalAttributionEngine is deprecated (swing_scores removed), so component attribution
-        data may not be available early in the day. Returns empty dict when unavailable - the report
-        can still be generated without component analysis. Component attribution is populated by
-        end-of-day loaders, not available during morning/afternoon orchestrator runs.
+        CORRECTED 2026-08-25 (goal: "before real money" live-run sweep): SignalAttributionEngine
+        (algo/signals/attribution.py) is PERMANENTLY deprecated - swing_trader_scores was
+        removed and compute_ic() always returns every component data_unavailable=True by
+        design, not just early in the day. `algo_component_attribution`'s newest row is over a
+        month stale (last written before the deprecation landed) and Phase 9's
+        `_compute_signal_attribution` guards persist() specifically to avoid writing more
+        all-NULL rows now - this table will not receive new data again while the engine stays
+        deprecated. The previous wording here ("may not be available early in the day... wait
+        for end-of-day loaders") implied a same-day timing gap that doesn't exist - this is a
+        permanent, by-design analytics-only gap (does not affect trading), not a race with a
+        loader that will eventually catch up. Returns empty dict when unavailable - the report
+        can still be generated without component analysis.
         """
         try:
             cur.execute(
@@ -289,13 +297,14 @@ class DailyFinanceReport:
 
             if not rows:
                 logger.info(
-                    f"[DAILY_REPORT] No component attribution data available for {report_date}. "
-                    f"Expected if running before end-of-day loaders complete."
+                    f"[DAILY_REPORT] No component attribution data available for {report_date} "
+                    f"(SignalAttributionEngine is permanently deprecated - this is expected, not "
+                    f"a timing gap)."
                 )
                 return {
                     "data_unavailable": True,
                     "reason": "no_component_attribution_data",
-                    "details": "SignalAttributionEngine is deprecated; data available only from end-of-day loaders",
+                    "details": "SignalAttributionEngine is permanently deprecated; no new data will be written",
                 }
 
             components = {}
