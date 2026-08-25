@@ -1055,6 +1055,11 @@ class SecValuationsLoader(OptimalLoader):
                 beta = float(beta_row[0]) if beta_row and beta_row[0] is not None else None
                 risk_free_rate = self._get_risk_free_rate(cur)
                 equity_risk_premium = self._get_equity_risk_premium(cur)
+                # Net borrowing (2026-08-25, goal: DCF audit follow-up - true FCFE via net
+                # borrowing, see _get_net_borrowing_for_dcf's docstring) - additive DCF-only
+                # correction toward a true FCFE instead of the zero-net-borrowing-assumed
+                # OCF-CapEx-SBC proxy.
+                net_borrowing = self._get_net_borrowing_for_dcf(cur, symbol)
 
                 # FIXED 2026-08-20 (goal: finance-accuracy audit): fetched here, still inside
                 # the `with DatabaseContext("read") as cur:` block - _sanity_check_market_cap()
@@ -1123,6 +1128,7 @@ class SecValuationsLoader(OptimalLoader):
                 float(stock_based_compensation) if stock_based_compensation is not None else None,
                 dcf_eps_cagr_pct,
                 equity_risk_premium,
+                net_borrowing,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1199,6 +1205,23 @@ class SecValuationsLoader(OptimalLoader):
     # regime). economic_data's VIXCLS starts 2000-01-03, so this comfortably covers the whole
     # series without hardcoding a start date.
     DCF_VIX_LOOKBACK_YEARS = 25
+
+    # Sanity bound on _get_net_borrowing_for_dcf's result relative to the DCF's own fcf_base
+    # (OCF - CapEx - SBC) - live-caught (500-symbol universe spot-check, same day, before
+    # committing) BWXT: a real, small ($50-500M/yr OCF) industrial company whose
+    # operating_lease_liability data jumps to an implausible $44B in one fiscal year (almost
+    # certainly a pre-existing XBRL extraction bug elsewhere in this pipeline - annual_balance_
+    # sheet already carries this bad figure into total_debt/enterprise_value/ev_ebitda today,
+    # independent of this fix - not something this net-borrowing feature caused, but something
+    # it would otherwise blindly amplify into an even more absurd DCF result). A company's real
+    # net borrowing in a single year, however large, is essentially never dozens-to-hundreds of
+    # times its own operating cash flow scale (BWXT's $24B swing was ~50x its most recent real
+    # annual OCF) - genuine large financing events (AMZN's real $72B swing, live-confirmed
+    # plausible against Amazon's own ~$100-160B OCF scale) stay within a much smaller multiple.
+    # 10x is generous enough to avoid rejecting a real large one-time raise for a company with a
+    # temporarily weak FCF year, while still catching an order-of-magnitude data-quality outlier
+    # like BWXT's.
+    DCF_NET_BORROWING_MAX_FCF_MULTIPLE = 10.0
     # Fallback risk-free rate (approx. long-run average 10Y Treasury yield) - used only as a
     # test/caller default and on the rare day economic_data has no recent DGS10 reading. Live
     # runs use the actual current 10Y yield via _get_risk_free_rate() below, not this constant.
@@ -1331,6 +1354,93 @@ class SecValuationsLoader(OptimalLoader):
             self.DCF_MIN_EQUITY_RISK_PREMIUM, min(self.DCF_MAX_EQUITY_RISK_PREMIUM, scaled)
         )
         return self._equity_risk_premium_cache
+
+    def _get_net_borrowing_for_dcf(self, cur: Any, symbol: str) -> float | None:
+        """Change in total balance-sheet debt (long_term_debt + short_term_debt +
+        operating_lease_liability + finance_lease_liability, same components as total_debt
+        above) between the two most recent fiscal years, when they're genuinely ADJACENT
+        (fiscal_year apart by exactly 1) - an additive correction toward a true FCFE
+        (OCF - CapEx - SBC + Net Borrowing) instead of the zero-net-borrowing-assumed proxy
+        this DCF has used until now.
+
+        FIXED 2026-08-25 (goal: DCF audit follow-up - true FCFE via net borrowing, previously
+        deferred in dcf_growth_fade_live_verified_and_remaining_items_reassessed_20260825 as
+        needing debt issuance/repayment cash-flow data this pipeline doesn't fetch - confirmed
+        via a schema check of annual_cash_flow that no such concept is collected, only a
+        blended financing_cash_flow that also mixes in equity/dividends). Uses the
+        balance-sheet debt-LEVEL change instead - a standard practitioner proxy for net
+        borrowing (issued minus repaid) when the cash-flow statement's own financing detail
+        isn't available, mathematically exact absent other balance-sheet effects (FX
+        remeasurement, fair-value adjustments on convertible debt, etc.) that this proxy can't
+        see and doesn't attempt to correct for.
+
+        The adjacency requirement is the safety guard: this file's own comments elsewhere
+        document real filers switching which XBRL debt concept they tag between fiscal years
+        (CAT/XOM/DKNG - see total_debt's docstring above) - comparing two non-adjacent years
+        (a multi-year gap where a tag switch is more likely to have happened) risked reading a
+        tag-switch artifact as a "borrowing" event. Requiring the two years be exactly 1 fiscal
+        year apart doesn't eliminate that risk (an adjacent-year tag switch is possible too,
+        just less common) but meaningfully bounds it versus comparing whatever two years happen
+        to have data.
+
+        FIXED same day (live-caught via a 500-symbol universe spot-check before committing):
+        the newest-year query originally accepted a row with ANY ONE component non-NULL (same
+        "at least one real value" leniency total_debt's own query above uses, reasonable for
+        picking a single best year). Live-confirmed via AAPL this is WRONG for a two-year
+        delta: AAPL's current in-progress fiscal year has real long_term_debt/short_term_debt
+        but NULL operating_lease_liability/finance_lease_liability (not yet tagged - the same
+        "current interim year isn't fully filed yet" gap this file fixes elsewhere for capex/
+        fcf_yield), while the prior complete year has all four populated. Treating NULL-this-
+        year-real-last-year as "$0 of lease debt now" manufactured a spurious -$28B "paydown"
+        that was actually just missing data, not a real deleveraging event. Fixed: a
+        component's null-ness must MATCH between the two years (both present or both absent)
+        for every one of the four components, or the whole comparison is skipped - a component
+        that's null in both years is a real "no debt of that kind" data point, safe to treat
+        as 0 either way, but a mismatch is a completeness gap, not a borrowing signal, and no
+        real net-borrowing figure can be extracted from it.
+
+        Returns None (falls back to the existing OCF-CapEx-SBC proxy unchanged) when fewer
+        than 2 usable, adjacent, component-comparable years exist - the common case for a
+        newer filer, one with sparse balance-sheet history, or (per the fix above) a current
+        fiscal year that isn't fully tagged yet.
+        """
+        cur.execute(
+            """
+            SELECT fiscal_year, long_term_debt, short_term_debt, operating_lease_liability, finance_lease_liability
+            FROM annual_balance_sheet
+            WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+              AND (long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
+                   OR operating_lease_liability IS NOT NULL OR finance_lease_liability IS NOT NULL)
+            ORDER BY fiscal_year DESC LIMIT 1
+            """,
+            (symbol,),
+        )
+        newest_row = cur.fetchone()
+        if not newest_row:
+            return None
+        newest_year = newest_row[0]
+        newest_components = newest_row[1:]
+        cur.execute(
+            """
+            SELECT long_term_debt, short_term_debt, operating_lease_liability, finance_lease_liability
+            FROM annual_balance_sheet
+            WHERE symbol = %s AND fiscal_year = %s AND data_unavailable IS NOT TRUE
+              AND (long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
+                   OR operating_lease_liability IS NOT NULL OR finance_lease_liability IS NOT NULL)
+            """,
+            (symbol, newest_year - 1),
+        )
+        prior_row = cur.fetchone()
+        if not prior_row:
+            return None
+        if any(
+            (newest_c is None) != (prior_c is None)
+            for newest_c, prior_c in zip(newest_components, prior_row, strict=True)
+        ):
+            return None
+        newest_debt = sum(float(c) if c is not None else 0.0 for c in newest_components)
+        prior_debt = sum(float(c) if c is not None else 0.0 for c in prior_row)
+        return newest_debt - prior_debt
 
     @staticmethod
     def _compute_avg_fcf_fallback(cash_rows: list[tuple[Any, Any, Any, Any]], is_capex_exempt: bool) -> float | None:
@@ -1525,6 +1635,7 @@ class SecValuationsLoader(OptimalLoader):
         stock_based_compensation: float | None = None,
         dcf_eps_cagr_pct: float | None = None,
         equity_risk_premium: float | None = None,
+        net_borrowing: float | None = None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1538,6 +1649,14 @@ class SecValuationsLoader(OptimalLoader):
         to None -> the static DCF_EQUITY_RISK_PREMIUM, so every existing caller/test is
         unaffected; fetch_incremental passes the live VIX-scaled value from
         _get_equity_risk_premium().
+
+        net_borrowing: ADDED 2026-08-25 (goal: DCF audit follow-up - true FCFE via net
+        borrowing, see _get_net_borrowing_for_dcf's docstring for the full rationale). Added
+        to fcf_base (DCF only, never fcf_yield - same "DCF gets a smoothed/adjusted figure,
+        fcf_yield stays on the latest year's raw current-cash-generation number" split
+        avg_fcf_fallback/dcf_eps_cagr_pct already use) when available. Defaults to None -> the
+        existing OCF-CapEx-SBC proxy unchanged (implicitly assumes zero net borrowing, same as
+        before this fix), so every existing caller/test is unaffected.
 
         shares_out_from_dual_class_yfinance: True only for the narrow 2026-08-22 dual-class
         exception (see _fetch_live_dual_class_shares_outstanding) - shares_out itself came from
@@ -1801,6 +1920,21 @@ class SecValuationsLoader(OptimalLoader):
         fcf_base = ocf - capex - sbc if ocf is not None and capex is not None else None
         if (fcf_base is None or fcf_base <= 0) and avg_fcf_fallback is not None and avg_fcf_fallback > 0:
             fcf_base = avg_fcf_fallback
+        # net_borrowing (see this parameter's own docstring above): DCF-only additive
+        # correction toward a true FCFE, never applied to fcf_yield above. Bounded to
+        # DCF_NET_BORROWING_MAX_FCF_MULTIPLE x |fcf_base| - see that constant's docstring
+        # (BWXT live-caught data-quality outlier) - an implausibly large net_borrowing relative
+        # to the entity's own cash-flow scale is silently skipped (falls back to fcf_base
+        # unadjusted) rather than corrupting the DCF with what's almost certainly bad
+        # upstream balance-sheet data, not a genuine financing event.
+        dcf_fcf_base = fcf_base
+        if (
+            fcf_base is not None
+            and net_borrowing is not None
+            and fcf_base != 0
+            and abs(net_borrowing) <= self.DCF_NET_BORROWING_MAX_FCF_MULTIPLE * abs(fcf_base)
+        ):
+            dcf_fcf_base = fcf_base + net_borrowing
         eps_growth_pct = None
         if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
             eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100
@@ -1809,7 +1943,7 @@ class SecValuationsLoader(OptimalLoader):
         # fcf_yield's entity_market_cap fix just above.
         result["intrinsic_value_per_share"], result["margin_of_safety_pct"] = self._compute_dcf_intrinsic_value(
             symbol,
-            fcf_base,
+            dcf_fcf_base,
             dcf_growth_pct,
             entity_shares_out,
             current_price,

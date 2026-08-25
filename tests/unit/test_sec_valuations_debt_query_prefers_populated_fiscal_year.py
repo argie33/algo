@@ -106,11 +106,15 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("GOOGL", fetchone_results)
 
-        debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
+        # "COALESCE(long_term_debt" (not just "long_term_debt") uniquely identifies this
+        # tiered debt_row query - _get_net_borrowing_for_dcf (2026-08-25) also queries
+        # long_term_debt, but via a plain WHERE clause with no COALESCE-based ORDER BY tier.
+        debt_queries = [sql for sql in cursor.executed_sql if "COALESCE(long_term_debt" in sql and "SELECT" in sql]
         assert len(debt_queries) == 1
         debt_sql = debt_queries[0]
         assert "long_term_debt IS NOT NULL" in debt_sql
@@ -136,11 +140,15 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("ANET", fetchone_results)
 
-        debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
+        # "COALESCE(long_term_debt" (not just "long_term_debt") uniquely identifies this
+        # tiered debt_row query - _get_net_borrowing_for_dcf (2026-08-25) also queries
+        # long_term_debt, but via a plain WHERE clause with no COALESCE-based ORDER BY tier.
+        debt_queries = [sql for sql in cursor.executed_sql if "COALESCE(long_term_debt" in sql and "SELECT" in sql]
         assert len(debt_queries) == 1
         debt_sql = debt_queries[0]
         assert "short_term_debt IS NOT NULL" in debt_sql
@@ -169,11 +177,15 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("AA", fetchone_results)
 
-        debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql and "SELECT" in sql]
+        # "COALESCE(long_term_debt" (not just "long_term_debt") uniquely identifies this
+        # tiered debt_row query - _get_net_borrowing_for_dcf (2026-08-25) also queries
+        # long_term_debt, but via a plain WHERE clause with no COALESCE-based ORDER BY tier.
+        debt_queries = [sql for sql in cursor.executed_sql if "COALESCE(long_term_debt" in sql and "SELECT" in sql]
         assert len(debt_queries) == 1
         debt_sql = debt_queries[0]
         assert "COALESCE(long_term_debt, 0)" in debt_sql
@@ -197,6 +209,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         result, cursor = _run_fetch_incremental("GOOGL", fetchone_results)

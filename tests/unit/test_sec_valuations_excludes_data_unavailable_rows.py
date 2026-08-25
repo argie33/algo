@@ -111,6 +111,7 @@ class TestExcludesDataUnavailableRows:
             (4.5,),  # risk_free_rate (economic_data DGS10)
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         _, cursor = _run_fetch_incremental("KT", fetchone_results)
@@ -125,7 +126,10 @@ class TestExcludesDataUnavailableRows:
         assert len(cash_bs_queries) == 1
         assert "data_unavailable IS NOT TRUE" in cash_bs_queries[0]
 
-        debt_queries = [sql for sql in cursor.executed_sql if "long_term_debt" in sql]
+        # "COALESCE(long_term_debt" uniquely identifies the tiered debt_row query -
+        # _get_net_borrowing_for_dcf (2026-08-25) also queries long_term_debt/
+        # data_unavailable IS NOT TRUE, via a plain WHERE clause with no COALESCE tier.
+        debt_queries = [sql for sql in cursor.executed_sql if "COALESCE(long_term_debt" in sql]
         assert len(debt_queries) == 1
         assert "data_unavailable IS NOT TRUE" in debt_queries[0]
 

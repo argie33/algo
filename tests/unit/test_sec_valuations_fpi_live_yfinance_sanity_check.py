@@ -86,6 +86,7 @@ class TestFpiLiveYfinanceSanityCheck:
             (4.5,),  # risk_free_rate
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (999_999_999_999.0, 999.0),  # yfinance_snapshot (stale) - would NOT trigger mismatch if trusted
         ]
 
@@ -114,6 +115,7 @@ class TestFpiLiveYfinanceSanityCheck:
             (4.5,),
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot has nothing either - both sources empty
         ]
 
@@ -143,6 +145,7 @@ class TestFpiLiveYfinanceSanityCheck:
             (4.5,),
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (450_000_000_000.0, None),
         ]
 

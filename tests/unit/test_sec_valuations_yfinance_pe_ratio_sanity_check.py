@@ -80,6 +80,7 @@ class TestYfinancePeRatioSanityCheck:
             (4.5,),  # risk_free_rate
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, 67.58),  # yfinance_snapshot: market_cap unavailable, pe_ratio=67.58 (real)
         ]
 
@@ -107,6 +108,7 @@ class TestYfinancePeRatioSanityCheck:
             (4.5,),
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, None),  # yfinance_snapshot - nothing available for either field
         ]
 
@@ -127,6 +129,7 @@ class TestYfinancePeRatioSanityCheck:
             (4.5,),
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data, DCF falls back to OCF-CapEx-SBC unchanged
             (None, 300.0),  # yfinance pe_ratio within 10x of the SEC-derived 1884.30
         ]
 
