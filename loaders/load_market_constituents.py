@@ -822,6 +822,28 @@ class MarketConstituentsLoader(OptimalLoader):
 
         Returns empty list if unavailable - Russell 2000 is optional enrichment data.
         The loader continues without it rather than failing.
+
+        KNOWN BROKEN 2026-08-25 (goal: "before real money" data-source audit): both URLs below
+        are structurally incapable of ever returning a constituent list, not just flaky -
+        `is_russell2000` has been false for all 5,635 symbols since this loader's inception
+        (confirmed via `SELECT COUNT(*) FILTER (WHERE is_russell2000), COUNT(*) FROM
+        stock_symbols` -> 0/5635). multpl.com's page is Russell 2000 INDEX PRICE history (a
+        single time series, no per-symbol table), not a membership list. Wikipedia's Russell
+        2000 article has no constituent table at all - unlike the S&P 500 article Wikipedia
+        maintains, Russell doesn't license Wikipedia to republish its (paid, FTSE Russell-owned)
+        membership list. Investigated free replacements and none worked within this session's
+        budget: iShares IWM holdings CSV (`ishares.com/.../1467271812596.ajax?fileType=csv...`)
+        returns HTTP 200 but serves an HTML disclaimer/bot-check page instead of the CSV even
+        with a browser User-Agent and Referer; Vanguard VTWO's holdings page is a JS-rendered
+        SPA with no static table; SEC EDGAR's `browse-edgar` company search returned zero hits
+        for "ishares russell 2000" / "ishares trust" NPORT-P filings (likely needs the fund's
+        exact registrant CIK, not a free-text company-name match). Not wired into any
+        scoring/universe-filtering/risk logic (`grep -rn is_russell2000` outside this file and
+        two unrelated allowlists in `utils/db/sql_safety.py` /`utils/loaders/sla_monitor.py`
+        returns nothing) - dead enrichment column, not a trading-correctness risk. Left as a
+        documented gap rather than a silent one; fix properly if this ever becomes load-bearing
+        (a paid index-data provider, or an N-PORT filing located by exact CIK, are the real
+        paths - not another free scrape).
         """
         urls = [
             "https://www.multpl.com/russell-2000/table/by-date",
