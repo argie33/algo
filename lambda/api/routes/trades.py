@@ -221,6 +221,23 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
 
     If idempotency_key is provided, uses it to prevent duplicate requests.
     Returns cached response if the same request is retried within 24 hours.
+
+    RISK-VISIBILITY NOTE (2026-08-25, real-money-readiness goal session - checked whether
+    any entry path bypasses pretrade_checks.py's sector/industry/correlation/beta risk
+    gates): this admin-gated (check_admin_access) endpoint intentionally does NOT run those
+    checks - it records a trade that already happened externally (outside the algo, e.g.
+    placed manually in Alpaca's own app), so there is nothing left to approve or reject.
+    It also only inserts into algo_trades, not algo_positions - those position-based risk
+    checks (and position_sizer.py's exposure accounting) will not see this trade until
+    algo/orchestration/position_sync.py's sync_positions_from_trades() next runs (before
+    every Phase 1, 4-5x/day in production), a bounded eventual-consistency window, not an
+    instant one. Not fixed by calling that sync directly from here: it opens its own
+    DatabaseContext connection independent of this handler's `cur`, so calling it before
+    this function's own transaction commits could sync against a DB state that doesn't yet
+    include the trade just inserted - a real transaction-ordering risk not worth taking for
+    an admin-only, already-bounded gap. If tighter visibility is ever needed, the correct
+    fix is to run the sync in the SAME transaction/connection as this insert, not a
+    cross-module call from here.
     """
     try:
         signature = None
