@@ -192,7 +192,7 @@ whether it's actually reachable for a given phase before citing it in a debuggin
 
 ## Credentials & Deployment
 
-**Local:** PostgreSQL setup + `DB_HOST=localhost DB_USER=stocks DB_PASSWORD=stocks DB_NAME=stocks python migrations/run.py apply --all` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
+**Local:** PostgreSQL setup + `DB_HOST=localhost DB_USER=stocks DB_PASSWORD=stocks DB_NAME=stocks python migrations/run.py apply --all` (one-time), then refresh via your org's standard AWS SSO/CLI process (`aws sso login --profile <profile>`) if expired - no dedicated refresh script is tracked in this repo (`scripts/refresh-aws-credentials.ps1`, referenced in earlier versions of this doc, is not in git; found 2026-08-25).
 
 **Production:** `git push main` → CI (`.github/workflows/ci.yml`) → `deploy-ecs-image.yml`
 (`workflow_run`-triggered on CI success) → ECR push. **The pipeline architecture now exists**

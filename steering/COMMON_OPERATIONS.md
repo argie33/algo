@@ -305,7 +305,10 @@ echo $AWS_RDS_PORT
 
 2. If not set, refresh AWS credentials:
 ```bash
-pwsh scripts/refresh-aws-credentials.ps1
+aws sso login --profile <your-profile>   # or your org's standard AWS credential refresh
+# (no dedicated refresh script is tracked in this repo - `scripts/refresh-aws-credentials.ps1`/
+# `terraform/scripts/refresh-aws-credentials.ps1`, referenced in earlier versions of this doc,
+# are not in git (`git ls-files` confirms neither is tracked) - found and corrected 2026-08-25)
 ```
 
 3. Check AWS RDS is running:
@@ -339,11 +342,12 @@ python scripts/local_loader_scheduler.py --now metrics --loaders value_quality_g
 
 2. Do NOT try `--parallelism 2` on this loader - value_quality_growth_metrics is
    yfinance-dependent and yfinance requests share a NAT IP across ECS tasks; parallelism
-   above 1 here triggers HTTP 429 rate-limit bans (see
-   `steering/YFINANCE_PARALLELISM_INVESTIGATION.md`, which explicitly lists this loader as
-   "locked to 1"). This is enforced by `LOADER_PARALLELISM must be 1` in CLAUDE.md's Core
-   Rules - if timeouts persist, the fix is investigating the slow symbol/API call, not
-   raising parallelism.
+   above 1 here triggers HTTP 429 rate-limit bans. This is enforced by `LOADER_PARALLELISM
+   must be 1` in CLAUDE.md's Core Rules (`steering/YFINANCE_PARALLELISM_INVESTIGATION.md`,
+   the original investigation doc this rule came from, was deleted 2026-08-25 - marked
+   SUPERSEDED since 2026-08-17 once its findings were folded into CLAUDE.md, which is now the
+   single source of truth for this rule) - if timeouts persist, the fix is investigating the
+   slow symbol/API call, not raising parallelism.
 
 3. Check upstream data availability:
 ```bash
