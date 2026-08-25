@@ -12,6 +12,7 @@ position's life. Fixed by rescaling every price-scale column on both algo_trades
 table the exit engine actually reads) and algo_positions (cache/display columns).
 """
 
+import re
 from unittest.mock import MagicMock
 
 from algo.monitoring.position_monitor import PositionMonitor
@@ -58,7 +59,7 @@ class TestSplitAdjustmentRescalesTradePrices:
 
     def test_algo_positions_price_columns_rescaled_not_just_stop(self) -> None:
         """The algo_positions UPDATE must also rescale entry_price/avg_entry_price/
-        stop_loss_price/target_N_price/initial_risk_per_share, not just
+        stop_loss_price/current_stop_price/target_N_price/initial_risk_per_share, not just
         quantity/current_stop_price (the pre-fix behavior)."""
         monitor = _make_monitor()
         cur = MagicMock()
@@ -82,12 +83,46 @@ class TestSplitAdjustmentRescalesTradePrices:
             "entry_price",
             "avg_entry_price",
             "stop_loss_price",
+            "current_stop_price",
             "target_1_price",
             "target_2_price",
             "target_3_price",
             "initial_risk_per_share",
         ):
             assert col in sql, f"{col} must be rescaled in the algo_positions UPDATE"
+
+    def test_no_column_assigned_twice_in_positions_update(self) -> None:
+        """Regression guard for the 2026-08-25 bug: `stop_loss_price` was assigned TWICE in
+        the same UPDATE ... SET clause (once to a Python-computed value, once via
+        ROUND(stop_loss_price / ratio, 2)) - PostgreSQL categorically rejects this
+        ("multiple assignments to same column"), live-confirmed against a real connection.
+        Every real stock-split adjustment crashed instead of applying. MagicMock's cursor
+        never validates SQL syntax, so this must be checked structurally: every column name
+        immediately followed by `=` in the SET clause must appear exactly once."""
+        monitor = _make_monitor()
+        cur = MagicMock()
+        adjustments: list = []
+
+        monitor._apply_split_adjustment(
+            cur,
+            pos_id=42,
+            symbol="TEST",
+            db_qty=100,
+            db_stop=90.0,
+            alpaca_qty=200,
+            trade_ids_arr=[501],
+            adjustments=adjustments,
+        )
+
+        positions_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_positions" in c.args[0]]
+        sql = positions_calls[0].args[0]
+        set_clause = sql.split(" SET ", 1)[1].split(" WHERE ", 1)[0]
+        # Each assignment is formatted one-per-line (`col = ...,`), so match column names at
+        # the start of a line rather than naively splitting on every comma - `ROUND(x / %s,
+        # 2)` contains a comma of its own that isn't a column separator.
+        assigned_columns = re.findall(r"^\s*(\w+)\s*=", set_clause, flags=re.MULTILINE)
+        duplicates = {col for col in assigned_columns if assigned_columns.count(col) > 1}
+        assert not duplicates, f"column(s) assigned more than once in the same UPDATE: {duplicates}"
 
     def test_no_trade_ids_logs_warning_instead_of_silently_skipping(self) -> None:
         """If trade_ids_arr is empty/NULL, the stale-price gap must be surfaced via a

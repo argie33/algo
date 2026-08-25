@@ -2149,21 +2149,44 @@ class PositionMonitor:
         new_stop_dec = (Decimal(str(db_stop)) / split_ratio_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         new_stop = float(new_stop_dec)
         ratio_f = float(split_ratio_dec)
+        # BUG FOUND 2026-08-25 (real-money-readiness goal session, position-monitor audit):
+        # this UPDATE assigned `stop_loss_price` TWICE in the same SET clause (once to the
+        # Python-computed `new_stop`, once via `ROUND(stop_loss_price / %s, 2)`) - PostgreSQL
+        # categorically rejects this ("multiple assignments to same column"), live-confirmed
+        # via a direct test query. Every real stock-split adjustment for any open position has
+        # been crashing with a SyntaxError instead of applying, since whenever this duplicate
+        # assignment was introduced - not a hypothetical edge case, stock splits are a real,
+        # recurring market event. Fixed by dropping the redundant Python-value assignment and
+        # keeping only the SQL-native ROUND(col / ratio) form, matching every sibling column.
+        #
+        # SECOND BUG FOUND in the same statement: only `stop_loss_price` (the FROZEN
+        # entry-time value - see the CRITICAL FIX comment on _evaluate_position's SELECT
+        # above, live-confirmed 2026-08-03) was ever rescaled here. `current_stop_price` - the
+        # LIVE, actively-trailed stop that `_evaluate_position` actually compares against
+        # market price for every real STOP_LOSS_HIT decision - was never touched, so after a
+        # real split it would be left at its stale pre-split level (e.g. ~2x too high after a
+        # 2-for-1 split) until the next unrelated stop-raise happened to recompute it -
+        # exactly the "comparing against the wrong/stale stop" failure mode the 2026-08-03 fix
+        # already fixed for a different code path, reintroduced here for the split-adjustment
+        # path. Now rescaled alongside stop_loss_price; NULL-safe (a position with no trailing
+        # raise yet has current_stop_price=NULL, and NULL/ratio stays NULL in SQL, preserving
+        # the documented "fall back to stop_loss_price when current_stop_price is NULL"
+        # semantics rather than fabricating a non-NULL value).
         cur.execute(
             """
             UPDATE algo_positions
             SET quantity = %s,
-                stop_loss_price = %s,
                 entry_price = ROUND(entry_price / %s, 2),
                 avg_entry_price = ROUND(avg_entry_price / %s, 2),
                 stop_loss_price = ROUND(stop_loss_price / %s, 2),
+                current_stop_price = ROUND(current_stop_price / %s, 2),
                 target_1_price = ROUND(target_1_price / %s, 2),
                 target_2_price = ROUND(target_2_price / %s, 2),
                 target_3_price = ROUND(target_3_price / %s, 2),
                 initial_risk_per_share = ROUND(initial_risk_per_share / %s, 4)
             WHERE id = %s
             """,
-            (alpaca_qty, new_stop, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, pos_id),
+            (alpaca_qty, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, pos_id),
         )
 
         if trade_ids_arr:
