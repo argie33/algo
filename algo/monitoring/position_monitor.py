@@ -300,12 +300,24 @@ class PositionMonitor:
     def check_sector_concentration(
         self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None
     ) -> dict[str, Any]:
-        """Check if portfolio is overly concentrated in one sector.
+        """Check if portfolio is overly concentrated in one sector (advisory logging only -
+        see review_positions()'s call site, which only logs a warning on HIGH_CONCENTRATION,
+        never blocks/reduces anything).
 
-        Alert if >3 positions in same sector (concentration risk).
+        FIXED 2026-08-25 (real-money-readiness goal session, monitoring-vs-enforcement
+        consistency audit): threshold used to be a hardcoded `> 3` positions, completely
+        independent of and inconsistent with the actual ENFORCED limit
+        (pretrade_checks.py's max_positions_per_sector, config-driven, live value found well
+        above 3) - meaning this monitor's own "HIGH_CONCENTRATION" alert could fire on a
+        portfolio state pretrade_checks.py considers entirely within limits, or vice versa if
+        the configured limit were ever lowered below 3. Now reads the same
+        max_positions_per_sector config key pretrade_checks.py enforces, so this advisory
+        alert actually reflects the real, currently-configured limit rather than a stale
+        independent guess.
 
         Args:
-            current_date: Date to check (defaults to today)
+            current_date: Accepted for API compatibility with callers/tests; unused - this
+                check only reflects the CURRENT open-positions snapshot, not a historical date.
             cur: Optional cursor to use. If None, opens new DatabaseContext.
                  CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
                  to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
@@ -313,28 +325,37 @@ class PositionMonitor:
         Raises:
             RuntimeError: If concentration check fails (fail-fast for risk management)
         """
-        if current_date is None:
-            current_date = _date.today()
+        max_per_sector_val = self.config.get("max_positions_per_sector")
+        if max_per_sector_val is None:
+            raise RuntimeError(
+                "[POSITION_MONITOR] max_positions_per_sector config missing. "
+                "Cannot evaluate sector concentration without the real enforced limit."
+            )
+        max_per_sector = int(max_per_sector_val)
+
+        query = """
+            -- Return NULL for missing sector (don't hide with 'Unknown')
+            SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+            FROM algo_positions ap
+            LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
+            WHERE ap.status = 'open' AND ap.quantity > 0
+            GROUP BY cp.sector
+            HAVING COUNT(DISTINCT ap.symbol) > %s
+            ORDER BY COUNT(DISTINCT ap.symbol) DESC
+        """
 
         # CRITICAL FIX: If caller passed a cursor, use it instead of opening new context
         # This prevents nested DatabaseContext from closing the outer cursor
         if cur is not None:
             try:
-                cur.execute("""
-                    -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
-                    SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
-                    FROM algo_positions ap
-                    LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
-                    WHERE ap.status = 'open' AND ap.quantity > 0
-                    GROUP BY cp.sector
-                    HAVING COUNT(DISTINCT ap.symbol) > 3
-                    ORDER BY COUNT(DISTINCT ap.symbol) DESC
-                """)
+                cur.execute(query, (max_per_sector,))
                 concentrated = cur.fetchall()
                 if concentrated:
                     logger.info("\n  [CONCENTRATION ALERT]")
                     for sector, count in concentrated:
-                        logger.info(f"    {sector}: {count} positions (>3 is risky)")
+                        logger.info(
+                            f"    {sector}: {count} positions (>{max_per_sector} is at/above the configured limit)"
+                        )
                     return {"status": "HIGH_CONCENTRATION", "sectors": concentrated}
                 return {"status": "OK", "sectors": []}
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -346,21 +367,14 @@ class PositionMonitor:
             # Fallback: open own context if not provided
             with DatabaseContext("read") as ctx:
                 try:
-                    ctx.execute("""
-                        -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
-                        SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
-                        FROM algo_positions ap
-                        LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
-                        WHERE ap.status = 'open' AND ap.quantity > 0
-                        GROUP BY cp.sector
-                        HAVING COUNT(DISTINCT ap.symbol) > 3
-                        ORDER BY COUNT(DISTINCT ap.symbol) DESC
-                    """)
+                    ctx.execute(query, (max_per_sector,))
                     concentrated = ctx.fetchall()
                     if concentrated:
                         logger.info("\n  [CONCENTRATION ALERT]")
                         for sector, count in concentrated:
-                            logger.info(f"    {sector}: {count} positions (>3 is risky)")
+                            logger.info(
+                                f"    {sector}: {count} positions (>{max_per_sector} is at/above the configured limit)"
+                            )
                         return {"status": "HIGH_CONCENTRATION", "sectors": concentrated}
                     return {"status": "OK", "sectors": []}
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
