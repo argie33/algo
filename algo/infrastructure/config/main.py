@@ -217,6 +217,12 @@ class AlgoConfig:
             "Minimum overlapping real trading days required to trust a correlation estimate (skip check below this)",
             "Filter Thresholds",
         ),
+        "max_portfolio_beta": (
+            "2.0",
+            "float",
+            "Block a new entry if it would push the position-value-weighted portfolio beta above this",
+            "Filter Thresholds",
+        ),
         "max_total_invested_pct": (
             "95.0",
             "float",

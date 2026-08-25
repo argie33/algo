@@ -390,6 +390,23 @@ class PreTradeChecks:
                 f"failing open (sector/industry caps above remain the primary control)."
             )
 
+        # PORTFOLIO-BETA CAP (2026-08-25 fix): algo/risk/var.py's beta_exposure() already
+        # documents "Beta exposure > 2.0 -> WARNING" as this system's own convention, but it
+        # only ever fired as a Phase 9 (end-of-cycle) REPORT - nothing previously stopped an
+        # entry from being the one that pushes the book over that exact threshold. Same
+        # fail-open shape as the correlation check above (stability_metrics.beta coverage is
+        # still filling in for some symbols) and reuses var.py's own 2.0 convention rather than
+        # inventing a new number.
+        try:
+            with DatabaseContext("read") as cur:
+                beta_ok, beta_reason = self._check_portfolio_beta(
+                    symbol, position_value_dec, Decimal(str(portfolio_value)), cur
+                )
+                if not beta_ok:
+                    return (False, beta_reason)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[PRE-TRADE] {symbol}: portfolio-beta check unavailable ({e}) - failing open.")
+
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
             f"portfolio ${portfolio_value:.2f}, {side} order approved"
@@ -471,6 +488,70 @@ class PreTradeChecks:
             return False, (
                 f"Correlation {worst_corr:.2f} with open position {worst_symbol} exceeds "
                 f"{max_corr:.2f} limit (over {lookback_days}d lookback) - diversification check"
+            )
+        return True, None
+
+    def _check_portfolio_beta(
+        self, symbol: str, position_value: Decimal, portfolio_value: Decimal, cur: PsycopgCursor[Any]
+    ) -> tuple[bool, str | None]:
+        """Block a new entry that would push the position-value-weighted portfolio beta above
+        max_portfolio_beta, reusing the same 2.0 convention var.py's beta_exposure() already
+        documents for its (previously report-only) WARNING threshold.
+
+        Fails OPEN (never blocks) when the candidate's own beta is unavailable, or when ANY
+        currently open position lacks a beta reading - deliberately does not silently drop
+        unknown-beta positions from a partial weighted average, since that could understate or
+        overstate the true portfolio beta in either direction depending on which positions
+        happen to be missing data. stability_metrics.beta coverage, like the correlation
+        check's price-history requirement, is still filling in for some symbols (this
+        codebase's own documented data-maturity gap - position_sizer.py's
+        get_data_maturity_multiplier).
+        """
+        cur.execute("SELECT beta FROM stability_metrics WHERE symbol = %s AND data_unavailable IS NOT TRUE", (symbol,))
+        row = cur.fetchone()
+        if row is None or row[0] is None:
+            return True, None
+        candidate_beta = float(row[0])
+
+        cur.execute("SELECT symbol, quantity, current_price FROM algo_positions WHERE status = %s", ("open",))
+        open_positions = [r for r in cur.fetchall() if r[1] is not None and r[2] is not None]
+        if not open_positions:
+            # No existing book to weight against - candidate's own beta alone can't breach a
+            # portfolio-level cap by definition (assuming a sane max_portfolio_beta >= 1.0).
+            return True, None
+
+        cur.execute(
+            "SELECT symbol, beta FROM stability_metrics WHERE symbol = ANY(%s) AND data_unavailable IS NOT TRUE",
+            ([p[0] for p in open_positions],),
+        )
+        beta_by_symbol = {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
+
+        missing = [p[0] for p in open_positions if p[0] not in beta_by_symbol]
+        if missing:
+            return True, None
+
+        existing_value = sum(Decimal(str(qty)) * Decimal(str(price)) for _, qty, price in open_positions)
+        existing_weighted_beta = sum(
+            Decimal(str(qty)) * Decimal(str(price)) * Decimal(str(beta_by_symbol[pos_symbol]))
+            for pos_symbol, qty, price in open_positions
+        )
+        total_value = existing_value + position_value
+        if total_value <= 0:
+            return True, None
+
+        portfolio_beta_after = float(
+            (existing_weighted_beta + position_value * Decimal(str(candidate_beta))) / total_value
+        )
+
+        try:
+            max_portfolio_beta = float(self.config["max_portfolio_beta"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        if portfolio_beta_after > max_portfolio_beta:
+            return False, (
+                f"Entry would push portfolio beta to {portfolio_beta_after:.2f}, exceeding "
+                f"{max_portfolio_beta:.2f} limit (candidate beta {candidate_beta:.2f}) - risk-management check"
             )
         return True, None
 
