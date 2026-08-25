@@ -1112,6 +1112,34 @@ class PositionSizer:
                 f"CRITICAL: Position value calculation failed ({position_value}): {e}. "
                 f"Cannot calculate position sizing without valid values."
             ) from e
+        # STRUCTURAL FINDING 2026-08-25 (real-money-readiness goal session, position-sizing
+        # audit): live-confirmed via direct DB query, not just schema defaults -
+        # algo_config.max_position_size_pct=4.75 and max_concentration_pct=50.0 (both stamped
+        # with the IDENTICAL updated_at timestamp, 2026-06-03 - set once at initial seed, never
+        # independently reasoned about together). Phase 8 overrides max_concentration_pct per
+        # exposure-tier regime (algo/risk/exposure_policy.py EXPOSURE_TIERS: 10%/12%/22%/28%
+        # across correction/caution/normal/aggressive), specifically so concentration risk
+        # SHRINKS in risk-off regimes - but every one of those tier values (10-28%) is looser
+        # than the STATIC 4.75% cap already enforced above (unconditionally, every call,
+        # regardless of regime). Since position_value here is already capped to <=4.75% of
+        # portfolio_value by the branch above, position_pct_of_portfolio below can never
+        # exceed effective_limit (max_concentration_pct minus its own safety margin, always
+        # >=9% for the tightest real tier) - the scale-down branch immediately below this
+        # comment, and the entire regime-driven concentration dial it exists to enforce, is
+        # currently UNREACHABLE dead code under real production config. This is a genuine
+        # design bug (two caps that were each individually reasonable in isolation compose
+        # such that the intended dynamic one has zero effect), not the earlier
+        # get_phase_size_multiplier() dead-code case (which has no underlying data source at
+        # all) - here both signals are real and live, they just never interact as designed.
+        # Currently SAFE (the tighter static cap means no position can ever exceed 4.75%
+        # regardless of regime - the failure mode is "the regime dial does nothing," not "a
+        # position gets oversized"), so left unchanged rather than picking a new absolute
+        # ceiling unilaterally for a live-money account - that specific number is a real
+        # risk-tolerance/business decision, not something a code-correctness pass should
+        # invent. Flagging precisely so a future session (or the user directly) can decide
+        # deliberately: e.g. raise max_position_size_pct above the loosest tier (28%) so the
+        # regime dial becomes the actual binding day-to-day constraint, or leave the static
+        # cap authoritative and remove/simplify the now-decorative tier-driven branch instead.
         max_conc_val = self.config.get("max_concentration_pct")
         if max_conc_val is None:
             raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
