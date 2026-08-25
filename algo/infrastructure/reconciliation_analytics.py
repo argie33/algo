@@ -227,14 +227,22 @@ class ReconciliationAnalytics:
                     raise ValueError(f"Expected total_closed > 0 but got {total_closed}")
                 win_rate = wins / total_closed
 
-                if gross_loss <= 0:
-                    # Profit factor undefined when gross_loss ≤ 0 (no losing trades or all breakeven)
-                    # This is a data quality issue, not a metric to return as 0.0 (which means "no profit")
-                    raise ValueError(
-                        f"Cannot calculate profit_factor: gross_loss is {gross_loss} (expected > 0). "
-                        f"Closed trades: {wins}W {losses}L. This suggests a data quality issue."
-                    )
-                profit_factor = gross_profit / gross_loss
+                # BUG FOUND 2026-08-25 (money-% goal session): gross_loss<=0 is NOT
+                # inherently a data quality issue - it's exactly what a genuine winning
+                # streak (0 losing closed trades, e.g. the first few trades of a live
+                # account) or an all-exact-breakeven-loss set produces, since gross_loss
+                # sums ABS(profit_loss_dollars) only over rows where profit_loss_dollars
+                # <= 0. Raising here previously propagated all the way up through
+                # DailyReconciliation.run_daily_reconciliation()'s outer except clause
+                # (algo/infrastructure/reconciliation.py ~line 1617), turning a benign
+                # "no losers yet" account state into a reported reconciliation FAILURE for
+                # the entire day, not just a missing profit_factor field. profit_factor is
+                # genuinely mathematically undefined (division by zero) in this case, same
+                # class as the other optional metrics below - report it as unavailable
+                # (None), don't crash the whole reconciliation run over it. Downstream
+                # consumers already expect this: dashboard/panels/portfolio.py reads
+                # profit_factor via safe_float(..., default=None, allow_none=True).
+                profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else None
 
                 # Optional metrics (MAE/MFE, R-multiple) may be NULL if not calculated
                 # Preserve None to indicate data unavailable, don't default to 0.0
@@ -246,6 +254,9 @@ class ReconciliationAnalytics:
                 best_mfe = float(row[8]) if row[8] is not None else None
 
                 avg_r_multiple_for_reason = avg_r_multiple if avg_r_multiple is not None else "N/A"
+                profit_factor_for_reason = (
+                    f"{profit_factor:.2f}x" if profit_factor is not None else "undefined (no losing trades yet)"
+                )
                 result.update(
                     {
                         "win_count": wins,
@@ -258,7 +269,7 @@ class ReconciliationAnalytics:
                         "best_mae": best_mae,
                         "best_mfe": best_mfe,
                         "reason": f"Closed trades: {wins}W {losses}L (win rate {win_rate * 100:.1f}%), "
-                        f"Profit factor {profit_factor:.2f}x, Avg R-multiple {avg_r_multiple_for_reason}",
+                        f"Profit factor {profit_factor_for_reason}, Avg R-multiple {avg_r_multiple_for_reason}",
                     }
                 )
             else:
