@@ -79,14 +79,19 @@ class TestCompleteAWSDeployment:
         # inputs to 4 after composite backtests against forward-1y returns showed the
         # dropped fields (EPS/Revenue 3y/5y, NI/OI/FCF/OCF growth YoY) carried no real
         # signal, and asset_growth_yoy was found scored with the wrong sign. See
-        # _score_growth's own docstring for the empirical detail (independently replicated
-        # via a point-in-time reconstruction off annual_balance_sheet + price_daily:
-        # Spearman rho=-0.0389 vs the docstring's claimed -0.037 for the asset-growth
-        # sign-flip - not a placeholder claim).
+        # _score_growth's own docstring for the empirical detail.
+        #
+        # Reweighted again same day (horizon-matched re-audit, see _score_growth's docstring
+        # "OPEN QUESTION"/per-field comments): a real Fama-MacBeth test at this system's
+        # actual 1-month trading horizon found eps_growth_1y's null was the cleanest (no
+        # literature explanation), so its weight was cut 45%->25% and the freed weight moved
+        # to asset_growth_yoy (25%->30%, whose null has a credible McLean-Pontiff
+        # post-publication-decay explanation and whose sign wasn't contradicted) and to
+        # revenue_growth_1y (15%->20%) and sustainable_growth_rate (15%->20%).
         source = inspect.getsource(loader._score_growth)
-        assert "0.45" in source, "EPS 1Y should have 45% weight"
-        assert "0.25" in source, "Asset Growth YoY (sign-flipped) should have 25% weight"
-        assert "0.15" in source, "Revenue 1Y and Sustainable Growth Rate should each have 15% weight"
+        assert "0.25" in source, "EPS 1Y should have 25% weight"
+        assert "0.30" in source, "Asset Growth YoY (sign-flipped) should have 30% weight"
+        assert "0.20" in source, "Revenue 1Y and Sustainable Growth Rate should each have 20% weight"
 
     def test_growth_metrics_marked_enrichment(self):
         """Verify growth_metrics is enrichment-only (not critical for core trading)."""

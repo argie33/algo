@@ -130,6 +130,19 @@ def handle(
         return error_response(code, error_type, message)
 
 
+def _derive_mom_12_1(momentum_12m: float | None, momentum_1m: float | None) -> float | None:
+    """12-1 skip-month momentum (Jegadeesh 1990), derived from stored momentum_12m/1m -
+    same formula as loaders/load_stock_scores.py::_score_momentum, kept in sync for display.
+    """
+    if momentum_12m is None or momentum_1m is None:
+        return None
+    denom = 1.0 + momentum_1m / 100.0
+    if abs(denom) <= 1e-6:
+        return None
+    value = ((1.0 + momentum_12m / 100.0) / denom - 1.0) * 100.0
+    return value if value == value and abs(value) != float("inf") else None  # NaN/Infinity guard
+
+
 def _get_stock_details(cur: cursor, symbol: str) -> Any:
     """Get detailed factor inputs for a single stock symbol."""
     try:
@@ -587,6 +600,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "momentum_12_3_unavailable_reason": (
                     "insufficient_history" if data.get("momentum_12m_val") is None and _phist_days < 252 else None
                 ),
+                "momentum_12_1": _derive_mom_12_1(data.get("momentum_12m_val"), data.get("momentum_1m_val")),
                 "rsi": data.get("tdd_rsi"),
                 "macd": data.get("tdd_macd"),
                 "roc_20d": data.get("tdd_roc_20d"),
@@ -1472,6 +1486,7 @@ def _get_stock_scores(  # noqa: C901
                 "momentum_12_3_unavailable_reason": (
                     "insufficient_history" if d.get("momentum_12m_val") is None and _phist_days < 252 else None
                 ),
+                "momentum_12_1": _derive_mom_12_1(d.get("momentum_12m_val"), d.get("momentum_1m_val")),
                 "rsi": d.get("tdd_rsi"),
                 "macd": d.get("tdd_macd"),
                 "roc_20d": d.get("tdd_roc_20d"),

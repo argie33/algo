@@ -67,14 +67,18 @@ class TestValueScoreWeightBadges:
         # fpe_score/stock_forward_pe removed 2026-08-25 (goal: full scoring-architecture
         # audit) - forward_pe dropped entirely from _score_value (analyst_earnings_estimates
         # has zero historical depth, so this input could never be validated).
+        # eve_score/evr_score (EV/EBITDA, EV/Revenue) removed same day, same-pass follow-up -
+        # r=1.00/0.93 duplicates of ps_ratio/pe_ratio respectively, see _score_value's
+        # docstring RESOLVED note.
+        # size_score (market_cap) ADDED 2026-08-25 (Size-factor gap, see _score_value's
+        # docstring "SIZE FACTOR" note) - the other 7 inputs here scaled x0.8 to free 20pts.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "fcf_score": "fcf_yield",
             "div_score": "stock_dividend_yield",
-            "eve_score": "stock_ev_ebitda",
-            "evr_score": "stock_ev_revenue",
+            "size_score": "market_cap",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
@@ -119,13 +123,11 @@ class TestMomentumScoreWeightBadges:
         # momentum_1m removed 2026-08-25 (goal: full scoring-architecture audit) - dropped
         # per the standard academic 12-1 momentum construction (Jegadeesh 1990 short-term
         # reversal); see _score_momentum's docstring for the empirical confirmation.
-        field_to_jsx_key = {
-            "momentum_3m": "momentum_3m",
-            "momentum_6m": "momentum_6m",
-            "momentum_12m": "momentum_12_3",
-        }
-        for field, jsx_key in field_to_jsx_key.items():
-            _assert_pct_matches(jsx_key, dict_weights[field])
+        # momentum_6m/momentum_12m REPLACED same day, same-pass follow-up by a derived 12-1
+        # skip-month construction (mom_12_1_score, not dict-based) - see docstring RESOLVED
+        # note.
+        _assert_pct_matches("momentum_3m", dict_weights["momentum_3m"])
+        _assert_pct_matches("momentum_12_1", _weight_for_score_var(src, "mom_12_1_score"))
 
     def test_rsi_and_macd_weights_match_code(self):
         src = inspect.getsource(StockScoresLoader._score_momentum)
