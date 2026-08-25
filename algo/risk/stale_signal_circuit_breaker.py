@@ -3,7 +3,6 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 import psycopg2
 
@@ -110,24 +109,3 @@ class StaleSignalCircuitBreaker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             msg = f"Operation failed: {e}. Circuit breaker check failed: {e}"
             raise RuntimeError(msg) from e
-
-    @staticmethod
-    def assert_signals_fresh() -> None:
-        """Raise exception if signals are stale. Call before trading operations."""
-        is_safe, message = StaleSignalCircuitBreaker.check_signal_freshness()
-        if not is_safe:
-            logger.critical(f"HALTING TRADING: {message}")
-            raise RuntimeError(f"CIRCUIT BREAKER: {message}")
-
-
-def protect_trading_operation(func: Any) -> Any:
-    """Decorator to halt trading operations if signals are stale."""
-
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        is_safe, message = StaleSignalCircuitBreaker.check_signal_freshness()
-        if not is_safe:
-            logger.critical(f"BLOCKING OPERATION: {message}")
-            raise RuntimeError(f"Trading blocked: {message}")
-        return func(*args, **kwargs)
-
-    return wrapper
