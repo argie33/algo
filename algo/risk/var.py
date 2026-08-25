@@ -271,6 +271,16 @@ class ValueAtRisk:
 
         Returns:
             dict with stressed VaR, or raises RuntimeError if insufficient data
+
+        BUG FOUND (2026-08-25 goal session, money-% audit): the per-window percentile
+        used to be hardcoded to `1.0` regardless of the `confidence` argument, instead
+        of deriving from it like historical_var()/cvar() do (`(1-confidence)*100`).
+        Harmless under the only real call site (generate_daily_risk_report() always
+        calls with no args, and (1-0.99)*100 == 1.0 by coincidence), but the returned
+        "confidence_level" field echoed back whatever `confidence` the caller passed
+        while the actual math silently ignored it - a real landmine for any future
+        caller passing a non-default confidence. Fixed to derive the percentile from
+        `confidence`.
         """
         import numpy as np
 
@@ -304,9 +314,10 @@ class ValueAtRisk:
                 worst_var = None
                 worst_start_idx = None
 
+                percentile = (1 - confidence) * 100
                 for start_idx in range(len(returns) - 252):
                     window_returns = returns[start_idx : start_idx + 252]
-                    var_thresh = np.percentile(window_returns, 1.0)
+                    var_thresh = np.percentile(window_returns, percentile)
                     if worst_var is None or abs(var_thresh) > abs(worst_var):
                         worst_var = var_thresh
                         worst_start_idx = start_idx

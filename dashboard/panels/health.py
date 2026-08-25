@@ -229,7 +229,29 @@ class HealthFormatter:
 
 
 # Notification title short names
+# BUG FOUND 2026-08-24 (real-money-readiness goal session, dashboard test-coverage sweep):
+# live-measured against all 2472 real notification titles in the local dev DB, 71.8% (1774)
+# didn't match any key here and fell through to raw_t[:24] at each call site below. Most of
+# that 71.8% is harmless (ENTRY: SYMBOL / EXIT ORDER FAILED: SYMBOL titles are already short
+# and fully informative even truncated), but a real subset of the MOST CRITICAL alerts -
+# exactly the ones a user most needs to notice - were getting garbled past the point of
+# meaning: "[ALGO ALERT] HALT_FLAG_ACTIVE: PORTFOLIO" (trading is halted RIGHT NOW) truncated
+# to "[ALGO ALERT] HALT_FLAG_A" with no indication of what's wrong; "Reconciliation
+# Initialization Failed - Production Blocker" truncated to "Reconciliation Initializ" (doesn't
+# even convey "Failed"); "Phase 9: Exit recording failed - permanent audit gap risk" truncated
+# to "Phase 9: Exit recording " (loses "failed" entirely - reads as a routine status line, not
+# a compliance-audit-gap alert). Added entries for every real title format found producing a
+# meaning-losing truncation. Root cause of the underscore-separated ones never matching: these
+# titles use SNAKE_CASE ("ACCOUNT_CIRCUIT_BREAKER"), not the space-separated phrasing the
+# existing "circuit breaker"/"trading halted by circuit" keys expected.
 NOTIF_SHORT_NAMES = {
+    "halt_flag_active": "HALTED NOW",
+    "account_circuit_breaker": "Halted: CB",
+    "exit_check_failures": "ExitCheck Fail",
+    "reconciliation initialization failed": "ReconInit Fail",
+    "exit recording failed": "AuditGap!",
+    "quantity mismatch": "QtyMismatch",
+    "position drift": "PosDrift",
     "trading halted by circuit": "Halted: CB",
     "circuit breaker": "CB fired",
     "position entered": "Entered",
