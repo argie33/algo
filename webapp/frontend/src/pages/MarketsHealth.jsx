@@ -1027,6 +1027,69 @@ function ExposureFactors({ markets }) {
             </div>
           );
         })()}
+        {(() => {
+          // Macro Watch (Sahm Rule / Yield Curve / Inflation Expectations) - not scored in
+          // the composite (see market_exposure.py's module docstring, "Slow macro veto");
+          // they lead by 6-24 months (Estrella-Mishkin), the wrong horizon for this system's
+          // responsive dial, so they feed only a slow, wide veto that can cap exposure_pct
+          // at 45% - not composite points. The TUI already showed this (dashboard/panels/
+          // exposure.py); the web card never did, so an operator watching the web dashboard
+          // had no way to see whether that veto was active - same "computed but invisible"
+          // bug class as vol_managed_scaling above and capital_routing's vol_20d.
+          const macroWatch = factors.macro_watch;
+          if (!macroWatch || typeof macroWatch !== "object") return null;
+          const slowVeto = macroWatch.slow_macro_veto || {};
+          const triggered = slowVeto.triggered;
+          const sahm = macroWatch.sahm_rule || {};
+          const yc = macroWatch.yield_curve || {};
+          const infl = macroWatch.inflation_expectations || {};
+          const t2 = yc.t10y2y && typeof yc.t10y2y === "object" ? yc.t10y2y.value : null;
+          const t3 = yc.t10y3m && typeof yc.t10y3m === "object" ? yc.t10y3m.value : null;
+          const ycParts = [];
+          if (typeof t2 === "number") ycParts.push(`2s10s ${num(t2, 2)}`);
+          if (typeof t3 === "number") ycParts.push(`3m10y ${num(t3, 2)}`);
+          return (
+            <div
+              style={{
+                marginTop: "var(--space-2)",
+                paddingTop: "var(--space-2)",
+                borderTop: "1px solid var(--border-subtle, rgba(128,128,128,0.2))",
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="eyebrow">Macro Watch</span>
+                <span
+                  className={`t-2xs strong ${triggered ? "" : "muted"}`}
+                  style={
+                    triggered ? { color: "var(--amber, #f39c12)" } : undefined
+                  }
+                >
+                  {triggered ? "⚠ TRIGGERED — exposure capped 45%" : "clear"}
+                </span>
+              </div>
+              <div
+                className="flex items-center justify-between t-2xs muted"
+                style={{ marginTop: "var(--space-1)" }}
+              >
+                <span>
+                  Sahm:{" "}
+                  {typeof sahm.value === "number"
+                    ? `${num(sahm.value, 2)}pp${sahm.triggered ? " TRIG" : ""}`
+                    : "⚠ unavailable"}
+                </span>
+                <span>
+                  Yield Curve: {ycParts.length ? ycParts.join(" · ") : "⚠ unavailable"}
+                </span>
+                <span>
+                  Inflation Exp:{" "}
+                  {typeof infl.value === "number"
+                    ? `${num(infl.value, 2)}% BE`
+                    : "⚠ unavailable"}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
