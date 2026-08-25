@@ -40,6 +40,21 @@ Halts trading when any of these fire:
   CB8. DATA STALENESS      latest data > N days old
   CB9. SECTOR DRAWDOWN     <= sector_drawdown_halt_pct (default -12%, cost-basis weighted)
 
+Plus 5 more real checks in `_check_registry` that predate/postdate the CB1-CB9 numbering
+above and were never folded into it (this list undercounted the file's own behavior until
+2026-08-25 - see [[circuit_breaker_full_audit_20260825]] in memory):
+  - DRAWDOWN RE-ENGAGEMENT   halts (re-halts) during the post-drawdown-halt recovery
+                             lockout window even after `dd` itself drops back under CB1's
+                             threshold - see _check_drawdown_re_engagement's docstring
+  - INTRADAY MARKET HEALTH   halts if SPY fell > 2% the prior trading day (wait for
+                             stability before adding new exposure)
+  - WIN RATE FLOOR           halts if the rolling last-30-closed-trades win rate <
+                             min_win_rate_pct (after a 10-trade bootstrap grace period)
+  - SECTOR CONCENTRATION     advisory only, never halts - logged for Phase 6's own
+                             per-trade sector-cap enforcement
+  - DAILY PROFIT CAP         advisory only, never halts - flags `exceed_profit_cap` for
+                             the orchestrator to optionally skip new entries, exits unaffected
+
 Each check returns (halted, reason). The orchestrator runs all checks before
 new entries - any halt blocks new positions but does NOT auto-exit existing
 ones (those are managed by exit_engine + position_monitor).
