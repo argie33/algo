@@ -62,7 +62,7 @@ class _RecordingCursor:
                     20_000_000.0,  # income_tax_expense
                 )
             ],
-            [(80_000_000.0, 10_000_000.0, None)],  # cash_rows: ocf, capex, dividends_paid
+            [(80_000_000.0, 10_000_000.0, None, None)],  # cash_rows: ocf, capex, dividends_paid
         ]
         self._fetchall_idx = 0
 

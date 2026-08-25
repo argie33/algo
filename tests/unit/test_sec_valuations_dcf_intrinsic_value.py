@@ -204,6 +204,35 @@ class TestComputeValuationsWiring:
         assert result["pe_ratio"] == 5.0
         assert result["data_unavailable"] is False
 
+    def test_stock_based_compensation_deducted_from_fcf_yield_and_dcf(self) -> None:
+        """FIXED 2026-08-25 (finance best practices audit): OCF already adds SBC back as a
+        non-cash expense - a real economic cost via dilution ("Owner Earnings" convention) -
+        so it must be deducted from both fcf_yield and the DCF's fcf_base, not left in."""
+        loader = _make_loader()
+        no_sbc_result = loader._compute_valuations(**self._base_kwargs())
+
+        kwargs = self._base_kwargs()
+        kwargs["stock_based_compensation"] = 30.0  # fcf: 100 - 0 - 30 = 70, not 100
+        sbc_result = loader._compute_valuations(**kwargs)
+
+        assert sbc_result["fcf_yield"] < no_sbc_result["fcf_yield"]
+        assert sbc_result["fcf_yield"] == 140.0  # 70 / (5.0*10.0) * 100
+        assert sbc_result["intrinsic_value_per_share"] < no_sbc_result["intrinsic_value_per_share"]
+
+        expected_ivps, expected_mos = loader._compute_dcf_intrinsic_value(
+            "TESTCO", fcf=70.0, eps_growth_pct=0.0, shares_out=10.0, current_price=5.0
+        )
+        assert sbc_result["intrinsic_value_per_share"] == expected_ivps
+        assert sbc_result["margin_of_safety_pct"] == expected_mos
+
+    def test_stock_based_compensation_none_treated_as_zero_matches_pre_fix_behavior(self) -> None:
+        loader = _make_loader()
+        kwargs = self._base_kwargs()
+        kwargs["stock_based_compensation"] = None
+        result = loader._compute_valuations(**kwargs)
+        assert result["intrinsic_value_per_share"] == 131.41
+        assert result["margin_of_safety_pct"] == 96.2
+
 
 class TestAvgFcfFallback:
     """A single negative-FCF year (capex-heavy/cyclical) shouldn't unconditionally kill the
@@ -275,21 +304,29 @@ class TestComputeAvgFcfFallback:
     def test_single_usable_year_no_longer_requires_a_second(self) -> None:
         loader = _make_loader()
         # Most recent 2 years unusable (capex not yet tagged), 3rd year usable.
-        cash_rows = [(100.0, None, None), (90.0, None, None), (80.0, 20.0, None)]
+        cash_rows = [(100.0, None, None, None), (90.0, None, None, None), (80.0, 20.0, None, None)]
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 60.0
 
     def test_two_usable_years_still_averages(self) -> None:
         loader = _make_loader()
-        cash_rows = [(100.0, 40.0, None), (80.0, 20.0, None)]
+        cash_rows = [(100.0, 40.0, None, None), (80.0, 20.0, None, None)]
         # (60 + 60) / 2 = 60.0
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 60.0
 
     def test_no_usable_years_returns_none(self) -> None:
         loader = _make_loader()
-        cash_rows = [(None, None, None), (100.0, None, None)]
+        cash_rows = [(None, None, None, None), (100.0, None, None, None)]
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) is None
 
     def test_capex_exempt_treats_missing_capex_as_zero(self) -> None:
         loader = _make_loader()
-        cash_rows = [(100.0, None, None)]
+        cash_rows = [(100.0, None, None, None)]
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=True) == 100.0
+
+    def test_stock_based_compensation_deducted_from_average(self) -> None:
+        """FIXED 2026-08-25 (finance best practices audit): SBC must be deducted per year,
+        same as capex - OCF already added it back as a non-cash expense."""
+        loader = _make_loader()
+        cash_rows = [(100.0, 20.0, None, 10.0), (80.0, 10.0, None, None)]
+        # Year 1: 100 - 20 - 10 = 70. Year 2: 80 - 10 - 0 (None SBC treated as 0) = 70.
+        assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 70.0

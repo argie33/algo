@@ -175,6 +175,27 @@ class SecValuationsLoader(OptimalLoader):
     # future currency/scale-mismatch derivation error before it ever reaches the DB.
     MAX_PLAUSIBLE_SHARES_OUTSTANDING = 100_000_000_000
 
+    # FIXED 2026-08-25 (goal: "fix all the things"/finance-accuracy follow-up audit): lowered
+    # from 20x. The 20x threshold below was tuned specifically for per-filing XBRL scale-
+    # tagging errors (LARK/RPAY, ~1000x) - live-verified against real SEC EDGAR data
+    # (data.sec.gov/api/xbrl/companyconcept, dei:EntityCommonStockSharesOutstanding) that
+    # WHLR (Wheeler REIT, a serial reverse-splitter/heavily-diluting distressed micro-cap)
+    # has a GENUINE, correctly-reported ~18x swing in shares outstanding between its FY2025
+    # 10-K (106,902) and its most recent 10-Q cover page (1,931,568, filed 2026-08-06) - not a
+    # tagging bug, just annual-frequency data going stale fast for a company whose float
+    # changes this much quarter to quarter. That 18x sat just under the old 20x bar, so the
+    # cross-check below never corrected it, leaving a $39K "market cap" paired with today's
+    # price. The underlying fix is the same either way (prefer company_info_sec, the more
+    # current/independently-extracted source) regardless of whether the disagreement's root
+    # cause is a tagging error or genuine share-count churn. Checked before lowering: live
+    # DB-wide, 44 symbols sit in the newly-covered 10x-20x band (out of 4,105 with both
+    # sources available) - spot-checked, overwhelmingly distressed/micro-cap tickers of the
+    # same character as WHLR (reverse-split/heavy-dilution candidates), not stable large-caps
+    # that would be wrongly flipped; FUBO (30.0M resolved vs 342.4M company_info_sec, 11.4x)
+    # is a real live example of exactly this pattern being CORRECTED, not broken, by the
+    # lower threshold (fuboTV's real share count is ~330-350M, not ~30M).
+    SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO = 10
+
     # Per-run cache for _get_risk_free_rate() below - a plain class attribute (rather than an
     # __init__ override) since every real instantiation of this loader only ever runs once
     # per process; test fixtures construct via __new__ (bypassing __init__ entirely) and never
@@ -724,11 +745,13 @@ class SecValuationsLoader(OptimalLoader):
                 # hundreds of billions (LARK $195.5B, RPAY $304.5B) for real small-caps, corrupting
                 # ps_ratio/fcf_yield. company_info_sec.shares_outstanding comes from a separate
                 # extraction path (see load_company_info_sec.py) - when it's available and
-                # disagrees with the resolved shares_out by more than 20x in either direction,
-                # that's a much stronger signal of a per-filing scale error than the bare ceiling
-                # catches, so prefer it. Only for domestic filers - a foreign private issuer's
-                # company_info_sec figure carries the same home-market-units risk as everywhere
-                # else in this method.
+                # disagrees with the resolved shares_out by more than
+                # SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO in either direction, that's a much
+                # stronger signal of a stale/mis-scaled value than the bare ceiling catches, so
+                # prefer it (see that constant's own comment for the 2026-08-25 20x->10x
+                # lowering and the WHLR/FUBO evidence behind it). Only for domestic filers - a
+                # foreign private issuer's company_info_sec figure carries the same
+                # home-market-units risk as everywhere else in this method.
                 if shares_out and not is_foreign_private_issuer:
                     cur.execute(
                         """
@@ -743,7 +766,7 @@ class SecValuationsLoader(OptimalLoader):
                         cross_check_shares = float(cross_check_row[0])
                         larger = max(shares_out, cross_check_shares)
                         smaller = min(shares_out, cross_check_shares)
-                        if smaller > 0 and larger / smaller > 20:
+                        if smaller > 0 and larger / smaller > self.SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO:
                             logger.warning(
                                 f"[{symbol}] shares_outstanding scale mismatch: resolved={shares_out:,.0f} "
                                 f"vs company_info_sec={cross_check_shares:,.0f} (ratio {larger / smaller:.0f}x) "
@@ -822,6 +845,59 @@ class SecValuationsLoader(OptimalLoader):
                             ebitda=ebitda,
                         )
                     ]
+
+                # FIXED 2026-08-25 (goal: "margin of safety results look wrong" audit):
+                # shares_out above is deliberately CLASS-SPECIFIC whenever has_dual_class_sibling
+                # is True - correct for market_cap/pe_ratio/pb_ratio/ps_ratio, which must reflect
+                # THIS class's own price x share count. But annual_cash_flow.operating_cash_flow/
+                # capex (fcf, used below for fcf_yield and the DCF) is entity-wide: data.sec.gov's
+                # companyfacts API collapses every concept to ONE value per CIK+period (see the
+                # dual-class shares_outstanding comments above) and that collapsed OCF/CapEx row
+                # is duplicated verbatim onto every sibling ticker's annual_cash_flow rows - live-
+                # confirmed identical operating_cash_flow/capex for TAP and TAP.A across all 19
+                # fiscal years on file. Dividing that entity-wide FCF by a minority class's tiny
+                # class-specific share count (e.g. TAP.A's 2.56M vs TAP's ~188M combined)
+                # overstated TAP.A's DCF intrinsic value by ~500x (fcf_yield 936%, margin of
+                # safety 99.8% on a stock priced normally) - the exact "results look wrong"
+                # symptom reported this session, not a modeling-methodology problem.
+                #
+                # Trigger is has_dual_class_sibling, NOT the narrower
+                # shares_out_from_dual_class_yfinance flag: live-confirmed TAP.A's shares_out
+                # actually resolves via the UNGATED company_info_sec fallback a few tiers above
+                # (not the yfinance tier) - company_info_sec.shares_outstanding is independently,
+                # deliberately class-specific per ticker too (see
+                # test_company_info_sec_dual_class_shares_dimensional_resolution.py), so
+                # data_source stays "sec_audited" and shares_out_from_dual_class_yfinance never
+                # gets set even though shares_out is still class-specific here. Any tier reachable
+                # when has_dual_class_sibling=True is class-specific by construction - every
+                # entity-wide (SEC-collapsed) tier is explicitly gated off for exactly that reason
+                # (see each tier's own has_dual_class_sibling comment above).
+                #
+                # reported_shares_outstanding (extracted above, unconditionally, before any
+                # has_dual_class_sibling gate) is that same entity-wide collapsed SEC figure -
+                # exactly the correct denominator to pair with entity-wide FCF, and it's what the
+                # filer's own reported per-share figures (ttm_eps, book value/share) are already
+                # implicitly built on. The `>= shares_out` floor guards against pairing a
+                # class-specific numerator with a smaller/unrelated "entity" figure (e.g. a
+                # per-filer XBRL scale-tagging error on reported_shares_outstanding itself,
+                # unrelated to the dual-class issue this fix targets) - a real combined entity
+                # total can never be smaller than any single class's own share count.
+                entity_shares_out_for_fcf = shares_out
+                if (
+                    has_dual_class_sibling
+                    and reported_shares_outstanding
+                    and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                    < reported_shares_outstanding
+                    < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                    and float(reported_shares_outstanding) >= shares_out
+                ):
+                    entity_shares_out_for_fcf = float(reported_shares_outstanding)
+                    logger.debug(
+                        f"[{symbol}] Using entity-wide reported_shares_outstanding "
+                        f"({entity_shares_out_for_fcf:,.0f}) instead of class-specific shares_out "
+                        f"({shares_out:,.0f}) for FCF-based ratios (fcf_yield, DCF intrinsic "
+                        f"value) - dual-class sibling with entity-wide FCF numerator."
+                    )
 
                 # Get current price for valuation computations
                 cur.execute(
@@ -921,7 +997,7 @@ class SecValuationsLoader(OptimalLoader):
                 # the existing None-handling below) instead of a fabricated number.
                 cur.execute(
                     """
-                    SELECT operating_cash_flow, capex, dividends_paid
+                    SELECT operating_cash_flow, capex, dividends_paid, stock_based_compensation
                     FROM annual_cash_flow
                     WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 3
@@ -929,7 +1005,9 @@ class SecValuationsLoader(OptimalLoader):
                     (symbol,),
                 )
                 cash_rows = cur.fetchall()
-                ocf, capex, dividends_paid = cash_rows[0] if cash_rows else (None, None, None)
+                ocf, capex, dividends_paid, stock_based_compensation = (
+                    cash_rows[0] if cash_rows else (None, None, None, None)
+                )
                 # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
                 # Depository institutions never report capex at all (see
                 # DEPOSITORY_INSTITUTION_SIC_CODES above) - treat it as 0 rather than
@@ -1015,6 +1093,8 @@ class SecValuationsLoader(OptimalLoader):
                 beta,
                 risk_free_rate,
                 shares_out_from_dual_class_yfinance,
+                entity_shares_out_for_fcf,
+                float(stock_based_compensation) if stock_based_compensation is not None else None,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1133,17 +1213,31 @@ class SecValuationsLoader(OptimalLoader):
         return self._risk_free_rate_cache
 
     @staticmethod
-    def _compute_avg_fcf_fallback(cash_rows: list[tuple[Any, Any, Any]], is_capex_exempt: bool) -> float | None:
-        """Average FCF (OCF - CapEx) across up to 3 fetched fiscal years, skipping any year
-        with unusable ocf/capex - used when the latest year alone can't produce a usable FCF
-        (negative, or capex not yet tagged - see fetch_incremental's `cash_rows` query, most
-        recent 3 fiscal years DESC).
+    def _compute_avg_fcf_fallback(cash_rows: list[tuple[Any, Any, Any, Any]], is_capex_exempt: bool) -> float | None:
+        """Average FCF (OCF - CapEx - Stock-Based Comp) across up to 3 fetched fiscal years,
+        skipping any year with unusable ocf/capex - used when the latest year alone can't
+        produce a usable FCF (negative, or capex not yet tagged - see fetch_incremental's
+        `cash_rows` query, most recent 3 fiscal years DESC).
 
-        cash_rows: (operating_cash_flow, capex, dividends_paid) tuples, most recent year
-        first (dividends_paid unused here, kept for call-site tuple-unpacking convenience).
+        cash_rows: (operating_cash_flow, capex, dividends_paid, stock_based_compensation)
+        tuples, most recent year first (dividends_paid unused here, kept for call-site
+        tuple-unpacking convenience).
         is_capex_exempt: depository institutions / the insurance capex-exempt allowlist
         never report capex - treat it as 0 rather than unknowable for every year, not just
         the latest (see DEPOSITORY_INSTITUTION_SIC_CODES/INSURANCE_CAPEX_EXEMPT_SYMBOLS).
+
+        FIXED 2026-08-25 (goal: "finance best practices" methodology audit): OCF already adds
+        stock-based compensation back as a non-cash expense, but SBC is a real economic cost to
+        existing shareholders via future dilution - the "Owner Earnings" convention (and most
+        practitioner FCF/DCF models for SBC-heavy issuers, esp. tech) deducts it rather than
+        treating OCF-CapEx as clean free cash flow. `stock_based_compensation` was already
+        collected in annual_cash_flow but never used anywhere in this file before now. Treated
+        as 0 when NULL (not skipped like a NULL capex is) - unlike capex, which this file's own
+        comments document as commonly un-tagged for a still-open interim fiscal year, a NULL
+        SBC overwhelmingly means "this filer has none to report" (true for most non-tech/non-
+        growth sectors) rather than a timing gap - treating it as unknowable would incorrectly
+        null out the FCF fallback for the common case of a company that simply doesn't grant
+        stock comp.
 
         FIXED 2026-08-24 (goal: "missing_cash_flow_data" coverage audit): this used to
         require >=2 usable years to compute an "average" - reasonable when the gap is just
@@ -1162,14 +1256,15 @@ class SecValuationsLoader(OptimalLoader):
         unchanged; only the floor moved from >=2 to >=1.
         """
         yearly_fcfs = []
-        for row_ocf, row_capex, _row_dividends in cash_rows:
+        for row_ocf, row_capex, _row_dividends, row_sbc in cash_rows:
             if row_ocf is None:
                 continue
             if row_capex is None:
                 if not is_capex_exempt:
                     continue
                 row_capex = 0
-            yearly_fcfs.append(float(row_ocf) - float(row_capex))
+            row_sbc = 0 if row_sbc is None else row_sbc
+            yearly_fcfs.append(float(row_ocf) - float(row_capex) - float(row_sbc))
         return sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 1 else None
 
     def _compute_dcf_intrinsic_value(
@@ -1252,6 +1347,8 @@ class SecValuationsLoader(OptimalLoader):
         beta: float | None = None,
         risk_free_rate: float | None = None,
         shares_out_from_dual_class_yfinance: bool = False,
+        entity_shares_out_for_fcf: float | None = None,
+        stock_based_compensation: float | None = None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1264,7 +1361,30 @@ class SecValuationsLoader(OptimalLoader):
         exception (see _fetch_live_dual_class_shares_outstanding) - shares_out itself came from
         yfinance, not SEC data, so data_source must say so rather than claim "sec_audited" for
         a value that isn't. Every other input here is still 100% SEC-derived either way.
+
+        entity_shares_out_for_fcf: FIXED 2026-08-25 ("margin of safety results look wrong"
+        audit). ocf/capex (and therefore fcf/fcf_base below) are always entity-wide - SEC's
+        companyfacts API collapses every concept to one value per CIK+period, duplicated
+        verbatim onto every dual-class sibling ticker (live-confirmed identical
+        operating_cash_flow/capex for TAP and TAP.A across 19 fiscal years). shares_out is
+        deliberately CLASS-SPECIFIC for a dual-class sibling ticker (correct for market_cap/
+        pe_ratio/pb_ratio/ps_ratio) - pairing that with entity-wide fcf overstated a minority
+        class's fcf_yield/DCF intrinsic value by orders of magnitude (TAP.A: fcf_yield 936%,
+        margin of safety 99.8%, on a normally-priced stock). Defaults to None so existing
+        callers/tests keep computing fcf_yield/the DCF against shares_out exactly as before;
+        fetch_incremental passes the entity-wide reported_shares_outstanding when shares_out
+        was resolved via the dual-class yfinance path.
+
+        stock_based_compensation: FIXED 2026-08-25 (goal: "finance best practices" methodology
+        audit). OCF already adds SBC back as a non-cash expense, but SBC is a real economic
+        cost to existing shareholders via future dilution ("Owner Earnings" convention) -
+        deducted from both fcf (fcf_yield) and fcf_base (the DCF) below, same treatment as
+        _compute_avg_fcf_fallback's own SBC handling (see that method's docstring). Treated as
+        0 when None (most filers with no SBC simply don't tag the concept, unlike capex which
+        this file's comments document as commonly un-tagged for a still-open interim year).
+        Defaults to None so existing callers/tests keep computing fcf exactly as before.
         """
+        entity_shares_out = entity_shares_out_for_fcf if entity_shares_out_for_fcf else shares_out
         result: dict[str, Any] = {
             "symbol": symbol,
             "computed_at": date.today().isoformat(),
@@ -1372,7 +1492,14 @@ class SecValuationsLoader(OptimalLoader):
                     logger.debug(f"[{symbol}] PEG ratio out of bounds ({peg:.0f}), marking as NULL")
 
         # FCF Yield = Free Cash Flow ÷ Market Cap
-        # FCF = Operating Cash Flow - Capital Expenditures
+        # FCF = Operating Cash Flow - Capital Expenditures - Stock-Based Compensation
+        #
+        # FIXED 2026-08-25 (goal: "finance best practices" methodology audit): OCF already
+        # adds SBC back as a non-cash expense, but SBC is a real economic cost via future
+        # dilution ("Owner Earnings" convention - see _compute_avg_fcf_fallback's docstring
+        # for the full rationale). Treated as 0 when None (most non-SBC filers simply don't
+        # tag the concept - unlike capex, whose None/timing-lag handling is the FIXED comment
+        # immediately below).
         #
         # FIXED 2026-08-22 (goal session - coverage-bucket root-cause audit): `ocf`/`capex`
         # here are always the SINGLE latest fiscal_year row (fetch_incremental's `cash_rows[0]`)
@@ -1387,11 +1514,19 @@ class SecValuationsLoader(OptimalLoader):
         # class already fixed for margin_of_safety/intrinsic_value_per_share via
         # `avg_fcf_fallback` (see fcf_base a few lines below) - that fallback was computed and
         # passed into this function all along, just never wired up for fcf_yield itself.
-        fcf = ocf - capex if ocf is not None and capex is not None else None
+        sbc = 0.0 if stock_based_compensation is None else stock_based_compensation
+        fcf = ocf - capex - sbc if ocf is not None and capex is not None else None
         if fcf is None and avg_fcf_fallback is not None:
             fcf = avg_fcf_fallback
-        if fcf is not None and result["market_cap"] and result["market_cap"] > 0:
-            fcf_yield_pct = (fcf / result["market_cap"]) * 100
+        # FIXED 2026-08-25 (dual-class entity-wide-FCF fix, see entity_shares_out_for_fcf's
+        # definition above): fcf is entity-wide, so it must be paired with an entity-wide
+        # market cap (current_price x entity_shares_out_for_fcf), not result["market_cap"]
+        # (current_price x this ticker's own class-specific shares_out) - otherwise a minority
+        # share class's fcf_yield is inflated by the same ratio its share count understates the
+        # full entity (live-confirmed: TAP.A was 936%, should read close to TAP's own ~14%).
+        entity_market_cap = current_price * entity_shares_out if entity_shares_out else None
+        if fcf is not None and entity_market_cap and entity_market_cap > 0:
+            fcf_yield_pct = (fcf / entity_market_cap) * 100
             # Only store if within reasonable bounds (-1000% to +1000%)
             # Extreme values indicate data errors or tiny market caps
             if -1000 <= fcf_yield_pct <= 1000:
@@ -1403,18 +1538,34 @@ class SecValuationsLoader(OptimalLoader):
         # 0.03 = 3% - matches load_stock_scores.py._score_value's existing "decimal ->
         # percent" conversion for this field; NOT the same convention as fcf_yield above,
         # which is stored as a percentage already).
-        if dividends_paid and dividends_paid > 0 and result["market_cap"] and result["market_cap"] > 0:
-            div_yield = dividends_paid / result["market_cap"]
+        # FIXED 2026-08-25 (same dual-class entity-wide fix as fcf_yield above):
+        # dividends_paid is the entity-wide total dollar amount from the cash flow statement
+        # (no per-class breakdown exists in SEC data, same as ocf/capex) - paired with
+        # entity_market_cap for the same reason fcf_yield was, otherwise a minority class's
+        # dividend_yield is inflated the same way fcf_yield was.
+        if dividends_paid and dividends_paid > 0 and entity_market_cap and entity_market_cap > 0:
+            div_yield = dividends_paid / entity_market_cap
             if 0 < div_yield <= 1.0:  # >100% yield indicates a data error
                 result["dividend_yield"] = round(div_yield, 4)
             else:
                 logger.debug(f"[{symbol}] Dividend yield out of bounds ({div_yield:.2%}), marking as NULL")
 
         # Enterprise Value = Market Cap + Total Debt - Cash & Equivalents
+        # FIXED 2026-08-25 (same dual-class entity-wide fix as fcf_yield above): total_debt/
+        # total_cash are entity-wide (balance sheet has no per-class breakdown), so pairing
+        # them with a class-specific market_cap understated EV for a minority class the same
+        # way it inflated fcf_yield/the DCF - EV/EBITDA and EV/Revenue (both entity-wide
+        # ebitda/revenue) inherited the distortion. entity_market_cap (current_price x
+        # entity-wide shares) is also just the more standard definition of "enterprise value
+        # of the company" to begin with - EV is conceptually a whole-company figure, not a
+        # single share class's. Falls back to result["market_cap"] only in the pathological
+        # case entity_market_cap is unset (current_price/shares_out themselves missing,
+        # which already guards result["market_cap"] being None above).
         if result["market_cap"] is not None:
+            equity_val = entity_market_cap if entity_market_cap else result["market_cap"]
             debt_val = total_debt if total_debt else 0
             cash_val = total_cash if total_cash else 0
-            ev = result["market_cap"] + debt_val - cash_val
+            ev = equity_val + debt_val - cash_val
             if ev > 0 and abs(ev) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 result["enterprise_value"] = round(ev, 2)
             else:
@@ -1437,7 +1588,8 @@ class SecValuationsLoader(OptimalLoader):
                 logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
 
         # Intrinsic Value / Margin of Safety: 2-stage FCFE DCF (migration 1208, Value factor
-        # goal 2026-08-17). Reuses the same FCF base (OCF - CapEx) as FCF yield above so this
+        # goal 2026-08-17). Reuses the same FCF base (OCF - CapEx - SBC, see the 2026-08-25
+        # "finance best practices" fix on fcf_yield above) as FCF yield above so this
         # stays consistent with the other value metrics instead of introducing a second FCF
         # definition, and the same YoY EPS growth basis peg_ratio uses (see
         # _compute_dcf_intrinsic_value for why a missing/unusable growth rate defaults to flat
@@ -1450,14 +1602,16 @@ class SecValuationsLoader(OptimalLoader):
         # year alone is unusable and the multi-year average is positive; fcf_yield above is
         # deliberately left on the latest year only (it's meant to reflect current cash
         # generation, not a smoothed figure).
-        fcf_base = ocf - capex if ocf is not None and capex is not None else None
+        fcf_base = ocf - capex - sbc if ocf is not None and capex is not None else None
         if (fcf_base is None or fcf_base <= 0) and avg_fcf_fallback is not None and avg_fcf_fallback > 0:
             fcf_base = avg_fcf_fallback
         eps_growth_pct = None
         if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
             eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100
+        # entity_shares_out (not shares_out): fcf_base is entity-wide, same reasoning as
+        # fcf_yield's entity_market_cap fix just above.
         result["intrinsic_value_per_share"], result["margin_of_safety_pct"] = self._compute_dcf_intrinsic_value(
-            symbol, fcf_base, eps_growth_pct, shares_out, current_price, beta, risk_free_rate
+            symbol, fcf_base, eps_growth_pct, entity_shares_out, current_price, beta, risk_free_rate
         )
 
         # Forward PE Ratio removed: Requires external analyst data.
