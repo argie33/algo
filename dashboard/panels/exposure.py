@@ -860,14 +860,21 @@ def panel_capital_routing(cr: Any) -> Any:
     tbl = Table.grid(padding=(0, 2), expand=True)
     tbl.add_column("leg", ratio=1)
     tbl.add_column("trend", ratio=1)
+    tbl.add_column("vol(20d)", ratio=1)
     tbl.add_column("weight", ratio=1)
 
+    # vol_20d (annualized 20-day realized vol) is the actual inverse-vol sizing INPUT that
+    # determines each leg's weight (see capital_routing.py's module docstring, "SIZING:
+    # inverse-volatility... weighting") - was computed and persisted to capital_routing_daily
+    # but never rendered on either dashboard, same "computed but invisible" bug class as
+    # vol_managed_multiplier/active_policy_tier before this fix: an operator could see GLD at
+    # 60% and DBC at 15% with no way to see why (GLD's lower realized vol).
     legs = [
-        ("GLD", cr.get("gld_trend_up"), cr.get("gld_weight")),
-        ("IEF", cr.get("ief_trend_up"), cr.get("ief_weight")),
-        ("DBC", cr.get("dbc_trend_up"), cr.get("dbc_weight")),
+        ("GLD", cr.get("gld_trend_up"), cr.get("gld_vol_20d"), cr.get("gld_weight")),
+        ("IEF", cr.get("ief_trend_up"), cr.get("ief_vol_20d"), cr.get("ief_weight")),
+        ("DBC", cr.get("dbc_trend_up"), cr.get("dbc_vol_20d"), cr.get("dbc_weight")),
     ]
-    for symbol, trend_up, weight in legs:
+    for symbol, trend_up, vol_20d, weight in legs:
         if trend_up is True:
             trend_s = f"[{G}]UP[/]"
         elif trend_up is False:
@@ -876,12 +883,13 @@ def panel_capital_routing(cr: Any) -> Any:
             trend_s = "[dim]--[/]"
         if symbol == "IEF" and cr.get("move_veto"):
             trend_s += f" [{Y}](MOVE veto)[/]"
+        vol_s = f"{vol_20d * 100:.1f}%" if isinstance(vol_20d, (int, float)) else "--"
         weight_s = f"{weight * 100:.1f}%" if isinstance(weight, (int, float)) else "--"
-        tbl.add_row(Text(symbol, style="bold"), Text.from_markup(trend_s), Text(weight_s))
+        tbl.add_row(Text(symbol, style="bold"), Text.from_markup(trend_s), Text(vol_s, style="dim"), Text(weight_s))
 
     cash_weight = cr.get("cash_weight")
     cash_s = f"{cash_weight * 100:.1f}%" if isinstance(cash_weight, (int, float)) else "--"
-    tbl.add_row(Text("CASH", style="bold"), Text("--", style="dim"), Text(cash_s))
+    tbl.add_row(Text("CASH", style="bold"), Text("--", style="dim"), Text("--", style="dim"), Text(cash_s))
 
     move_index = cr.get("move_index")
     move_s = f"MOVE: {move_index:.1f}" if isinstance(move_index, (int, float)) else "MOVE: [dim]unavailable[/]"

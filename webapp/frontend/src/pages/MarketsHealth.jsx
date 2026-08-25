@@ -1055,10 +1055,14 @@ function CapitalRoutingCard({ markets }) {
     );
   }
 
+  // vol_20d (annualized 20-day realized vol) is the actual inverse-vol sizing INPUT that
+  // determines each leg's weight (see capital_routing.py's module docstring) - was computed
+  // and persisted but never rendered on either dashboard, same "computed but invisible" bug
+  // class as vol_managed_multiplier/active_policy_tier before those fixes.
   const legs = [
-    ["GLD", cr.gld_trend_up, cr.gld_weight],
-    ["IEF", cr.ief_trend_up, cr.ief_weight],
-    ["DBC", cr.dbc_trend_up, cr.dbc_weight],
+    ["GLD", cr.gld_trend_up, cr.gld_vol_20d, cr.gld_weight],
+    ["IEF", cr.ief_trend_up, cr.ief_vol_20d, cr.ief_weight],
+    ["DBC", cr.dbc_trend_up, cr.dbc_vol_20d, cr.dbc_weight],
   ];
 
   return (
@@ -1073,7 +1077,7 @@ function CapitalRoutingCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        {legs.map(([symbol, trendUp, weight]) => (
+        {legs.map(([symbol, trendUp, vol20d, weight]) => (
           <div
             key={symbol}
             className="flex items-center justify-between t-2xs"
@@ -1094,6 +1098,9 @@ function CapitalRoutingCard({ markets }) {
                   (MOVE veto)
                 </span>
               )}
+            </span>
+            <span className="mono tnum muted">
+              {vol20d != null ? `vol ${num(vol20d * 100, 1)}%` : ""}
             </span>
             <span className="mono tnum">
               {weight != null ? `${num(weight * 100, 1)}%` : "--"}
