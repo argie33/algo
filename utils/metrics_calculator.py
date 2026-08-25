@@ -12,7 +12,12 @@ All metrics are defined with:
 1. Exact formula (comments show math)
 2. Data requirements (minimum observations)
 3. Edge case handling
-4. Error behavior (return None, not fallback)
+4. Error behavior: no silent fallbacks. Most calculators (Sharpe, Sortino, max drawdown,
+   Calmar, avg R-multiple) raise ValueError on insufficient/degenerate data. A few
+   (win_rate, profit_factor) return a `{'data_unavailable': True, 'reason': ...}` marker
+   dict instead, since those are expected to hit "no trades yet" during account ramp-up
+   and callers branch on the reason; expectancy returns None for the same ramp-up case.
+   Check each function's own docstring for which behavior applies.
 """
 
 import logging
@@ -92,17 +97,18 @@ class MetricsCalculator:
             min_observations: Minimum daily returns needed (default 5)
 
         Returns:
-            Sharpe ratio, or None if insufficient data
+            Sharpe ratio (float). Never returns None - raises ValueError on insufficient
+            or degenerate data instead.
 
         Data Requirements:
             - Minimum 5 daily returns (can be overridden)
             - Returns must be numeric (float)
-            - Standard deviation > 0 (else returns None)
+            - Standard deviation > 0 (else raises ValueError)
 
         Edge Cases:
-            - If len(returns) < min_observations, returns None
-            - If all returns identical (std = 0), returns None
-            - If returns list is empty, returns None
+            - If len(returns) < min_observations, raises ValueError
+            - If all returns identical (std = 0), raises ValueError
+            - If returns list is empty, raises ValueError
         """
         if not returns or len(returns) < min_observations:
             raise ValueError(
@@ -146,15 +152,16 @@ class MetricsCalculator:
             min_observations: Minimum daily returns needed (default 5)
 
         Returns:
-            Sortino ratio, or None if insufficient data
+            Sortino ratio (float). Never returns None - raises ValueError on insufficient
+            or degenerate data instead.
 
         Data Requirements:
             - Minimum 5 daily returns
             - At least 1 negative return to calculate downside deviation
 
         Edge Cases:
-            - If len(returns) < min_observations, returns None
-            - If no negative returns (downside_deviation = 0), returns None
+            - If len(returns) < min_observations, raises ValueError
+            - If no negative returns (downside_deviation = 0), raises ValueError
         """
         if not returns or len(returns) < min_observations:
             raise ValueError(
@@ -184,7 +191,8 @@ class MetricsCalculator:
             portfolio_values: List of portfolio values in chronological order
 
         Returns:
-            Maximum drawdown as percentage, or None if insufficient data
+            Maximum drawdown as percentage (float). Never returns None - raises
+            ValueError on insufficient data instead.
 
         Data Requirements:
             - Minimum 2 values needed (to have a peak and a drop)
@@ -192,7 +200,7 @@ class MetricsCalculator:
             - Values are expected to be in the portfolio's currency/unit
 
         Edge Cases:
-            - If fewer than 2 values, returns None
+            - If fewer than 2 values, raises ValueError
             - If all values are identical, returns 0 (no drawdown)
             - If portfolio always increases, returns 0 (no drawdown)
         """
@@ -254,22 +262,31 @@ class MetricsCalculator:
         Args:
             portfolio_values: List of portfolio values in chronological order
                 (used to calculate both return and drawdown)
-            returns: Alternative: list of daily returns (if portfolio_values not available)
-                (NOT USED if portfolio_values is provided)
+            returns: Alternative: list of daily returns, used only if portfolio_values is
+                not provided - compounded into a synthetic base-100 value series
+                ([100, 100*(1+r0), 100*(1+r0)*(1+r1), ...]) so the same drawdown/CAGR math
+                applies either way. Ignored if portfolio_values is provided.
             min_observations: Minimum values needed (default 2)
 
         Returns:
-            Calmar ratio, or None if insufficient data
+            Calmar ratio (float). Never returns None - raises ValueError on insufficient
+            or degenerate data instead.
 
         Data Requirements:
             - Minimum 2 portfolio values OR 2 daily returns
-            - Max drawdown > 0 (else returns None to avoid division by zero)
+            - Max drawdown > 0 (else raises ValueError to avoid division by zero)
 
         Edge Cases:
-            - If portfolio only goes up (max_dd = 0), returns None
+            - If portfolio only goes up (max_dd = 0), raises ValueError
             - If return is 0 (no gain), returns 0
             - If only portfolio_values provided, returns is derived from endpoint values
         """
+        if not portfolio_values and returns:
+            synthesized = [100.0]
+            for r in returns:
+                synthesized.append(synthesized[-1] * (1.0 + r))
+            portfolio_values = synthesized
+
         if not portfolio_values or len(portfolio_values) < min_observations:
             raise ValueError(
                 f"Insufficient data: need {min_observations}+ values, got {len(portfolio_values) if portfolio_values else 0}"
@@ -400,13 +417,15 @@ class MetricsCalculator:
             r_multiples: List of exit_r_multiple values from algo_trades
 
         Returns:
-            Average R-multiple, or None if no data
+            Average R-multiple (float). Never returns None - raises ValueError if no
+            data instead.
 
         Data Requirements:
             - Minimum 1 R-multiple value
 
         Edge Cases:
-            - Empty list returns None
+            - Empty list raises ValueError
+            - All-None list raises ValueError
             - All zero returns 0
             - Mix of positive and negative values: returns mean
         """

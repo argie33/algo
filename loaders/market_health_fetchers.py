@@ -749,7 +749,7 @@ class BreadthFetcher:
                 msg = (
                     f"[BREADTH_FETCHER CRITICAL] No valid breadth data obtained from {len(rows)} query results. "
                     f"All rows had NULL or invalid advances/declines. "
-                    f"Verify trend_template_data has complete data for date range {start} to {end}."
+                    f"Verify price_daily has complete data for date range {start} to {end}."
                 )
                 logger.error(msg)
                 raise RuntimeError(msg)

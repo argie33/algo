@@ -145,6 +145,25 @@ class TestCalmarRatioAnnualizationFix:
         with pytest.raises(ValueError, match="Insufficient data"):
             M.calculate_calmar_ratio([100.0])
 
+    def test_returns_fallback_was_dead_now_matches_equivalent_portfolio_values(self) -> None:
+        """FIXED: `returns` was accepted as a parameter and documented as a fallback when
+        portfolio_values isn't available, but the implementation never referenced it at all -
+        calling with only `returns` hit the `not portfolio_values` insufficient-data branch
+        immediately, regardless of `returns` content. Now it must compound into an equivalent
+        base-100 value series and produce the exact same result as passing that series directly."""
+        daily_returns = [0.01, -0.02, 0.015, -0.03, 0.02]
+        equivalent_values = [100.0]
+        for r in daily_returns:
+            equivalent_values.append(equivalent_values[-1] * (1.0 + r))
+
+        result_from_returns = M.calculate_calmar_ratio(None, returns=daily_returns)
+        result_from_values = M.calculate_calmar_ratio(equivalent_values)
+        assert result_from_returns == result_from_values
+
+    def test_returns_fallback_insufficient_data_still_raises(self) -> None:
+        with pytest.raises(ValueError, match="Insufficient data"):
+            M.calculate_calmar_ratio(None, returns=[])
+
 
 class TestProfitFactor:
     def test_normal_case(self) -> None:

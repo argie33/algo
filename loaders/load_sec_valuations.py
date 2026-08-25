@@ -1419,7 +1419,7 @@ class SecValuationsLoader(OptimalLoader):
         # year alone is unusable and the multi-year average is positive; fcf_yield above is
         # deliberately left on the latest year only (it's meant to reflect current cash
         # generation, not a smoothed figure).
-        fcf_base = ocf - capex if ocf and capex is not None else None
+        fcf_base = ocf - capex if ocf is not None and capex is not None else None
         if (fcf_base is None or fcf_base <= 0) and avg_fcf_fallback is not None and avg_fcf_fallback > 0:
             fcf_base = avg_fcf_fallback
         eps_growth_pct = None
