@@ -1467,7 +1467,7 @@ function PortfolioDashboardPage() {
                   <Stile
                     label="Market Score"
                     value={<span className="mono tnum">{rawScore}/100</span>}
-                    sub="12-factor composite"
+                    sub="3-pillar composite"
                   />
                   <Stile
                     label="VIX"
