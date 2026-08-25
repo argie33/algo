@@ -141,6 +141,21 @@ class ExposurePolicyConstraints:
 # tiers behave identically to a permanent halt without saying so, which is different from "more
 # selective." caution (70) and correction (75, moot regardless since halt_new_entries=True
 # already blocks it) both land at genuinely rare-but-reachable levels instead.
+# CONFIRMED 2026-08-25 (real-money-readiness goal session, position-sizing audit): each
+# tier's "risk_multiplier" field below (1.0/0.65/0.35/0.0) is display/logging-only - a
+# repo-wide grep for `.risk_multiplier` found exactly two consumers, phase5_exposure_
+# policy.py's log line and this dataclass's own to_dict()/from_dict() round-trip, neither of
+# which multiplies anything into real position-sizing math. This is the SAME situation
+# already found and deliberately resolved for REGIME_POSITION_SIZE_* (see
+# algo/infrastructure/constants.py's own comment: "display-only now... the position-sizing
+# consumer (get_position_size_multiplier_from_regime()) was deleted 2026-08-24 for
+# double-counting exposure_pct" - those 4 constants were themselves copied from this exact
+# risk_multiplier field, per that same comment's "keep in sync" instruction). Applying
+# risk_multiplier to position sizing again would reintroduce that exact double-count:
+# position_sizer.py's get_market_exposure_multiplier() already scales adjusted_risk_pct
+# continuously off the same underlying market_exposure_daily.exposure_pct this tier's
+# min_pct/max_pct bucket was computed from. Left unapplied deliberately, not an oversight -
+# do not wire it into position sizing without first understanding this history.
 EXPOSURE_TIERS: list[dict[str, Any]] = [
     {
         "name": "confirmed_uptrend",
