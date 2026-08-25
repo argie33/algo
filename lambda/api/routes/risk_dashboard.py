@@ -110,6 +110,51 @@ def handle(
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")
 
 
+def _compute_vix_risk_reduction(vix: float) -> dict[str, Any]:
+    """Compute the VIX-based risk-reduction metrics shown by the dashboard.
+
+    FIXED 2026-08-25 (goal session, same "hardcoded duplicate of a hot-reloadable config
+    value" bug class as _TIER_RISK_MULTIPLIERS above): this used to hardcode 25/35/0.75/0.0
+    directly instead of reading vix_caution_threshold/vix_max_threshold/
+    vix_caution_risk_reduction from AlgoConfig - would silently drift from the real values the
+    moment an operator hot-reloads any of the three (all admin-editable per GOVERNANCE.md's
+    "Three layers of gates... all hot-reloadable via algo_config table"). Also fixed a second,
+    independent bug: the 3-tier shape (1.0/0.75/0.0) didn't match what actually determines
+    position sizing at all - algo/trading/position_sizer.py's real get_vix_risk_multiplier()
+    is a 2-branch function (`vix > caution_threshold and vix <= max_threshold` ->
+    vix_caution_risk_reduction, else -> 1.0). At vix > max_threshold, the REAL sizing
+    multiplier is 1.0 (unreduced) - trading is stopped entirely by the VIX spike circuit
+    breaker (a hard halt on NEW entries) before this per-trade multiplier would ever apply,
+    not because position sizing itself scales to a 0x multiplier. The old
+    "risk_reduction=0.0 at vix>=35" branch was a fabricated third state this endpoint's own
+    docstring ("Why trades were sized as they were") explicitly promises to explain
+    accurately - it invented a sizing behavior that doesn't exist in the real code,
+    mislabeling a hard halt as a soft 0x reduction. Now mirrors position_sizer.py's real
+    2-branch logic exactly.
+    """
+    from algo.infrastructure import AlgoConfig
+
+    vix_config = AlgoConfig()
+    caution_threshold = float(vix_config.get("vix_caution_threshold"))
+    max_threshold = float(vix_config.get("vix_max_threshold"))
+    caution_risk_reduction = float(vix_config.get("vix_caution_risk_reduction"))
+    if vix > caution_threshold and vix <= max_threshold:
+        risk_reduction = caution_risk_reduction
+    else:
+        risk_reduction = 1.0
+    return {
+        "vix_level": vix,
+        "caution_threshold": caution_threshold,
+        "halt_threshold": max_threshold,
+        "risk_reduction_multiplier": risk_reduction,
+        # Not a sizing multiplier - the real halt-vs-size distinction the old 0.0 branch
+        # conflated. True when the VIX-spike circuit breaker (a hard halt on new entries,
+        # see GOVERNANCE.md's 14 circuit-breaker checks) would be active, independent of
+        # risk_reduction_multiplier above.
+        "vix_spike_halt_active": vix >= max_threshold,
+    }
+
+
 def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
     try:
         result: dict[str, Any] = {
@@ -165,18 +210,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
                         "Cannot compute risk-adjusted drawdown multiplier. "
                         "Check market_health_daily table and load_market_health_daily logs."
                     )
-                if vix <= 25:
-                    risk_reduction = 1.0
-                elif vix < 35:
-                    risk_reduction = 0.75
-                else:
-                    risk_reduction = 0.0
-                result["vix_metrics"] = {
-                    "vix_level": vix,
-                    "caution_threshold": 25.0,
-                    "halt_threshold": 35.0,
-                    "risk_reduction_multiplier": risk_reduction,
-                }
+                result["vix_metrics"] = _compute_vix_risk_reduction(vix)
             else:
                 raise RuntimeError("VIX data unavailable: no recent market_health_daily records")
         except (ValueError, ZeroDivisionError, TypeError) as e:
