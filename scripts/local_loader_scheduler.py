@@ -903,6 +903,18 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
             loader_filename = normalize_loader_name(loader)
             env = os.environ.copy()
+            # FIX 2026-08-25: on Windows, a redirected (non-console) child stdout defaults to
+            # the ANSI codepage (cp1252 here) rather than UTF-8. sla_monitor.py/logging/sla.py/
+            # db/pool_monitor.py all log status emoji (🔴🟡🟢🟠) - under cp1252 those silently
+            # degrade to escaped `\U0001f7e2`-style text in this file's own per-run log
+            # (confirmed live: logs/load_prices_*.log had exactly this) instead of a legible
+            # status glyph, even though this scheduler's own log_file is opened with
+            # encoding="utf-8". PYTHONUTF8=1 forces the child interpreter into UTF-8 mode (PEP
+            # 540) regardless of console codepage, matching the already-UTF-8 file this output
+            # lands in. Purely a local-dev log-legibility fix, not a data-correctness issue -
+            # the plain-text status_text ([OK]/[WARNING]/[CRITICAL]) and the numeric CloudWatch
+            # metrics were never affected.
+            env.setdefault("PYTHONUTF8", "1")
             # CRITICAL FIX 2026-08-10/13: loaders/runner.py enforces its OWN process-level watchdog
             # (LOADER_TIMEOUT env var, in seconds, via SIGALRM/os._exit(1)) completely
             # independent of this scheduler's own per-loader `timeout` above. A same-day fix

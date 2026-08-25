@@ -111,6 +111,25 @@ def test_financial_statements_still_gets_statement_type_all_env_var(tmp_path):
     assert mock_popen.call_args.kwargs["env"]["LOADER_STATEMENT_TYPE"] == "all"
 
 
+def test_child_env_forces_utf8_for_status_emoji_logging(tmp_path):
+    """sla_monitor.py/logging/sla.py/db/pool_monitor.py log status via emoji (🔴🟡🟢🟠). A
+    redirected (non-console) child stdout on Windows defaults to the ANSI codepage (cp1252),
+    not UTF-8, so without this every such log line silently degrades to escaped
+    `\\U0001f7e2`-style text instead of a legible glyph - live-reproduced in
+    logs/load_prices_*.log. PYTHONUTF8=1 forces the child interpreter into UTF-8 mode
+    regardless of console codepage."""
+    module = _load_scheduler_module(tmp_path)
+    with (
+        patch.object(module, "PIPELINES", {"test_pipeline": ["prices"]}),
+        patch.object(module, "_check_loader_dependencies", return_value=True),
+        patch.object(module, "reap_stale_running_loaders", return_value=[]),
+        patch.object(module.subprocess, "Popen", return_value=_mock_proc()) as mock_popen,
+    ):
+        module.run_pipeline("test_pipeline")
+
+    assert mock_popen.call_args.kwargs["env"]["PYTHONUTF8"] == "1"
+
+
 def test_run_loader_py_generic_path_never_invoked(tmp_path):
     """scripts/run_loader.py must never appear in a run_pipeline() subprocess command - its
     generic class-lookup path is the whole bug class this fix eliminates."""
