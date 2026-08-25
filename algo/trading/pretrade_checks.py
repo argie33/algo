@@ -44,11 +44,14 @@ total_invested = get_active_positions_value() [a fresh DB query, so it reflects 
 positions already entered earlier in the same Phase 8 run] + this candidate's position
 value, and rejects if that would exceed the configured percentage of total equity. So the
 system does prevent over-committing capital across a run; this file just isn't where that
-enforcement lives. What remains genuinely reactive-only (Alpaca's own order-time rejection
-is the backstop, not a proactive check anywhere in this codebase) is a hard dollar-for-
-dollar buying-power/margin check - distinct from the total-invested-pct cap, which is
-sized as a percentage of equity, not a check against actual settled cash. Same reactive-
-vs-proactive shape as the PDT gap fixed the same day (see
+enforcement lives. A hard dollar-for-dollar buying-power/margin check - distinct from the
+total-invested-pct cap, which is sized as a percentage of equity, not a check against
+actual settled cash - was reactive-only (Alpaca's own order-time rejection was the only
+backstop) until 2026-08-25: phase8_entry_execution.py now fetches real Alpaca
+`buying_power` once per run (execution_mode=="auto" only, reusing the same fetch_account()
+call the PDT check already makes) and proactively rejects/decrements against it per
+candidate in the main entry loop, rather than here - same reactive-vs-proactive shape as
+the PDT gap fixed the day before (see
 pdt_day_trade_limit_reactive_only_not_proactively_enforced_20260824 in memory).
 """
 

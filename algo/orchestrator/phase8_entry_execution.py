@@ -352,6 +352,32 @@ def _check_pdt_limit_breach(account_data: dict[str, Any]) -> tuple[bool, str | N
     )
 
 
+def _check_buying_power_sufficient(remaining_buying_power: Decimal, position_value: Decimal) -> tuple[bool, str | None]:
+    """Check a candidate position against this run's remaining Alpaca buying power.
+
+    PROACTIVE BUYING-POWER CHECK (2026-08-25 fix): see the `remaining_buying_power`
+    initialization comment above the PDT check for full rationale - this is distinct from
+    position_sizer.py's max_total_invested_pct (sized against total equity, not actual
+    settled/available cash) and closes the one remaining reactive-only gap
+    pretrade_checks.py's own module docstring flagged after the 2026-08-24 PDT fix.
+
+    Args:
+        remaining_buying_power: This run's running buying-power balance (starts at the
+            account's real Alpaca buying_power, decremented by the caller as entries are
+            accepted).
+        position_value: Dollar value (shares * entry_price) of the candidate position.
+
+    Returns:
+        (sufficient: bool, reason: str | None) - sufficient=False means skip this candidate.
+    """
+    if position_value > remaining_buying_power:
+        return False, (
+            f"Insufficient buying power: position ${position_value:.2f} exceeds "
+            f"remaining account buying power ${remaining_buying_power:.2f}"
+        )
+    return True, None
+
+
 def _calculate_current_total_risk_pct(
     max_risk_limit_pct: float = 4.0, run_date: _date | None = None
 ) -> tuple[float, float]:
@@ -2030,6 +2056,23 @@ def run(
     # before this phase, so protective stops are never affected. Gated to
     # execution_mode=="auto" only: PDT is a real-broker-account restriction, meaningless in
     # paper/dry-run mode, matching Phase 2's own identical gate.
+    #
+    # PROACTIVE BUYING-POWER CHECK (2026-08-25 fix): pretrade_checks.py's own module
+    # docstring flagged this as the one remaining reactive-only gap after the PDT fix -
+    # "a hard dollar-for-dollar buying-power/margin check" - distinct from
+    # position_sizer.py's max_total_invested_pct cap, which sizes against TOTAL EQUITY
+    # (cash + open positions' market value), not actual settled/available cash. Those two
+    # can diverge in either direction (margin buying power can exceed equity; a mostly-
+    # invested cash account's real buying_power can be far below what the equity-pct cap
+    # alone would allow), so a position that clears every existing check can still be
+    # rejected at the broker for insufficient funds - previously caught only reactively by
+    # Alpaca's own order-time rejection. Reuses the exact same fetch_account() call the PDT
+    # check already makes (no extra API round-trip). remaining_buying_power is decremented
+    # in the main loop below as entries are accepted, so a batch of several qualified
+    # signals in one run can't collectively overspend a single account snapshot's buying
+    # power - same "running total within this run" shape as position_sizer's own
+    # max_total_risk_pct/max_total_invested_pct checks.
+    remaining_buying_power: Decimal | None = None
     if execution_mode == "auto":
         try:
             from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
@@ -2047,11 +2090,20 @@ def run(
                     False,  # halted=False: guard worked but didn't halt orchestration
                     pdt_msg,
                 )
+
+            buying_power_val = pdt_account_data.get("buying_power")
+            if buying_power_val is None:
+                raise RuntimeError(
+                    "[PHASE 8] Account data missing required 'buying_power' field. "
+                    "Cannot verify sufficient funds before submitting live entries."
+                )
+            remaining_buying_power = Decimal(str(buying_power_val))
         except Exception as e:
             msg = (
-                f"[PHASE 8 CRITICAL] PDT pre-check failed: {e}. "
-                "Cannot verify PDT status before submitting live entries. Must halt to "
-                "prevent an entry that could trigger a 90-day day-trading lockout."
+                f"[PHASE 8 CRITICAL] PDT/buying-power pre-check failed: {e}. "
+                "Cannot verify account status before submitting live entries. Must halt to "
+                "prevent an entry that could trigger a 90-day day-trading lockout or a "
+                "broker-side insufficient-funds rejection."
             )
             logger.critical(msg, exc_info=True)
             log_phase_result_fn(8, "entry_execution", "halt", msg)
@@ -3173,6 +3225,34 @@ def run(
             position_value_dec = (shares_dec * entry_price_dec).quantize(Decimal("0.01"))
             position_value_float: float = float(position_value_dec)
             portfolio_value_float: float = float(portfolio_value)
+
+            # PROACTIVE BUYING-POWER CHECK (2026-08-25 fix, see initialization above for full
+            # rationale): remaining_buying_power is None in paper/dry/review modes (no real
+            # Alpaca funds at stake) and a real Decimal snapshot only in execution_mode=="auto".
+            # Decremented (not re-fetched) as entries are accepted this run, so this loop's own
+            # earlier acceptances count against later candidates without needing another
+            # Alpaca API round-trip per symbol.
+            if remaining_buying_power is not None:
+                bp_ok, bp_reason = _check_buying_power_sufficient(remaining_buying_power, position_value_dec)
+                if not bp_ok:
+                    # bp_reason is only None when bp_ok is True; fallback covers that
+                    # theoretically-unreachable case without relying on an assert (which
+                    # `python -O` strips - see position_sizer.py's own fixed history of the
+                    # same bug class for why this codebase avoids assert for real control flow).
+                    reason_bp = bp_reason or f"Insufficient buying power for ${position_value_dec:.2f} position"
+                    logger.info(f"[PHASE 8] {symbol}: {reason_bp}")
+                    _log_signal_rejection(
+                        symbol, "insufficient_buying_power", reason_bp, run_date, entry_price, risk_pct
+                    )
+                    skipped_count += 1
+                    continue
+                # Decrement optimistically once this candidate clears the check, not only on
+                # confirmed fill: several more checks/DB round-trips remain below before actual
+                # submission, and this loop can process many symbols per run. Decrementing here
+                # means a later-rejected candidate makes this run's buying-power budget slightly
+                # more conservative for symbols still to come, never less - the safe direction
+                # for a check whose entire purpose is preventing broker-side overspend.
+                remaining_buying_power -= position_value_dec
 
             # Final hard-stop validation (includes earnings blackout check)
 
