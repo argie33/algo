@@ -174,7 +174,7 @@ whether it's actually reachable for a given phase before citing it in a debuggin
   - Dashboard returns both: `items` (algo) + `untracked_items` (manual/external)
   - Sync process: `alpaca_sync_manager.sync_alpaca_positions()` identifies broker positions NOT in algo_positions and syncs to untracked table
 - **Technical:** `technical_data_daily` (computed 2:15 AM + 4:05 PM, vectorized)
-- **Market regime:** `market_exposure_daily` (as of 2026-08-24, composite score is 100% Trend & Momentum only — Independent Risk Layers and Breadth & Sentiment are computed every run but carry zero composite weight, used solely as hard-veto triggers/dashboard context, not scored inputs — plus a slow macro veto, fail-open if EOD fails)
+- **Market regime:** `market_exposure_daily` (as of 2026-08-24, composite score is 100% Trend & Momentum only — Independent Risk Layers and Breadth & Sentiment are computed every run but carry zero composite weight, used solely as hard-veto triggers/dashboard context, not scored inputs — plus a slow macro veto, fail-open if EOD fails). The trend-only score is then scaled by a volatility-managed multiplier (`_vol_managed_multiplier()`, Moreira & Muir 2017, target/realized-vol ratio capped [0.25, 2.0], applied *before* the hard-veto caps below) — active since 2026-08-24 after passing its own required backtest on SPY/QQQ; degrades to neutral 1.0 on missing/invalid data, never blocks scoring.
 - **Earnings:** `earnings_calendar` (loaded 4:29 AM, retains 60 days)
 
 **Signal generation pipeline:** Fetch buy_sell_daily BUY signals → Filter: close > SMA_50, not bottom 40% range → Liquidity check top 10 → Rank by composite_score → Return candidates.
