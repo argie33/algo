@@ -81,11 +81,31 @@ class SignalTrendMixin:
 
     def mansfield_rs(self, symbol: str, eval_date: Any, lookback: int = 252) -> dict[str, Any]:
         """
-        Compute Mansfield Relative Strength: (stock_return / spy_return) - 1.
+        Compute relative strength vs SPY as an excess-return spread: stock_return - spy_return.
 
         Measures how much better/worse the stock performed vs SPY over lookback period.
         Positive RS = outperforming market
         Negative RS = underperforming market
+
+        BUG FIX (2026-08-25, goal session - financial-correctness sweep): this used to compute
+        `(stock_return / spy_return) - 1`, a ratio that only has the intended sign/meaning when
+        spy_return > 0. Whenever SPY's trailing return over the lookback window is negative -
+        any correction, pullback, or bear-market period, not a rare edge case - the ratio
+        INVERTS: a stock that fell less than SPY (genuine outperformance) or even rose while
+        SPY fell (strong outperformance) could score as NEGATIVE relative strength. Worked
+        example: SPY -10%, stock +5% (stock clearly stronger) -> old formula:
+        (0.05 / -0.10) - 1 = -1.5 (strongly negative, backwards). New formula: 0.05 - (-0.10) =
+        +0.15 (correctly positive). This fed real signal-quality scoring via
+        `algo/signals/advanced_filters.py::_mansfield_rs_score()` -> `SignalAPI.rank_rs_percentile()`,
+        part of the live BUY-signal momentum subscore - not a cosmetic/display-only bug.
+        Note this real-time, per-signal `mansfield_rs()` was already a DIFFERENT formula than
+        `loaders/load_technical_indicators.py`'s vectorized `mansfield_rs` column (the correct,
+        textbook definition: a stock/SPY price-ratio's %-deviation from its own 52-week moving
+        average) - that one was never affected by this bug, only this real-time recomputation
+        used for live 60-day-lookback signal filtering. A plain subtraction also removes the
+        division-by-near-zero instability the old ratio had (previously guarded only against
+        spy_ret == 0 exactly, not a merely-small spy_ret blowing up the ratio's magnitude) -
+        subtraction has no such failure mode, so that guard is gone too, not just relaxed.
 
         Returns: {
             'mansfield_rs': float,
@@ -108,12 +128,7 @@ class SignalTrendMixin:
             except (ValueError, RuntimeError) as e:
                 raise ValueError(f"Mansfield RS calculation failed: could not compute SPY return: {e}") from e
 
-            if spy_ret == 0:
-                raise ValueError(
-                    "Mansfield RS calculation failed: SPY return is zero (no price data for lookback period)"
-                )
-
-            mrs = (stock_ret / spy_ret) - 1
+            mrs = stock_ret - spy_ret
             return {
                 "mansfield_rs": round(mrs, 4),
                 "positive": mrs > 0,
