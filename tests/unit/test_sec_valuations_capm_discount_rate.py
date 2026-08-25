@@ -19,6 +19,8 @@ Expected values below are computed independently (plain arithmetic, not by calli
 implementation) so this test locks in the CAPM formula itself, not just mirrors the code.
 """
 
+from typing import Any
+
 from loaders.load_sec_valuations import SecValuationsLoader
 
 
@@ -200,3 +202,103 @@ class TestGetRiskFreeRate:
 
         rate = loader._get_risk_free_rate(_FakeCursor())
         assert rate == loader.DCF_DEFAULT_RISK_FREE_RATE
+
+
+class TestComputeDiscountRateEquityRiskPremiumParam:
+    """FIXED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP): _compute_discount_rate
+    gained a 3rd, optional equity_risk_premium parameter - these confirm the default-None path
+    reproduces the exact pre-fix static-5% behavior (every test above this class calls the
+    2-arg form and must keep passing unmodified) and that an explicit value actually changes
+    the rate."""
+
+    def test_default_none_matches_static_erp(self) -> None:
+        loader = _make_loader()
+        assert loader._compute_discount_rate(1.0, 0.045) == loader._compute_discount_rate(1.0, 0.045, None)
+        assert loader._compute_discount_rate(1.0, 0.045, None) == loader._compute_discount_rate(
+            1.0, 0.045, loader.DCF_EQUITY_RISK_PREMIUM
+        )
+
+    def test_higher_erp_raises_the_rate(self) -> None:
+        loader = _make_loader()
+        low_erp_rate = loader._compute_discount_rate(1.0, 0.045, 0.03)
+        high_erp_rate = loader._compute_discount_rate(1.0, 0.045, 0.08)
+        assert high_erp_rate > low_erp_rate
+
+
+class TestGetEquityRiskPremium:
+    """FIXED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP, previously deferred as "a
+    much bigger data undertaking"). _get_equity_risk_premium scales the static 5% anchor by
+    current VIX / long-run average VIX (economic_data.VIXCLS) - see that method's own
+    docstring, and DCF_MIN_EQUITY_RISK_PREMIUM's docstring on the class, for the full
+    rationale (why VIX instead of a trailing-realized-return premium, why these bounds)."""
+
+    class _FakeCursor:
+        """Sequential fetchone stand-in: first call returns the "current VIX" row, second
+        call returns the "long-run average VIX" row - matching _get_equity_risk_premium's
+        real query order."""
+
+        def __init__(self, results: list[tuple[Any, ...] | None]) -> None:
+            self._results = list(results)
+            self._idx = 0
+
+        def execute(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def fetchone(self) -> tuple[Any, ...] | None:
+            result = self._results[self._idx]
+            self._idx += 1
+            return result
+
+    def test_vix_at_long_run_average_reproduces_static_erp(self) -> None:
+        loader = _make_loader()
+        cur = self._FakeCursor([(20.0,), (20.0,)])
+        assert loader._get_equity_risk_premium(cur) == loader.DCF_EQUITY_RISK_PREMIUM
+
+    def test_elevated_vix_raises_erp_above_static(self) -> None:
+        """Current VIX well above its long-run average (elevated market fear) must scale the
+        ERP up, not leave it frozen at the static anchor."""
+        loader = _make_loader()
+        cur = self._FakeCursor([(30.0,), (20.0,)])
+        erp = loader._get_equity_risk_premium(cur)
+        assert erp > loader.DCF_EQUITY_RISK_PREMIUM
+
+    def test_depressed_vix_lowers_erp_below_static(self) -> None:
+        loader = _make_loader()
+        cur = self._FakeCursor([(10.0,), (20.0,)])
+        erp = loader._get_equity_risk_premium(cur)
+        assert erp < loader.DCF_EQUITY_RISK_PREMIUM
+
+    def test_extreme_vix_spike_clamps_at_max(self) -> None:
+        """A 2020-COVID-style VIX spike (this DB's own VIXCLS history peaks at 82.69) must not
+        push the ERP past DCF_MAX_EQUITY_RISK_PREMIUM - real published implied-ERP history
+        never sustained levels an unclamped ratio here would otherwise produce."""
+        loader = _make_loader()
+        cur = self._FakeCursor([(82.69,), (20.0,)])
+        assert loader._get_equity_risk_premium(cur) == loader.DCF_MAX_EQUITY_RISK_PREMIUM
+
+    def test_extreme_vix_calm_clamps_at_min(self) -> None:
+        loader = _make_loader()
+        cur = self._FakeCursor([(9.14,), (20.0,)])
+        assert loader._get_equity_risk_premium(cur) == loader.DCF_MIN_EQUITY_RISK_PREMIUM
+
+    def test_no_current_vix_falls_back_to_static_default(self) -> None:
+        loader = _make_loader()
+        cur = self._FakeCursor([None, (20.0,)])
+        assert loader._get_equity_risk_premium(cur) == loader.DCF_EQUITY_RISK_PREMIUM
+
+    def test_no_long_run_average_falls_back_to_static_default(self) -> None:
+        """AVG() over zero rows returns SQL NULL, i.e. fetchone() == (None,) - a fresh/empty
+        economic_data table (e.g. a test DB) must not crash, just fall back."""
+        loader = _make_loader()
+        cur = self._FakeCursor([(20.0,), (None,)])
+        assert loader._get_equity_risk_premium(cur) == loader.DCF_EQUITY_RISK_PREMIUM
+
+    def test_caches_and_does_not_requery(self) -> None:
+        loader = _make_loader()
+        cur = self._FakeCursor([(20.0,), (20.0,)])
+        first = loader._get_equity_risk_premium(cur)
+        second = loader._get_equity_risk_premium(cur)
+        assert first == second
+        # Only 2 fetchone results were ever provided - a third call would IndexError if this
+        # weren't cached, proving the second _get_equity_risk_premium call didn't re-query.
+        assert cur._idx == 2

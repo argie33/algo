@@ -114,6 +114,8 @@ class TestTotalDebtNotTotalLiabilities:
             (500_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         fake_cursor = _FakeCursor(fetchone_results)
@@ -154,6 +156,8 @@ class TestTotalDebtNotTotalLiabilities:
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         fake_cursor = _FakeCursor(fetchone_results)
@@ -183,6 +187,8 @@ class TestTotalDebtNotTotalLiabilities:
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         fake_cursor = _FakeCursor(fetchone_results)
@@ -215,6 +221,8 @@ class TestTotalDebtNotTotalLiabilities:
             (500_000_000.0,),
             (1.0,),  # beta (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10) - added 2026-08-20, CAPM discount rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
         ]
         fake_cursor = _FakeCursor(fetchone_results)

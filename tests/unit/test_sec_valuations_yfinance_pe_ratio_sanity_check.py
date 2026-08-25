@@ -78,6 +78,8 @@ class TestYfinancePeRatioSanityCheck:
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
             (4.5,),  # risk_free_rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, 67.58),  # yfinance_snapshot: market_cap unavailable, pe_ratio=67.58 (real)
         ]
 
@@ -103,6 +105,8 @@ class TestYfinancePeRatioSanityCheck:
             (60_000_000.0,),
             (1.0,),
             (4.5,),
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yfinance_snapshot - nothing available for either field
         ]
 
@@ -121,6 +125,8 @@ class TestYfinancePeRatioSanityCheck:
             (60_000_000.0,),
             (1.0,),
             (4.5,),
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, 300.0),  # yfinance pe_ratio within 10x of the SEC-derived 1884.30
         ]
 

@@ -80,6 +80,8 @@ _DOWNSTREAM_FETCHONE = [
     (500_000_000.0,),
     (1.0,),
     (4.5,),
+    (20.0,),  # current VIX (economic_data VIXCLS)
+    (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
     (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
 ]
 

@@ -84,6 +84,8 @@ class TestFpiLiveYfinanceSanityCheck:
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
             (4.5,),  # risk_free_rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (999_999_999_999.0, 999.0),  # yfinance_snapshot (stale) - would NOT trigger mismatch if trusted
         ]
 
@@ -110,6 +112,8 @@ class TestFpiLiveYfinanceSanityCheck:
             (60_000_000.0,),
             (1.0,),
             (4.5,),
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yfinance_snapshot has nothing either - both sources empty
         ]
 
@@ -137,6 +141,8 @@ class TestFpiLiveYfinanceSanityCheck:
             (60_000_000.0,),
             (1.0,),
             (4.5,),
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (450_000_000_000.0, None),
         ]
 

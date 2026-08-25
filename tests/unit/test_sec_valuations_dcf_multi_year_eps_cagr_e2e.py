@@ -130,6 +130,8 @@ class TestMultiYearEpsCagrEndToEnd:
             (5_157_000_000.0,),  # balance_row (stockholders_equity)
             (1.0,),  # beta_row (stability_metrics)
             (4.5,),  # risk_free_rate (economic_data DGS10)
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),  # yf_row (yfinance_snapshot market_cap/pe_ratio sanity check)
         ]
 
@@ -205,6 +207,8 @@ class TestMultiYearEpsCagrEndToEnd:
             (5_157_000_000.0,),
             (1.0,),
             (4.5,),
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
             (None, None),
         ]
 

@@ -201,6 +201,9 @@ class SecValuationsLoader(OptimalLoader):
     # per process; test fixtures construct via __new__ (bypassing __init__ entirely) and never
     # call _get_risk_free_rate, so this default is never touched by them.
     _risk_free_rate_cache: float | None = None
+    # Per-run cache for _get_equity_risk_premium() below - same rationale as
+    # _risk_free_rate_cache immediately above.
+    _equity_risk_premium_cache: float | None = None
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Compute SEC-derived valuations for one symbol.
@@ -1043,12 +1046,15 @@ class SecValuationsLoader(OptimalLoader):
                 avg_fcf_fallback = self._compute_avg_fcf_fallback(cash_rows, is_capex_exempt)
 
                 # Beta (stability_metrics, 60-day covariance vs SPY - see load_risk_metrics_daily.py's
-                # _get_beta_from_db) + the live 10Y Treasury yield feed the DCF's CAPM discount
-                # rate below (see _compute_discount_rate) - replaces the old flat 10%/yr rate.
+                # _get_beta_from_db) + the live 10Y Treasury yield + the live VIX-scaled equity
+                # risk premium (2026-08-25, goal: DCF audit follow-up - dynamic ERP, see
+                # DCF_MIN_EQUITY_RISK_PREMIUM's docstring) feed the DCF's CAPM discount rate
+                # below (see _compute_discount_rate) - replaces the old flat 10%/yr rate.
                 cur.execute("SELECT beta FROM stability_metrics WHERE symbol = %s", (symbol,))
                 beta_row = cur.fetchone()
                 beta = float(beta_row[0]) if beta_row and beta_row[0] is not None else None
                 risk_free_rate = self._get_risk_free_rate(cur)
+                equity_risk_premium = self._get_equity_risk_premium(cur)
 
                 # FIXED 2026-08-20 (goal: finance-accuracy audit): fetched here, still inside
                 # the `with DatabaseContext("read") as cur:` block - _sanity_check_market_cap()
@@ -1116,6 +1122,7 @@ class SecValuationsLoader(OptimalLoader):
                 entity_shares_out_for_fcf,
                 float(stock_based_compensation) if stock_based_compensation is not None else None,
                 dcf_eps_cagr_pct,
+                equity_risk_premium,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1155,8 +1162,43 @@ class SecValuationsLoader(OptimalLoader):
 
     # Long-run US equity risk premium (Damodaran/Ibbotson-style estimate - the ~4-6% range is
     # the standard academic/practitioner convention for the market's average excess return
-    # over Treasuries; 5.0% sits at the middle of that range).
+    # over Treasuries; 5.0% sits at the middle of that range). Used as the fallback/test
+    # default when _get_equity_risk_premium() below can't produce a live reading - see that
+    # method's docstring for why this is no longer the value live runs actually use.
     DCF_EQUITY_RISK_PREMIUM = 0.05
+    # FIXED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP, previously deferred as "a
+    # much bigger data undertaking" in dcf_growth_rate_fade_landed_20260825/
+    # dual_class_dcf_entity_fcf_shares_mismatch_fixed_20260825): a proper Damodaran-style
+    # *implied* ERP (solving for the discount rate that equates the S&P 500's current level to
+    # its expected cash flows) needs index-level dividend/buyback yield and a forward earnings
+    # growth estimate - live-checked economic_data's full series inventory and neither exists
+    # anywhere in this pipeline (only raw SP500 index level and DGS-series Treasury yields are
+    # fetched), so that route is still genuinely out of reach without a new data source.
+    # VIXCLS (CBOE VIX close), however, IS already in economic_data (26 years, 2000-present)
+    # and is itself a forward-looking, options-implied measure of the market's expected risk
+    # (Whaley's "investor fear gauge") - unlike a trailing-realized-return premium (rejected:
+    # backward-looking, would make the DCF noisier without being more accurate), VIX already
+    # prices in forward risk the same way implied ERP is supposed to, just via a different
+    # market (options, not equities). Scaling the static 5.0% anchor by current VIX / its own
+    # long-run average gives a genuinely dynamic, live, forward-looking ERP without requiring
+    # data this pipeline doesn't have - same spirit as _get_risk_free_rate's live DGS10 feed,
+    # applied to the other CAPM input that was still a hardcoded constant.
+    #
+    # Bounds keep the result within Damodaran's own published yearly implied-ERP history
+    # (his S&P 500 implied ERP series has run roughly 2%-8% since 1960, only approaching the
+    # top of that band in acute crises like 2008) - an unclamped VIX ratio could otherwise push
+    # the multiplier far outside that real historical range during a 2020-COVID-style vol
+    # spike (VIXCLS peaked at 82.69 in this DB's own history) or an unusually complacent
+    # stretch (VIXCLS low of 9.14), neither of which real implied ERP ever actually reached.
+    DCF_MIN_EQUITY_RISK_PREMIUM = 0.03
+    DCF_MAX_EQUITY_RISK_PREMIUM = 0.08
+    # Long-run VIX average lookback - the full ~26-year history on file (not just a recent
+    # window) so a multi-year low- or high-vol REGIME doesn't get compared only against
+    # itself (e.g. averaging only the last 3 calm years would understate how elevated "normal"
+    # VIX really is over a full cycle, permanently inflating the dynamic ERP relative to that
+    # regime). economic_data's VIXCLS starts 2000-01-03, so this comfortably covers the whole
+    # series without hardcoding a start date.
+    DCF_VIX_LOOKBACK_YEARS = 25
     # Fallback risk-free rate (approx. long-run average 10Y Treasury yield) - used only as a
     # test/caller default and on the rare day economic_data has no recent DGS10 reading. Live
     # runs use the actual current 10Y yield via _get_risk_free_rate() below, not this constant.
@@ -1189,7 +1231,12 @@ class SecValuationsLoader(OptimalLoader):
     # risk-based discount-rate differences visible above the floor.
     DCF_MIN_DISCOUNT_TERMINAL_SPREAD = 0.03
 
-    def _compute_discount_rate(self, beta: float | None, risk_free_rate: float | None) -> float:
+    def _compute_discount_rate(
+        self,
+        beta: float | None,
+        risk_free_rate: float | None,
+        equity_risk_premium: float | None = None,
+    ) -> float:
         """CAPM cost of equity: risk_free_rate + Blume-adjusted-beta x equity_risk_premium.
 
         Replaces the old flat 10%/yr DCF_DISCOUNT_RATE (see its removal comment above) with a
@@ -1197,11 +1244,19 @@ class SecValuationsLoader(OptimalLoader):
         capital instead of borrowing a safe/average company's discount rate (which would
         systematically overstate its intrinsic value), and vice versa for a genuinely
         low-risk name.
+
+        equity_risk_premium: ADDED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP, see
+        DCF_MIN_EQUITY_RISK_PREMIUM's docstring above for the full rationale/derivation).
+        Defaults to None -> DCF_EQUITY_RISK_PREMIUM (the static 5% anchor), so every existing
+        caller/test that only passes beta/risk_free_rate keeps computing the exact same rate
+        as before. Live calls from _compute_valuations pass the VIX-scaled dynamic value from
+        _get_equity_risk_premium().
         """
         rfr = self.DCF_DEFAULT_RISK_FREE_RATE if risk_free_rate is None else risk_free_rate
+        erp = self.DCF_EQUITY_RISK_PREMIUM if equity_risk_premium is None else equity_risk_premium
         raw_beta = self.DCF_DEFAULT_BETA if beta is None else beta
         adjusted_beta = self.DCF_BLUME_ADJUSTMENT_WEIGHT * raw_beta + (1 - self.DCF_BLUME_ADJUSTMENT_WEIGHT) * 1.0
-        rate = rfr + adjusted_beta * self.DCF_EQUITY_RISK_PREMIUM
+        rate = rfr + adjusted_beta * erp
         floor = max(
             rfr + self.DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED,
             self.DCF_TERMINAL_GROWTH_RATE + self.DCF_MIN_DISCOUNT_TERMINAL_SPREAD,
@@ -1232,6 +1287,50 @@ class SecValuationsLoader(OptimalLoader):
             float(row[0]) / 100.0 if row and row[0] is not None else self.DCF_DEFAULT_RISK_FREE_RATE
         )
         return self._risk_free_rate_cache
+
+    def _get_equity_risk_premium(self, cur: Any) -> float:
+        """VIX-scaled dynamic equity risk premium: DCF_EQUITY_RISK_PREMIUM x (current VIX /
+        long-run average VIX), clamped to [DCF_MIN_EQUITY_RISK_PREMIUM, DCF_MAX_EQUITY_RISK_
+        PREMIUM] - see that constant's docstring above for the full derivation (why VIX, why
+        those bounds, why not a trailing-realized-return premium instead).
+
+        Cached on the instance for the lifetime of this loader run, same rationale as
+        _get_risk_free_rate immediately above. Falls back to the most recent VIXCLS reading
+        within 90 days (live-checked: this DB's VIXCLS feed runs ~60 days behind CURRENT_DATE,
+        well past DGS10's ~4-day lag - a tight window here would silently fall back to the
+        static default on every single run, defeating the point) rather than requiring an
+        exact today's-date row. Falls back to DCF_EQUITY_RISK_PREMIUM outright when either the
+        current reading or the long-run average is unavailable (new/empty economic_data table,
+        e.g. in a fresh test DB).
+        """
+        if self._equity_risk_premium_cache is not None:
+            return self._equity_risk_premium_cache
+        cur.execute(
+            """
+            SELECT value FROM economic_data
+            WHERE series_id = 'VIXCLS' AND date >= CURRENT_DATE - INTERVAL '90 days' AND value IS NOT NULL
+            ORDER BY date DESC LIMIT 1
+            """
+        )
+        current_row = cur.fetchone()
+        cur.execute(
+            """
+            SELECT AVG(value) FROM economic_data
+            WHERE series_id = 'VIXCLS' AND date >= CURRENT_DATE - INTERVAL '%s years' AND value IS NOT NULL
+            """,
+            (self.DCF_VIX_LOOKBACK_YEARS,),
+        )
+        avg_row = cur.fetchone()
+        current_vix = float(current_row[0]) if current_row and current_row[0] is not None else None
+        avg_vix = float(avg_row[0]) if avg_row and avg_row[0] is not None else None
+        if current_vix is None or avg_vix is None or avg_vix <= 0:
+            self._equity_risk_premium_cache = self.DCF_EQUITY_RISK_PREMIUM
+            return self._equity_risk_premium_cache
+        scaled = self.DCF_EQUITY_RISK_PREMIUM * (current_vix / avg_vix)
+        self._equity_risk_premium_cache = max(
+            self.DCF_MIN_EQUITY_RISK_PREMIUM, min(self.DCF_MAX_EQUITY_RISK_PREMIUM, scaled)
+        )
+        return self._equity_risk_premium_cache
 
     @staticmethod
     def _compute_avg_fcf_fallback(cash_rows: list[tuple[Any, Any, Any, Any]], is_capex_exempt: bool) -> float | None:
@@ -1330,10 +1429,17 @@ class SecValuationsLoader(OptimalLoader):
         current_price: float | None,
         beta: float | None = None,
         risk_free_rate: float | None = None,
+        equity_risk_premium: float | None = None,
     ) -> tuple[float | None, float | None]:
         """Two-stage FCFE DCF: 5-year explicit forecast of `fcf`, discounted at a CAPM cost of
         equity (see _compute_discount_rate), plus a Gordon Growth terminal value at
         DCF_TERMINAL_GROWTH_RATE, divided by shares_out.
+
+        equity_risk_premium: ADDED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP). See
+        DCF_MIN_EQUITY_RISK_PREMIUM's docstring for the full rationale. Defaults to None ->
+        _compute_discount_rate's own default (the static DCF_EQUITY_RISK_PREMIUM), so every
+        existing caller/test is unaffected; live calls from _compute_valuations pass the
+        VIX-scaled value from _get_equity_risk_premium().
 
         FIXED 2026-08-25 (goal: DCF audit follow-up - growth-rate fade, previously deferred as
         real-blast-radius in dcf_sbc_and_multi_year_eps_cagr_fixed_20260825): the explicit
@@ -1369,7 +1475,7 @@ class SecValuationsLoader(OptimalLoader):
 
         growth_rate = 0.0 if eps_growth_pct is None else eps_growth_pct / 100.0
         growth_rate = max(self.DCF_GROWTH_FLOOR, min(self.DCF_GROWTH_CEILING, growth_rate))
-        discount_rate = self._compute_discount_rate(beta, risk_free_rate)
+        discount_rate = self._compute_discount_rate(beta, risk_free_rate, equity_risk_premium)
 
         pv_explicit = 0.0
         fcf_year = fcf
@@ -1418,6 +1524,7 @@ class SecValuationsLoader(OptimalLoader):
         entity_shares_out_for_fcf: float | None = None,
         stock_based_compensation: float | None = None,
         dcf_eps_cagr_pct: float | None = None,
+        equity_risk_premium: float | None = None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1425,6 +1532,12 @@ class SecValuationsLoader(OptimalLoader):
         both default to None (-> DCF_DEFAULT_BETA/DCF_DEFAULT_RISK_FREE_RATE) so existing
         callers/tests that don't supply them keep working; fetch_incremental always passes the
         symbol's real stability_metrics.beta and the live Treasury yield.
+
+        equity_risk_premium: ADDED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP, see
+        DCF_MIN_EQUITY_RISK_PREMIUM's docstring on the class for the full rationale). Defaults
+        to None -> the static DCF_EQUITY_RISK_PREMIUM, so every existing caller/test is
+        unaffected; fetch_incremental passes the live VIX-scaled value from
+        _get_equity_risk_premium().
 
         shares_out_from_dual_class_yfinance: True only for the narrow 2026-08-22 dual-class
         exception (see _fetch_live_dual_class_shares_outstanding) - shares_out itself came from
@@ -1695,7 +1808,14 @@ class SecValuationsLoader(OptimalLoader):
         # entity_shares_out (not shares_out): fcf_base is entity-wide, same reasoning as
         # fcf_yield's entity_market_cap fix just above.
         result["intrinsic_value_per_share"], result["margin_of_safety_pct"] = self._compute_dcf_intrinsic_value(
-            symbol, fcf_base, dcf_growth_pct, entity_shares_out, current_price, beta, risk_free_rate
+            symbol,
+            fcf_base,
+            dcf_growth_pct,
+            entity_shares_out,
+            current_price,
+            beta,
+            risk_free_rate,
+            equity_risk_premium,
         )
 
         # Forward PE Ratio removed: Requires external analyst data.
