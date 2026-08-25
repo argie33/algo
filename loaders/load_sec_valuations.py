@@ -264,10 +264,17 @@ class SecValuationsLoader(OptimalLoader):
                     LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
                     WHERE ais.symbol = %s AND ais.data_unavailable IS NOT TRUE
                     ORDER BY (CASE WHEN ais.revenue IS NOT NULL OR ais.earnings_per_share IS NOT NULL OR ais.net_income IS NOT NULL THEN 0 ELSE 1 END), ais.fiscal_year DESC
-                    LIMIT 2
+                    LIMIT 6
                     """,
                     (symbol,),
                 )
+                # LIMIT raised from 2 to 6 on 2026-08-25 (goal: "finance best practices"
+                # methodology audit, deferred item - multi-year EPS CAGR for the DCF): purely
+                # additive - every fallback below still only ever reads income_rows[0]/[1],
+                # exactly as before. Rows 2-5 exist solely to give
+                # _compute_multi_year_eps_cagr below a few more fiscal years of EPS history
+                # without a second query - same tier/fiscal_year-DESC ordering as before, so
+                # income_rows[0]/[1]'s selection is unchanged.
                 income_rows = cur.fetchall()
                 if not income_rows:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
@@ -404,6 +411,19 @@ class SecValuationsLoader(OptimalLoader):
                     prior_year_eps = older_eps_row[0] if older_eps_row else None
                 else:
                     prior_year_eps = None
+
+                # ADDED 2026-08-25 (goal: "finance best practices" methodology audit,
+                # deferred item - "multi-year EPS CAGR instead of single-year growth"): the
+                # DCF's growth driver (eps_growth_pct in _compute_valuations below) was a bare
+                # TTM-vs-prior-year EPS delta - noisy for any symbol whose single prior year had
+                # a one-off blip (impairment, tax item, etc), the same "one bad year distorts
+                # the whole figure" problem already solved for FCF via the 3-year
+                # avg_fcf_fallback. Uses the same income_rows list (now fetched with LIMIT 6, see
+                # above) rather than PEG's prior_year_eps/ttm_eps - PEG deliberately stays
+                # single-year (see peg_ratio's own comment; it's a conventionally
+                # single-year-forward metric, changing it would be a different, unrequested
+                # methodology change).
+                dcf_eps_cagr_pct = self._compute_multi_year_eps_cagr(income_rows)
 
                 # MOVED 2026-08-19 (goal session continuation - "which factor inputs are
                 # missing the most" audit): total_debt/total_cash/ebitda used to live after the
@@ -1095,6 +1115,7 @@ class SecValuationsLoader(OptimalLoader):
                 shares_out_from_dual_class_yfinance,
                 entity_shares_out_for_fcf,
                 float(stock_based_compensation) if stock_based_compensation is not None else None,
+                dcf_eps_cagr_pct,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1267,6 +1288,39 @@ class SecValuationsLoader(OptimalLoader):
             yearly_fcfs.append(float(row_ocf) - float(row_capex) - float(row_sbc))
         return sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 1 else None
 
+    @staticmethod
+    def _compute_multi_year_eps_cagr(income_rows: list[tuple[Any, ...]]) -> float | None:
+        """Multi-year EPS CAGR used as the DCF's growth driver instead of the bare single-year
+        TTM-vs-prior-year delta (see the LIMIT-6 comment on the income_rows query in
+        fetch_incremental) - smooths past a one-off blip in either the newest or oldest usable
+        year, same rationale _compute_avg_fcf_fallback already applies to FCF.
+
+        income_rows: the (fiscal_year, revenue, net_income, earnings_per_share, ...) tuples
+        fetch_incremental fetches, ORDER BY tier then fiscal_year DESC, up to 6 rows. Rows with
+        a NULL or non-positive earnings_per_share are dropped first (CAGR isn't meaningful
+        across a sign change or through a missing year - same requirement PEG's own growth_rate
+        already imposes on prior_year_eps/ttm_eps); a tier-1 row (no revenue/EPS/net_income at
+        all - see the query's ORDER BY CASE) always has a NULL earnings_per_share and is
+        dropped here too, so the remaining rows stay in fiscal_year DESC order without needing
+        a separate sort. Requires the newest and oldest surviving rows to be >=3 fiscal years
+        apart - below that, a 2-year-apart CAGR is arithmetically identical to the existing
+        single-year delta, so let that stand unchanged rather than silently duplicating it
+        under a different name. Only the two endpoints matter; a gap year missing from the
+        fetched window (e.g. row 4 has a NULL EPS) doesn't block the calculation.
+
+        Returns None (falls back to the existing single-year delta) when fewer than 2 usable
+        years exist, or they're not >=3 fiscal years apart.
+        """
+        eps_by_year = [(int(row[0]), float(row[3])) for row in income_rows if row[3] is not None and float(row[3]) > 0]
+        if len(eps_by_year) < 2:
+            return None
+        newest_year, newest_eps = eps_by_year[0]
+        oldest_year, oldest_eps = eps_by_year[-1]
+        n_years = newest_year - oldest_year
+        if n_years < 3:
+            return None
+        return float(((newest_eps / oldest_eps) ** (1 / n_years) - 1) * 100)
+
     def _compute_dcf_intrinsic_value(
         self,
         symbol: str,
@@ -1349,6 +1403,7 @@ class SecValuationsLoader(OptimalLoader):
         shares_out_from_dual_class_yfinance: bool = False,
         entity_shares_out_for_fcf: float | None = None,
         stock_based_compensation: float | None = None,
+        dcf_eps_cagr_pct: float | None = None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1383,6 +1438,15 @@ class SecValuationsLoader(OptimalLoader):
         0 when None (most filers with no SBC simply don't tag the concept, unlike capex which
         this file's comments document as commonly un-tagged for a still-open interim year).
         Defaults to None so existing callers/tests keep computing fcf exactly as before.
+
+        dcf_eps_cagr_pct: ADDED 2026-08-25 (goal: "finance best practices" methodology audit,
+        deferred item - multi-year EPS CAGR). When available (see
+        _compute_multi_year_eps_cagr), used as the DCF's growth driver in place of the
+        single-year eps_growth_pct computed below from prior_year_eps/ttm_eps - smooths past a
+        one-off blip in either endpoint year, same rationale avg_fcf_fallback already applies
+        to FCF. PEG's own growth_rate (a few lines above) is untouched - it deliberately stays
+        single-year. Defaults to None so existing callers/tests keep computing the DCF off the
+        single-year delta exactly as before.
         """
         entity_shares_out = entity_shares_out_for_fcf if entity_shares_out_for_fcf else shares_out
         result: dict[str, Any] = {
@@ -1591,9 +1655,14 @@ class SecValuationsLoader(OptimalLoader):
         # goal 2026-08-17). Reuses the same FCF base (OCF - CapEx - SBC, see the 2026-08-25
         # "finance best practices" fix on fcf_yield above) as FCF yield above so this
         # stays consistent with the other value metrics instead of introducing a second FCF
-        # definition, and the same YoY EPS growth basis peg_ratio uses (see
-        # _compute_dcf_intrinsic_value for why a missing/unusable growth rate defaults to flat
-        # 0%/yr here instead of blocking the DCF the way peg_ratio is blocked).
+        # definition. Growth basis: the same YoY EPS delta peg_ratio uses, UNLESS a multi-year
+        # EPS CAGR is available (dcf_eps_cagr_pct - see _compute_multi_year_eps_cagr), which is
+        # preferred for the DCF specifically since it smooths past a one-off blip in either
+        # endpoint year the way avg_fcf_fallback already does for FCF - peg_ratio's own
+        # growth_rate above is untouched, it deliberately stays single-year (see that
+        # calculation's own comment). See _compute_dcf_intrinsic_value for why a missing/
+        # unusable growth rate defaults to flat 0%/yr here instead of blocking the DCF the way
+        # peg_ratio is blocked.
         # FIXED 2026-08-18 (coverage): a single negative-FCF year (capex-heavy or cash-flow-
         # lumpy, common for real capital-intensive/cyclical businesses) used to zero out the
         # DCF outright even when the company is normally FCF-positive. Standard DCF practice
@@ -1608,10 +1677,11 @@ class SecValuationsLoader(OptimalLoader):
         eps_growth_pct = None
         if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
             eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100
+        dcf_growth_pct = dcf_eps_cagr_pct if dcf_eps_cagr_pct is not None else eps_growth_pct
         # entity_shares_out (not shares_out): fcf_base is entity-wide, same reasoning as
         # fcf_yield's entity_market_cap fix just above.
         result["intrinsic_value_per_share"], result["margin_of_safety_pct"] = self._compute_dcf_intrinsic_value(
-            symbol, fcf_base, eps_growth_pct, entity_shares_out, current_price, beta, risk_free_rate
+            symbol, fcf_base, dcf_growth_pct, entity_shares_out, current_price, beta, risk_free_rate
         )
 
         # Forward PE Ratio removed: Requires external analyst data.
