@@ -785,30 +785,6 @@ class PositionSizer:
             return cast(int, result)
         raise RuntimeError("Could not fetch position count from database. Cannot calculate safe position size.")
 
-    def get_active_positions_capital_pct(self) -> Decimal:
-        """Get total capital invested as % of portfolio.
-
-        Raises ValueError if portfolio_value is invalid or database unavailable.
-        """
-        portfolio_value = self.get_portfolio_value()
-        if portfolio_value <= 0:
-            raise ValueError(f"Invalid portfolio value for capital calculation: {portfolio_value}")
-
-        def fetch_capital_pct(cur: PsycopgCursor[Any]) -> Decimal:
-            cur.execute("""
-                SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
-            """)
-            result = cur.fetchone()
-            if result is None:
-                raise ValueError("Position capital query returned None")
-            total_value = Decimal(str(result[0])) if result[0] is not None else Decimal(0)
-            return total_value / portfolio_value * Decimal(100)
-
-        result: Decimal | int | float = self._with_cursor(fetch_capital_pct)
-        if result is not None:
-            return cast(Decimal, result)
-        raise RuntimeError("Could not fetch capital percentage from database. Cannot calculate safe position size.")
-
     def calculate_position_size(
         self,
         symbol: str,
