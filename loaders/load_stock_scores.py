@@ -2271,6 +2271,28 @@ class StockScoresLoader(OptimalLoader):
         left as originally designed (higher/less-severe max_drawdown_1y scores better); this
         question is now closed with evidence rather than left open on caution alone.
 
+        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: check whether other
+        canonical academic factors are still missing after adding Size to Value). Amihud
+        (2002, Journal of Financial Markets) illiquidity - |monthly return| / average daily
+        dollar volume, one of the most replicated liquidity-premium measures in empirical
+        finance, alongside the related Brennan/Chordia/Subrahmanyam (1998, JFE) finding that
+        raw dollar trading volume itself negatively predicts forward returns - is completely
+        absent from this system. Tested directly from price_daily (which has full volume
+        history, unlike technical_data_daily's ~3-month window): monthly Amihud illiquidity
+        vs forward 1-month return, 126 months 2016-2026, median 3,866 symbols: t=3.34,
+        positive (more illiquid = higher forward return, the expected illiquidity-premium
+        direction). Checked it isn't just re-measuring Size first: correlation with
+        log(market_cap) is only -0.18 (winsorized) - a real, distinct signal, not a
+        duplicate. NOT implemented, unlike Size: Size only needed reading an already-stored
+        field (market_cap on value_metrics); Amihud illiquidity needs a genuine new
+        computation (daily |return|/dollar-volume averaged over a window) that no existing
+        metrics table stores - technical_data_daily has volume_ma_20/50 columns, but they're
+        100% NULL (computed nowhere) and that table only holds ~3 months of history even if
+        populated. Implementing this needs upstream loader work (compute and store an
+        illiquidity/dollar-volume metric with real historical depth, most naturally from
+        price_daily where the raw OHLCV is), a bigger scope than a stock_scores.py-only
+        change - flagged as the clearest remaining structural gap after Size, not rushed in.
+
         RETURN TYPES (STRICT):
         - metrics available with ≥1 stability field → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
