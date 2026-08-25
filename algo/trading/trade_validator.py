@@ -142,6 +142,19 @@ class TradeValidator:
         entry_price = Decimal(str(entry_price))
         shares = Decimal(str(shares))
         stop_loss_price = Decimal(str(stop_loss_price))
+        # BUG FOUND 2026-08-25 (real-money-readiness goal session, entry-validation audit):
+        # portfolio_value was excluded from this finiteness check - it's Optional (None is a
+        # real, expected "unavailable" case handled separately below), but a non-None NaN/Inf
+        # value would silently slip through undetected. A float NaN is truthy (`not
+        # float("nan")` is False) and `float("nan") <= 0` is always False (NaN comparisons
+        # never raise/trip in Python), so the `if not portfolio_value or portfolio_value <=
+        # 0:` guard a few lines below this one would NOT catch it - the exact same
+        # NaN-comparison-guard bug class already found and fixed this session elsewhere
+        # (position_sizer.py, order_manager.py, exit_engine.py, phase8_entry_execution.py).
+        # Converting to Decimal here (matching entry_price/stop_loss_price/shares) is doubly
+        # safe: Decimal("nan").is_finite() correctly reports False, closing the gap those
+        # float comparisons would have missed.
+        portfolio_value_dec = Decimal(str(portfolio_value)) if portfolio_value is not None else None
 
         # Infinity (unlike NaN) doesn't raise on Decimal ordering comparisons - `Decimal(
         # "Infinity") <= 0` is a well-defined False, so the `<= 0` checks below don't catch
@@ -150,7 +163,14 @@ class TradeValidator:
         # `.quantize()` call (target price calculation), or worse, propagate into real
         # position-value/risk math. Reject explicitly, at the same point NaN is implicitly
         # rejected by the caller's try/except.
-        for label, value in (("entry_price", entry_price), ("stop_loss_price", stop_loss_price), ("shares", shares)):
+        finiteness_checks = [
+            ("entry_price", entry_price),
+            ("stop_loss_price", stop_loss_price),
+            ("shares", shares),
+        ]
+        if portfolio_value_dec is not None:
+            finiteness_checks.append(("portfolio_value", portfolio_value_dec))
+        for label, value in finiteness_checks:
             if not value.is_finite():
                 return False, f"Invalid {label}: {value} (must be a finite number)", {}
 
@@ -187,8 +207,8 @@ class TradeValidator:
         if shares <= 0:
             return False, f"Invalid share count: {shares} (must be > 0)", {}
 
-        # Validate portfolio availability
-        if not portfolio_value or portfolio_value <= 0:
+        # Validate portfolio availability (portfolio_value_dec already NaN/Inf-checked above)
+        if not portfolio_value_dec or portfolio_value_dec <= 0:
             return (
                 False,
                 "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot",
@@ -202,7 +222,7 @@ class TradeValidator:
                 pretrade_passed, pretrade_reason = self.pretrade_checks.run_all(
                     symbol=symbol,
                     position_value=float(position_value),
-                    portfolio_value=float(portfolio_value),
+                    portfolio_value=float(portfolio_value_dec),
                     side="BUY",
                 )
             except ValueError as e:

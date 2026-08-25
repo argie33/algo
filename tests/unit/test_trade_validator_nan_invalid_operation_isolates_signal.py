@@ -83,3 +83,53 @@ class TestNanEntryPreconditionsFailsClean:
         )
         assert valid is True
         assert error_msg is None
+
+
+class TestNanPortfolioValueFailsClean:
+    """Regression test for the 2026-08-25 fix: portfolio_value was excluded from the
+    finiteness check entry_price/stop_loss_price/shares already get above - a float NaN is
+    truthy (`not float("nan")` is False) and `float("nan") <= 0` is always False (NaN
+    comparisons never trip in Python), so the `if not portfolio_value or portfolio_value <=
+    0:` guard would NOT have caught a NaN portfolio_value - same NaN-comparison-guard bug
+    class as entry_price/stop_loss_price/shares, just one field that had been missed."""
+
+    def test_nan_portfolio_value_returns_clean_failure_not_silently_passes(self):
+        validator = _make_validator()
+        valid, error_msg, result = validator.validate_entry_preconditions(
+            symbol="TESTSYM",
+            entry_price=100.0,
+            stop_loss_price=90.0,
+            shares=10,
+            portfolio_value=float("nan"),
+        )
+        assert valid is False
+        assert error_msg is not None
+        assert result == {}
+
+    def test_infinite_portfolio_value_returns_clean_failure(self):
+        validator = _make_validator()
+        valid, error_msg, result = validator.validate_entry_preconditions(
+            symbol="TESTSYM",
+            entry_price=100.0,
+            stop_loss_price=90.0,
+            shares=10,
+            portfolio_value=float("inf"),
+        )
+        assert valid is False
+        assert error_msg is not None
+        assert result == {}
+
+    def test_none_portfolio_value_still_returns_its_own_clean_failure(self):
+        """Sanity check: None must still hit the existing 'portfolio value unavailable'
+        message (a real, expected case), not the new finiteness check's error."""
+        validator = _make_validator()
+        valid, error_msg, result = validator.validate_entry_preconditions(
+            symbol="TESTSYM",
+            entry_price=100.0,
+            stop_loss_price=90.0,
+            shares=10,
+            portfolio_value=None,
+        )
+        assert valid is False
+        assert error_msg is not None
+        assert "unavailable" in error_msg.lower()
