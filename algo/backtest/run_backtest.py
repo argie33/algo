@@ -25,6 +25,7 @@ Usage:
     --max-hold-days N    Max holding period in days (default: 60)
     --position-size PCT  Fixed position size as % of portfolio (default: 10)
     --strategy NAME      Strategy name for results table (default: composite_score_signals)
+    --slippage-bps BPS   Per-side slippage/spread haircut in basis points (default: 5.0)
     --dry-run            Print results without writing to DB
 """
 
@@ -42,6 +43,17 @@ from utils.db.context import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
+
+# Conservative, standard per-side transaction-cost haircut applied to every fill (2026-08-25,
+# closing the "zero slippage/spread on every fill" gap documented in run_backtest()'s docstring).
+# 5 bps/side is a common, well-precedented default for liquid US large/mid-cap equities in
+# practitioner and academic backtesting when real broker-level slippage data isn't available -
+# NOT derived from this system's own execution history (algo_tca has 0 local rows to calibrate
+# against, see the docstring below). This exists to avoid the opposite, worse error - reporting
+# backtest performance as if every fill were free - not to claim precision this system doesn't
+# have. Replace with a real distribution drawn from `algo_tca.slippage_bps` once that table has
+# live rows; until then this is an explicit, visible estimate, not silent zero-cost execution.
+DEFAULT_SLIPPAGE_BPS = 5.0
 
 
 def _fetch_risk_free_rate_annual() -> float:
@@ -208,6 +220,7 @@ def run_backtest(  # noqa: C901
     max_hold_days: int = 60,
     position_size_pct: float = 10.0,
     strategy_name: str = "composite_score_signals",
+    slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
 ) -> dict[str, Any]:
     """Run backtest and return results dict.
 
@@ -222,29 +235,29 @@ def run_backtest(  # noqa: C901
     intraday price data), not a calculation bug - noted here so backtest results aren't read as
     more precise than the underlying data supports.
 
-    KNOWN SIMPLIFICATION - zero slippage/spread on every fill (found 2026-08-25, goal session,
-    auditing why this file had never modeled it at all): EVERY fill in this simulation - every
-    entry at `_get_daily_buy_signals()`'s reported `close`, every sell-signal/max-hold exit at
-    that day's `close` - is priced at the exact same daily bar the signal itself was computed
-    from, with no bid/ask spread, no market-impact cost, and no execution-latency slippage
-    applied anywhere. Live entries go through `order_manager.py`'s LIMIT orders (can miss fills
-    or fill worse than the signal price depending on market movement between signal computation
-    and order placement) and live exits mix LIMIT and MARKET orders (see
-    [[exit_order_marketable_limit_20260824]] in memory) - neither matches this backtest's
-    "always fills at the exact bar close" assumption. `algo_tca` (populated by
-    `algo/trading/tca.py`) already tracks real `slippage_bps` per live trade specifically for
-    this purpose, but has 0 rows in this local dev DB (no live trading history here) - there is
-    no real slippage figure available locally to calibrate this backtest against. Combined with
-    the stop/target-fill gap above, every dimension of this backtest's fill assumptions is
-    optimistic relative to live execution, not just the stop/target one - a real,
-    likely-material, still-uncalibrated contributor to the live-vs-backtest Sharpe divergence
-    documented in [[trailing_year_sharpe_negative_real_but_undiagnosable_locally_20260822]]
-    (that investigation could not identify a root cause locally; zero-slippage backtesting is a
-    concrete candidate it did not consider - worth checking first in any future session with
-    real production `algo_tca` data). Not fixed here: a correct fix needs real slippage-bps
-    distributions from `algo_tca` (once it has live rows) to draw a calibrated
-    random/average slippage per fill, not an invented constant - inventing one without real
-    data would trade an honest "we don't model this" gap for a false-precision wrong number.
+    SLIPPAGE MODELING (fixed 2026-08-25, goal session - this previously modeled every fill as
+    perfectly costless): every entry and exit fill now applies `slippage_bps` (default
+    `DEFAULT_SLIPPAGE_BPS` = 5 bps/side, see its own module-level comment) against the bar
+    `close`/theoretical stop-target level the fill would otherwise use unadjusted - buys pay
+    `price * (1 + slippage_bps/10000)`, sells receive `price * (1 - slippage_bps/10000)`, so
+    performance is never overstated by assuming free execution. This is a standard conservative
+    default, NOT calibrated to this system's own execution history - `algo_tca` (populated by
+    `algo/trading/tca.py`) tracks real `slippage_bps` per live trade for exactly this purpose,
+    but has 0 rows in this local dev DB (no live trading history here) to draw a real
+    distribution from yet. Live entries go through `order_manager.py`'s LIMIT orders and live
+    exits mix LIMIT and MARKET orders (see [[exit_order_marketable_limit_20260824]] in memory) -
+    this flat per-side haircut is a reasonable approximation of both, not an exact model of
+    either. Replace `slippage_bps` with a value (or, better, a random draw) derived from
+    `algo_tca.slippage_bps` once that table has live rows - flagged as a candidate contributor
+    to the live-vs-backtest Sharpe divergence documented in
+    [[trailing_year_sharpe_negative_real_but_undiagnosable_locally_20260822]] (that
+    investigation could not identify a root cause locally; zero-slippage backtesting was a
+    concrete candidate it did not consider).
+
+    KNOWN SIMPLIFICATION - no intraday data (unchanged, see the module's `_get_prices_batch()`
+    docstring): a stop-loss or profit-target exit is still priced at the theoretical
+    `entry_price * (1 +/- pct/100)` level (now slippage-adjusted), not at a worse price on a day
+    the close gapped through that level - no code fix possible without intraday price data.
     """
     # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
     if initial_capital is None or initial_capital <= 0:
@@ -316,6 +329,9 @@ def run_backtest(  # noqa: C901
                 exit_reason = "max_hold"
 
             if exit_reason:
+                # Every exit is a sell - apply the same slippage haircut regardless of which
+                # branch above set exit_price (see DEFAULT_SLIPPAGE_BPS/docstring).
+                exit_price = exit_price * (1 - slippage_bps / 10_000)
                 pnl_dollars = (exit_price - pos["entry_price"]) * pos["shares"]
                 pnl_pct_final = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
                 capital += pos["shares"] * exit_price  # return capital
@@ -359,6 +375,9 @@ def run_backtest(  # noqa: C901
                 entry_price = sig["entry_price"]
                 if entry_price is None or entry_price <= 0:
                     raise ValueError(f"CRITICAL: Invalid entry_price ({entry_price}) for backtest signal")
+                # Buys pay the slippage haircut too (see DEFAULT_SLIPPAGE_BPS/docstring) - sized
+                # and costed against the actual fill price, not the pre-slippage signal price.
+                entry_price = entry_price * (1 + slippage_bps / 10_000)
                 position_dollars = min(capital, total_value * position_size_pct / 100)
                 shares = int(position_dollars / entry_price)
 
@@ -404,7 +423,9 @@ def run_backtest(  # noqa: C901
                     f"Cannot close out positions without current prices. Check price_daily table."
                 )
         for symbol, pos in positions.items():
-            exit_price = final_prices[symbol]
+            # Forced end-of-backtest close is still a sell - same slippage haircut as any
+            # other exit (see DEFAULT_SLIPPAGE_BPS/docstring).
+            exit_price = final_prices[symbol] * (1 - slippage_bps / 10_000)
             pnl_dollars = (exit_price - pos["entry_price"]) * pos["shares"]
             pnl_pct_final = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
             hold_days = MarketCalendar.trading_days_elapsed(pos["entry_date"], final_date)
@@ -735,6 +756,12 @@ def main() -> int:
         help="Position size as %% of portfolio",
     )
     parser.add_argument("--strategy", type=str, default="composite_score_signals", help="Strategy name")
+    parser.add_argument(
+        "--slippage-bps",
+        type=float,
+        default=DEFAULT_SLIPPAGE_BPS,
+        help="Per-side slippage/spread haircut in basis points applied to every fill (default: 5.0)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print results without saving to DB")
     args = parser.parse_args()
 
@@ -755,6 +782,7 @@ def main() -> int:
         max_hold_days=args.max_hold_days,
         position_size_pct=args.position_size,
         strategy_name=args.strategy,
+        slippage_bps=args.slippage_bps,
     )
 
     if not results:
