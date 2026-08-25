@@ -1493,7 +1493,8 @@ def run(  # noqa: C901
 
     # TUNING FIX (2026-08-02): Enforce regime-based minimum composite scores.
     # Old: hard-coded min_composite_score=30 (below median 32.75, rejected only 60% of universe)
-    # New: Use market regime tier's minimum (uptrend=50, pressure=60, caution=70, correction=80)
+    # New: Use market regime tier's minimum (uptrend=60, pressure=65, caution=70, correction=75 -
+    # raised from 50/60/70/80 on 2026-08-24, see EXPOSURE_TIERS in exposure_policy.py)
     # This dramatically raises entry quality by filtering weak signals in all market conditions.
     from algo.risk.exposure_policy import tier_for_exposure
     from algo.risk.market_exposure import read_market_regime

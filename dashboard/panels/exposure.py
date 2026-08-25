@@ -776,10 +776,11 @@ def panel_capital_routing(cr: Any) -> Any:
 
     timestamp_val = cr.get("timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    stale_warning = _stale_warning(cr)
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=f"[bold blue]CAPITAL ROUTING[/]{age_s}",
-        border_style="blue",
+        title=f"[bold blue]CAPITAL ROUTING[/]{age_s}{stale_warning}",
+        border_style="blue" if not stale_warning else "yellow",
         padding=(0, 1),
     )
 

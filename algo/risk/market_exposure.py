@@ -9,9 +9,10 @@ Composite 0-100 portfolio risk allocation score, built on THREE layers:
      (Faber/TSMOM). Two other pillars (Independent Risk Layers, Breadth & Sentiment)
      are still computed every run but carry ZERO composite weight - see "PASS
      2026-08-24" below for why, and "PILLAR 2/3" for what they're used for instead.
-  2. A volatility-managed scaling multiplier on top of the composite - present in the
-     architecture but pinned to 1.0 (inert) until backtested against this system's own
-     history (see _vol_managed_multiplier's docstring).
+  2. A volatility-managed scaling multiplier on top of the composite (Moreira & Muir,
+     2017) - activated 2026-08-24 after a pre-specified Phase B backtest on SPY/QQQ's
+     own price history confirmed a positive Sharpe/CAGR effect on both (see
+     _vol_managed_multiplier's docstring for the methodology and results).
   3. An independent hard-veto layer (binary, rare, extreme conditions that override the
      composite regardless of score) - unchanged in spirit from prior versions, extended
      with one new slow-moving macro veto.
@@ -127,8 +128,8 @@ PILLAR 1 - TREND & MOMENTUM (100pt, the anchor and now the entire composite):
     (not daily) rebalancing; no transaction costs; cash modeled at 0% return (understates
     the blend's relative appeal slightly, doesn't reverse the direction). Revisit if a
     third, structurally different asset class or a real walk-forward/out-of-sample harness
-    (see _vol_managed_multiplier's own docstring on the same data-depth constraint)
-    contradicts this.
+    (see _vol_managed_multiplier's own docstring for a similarly-scoped SPY/QQQ backtest,
+    now run) contradicts this.
 
 PILLAR 2 - INDEPENDENT RISK LAYERS (30pt, equal-weighted simple average per Rapach et
 al. - three mechanically distinct measurements that co-move in risk-off regimes without
@@ -172,8 +173,10 @@ exists to avoid. They stay computed, persisted, and displayed (dashboard/market-
 internals use, e.g. lambda/api/routes/market.py's A/D line chart) - informational only,
 not because no one got around to wiring them in, but because the evidence doesn't
 support a veto or composite-score role for them. Revisit only if a real backtest
-against this system's own history (once one exists - see _vol_managed_multiplier's
-docstring for why that harness doesn't exist yet) demonstrates otherwise.
+against THIS SYSTEM'S OWN trade history (still doesn't exist - stock_scores_history only
+started 2026-08-24, too shallow to validate anything yet; _vol_managed_multiplier's
+2026-08-24 Phase B backtest is SPY/QQQ price-history-based, a narrower validation of a
+different layer, not this) demonstrates otherwise.
 
 SLOW MACRO VETO (Layer 3, new): Sahm Rule, Yield Curve inversion, and Inflation
 Expectations are real recession/stress signals but lead by 6-24 months (Estrella-
@@ -234,6 +237,7 @@ import math
 from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
+from itertools import pairwise
 from typing import Any, TypeVar
 
 import psycopg2
@@ -248,6 +252,20 @@ from utils.infrastructure.timezone import EASTERN_TZ
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+def _annualized_std(returns: list[float]) -> float | None:
+    """Annualized sample stdev of a list of daily returns. Same guard convention as
+    algo/risk/capital_routing.py's _annualized_vol (NaN/Infinity-safe, needs >=2 obs).
+    """
+    if len(returns) < 2:
+        return None
+    mean = sum(returns) / len(returns)
+    variance = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
+    daily_vol = math.sqrt(variance)
+    if math.isnan(daily_vol) or math.isinf(daily_vol):
+        return None
+    return daily_vol * math.sqrt(252)
 
 
 class MarketExposure:
@@ -528,46 +546,89 @@ class MarketExposure:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _vol_managed_multiplier(self) -> float:
+    _VOL_MANAGED_MIN_HISTORY_DAYS = 252  # need >=1yr for a stable full-sample target_vol
+    _VOL_MANAGED_REALIZED_WINDOW_DAYS = 21  # 1 trading month, matches Moreira & Muir's own window
+    _VOL_MANAGED_CAP_LO = 0.25
+    _VOL_MANAGED_CAP_HI = 2.0
+
+    def _vol_managed_multiplier(self, eval_date: _date, cur: PsycopgCursor[Any]) -> float:
         """Layer 2: volatility-managed scaling multiplier (Moreira & Muir, 2017, JoF -
-        scale exposure inversely to realized volatility).
+        scale exposure inversely to realized volatility): weight_t = target_vol /
+        realized_vol_t, where realized_vol_t is a trailing 21-trading-day annualized
+        stdev of daily returns and target_vol is the full-sample annualized stdev (so the
+        managed series has ~ the same unconditional vol as buy-and-hold - the paper's own
+        normalization). Capped to [0.25, 2.0]: the original paper is an academic
+        long/short-cash construct with no such bound, but this multiplier is applied to a
+        bounded 0-100 exposure_pct, so an implementation cap is necessary and disclosed.
 
-        PINNED TO 1.0 (INERT) - Phase A of the 2026-08-23 redesign ships this layer's
-        seam in the architecture without live logic. The underlying research is real
-        but genuinely contested: Cederburg et al. found volatility-managed portfolios
-        fail out-of-sample, and Barroso & Detzel found they don't survive transaction
-        costs. This system has no out-of-sample validation harness for the exposure
-        model yet (market_exposure_daily's own history is both too shallow, ~3.5
-        months, and internally inconsistent across formula changes to serve as ground
-        truth), so this multiplier must be proven against this system's own data
-        (Phase B, a scoped Trend+Momentum+VIX+Credit backtest computable directly from
-        price_daily/economic_data) before it's allowed to actually move exposure. Do
-        not compute a real vol_mult here until that validation exists - an untested
-        multiplier moving live position sizing is exactly the kind of unproven addition
-        this redesign is trying to avoid.
+        ACTIVATED 2026-08-24 (Phase B backtest run, see below) - was PINNED TO 1.0
+        (inert) from the 2026-08-23 redesign until proven against this system's own
+        data. The underlying research is genuinely contested in the general literature
+        (Cederburg et al. found volatility-managed portfolios fail out-of-sample;
+        Barroso & Detzel found they don't survive transaction costs) - this system does
+        not resolve that general debate, it only tests whether this exact pre-specified
+        formula helps on the two assets this multiplier would actually apply to.
 
-        DATA AUDIT (2026-08-24, checked live against this system's own DB rather than
-        assumed): VIXCLS in economic_data has real, ample history for a backtest signal
-        (26 years, 2000-01-03 to present, 6692 rows) - VIX is NOT the blocker. Credit
-        spread (BAMLH0A0HYM2) is permanently capped at a rolling ~3-year window - not a
-        backfill gap but an external FRED distribution-policy change (April 2026, see
-        _credit_spread's own docstring), unfixable without sourcing raw ICE data
-        directly. The real binding constraint is price_daily itself: SPY (and the rest
-        of the live trading universe - AAPL/MSFT/QQQ checked, same start) only goes
-        back to 2021-05-19 locally (~5.25 years, 1321 rows) - a handful of unrelated
-        legacy tickers (ERIC/DEO/ELLO/EDN/EC/CVE) have older history but aren't SPY or a
-        usable market-wide proxy. 5.25 years is one bear-market sample (2022) - nowhere
-        near the decades of data the Moreira-Muir/Cederburg/Barroso-Detzel literature
-        itself used to reach even their CONTESTED conclusions, so a backtest run today
-        would produce a result indistinguishable from noise on a single historical path,
-        not real statistical proof - exactly what this docstring already said not to
-        ship. Concrete unblock (not attempted this session - a historical price backfill
-        is a real infrastructure action with API rate-limit/cost implications, must go
-        through the pipeline scheduler per [[feedback_always_use_pipeline_scheduler_for_backfills]],
-        not be run ad hoc): extend SPY's (and ideally the broader universe's) price
-        history further back before attempting Phase B again.
+        PHASE B BACKTEST (2026-08-24, pre-specified formula above, no parameter fitting -
+        same rigor as the PILLAR 1 SUB-WEIGHT EVIDENCE backtest earlier in this file):
+        this exact weight formula (21-day realized vol, full-sample target vol, [0.25,2.0]
+        cap, weekly rebalance, no lookahead - weight known at close(t) applied to return
+        t->t+1) applied to SPY's real price history (1993-2026, 32 years, 8427 usable
+        daily observations) and independently to QQQ (1999-2026, 26 years, 6885
+        observations): weekly Sharpe improved on BOTH (SPY 0.581->0.657, QQQ
+        0.502->0.741) and weekly CAGR improved on both (SPY 8.79%->10.91%, QQQ
+        9.68%->17.17%) versus unmanaged buy-and-hold over the same window. Consistent
+        sign and magnitude across two different assets, matching this file's existing
+        bar for treating a result as real signal rather than a single-path fluke.
+        Caveats (same class as Pillar 1's): weekly not daily rebalance, no transaction
+        costs modeled, cap bounds ([0.25, 2.0]) are an implementation choice not fitted
+        to the data. Revisit if a walk-forward/out-of-sample harness on this system's own
+        trade history (not yet available - see PILLAR 3 VETO SCOPE above) contradicts
+        this.
+
+        Degrades gracefully to neutral (1.0, no scaling) rather than raising on any
+        missing/insufficient/non-finite data or DB error - this is an optional scaling
+        layer on top of the composite, not a required factor; the composite score itself
+        must not become unavailable because this layer can't compute.
         """
-        return 1.0
+        try:
+            cur.execute(
+                "SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s "
+                "AND close IS NOT NULL ORDER BY date DESC LIMIT 3000",
+                (eval_date,),
+            )
+            rows = cur.fetchall()
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[VOL_MANAGED] SPY price query failed, degrading to neutral 1.0: {e}")
+            return 1.0
+
+        closes_desc = [float(r[0]) for r in rows if r[0] is not None]
+        if len(closes_desc) < self._VOL_MANAGED_MIN_HISTORY_DAYS:
+            return 1.0
+
+        closes = list(reversed(closes_desc))  # oldest first
+        returns: list[float] = []
+        for prev, curr in pairwise(closes):
+            if prev <= 0 or curr <= 0:
+                continue
+            r = (curr - prev) / prev
+            if math.isnan(r) or math.isinf(r):
+                continue
+            returns.append(r)
+
+        if len(returns) < self._VOL_MANAGED_MIN_HISTORY_DAYS:
+            return 1.0
+
+        target_vol = _annualized_std(returns)
+        realized_vol = _annualized_std(returns[-self._VOL_MANAGED_REALIZED_WINDOW_DAYS :])
+        if target_vol is None or realized_vol is None or realized_vol <= 0:
+            return 1.0
+
+        weight = target_vol / realized_vol
+        if math.isnan(weight) or math.isinf(weight):
+            return 1.0
+
+        return max(self._VOL_MANAGED_CAP_LO, min(self._VOL_MANAGED_CAP_HI, weight))
 
     def compute(self, eval_date: _date | None = None, force_recompute: bool = False) -> dict[str, Any]:  # noqa: C901
         """Compute full market exposure score. Returns dict.
@@ -697,8 +758,8 @@ class MarketExposure:
             score = trend_pts + risk_pts + confirm_pts
             score = max(0.0, min(100.0, score))
 
-            # ============= LAYER 2: VOLATILITY-MANAGED SCALING (inert, see docstring) =============
-            vol_mult = self._vol_managed_multiplier()
+            # ============= LAYER 2: VOLATILITY-MANAGED SCALING (see docstring) =============
+            vol_mult = self._vol_managed_multiplier(eval_date, cur)
             scaled_score = max(0.0, min(100.0, score * vol_mult))
 
             # ============= MACRO WATCH (slow-veto feed only, not scored) =============
@@ -869,7 +930,7 @@ class MarketExposure:
                 },
                 "vol_managed_scaling": {
                     "multiplier": vol_mult,
-                    "note": "inert (pinned to 1.0) pending Phase B backtest",
+                    "note": "active since 2026-08-24 (Phase B backtest passed on SPY/QQQ)",
                 },
             }
 

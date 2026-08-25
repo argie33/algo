@@ -1771,7 +1771,7 @@ def run(
 
     # Wire tier's max_concentration_pct into sizer so correction/caution limits are respected.
 
-    # Each ExposurePolicy tier defines its own concentration ceiling (20%/16%/12%/10%).
+    # Each ExposurePolicy tier defines its own concentration ceiling (28%/22%/12%/10%).
     # exposure_constraints validated above - always exists
     tier_max_conc = exposure_constraints["max_concentration_pct"]
 
