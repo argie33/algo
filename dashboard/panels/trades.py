@@ -114,6 +114,43 @@ _EXIT_REASON_SHORT = {
 }
 
 
+# BUG FOUND 2026-08-24 (real-money-readiness goal session, dashboard test-coverage sweep):
+# algo_trades has no separate exit_stage column - exit_reason is always exit_engine.py's full
+# human-readable sentence (e.g. "T1 exit: $115.00 >= $115.00 (1.5R)"), never the exact short
+# strings in _EXIT_REASON_SHORT above (those keys - "t1_target"/"t1_hit"/"stop_loss" - match
+# nothing real; likely written for a different, never-actually-used schema). Only the substring
+# checks below ever had a chance of matching real data, and most exit_engine.py reason formats
+# had no matching branch at all. Live-measured against all 96 real closed trades in this local
+# DB: 50/96 (52%) fell through to "--" before this fix, including every T1/T2/T3 target hit,
+# TIME exit, "STOP hit:" (as opposed to "STOP LOSS HIT:", the only stop-variant that matched),
+# "Trailing stop hit:", earnings-blackout exits, and concentration force-exits that don't say
+# "force_exit" literally (position_monitor.py's own POSITION_SIZE_CONCENTRATION message
+# doesn't). Added an entry for every real format found in that measurement plus every remaining
+# exit_engine.py stage this dict didn't already cover. Ordered list (not a dict) because several
+# entries are deliberately checked before more generic ones later in the list (e.g. "stop hit"
+# must be checked before a hypothetical broader "stop" catch-all would be added).
+_EXIT_REASON_SUBSTRING_RULES: tuple[tuple[str, str], ...] = (
+    ("t1 exit", "T1"),
+    ("t2 exit", "T2"),
+    ("t3 target hit", "T3"),
+    ("td combo 13-count", "td13"),
+    ("td sequential 9-count", "td9"),
+    ("first red day", "1rd"),
+    ("climax run exhaustion", "clmx"),
+    ("market distribution", "dist"),
+    ("time exit", "time"),
+    ("stop hit", "stop"),  # catches both "STOP hit:" and "Trailing stop hit:"
+    ("stop triggered at", "stop"),
+    ("stop loss hit", "stop"),
+    ("position_size_concentration", "conc"),
+    ("portfolio_rotation", "rot"),
+    ("force_exit", "force"),  # "concentration" force-exits checked separately below (more specific)
+    ("minervini", "mv"),
+    ("health flag", "hlth"),
+    ("rs line", "rs"),
+)
+
+
 def _resolve_exit_reason(exit_rsn_val: Any) -> str:
     """Map a raw exit_reason value to its short display code (extracted from
     panel_trades_expanded to keep that function's branching complexity in check)."""
@@ -122,18 +159,13 @@ def _resolve_exit_reason(exit_rsn_val: Any) -> str:
     exit_rsn_raw = str(exit_rsn_val).lower().strip()
     if exit_rsn_raw in _EXIT_REASON_SHORT:
         return _EXIT_REASON_SHORT[exit_rsn_raw]
-    if "stop triggered at" in exit_rsn_raw or "stop loss hit" in exit_rsn_raw:
-        return "stop"
+    if "earnings in" in exit_rsn_raw and "flatten" in exit_rsn_raw:
+        return "erng"
     if "force_exit" in exit_rsn_raw and "concentration" in exit_rsn_raw:
         return "conc"
-    if "force_exit" in exit_rsn_raw:
-        return "force"
-    if "minervini" in exit_rsn_raw:
-        return "mv"
-    if "health flag" in exit_rsn_raw:
-        return "hlth"
-    if "rs line" in exit_rsn_raw:
-        return "rs"
+    for substring, code in _EXIT_REASON_SUBSTRING_RULES:
+        if substring in exit_rsn_raw:
+            return code
     return "--"
 
 
