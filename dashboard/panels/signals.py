@@ -99,32 +99,6 @@ def _format_signal_date(date_val: Any) -> str:
     return "--"
 
 
-def _shorten_reason(r: str) -> str:
-    r = r.lower()
-    if "52w" in r or "52-w" in r or ("low" in r and "proximity" in r):
-        return "52wLow"
-    if "sector" in r and ("cap" in r or "concentr" in r or "already" in r):
-        return "SctCap"
-    if "industry" in r and ("cap" in r or "concentr" in r or "already" in r):
-        return "IndCap"
-    if "stage" in r:
-        return "Stage"
-    if "volume" in r:
-        return "Vol"
-    if "rs" in r or "relative strength" in r:
-        return "RS"
-    return r[:7].title()
-
-
-def _shorten_type(t: str) -> str:
-    # MEDIUM FIX: Explicit None check instead of or operator for signal type
-    t_safe = t if t is not None else ""
-    t = t_safe.replace("WEEKLY_", "W_").replace("STAGE_2", "S2").replace("STAGE2", "S2")
-    t = t.replace("BREAKOUT", "BKT").replace("MOMENTUM", "MOM").replace("REVERSAL", "REV")
-    t = t.replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
-    return t[:12]
-
-
 def _build_signal_header(sig_data: dict[str, Any]) -> tuple[list[Text], int, int]:
     """Build signal header row (count, sparkline, grades, date).
 
@@ -318,22 +292,22 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
 
     if ev_tot is not None and ev_t5 is not None:
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected_result = safe_get_list(safe_get_field(funnel, "rejected", []))
-        rejected: list[Any] = rejected_result if isinstance(rejected_result, list) else []
-
-        blocks_s: str = ""
-        if rejected:
-            block_parts: list[str] = []
-            for rj in rejected[:3]:
-                reason_abbr = _shorten_reason(safe_get_field(rj, "evaluation_reason", ""))
-                description = safe_get_field(rj, "description", "")
-                if description:
-                    block_parts.append(
-                        f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/] [bright_black]({description})[/]"
-                    )
-                else:
-                    block_parts.append(f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/]")
-            blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
+        # BUG FOUND 2026-08-24 (real-money-readiness goal session, dashboard test-coverage
+        # sweep, same investigation that found _shorten_reason/[[trades_panel_exit_reason...]]
+        # and [[health_panel_notif_short_names...]]): this block expected funnel["rejected"] to
+        # be a LIST of {evaluation_reason, n, description} breakdown objects, but
+        # lambda/api/routes/algo_handlers/signals.py::_get_rejection_funnel (the only real
+        # source of this field, per its own docstring "SWING SCORE MIGRATION: Previously used
+        # swing_trader_scores table... Now calculates funnel stages from stock_scores
+        # composite_score tiers") has only ever returned `rejected` as a plain int count
+        # (`max(0, total - t1)`), never a per-reason list. safe_get_list() on an int returns a
+        # {"data_unavailable": ...} marker dict (not a list), so `isinstance(rejected_result,
+        # list)` was always False and this entire "blocked: reason:N (...)" breakdown has been
+        # silently unreachable dead code the whole time - not wrong information, just a feature
+        # that was never actually wired to real data. Replaced with the real, currently-
+        # available count instead of a per-reason breakdown the backend doesn't provide.
+        rejected_count = safe_get_field(funnel, "rejected")
+        blocks_s: str = f"  [dim]rejected:[/] {rejected_count}" if rejected_count else ""
 
         has_full_funnel: bool = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
         if has_full_funnel:

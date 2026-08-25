@@ -1305,8 +1305,8 @@ def _get_stock_scores(  # noqa: C901
                 LEFT JOIN LATERAL (
                     SELECT ROUND(
                         CASE
-                            WHEN ais.revenue IS NOT NULL AND ais.cost_of_revenue IS NOT NULL AND ais.revenue > 0
-                            THEN ((ais.revenue - ais.cost_of_revenue) / ais.revenue) * 100
+                            WHEN ais.gross_profit IS NOT NULL AND ais.revenue IS NOT NULL AND ais.revenue > 0
+                            THEN (ais.gross_profit / ais.revenue) * 100
                             ELSE NULL
                         END, 2) AS calculated_gross_margin
                     FROM annual_income_statement ais
