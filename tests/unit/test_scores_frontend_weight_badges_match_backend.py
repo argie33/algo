@@ -123,10 +123,16 @@ class TestMomentumScoreWeightBadges:
         # momentum_1m removed 2026-08-25 (goal: full scoring-architecture audit) - dropped
         # per the standard academic 12-1 momentum construction (Jegadeesh 1990 short-term
         # reversal); see _score_momentum's docstring for the empirical confirmation.
-        # momentum_6m/momentum_12m REPLACED same day, same-pass follow-up by a derived 12-1
-        # skip-month construction (mom_12_1_score, not dict-based) - see docstring RESOLVED
-        # note.
-        _assert_pct_matches("momentum_3m", dict_weights["momentum_3m"])
+        field_to_jsx_key = {
+            "momentum_3m": "momentum_3m",
+        }
+        for field, jsx_key in field_to_jsx_key.items():
+            _assert_pct_matches(jsx_key, dict_weights[field])
+
+        # momentum_6m/raw momentum_12m REPLACED same day by a derived 12-1 skip-month
+        # construction (mom_12_1_score, not a `weights` dict entry - a standalone
+        # `* 0.NN` line like eve_score/evr_score were) - see _score_momentum's docstring
+        # RESOLVED note.
         _assert_pct_matches("momentum_12_1", _weight_for_score_var(src, "mom_12_1_score"))
 
     def test_rsi_and_macd_weights_match_code(self):

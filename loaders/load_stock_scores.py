@@ -344,8 +344,8 @@ class StockScoresLoader(OptimalLoader):
             # margin_of_safety_pct added: DCF-based "discount to intrinsic value" (Value
             # factor goal, 2026-08-17) - computed by load_sec_valuations.py, copied onto
             # value_metrics by load_value_quality_growth_metrics.py, migration 1208.
-            # market_cap added 2026-08-25 (goal: close the Size-factor gap - see
-            # _score_value's docstring "SIZE FACTOR" section): already stored on
+            # market_cap added 2026-08-25 (goal: close the Size-factor gap found this pass -
+            # see _score_value's docstring "SIZE FACTOR" section): already stored on
             # value_metrics (no schema change needed, 77.4% coverage), just never read here
             # before - zero influence on value_score until now.
             cur.execute(
@@ -647,6 +647,41 @@ class StockScoresLoader(OptimalLoader):
             # - 50 with all 6 = truly 50/100
             # - 50 with 3/6 = really 50/60 (incomplete picture)
             # Dashboard displays completeness % so traders see data quality.
+            #
+            # OPEN QUESTION 2026-08-25 (goal: re-audit ALL stock_scores inputs, including
+            # whether the pillar LIST itself is complete): these 6 percentages have no
+            # documented empirical basis anywhere in this file - just hand-set numbers. Built
+            # algo/research/fama_macbeth_composite_weights.py to test them properly (Grinold &
+            # Kahn's "Active Portfolio Management" - the standard practitioner reference for
+            # combining multiple alpha signals - treats this as a regression/IC-weighting
+            # problem, exactly what multivariate Fama-MacBeth does). Result on the available
+            # data (109 months, 2017-2026, median 850 symbols - a materially smaller/more
+            # selective sample than any single-pillar test, since it requires ALL 6 pillars'
+            # data simultaneously, likely tilting the sample toward larger/more-established
+            # names): value_proxy strongest (t=1.78 multivariate, 1.83 univariate, still short
+            # of conventional significance), growth/quality/positioning weakly positive,
+            # stability/momentum came back negatively signed in THIS reduced sample (opposite
+            # their own single-pillar-test signs) - likely a selection-bias artifact of the
+            # intersection-of-6-panels requirement, not a reversal of those pillars' real
+            # within-pillar findings above. Underpowered for confidently rewriting these
+            # percentages; flagged, not acted on.
+            #
+            # SEPARATE, HIGHER-CONFIDENCE FINDING (same pass): checked what canonical
+            # institutional factor models actually include (Fama-French 1992/1993, MSCI
+            # Barra's style factors) - SIZE (market cap, the original Fama-French SMB factor,
+            # Banz 1981) is completely absent from this 6-pillar list, not represented in any
+            # pillar. Tested directly: log(market_cap) [=price x shares_outstanding_diluted,
+            # same point-in-time reconstruction as the Value pillar] vs forward 1-month return,
+            # 150 months 2014-2026, median 2,601 symbols: t=-5.37 - nearly as strong as
+            # volatility_60d's t=-6.1 (the single strongest finding of this whole re-audit) and
+            # far stronger than any of the 6 existing pillars' top-level composite
+            # coefficients above. Smaller companies show a robust, large forward-return premium
+            # in this exact dataset, matching 60+ years of replicated literature. This is a
+            # structural gap (an entire missing factor, not a reweighting question within an
+            # existing pillar) - flagged as the single highest-confidence opportunity from this
+            # whole pass, but NOT implemented here: adding a 7th factor changes the DB schema/
+            # API/frontend, a bigger scope decision than this pass's per-pillar reweighting,
+            # left for explicit user direction.
             base_weights = {
                 "quality": 0.25,
                 "growth": 0.12,
@@ -1006,7 +1041,9 @@ class StockScoresLoader(OptimalLoader):
         VALIDATION RULES:
         - Row length validation: Must have 12 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
           dividend_yield, fcf_yield, forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct,
-          market_cap, data_unavailable)
+          market_cap, data_unavailable) - stale "7 columns" claim here predates several later
+          additions (forward_pe/ev_ebitda/ev_revenue, margin_of_safety_pct, market_cap); fixed
+          2026-08-25 rather than left drifted further.
         - Schema mismatch (len(row) < 12) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
@@ -1022,7 +1059,8 @@ class StockScoresLoader(OptimalLoader):
         row = self._value_cache.get(symbol)
         if row:
             # CRITICAL: Validate row has expected 12 columns before accessing indices
-            # (11 + market_cap added 2026-08-25 for the Size-factor gap)
+            # (11 + market_cap added 2026-08-25 to close the Size-factor gap - see
+            # _score_value's docstring)
             if len(row) < 12:
                 raise ValueError(
                     f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 12. "
@@ -1287,26 +1325,51 @@ class StockScoresLoader(OptimalLoader):
         CORRECTED 2026-08-25 (goal: re-audit ALL stock_scores inputs without bias toward what
         already shipped): this docstring previously claimed "Margins 30% + Profitability 25% +
         Leverage/Liquidity 25% + Growth 20%" - stale/wrong, doesn't match the actual upstream
-        computation (load_value_quality_growth_metrics.py). The real formula is a simple
-        equal-weighted average of up to 6 available components - roe, roa, operating_margin,
-        net_margin, a debt-to-assets score (inverted so higher is better), and an interest-
-        coverage solvency curve - each clamped to [0, 100] and averaged over however many are
-        non-None (1/n weight each, not fixed percentages). There is no growth component in
-        this upstream score at all.
+        computation (load_value_quality_growth_metrics.py, ~line 3313-3330). The real formula
+        is a simple equal-weighted average of up to 6 available components - roe, roa,
+        operating_margin, net_margin, a debt-to-assets score (100 - debt_to_assets*100,
+        inverted so higher is better), and an interest-coverage solvency curve (0 below 0x,
+        scaling to 100 at 10x+) - each clamped to [0, 100] and averaged over however many are
+        non-None (1/n weight each, not fixed percentages). There is no growth component in this
+        upstream score at all, so the double-counting concern that motivated removing
+        earnings_growth_yoy from _enhance_quality_score below doesn't apply to this base score -
+        checked directly rather than assumed.
 
-        OPEN QUESTION added same pass: a point-in-time Fama-MacBeth re-test
-        (algo/research/fama_macbeth_quality_factors.py) found roe/debt_to_assets correlate
-        r=0.82 (mechanical - DuPont decomposition, ROE = ROA x equity multiplier) and
-        operating_margin/net_margin correlate r=0.91 - the equal-weighted-6 formula gives
-        these two redundant pairs 4/6 of the weight vs. roa/interest_coverage (the most
-        distinct signals) at 1/6 each. Also: debt_to_assets came back POSITIVELY signed
-        (t=2.19-2.28) - higher leverage associated with HIGHER forward return, opposite this
-        formula's "low debt is good" assumption. Not a confident reversal: genuine, unresolved
-        tension between Modigliani-Miller leverage-beta theory and the documented distress-
-        risk anomaly (Campbell/Hilscher/Szilagyi 2008, JoF). A decile-sort check found the
-        relationship roughly monotonic (not a hidden U-shape), so the linear finding isn't a
-        regression artifact - but the direction question itself stays genuinely open. Neither
-        finding acted on - flagged for a future consolidation pass.
+        OPEN QUESTION added same pass: built algo/research/fama_macbeth_quality_factors.py to
+        test the corrected 6-component formula above with point-in-time Fama-MacBeth (same
+        annual-statement reconstruction as the Growth/Value scripts). Two findings, neither
+        acted on: (1) measured directly (60-month pooled correlation, n=98,902): roe and
+        debt_to_assets correlate r=0.82 (mechanical - ROE = ROA x equity multiplier, so ROE
+        embeds much of the same leverage information debt_to_assets measures directly, DuPont
+        decomposition), and operating_margin/net_margin correlate r=0.91 (both are profit/
+        revenue ratios differing mainly by non-operating items) - the equal-weighted average
+        of 6 gives these two redundant pairs 4/6 of the weight, versus roa and
+        interest_coverage (the two most distinct signals, ~0.00-0.17 correlated with
+        everything else) at 1/6 each. Smaller-magnitude version of the same redundancy issue
+        found in Value (algo/research/fama_macbeth_value_factors.py) and Momentum
+        (algo/research/fama_macbeth_momentum_factors.py) today. (2) debt_to_assets came back
+        POSITIVELY signed in both univariate (t=2.28) and multivariate (t=2.19) FM tests -
+        higher leverage associated with HIGHER forward return, opposite the "low debt is good"
+        assumption baked into this formula's debt_to_assets_score inversion. Not a confident
+        reversal call though: this sits at a genuine, unresolved tension in the literature
+        between basic leverage theory (Modigliani-Miller - more debt mechanically raises
+        equity beta and expected equity return, textbook corporate finance) and the
+        documented distress-risk anomaly (Campbell/Hilscher/Szilagyi 2008, JoF - financially
+        distressed/high-leverage firms empirically underperform, a real puzzle against the MM
+        prediction) - unlike the cleaner Growth/Value findings above, both directions have
+        solid academic grounding here, so this is flagged as genuinely unresolved rather than
+        miscalibrated.
+
+        METHODOLOGY CHECK (2026-08-25, same pass, user-prompted): before trusting the linear
+        coefficient, checked whether it might be masking a non-monotonic (e.g. U-shaped -
+        too-little-debt as inefficient capital structure, too-much as distress risk, a real
+        possibility raised by the MM-vs-distress-anomaly tension above) relationship a linear
+        regression can't see. Decile sort: deciles 0-6 (well-populated, 144-150 months each)
+        show a fairly clean, roughly MONOTONIC increase from 0.70% to 1.04%/month as debt rises
+        - not a U-shape. Decile 7 jumps to 2.77% but on only 50 months (deciles 8-9 too
+        duplicate-heavy to bin) - too thin to trust. The linear finding holds up under this
+        nonparametric check across the reliable range of the distribution; it isn't a
+        linear-regression artifact hiding a different true shape.
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.warning(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
@@ -1333,8 +1396,9 @@ class StockScoresLoader(OptimalLoader):
     def _enhance_quality_score(self, base_score: float, metrics: dict[str, Any], symbol: str) -> float:
         """Enhance pre-computed quality score with Phase 3 margin/earnings-stability signals.
 
-        Adjusts base score by ±10% based on margin level, cash conversion, ROIC, and
-        leverage. Keeps existing quality_score as foundation; uses new metrics for refinement.
+        Adjusts base score by ±10% based on margin level/trend, earnings consistency, cash
+        conversion, ROIC, and leverage. Keeps existing quality_score as foundation; uses new
+        metrics for refinement.
 
         CLEANUP 2026-08-16: Financial Stability (debt-to-equity, debt-to-assets -
         _score_financial_stability) moved here from Stability's _score_stability, where it
@@ -1349,31 +1413,25 @@ class StockScoresLoader(OptimalLoader):
         _score_financial_stability below. _score_financial_stability now uses debt_to_equity
         only - the one genuinely new leverage signal, not a repeat of what the base average
         already scored. earnings_growth_yoy was removed entirely - rewarding recent earnings
-        growth here duplicated the entire Growth pillar's purpose, breaking factor-
-        orthogonality.
+        growth here duplicated the entire Growth pillar's purpose (20%->12% of the composite),
+        which breaks factor-orthogonality (Asness/AQR: a multi-factor composite only
+        diversifies if its factors are close to independent; a fast-growing company was
+        getting rewarded once in Growth and again here).
 
-        REVERTED same day (user feedback): this redesign briefly replaced earnings_growth_yoy
-        with eps_growth_stability and the margin/ROE trend fields relocated from Growth's own
-        scorer, on the theory (Asness/Frazzini/Pedersen "Quality Minus Junk", 2013) that
-        earnings-consistency and quality-of-earnings-direction are genuine quality/safety
-        signals distinct from growth magnitude. User pushback: these are "consistency of
-        improvement" signals, not the balance-sheet-health/margin-level character the rest of
-        this pillar measures, and forcing them under Quality was a taxonomy stretch rather
-        than an evidenced placement - they don't cleanly belong in Growth (that's why they
-        were moved out) but moving them into Quality just relocated the same categorization
-        problem. Dropped from scoring entirely rather than re-homed a second time. A later
-        pass checked the literature properly (Piotroski F-Score's delta-ROA/delta-margin
-        checks, AFP QMJ's "growth of profitability" pillar both DO place this class of signal
-        inside Quality conceptually) AND ran a point-in-time Fama-MacBeth test
-        (algo/research/fama_macbeth_quality_trend_factors.py) - all three fields came back
-        genuinely flat (t<1, both uni/multivariate, 150 months) - so the final answer is
-        "correct conceptual home is Quality, but none of them earn their keep empirically in
-        this data," a cleaner resolution than the original taxonomy objection alone. The
-        underlying fields are still computed and stored by
-        load_value_quality_growth_metrics.py for potential future use - only their
-        consumption here was removed. Separately, fcf_to_net_income and ocf_to_net_income
-        (below) were confirmed NOT redundant with each other (r=-0.026, essentially
-        orthogonal - FCF=OCF-CapEx, so capital intensity decouples them) - both kept.
+        REVERTED same day (user feedback, goal: reintroduce/re-audit removed inputs): this
+        redesign briefly replaced earnings_growth_yoy with eps_growth_stability and the
+        margin/ROE trend fields relocated from Growth's own scorer, on the theory
+        (Asness/Frazzini/Pedersen "Quality Minus Junk", 2013) that earnings-consistency and
+        quality-of-earnings-direction are genuine quality/safety signals distinct from growth
+        magnitude. User pushback: these are "consistency of improvement" signals, not the
+        balance-sheet-health/margin-level character the rest of this pillar measures, and
+        forcing them under Quality was a taxonomy stretch rather than an evidenced placement -
+        they don't cleanly belong in Growth (that's why they were moved out) but moving them
+        into Quality just relocated the same categorization problem. Dropped from scoring
+        entirely rather than re-homed a second time. The underlying fields
+        (eps_growth_stability/operating_margin_trend/net_margin_trend/roe_trend) are still
+        computed and stored by load_value_quality_growth_metrics.py for potential future use -
+        only their consumption here was removed.
         """
         adjustment = 0.0
 
@@ -1442,7 +1500,8 @@ class StockScoresLoader(OptimalLoader):
 
         Uses weighted blend: EPS 1Y (25%) + Asset Growth YoY (30%, sign-flipped) + Revenue 1Y
         (20%) + Sustainable Growth Rate (20%). Reweighted from 45/25/15/15 2026-08-25 (goal:
-        horizon-matched re-audit) - see the OPEN QUESTION/LITERATURE CALIBRATION notes below.
+        horizon-matched re-audit) - see the OPEN QUESTION/LITERATURE CALIBRATION notes and the
+        per-field comments below for why eps_growth_1y's weight was cut specifically.
 
         REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): previously 14 inputs
         (EPS/Revenue at 1y/3y/5y plus 8 secondary trend/YoY fields), several literature-
@@ -1464,41 +1523,54 @@ class StockScoresLoader(OptimalLoader):
         - NI/OI growth YoY dropped (near-duplicates of EPS growth YoY, which already carries the
           largest single weight). FCF/OCF growth YoY dropped (no proven distinct predictive
           value once tested at the composite level, and correlated with each other and with EPS
-          growth). Margin/ROE trend fields moved to Quality's _enhance_quality_score (they
-          measure quality-of-earnings direction, not growth magnitude - and were duplicating
-          Quality's own leverage/margin signals from a different pillar).
+          growth). Margin/ROE trend fields and eps_growth_stability were briefly moved to
+          Quality's _enhance_quality_score same day, then dropped from scoring entirely on user
+          feedback - they're "consistency of improvement" signals that don't cleanly belong in
+          either pillar's character (Growth measures magnitude, Quality measures
+          balance-sheet-health/margin level), and re-homing them under Quality was a taxonomy
+          stretch, not an evidenced placement. The underlying fields are still computed/stored
+          upstream, just unused by any score now.
         - Sustainable growth rate (ROE x retention ratio) kept - structurally distinct from the
           CAGR fields above, and its dividends_paid null-handling was independently verified
           correct (non-payers vs missing data already disambiguated via dividend_data history).
 
-        OPEN QUESTION / RESOLVED 2026-08-25 (same day, later pass - goal: re-audit ALL
-        stock_scores inputs with real Fama-MacBeth testing instead of pooled-panel Spearman,
-        which overstates significance by treating correlated same-month observations as
-        independent). Built algo/research/fama_macbeth_growth_factors.py - point-in-time
-        reconstruction from annual_income_statement/annual_balance_sheet/annual_cash_flow.
-        Both eps_growth_1y and asset_growth_yoy came back statistically insignificant at every
-        horizon tested (1-month - this system's actual weeks-scale swing-trading horizon - and
-        12-month, both overlapping and non-overlapping specs), including asset_growth_yoy's own
-        "strongest empirical result" claim above. LITERATURE CALIBRATION: McLean & Pontiff
-        (2016, JoF) find published anomalies decay ~58% post-publication, mostly within ~10
-        years - Cooper/Gulen/Schill's asset-growth effect was published 2008, this panel is
-        2016-2026 (8-18 years post-publication), so a weak result is plausible decay, not
-        obviously a broken test, and the SIGN wasn't contradicted. eps_growth_1y's null had NO
-        such explanation and was robustly null at every horizon/spec tried - the cleanest null
-        in this pillar. ACTED ON: eps_growth_1y cut 45%->25%; the freed weight moved to
-        asset_growth_yoy (25%->30%, decay-theory explanation, sign not contradicted),
-        revenue_growth_1y (15%->20%) and sustainable_growth_rate (15%->20%) - not because either
-        showed new positive signal (revenue_growth_1y stayed null at the 1-month horizon too,
-        t=-0.03/-0.65; SGR wasn't independently re-tested), just not the field with the cleanest
-        null. revenue_growth_1y/3y DID show a real, literature-consistent negative sign
-        (Lakonishok/Shleifer/Vishny 1994 + La Porta 1996 "glamour reversal") but ONLY at the
-        12-month horizon (t=-3.6 to -3.7) - not acted on (no sign flip) since the practically
-        relevant 1-month horizon doesn't support either direction. Same reasoning kept
-        revenue_growth_3y/5y and the other removed fields (EPS 3y/5y, NI/OI/FCF/OCF growth YoY)
-        out - weak-to-null at the actionable 1-month horizon; revenue_growth_3y/5y's opposite-
-        signed 12-month results were later confirmed to be a collinearity artifact (winsorized
-        correlation r=0.61, not the ~0.15 an unwinsorized check first suggested) via an
-        orthogonalized test that found neither component significant at 1 month either.
+        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: reintroduce/re-audit
+        removed inputs with a proper Fama-MacBeth test): built a point-in-time fundamentals
+        panel (algo/research/fama_macbeth_growth_factors.py, reconstructed from
+        annual_income_statement/annual_balance_sheet/annual_cash_flow - growth_metrics itself
+        has no history to test against) and ran real monthly Fama-MacBeth regressions instead
+        of the pooled-panel Spearman test above. Result does NOT confirm this docstring's two
+        headline claims: eps_growth_1y (45% of this pillar's weight) and asset_growth_yoy
+        (25%, sign-flipped) both came back statistically insignificant at every horizon tested
+        (1-month multivariate/univariate, overlapping 12-month, and a non-overlapping 12-month
+        check using only 12 independent years to fully remove serial-correlation inflation) -
+        including asset_growth_yoy, this docstring's own "strongest single empirical result of
+        the whole audit." Meanwhile revenue_growth_5y (a DROPPED field) showed the most
+        consistent positive signal across every specification tested (t=2.0-2.9), while
+        revenue_growth_1y/3y showed a confusing, opposite-signed, likely-collinear pattern
+        (both highly correlated with each other by construction) not yet resolved. NOT acted on
+        here - real caveats in the new test too (no true filing-date data, calendar-fiscal-
+        year-end assumed for all symbols, n=12 for the cleanest non-overlapping check is a
+        small sample) mean this is a genuine open discrepancy needing reconciliation, not an
+        instruction to flip weights on a live-money system from one exploratory script. Priority
+        follow-up before the next Growth-pillar change.
+
+        LITERATURE CALIBRATION (2026-08-25, same pass): checked published research rather than
+        treating the above as an unexplained discrepancy. McLean & Pontiff (2016, JoF) find
+        published anomalies' returns decay ~26% purely out-of-sample and ~58% post-publication,
+        with most of that decay complete within ~10 years of the original sample ending.
+        Cooper/Gulen/Schill's asset-growth effect was published in 2008; this script's panel is
+        2016-2026 (8-18 years post-publication) - roughly the window where decay theory predicts
+        a much weaker effect than the original paper found, so a weak/null result here is
+        plausible and not obviously a test bug. Separately, revenue_growth_1y/3y's negative
+        sign matches an actual literature prediction, not just an odd result: Lakonishok/
+        Shleifer/Vishny (1994) and La Porta (1996) "glamour reversal" - investors naively
+        extrapolate high growth, most firms can't sustain it, and high-growth-expectation
+        stocks underperform on average. If revenue growth were reintroduced, the literature
+        argues for scoring recent high growth as a caution flag at 1y/3y horizons, not a
+        straightforward positive - the opposite framing from how this field was scored before
+        removal. Still not shipped: the 3y-negative/5y-positive sign split is unresolved (see
+        above) and this reframing needs to survive that before any code changes.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 growth field → returns float (0-100)
@@ -1548,9 +1620,16 @@ class StockScoresLoader(OptimalLoader):
             # Positive growth: map [0, cap] → [40, 100]
             return min(100, 40 + (val / cap) * 60)
 
-        # 1-year EPS growth: kept as a conventional growth reference, weight cut 45%->25%
-        # 2026-08-25 (horizon-matched re-audit) - robustly null at every horizon/spec tested,
-        # the cleanest null in this pillar (see docstring).
+        # 1-year EPS growth: kept as a conventional growth reference, weight cut 2026-08-25
+        # (goal: horizon-matched re-audit) from 45%. Fama-MacBeth at the 1-month horizon -
+        # matched to this system's actual weeks-scale swing-trading holding period, not the
+        # 12-month academic-anomaly horizon also tested for robustness - found this field
+        # robustly null: t=0.76 (multivariate)/0.97 (univariate), never once close to
+        # significant across every horizon and specification tried
+        # (algo/research/fama_macbeth_growth_factors.py). Distinct from asset_growth_yoy below,
+        # whose weaker-than-claimed showing has a real explanation (McLean & Pontiff 2016
+        # post-publication decay) and whose SIGN still isn't contradicted - eps_growth_1y
+        # showed no signal in any direction at any horizon, the cleanest null in this pillar.
         eps_1y = _score_single_growth(metrics.get("eps_growth_1y"), 50)
         if eps_1y is not None:
             weighted_sum += eps_1y * 0.25
@@ -1562,9 +1641,15 @@ class StockScoresLoader(OptimalLoader):
         # Our own panel replicated the anomaly cleanly (Spearman rho=-0.037, p=8.4e-6,
         # ~11pt/yr quintile spread) - the strongest single empirical result in the audit that
         # produced this redesign. Negate the raw growth rate before scoring so low/negative
-        # asset growth now maps to a high score. Weight raised 25%->30% same day, later pass
-        # (freed from eps_growth_1y's cut) - weaker-than-claimed FM showing has a credible
-        # McLean-Pontiff decay explanation eps_growth_1y's null lacks; sign not contradicted.
+        # asset growth now maps to a high score.
+        # Weight raised 25%->30% 2026-08-25 (goal: horizon-matched re-audit) - freed from
+        # eps_growth_1y's cut above. Also null at the 1-month horizon in the newer
+        # Fama-MacBeth test (t=0.65/0.64), but unlike eps_growth_1y that has a specific,
+        # credible explanation (McLean & Pontiff 2016: published anomalies decay ~58%
+        # post-publication, mostly within ~10 years - Cooper/Gulen/Schill's asset-growth
+        # effect published 2008, this panel is 2016-2026) and the SIGN still isn't
+        # contradicted in either test - kept at the highest weight among the non-EPS inputs
+        # rather than cut alongside eps_growth_1y, whose null had no such explanation.
         asset_growth = _score_single_growth(
             -metrics["asset_growth_yoy"] if metrics.get("asset_growth_yoy") is not None else None, 30
         )
@@ -1572,13 +1657,17 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += asset_growth * 0.30
             total_weight += 0.30
 
-        # 1-year revenue growth: kept small - our own composite backtesting (three different
-        # growth-composite configurations, none showed real forward-return signal) plus
-        # Lakonishok/Shleifer/Vishny (1994) both say trailing revenue growth carries little
-        # standalone signal, so this stays a secondary check, not a primary driver. Weight
-        # raised 15%->20% same day, later pass - not new signal (still null at 1-month), just
-        # freed weight redistribution; see docstring for the 12-month glamour-reversal finding
-        # NOT acted on due to horizon mismatch.
+        # 1-year revenue growth: weight raised 15%->20% 2026-08-25 (goal: horizon-matched
+        # re-audit), freed from eps_growth_1y's cut. Still null at the 1-month horizon
+        # (t=-0.03/-0.65) - NOT raised because of a hidden signal, just because it wasn't the
+        # field with the cleanest null (that was eps_growth_1y). A 12-month Fama-MacBeth test
+        # found this field NEGATIVELY signed and significant (t=-3.6 to -3.7), matching
+        # published "glamour reversal" literature (Lakonishok/Shleifer/Vishny 1994, La Porta
+        # 1996 - high growth expectations underperform) - NOT acted on (no sign flip) because
+        # this system trades on a weeks-scale horizon, not the 12-month horizon where that
+        # effect showed up; the practically-relevant 1-month test doesn't support either
+        # direction confidently. Flagged for reconsideration only if this system's holding
+        # period changes materially.
         rev_1y = _score_single_growth(metrics.get("revenue_growth_1y"), 30)
         if rev_1y is not None:
             weighted_sum += rev_1y * 0.20
@@ -1586,8 +1675,11 @@ class StockScoresLoader(OptimalLoader):
 
         # Sustainable growth rate = ROE * retention ratio: structurally distinct from the
         # trailing CAGR fields above (ROE-driven, not a raw growth rate) - how fast the
-        # company can grow without external financing. Weight raised 15%->20% same day, later
-        # pass (freed weight redistribution, not independently re-tested).
+        # company can grow without external financing. Weight raised 15%->20% 2026-08-25
+        # (goal: horizon-matched re-audit), freed from eps_growth_1y's cut - not independently
+        # re-tested this pass (not one of the fields covered by
+        # algo/research/fama_macbeth_growth_factors.py), so this is a "not worse than the
+        # alternative" redistribution, not new positive evidence for SGR specifically.
         sgr = _score_single_growth(metrics.get("sustainable_growth_rate"), 25)
         if sgr is not None:
             weighted_sum += sgr * 0.20
@@ -1612,25 +1704,34 @@ class StockScoresLoader(OptimalLoader):
         + Dividend yield (3%) + Margin of Safety / DCF discount to intrinsic value (6%) + SIZE
         (market cap, 20% - see "SIZE FACTOR" note below). EV/EBITDA and EV/Revenue REMOVED
         2026-08-25 (see RESOLVED note below) - duplicated P/E and P/S respectively, not
-        independent signals. Peak zone for growth stocks: P/E 15-30, P/B < 5, PEG < 1-2,
-        positive FCF yield, positive margin of safety.
+        independent signals. PE/PB/PS reweighted a second time same day (see "PE-vs-PB/PS
+        RANKING DISPUTE - RESOLVED" note below) after a sub-period-robust FM test found PB -
+        not PE - is the weakest of the three, contradicting the pooled-Spearman finding that
+        originally justified cutting PE to 18%. The other seven inputs were then uniformly
+        scaled by x0.8 (same day, third pass) to free 20pts for the new Size input without
+        reopening either of the two just-resolved ranking disputes above. Peak zone for growth
+        stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
 
-        SIZE FACTOR added 2026-08-25 (goal: close the highest-confidence gap found in a full
-        stock_scores re-audit): checked what canonical institutional factor models actually
-        include (Fama-French 1992/1993's original three factors - market, SIZE, value; MSCI
-        Barra's style factors) - SIZE (market cap, Banz 1981's original size effect) was
-        completely absent from all 6 stock_scores pillars, despite market_cap already being
-        stored on value_metrics (77.4% coverage - no schema change needed to add it here).
-        Tested directly: log(market_cap) vs forward 1-month return, 150 months 2014-2026,
-        median 2,601 symbols: t=-5.37 - nearly as strong as volatility_60d's t=-6.1 (this
-        session's single strongest finding) and far stronger than any of this file's other
-        individual value inputs. Smaller companies show a robust, large forward-return premium
-        in this dataset, matching 60+ years of replicated academic literature. Added to Value
-        (not a new 7th pillar) since SMB is literally the sibling factor to HML (value) in the
-        original Fama-French model - a new pillar would need a stock_scores schema migration +
-        API + frontend changes across the whole composite, out of proportion to what a single
-        well-evidenced input needs. The other 7 Value inputs were uniformly scaled by x0.8 to
-        free 20pts for Size, preserving their existing relative ratios to each other.
+        SIZE FACTOR added 2026-08-25 (goal: close the highest-confidence gap found in this
+        session's full stock_scores re-audit): checked what canonical institutional factor
+        models actually include (Fama-French 1992/1993's original three factors - market,
+        SIZE, value; MSCI Barra's style factors) - SIZE (market cap, Banz 1981's original size
+        effect) was completely absent from all 6 stock_scores pillars, not represented
+        anywhere, despite market_cap already being stored on value_metrics (77.4% coverage,
+        confirmed via direct query - no schema change needed to add it here). Tested directly
+        (algo/research/*.py's point-in-time methodology): log(market_cap) vs forward 1-month
+        return, 150 months 2014-2026, median 2,601 symbols: t=-5.37 - nearly as strong as
+        volatility_60d's t=-6.1 (this session's single strongest finding) and far stronger
+        than any of this file's other individual value inputs. Smaller companies show a
+        robust, large forward-return premium in this exact dataset, matching 60+ years of
+        replicated academic literature (this is one of the most extensively replicated
+        anomalies in all of empirical finance, unlike several of the more contested findings
+        elsewhere in this file's recent audits). Added to Value (not a new 7th pillar) since
+        SMB is literally the sibling factor to HML (value) in the original Fama-French model,
+        and this pillar's own docstring already centers on that lineage - a new pillar would
+        need a stock_scores schema migration + API + frontend changes across the whole
+        composite, out of proportion to what a single well-evidenced input needs. See the
+        scoring block below for the log10-bucketed curve and its market-cap-tier boundaries.
 
         REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): PE was 45% (more than
         double every other input) despite being the empirically WEAKER of the three
@@ -1650,9 +1751,16 @@ class StockScoresLoader(OptimalLoader):
         target) showed the new mix modestly but genuinely outperforming: Spearman 0.150 vs.
         0.142, p=6.2e-70 vs. 1.6e-62, top-minus-bottom quintile spread 19.84 vs. 18.22 points.
         Caveat: that backtest, like every price-return test in this file's recent history, only
-        has real price coverage from ~2020 onward (price_daily has pre-2020 data for 10 of
-        10,982 symbols) - it validates the reweight within that window, not across market
-        cycles the data can't reach.
+        has real price coverage from ~2020 onward - it validates the reweight within that
+        window, not across market cycles the data can't reach. CORRECTION 2026-08-25 (later
+        pass): the "10 of 10,982 symbols pre-2020" claim above doesn't hold up - direct query
+        (`SELECT date_trunc('year',date), COUNT(DISTINCT symbol) FROM price_daily GROUP BY 1`)
+        shows 3,497 distinct symbols with 2019 coverage and real (if thinner) coverage back to
+        1962 (29 symbols) - growing roughly monotonically to 10,982 by 2025. The "~2020 onward"
+        framing may still be directionally fine (breadth roughly doubles 2020-2021, from 3,730
+        to 6,591 symbols), but the specific "10 symbols" number was wrong; left uncorrected
+        elsewhere until now because it wasn't blocking anything, but flagging since
+        algo/research/fama_macbeth_*.py's tests now use the fuller history.
 
         REINSTATED 2026-08-24 (user-directed, goal: NVDA margin-of-safety audit): removed
         2026-08-18 (commit e38a6667d) on the reasoning that margin_of_safety_pct should stay
@@ -1664,23 +1772,73 @@ class StockScoresLoader(OptimalLoader):
         here even when its other fundamentals are excellent - this is a real, understood bias
         in this specific input, not a bug in the scoring math.
 
-        RESOLVED 2026-08-25 (same-day follow-up, goal: re-audit ALL stock_scores inputs for
-        the "counted twice" bug class already fixed elsewhere - Momentum's ROC-vs-return-
-        windows, Quality's double-counted debt_to_assets): measured directly (150-month pooled
-        correlation, n=45,806) ps_ratio and ev_revenue correlate r=1.00 (literally the same
-        signal - EV only adds net debt/share, negligible next to price for most names), and
-        pe_ratio and ev_ebitda correlate r=0.93 (near-duplicate). ev_ebitda/ev_revenue removed
-        entirely from scoring (still fetched/displayed, same "computed but unused" convention
-        as other removed fields elsewhere in this file). Their freed 16pts moved to PB (+6,
-        independently the most genuinely distinct multiple - only 0.32-0.38 correlated with
-        pe/ps/ev_ebitda/ev_revenue), FCF yield (+6, real near-uncorrelated diversifier, t=1.62
-        directionally right), and Dividend yield/Margin of Safety (+2 each). PE/PB/PS's own
-        relative weights were deliberately left alone by this specific fix - a separate,
-        unreconciled dispute exists about their relative predictive ranking (univariate FM
-        found PE at least as strong as PB/PS, t=-3.70 vs -2.35/-2.97, the opposite of the
-        pooled-Spearman ranking that originally justified cutting PE to 18% above) - not acted
-        on, since resolving the duplicate-signal bug doesn't require resolving that separate
-        question first.
+        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: re-audit ALL stock_scores
+        inputs without bias toward what already shipped). Built
+        algo/research/fama_macbeth_value_factors.py - point-in-time P/E, P/B, P/S, FCF yield,
+        dividend yield, EV/EBITDA, EV/Revenue from annual_income_statement/annual_balance_sheet/
+        annual_cash_flow (PEG and margin-of-safety out of scope - PEG needs a growth cross-term,
+        margin-of-safety is a full DCF model, not a single ratio). Two findings:
+        (1) Univariate Fama-MacBeth ranks PE (t=-3.70) at least as strong as PB (t=-2.35) and PS
+        (t=-2.97), the OPPOSITE ranking from this docstring's own pooled-Spearman claim above
+        (PE=-0.091 weakest, PB/PS=-0.137/-0.146 strongest) that justified cutting PE's weight
+        from 45% to 18% - not yet reconciled, same tier of open question as Growth's
+        eps_growth_1y/asset_growth_yoy finding. (2) Measured directly (150-month pooled
+        correlation, n=45,806): ps and ev_revenue are LITERALLY the same signal (r=1.00 - EV
+        only adds net debt/share, negligible next to price for most names), and pe/ev_ebitda are
+        near-duplicates (r=0.93) - the identical "counted twice" bug class already caught and
+        fixed for Momentum's ROC-vs-return-windows redundancy in the 92cd092ce redesign, just
+        not caught here: live weights P/S 18% + EV/Revenue 8% put 26% combined weight on ONE
+        signal, P/E 18% + EV/EBITDA 8% put 26% on another. pb is the most genuinely distinct
+        multiple (only 0.32-0.38 correlated with pe/ps/ev_ebitda/ev_revenue); fcf_yield and
+        dividend_yield are both essentially uncorrelated (~0.00) with the multiples and each
+        other - real diversifying signals, not redundant ones (fcf_yield t=1.62 positive,
+        directionally right but not quite significant; dividend_yield t=0.98, consistent with
+        this docstring's own earlier "inconclusive" finding).
+
+        RESOLVED 2026-08-25 (same-day follow-up): acted on the duplicate-signal finding, but
+        NOT on the separate, still-unreconciled PE-ranking dispute above (pooled Spearman ranks
+        PE weakest; univariate FM ranks it strongest) - the duplicate collapse is independent of
+        that dispute and doesn't require resolving it first, unlike a full PE/PB/PS reweight
+        would. ev_ebitda and ev_revenue removed entirely from scoring (still fetched/displayed -
+        same "computed but unused by scoring" treatment as other removed-from-scoring fields
+        elsewhere in this file) since r=1.00/0.93 means they added no information P/S and P/E
+        didn't already carry. The freed 16pts went to the three inputs this same pass identified
+        as genuinely distinct/diversifying rather than split proportionally: PB (+6, "the most
+        genuinely distinct multiple" per the correlation evidence above - deliberately NOT
+        boosted using the disputed PE-vs-PB/PS ranking, only using the separate distinctness
+        finding), FCF yield (+6, t=1.62, real near-uncorrelated diversifier, directionally
+        significant-adjacent), Dividend yield (+2) and Margin of Safety (+2, both real if
+        weaker/untested-here diversifiers - DCF-based MoS wasn't in this FM panel's scope, see
+        the panel's own docstring). PE/PS themselves left untouched precisely because their
+        correct relative weighting is the open, unreconciled question - this pass fixes the
+        unambiguous redundancy without pre-judging that separate dispute.
+
+        PE-vs-PB/PS RANKING DISPUTE - RESOLVED 2026-08-25 (same-day follow-up, sub-period
+        robustness check, same method that closed Stability's max_drawdown_1y and Momentum's
+        RSI questions this session): unlike those two, which turned out to be fragile/decaying
+        under the same check, this one is genuinely robust. Ran two independent FM tests
+        (the original univariate run above, and a fresh full re-run with a wider 2014-2026
+        window): BOTH find all three multiples negatively signed and strongly significant in
+        EVERY sub-period tested - full sample, first/second half, and all three terciles, no
+        exceptions, no sign flips, no fading (fresh run: PE t=-4.93/-2.44/-4.37 half-split,
+        PB t=-4.39/-1.75/-4.21, PS t=-5.13/-3.53/-3.88 - all comfortably significant even in
+        the weakest sub-period). Critically, PB is the CONSISTENTLY WEAKEST of the three in
+        both runs (not the strongest, as the original pooled-Spearman claim asserted), and PE
+        is comparably strong to PS in both runs (not uniquely weak, as that same claim
+        asserted and used to justify cutting PE 45%->18%). The original pooled-Spearman
+        ranking was very likely a methodology artifact, not a real cross-sectional pattern:
+        it used value_metrics' CURRENT-SNAPSHOT ratios (no history - see this file's own
+        repeated caveat that value_metrics/growth_metrics/etc. are single-row-per-symbol
+        snapshots) joined against a pooled panel of historical forward returns, which is not
+        point-in-time correct and pools non-independent symbol-months exactly the way this
+        file's other FM-vs-pooled-Spearman comparisons (Growth, Momentum, Stability) already
+        established overstates/misstates significance - this is the same methodology-quality
+        gap, just discovered later for Value specifically. ACTED ON: PE 18%->22%, PB 26%->18%,
+        PS 18%->22% (PE/PS raised to reflect being robustly comparable-to-strongest rather
+        than PE being uniquely weak; PB lowered to reflect being robustly weakest, though
+        still real and significant - not cut to zero). Combined PE+PB+PS weight held at 62%,
+        unchanged from the post-duplicate-collapse total above - this redistributes within
+        the three multiples, it doesn't reopen the EV/EBITDA/EV/Revenue redistribution.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
@@ -1708,6 +1866,11 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
 
         # P/E ratio: sweet spot 15-30 for growth momentum stocks
+        # Weight scaled 22%->18% 2026-08-25 (goal: close the Size-factor gap, see this
+        # function's docstring "SIZE FACTOR" section) - proportionally with PB/PS/PEG/FCF/
+        # Div/MoS below (each x0.8) to free 20pts for the new Size input, preserving every
+        # existing input's relative ratio to the others so the just-resolved PE-vs-PB/PS
+        # ranking dispute isn't reopened by this change.
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
@@ -1721,7 +1884,15 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += pe_score * 0.18
             total_weight += 0.18
 
-        # P/B ratio: lower is better for value; < 3 is reasonable for most sectors
+        # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
+        # Weight raised 20%->26% 2026-08-25 (goal: re-audit ALL stock_scores inputs) - freed
+        # from removing EV/EBITDA/EV/Revenue's duplicate weight (see this function's
+        # docstring); PB was independently identified as "the most genuinely distinct
+        # multiple" in that same pass, not boosted using the still-disputed PE-vs-PB/PS
+        # predictive-ranking question. LOWERED again 26%->18% same day, later pass - that
+        # ranking dispute was resolved and found PB robustly the WEAKEST of the three
+        # multiples, not the strongest (see docstring's "PE-vs-PB/PS RANKING DISPUTE" note).
+        # Scaled again 18%->14% same day (Size-factor gap, same proportional x0.8 as PE above).
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
@@ -1738,6 +1909,7 @@ class StockScoresLoader(OptimalLoader):
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
         # Previously fetched and displayed but never weighted (dead field).
+        # Weight scaled 22%->18% 2026-08-25 (Size-factor gap, same proportional x0.8 as PE).
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps = metrics["ps_ratio"]
             if ps <= 2.0:
@@ -1758,6 +1930,7 @@ class StockScoresLoader(OptimalLoader):
         # this loader's own PEG computation (load_sec_valuations.py) previously always
         # computed a growth rate of exactly 0 (comparing TTM EPS to itself), which was
         # fixed 2026-07-20 to use a genuine prior-fiscal-year EPS; backfills on next run.
+        # Weight scaled 10%->8% 2026-08-25 (Size-factor gap, same proportional x0.8 as PE).
         if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
             weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.08
             total_weight += 0.08
@@ -1768,6 +1941,11 @@ class StockScoresLoader(OptimalLoader):
         # re-multiply by 100 assuming a decimal fraction, so fcf_pct came out ~100x too high
         # (e.g. 227 for AAPL) and saturated fcf_score to 100 for virtually every FCF-positive
         # stock regardless of actual yield. This component was effectively a dead constant.
+        # Weight raised 10%->16% 2026-08-25 (goal: re-audit ALL stock_scores inputs) - freed
+        # from removing EV/EBITDA/EV/Revenue's duplicate weight; fcf_yield was independently
+        # confirmed a real, near-uncorrelated diversifier (t=1.62, directionally right) in the
+        # same pass, not a beneficiary of the disputed PE ranking. Scaled 16%->13% same day
+        # (Size-factor gap, same proportional x0.8 as PE above).
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
@@ -1778,6 +1956,10 @@ class StockScoresLoader(OptimalLoader):
         # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
         # stored as a decimal fraction (0.03 = 3%), so the *100 conversion below is correct
         # for this field - do not "fix" it to match fcf_yield's convention.
+        # Weight raised 2%->4% 2026-08-25 - modest bump from the same EV/EBITDA/EV/Revenue
+        # redistribution; kept small since this field's own signal is still inconclusive
+        # (t=0.98, unchanged from the earlier pooled-panel finding). Scaled 4%->3% same day
+        # (Size-factor gap, same proportional x0.8 as PE above).
         if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
@@ -1790,9 +1972,21 @@ class StockScoresLoader(OptimalLoader):
         # it shares trailing P/E's weaker theoretical standing (see PE's block above) plus
         # analyst-forecast optimism bias on top. Not worth any weight over PB/PS/PEG.
 
-        # EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (see this function's docstring RESOLVED
-        # note) - r=1.00/0.93 duplicates of ps_ratio/pe_ratio respectively. Still fetched/
-        # displayed elsewhere (_get_value_metrics, scores page), just no longer scored here.
+        # EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (goal: re-audit ALL stock_scores inputs
+        # for the "counted twice" bug class already fixed elsewhere - Momentum's ROC-vs-
+        # return-windows, Quality's double-counted debt_to_assets): measured directly (150mo
+        # pooled correlation, n=45,806) ps_ratio and ev_revenue correlate r=1.00 (literally the
+        # same signal - EV only adds net debt/share, negligible next to price for most names),
+        # pe_ratio and ev_ebitda correlate r=0.93 (near-duplicate). Both fields are still
+        # fetched/displayed (loaders/load_stock_scores.py's _get_value_metrics, scores page) -
+        # only their consumption here was removed, same convention as other
+        # computed-but-unscored fields in this file. Their freed 16pts (8% each) went to PB
+        # (+6, the most genuinely distinct multiple per the same correlation pass - only
+        # 0.32-0.38 correlated with pe/ps/ev_ebitda/ev_revenue), FCF yield (+6, real
+        # near-uncorrelated diversifier, t=1.62), and Dividend yield/Margin of Safety (+2 each,
+        # weaker but still genuinely distinct diversifiers) - see this function's docstring for
+        # the full evidence and why PE/PS were deliberately left untouched (separate,
+        # unreconciled dispute about their relative predictive ranking).
 
         # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
         # migration 1208) - positive means the stock trades below its DCF intrinsic value
@@ -1800,6 +1994,12 @@ class StockScoresLoader(OptimalLoader):
         # function, a legitimate value can be negative (a real, meaningful "overvalued"
         # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
         # drop this input instead of being correctly scored low.
+        # Weight raised 6%->8% 2026-08-25 - modest bump from the same EV/EBITDA/EV/Revenue
+        # redistribution; DCF-based margin of safety wasn't in scope for the FM panel that
+        # drove this pass (see that panel's own docstring: "PEG and margin-of-safety out of
+        # scope"), so this bump rests on it being a real, structurally distinct signal
+        # (already established when it was reinstated 2026-08-24), not new FM evidence.
+        # Scaled 8%->6% same day (Size-factor gap, same proportional x0.8 as PE above).
         if metrics.get("margin_of_safety_pct") is not None:
             mos = metrics["margin_of_safety_pct"]
             if mos >= 50:
@@ -1813,14 +2013,25 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += mos_score * 0.06
             total_weight += 0.06
 
-        # SIZE (market cap): added 2026-08-25 (see this function's docstring "SIZE FACTOR"
-        # section) - Fama-French SMB, Banz 1981. Scored on log10(market_cap) rather than raw
-        # dollars - market cap spans 5+ orders of magnitude (micro-cap ~$50M to mega-cap
-        # >$3T), so a linear scale would compress small-vs-mid distinctions into a rounding
-        # error next to the mega-cap tail. Bucket boundaries follow standard market-cap tier
-        # conventions (micro <$300M, small $300M-2B, mid $2B-10B, large $10B-200B, mega
-        # >$200B) rather than a data-fitted curve, since the FM test validates the direction
-        # and rough magnitude of the size effect, not a precise functional form.
+        # SIZE (market cap): added 2026-08-25 (goal: close the highest-confidence gap found
+        # in this session's full re-audit - see this function's docstring "SIZE FACTOR"
+        # section). Fama-French (1992/1993) SMB - the original size effect, Banz (1981) - is
+        # completely absent from this pillar's live formula despite market_cap already being
+        # stored on value_metrics (77.4% coverage, no schema change needed). Tested directly:
+        # log(market_cap) vs forward 1-month return, 150 months 2014-2026, median 2,601
+        # symbols: t=-5.37 - nearly as strong as volatility_60d's t=-6.1, the single
+        # strongest finding across this whole session's re-audit. Smaller companies show a
+        # robust forward-return premium in this exact dataset, matching 60+ years of
+        # replicated literature. Scored on log10(market_cap) rather than raw dollars -
+        # market cap spans 5+ orders of magnitude (micro-cap ~$50M to mega-cap >$3T), so a
+        # linear scale on the raw dollar figure would compress the entire distinction between
+        # small and mid caps into a rounding error next to the mega-cap tail. Bucket
+        # boundaries follow standard market-cap tier conventions (micro <$300M, small
+        # $300M-2B, mid $2B-10B, large $10B-200B, mega >$200B) rather than a data-fitted
+        # curve, since the FM test validates the DIRECTION and rough magnitude of the size
+        # effect, not a precise functional form. Weight 20% - among the two or three
+        # strongest signals in the whole file, matching that empirical strength, not a
+        # placeholder value.
         if metrics.get("market_cap") is not None and metrics["market_cap"] > 0:
             log_mc = math.log10(metrics["market_cap"])
             if log_mc <= 8.48:  # <= ~$300M (micro-cap)
@@ -1864,24 +2075,49 @@ class StockScoresLoader(OptimalLoader):
         mainly as a flow/change signal, not a level factor - a 55% weight on the raw level was
         higher than that literature supports even before the data-availability problem.
 
-        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: re-audit ALL
-        stock_scores inputs without bias, explicitly including inputs the user has already
-        weighed in on). institutional_ownership_pct/short_interest_pct remain untestable
-        (short_interest_finra has only 2 months of real settlement-date coverage). ad_rating
-        IS testable though - a pure price/volume indicator (Chaikin Money Flow), fully
-        point-in-time-safe from price_daily's OHLCV columns. Checked with THREE independent
-        methodologies rather than trusting one result: (1) linear Fama-MacBeth
-        (algo/research/fama_macbeth_positioning_factors.py): t=-0.23 (133 months) - no signal.
-        (2) A methodology check (IBD explicitly designs A/D as a CAN SLIM screening GATE
-        evaluated at a breakout, not a standing universe-wide linear rank) - decile sort found
-        no clean monotonic or threshold pattern either, top deciles too data-sparse to trust.
-        (3) Event-conditional test closer to IBD's actual design: among 1.9M new-20-day-high
-        events, ad_rating at breakout vs. forward-20-day return showed an economically trivial
-        gap (0.63% vs 0.74% top/bottom decile). All three methods agree: no material signal
-        detected for this pillar's largest weight (35%). Surfaced, not overridden: this weight
-        was an explicit user directive, not an empirical claim from the redesign - a null
-        result doesn't automatically invalidate a stated preference for reasons beyond pure
-        return prediction.
+        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: re-audit ALL stock_scores
+        inputs without bias toward what already shipped, explicitly including inputs the user
+        has already weighed in on). institutional_ownership_pct/short_interest_pct remain
+        untestable for the reason already documented above (checked short_interest_finra
+        directly this pass too: 16,151 rows/5,553 symbols but only 2 months of real settlement-
+        date coverage, June-July 2026 - not enough for any time-series test). ad_rating IS
+        testable though - it's a pure price/volume indicator (Chaikin Money Flow,
+        loaders/technical_indicators.py::compute_ad_rating), fully point-in-time-safe from
+        price_daily's OHLCV columns. Built algo/research/fama_macbeth_positioning_factors.py to
+        reconstruct it exactly and test it: t=-0.23 (133 months, median 3,662 symbols/month) -
+        no detectable forward-return signal at all for this pillar's largest weight (35%).
+        Surfaced, not overridden: this weight was an explicit user directive ("the user
+        considers it this pillar's most important signal and that call stands," per the note
+        above), not an empirical claim from the redesign, and a null return-prediction result
+        doesn't necessarily mean the indicator has no value to the user for other reasons (e.g.
+        as a volume-confirmation filter). Flagging per this pass's own instruction to surface
+        findings honestly even against prior decisions, not silently changing a stated
+        preference.
+
+        METHODOLOGY CHECK (2026-08-25, same pass, user-prompted): a linear monthly-rebalanced
+        Fama-MacBeth test is arguably the WRONG test for A/D rating in the first place - IBD
+        explicitly designs it as a screening GATE within CAN SLIM's "I" (Institutional
+        Sponsorship) criterion, evaluated AT A BREAKOUT, not as a standing universe-wide linear
+        rank (confirmed via IBD's own published methodology description, not assumed). Checked
+        two alternative framings rather than trusting the single linear result: (1) a decile
+        sort (nonparametric, no linearity assumption) - not clean either: deciles 0-3 average
+        ~1.0-1.1%/month, decile 4-7 fall toward ~0.1-0.9%, deciles 8-9 "recover" to 1.4-1.7% but
+        on only 16 and 4 of 133 months respectively (too data-sparse to trust - most months'
+        cross-section doesn't spread across all 10 buckets). No clean monotonic OR threshold
+        pattern emerges. (2) An event-conditional test closer to IBD's actual design: among
+        1,923,394 new-20-day-high events (a standard but crude breakout proxy - not this
+        system's own base-and-breakout detection, which needs buy_sell_daily's
+        base_type/breakout_quality/market_stage fields but that table only has 2.5 months of
+        history, June-August 2026, too young to backtest), ad_rating at the breakout vs.
+        forward-20-trading-day return: Spearman rho=-0.0229 (p=1.6e-220 - significant only
+        because n=1.9M, the exact pooled-panel over-significance problem flagged throughout
+        this file's other OPEN QUESTION notes), bottom-decile vs. rest mean returns
+        0.628%/0.740% - an economically trivial gap. Three different methodologies (linear,
+        nonparametric decile, event-conditional) now agree: no material forward-return signal
+        detected for ad_rating by any test tried. This is stronger evidence than the original
+        single linear result, though the breakout proxy's crudeness means a genuine test against
+        this system's own base-pattern detection is still the fairest one, once buy_sell_daily
+        accumulates enough history to backtest against.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 positioning field → returns float (0-100)
@@ -1993,22 +2229,47 @@ class StockScoresLoader(OptimalLoader):
         algo/research/fama_macbeth_price_factors.py): built a proper monthly cross-sectional
         Fama-MacBeth panel (126 months, 2016-01 to 2026-06, median 3,409 symbols/month,
         z-scored factors, 1%/99% winsorized) regressing forward 1-month return on
-        vol/downside_vol/beta/max_drawdown/momentum jointly. volatility_60d was the single
-        strongest, most robust signal in the entire panel (multivariate coef=-0.0071/month,
-        t=-6.07) - low vol robustly predicts higher forward return, same direction this pillar
-        already scores it. downside_volatility_60d, once vol is in the regression alongside it,
-        carries NO independent signal and comes out wrong-signed (coef=+0.0013, t=+1.39) -
-        consistent with the 2026-08-25 stability consolidation's own finding that symmetric and
-        downside volatility windows correlate 0.52-0.92 with each other. Moved 10pts of weight
-        from downside_vol to vol accordingly. beta and max_drawdown weights left unchanged:
-        beta's insignificance (t=0.93) doesn't call for a change since this pillar deliberately
-        scores beta-near-1.0 for swing-trading fit, not as a return predictor. max_drawdown_1y
-        came back wrong-signed too (coef=-0.0043, t=-1.65) but only marginally (~p=0.10) - not
-        strong enough evidence to flip a pillar's semantic meaning on a live-money system; a
-        follow-up sub-period robustness check found the effect genuinely flips sign between
-        2016-2021 (t=-1.61) and 2021-2026 (t=+1.75) with a ~zero full-sample average (t=0.07) -
-        not a stable relationship in either direction, so correctly left unflipped rather than
-        acted on.
+        vol/downside_vol/beta/max_drawdown/momentum jointly - unlike the pooled-panel Spearman
+        correlations used in the rest of this file's 2026-08-25 audit (which treat every
+        symbol-month as an independent observation and understate correlation within a month,
+        inflating significance), Fama-MacBeth averages one regression per month so the t-stats
+        are month-count-limited (n=126), not observation-count-limited. Result: volatility_60d
+        was the single strongest, most robust signal in the entire panel (multivariate
+        coef=-0.0071/month, t=-6.07) - low vol robustly predicts higher forward return, same
+        direction this pillar already scores it. downside_volatility_60d, once vol is in the
+        regression alongside it, carries NO independent signal and comes out wrong-signed
+        (coef=+0.0013, t=+1.39, i.e. not distinguishable from zero and if anything pointing the
+        wrong way) - consistent with the 2026-08-25 stability consolidation's own finding that
+        symmetric and downside volatility windows correlate 0.52-0.92 with each other; downside_vol
+        is largely re-measuring what vol already captures. Moved 10pts of weight from
+        downside_vol to vol accordingly. beta and max_drawdown weights left unchanged: beta's
+        insignificance (t=0.93) doesn't call for a change since this pillar deliberately scores
+        beta-near-1.0 for swing-trading fit, not as a return predictor (see below) - a flat
+        regression coefficient doesn't contradict a non-alpha design goal. max_drawdown_1y came
+        back wrong-signed too (coef=-0.0043, t=-1.65, i.e. bigger past drawdowns weakly
+        associated with HIGHER forward returns, the opposite of what this pillar assumes) but
+        only marginally (~p=0.10) - not strong enough evidence to flip a pillar's semantic
+        meaning on a live-money system; flagged as an open question pending the named follow-up
+        (sub-period stability, Newey-West-adjusted SE) rather than acted on that day.
+
+        RESOLVED 2026-08-25 (same-day follow-up, goal: finish the named follow-up rather than
+        leave it open): ran exactly that follow-up - univariate-only max_dd regression (isolates
+        it from the multivariate collinearity that produced the -1.65 reading above), both a
+        Newey-West(3-lag) HAC-adjusted SE on the full 127-month sample and a first-half/second-
+        half/tercile sub-period split. Full-sample univariate signal is indistinguishable from
+        zero (mean=+0.00017, naive t=0.07, Newey-West t=0.06 - HAC adjustment barely moves it,
+        so serial correlation wasn't hiding a real effect either). More importantly it is NOT
+        STABLE: first half (2016-01 to 2021-03, 63mo) is wrong-signed (t=-1.61, agreeing with
+        the original multivariate finding's direction) while the second half (2021-04 to
+        2026-07, 64mo) is right-signed (t=+1.75) - a clean sign flip across the sample, not
+        random noise around one stable value. Terciles confirm the same pattern (weak-negative,
+        weak-negative, then positive). Conclusion: the original wrong-signed multivariate
+        reading was very likely a collinearity artifact from being jointly estimated alongside
+        vol/downside_vol/beta/momentum (the same artifact class documented in Momentum's own
+        multivariate coefficients elsewhere in this file), not a real, exploitable anomaly in
+        either direction - there is no stable relationship here to flip the sign FOR. Correctly
+        left as originally designed (higher/less-severe max_drawdown_1y scores better); this
+        question is now closed with evidence rather than left open on caution alone.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 stability field → returns float (0-100)
@@ -2157,9 +2418,11 @@ class StockScoresLoader(OptimalLoader):
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month (35%) + RSI(14) (21%)
-        + MACD sign (16%) + SMA positioning (8%). Normalizes by total weight of available
-        components so partial data doesn't deflate the score.
+        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month momentum (35%) + RSI(14)
+        (21%) + MACD sign (16%) + SMA positioning (8%). Normalizes by total weight of
+        available components so partial data doesn't deflate the score. Raw momentum_6m/
+        momentum_12m REPLACED 2026-08-25 by a derived 12-1 construction - see RESOLVED note
+        below.
 
         REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): momentum_1m and the
         ROC composite both removed. ROC composite was pure redundancy - roc_20d/60d/120d/252d
@@ -2169,38 +2432,83 @@ class StockScoresLoader(OptimalLoader):
         standard academic 12-1 momentum construction (Jegadeesh 1990 short-term reversal) -
         see the weights dict below for the empirical confirmation in our own data.
 
-        OPEN QUESTION / RESOLVED 2026-08-25 (same day, later pass - goal: re-audit ALL
-        stock_scores inputs, full multivariate Fama-MacBeth test of this ENTIRE pillar via
-        algo/research/fama_macbeth_momentum_factors.py): found severe multicollinearity among
-        the 6 live inputs (measured directly, 121-month pooled correlation): mom_12m/mom_6m
-        r=0.83, price_vs_sma_50/200 r=0.87, rsi_14/macd_sign r=0.70, mom_3m/mom_6m r=0.69 -
-        comparable to the 0.52-0.92 range that justified consolidating Stability's 6
-        volatility windows, except this pillar's inputs never got that treatment. A
-        confirmatory re-run found none of the four return-window constructions (mom_12_1
-        included) individually significant on their own (all |t|<1.1) - no "drop the weakest,
-        keep the strongest" call available from significance alone, unlike Value's clean
-        finding. RESOLVED anyway on redundancy + literature-convention grounds (the same
-        evidentiary bar Stability's consolidation used): momentum_6m and raw momentum_12m
-        REPLACED by a derived 12-1 skip-month construction (Jegadeesh 1990's actual
-        specification) - momentum_6m was the most redundant "middle" window (correlated with
-        both neighbors) and raw momentum_12m carried the same recency-reversal contamination
-        this pillar's own momentum_1m removal above was designed to avoid. No new stored field
-        needed: mom_12_1 (cumulative return from 12mo-ago to 1mo-ago) is algebraically derived
-        from momentum_12m and momentum_1m, both already fetched here -
-        ((1+momentum_12m/100)/(1+momentum_1m/100)-1)*100. Weight 35% = the exact combined
-        weight momentum_6m(20%)+momentum_12m(15%) previously carried - a straight
-        consolidation of redundant windows' weight into the literature-correct construction,
-        not a new claim about relative signal strength. momentum_3m kept unchanged (least
-        correlated of the trio, a genuine short-horizon complement to the long-horizon signal).
+        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: re-audit ALL stock_scores
+        inputs without bias toward what already shipped): built
+        algo/research/fama_macbeth_momentum_factors.py - reconstructs RSI(14)/MACD/SMA(50,200)
+        directly from price_daily (Wilder 1978 RSI convention, standard 12/26/9 MACD EMAs) so
+        the ENTIRE live Momentum input set (not just the 3m/6m/12m windows tested in
+        fama_macbeth_price_factors.py) could be regressed jointly for the first time. Found
+        severe multicollinearity, measured directly (121-month pooled correlation matrix):
+        mom_12m/mom_6m r=0.83, rsi_14/macd_sign r=0.70, price_vs_sma_50/200 r=0.87,
+        mom_3m/mom_6m r=0.69 - comparable in magnitude to the 0.52-0.92 range that justified
+        consolidating Stability's 6 volatility windows down to 2, except this pillar's 6 inputs
+        never got that treatment. Consequence: multivariate FM coefficients for mom_6m,
+        macd_sign, and price_vs_sma_200 all FLIP SIGN between univariate and multivariate specs
+        (e.g. macd_sign t=-0.37 alone vs t=+2.95 controlling for the others) - a classic
+        collinearity symptom, meaning none of those multivariate coefficients are trustworthy
+        standalone evidence for reweighting. The one factor that stayed directionally stable
+        both ways was rsi_14 (t=-1.83 univariate, -1.89 multivariate) - consistently NEGATIVE,
+        i.e. high RSI (overbought) weakly predicts LOWER forward return in this data, the
+        mean-reversion/oscillator interpretation Wilder originally designed RSI for, not this
+        pillar's current trend-following "higher RSI = more bullish" treatment. Lower
+        evidentiary tier than the JoF-grade factors elsewhere in this file though - RSI is a
+        technical-analysis heuristic without the same academic asset-pricing literature behind
+        it, so this is an internal-data finding, not a replicated anomaly. The right fix here
+        is a consolidation pass (fewer, less-redundant inputs, same treatment Stability
+        already got) before any reweighting - extracting weights from an unstable collinear
+        regression would just encode noise (see RESOLVED note below for what was actually
+        done). (Growth's open question, previously cited here as the same-tier companion
+        item, is now resolved - see that pillar's docstring.)
 
-        RSI SIGN QUESTION - also checked (same method used for Stability's max_drawdown_1y):
-        rsi_14's negative univariate coefficient is directionally consistent (not a sign flip)
-        across most sub-periods but fades to indistinguishable-from-zero in the most recent
-        ~3.5 years - a decaying-but-not-reversing pattern. NOT flipping this pillar's "higher
-        RSI = more bullish" treatment: RSI is a technical-analysis heuristic without the same
-        academic asset-pricing literature behind it as Value/Growth's anomalies, and the
-        effect is weakest exactly in the most recent period (McLean-Pontiff decay logic) - so
-        acting on it now would mean trading on an already-decayed relationship.
+        CONFIRMATORY RE-RUN 2026-08-25 (same-day follow-up, goal: check whether this needed
+        more than a re-statement before the next session touches it): re-ran
+        fama_macbeth_momentum_factors.py fresh rather than relying on the numbers above.
+        Univariate results for the four return-window factors are ALL statistically
+        indistinguishable from zero: mom_12_1 (proper Jegadeesh 1990 skip-month construction,
+        not a live input at the time of this run) t=1.04, mom_3m t=-0.88, mom_6m t=-0.38,
+        mom_12m t=0.38 - none exceed |t|=1.1, so there is no "drop the weakest, keep the
+        strongest" call available from significance alone (unlike Value's clean PB-is-most-
+        distinct finding). mom_12_1 was nominally the strongest of the four - suggestive, not
+        conclusive on significance, but real: it's the actual literature-standard momentum
+        construction (Jegadeesh 1990/Jegadeesh-Titman 1993/Carhart 1997 UMD), not an ad hoc
+        pick, independent of whether this internal sample confirms it.
+
+        RESOLVED 2026-08-25 (same-day follow-up, acting on the next-step spec above):
+        momentum_6m and momentum_12m REPLACED by a derived 12-1 skip-month construction,
+        following the exact same "collapse redundant windows, keep the total category weight"
+        treatment already applied to Stability's 6 volatility windows. momentum_6m was the
+        most redundant "middle" window (r=0.69 with 3m, r=0.83 with 12m - correlated with
+        both neighbors, contributing the least unique information of the three) and
+        momentum_12m's simple trailing-return construction is exactly the recency-
+        contaminated shape this pillar's docstring already flagged as a problem when it
+        dropped momentum_1m for the same Jegadeesh 1990 reason above - that reasoning was
+        never carried through to fix the 12m window itself until now. No new stored field
+        needed: mom_12_1 (cumulative return from 12mo-ago to 1mo-ago) is algebraically
+        derivable from momentum_12m and momentum_1m, both already fetched here -
+        ((1+momentum_12m/100)/(1+momentum_1m/100) - 1)*100. Weight 35% = the exact combined
+        weight momentum_6m(20%) + momentum_12m(15%) previously carried - a straight
+        consolidation of the redundant windows' weight into the literature-correct
+        construction, not a new claim about relative signal strength (this data's own
+        univariate test above found none of the four constructions individually
+        significant - the redistribution rests on redundancy + literature convention, the
+        same evidentiary bar Stability's consolidation used, not on this session's t-stats).
+        momentum_3m kept unchanged (least correlated of the trio, r=0.69 with 6m, a genuine
+        short-horizon complement to the now-proper long-horizon signal).
+
+        RSI SIGN QUESTION - sub-period-checked same session (same method that closed
+        Stability's max_drawdown_1y question, see that pillar's docstring): unlike
+        max_drawdown_1y, rsi_14's negative univariate coefficient is NOT a sign flip - it's
+        directionally consistent negative in 3 of 4 sub-samples (full sample t=-1.91, first
+        half 2016-06/2021-06 t=-2.07, tercile 1 t=-1.54, tercile 2 t=-1.60) but fades to
+        indistinguishable-from-zero in the most recent ~3.5 years (second half t=-0.45,
+        tercile 3 2023-02/2026-07 t=+0.08) - a decaying-but-not-reversing pattern, not noise
+        flipping sign. Still NOT flipping this pillar's "higher RSI = more bullish" treatment:
+        (1) even the strongest historical reading (t≈-2) is a technical-analysis heuristic
+        without the JoF-grade literature backing behind Value/Growth's anomalies, (2) the
+        effect is weakest exactly in the most recent period, so acting on it now would mean
+        trading on a relationship that has already largely decayed away, the same
+        McLean-Pontiff logic already applied to Growth's asset_growth_yoy elsewhere in this
+        file. Correctly left as originally designed; this sub-question is closed (won't flip).
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 scoreable field → returns float (0-100)
@@ -2219,15 +2527,17 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_metrics_data"}
 
-        # Named weights (2026-08-25 redesign, see docstring): momentum_1m dropped entirely -
-        # standard academic 12-1 momentum construction (Jegadeesh 1990) deliberately excludes
-        # the most recent month. Our own panel confirmed why: trailing-1m return vs forward-1m
-        # return showed Spearman=-0.031 (p=4.2e-97, short-term reversal), but a double sort
-        # controlling for 12-1 momentum showed the reversal is concentrated almost entirely in
-        # low-momentum (losing) names (-0.31 spread) while high-momentum names showed
-        # continuation instead (+0.39 spread) - a flat weighted-sum score can't encode that
-        # interaction, so the conservative fix is dropping the most-recent-month return
-        # entirely rather than half-encoding a conditional effect.
+        # Named weights (2026-08-25 redesign, see docstring): momentum_1m dropped as a
+        # standalone scored timeframe - standard academic 12-1 momentum construction
+        # (Jegadeesh 1990) deliberately excludes the most recent month's raw return. Our own
+        # panel confirmed why: trailing-1m return vs forward-1m return showed Spearman=-0.031
+        # (p=4.2e-97, short-term reversal), but a double sort controlling for 12-1 momentum
+        # showed the reversal is concentrated almost entirely in low-momentum (losing) names
+        # (-0.31 spread) while high-momentum names showed continuation instead (+0.39 spread) -
+        # a flat weighted-sum score can't encode that interaction, so the conservative fix is
+        # dropping the most-recent-month return as its own scored input. momentum_1m is still
+        # read below (see mom_12_1 derivation) - as an input to the 12-1 construction Jegadeesh
+        # 1990 actually specifies, not as a standalone score.
         weights = {
             "momentum_3m": 0.20,
         }

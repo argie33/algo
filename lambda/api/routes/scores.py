@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from typing import Any
 
@@ -131,16 +132,24 @@ def handle(
 
 
 def _derive_mom_12_1(momentum_12m: float | None, momentum_1m: float | None) -> float | None:
-    """12-1 skip-month momentum (Jegadeesh 1990), derived from stored momentum_12m/1m -
-    same formula as loaders/load_stock_scores.py::_score_momentum, kept in sync for display.
+    """12-1 skip-month momentum (Jegadeesh 1990 standard construction) - the actual quantity
+    loaders/load_stock_scores.py's _score_momentum weights at 35% since 2026-08-25 (see that
+    function's docstring RESOLVED note), replacing raw momentum_6m/momentum_12m. Not a stored
+    field - derived here the identical way, so this page shows the real number driving the
+    score instead of the raw momentum_12m value that no longer is the score input (same
+    "computed but invisible" bug class this codebase has fixed before for
+    vol_managed_multiplier/active_policy_tier - a scored quantity must be visible somewhere,
+    not just its stale predecessor). Cumulative return from 12mo-ago to 1mo-ago is
+    algebraically (1+momentum_12m/100)/(1+momentum_1m/100) - 1, converted back to the
+    percentage-number convention this page's other momentum fields use.
     """
     if momentum_12m is None or momentum_1m is None:
         return None
-    denom = 1.0 + momentum_1m / 100.0
+    denom = 1.0 + float(momentum_1m) / 100.0
     if abs(denom) <= 1e-6:
         return None
-    value = ((1.0 + momentum_12m / 100.0) / denom - 1.0) * 100.0
-    return value if value == value and abs(value) != float("inf") else None  # NaN/Infinity guard
+    result = ((1.0 + float(momentum_12m) / 100.0) / denom - 1.0) * 100.0
+    return result if math.isfinite(result) else None
 
 
 def _get_stock_details(cur: cursor, symbol: str) -> Any:
@@ -601,6 +610,12 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     "insufficient_history" if data.get("momentum_12m_val") is None and _phist_days < 252 else None
                 ),
                 "momentum_12_1": _derive_mom_12_1(data.get("momentum_12m_val"), data.get("momentum_1m_val")),
+                "momentum_12_1_unavailable_reason": (
+                    "insufficient_history"
+                    if _derive_mom_12_1(data.get("momentum_12m_val"), data.get("momentum_1m_val")) is None
+                    and _phist_days < 252
+                    else None
+                ),
                 "rsi": data.get("tdd_rsi"),
                 "macd": data.get("tdd_macd"),
                 "roc_20d": data.get("tdd_roc_20d"),
@@ -1487,6 +1502,12 @@ def _get_stock_scores(  # noqa: C901
                     "insufficient_history" if d.get("momentum_12m_val") is None and _phist_days < 252 else None
                 ),
                 "momentum_12_1": _derive_mom_12_1(d.get("momentum_12m_val"), d.get("momentum_1m_val")),
+                "momentum_12_1_unavailable_reason": (
+                    "insufficient_history"
+                    if _derive_mom_12_1(d.get("momentum_12m_val"), d.get("momentum_1m_val")) is None
+                    and _phist_days < 252
+                    else None
+                ),
                 "rsi": d.get("tdd_rsi"),
                 "macd": d.get("tdd_macd"),
                 "roc_20d": d.get("tdd_roc_20d"),

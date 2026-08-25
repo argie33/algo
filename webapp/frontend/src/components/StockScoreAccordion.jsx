@@ -863,16 +863,42 @@ const QUALITY_SCHEMA = [
     used: true,
     weight: "±3 adj",
   },
-  // eps_growth_stability/operating_margin_trend/net_margin_trend/roe_trend: briefly wired
-  // into _enhance_quality_score 2026-08-25 as ±adjustments, then REMOVED same day on user
-  // feedback - these are "consistency of improvement" signals, not the balance-sheet-
-  // health/margin-level character the rest of Quality measures, and moving them here from
-  // Growth was a taxonomy stretch, not an evidenced placement. A later pass checked the
-  // literature (Piotroski F-Score, AFP Quality Minus Junk both DO place this class of
-  // signal inside Quality conceptually) AND ran a point-in-time Fama-MacBeth test - all
-  // three came back genuinely flat (t<1, 150 months) - correct conceptual home is Quality,
-  // but none earn their keep empirically here. Fields still computed/stored upstream, just
-  // no longer scored or displayed on this tab.
+  // RE-ADDED 2026-08-25 (goal: full scoring-architecture audit): eps_growth_stability was
+  // cut 20260816 as an unweighted reference field ("no scoring impact") - it's now wired
+  // into _enhance_quality_score as a real ±3 adjustment (stddev of trailing 4-quarter EPS
+  // growth - lower = more consistent earnings = higher quality, the QMJ "safety" concept).
+  // earnings_growth_yoy REMOVED from _enhance_quality_score entirely (it duplicated the
+  // entire Growth pillar's purpose) and replaced with this plus the margin/ROE trend
+  // fields below, relocated from the Growth tab (they measure quality-of-earnings
+  // direction, not growth magnitude).
+  {
+    key: "eps_growth_stability",
+    label: "EPS Growth Stability (lower = more consistent)",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "±3 adj",
+  },
+  {
+    key: "operating_margin_trend",
+    label: "Op Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "±2 adj",
+  },
+  {
+    key: "net_margin_trend",
+    label: "Net Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "±2 adj",
+  },
+  {
+    key: "roe_trend",
+    label: "ROE Trend",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "±2 adj",
+  },
   // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
   // tab (earnings_surprise_avg, earnings_beat_rate, consecutive_positive_quarters,
   // free_cashflow, operating_cashflow, total_debt, total_cash, earnings_growth_4q_avg)
@@ -890,13 +916,17 @@ const QUALITY_SCHEMA = [
 // removed - it restated the same `close.pct_change()` computation as momentum_3m/6m/12m
 // over near-identical trading-day windows, not a diversifying signal. Freed weight moved
 // to RSI/MACD (genuinely distinct technical signals) and the remaining return windows.
-// momentum_6m and raw momentum_12m (momentum_12_3) REPLACED 2026-08-25 (goal: act on this
-// pillar's own named consolidation plan) by a derived 12-1 skip-month construction -
-// momentum_6m was the most redundant "middle" window (r=0.69 with 3m, r=0.83 with 12m) and
-// raw momentum_12m carried the same recency-reversal contamination this pillar's own
-// momentum_1m removal already avoided. See loaders/load_stock_scores.py's _score_momentum
-// docstring (RESOLVED note) for the full evidence - 35% weight = the exact combined
-// 6m(20%)+12m(15%) it replaced.
+//
+// momentum_6m and raw momentum_12m (momentum_12_3) REPLACED 2026-08-25 (same-day
+// follow-up, goal: act on this pillar's own named consolidation plan) by a derived 12-1
+// skip-month construction - momentum_6m was the most redundant "middle" window (r=0.69
+// with 3m, r=0.83 with 12m per algo/research/fama_macbeth_momentum_factors.py) and raw
+// momentum_12m carried the same recency-reversal contamination this pillar's own 1m
+// removal above was designed to avoid. See lambda/api/routes/scores.py's
+// _derive_mom_12_1 and loaders/load_stock_scores.py's _score_momentum docstring
+// (RESOLVED note) for the full evidence - this shows the actual number the score now
+// uses (35% weight = the exact combined 6m(20%)+12m(15%) it replaced), not a stale
+// predecessor value.
 const MOMENTUM_SCHEMA = [
   {
     key: "momentum_3m",
@@ -978,6 +1008,32 @@ const MOMENTUM_SCHEMA = [
 // a token weight - tested inconclusive (marginal p=0.036 full-sample, vanished to p=0.542
 // in the best-covered recent sub-period). Margin-of-safety's weight reduced (not removed)
 // to reflect its already-documented DCF growth-cap bias.
+//
+// EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (same-day follow-up, goal: re-audit ALL
+// stock_scores inputs) - measured directly (150mo pooled, n=45,806): ps_ratio/ev_revenue
+// correlate r=1.00 (literally the same signal), pe_ratio/ev_ebitda r=0.93 (near-duplicate) -
+// same "counted twice" bug class already fixed for Momentum's ROC and Quality's
+// debt_to_assets. Their combined 16pts initially moved to P/B (+6, "most genuinely
+// distinct multiple" per the same correlation pass), FCF Yield (+6, real near-uncorrelated
+// diversifier), and Dividend Yield/Margin of Safety (+2 each). Both removed fields stay
+// fetched/displayed elsewhere on this page, just no longer weighted here.
+//
+// PE/PB/PS reweighted AGAIN same day (later pass) - a sub-period-robust Fama-MacBeth
+// re-test found PB is the WEAKEST of the three multiples and PE/PS are comparably strong
+// (the opposite ranking from the pooled-Spearman claim that originally justified cutting
+// PE from 45% to 18%) - see loaders/load_stock_scores.py's _score_value docstring
+// ("PE-vs-PB/PS RANKING DISPUTE - RESOLVED") for the full evidence.
+//
+// SIZE (market_cap) ADDED 2026-08-25 (goal: close the highest-confidence gap found in this
+// session's full stock_scores re-audit) - Fama-French SMB (Banz 1981) was completely absent
+// from all 6 pillars despite market_cap already being available (77.4% coverage on
+// value_metrics, no schema/API change needed - already returned by lambda/api/routes/
+// scores.py). log(market_cap) vs forward 1-month return tested at t=-5.37 (150 months,
+// median 2,601 symbols) - nearly as strong as volatility_60d's t=-6.1, this session's
+// single strongest finding. The other 7 inputs below were uniformly scaled x0.8 to free
+// 20pts for this, not re-litigating either ranking dispute already resolved above. See
+// loaders/load_stock_scores.py's _score_value docstring ("SIZE FACTOR") for the full
+// evidence and the log10-bucketed scoring curve.
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
@@ -1036,10 +1092,6 @@ const VALUE_SCHEMA = [
     weight: "20%",
   },
   // stock_forward_pe removed 2026-08-25 - see comment above.
-  // stock_ev_ebitda/stock_ev_revenue removed 2026-08-25 - r=0.93/1.00 duplicates of
-  // pe_ratio/ps_ratio respectively (measured directly, 150mo pooled, n=45,806). Still
-  // fetched/displayed elsewhere, just no longer scored. market_cap (Size, Fama-French SMB)
-  // added same day - see loaders/load_stock_scores.py's _score_value docstring "SIZE FACTOR".
 ];
 
 // REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): cut from 14 inputs to 4.
@@ -1054,8 +1106,19 @@ const VALUE_SCHEMA = [
 // ROE-driven). Dropped: EPS/Revenue 3y/5y CAGRs (redundant windows; 5y also had the worst
 // coverage, 38.9%/73.7% of the universe vs 1y's 75.6%/95.2%), NI/OI growth YoY (near-
 // duplicates of EPS growth), FCF/OCF growth YoY (no proven distinct value once tested at
-// the composite level). Margin/ROE trend fields moved to the Quality tab (see
-// QUALITY_SCHEMA) - they measure quality-of-earnings direction, not growth magnitude.
+// the composite level). Margin/ROE trend fields briefly moved to the Quality tab same day,
+// then removed from scoring entirely on user feedback (see QUALITY_SCHEMA comment) - not
+// re-homed, since they don't earn their keep empirically even in their correct conceptual
+// home (Quality, per Piotroski F-Score / AFP Quality Minus Junk literature).
+//
+// REWEIGHTED 2026-08-25 (goal: horizon-matched re-audit, later same day): eps_growth_1y cut
+// 45%->25% - Fama-MacBeth at the 1-month horizon (matched to this system's actual weeks-scale
+// swing-trading holding period) found it robustly null (t=0.76/0.97), the cleanest null in
+// this pillar across every horizon/spec tested. asset_growth_yoy/revenue_growth_1y/
+// sustainable_growth_rate raised to absorb the freed weight - see
+// loaders/load_stock_scores.py's _score_growth docstring for the full per-field reasoning
+// (asset_growth's weaker-than-claimed showing has a specific explanation - McLean & Pontiff
+// 2016 post-publication anomaly decay - that eps_growth_1y's null doesn't have).
 const GROWTH_SCHEMA = [
   {
     key: "eps_growth_1y_pct",
@@ -1189,4 +1252,13 @@ const STABILITY_SCHEMA = [
   },
   // volatility_12m/30d and downside_volatility_252d/30d removed 2026-08-25 - see comment
   // above.
+  //
+  // REWEIGHTED 2026-08-25 (goal: Fama-MacBeth factor-weighting pass, see
+  // algo/research/fama_macbeth_price_factors.py): a monthly cross-sectional Fama-MacBeth
+  // panel (126 months, 2016-2026) found volatility_60d the strongest, most robust
+  // predictor of forward return in the whole panel (t=-6.07), while downside_volatility_60d
+  // added no independent signal once volatility_60d was controlled for (t=+1.39, wrong-
+  // signed) - consistent with the 2026-08-25 consolidation's own correlation finding.
+  // Moved 10pts from downside_vol (25%->15%) to vol (35%->45%). See
+  // _score_stability's docstring in load_stock_scores.py for the full writeup.
 ];
