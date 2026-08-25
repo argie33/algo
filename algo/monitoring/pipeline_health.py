@@ -364,6 +364,25 @@ class PipelineHealth:
             # reported it MISSING and counted it against coverage_pct/healthy_count for a
             # table that is doing exactly what it's supposed to do.
             "algo_untracked_positions",
+            # algo_config_audit ADDED 2026-08-25 (goal session, "no cheats/bypasses" +
+            # SLA-accuracy sweep): NOT a deprecated loader either - it's an actively-written,
+            # correctly EVENT-DRIVEN table (AlgoConfig.set() in algo/infrastructure/config/
+            # main.py only inserts a row on a genuine config VALUE change, deliberately
+            # skipping no-op "same value" writes to avoid flooding the audit trail - see that
+            # method's own "Skip no-op writes" comment). Live-confirmed 2026-08-25: this
+            # table's own SLA of 7 days (SECONDARY_TABLE_SLA_OVERRIDES default) was a false
+            # ceiling - it can legitimately go far longer than 7 days between real config
+            # changes (nobody tuning a risk threshold isn't an incident), and the two most
+            # recent algo_config.updated_at bumps in that window (execution_mode's repeated
+            # "paper -> paper" no-op re-writes, and exit_limit_slippage_buffer_bps seeded once
+            # by migration 1218, updated_by='migration-1218') were BOTH legitimately unaudited
+            # - not evidence of a bypass. A flat calendar-day SLA has no correct value for a
+            # table with no guaranteed write cadence; without this entry, PipelineHealth
+            # reported it STALE every time real config changes happened to be quiet for over a
+            # week, permanently capping coverage_pct below 100% for a non-issue and adding
+            # noise that could mask a REAL audit-trail gap (the exact failure mode
+            # KNOWN_DEPRECATED_TABLES exists to prevent, per algo_untracked_positions above).
+            "algo_config_audit",
         }
     )
 
@@ -565,6 +584,20 @@ class PipelineHealth:
             # case it's expected to sit frozen and age_days climbing is not an incident.
             if table_name in self.KNOWN_DEPRECATED_TABLES:
                 health.status = HealthStatus.DEPRECATED
+                # algo_untracked_positions/algo_config_audit are not actually deprecated
+                # loaders (see their entries in KNOWN_DEPRECATED_TABLES above) - the generic
+                # "deprecated loader" framing would be actively misleading for them.
+                if table_name == "algo_untracked_positions":
+                    health.error_message = "Empty is the expected/healthy state (no untracked positions detected)"
+                elif table_name == "algo_config_audit":
+                    health.error_message = (
+                        "Event-driven table (only writes on a real config value change) - "
+                        "no fixed staleness SLA applies, see KNOWN_DEPRECATED_TABLES"
+                    )
+                else:
+                    health.error_message = (
+                        "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+                    )
             elif health.age_days > (effective_sla_days * 2):
                 health.status = HealthStatus.VERY_STALE
             elif health.age_days > effective_sla_days:
