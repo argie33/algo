@@ -1164,17 +1164,18 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
         # CRITICAL: All thresholds below must come from algo_config (the same source
         # algo/risk/circuit_breaker.py's _get_required_config reads at halt time), not
-        # hardcoded literals. This panel hardcoded threshold_dd=20.0 while the real
-        # configured halt_drawdown_pct was -10 (halt at 10% down) - a live 12-19% drawdown
-        # would already have halted real trading while this panel kept showing "not
-        # triggered". The drawdown threshold was fixed to read live, but CB2/CB3/CB4/CB5/CB7
-        # below still hardcoded their thresholds (threshold_dl=2.0, threshold_cl=3,
-        # threshold_vix=35.0, threshold_wl=5.0, threshold_risk=4.0) independent of
-        # algo_config - the exact same bug class, just not yet observable because the
-        # seeded defaults happen to currently match. Any operator tuning max_daily_loss_pct
-        # etc. via algo_config (their whole purpose) would silently desync this panel from
-        # the real halt gate. Same bug class as market.py's _get_data_status
-        # (commit 2a5a41c78) and loaders/compute_circuit_breakers.py (commit bca23264d).
+        # hardcoded literals. FIXED (commit 7505f72b1): this panel used to hardcode
+        # threshold_dd=20.0 while the real configured halt_drawdown_pct was -10 (halt at
+        # 10% down) - a live 12-19% drawdown would already have halted real trading while
+        # this panel kept showing "not triggered" - and CB2/CB3/CB4/CB5/CB7's thresholds
+        # (threshold_dl, threshold_cl, threshold_vix, threshold_wl, threshold_risk) were
+        # the same bug, hardcoded independent of algo_config. All six are now fetched live
+        # from algo_config below, so any operator tuning max_daily_loss_pct etc. (their
+        # whole purpose) stays in sync with this panel and the real halt gate. Same bug
+        # class as market.py's _get_data_status (commit 2a5a41c78) and
+        # loaders/compute_circuit_breakers.py (commit bca23264d) - if a similar panel is
+        # found hardcoding a risk/halt threshold instead of reading algo_config, it's the
+        # same class of bug and should be fixed the same way.
         try:
             cur.execute(
                 """
