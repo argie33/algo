@@ -55,8 +55,8 @@ class TestEntityWideFcfDenominator:
         every existing non-dual-class caller/test is unaffected."""
         loader = _make_loader()
         result = loader._compute_valuations(**self._base_kwargs())
-        assert result["intrinsic_value_per_share"] == 131.41
-        assert result["margin_of_safety_pct"] == 96.2
+        assert result["intrinsic_value_per_share"] == 138.22
+        assert result["margin_of_safety_pct"] == 96.38
         assert result["fcf_yield"] == 200.0  # 100 / (5.0 * 10.0) * 100
         assert result["pe_ratio"] == 5.0
 
@@ -84,7 +84,7 @@ class TestEntityWideFcfDenominator:
         )
         assert result["intrinsic_value_per_share"] == entity_ivps
         assert result["margin_of_safety_pct"] == entity_mos
-        assert result["intrinsic_value_per_share"] < 131.41  # << the shares_out=10 case above
+        assert result["intrinsic_value_per_share"] < 138.22  # << the shares_out=10 case above
 
     def test_entity_shares_out_zero_or_none_treated_as_not_supplied(self) -> None:
         """A falsy entity_shares_out_for_fcf (0.0, explicit None) must not crash and must fall
@@ -93,7 +93,7 @@ class TestEntityWideFcfDenominator:
         kwargs = self._base_kwargs()
         kwargs["entity_shares_out_for_fcf"] = None
         result = loader._compute_valuations(**kwargs)
-        assert result["intrinsic_value_per_share"] == 131.41
+        assert result["intrinsic_value_per_share"] == 138.22
         assert result["fcf_yield"] == 200.0
 
     def test_entity_shares_out_used_for_dividend_yield_and_enterprise_value(self) -> None:

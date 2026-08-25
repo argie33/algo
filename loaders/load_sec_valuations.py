@@ -1331,10 +1331,22 @@ class SecValuationsLoader(OptimalLoader):
         beta: float | None = None,
         risk_free_rate: float | None = None,
     ) -> tuple[float | None, float | None]:
-        """Two-stage FCFE DCF: 5-year explicit forecast of `fcf` grown at `eps_growth_pct`
-        (clamped to [DCF_GROWTH_FLOOR, DCF_GROWTH_CEILING]/yr), discounted at a CAPM cost of
+        """Two-stage FCFE DCF: 5-year explicit forecast of `fcf`, discounted at a CAPM cost of
         equity (see _compute_discount_rate), plus a Gordon Growth terminal value at
         DCF_TERMINAL_GROWTH_RATE, divided by shares_out.
+
+        FIXED 2026-08-25 (goal: DCF audit follow-up - growth-rate fade, previously deferred as
+        real-blast-radius in dcf_sbc_and_multi_year_eps_cagr_fixed_20260825): the explicit
+        forecast used to hold `eps_growth_pct` flat for all 5 years, then drop straight to
+        DCF_TERMINAL_GROWTH_RATE (2.5%) in the terminal-value formula - an abrupt one-year
+        cliff from (say) 15%/yr to 2.5%/yr, not how a real high-growth company's growth
+        actually decays. Replaced with a Damodaran-style linear fade: year 1 uses
+        `eps_growth_pct` in full, year DCF_FORECAST_YEARS uses DCF_TERMINAL_GROWTH_RATE
+        exactly (so the explicit forecast's last year already matches the terminal value's own
+        growth assumption - no discontinuity at the handoff), with each year in between
+        interpolated linearly. A company already growing at/below the terminal rate now fades
+        *up* to it just as mechanically as a high-growth company fades down - both are the
+        same linear interpolation, not a special case.
 
         Returns (intrinsic_value_per_share, margin_of_safety_pct) - both None when fcf/
         shares_out/current_price aren't usable or the result is implausible. A missing/
@@ -1362,7 +1374,9 @@ class SecValuationsLoader(OptimalLoader):
         pv_explicit = 0.0
         fcf_year = fcf
         for year in range(1, self.DCF_FORECAST_YEARS + 1):
-            fcf_year = fcf_year * (1 + growth_rate)
+            fade_frac = (year - 1) / (self.DCF_FORECAST_YEARS - 1) if self.DCF_FORECAST_YEARS > 1 else 1.0
+            year_growth_rate = growth_rate - (growth_rate - self.DCF_TERMINAL_GROWTH_RATE) * fade_frac
+            fcf_year = fcf_year * (1 + year_growth_rate)
             pv_explicit += fcf_year / ((1 + discount_rate) ** year)
 
         terminal_value = (fcf_year * (1 + self.DCF_TERMINAL_GROWTH_RATE)) / (
