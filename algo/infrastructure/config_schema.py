@@ -51,6 +51,22 @@ VALIDATION_SCHEMA = {
     "max_position_correlation": ("float", 0.5, 1.0, False, 0.85),
     "correlation_lookback_days": ("int", 20, 252, False, 60),
     "correlation_min_overlap_days": ("int", 10, 120, False, 30),
+    # Portfolio-beta cap (2026-08-25): algo/risk/var.py's beta_exposure() already documents
+    # "Beta exposure > 2.0 (2x market risk) -> WARNING" as this system's own institutional
+    # convention, but it only fires as a Phase 9 (end-of-cycle) REPORT - nothing previously
+    # stopped Phase 8 from opening the entry that pushes the book over that exact threshold in
+    # the first place. Reuses the same 2.0 convention as a proactive gate instead of inventing
+    # a new number. Non-critical/fail-open (see pretrade_checks.py's docstring) since
+    # stability_metrics.beta coverage, like price-history-based correlation above, is still
+    # filling in for some symbols.
+    "max_portfolio_beta": ("float", 1.0, 5.0, False, 2.0),
+    # Top-5 concentration cap (2026-08-25): algo/risk/var.py's concentration_report() already
+    # documents "Concentration > 30% in top 5 holdings -> WARNING" as this system's own
+    # convention, same report-only gap as beta_exposure() above - a portfolio can satisfy
+    # every PER-POSITION cap (max_position_size_pct) while still breaching this AGGREGATE one
+    # (e.g. 5 positions each just under an 8% per-position cap already sums past 30%), and
+    # nothing previously stopped an entry from being the trade that crosses it.
+    "max_top5_concentration_pct": ("float", 10.0, 100.0, False, 30.0),
     "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
     # Market Conditions
     "max_distribution_days": ("int", 0, 30, False, 4),

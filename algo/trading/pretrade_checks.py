@@ -390,6 +390,39 @@ class PreTradeChecks:
                 f"failing open (sector/industry caps above remain the primary control)."
             )
 
+        # PORTFOLIO-BETA CAP (2026-08-25 fix): algo/risk/var.py's beta_exposure() already
+        # documents "Beta exposure > 2.0 -> WARNING" as this system's own convention, but it
+        # only ever fired as a Phase 9 (end-of-cycle) REPORT - nothing previously stopped an
+        # entry from being the one that pushes the book over that exact threshold. Same
+        # fail-open shape as the correlation check above (stability_metrics.beta coverage is
+        # still filling in for some symbols) and reuses var.py's own 2.0 convention rather than
+        # inventing a new number.
+        try:
+            with DatabaseContext("read") as cur:
+                beta_ok, beta_reason = self._check_portfolio_beta(
+                    symbol, position_value_dec, Decimal(str(portfolio_value)), cur
+                )
+                if not beta_ok:
+                    return (False, beta_reason)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[PRE-TRADE] {symbol}: portfolio-beta check unavailable ({e}) - failing open.")
+
+        # TOP-5 CONCENTRATION CAP (2026-08-25 fix): algo/risk/var.py's concentration_report()
+        # already documents "Concentration > 30% in top 5 holdings -> WARNING" as this system's
+        # own convention, same report-only gap as the beta check above - a portfolio can
+        # satisfy every PER-POSITION cap (max_position_size_pct) while still breaching this
+        # AGGREGATE one (e.g. 5 positions each just under an 8% per-position cap already sum
+        # past 30%). Reuses var.py's own 30% convention rather than inventing a new number.
+        try:
+            with DatabaseContext("read") as cur:
+                top5_ok, top5_reason = self._check_top5_concentration(
+                    symbol, position_value_dec, Decimal(str(portfolio_value)), cur
+                )
+                if not top5_ok:
+                    return (False, top5_reason)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[PRE-TRADE] {symbol}: top-5 concentration check unavailable ({e}) - failing open.")
+
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
             f"portfolio ${portfolio_value:.2f}, {side} order approved"
@@ -471,6 +504,126 @@ class PreTradeChecks:
             return False, (
                 f"Correlation {worst_corr:.2f} with open position {worst_symbol} exceeds "
                 f"{max_corr:.2f} limit (over {lookback_days}d lookback) - diversification check"
+            )
+        return True, None
+
+    def _check_portfolio_beta(
+        self, symbol: str, position_value: Decimal, portfolio_value: Decimal, cur: PsycopgCursor[Any]
+    ) -> tuple[bool, str | None]:
+        """Block a new entry that would push the position-value-weighted portfolio beta above
+        max_portfolio_beta, reusing the same 2.0 convention var.py's beta_exposure() already
+        documents for its (previously report-only) WARNING threshold.
+
+        Fails OPEN (never blocks) when the candidate's own beta is unavailable, or when ANY
+        currently open position lacks a beta reading - deliberately does not silently drop
+        unknown-beta positions from a partial weighted average, since that could understate or
+        overstate the true portfolio beta in either direction depending on which positions
+        happen to be missing data. stability_metrics.beta coverage, like the correlation
+        check's price-history requirement, is still filling in for some symbols (this
+        codebase's own documented data-maturity gap - position_sizer.py's
+        get_data_maturity_multiplier).
+        """
+        cur.execute("SELECT beta FROM stability_metrics WHERE symbol = %s AND data_unavailable IS NOT TRUE", (symbol,))
+        row = cur.fetchone()
+        if row is None or row[0] is None:
+            return True, None
+        candidate_beta = float(row[0])
+
+        # Excludes `symbol` explicitly (matching _check_correlation_concentration/
+        # _check_top5_concentration's identical guard) even though run_all()'s earlier
+        # duplicate-position check already blocks before reaching here if this exact symbol
+        # has an open position - defense in depth against double-counting the candidate as
+        # both "existing position" and "candidate" if this method is ever reached from a
+        # different call path than run_all()'s own ordering guarantees.
+        cur.execute(
+            "SELECT symbol, quantity, current_price FROM algo_positions WHERE status = %s AND symbol != %s",
+            ("open", symbol),
+        )
+        open_positions = [r for r in cur.fetchall() if r[1] is not None and r[2] is not None]
+        if not open_positions:
+            # No existing book to weight against - candidate's own beta alone can't breach a
+            # portfolio-level cap by definition (assuming a sane max_portfolio_beta >= 1.0).
+            return True, None
+
+        cur.execute(
+            "SELECT symbol, beta FROM stability_metrics WHERE symbol = ANY(%s) AND data_unavailable IS NOT TRUE",
+            ([p[0] for p in open_positions],),
+        )
+        beta_by_symbol = {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
+
+        missing = [p[0] for p in open_positions if p[0] not in beta_by_symbol]
+        if missing:
+            return True, None
+
+        existing_value = sum(Decimal(str(qty)) * Decimal(str(price)) for _, qty, price in open_positions)
+        existing_weighted_beta = sum(
+            Decimal(str(qty)) * Decimal(str(price)) * Decimal(str(beta_by_symbol[pos_symbol]))
+            for pos_symbol, qty, price in open_positions
+        )
+        total_value = existing_value + position_value
+        if total_value <= 0:
+            return True, None
+
+        portfolio_beta_after = float(
+            (existing_weighted_beta + position_value * Decimal(str(candidate_beta))) / total_value
+        )
+
+        try:
+            max_portfolio_beta = float(self.config["max_portfolio_beta"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        if portfolio_beta_after > max_portfolio_beta:
+            return False, (
+                f"Entry would push portfolio beta to {portfolio_beta_after:.2f}, exceeding "
+                f"{max_portfolio_beta:.2f} limit (candidate beta {candidate_beta:.2f}) - risk-management check"
+            )
+        return True, None
+
+    def _check_top5_concentration(
+        self, symbol: str, position_value: Decimal, portfolio_value: Decimal, cur: PsycopgCursor[Any]
+    ) -> tuple[bool, str | None]:
+        """Block a new entry that would push the top-5-holdings share of portfolio value
+        above max_top5_concentration_pct, reusing the same 30% convention var.py's
+        concentration_report() already documents for its (previously report-only) WARNING
+        threshold.
+
+        Distinct from max_position_size_pct (a per-position cap): five positions can each sit
+        just under that per-position limit and still sum well past a sane aggregate top-5
+        share. Uses each open position's current dollar value (quantity * current_price) plus
+        this candidate's position_value, ranks the top 5 by value, and compares their sum
+        against portfolio_value (total equity, same denominator every other check in this
+        file uses). Fails OPEN only on a data error (via run_all's except clause) - unlike the
+        correlation/beta checks above, every input here (algo_positions.quantity/current_price)
+        is already required, non-optional data for any open position, so there is no
+        legitimate "insufficient data" case to fail open on.
+        """
+        cur.execute(
+            "SELECT quantity, current_price FROM algo_positions WHERE status = %s AND symbol != %s",
+            ("open", symbol),
+        )
+        position_values = [
+            Decimal(str(qty)) * Decimal(str(price))
+            for qty, price in cur.fetchall()
+            if qty is not None and price is not None
+        ]
+        position_values.append(position_value)
+
+        if portfolio_value <= 0:
+            return True, None
+
+        top5_value = sum(sorted(position_values, reverse=True)[:5])
+        top5_pct = float(top5_value / portfolio_value * 100)
+
+        try:
+            max_top5_pct = float(self.config["max_top5_concentration_pct"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        if top5_pct > max_top5_pct:
+            return False, (
+                f"Entry would push top-5-holdings concentration to {top5_pct:.1f}%, exceeding "
+                f"{max_top5_pct:.1f}% limit - risk-management check"
             )
         return True, None
 
