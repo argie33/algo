@@ -539,6 +539,8 @@ _TIER_CONFIG = {
         "max_new_positions_today": tier["max_new_positions_today"],
         "halt": tier["halt_new_entries"],
         "halt_new_entries": tier["halt_new_entries"],
+        "min_composite_score": tier["min_composite_score"],
+        "max_concentration_pct": tier["max_concentration_pct"],
         # min_grade has no equivalent in EXPOSURE_TIERS (a display-only field with zero
         # confirmed consumers anywhere in webapp/frontend as of this fix) - kept as its own
         # static mapping rather than invented, since there's no canonical source for it.

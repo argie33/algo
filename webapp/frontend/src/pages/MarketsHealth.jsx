@@ -663,6 +663,31 @@ function RegimeBanner({ markets }) {
         </div>
       </div>
 
+      {(tier?.min_composite_score !== undefined ||
+        tier?.max_concentration_pct !== undefined) && (
+        <div
+          className="muted t-xs flex items-center gap-4"
+          style={{ marginTop: "var(--space-3)" }}
+        >
+          <span>
+            Min composite score:{" "}
+            <SafeMetricValue
+              value={tier?.min_composite_score}
+              formatter="decimal1"
+              fallback="—"
+            />
+          </span>
+          <span>
+            Max concentration:{" "}
+            <SafeMetricValue
+              value={tier?.max_concentration_pct}
+              formatter="percentage"
+              fallback="—"
+            />
+          </span>
+        </div>
+      )}
+
       {safeCurrent.halt_reasons && (
         <div
           className="alert alert-warn"

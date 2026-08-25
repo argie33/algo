@@ -110,7 +110,18 @@ def check_dashboard_patterns(filepath: str) -> list[str]:
     # positive class as the "dashboard" bare-substring bug already fixed in this same file
     # 2026-08-11 (see check_dashboard_patterns' own comment above) - naive text matching
     # missing a real, equivalent pattern instead of the literal one it was written for.
-    has_error_pattern = re.compile(r"has_error\(|_error_panel\(")
+    #
+    # FALSE POSITIVE FIXED 2026-08-25 (money-% goal session): a third equivalent pattern -
+    # dashboard/fetchers_market.py's fetch_market/fetch_risk_metrics/fetch_sector_rotation
+    # (and every other fetcher in that file) already correctly implement fail-fast via
+    # `FetcherValidator.check_api_error(data)` (dashboard/fetcher_validator.py) before any
+    # .get() call, immediately returning on API-level failure - same real intent as
+    # has_error()/_error_panel(), just a third literal spelling this regex never recognized.
+    # This was a genuine, live, whole-file blocker: because check_dashboard_patterns scans
+    # a function's ENTIRE current body (not the diff), any future commit touching
+    # dashboard/fetchers_market.py at all - even a single unrelated line - would fail this
+    # hook on 3 functions nobody touched, regardless of what that commit actually changed.
+    has_error_pattern = re.compile(r"has_error\(|_error_panel\(|check_api_error\(")
 
     in_function = None
     func_start_line = 0

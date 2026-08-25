@@ -40,6 +40,17 @@ class TestTierConfigMatchesExposureTiers:
             assert conf["halt"] == tier["halt_new_entries"]
             assert conf["halt_new_entries"] == tier["halt_new_entries"]
 
+    def test_min_composite_score_and_max_concentration_match_exposure_tiers(self):
+        # BUG FOUND 2026-08-25 (money-% goal-session audit, exposure_policy_tier_dashboard_gap
+        # follow-up): _TIER_CONFIG never carried min_composite_score/max_concentration_pct at
+        # all, so neither the TUI nor the web frontend had a path to them despite
+        # min_composite_score alone being retuned 3x in one day (see
+        # exposure_tier_min_composite_score_selectivity_raised_20260824 in memory).
+        for tier in EXPOSURE_TIERS:
+            conf = _TIER_CONFIG[tier["name"]]
+            assert conf["min_composite_score"] == tier["min_composite_score"]
+            assert conf["max_concentration_pct"] == tier["max_concentration_pct"]
+
     def test_caution_tier_is_not_halted(self):
         # The specific live-dashboard-facing regression this fix was found from: caution
         # must show halt=False (only "correction" halts entries in the real system).

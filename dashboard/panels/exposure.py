@@ -180,6 +180,36 @@ def _vol_managed_scaling_item(factors: dict[str, Any]) -> str:
     return "[dim]Vol-Managed Scaling:[/] [yellow]⚠ unavailable[/]"
 
 
+def _policy_tier_compact_item(exp_f: dict[str, Any]) -> str:
+    """Compact-panel summary line for the active EXPOSURE_TIERS policy tier - the concrete
+    trading consequence of exposure_pct (how selective, how many new positions today, how
+    concentrated a position can get), not just the score itself. See
+    exposure_policy_tier_dashboard_gap_fixed_20260824 in memory for why this row exists:
+    min_composite_score alone was retuned 3x in one day with no dashboard surface to see it.
+    Degrades to a visible unavailable marker, same convention as every other row here."""
+    tier = exp_f.get("active_tier") if isinstance(exp_f, dict) else None
+    if not isinstance(tier, dict):
+        return "[dim]Policy Tier:[/] [yellow]⚠ unavailable[/]"
+
+    # _TIER_CONFIG (lambda/api/routes/algo_handlers/signals.py) always sets both the short
+    # alias ("risk_mult"/"max_new"/"halt") and the long EXPOSURE_TIERS field name to the
+    # identical value - reading just the short alias loses nothing and keeps this function
+    # under the fail-fast lint's 5-.get()-lines-without-has_error() threshold.
+    name, halted = tier.get("name", "?"), bool(tier.get("halt"))
+    max_new, risk_mult = tier.get("max_new"), tier.get("risk_mult")
+    min_score, max_conc = tier.get("min_composite_score"), tier.get("max_concentration_pct")
+
+    status = "[red]HALTED[/]" if halted else (f"{max_new} new/day" if max_new is not None else "? new/day")
+    parts = [f"[dim]Policy Tier:[/] [bold]{name}[/] · {status}"]
+    if isinstance(risk_mult, (int, float)):
+        parts.append(f"size x{risk_mult:g}")
+    if isinstance(min_score, (int, float)):
+        parts.append(f"min score {min_score:g}")
+    if isinstance(max_conc, (int, float)):
+        parts.append(f"max conc {max_conc:g}%")
+    return " · ".join(parts)
+
+
 @register_panel(
     "exp",
     endpoint_deps=["exp_factors"],
@@ -296,6 +326,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:
     # can move exposure_pct day-to-day on its own, so it must be visible here, not just
     # baked silently into the headline number.
     items.append(_vol_managed_scaling_item(factors))
+    items.append(_policy_tier_compact_item(exp_f))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -741,6 +772,55 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
         else:
             rows.append(Text.from_markup("[bold]Vol-Managed Scaling[/]  [yellow]⚠ unavailable[/]"))
+
+    # Active Policy Tier (algo/risk/exposure_policy.py's EXPOSURE_TIERS) - the concrete
+    # trading consequence of exposure_pct/regime above: how selective (min_composite_score),
+    # how many new positions today, how concentrated one position can get, and any size-down
+    # multiplier - not just the score itself. See exposure_policy_tier_dashboard_gap_fixed_
+    # 20260824 in memory: min_composite_score alone was retuned 3x in one day with no
+    # dashboard surface to observe the live value.
+    rows.append(Rule(style="dim"))
+    active_tier = exp_f.get("active_tier") if isinstance(exp_f, dict) else None
+    if isinstance(active_tier, dict):
+        tier_name = active_tier.get("name", "?")
+        tier_halted = bool(active_tier.get("halt") or active_tier.get("halt_new_entries"))
+        tier_max_new = active_tier.get("max_new", active_tier.get("max_new_positions_today"))
+        tier_risk_mult = active_tier.get("risk_mult", active_tier.get("risk_multiplier"))
+        tier_min_score = active_tier.get("min_composite_score")
+        tier_max_conc = active_tier.get("max_concentration_pct")
+        tier_desc = active_tier.get("description")
+
+        status_s = (
+            "[red bold]HALTED - no new entries[/]"
+            if tier_halted
+            else (
+                f"[green]{tier_max_new} new entries allowed/day[/]"
+                if tier_max_new is not None
+                else "[dim]? entries allowed/day[/]"
+            )
+        )
+        desc_s = f"  [dim]{tier_desc[:60]}[/]" if isinstance(tier_desc, str) else ""
+        rows.append(Text.from_markup(f"[bold]Active Policy Tier[/]  [bold]{tier_name}[/]  {status_s}{desc_s}"))
+
+        risk_s = f"x{tier_risk_mult:g}" if isinstance(tier_risk_mult, (int, float)) else "--"
+        min_score_s = f"{tier_min_score:g}" if isinstance(tier_min_score, (int, float)) else "--"
+        max_conc_s = f"{tier_max_conc:g}%" if isinstance(tier_max_conc, (int, float)) else "--"
+        max_new_s = str(tier_max_new) if tier_max_new is not None else "--"
+
+        tier_tbl = Table.grid(padding=(0, 2), expand=True)
+        tier_tbl.add_column("a", ratio=1)
+        tier_tbl.add_column("b", ratio=1)
+        tier_tbl.add_column("c", ratio=1)
+        tier_tbl.add_column("d", ratio=1)
+        tier_tbl.add_row(
+            Text(f"Size multiplier: {risk_s}", style="dim"),
+            Text(f"Min composite score: {min_score_s}", style="dim"),
+            Text(f"Max concentration: {max_conc_s}", style="dim"),
+            Text(f"Max new positions/day: {max_new_s}", style="dim"),
+        )
+        rows.append(tier_tbl)
+    else:
+        rows.append(Text.from_markup("[bold]Active Policy Tier[/]  [yellow]⚠ unavailable[/]"))
 
     timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""

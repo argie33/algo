@@ -8,6 +8,7 @@ dashboard/error_boundary.py and only applies to the dashboard/ package - scoped 
 
 import importlib.util
 import sys
+import tempfile
 from pathlib import Path
 
 _SPEC = importlib.util.spec_from_file_location(
@@ -38,5 +39,31 @@ def test_real_dashboard_package_file_is_still_scoped_in():
 
 
 def test_nested_dashboard_package_path_is_scoped_in():
-    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/fetchers_market.py")
+    """A path under dashboard/ must still be evaluated by check_dashboard_patterns, not
+    skipped by the path-prefix scope check.
+
+    FIXED 2026-08-25 (money-% goal session): this used to assert
+    dashboard/fetchers_market.py specifically has violations != [] - conflating "is this
+    path in scope" with "does this file currently have violations". That coupling broke
+    the moment fetchers_market.py's real violations were legitimately fixed (widening
+    has_error_pattern to also recognize FetcherValidator.check_api_error(), the same
+    equivalent-fail-fast-pattern false positive this file's own has_error_pattern comment
+    history already documents fixing twice). Use a synthetic fixture with a real violation
+    instead, so this test verifies scope inclusion independent of any real file's current
+    violation state.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        pkg_dir = Path(tmp) / "dashboard"
+        pkg_dir.mkdir()
+        fixture = pkg_dir / "fake_panel.py"
+        fixture.write_text(
+            "def panel_fake(data):\n"
+            "    a = data.get('a')\n"
+            "    b = data.get('b')\n"
+            "    c = data.get('c')\n"
+            "    d = data.get('d')\n"
+            "    e = data.get('e')\n"
+            "    return a, b, c, d, e\n"
+        )
+        violations = check_dashboard_get_pattern.check_dashboard_patterns(str(fixture))
     assert violations != [], "files directly under dashboard/ must remain in scope"

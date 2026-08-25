@@ -446,6 +446,17 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         else:
             result["factors_unavailable"] = True
 
+        # active_tier (EXPOSURE_TIERS's live entry constraints - min_composite_score,
+        # max_concentration_pct, max_new_positions_today, risk_multiplier, halt_new_entries)
+        # is a sibling of "current" in the /api/algo/markets response, not nested under it -
+        # see market.py's _get_markets. Without this, the exposure panel had no way to show
+        # what the score actually DOES to today's trading, only the score itself.
+        active_tier = inner.get("active_tier")
+        if active_tier is not None:
+            result["active_tier"] = active_tier
+        else:
+            result["active_tier_unavailable"] = True
+
         return result
     except Exception as e:
         error_msg = format_fetcher_error("exp_factors", e)
