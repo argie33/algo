@@ -151,6 +151,43 @@ def test_alpaca_stale_rows_still_trigger_yfinance_residual(
     )
 
 
+def test_yfinance_residual_still_short_of_end_is_logged_not_silently_filled(
+    router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Regression test for the 2026-08-25 fix: the yfinance residual merge counted a
+    symbol as "filled" purely on `rows` being truthy, without re-checking `_reaches_end`
+    the way the Alpaca-primary path already does. A yfinance response that itself only
+    has stale/partial data (e.g. yfinance is lagging too, not just Alpaca) used to be
+    merged and logged identically to a genuine full catch-up, masking a still-incomplete
+    symbol from monitoring. The partial data must still be merged (best-effort), but it
+    must be distinguishable in the logs from a real fill.
+    """
+    monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
+    symbols = ["AAPL", "STALE"]
+
+    def fake_alpaca(syms: list[str], start: date, end: date) -> dict[str, Any]:
+        return {"AAPL": _rows("AAPL"), "STALE": None}
+
+    def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
+        # yfinance itself only has a stale row (short of `end`), not a real catch-up.
+        return {"STALE": [{**_rows("STALE")[0], "date": "2026-07-12"}]}
+
+    with (
+        patch.object(router, "_fetch_alpaca_ohlcv_batch", side_effect=fake_alpaca),
+        patch.object(router, "_fetch_yfinance_ohlcv_batch", side_effect=fake_yfinance),
+        caplog.at_level("WARNING"),
+    ):
+        result = router.fetch_ohlcv_batch(symbols, START, END)
+
+    # Best-effort: the partial data is still merged in, not discarded.
+    assert result["STALE"] is not None
+    assert result["STALE"][0]["date"] == "2026-07-12"
+    # But it must be flagged as still-short, not silently counted as a full fill.
+    assert any("still don't reach" in rec.message for rec in caplog.records), (
+        "a yfinance fallback that itself doesn't reach `end` must be surfaced, not masked as resolved"
+    )
+
+
 def test_default_source_never_touches_alpaca(router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PRICE_DATA_SOURCE", raising=False)
     symbols = ["AAPL"]

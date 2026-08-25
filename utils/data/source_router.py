@@ -502,6 +502,24 @@ class DataSourceRouter:
                 f"yfinance_fallback={yf_filled}, unfilled={len(residual) - yf_filled}"
             )
 
+        # BUG FOUND 2026-08-25 (goal session - data-gap dig): `yf_filled` above only checks
+        # `alpaca_results.get(s)` truthy - it never re-runs `_reaches_end()` on the merged
+        # result, so a yfinance response that returns SOME rows but still stops short of
+        # `end` (e.g. yfinance itself is lagging, or only has a stale/partial catch-up) gets
+        # logged as "filled" identically to a genuine full catch-up. That silently masks a
+        # still-incomplete symbol from monitoring exactly the way the 2026-08-22 fix above
+        # stopped Alpaca from doing - the watermark still won't advance (whatever consumes
+        # `alpaca_results` derives that from the actual row dates, not this log line), but an
+        # operator watching this log for "unfilled=0" would wrongly conclude the batch is
+        # fully current. Surface it explicitly instead of leaving it indistinguishable from a
+        # real full fill.
+        still_short = [s for s in residual if alpaca_results.get(s) and not _reaches_end(alpaca_results.get(s))]
+        if still_short:
+            logger.warning(
+                f"[DataSourceRouter] {len(still_short)} symbol(s) got yfinance data but still "
+                f"don't reach {end} (yfinance itself is behind, not just Alpaca): {still_short[:10]}"
+            )
+
     def _fetch_alpaca_ohlcv_batch(
         self, symbols: list[str], start: date, end: date
     ) -> dict[str, list[dict[str, Any]] | None]:
