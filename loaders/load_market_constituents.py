@@ -836,8 +836,19 @@ class MarketConstituentsLoader(OptimalLoader):
         returns HTTP 200 but serves an HTML disclaimer/bot-check page instead of the CSV even
         with a browser User-Agent and Referer; Vanguard VTWO's holdings page is a JS-rendered
         SPA with no static table; SEC EDGAR's `browse-edgar` company search returned zero hits
-        for "ishares russell 2000" / "ishares trust" NPORT-P filings (likely needs the fund's
-        exact registrant CIK, not a free-text company-name match). Not wired into any
+        for "ishares russell 2000" / "ishares trust" NPORT-P filings (a free-text company-name
+        match, not the right lookup). A REAL working path exists but was deliberately not built
+        out this pass (scope - needs a new NPORT-EX holdings parser with its own tests, not a
+        quick fix): `https://www.sec.gov/files/company_tickers_mf.json` maps ticker "IWM" ->
+        CIK 1100663 ("iShares Trust"), seriesId "S000004344"; that CIK's NPORT-P filings (via
+        `data.sec.gov/submissions/CIK0001100663.json`) are filed in per-series batches across
+        many dates - full-text search (`efts.sec.gov/LATEST/search-index?q=%22iShares+Russell
+        +2000+ETF%22&forms=NPORT-P&ciks=0001100663`) is how to actually find the right
+        accession/series among the ~90 series this trust files under one CIK (e.g. accession
+        0001752724-25-210405, period 2025-06-30, found this way). Russell reconstitutes
+        annually each June, so even a several-months-stale NPORT-EX snapshot is normal-fidelity
+        membership data - this is a legitimate real source, just needs real engineering (XML
+        holdings parsing + tests) to land, not a copy-paste URL swap. Not wired into any
         scoring/universe-filtering/risk logic (`grep -rn is_russell2000` outside this file and
         two unrelated allowlists in `utils/db/sql_safety.py` /`utils/loaders/sla_monitor.py`
         returns nothing) - dead enrichment column, not a trading-correctness risk. Left as a
