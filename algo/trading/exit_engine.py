@@ -283,8 +283,36 @@ class PositionContext:
         last_log_entry = self.partial_exits_log.rsplit("; ", 1)[-1]
         return "Market distribution" in last_log_entry
 
+    def _target_r_label(self, config_key: str) -> str:
+        """Format the configured R-multiple for a target-hit reason string.
+
+        BUG FOUND 2026-08-25 (real-money-readiness goal session, config-sanity spot check):
+        check_target_t1/t2/t3's reason strings used to hardcode "(1.5R)"/"(3R)"/"(4R)"
+        literally, instead of reading the actual configured t1/t2/t3_target_r_multiple. Live-
+        confirmed the drift already happened for real: algo_config.t1_target_r_multiple is
+        currently 2.5 (not the 1.5 hardcoded in the old string and still documented as the
+        schema default in config_schema.py/trading_config.py) - every real T1 exit today would
+        have recorded "(1.5R)" in algo_trades.exit_reason while the actual price threshold used
+        2.5R math, a permanent, wrong label in the audit trail. T2/T3 (3R/4R) happened to still
+        match their current config values by coincidence, but were equally hardcoded and
+        equally exposed to the same drift the moment either config value changes - this system
+        already has regime-based R-multiple adjustment machinery (regime_manager.py multiplies
+        the base value per market regime), so these values are not static by design. Falls back
+        to "target" (no numeric claim) rather than raising - this is a display label on an
+        exit that's already firing, not a risk gate; a missing/malformed config value here must
+        not be the thing that crashes a real exit in progress.
+        """
+        r_mult = self.config.get(config_key)
+        if r_mult is None:
+            return "target"
+        try:
+            return f"{float(r_mult):g}R"
+        except (TypeError, ValueError):
+            return "target"
+
     def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
-        """T1 target exit (1.5R): 50% position reduction."""
+        """T1 target exit (2026-08-25: R-multiple in the reason string is read live from
+        config, not hardcoded - see _target_r_label): 50% position reduction."""
         if self.target_hits == 0 and self.cur_price >= self.t1_price:
             if self._was_target_hit_today(self.t1_hit_time):
                 return False, None
@@ -300,7 +328,7 @@ class PositionContext:
                     {
                         "stage": "target_1",
                         "fraction": 0.50,
-                        "reason": f"T1 exit: ${float(self.cur_price):.2f} >= ${float(self.t1_price):.2f} (1.5R)",
+                        "reason": f"T1 exit: ${float(self.cur_price):.2f} >= ${float(self.t1_price):.2f} ({self._target_r_label('t1_target_r_multiple')})",
                         "new_stop": float(max(self.active_stop, self.entry_price)),
                     },
                 )
@@ -324,7 +352,7 @@ class PositionContext:
                     {
                         "stage": "target_2",
                         "fraction": 0.50,
-                        "reason": f"T2 exit: ${float(self.cur_price):.2f} >= ${float(self.t2_price):.2f} (3R)",
+                        "reason": f"T2 exit: ${float(self.cur_price):.2f} >= ${float(self.t2_price):.2f} ({self._target_r_label('t2_target_r_multiple')})",
                         "new_stop": float(stop_for_t2),
                     },
                 )
@@ -339,7 +367,7 @@ class PositionContext:
                     {
                         "stage": "target_3",
                         "fraction": 1.0,
-                        "reason": f"T3 target hit: ${float(self.cur_price):.2f} >= ${float(self.t3_price):.2f} (4R) - FINAL EXIT",
+                        "reason": f"T3 target hit: ${float(self.cur_price):.2f} >= ${float(self.t3_price):.2f} ({self._target_r_label('t3_target_r_multiple')}) - FINAL EXIT",
                     },
                 )
         return False, None

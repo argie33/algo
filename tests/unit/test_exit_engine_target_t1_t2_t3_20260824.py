@@ -31,7 +31,7 @@ direct PositionContext construction - so these tests also exercise strategy prio
 
 from datetime import date, datetime
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -245,3 +245,74 @@ class TestTargetT3:
         assert t2_shares == pytest.approx(25.0)
         assert t3_shares == pytest.approx(25.0)
         assert remaining == pytest.approx(0.0)
+
+
+class TestTargetReasonRMultipleLabel:
+    """Regression for a real, live bug found 2026-08-25 (config-sanity spot check):
+    check_target_t1/t2/t3's reason strings used to hardcode "(1.5R)"/"(3R)"/"(4R)" literally
+    instead of reading the actual configured *_target_r_multiple. Live-confirmed the drift
+    already happened for real: algo_config.t1_target_r_multiple is currently 2.5, not the 1.5
+    hardcoded in the old string - every real T1 exit would have recorded a permanently wrong
+    R-multiple in algo_trades.exit_reason. T2/T3 (3R/4R) matched their current config by
+    coincidence but were equally hardcoded and exposed to the same drift (this system has
+    regime-based R-multiple adjustment machinery - these values are not static by design)."""
+
+    def test_t1_reason_reflects_configured_r_multiple_not_a_hardcoded_default(self, mock_config):
+        mock_config["t1_target_r_multiple"] = 2.5
+        engine = _engine(mock_config)
+        decision = engine._evaluate_position(
+            **_BASE_KWARGS, cur_price=Decimal("115.00"), prev_close=Decimal("114.00"), target_hits=0
+        )
+        assert "2.5R" in decision["reason"]
+        assert "1.5R" not in decision["reason"]
+
+    def test_t2_reason_reflects_configured_r_multiple(self, mock_config):
+        mock_config["t2_target_r_multiple"] = 3.5
+        engine = _engine(mock_config)
+        decision = engine._evaluate_position(
+            **_BASE_KWARGS, cur_price=Decimal("130.00"), prev_close=Decimal("128.00"), target_hits=1
+        )
+        assert "3.5R" in decision["reason"]
+
+    def test_t3_reason_reflects_configured_r_multiple(self, mock_config):
+        mock_config["t3_target_r_multiple"] = 5.0
+        engine = _engine(mock_config)
+        decision = engine._evaluate_position(
+            **_BASE_KWARGS, cur_price=Decimal("140.00"), prev_close=Decimal("138.00"), target_hits=2
+        )
+        assert "5R" in decision["reason"]
+
+    def test_missing_r_multiple_config_falls_back_gracefully_not_crash(self, mock_config):
+        """A missing/malformed config value here must not be the thing that crashes a real
+        exit in progress - this is a display label, not a risk gate. Constructs PositionContext
+        directly rather than going through the full _evaluate_position()/ExitStrategyChain
+        pipeline: TradeValidator's own __init__ already fail-fasts on a missing
+        t1_target_r_multiple before this code would ever run in that pipeline (defense-in-
+        depth, same "unreachable but hardened anyway" pattern as
+        executor_entry_handler.py's cost-basis-blend guard), so this exercises
+        _target_r_label's own fallback directly rather than asserting it's reachable end-to-end."""
+        from algo.trading.exit_engine import PositionContext
+
+        config = dict(mock_config)
+        del config["t1_target_r_multiple"]
+        ctx = PositionContext(
+            symbol="TGT",
+            current_date=TODAY,
+            cur_price=Decimal("115.00"),
+            prev_close=Decimal("114.00"),
+            entry_price=Decimal("100.00"),
+            active_stop=Decimal("90.00"),
+            init_stop=Decimal("90.00"),
+            t1_price=Decimal("115.00"),
+            t2_price=Decimal("130.00"),
+            t3_price=Decimal("140.00"),
+            target_hits=0,
+            days_held=5,
+            dist_days_today=0,
+            config=config,
+        )
+        should_exit, decision = ctx.check_target_t1(MagicMock())
+        assert should_exit is True
+        assert decision is not None
+        assert "target" in decision["reason"]
+        assert "R)" not in decision["reason"]
