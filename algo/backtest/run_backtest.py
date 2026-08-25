@@ -221,6 +221,30 @@ def run_backtest(  # noqa: C901
     an inherent limitation of daily-bar-only backtesting (no code fix possible without loading
     intraday price data), not a calculation bug - noted here so backtest results aren't read as
     more precise than the underlying data supports.
+
+    KNOWN SIMPLIFICATION - zero slippage/spread on every fill (found 2026-08-25, goal session,
+    auditing why this file had never modeled it at all): EVERY fill in this simulation - every
+    entry at `_get_daily_buy_signals()`'s reported `close`, every sell-signal/max-hold exit at
+    that day's `close` - is priced at the exact same daily bar the signal itself was computed
+    from, with no bid/ask spread, no market-impact cost, and no execution-latency slippage
+    applied anywhere. Live entries go through `order_manager.py`'s LIMIT orders (can miss fills
+    or fill worse than the signal price depending on market movement between signal computation
+    and order placement) and live exits mix LIMIT and MARKET orders (see
+    [[exit_order_marketable_limit_20260824]] in memory) - neither matches this backtest's
+    "always fills at the exact bar close" assumption. `algo_tca` (populated by
+    `algo/trading/tca.py`) already tracks real `slippage_bps` per live trade specifically for
+    this purpose, but has 0 rows in this local dev DB (no live trading history here) - there is
+    no real slippage figure available locally to calibrate this backtest against. Combined with
+    the stop/target-fill gap above, every dimension of this backtest's fill assumptions is
+    optimistic relative to live execution, not just the stop/target one - a real,
+    likely-material, still-uncalibrated contributor to the live-vs-backtest Sharpe divergence
+    documented in [[trailing_year_sharpe_negative_real_but_undiagnosable_locally_20260822]]
+    (that investigation could not identify a root cause locally; zero-slippage backtesting is a
+    concrete candidate it did not consider - worth checking first in any future session with
+    real production `algo_tca` data). Not fixed here: a correct fix needs real slippage-bps
+    distributions from `algo_tca` (once it has live rows) to draw a calibrated
+    random/average slippage per fill, not an invented constant - inventing one without real
+    data would trade an honest "we don't model this" gap for a false-precision wrong number.
     """
     # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
     if initial_capital is None or initial_capital <= 0:
