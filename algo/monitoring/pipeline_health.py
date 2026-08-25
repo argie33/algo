@@ -281,6 +281,14 @@ class PipelineHealth:
             # data_loader_status (row_count=0, status manually set to DEPRECATED as a stopgap by
             # an earlier session, but that column isn't what this checker reads).
             "ttm_balance_sheet",
+            # insider_holdings_sec ADDED 2026-08-24: table (and its loader, load_insider_holdings_sec.py)
+            # deliberately DROP TABLE'd same day (commit 2ff8211bd, migration 1219 - insider
+            # ownership dropped as a scoring input entirely, see that commit message). The
+            # data_loader_status row survives because data_loader_status_history FK's to it (real
+            # audit history, not deletable) - so this check_table_health() loop still hits it every
+            # run and, like ttm_balance_sheet above, `to_regclass()`/pg_class lookup finds nothing
+            # -> HealthStatus.ERROR live-confirmed on every orchestrator run until this entry.
+            "insider_holdings_sec",
             "buy_sell_weekly",  # No loader ever existed for weekly/monthly buy_sell aggregates -
             "buy_sell_monthly",  # load_buy_sell_daily.py is the only buy_sell_* loader, and it
             "buy_sell_daily_etf",  # deliberately excludes ETFs (exclude_etfs_from_symbols=True,

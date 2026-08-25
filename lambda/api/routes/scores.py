@@ -2158,7 +2158,6 @@ _TABLE_GROUP = {
     "yfinance_snapshot": "Snapshot",
     "market_health_daily": "Market",
     "institutional_holdings_13f": "Institutional",
-    "insider_holdings_sec": "Insider",
     "analyst_earnings_estimates": "Analyst",
     "sec_segment_info": "Segments",
     "sec_segment_metrics": "Segments",
@@ -2457,7 +2456,7 @@ def _get_scores_coverage(cur: cursor) -> Any:
         # follow-up to the active-universe fix above): the "%unavailable_reason%" name
         # match above misses every table whose gap-reason column is just called "reason"
         # instead - live-confirmed this is a completely different, real blind spot, not
-        # overlap: institutional_holdings_13f, insider_holdings_sec,
+        # overlap: institutional_holdings_13f,
         # analyst_earnings_estimates, sec_segment_info/metrics, short_interest_finra, and
         # sec_valuations are all genuine per-symbol data SOURCES (not just downstream
         # computed factors) with a real, populated "reason" column - sec_segment_metrics
@@ -2476,7 +2475,6 @@ def _get_scores_coverage(cur: cursor) -> Any:
         # message) that would only add noise, not information, if included too.
         bare_reason_tables = (
             "institutional_holdings_13f",
-            "insider_holdings_sec",
             "analyst_earnings_estimates",
             "sec_segment_info",
             "sec_segment_metrics",

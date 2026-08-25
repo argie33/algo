@@ -139,7 +139,13 @@ SAFE_TABLES = {
     "key_metrics",
     "short_interest_finra",  # Phase 1: FINRA short interest (replaces yfinance)
     "institutional_holdings_13f",  # Phase 2: SEC 13F institutional holdings
-    "insider_holdings_sec",  # Phase 2: SEC Form 4/5 insider holdings
+    # insider_holdings_sec: table itself DROPPED 2026-08-24 (commit 2ff8211bd, migration 1219),
+    # but a data_loader_status row survives (FK'd from data_loader_status_history, can't be
+    # deleted without destroying real audit history) and pipeline_health.py still iterates
+    # every data_loader_status.table_name each run - kept here (like ttm_balance_sheet above)
+    # so assert_safe_table() lets that deprecated-table check run instead of hard-erroring
+    # "not in whitelist" first. See KNOWN_DEPRECATED_TABLES in algo/monitoring/pipeline_health.py.
+    "insider_holdings_sec",
     "insider_transaction_velocity",  # Phase 2: Insider buy/sell velocity from SEC Form 4/5
     "current_reports_8k",  # Phase 2: SEC Form 8-K material events (acquisitions, bankruptcies, etc.)
     "dividend_data",  # Phase 2: Dividend ex-dates and payment dates (position management)
@@ -207,6 +213,14 @@ SAFE_TABLES = {
     # Russell/S&P constituents
     "russell2000_constituents",
     "sp500_constituents",
+    # ADDED 2026-08-24 (real-money-readiness goal session): capital_routing_daily has a real
+    # writer and a `date` column but was never added here - a full orchestrator run logged
+    # "Error checking secondary table capital_routing_daily: Unknown table 'capital_routing_daily'
+    # (not in whitelist)" and "Could not infer date column", same bug class as the
+    # economic_calendar/earnings_metrics/ttm_balance_sheet entries above - zero staleness
+    # monitoring for the capital router despite it already being wired into the dashboard
+    # ([[capital_routing_dashboard_wiring_landed_via_worktree_after_3x_revert_race_20260824]]).
+    "capital_routing_daily",
 }
 
 # Known safe columns (whitelist for dynamic column names)
