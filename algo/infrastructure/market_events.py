@@ -16,7 +16,30 @@ offsetting cash credit anywhere, and could in principle contribute to (though ra
 solely cause) a stop-loss trigger for high-yield names. Likely low real-world impact for
 this system's typically short holding periods, but flagging honestly rather than leaving
 the docstring's claim uncorrected - implementing this is a real feature (dividend data
-source + ex-div tracking + adjustment/crediting logic), not attempted here.
+source + ex-div tracking + adjustment/crediting logic), not attempted here. Not attempted
+because dividend_data.ex_dividend_date (loaders/load_dividend_data.py) is itself only an
+estimate (SEC XBRL period-end + 45 days, not a true published ex-date) - crediting
+individual short-lived trades against a +/-several-week-fuzzy date would produce numbers
+that look precise but mostly aren't, worse than the current honest gap.
+
+**Blast-radius correction (2026-08-25, goal: real-money-readiness sweep) - this gap is
+NARROWER than the paragraph above implies for the one number that actually drives risk
+decisions.** Traced algo/infrastructure/reconciliation.py's run_daily_reconciliation(): in
+"auto" (real broker) mode, total_portfolio_value/cash/equity all come straight from
+self.broker.fetch_account() - Alpaca's own real account equity, which Alpaca itself credits
+with dividend cash on payment date (confirmed: this class's docstring gap has zero effect
+once real money is live - broker equity is already correct by construction, nothing in this
+codebase needs to compute it). The internal per-trade P&L gap described above only reaches
+the portfolio-level total_portfolio_value figure (the one daily_report.py shows, and the one
+circuit_breaker.py/var.py drawdown math is computed against) while execution_mode is "paper"
+or "dry" - that path (same file, ~line 380-470) never calls the broker at all (self.broker is
+None by construction for non-"auto" modes per that block's own 2026-08-11 comment) and instead
+rolls total_portfolio_value forward as baseline + realized_pnl_today + unrealized_pnl_change,
+both entirely price-only. Net effect: paper-mode's synthetic equity number under-counts real
+dividend income it would have received (a small, ONE-DIRECTIONAL, conservative bias - paper
+equity understates true return, never overstates it), and this is purely a paper-trading
+simulation artifact that automatically stops existing the moment execution_mode flips to
+"auto" for real trading, not a live-money risk to fix before going live.
 
 Implements fail-safe protocols that override strategy logic.
 """
