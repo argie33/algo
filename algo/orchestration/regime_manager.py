@@ -222,6 +222,31 @@ class RegimeManager:
 
         Returns:
             Modified config dict with regime overrides
+
+        STRUCTURAL FINDING 2026-08-25 (real-money-readiness goal session, targets/position-
+        sizing audit): this method - the one place max_hold_days/t1-3_target_r_multiple get
+        regime-scaled - has ZERO real callers anywhere in this codebase (confirmed via a
+        repo-wide grep for `get_adjusted_config(`: only this docstring and the class comment
+        above reference it; RegimeManager itself is only ever instantiated by
+        phase9_reconciliation.py, daily_report.py, and this file's own __main__ block, and
+        none of those call this method - only get_current_regime/get_regime_params/
+        regime_history). exit_engine.py's check_time_exit/check_target_t1/t2/t3 read
+        max_hold_days/t1-3_target_r_multiple straight off the config object phase6_exit_
+        execution.py passes to `ExitEngine(config)` - the RAW AlgoConfig, never routed
+        through this method. So unlike position_size_mult (documented above as deliberately
+        display-only after its consumer was removed 2026-08-24 for double-counting
+        exposure_pct), REGIME_TARGET_*/REGIME_HOLD_DAYS_* have no such "intentionally
+        disconnected" note anywhere - this looks like an unfinished wire-up, not a deliberate
+        design choice, but there is also no backtest evidence (unlike vol_managed_multiplier
+        in market_exposure.py, which stayed pinned inert until a real SPY/QQQ backtest
+        justified activating it) that regime-scaling targets/hold-days actually helps. Not
+        wired in here: doing so would materially change live exit behavior for real money
+        (e.g. correction regime would cut T1 from 2.0R to 1.2R and max_hold_days from 20 to
+        10) without that same evidentiary bar this codebase applies to comparable live
+        activations elsewhere. Left for explicit user direction: either (a) wire
+        get_adjusted_config()'s output into ExitEngine's config after backtesting it the same
+        way vol_managed_multiplier was validated, or (b) mark this display-only like
+        position_size_mult and stop implying it's live, or (c) leave as documented dead code.
         """
         # Fail-fast: base_config must have critical values (validated at init time)
         if "max_hold_days" not in base_config or base_config["max_hold_days"] is None:
