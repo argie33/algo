@@ -61,6 +61,7 @@ from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.status_manager import LoaderStatusManager
+from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -707,11 +708,34 @@ def run(  # noqa: C901
 
     # STARTUP: Clean up orphaned positions from previous failed runs
     # This prevents orphaned positions from blocking Phase 2/7 risk calculations
+    #
+    # BUG FOUND 2026-08-25 (real-money-readiness goal session, full-file audit): the
+    # "no open trade for this symbol" check below used a hardcoded `t.status = 'open'`
+    # instead of TradeStatus.all_open() (open/filled/partially_filled/active/pending/
+    # paper_pending) - the exact same "hand-rolled subset missing FILLED/PARTIAL" bug
+    # class already found and fixed once in exit_engine.py's own exit-candidate query
+    # (see TradeStatus.all_open()'s own docstring for that history). In real live/auto
+    # mode, executor_entry_handler.py records a normally-filled order's algo_trades.status
+    # as 'filled'/'partially_filled', never the literal string 'open' - confirmed via
+    # `execution_mode == "auto" and order_status in ("filled", "partially_filled")`. So
+    # for ANY symbol that had ever been closed before (closed_trades CTE matches it) and
+    # was later re-entered and filled for real, this query's NOT EXISTS saw zero rows
+    # with status='open' (the real row was 'filled') and concluded the position was
+    # orphaned - silently marking a genuinely open, broker-held, real-money position as
+    # 'closed' in our own database on every Phase 1 run (4-5x/day). That desyncs every
+    # downstream consumer that filters on algo_positions.status='open' (exit_engine.py's
+    # stop/target monitoring, position_sizer.py's risk-exposure accounting, dashboard) from
+    # a position the broker still actually holds - no crash, no error, just silent loss of
+    # tracking on a real position while stop-loss/target management for it stops running.
+    # Invisible in local dev testing because paper-mode trades are recorded with status
+    # literally 'open' (never 'filled') - see algo/trading/executor_entry_handler.py's
+    # execution_mode branching - so this only ever manifested in real live/auto trading.
     try:
         from utils.db import DatabaseContext
 
         with DatabaseContext("write") as cleanup_cursor:
-            cleanup_cursor.execute("""
+            cleanup_cursor.execute(
+                """
                 WITH closed_trades AS (
                     SELECT DISTINCT symbol FROM algo_trades
                     WHERE status = 'closed'
@@ -722,9 +746,11 @@ def run(  # noqa: C901
                 WHERE p.status = 'open' AND p.symbol IN (SELECT symbol FROM closed_trades)
                 AND NOT EXISTS (
                     SELECT 1 FROM algo_trades t
-                    WHERE t.symbol = p.symbol AND t.status = 'open'
+                    WHERE t.symbol = p.symbol AND t.status = ANY(%s)
                 );
-            """)
+                """,
+                (list(TradeStatus.all_open()),),
+            )
             if cleanup_cursor.rowcount > 0:
                 logger.info(
                     f"[PHASE 1 STARTUP] Auto-closed {cleanup_cursor.rowcount} orphaned positions from previous runs"
