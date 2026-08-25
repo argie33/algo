@@ -167,6 +167,19 @@ def _pillar_detail(key: str, f: dict[str, Any]) -> str:
     return "[yellow]⚠[/]"
 
 
+def _vol_managed_scaling_item(factors: dict[str, Any]) -> str:
+    """Compact-panel summary line for the vol-managed multiplier (Layer 2, Moreira &
+    Muir - active since 2026-08-24). Degrades to an unavailable marker (never hidden -
+    same convention as the pillar rows above) if the key is absent, e.g. an older cached
+    row predating activation."""
+    vms = factors.get("vol_managed_scaling")
+    mult = vms.get("multiplier") if isinstance(vms, dict) else None
+    if isinstance(mult, (int, float)):
+        mc = G if mult > 1.02 else (Y if mult < 0.98 else "dim")
+        return f"[dim]Vol-Managed Scaling:[/] [{mc}]x{mult:.2f}[/]"
+    return "[dim]Vol-Managed Scaling:[/] [yellow]⚠ unavailable[/]"
+
+
 @register_panel(
     "exp",
     endpoint_deps=["exp_factors"],
@@ -277,6 +290,12 @@ def panel_exposure_compact(exp_f: Any) -> Any:
             items.append(f"[yellow]Macro Watch:[/] [yellow]⚠ {'; '.join(reasons)[:60]}[/]")
         else:
             items.append("[dim]Macro Watch:[/] [dim]clear (Sahm/yield curve/inflation - slow veto only)[/]")
+
+    # Vol-Managed Scaling (Layer 2, Moreira & Muir - active since 2026-08-24) multiplies
+    # the pillar score BEFORE hard-veto capping (see market_exposure.py's compute()) - it
+    # can move exposure_pct day-to-day on its own, so it must be visible here, not just
+    # baked silently into the headline number.
+    items.append(_vol_managed_scaling_item(factors))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -703,6 +722,25 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
 
         macro_tbl.add_row(Text(sahm_s, style="dim"), Text(yc_s, style="dim"), Text(infl_s, style="dim"))
         rows.append(macro_tbl)
+
+    # Vol-Managed Scaling (Layer 2, Moreira & Muir - active since 2026-08-24): a real
+    # multiplier applied to the pillar score before hard-veto capping, so it can move
+    # exposure_pct day-to-day independent of the pillars/vetoes shown above.
+    vms = factors.get("vol_managed_scaling") if isinstance(factors, dict) else None
+    if isinstance(vms, dict):
+        mult = vms.get("multiplier")
+        note = vms.get("note")
+        if isinstance(mult, (int, float)):
+            mc = G if mult > 1.02 else (Y if mult < 0.98 else "dim")
+            note_s = f"  [dim]{note[:60]}[/]" if isinstance(note, str) else ""
+            rows.append(
+                Text.from_markup(
+                    f"[bold]Vol-Managed Scaling[/] [dim](applied to pillar score before veto caps)[/]  "
+                    f"[{mc}]x{mult:.2f}[/]{note_s}"
+                )
+            )
+        else:
+            rows.append(Text.from_markup("[bold]Vol-Managed Scaling[/]  [yellow]⚠ unavailable[/]"))
 
     timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""

@@ -129,7 +129,8 @@ export const safeGetFactors = (current) => {
   // own sub-signal detail under "components"), a "macro_watch" section for signals
   // demoted to a slow veto-only role (Sahm Rule / Yield Curve / Inflation
   // Expectations - no longer composite-scored), and "vol_managed_scaling" (Layer 2,
-  // currently inert). Guards below cover this new top-level shape; ...f still spreads
+  // Moreira & Muir vol-managed scaling - active since 2026-08-24, applied to the
+  // pillar score before hard-veto capping). Guards below cover this new top-level shape; ...f still spreads
   // everything through so an unrecognized/future key survives unchanged rather than
   // being dropped.
   return {

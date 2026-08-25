@@ -969,6 +969,39 @@ function ExposureFactors({ markets }) {
             );
           })
           .filter(Boolean)}
+        {(() => {
+          // Vol-Managed Scaling (Layer 2, Moreira & Muir - active since 2026-08-24):
+          // multiplies the pillar score BEFORE hard-veto capping (see market_exposure.py's
+          // compute()), so it can move exposure_pct day-to-day on its own. FIXED 2026-08-24:
+          // this card rendered every pillar but silently omitted this factor, the same
+          // "computed but invisible" bug class as the capital-routing dashboard gap.
+          const vms = factors.vol_managed_scaling;
+          if (!vms) return null;
+          const mult = vms.multiplier;
+          const available = typeof mult === "number";
+          const toneClass = !available
+            ? ""
+            : mult > 1.02
+              ? "up"
+              : mult < 0.98
+                ? "down"
+                : "";
+          return (
+            <div
+              className="flex items-center justify-between"
+              style={{
+                marginTop: "var(--space-2)",
+                paddingTop: "var(--space-2)",
+                borderTop: "1px solid var(--border-subtle, rgba(128,128,128,0.2))",
+              }}
+            >
+              <span className="eyebrow">Vol-Managed Scaling</span>
+              <span className={`mono tnum t-xs strong ${toneClass}`}>
+                {available ? `×${num(mult, 2)}` : "⚠ unavailable"}
+              </span>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
