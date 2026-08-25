@@ -39,8 +39,34 @@ import psycopg2
 
 from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db.context import DatabaseContext
+from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_risk_free_rate_annual() -> float:
+    """Real 3-month T-bill rate (FRED DGS3MO), decimal annual - same source/convention as
+    algo/reporting/performance.py's rolling_sharpe(). Added 2026-08-25 (goal: closing the
+    "run_backtest.py duplicates the pre-fix raw-return Sharpe formula" gap found auditing
+    the just-fixed calculate_sharpe_ratio() risk-free-rate bug - this script independently
+    reimplemented the same formula inline instead of calling MetricsCalculator, so it carried
+    the identical rf=0 assumption. Falls back to 0.0 (old behavior) if DGS3MO is unavailable,
+    same non-fatal-degradation choice as rolling_sharpe().
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT value::float FROM economic_data WHERE series_id = 'DGS3MO' "
+                "AND date <= CURRENT_DATE AND value IS NOT NULL ORDER BY date DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            if row is not None and row[0] is not None:
+                return float(row[0]) / 100.0
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(f"[BACKTEST] DGS3MO risk-free rate lookup failed ({e}) - using 0.0")
+    else:
+        logger.warning("[BACKTEST] DGS3MO risk-free rate unavailable - using 0.0")
+    return 0.0
 
 
 def _get_trading_dates(start: date, end: date) -> list[date]:
@@ -425,8 +451,20 @@ def run_backtest(  # noqa: C901
                     if dd < max_dd_pct:
                         max_dd_pct = dd
 
-    # Sharpe ratio from equity curve daily returns
+    # Sharpe/Sortino/Calmar from equity curve daily returns - routed through
+    # MetricsCalculator (same canonical formulas rolling_sharpe()/sortino_ratio()/
+    # calmar_ratio() in algo/reporting/performance.py use) instead of a second, inline
+    # reimplementation. FIXED 2026-08-25 (goal): the inline formula this replaced was
+    # `avg_ret / std_ret * sqrt(252)` - the exact same raw-return-not-excess-return bug
+    # just fixed in calculate_sharpe_ratio() for live Sharpe (see that fix's commit
+    # message) - this script had independently drifted the same formula and carried the
+    # identical rf=0 assumption. It also never computed Sortino/Calmar at all, despite
+    # algo/reporting/tests/backtest/reference_metrics.json (this script's own reference
+    # baseline) claiming values for both - a mismatch that made that file's provenance
+    # unverifiable (see backtest_vs_live_comparison()'s docstring note).
     sharpe = None
+    sortino = None
+    calmar = None
     if len(equity_curve) > 30:
         values = [p["value"] for p in equity_curve]
         # CRITICAL: Skip returns where prior value is <= 0 (cannot calculate meaningful returns)
@@ -442,14 +480,24 @@ def run_backtest(  # noqa: C901
                     f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+). "
                     f"Equity curve must have at least 3 snapshots (2+ returns)."
                 )
-            avg_ret = statistics.mean(daily_returns)
             std_ret = statistics.stdev(daily_returns)
             if std_ret <= 0:
                 raise ValueError(
                     "CRITICAL: Zero or negative volatility in returns (invalid backtest data). "
                     "Check for flat equity curve (no price changes) or corrupt data."
                 )
-            sharpe = round((avg_ret / std_ret * (252**0.5)), 4)
+            risk_free_rate_annual = _fetch_risk_free_rate_annual()
+            sharpe = MetricsCalculator.calculate_sharpe_ratio(
+                daily_returns, min_observations=2, risk_free_rate_annual=risk_free_rate_annual
+            )
+            try:
+                sortino = MetricsCalculator.calculate_sortino_ratio(daily_returns, min_observations=2)
+            except ValueError as e:
+                logger.info(f"[BACKTEST] Sortino not computable ({e}) - no negative daily returns in this window")
+            try:
+                calmar = MetricsCalculator.calculate_calmar_ratio(values, min_observations=2)
+            except ValueError as e:
+                logger.info(f"[BACKTEST] Calmar not computable ({e})")
 
     avg_trade_return_pct = (
         (sum(t["profit_loss_pct"] for t in completed_trades) / total_trades) if total_trades > 0 else None
@@ -465,6 +513,8 @@ def run_backtest(  # noqa: C901
         "annualized_return_pct": round(annualized_return_pct, 4),
         "max_drawdown_pct": round(max_dd_pct, 4) if max_dd_pct is not None else None,
         "sharpe_ratio": sharpe,
+        "sortino_ratio": sortino,
+        "calmar_ratio": calmar,
         "win_rate_pct": round(win_rate_pct, 4) if win_rate_pct is not None else None,
         "profit_factor": (
             (round(profit_factor, 4) if profit_factor != float("inf") else 9999.0)
@@ -707,6 +757,8 @@ def main() -> int:
     logger.info(f"Ann. Return:     {_fmt(results['annualized_return_pct'], '+.2f', '%')}")
     logger.info(f"Max Drawdown:    {_fmt(results['max_drawdown_pct'], '.2f', '%')}")
     logger.info(f"Sharpe Ratio:    {results['sharpe_ratio']}")
+    logger.info(f"Sortino Ratio:   {results['sortino_ratio']}")
+    logger.info(f"Calmar Ratio:    {results['calmar_ratio']}")
     logger.info(f"Win Rate:        {_fmt(results['win_rate_pct'], '.1f', '%')}")
     logger.info(f"Profit Factor:   {_fmt(results['profit_factor'], '.2f')}")
     logger.info(f"Total Trades:    {results['total_trades']}")

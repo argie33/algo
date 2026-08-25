@@ -23,13 +23,13 @@ individual short-lived trades against a +/-several-week-fuzzy date would produce
 that look precise but mostly aren't, worse than the current honest gap.
 
 **Blast-radius correction (2026-08-25, goal: real-money-readiness sweep) - this gap is
-NARROWER than the paragraph above implies for the one number that actually drives risk
-decisions.** Traced algo/infrastructure/reconciliation.py's run_daily_reconciliation(): in
-"auto" (real broker) mode, total_portfolio_value/cash/equity all come straight from
+NARROWER than the paragraph above implies for the one number that actually drives
+risk decisions.** Traced algo/infrastructure/reconciliation.py's run_daily_reconciliation():
+in "auto" (real broker) mode, total_portfolio_value/cash/equity all come straight from
 self.broker.fetch_account() - Alpaca's own real account equity, which Alpaca itself credits
 with dividend cash on payment date (confirmed: this class's docstring gap has zero effect
 once real money is live - broker equity is already correct by construction, nothing in this
-codebase needs to compute it). The internal per-trade P&L gap described above only reaches
+codebase needs to compute it). The internal per-trade P&L gap described above ONLY reaches
 the portfolio-level total_portfolio_value figure (the one daily_report.py shows, and the one
 circuit_breaker.py/var.py drawdown math is computed against) while execution_mode is "paper"
 or "dry" - that path (same file, ~line 380-470) never calls the broker at all (self.broker is
