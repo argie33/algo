@@ -2302,6 +2302,21 @@ class StockScoresLoader(OptimalLoader):
         left as originally designed (higher/less-severe max_drawdown_1y scores better); this
         question is now closed with evidence rather than left open on caution alone.
 
+        INDEPENDENT RE-VERIFICATION 2026-08-25 (same standard applied to the PE-vs-PB/PS
+        finding in _score_value's docstring - digging in to be certain rather than trusting
+        a claim already in the file, since that Value claim didn't fully reproduce when
+        checked). Re-ran the sub-period split from scratch, independently: t-stats came back
+        directionally consistent (full sample ~zero, first half negative, second half
+        positive - the sign-flip pattern IS real) but meaningfully WEAKER than claimed above
+        - full sample t=0.22 (vs claimed 0.07/0.06, both near-zero so roughly consistent),
+        first half t=-0.57 (vs claimed -1.61), second half t=+0.77 (vs claimed +1.75). Same
+        conclusion either way - no stable relationship, correctly left unflipped - but the
+        magnitude of "wrong-signed in the first half" was overstated in the original claim;
+        noting the more conservative numbers here rather than leaving the stronger, unverified
+        ones as the only record. (Momentum's RSI decay finding, checked the same way, DID
+        reproduce closely - see that pillar's docstring - so this isn't a blanket doubt on
+        every inherited claim, just this specific one.)
+
         OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: check whether other
         canonical academic factors are still missing after adding Size to Value). Amihud
         (2002, Journal of Financial Markets) illiquidity - |monthly return| / average daily
@@ -2562,6 +2577,14 @@ class StockScoresLoader(OptimalLoader):
         trading on a relationship that has already largely decayed away, the same
         McLean-Pontiff logic already applied to Growth's asset_growth_yoy elsewhere in this
         file. Correctly left as originally designed; this sub-question is closed (won't flip).
+
+        INDEPENDENTLY RE-VERIFIED 2026-08-25 (same "dig in, be certain" pass that corrected
+        Stability's max_drawdown_1y sub-period numbers and Value's PE-vs-PB/PS claim, both of
+        which had overstated an already-in-file finding). This one reproduced closely on a
+        from-scratch re-run: full sample t=-1.83, first half t=-1.97, second half t=-0.44,
+        terciles -1.58/-1.73/+0.52 - all within a few hundredths to a few tenths of the
+        numbers above, not the several-point gap found in the other two claims. Confidence in
+        this specific finding is high; the conclusion (won't flip) stands unchanged.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 scoreable field → returns float (0-100)
