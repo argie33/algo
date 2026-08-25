@@ -516,6 +516,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "value_metrics": value_inserts,
                 "quality_metrics": quality_inserts,
                 "growth_metrics": growth_inserts,
+                # FIXED 2026-08-25 (goal session, root-causing
+                # sla_sweep_technical_data_daily_fixed_value_metrics_null_duration_open_20260825):
+                # runner.py ALWAYS re-marks the loader's primary table (self.table_name =
+                # "value_metrics" - see the class docstring) via its own generic
+                # LoaderStatusManager(loader.table_name).mark_completed(execution_duration_sec=...)
+                # call after run() returns (loaders/runner.py ~line 449-454), reading the duration
+                # from stats.get("duration_sec"). This loader's return dict never had that key, so
+                # runner.py's execution_duration resolved to None and clobbered the CORRECT,
+                # real execution_duration this run() already wrote for value_metrics moments
+                # earlier via mark_completed() in the per-table loop above - explaining exactly
+                # the observed symptom: value_metrics NULL while quality_metrics/growth_metrics
+                # (declared secondary via NOT setting output_tables - see this class's own
+                # docstring above - so runner.py never re-marks them) stayed correct. Quality/
+                # growth are unaffected by this fix (runner.py's secondary-table re-mark block
+                # only fires when output_tables is set, which this loader deliberately never
+                # sets - see comment above table_name).
+                "duration_sec": execution_duration,
             }
 
         except Exception as e:
