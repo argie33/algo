@@ -875,6 +875,24 @@ def _batch_fetch_technical_data(
                     GROUP BY symbol
                 ),
                 atr_data AS (
+                    -- KNOWN METHODOLOGY GAP (found 2026-08-24, real-money-readiness test-coverage
+                    -- sweep, not yet fixed): this is a flat SMA of True Range over the last
+                    -- `period` rows. loaders/technical_indicators.py's compute_atr() - the
+                    -- function that actually populates technical_data_daily.atr_14, the
+                    -- "precomputed" value this whole function exists to avoid recomputing - uses
+                    -- Wilder's exponential smoothing instead, and its own docstring explicitly
+                    -- warns "NOT a simple rolling mean - SMA would give discontinuous jumps as
+                    -- big days enter/exit the window." This fallback only fires when Phase 5's
+                    -- precomputed atr_14 is missing for a symbol (data gap), but when it does
+                    -- fire, the resulting ATR - which feeds directly into stop-loss/chandelier-
+                    -- trail distance sizing - is computed by a genuinely different, documented-
+                    -- as-inferior method than the normal path. Not fixed here: a correct fix
+                    -- needs Wilder's EMA (which requires much deeper history to converge than
+                    -- just `period` rows, not a single flat aggregate) validated against
+                    -- compute_atr()'s real output before landing, not a rushed SQL rewrite of
+                    -- risk-sizing math. See
+                    -- reconciliation_and_exit_retry_verified_clean_20260824-adjacent memory
+                    -- (batch_fetch_atr_methodology_mismatch_found_20260824) for the full trace.
                     SELECT symbol, AVG(tr) AS atr
                     FROM (
                         SELECT symbol,
