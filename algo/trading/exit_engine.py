@@ -41,11 +41,22 @@ Exit hierarchy (checked in order):
 
 3. TIME     - held >= max_hold_days
 
-4. T3       - price >= target_3 (4R) '' exit final 25%
+4. T3       - price >= target_3 (t3_target_r_multiple, config-driven - see
+              _target_r_label) '' exit final 25%
 
-5. T2       - price >= target_2 (3R) '' exit 25% on pullback, raise stop to T1 area
+5. T2       - price >= target_2 (t2_target_r_multiple, config-driven) '' exit 25% on
+              pullback, raise stop to T1 area
 
-6. T1       - price >= target_1 (1.5R) '' exit 50% on pullback, raise stop to entry (breakeven)
+6. T1       - price >= target_1 (t1_target_r_multiple, config-driven) '' exit 50% on
+              pullback, raise stop to entry (breakeven)
+
+   NOTE (2026-08-25): these R-multiples are NOT fixed constants - regime_manager.py
+   scales the configured base value per market regime, and the base itself has already
+   drifted from this file's original 1.5/3/4 design (algo_config.t1_target_r_multiple
+   is currently 2.5, live-confirmed - see [[t1_t2_t3_reason_hardcoded_r_multiple_stale_fixed_20260825]]
+   in memory). Deliberately not restating specific numbers here again to avoid this
+   comment itself going stale the same way the old hardcoded reason strings did -
+   check algo_config directly for the live values.
 
 7. CHANDELIER TRAIL  - 3xATR from highest high (or 21-EMA after 10d)
 
