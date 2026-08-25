@@ -816,6 +816,26 @@ class EntryHandler:
         stop_dec = Decimal(str(stop_loss_price))
         entry_dec = Decimal(str(entry_price))
 
+        # BUG FOUND 2026-08-25 (real-money-readiness goal session, entry-validation audit):
+        # missing the same NaN-comparison-guard already applied 8+ times elsewhere in this
+        # exact file (see _upsert_position_record's identical guard below for the full
+        # history) - a NaN/Infinite Decimal here would raise decimal.InvalidOperation on the
+        # `stop_dec <= 0` comparison below instead of this function's own clean, documented
+        # (bool, str, dict) contract. Unlike _upsert_position_record's instance of this same
+        # gap (caught by a broad `except Exception` at that call site, so fail-safe even
+        # unguarded), execute_entry's own top-level `except Exception` re-raises after
+        # logging rather than swallowing it - so this exception would propagate to Phase 8's
+        # per-signal loop, which does not catch ArithmeticError/InvalidOperation, aborting
+        # entry execution for every OTHER qualified signal that day, not just this one bad
+        # one. Same bug class, same "isolate the bad signal, don't abort the batch" fix
+        # already applied to trade_validator.py's identical NaN-comparison gap this session.
+        if stop_dec.is_nan() or stop_dec.is_infinite() or entry_dec.is_nan() or entry_dec.is_infinite():
+            return (
+                False,
+                f"{symbol}: Invalid entry_price={entry_dec}/stop_loss_price={stop_dec} (must be finite numbers)",
+                {},
+            )
+
         if stop_dec <= 0:
             return False, f"{symbol}: Stop loss must be > 0, got {stop_dec}. Zero stop = immediate liquidation.", {}
 
