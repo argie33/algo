@@ -199,6 +199,24 @@ class AlgoConfig:
             "Max concurrent positions in one industry",
             "Filter Thresholds",
         ),
+        "max_position_correlation": (
+            "0.85",
+            "float",
+            "Block a new entry if its return correlation with any currently open position exceeds this",
+            "Filter Thresholds",
+        ),
+        "correlation_lookback_days": (
+            "60",
+            "int",
+            "Trading-day window used to compute position-correlation for the diversification check",
+            "Filter Thresholds",
+        ),
+        "correlation_min_overlap_days": (
+            "30",
+            "int",
+            "Minimum overlapping real trading days required to trust a correlation estimate (skip check below this)",
+            "Filter Thresholds",
+        ),
         "max_total_invested_pct": (
             "95.0",
             "float",

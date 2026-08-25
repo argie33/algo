@@ -43,6 +43,14 @@ VALIDATION_SCHEMA = {
     "max_stop_distance_pct": ("float", 0.1, 50.0, False, 12.0),
     "max_positions_per_sector": ("int", 1, 100, False, 10),
     "max_positions_per_industry": ("int", 1, 100, False, 8),
+    # Correlation-based diversification (2026-08-25): sector/industry caps above only catch
+    # concentration within GICS-style taxonomy - two names in different sectors can still move
+    # nearly in lockstep (e.g. high-beta growth names across sectors during a risk-off day).
+    # Non-critical (fail-open on insufficient price history, not fail-closed like the sector
+    # caps) since this is a supplementary check, not the primary diversification control.
+    "max_position_correlation": ("float", 0.5, 1.0, False, 0.85),
+    "correlation_lookback_days": ("int", 20, 252, False, 60),
+    "correlation_min_overlap_days": ("int", 10, 120, False, 30),
     "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
     # Market Conditions
     "max_distribution_days": ("int", 0, 30, False, 4),

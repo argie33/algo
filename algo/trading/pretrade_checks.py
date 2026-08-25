@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
@@ -371,8 +372,122 @@ class PreTradeChecks:
             logger.critical(f"[PRE-TRADE] Database error checking sector/industry concentration for {symbol}: {e}")
             raise ValueError(f"Cannot validate sector/industry limits for {symbol}: {e}") from e
 
+        # CORRELATION-BASED DIVERSIFICATION (2026-08-25 fix): sector/industry caps above only
+        # catch concentration within GICS-style taxonomy - two names in different sectors can
+        # still move nearly in lockstep (e.g. high-beta growth names across sectors during a
+        # risk-off day), so a book could clear every sector/industry check while still holding
+        # several near-duplicate return streams. This is a supplementary check (fails OPEN on
+        # insufficient price history, unlike the sector/industry check above), not a
+        # replacement for the primary taxonomy-based control.
+        try:
+            with DatabaseContext("read") as cur:
+                corr_ok, corr_reason = self._check_correlation_concentration(symbol, cur)
+                if not corr_ok:
+                    return (False, corr_reason)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(
+                f"[PRE-TRADE] {symbol}: correlation-diversification check unavailable ({e}) - "
+                f"failing open (sector/industry caps above remain the primary control)."
+            )
+
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
             f"portfolio ${portfolio_value:.2f}, {side} order approved"
         )
         return (True, None)
+
+    def _check_correlation_concentration(self, symbol: str, cur: PsycopgCursor[Any]) -> tuple[bool, str | None]:
+        """Block a new entry whose daily-return correlation with any currently open position
+        exceeds max_position_correlation, over the trailing correlation_lookback_days.
+
+        Supplements (does not replace) the sector/industry position caps above: two names in
+        different sectors/industries can still move nearly in lockstep (e.g. high-beta growth
+        names across sectors during a risk-off day), so a book could pass every taxonomy check
+        while still holding several near-duplicate return streams.
+
+        Fails OPEN (returns True, treats as "no correlation data available", never raises) when
+        there are no open positions, or when a pair lacks correlation_min_overlap_days of
+        overlapping real price history - unlike the sector/industry check, this is a
+        supplementary control, and this codebase's own documented data-maturity gap
+        (position_sizer.py's get_data_maturity_multiplier: real full-universe price history is
+        still filling in) means blocking entries over a data gap here would be overly
+        aggressive for a non-primary check.
+        """
+        cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", ("open",))
+        open_symbols = [r[0] for r in cur.fetchall() if r[0] != symbol]
+        if not open_symbols:
+            return True, None
+
+        try:
+            lookback_days = int(self.config["correlation_lookback_days"])
+            min_overlap_days = int(self.config["correlation_min_overlap_days"])
+            max_corr = float(self.config["max_position_correlation"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        all_symbols = [symbol, *open_symbols]
+        cur.execute(
+            """
+            SELECT symbol, date, close FROM price_daily
+            WHERE symbol = ANY(%s) AND date >= CURRENT_DATE - (%s || ' days')::interval
+              AND close IS NOT NULL AND close > 0
+            ORDER BY symbol, date
+            """,
+            (all_symbols, lookback_days),
+        )
+        closes_by_symbol: dict[str, dict[Any, float]] = {}
+        for row_symbol, row_date, row_close in cur.fetchall():
+            closes_by_symbol.setdefault(row_symbol, {})[row_date] = float(row_close)
+
+        candidate_closes = closes_by_symbol.get(symbol)
+        if not candidate_closes or len(candidate_closes) < min_overlap_days + 1:
+            return True, None
+
+        worst_corr: float | None = None
+        worst_symbol: str | None = None
+        for open_symbol in open_symbols:
+            open_closes = closes_by_symbol.get(open_symbol)
+            if not open_closes:
+                continue
+            # Aligned on shared calendar dates only - a reasonable approximation for actively
+            # traded equities over a short (default 60d) window, not a full trading-calendar
+            # reconciliation; an occasional missing day on one side just slightly widens that
+            # one return's window rather than corrupting the whole series.
+            common_dates = sorted(set(candidate_closes) & set(open_closes))
+            if len(common_dates) < min_overlap_days + 1:
+                continue
+            candidate_returns = [
+                candidate_closes[common_dates[i]] / candidate_closes[common_dates[i - 1]] - 1
+                for i in range(1, len(common_dates))
+            ]
+            open_returns = [
+                open_closes[common_dates[i]] / open_closes[common_dates[i - 1]] - 1 for i in range(1, len(common_dates))
+            ]
+            corr = _pearson_correlation(candidate_returns, open_returns)
+            if corr is not None and (worst_corr is None or corr > worst_corr):
+                worst_corr, worst_symbol = corr, open_symbol
+
+        if worst_corr is not None and worst_corr >= max_corr:
+            return False, (
+                f"Correlation {worst_corr:.2f} with open position {worst_symbol} exceeds "
+                f"{max_corr:.2f} limit (over {lookback_days}d lookback) - diversification check"
+            )
+        return True, None
+
+
+def _pearson_correlation(returns_a: list[float], returns_b: list[float]) -> float | None:
+    """Pearson correlation between two equal-length return series.
+
+    Returns None (caller must treat as "no signal", not "zero correlation") when the series
+    are too short or either has zero variance (a flat/constant series has undefined
+    correlation, not a real 0.0 reading).
+    """
+    if len(returns_a) != len(returns_b) or len(returns_a) < 2:
+        return None
+    import numpy as np
+
+    a = np.asarray(returns_a, dtype=float)
+    b = np.asarray(returns_b, dtype=float)
+    if np.std(a) == 0 or np.std(b) == 0:
+        return None
+    return float(np.corrcoef(a, b)[0, 1])
