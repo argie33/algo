@@ -1085,6 +1085,17 @@ class SecValuationsLoader(OptimalLoader):
     # Sanity ceiling on the resulting discount rate - prevents degenerate terminal-value math
     # (or a silently absurd near-zero intrinsic value) on an extreme/noisy beta outlier.
     DCF_MAX_DISCOUNT_RATE = 0.25
+    # Minimum spread the discount rate must keep above DCF_TERMINAL_GROWTH_RATE (2.5%). Gordon
+    # Growth's terminal_value = fcf * (1+g) / (discount_rate - g) is a genuine singularity as
+    # discount_rate approaches g: it blows up to an absurd multiple just below the singularity,
+    # goes negative at/below it, and produces a negative intrinsic_per_share that the plausibility
+    # guard then silently swallows as None. This isn't theoretical - this system's own DGS10
+    # history includes a 0.52% reading (2020 COVID-era), and rfr+MIN_EQUITY_RISK_PREMIUM_APPLIED
+    # alone doesn't keep the rate away from g in that regime (a low-beta name could land at ~2.2%,
+    # under the 2.5% terminal growth rate). A 3pp floor above g keeps the terminal multiple
+    # bounded to a sane range in any real-world rate environment while still leaving genuine
+    # risk-based discount-rate differences visible above the floor.
+    DCF_MIN_DISCOUNT_TERMINAL_SPREAD = 0.03
 
     def _compute_discount_rate(self, beta: float | None, risk_free_rate: float | None) -> float:
         """CAPM cost of equity: risk_free_rate + Blume-adjusted-beta x equity_risk_premium.
@@ -1099,7 +1110,11 @@ class SecValuationsLoader(OptimalLoader):
         raw_beta = self.DCF_DEFAULT_BETA if beta is None else beta
         adjusted_beta = self.DCF_BLUME_ADJUSTMENT_WEIGHT * raw_beta + (1 - self.DCF_BLUME_ADJUSTMENT_WEIGHT) * 1.0
         rate = rfr + adjusted_beta * self.DCF_EQUITY_RISK_PREMIUM
-        return max(rfr + self.DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED, min(self.DCF_MAX_DISCOUNT_RATE, rate))
+        floor = max(
+            rfr + self.DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED,
+            self.DCF_TERMINAL_GROWTH_RATE + self.DCF_MIN_DISCOUNT_TERMINAL_SPREAD,
+        )
+        return max(floor, min(self.DCF_MAX_DISCOUNT_RATE, rate))
 
     def _get_risk_free_rate(self, cur: Any) -> float:
         """Live 10-year Treasury yield (economic_data.DGS10) as the CAPM risk-free rate.

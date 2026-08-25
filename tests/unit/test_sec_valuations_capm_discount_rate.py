@@ -93,6 +93,76 @@ class TestDcfUsesRiskAdjustedRate:
         )
 
 
+class TestDiscountRateStaysAboveTerminalGrowth:
+    """FIXED (goal, 2026-08-24): the discount-rate floor used to be only
+    risk_free_rate + DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED (1pp) - nothing kept it above
+    DCF_TERMINAL_GROWTH_RATE (2.5%). This DB's own DGS10 history includes a real 0.52%
+    reading (2020 COVID-era); a low/negative-beta name in that rate environment landed at
+    ~1.5-2.2%, BELOW the 2.5% terminal growth rate. Gordon Growth's
+    terminal_value = fcf*(1+g)/(discount_rate-g) then goes negative (discount_rate < g) or
+    explodes toward a near-singularity (discount_rate barely above g), producing either a
+    silently-dropped-to-None result or a wildly overstated "plausible" intrinsic value -
+    neither is the real fix; the rate itself must stay a safe distance above g.
+    """
+
+    def test_near_zero_risk_free_rate_and_zero_beta_still_clears_terminal_growth(self) -> None:
+        loader = _make_loader()
+        rate = loader._compute_discount_rate(0.0, 0.0052)
+        assert rate >= loader.DCF_TERMINAL_GROWTH_RATE + loader.DCF_MIN_DISCOUNT_TERMINAL_SPREAD
+
+    def test_negative_beta_in_low_rate_environment_still_clears_terminal_growth(self) -> None:
+        loader = _make_loader()
+        rate = loader._compute_discount_rate(-0.5, 0.0052)
+        assert rate >= loader.DCF_TERMINAL_GROWTH_RATE + loader.DCF_MIN_DISCOUNT_TERMINAL_SPREAD
+
+    def test_low_rate_low_beta_dcf_no_longer_collapses_to_none(self) -> None:
+        """Before the fix this returned (None, None) - a negative terminal value from a
+        sub-terminal-growth discount rate, not a genuine data problem."""
+        loader = _make_loader()
+        ivps, mos = loader._compute_dcf_intrinsic_value(
+            "TESTCO",
+            fcf=100.0,
+            eps_growth_pct=0.0,
+            shares_out=10.0,
+            current_price=5.0,
+            beta=0.0,
+            risk_free_rate=0.0052,
+        )
+        assert ivps is not None
+        assert mos is not None
+
+    def test_barely_above_terminal_growth_rate_no_longer_produces_near_singularity_blowup(self) -> None:
+        """Before the fix, beta=0.2/rfr=0.52% landed the discount rate at ~2.85% - only 0.35pp
+        above the 2.5% terminal growth rate - producing an intrinsic value ~8.5x the beta=1.0
+        result purely from Gordon Growth near-singularity math, not genuine risk difference."""
+        loader = _make_loader()
+        low_beta_ivps, _ = loader._compute_dcf_intrinsic_value(
+            "TESTCO",
+            fcf=100.0,
+            eps_growth_pct=0.0,
+            shares_out=10.0,
+            current_price=5.0,
+            beta=0.2,
+            risk_free_rate=0.0052,
+        )
+        market_beta_ivps, _ = loader._compute_dcf_intrinsic_value(
+            "TESTCO",
+            fcf=100.0,
+            eps_growth_pct=0.0,
+            shares_out=10.0,
+            current_price=5.0,
+            beta=1.0,
+            risk_free_rate=0.0052,
+        )
+        assert low_beta_ivps is not None and market_beta_ivps is not None
+        assert low_beta_ivps / market_beta_ivps < 1.1, (
+            "both effectively floor near DCF_MIN_DISCOUNT_TERMINAL_SPREAD above terminal growth "
+            "in this rate regime, so they must land close together, not the 8.5x divergence the "
+            "pre-fix near-singularity terminal-value math produced (2566 vs 302)"
+        )
+        assert low_beta_ivps < 1000.0, "must not be inflated by near-singularity terminal-value math"
+
+
 class TestGetRiskFreeRate:
     """_get_risk_free_rate reads the live 10Y Treasury yield (economic_data.DGS10) and caches
     it per loader-run instance instead of querying it once per symbol (5,000+ times a run)."""

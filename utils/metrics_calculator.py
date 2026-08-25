@@ -125,8 +125,21 @@ class MetricsCalculator:
     ) -> float | None:
         """Calculate 252-day annualized Sortino ratio from daily returns.
 
-        Formula: (mean_return / downside_std) * sqrt(252)
-        Downside only: only negative returns count toward volatility
+        Formula: (mean_return / downside_deviation) * sqrt(252)
+        Downside deviation (Sortino & van der Meer 1991 convention, target=0):
+            sqrt(sum(min(r, 0)**2 for r in returns) / N) computed over ALL N returns, not
+            just the negative ones, and measured from 0 (the target), not from the negative
+            subset's own mean.
+
+        FIXED (goal, 2026-08-24): the prior implementation computed
+        statistics.stdev([r for r in returns if r < 0]) - the sample standard deviation of
+        ONLY the negative returns around THEIR OWN mean, using n-1 of that subset as the
+        denominator. That is a different, systematically smaller quantity than downside
+        deviation: it discards every zero/positive day from the denominator entirely (understating
+        N) and measures spread around the average loss rather than magnitude below zero
+        (discarding the average loss itself). On a real mixed-sign return series this inflated
+        the reported Sortino ratio by 30%+ (hand-verified: 14.76 vs the correct 11.00 on the
+        same 10-return series) - not a rounding difference, a wrong statistic entirely.
 
         Args:
             returns: List of daily returns as decimals
@@ -137,12 +150,11 @@ class MetricsCalculator:
 
         Data Requirements:
             - Minimum 5 daily returns
-            - At least 1 negative return to calculate downside volatility
+            - At least 1 negative return to calculate downside deviation
 
         Edge Cases:
             - If len(returns) < min_observations, returns None
-            - If no negative returns (downside_std = 0), returns None
-            - If all returns are negative, downside_std ≈ full volatility
+            - If no negative returns (downside_deviation = 0), returns None
         """
         if not returns or len(returns) < min_observations:
             raise ValueError(
@@ -150,13 +162,11 @@ class MetricsCalculator:
             )
         try:
             mean_ret = statistics.mean(returns)
-            downside_rets = [r for r in returns if r < 0]
-            if not downside_rets:
+            sum_sq_downside = sum(min(r, 0.0) ** 2 for r in returns)
+            if sum_sq_downside <= 0:
                 raise ValueError("No downside returns: cannot calculate Sortino ratio")
-            downside_std = statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
-            if downside_std <= 0:
-                raise ValueError("Zero downside volatility: cannot calculate Sortino ratio")
-            sortino = (mean_ret / downside_std) * (252**0.5)
+            downside_deviation = (sum_sq_downside / len(returns)) ** 0.5
+            sortino = (mean_ret / downside_deviation) * (252**0.5)
             return cast(float, round(sortino, 3))
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise ValueError(f"Sortino ratio calculation failed: {e}") from e
@@ -223,10 +233,23 @@ class MetricsCalculator:
         returns: list[float] | None = None,
         min_observations: int = 2,
     ) -> float | None:
-        """Calculate Calmar ratio (return / max drawdown).
+        """Calculate Calmar ratio (annualized return / max drawdown).
 
-        Formula: total_compounded_return / max_drawdown_pct
-        Compounding: multiply (1 + daily_return) for each day
+        Formula: annualized_return_pct / max_drawdown_pct
+        Annualization: CAGR-style, (end_val/start_val)**(252/n_periods) - 1, using the same
+        252-trading-days/year convention already used for Sharpe/Sortino annualization in
+        this module - n_periods = len(portfolio_values) - 1 (the number of daily steps
+        actually observed), not the calendar-day span.
+
+        FIXED (goal, 2026-08-24): this used to return raw endpoint-to-endpoint total return
+        (unannualized) despite this method's own name and its caller's docstring
+        (algo/reporting/performance.py's calmar_ratio()) both explicitly promising
+        "annualized return / abs(max drawdown)". For a true ~252-trading-day window the two
+        happen to be close (a full year's total return IS approximately its own annualized
+        rate), which is why this went unnoticed - but the caller's own docstring explicitly
+        supports a "ramp-up" path with as few as 5 snapshots, where a raw ~1-week total
+        return reported as "the annualized Calmar ratio" is wrong by roughly a factor of 50
+        (252/5), not a rounding difference.
 
         Args:
             portfolio_values: List of portfolio values in chronological order
@@ -258,14 +281,17 @@ class MetricsCalculator:
             if max_dd is None or max_dd <= 0:
                 raise ValueError("Cannot calculate Calmar ratio: max drawdown must be > 0")
 
-            # Calculate total return from portfolio values
+            # Calculate annualized (CAGR) return from portfolio values
             start_val = portfolio_values[0]
             end_val = portfolio_values[-1]
             if start_val <= 0:
                 raise ValueError("Cannot calculate Calmar ratio: start value must be > 0")
-            total_return = ((end_val / start_val) - 1) * 100  # Convert to percentage
+            n_periods = len(portfolio_values) - 1
+            if end_val <= 0:
+                raise ValueError("Cannot calculate Calmar ratio: end value must be > 0")
+            annualized_return = cast(float, (end_val / start_val) ** (252.0 / n_periods) - 1) * 100
 
-            calmar = total_return / max_dd
+            calmar = annualized_return / max_dd
             return round(calmar, 3)
         except (ValueError, TypeError, ZeroDivisionError) as e:
             raise ValueError(f"Calmar ratio calculation failed: {e}") from e
