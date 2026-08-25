@@ -30,8 +30,18 @@ from routes.utils import (
 )
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
+from algo.risk.exposure_policy import EXPOSURE_TIERS
 
 logger = logging.getLogger(__name__)
+
+# BUG FOUND 2026-08-25 (money-% goal session): this used to be an independent, hand-copied
+# dict (confirmed_uptrend=1.0, uptrend_under_pressure=0.75, caution=0.50, correction=0.0) -
+# the real EXPOSURE_TIERS risk_multiplier values are 1.0/0.65/0.35/0.0. Wrong by 15% on
+# uptrend_under_pressure and 43% on caution, same double-source-of-truth bug class already
+# found and fixed once in lambda/api/routes/algo_handlers/signals.py's _TIER_CONFIG (see
+# tier_config_derived_from_exposure_tiers_20260824 in memory) - derived here the same way so
+# it can't silently drift again.
+_TIER_RISK_MULTIPLIERS = {tier["name"]: tier["risk_multiplier"] for tier in EXPOSURE_TIERS}
 
 
 def handle(
@@ -366,16 +376,10 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
         tier = str(tier_raw).strip().lower()
 
         # Validate tier is one of the known regimes
-        tier_multipliers = {
-            "confirmed_uptrend": 1.0,
-            "uptrend_under_pressure": 0.75,
-            "caution": 0.50,
-            "correction": 0.0,
-        }
-        if tier not in tier_multipliers:
+        if tier not in _TIER_RISK_MULTIPLIERS:
             raise ValueError(
                 f"CRITICAL: Invalid regime '{tier}' from market_exposure_daily. "
-                f"Expected one of: {', '.join(tier_multipliers.keys())}. "
+                f"Expected one of: {', '.join(_TIER_RISK_MULTIPLIERS.keys())}. "
                 f"Check market exposure computation - regime field corrupt."
             )
 
@@ -389,7 +393,7 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
             "current_tier": tier,
             "exposure_pct": exposure_pct,
             "rationale": rationale,
-            "position_size_multiplier": tier_multipliers[tier],
+            "position_size_multiplier": _TIER_RISK_MULTIPLIERS[tier],
         }
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.critical(f"Exposure tier computation failed: {e}")
