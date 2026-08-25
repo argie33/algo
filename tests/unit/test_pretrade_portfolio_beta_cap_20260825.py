@@ -31,12 +31,14 @@ class _FakeCursor:
         self._responses = [candidate_beta_row, open_positions_rows, open_betas_rows]
         self._call_index = 0
         self._last_call = None
+        self.open_positions_query_params = None
 
     def execute(self, query, params=None):
         if "SELECT beta FROM stability_metrics WHERE symbol = %s" in query:
             self._last_call = 0
         elif "FROM algo_positions" in query:
             self._last_call = 1
+            self.open_positions_query_params = params
         elif "SELECT symbol, beta FROM stability_metrics" in query:
             self._last_call = 2
         else:
@@ -102,6 +104,24 @@ class TestPortfolioBetaCheck:
         ok, reason = checks._check_portfolio_beta("NEWSYM", Decimal("10000"), Decimal("100000"), cur)
         assert ok is True
         assert reason is None
+
+    def test_open_positions_query_excludes_candidate_symbol(self):
+        """Defense-in-depth: run_all()'s earlier duplicate-position check already guarantees
+        the candidate has no open position by the time this method runs, but the open-
+        positions query must still explicitly exclude it (matching
+        _check_correlation_concentration/_check_top5_concentration's identical guard) - a
+        candidate double-counted as both "existing position" and "candidate" would silently
+        corrupt the weighted-average beta calculation if this method were ever reached from a
+        different call path than run_all()'s own ordering guarantees."""
+        checks = PreTradeChecks(config=_config())
+        cur = _FakeCursor(
+            candidate_beta_row=(1.5,),
+            open_positions_rows=[("HELD", 100, 100.0)],
+            open_betas_rows=[("HELD", 1.0)],
+        )
+        checks._check_portfolio_beta("NEWSYM", Decimal("1000"), Decimal("100000"), cur)
+        assert cur.open_positions_query_params is not None
+        assert "NEWSYM" in cur.open_positions_query_params
 
     def test_missing_config_key_raises(self):
         checks = PreTradeChecks(config={})

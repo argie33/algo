@@ -529,7 +529,16 @@ class PreTradeChecks:
             return True, None
         candidate_beta = float(row[0])
 
-        cur.execute("SELECT symbol, quantity, current_price FROM algo_positions WHERE status = %s", ("open",))
+        # Excludes `symbol` explicitly (matching _check_correlation_concentration/
+        # _check_top5_concentration's identical guard) even though run_all()'s earlier
+        # duplicate-position check already blocks before reaching here if this exact symbol
+        # has an open position - defense in depth against double-counting the candidate as
+        # both "existing position" and "candidate" if this method is ever reached from a
+        # different call path than run_all()'s own ordering guarantees.
+        cur.execute(
+            "SELECT symbol, quantity, current_price FROM algo_positions WHERE status = %s AND symbol != %s",
+            ("open", symbol),
+        )
         open_positions = [r for r in cur.fetchall() if r[1] is not None and r[2] is not None]
         if not open_positions:
             # No existing book to weight against - candidate's own beta alone can't breach a
