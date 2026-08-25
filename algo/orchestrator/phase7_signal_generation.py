@@ -1472,6 +1472,41 @@ def _validate_signal_quality_score_for_ranking(sqs: Any, symbol: Any) -> None:
         raise ValueError(msg)
 
 
+def _resolve_min_composite_score(
+    exposure_constraints: ExposureConstraints | None,
+    config: dict[str, Any],
+) -> float:
+    """Resolve the entry-quality bar (min_composite_score) for this run.
+
+    FIXED 2026-08-25 (see [[phase7_min_composite_score_fallback_not_fail_closed_flagged_20260825]]
+    in memory): this used to independently re-call read_market_regime()/tier_for_exposure() here
+    - a SECOND live lookup of the same regime Phase 5 already computed moments earlier - and on
+    any transient failure of that redundant call (a DB blip unrelated to Phase 5's own result),
+    fell back to the LEAST selective tier's threshold (60.0), silently admitting lower-quality
+    signals than the actual regime called for even when Phase 5 succeeded fine and reported a
+    stricter tier. Fixed per option (a) from that memory entry: use Phase 5's already-fetched
+    exposure_constraints.min_composite_score directly - eliminates the redundant call (and its
+    independent failure mode) entirely rather than picking a different fallback number. Only
+    re-derive from config if exposure_constraints itself is unavailable or lacks the key (e.g.
+    the orchestrator's own halt-safe fallback dict when Phase 5 didn't run at all - see
+    orchestrator.py's exposure_constraints construction - which already forces
+    halt_new_entries=True, so no entries get through regardless of min_composite_score there).
+    """
+    if exposure_constraints is not None and exposure_constraints.get("min_composite_score") is not None:
+        min_composite_score = float(exposure_constraints["min_composite_score"])
+        logger.info(
+            f"[PHASE 7 TUNING] Using regime-based min_composite_score={min_composite_score:.0f} "
+            f"from Phase 5's exposure_constraints (tier={exposure_constraints.get('tier_name')})"
+        )
+        return min_composite_score
+
+    logger.warning(
+        "[PHASE 7] exposure_constraints missing min_composite_score (Phase 5 did not run or "
+        "produced fallback constraints) - falling back to config value."
+    )
+    return get_config_float(config, "phase7_min_composite_score", "phase_7_signal_generation", default=60.0)
+
+
 def run(  # noqa: C901
     run_date: _date,
     dry_run: bool,
@@ -1491,28 +1526,13 @@ def run(  # noqa: C901
     # Validate required config keys at phase entry (fail-fast)
     validate_phase_config(config, "phase_7_signal_generation")
 
-    # TUNING FIX (2026-08-02): Enforce regime-based minimum composite scores.
+    # TUNING FIX (2026-08-02): Enforce regime-based minimum composite scores (see
+    # _resolve_min_composite_score's docstring for the 2026-08-25 fix to how this is sourced).
     # Old: hard-coded min_composite_score=30 (below median 32.75, rejected only 60% of universe)
     # New: Use market regime tier's minimum (uptrend=60, pressure=65, caution=70, correction=75 -
     # raised from 50/60/70/80 on 2026-08-24, see EXPOSURE_TIERS in exposure_policy.py)
     # This dramatically raises entry quality by filtering weak signals in all market conditions.
-    from algo.risk.exposure_policy import tier_for_exposure
-    from algo.risk.market_exposure import read_market_regime
-
-    try:
-        market_regime = read_market_regime(run_date)
-        exposure_tier = tier_for_exposure(market_regime["exposure_pct"])
-        min_composite_score = float(exposure_tier["min_composite_score"])
-        logger.info(
-            f"[PHASE 7 TUNING] Using regime-based min_composite_score={min_composite_score:.0f} "
-            f"(tier={exposure_tier['name']}, exposure={market_regime['exposure_pct']}%)"
-        )
-    except Exception as e:
-        # Fallback to config value if regime lookup fails
-        logger.warning(f"[PHASE 7] Could not get regime-based min score: {e}. Falling back to config value.")
-        min_composite_score = get_config_float(
-            config, "phase7_min_composite_score", "phase_7_signal_generation", default=60.0
-        )
+    min_composite_score = _resolve_min_composite_score(exposure_constraints, config)
 
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
