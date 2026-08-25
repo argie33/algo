@@ -474,9 +474,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     symbol_count=len(symbols),
                     completion_pct=table_completion_pct,
                 )
-                logger.debug(
-                    f"[VALUE_QUALITY_GROWTH] Marking {table} completed: execution_duration_sec={execution_duration}"
-                )
                 manager.mark_completed(
                     execution_duration_sec=execution_duration,
                     symbols_failed=table_failed,
