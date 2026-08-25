@@ -157,6 +157,27 @@ class ExitStrategy(ABC):
                         f"Stage: {decision.get('stage')}, Reason: {decision.get('reason')}"
                     )
                 kwargs["new_stop"] = new_stop_val
+            elif decision.get("new_stop") is not None:
+                # BUG FOUND 2026-08-24 (real-money-readiness goal session, exit-check test-
+                # coverage sweep): TDSequentialStrategy/FirstRedDayStrategy/ClimaxExhaustionStrategy
+                # all call this helper without include_new_stop=True (unlike
+                # ChandelierTrailStrategy, which opts in) - so even though check_td_sequential's
+                # 9-count branch / check_first_red_day / check_climax_exhaustion all compute and
+                # return a real new_stop (raise stop to breakeven after a 50% de-risking partial
+                # exit), it was silently dropped here, defaulting to ExitSignal's new_stop=None.
+                # Live-confirmed downstream impact: executor_exit_handler.py's _execute_exit
+                # falls back to the OLD stop_loss_price whenever new_stop_price is None - no
+                # error, no log, just silently never raising the stop. A position that took a
+                # TD-9/first-red-day/climax de-risking exit kept its original (lower) stop on the
+                # remaining shares instead of the intended breakeven stop, exposed to giving back
+                # more profit than the strategy intended before finally stopping out. Propagate
+                # new_stop whenever the decision dict actually has one, independent of whether
+                # this particular strategy class opted into the strict include_new_stop=True
+                # validation above (that flag is for "does new_stop being missing/null indicate a
+                # bug", not "should new_stop ever be included at all") - safe for every existing
+                # caller since check_rs_line_break/check_time_exit/check_minervini_break never
+                # populate this key, so this branch is a no-op for them.
+                kwargs["new_stop"] = decision["new_stop"]
             return ExitSignal(**kwargs)
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
