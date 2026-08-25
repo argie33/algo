@@ -407,6 +407,22 @@ class PreTradeChecks:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[PRE-TRADE] {symbol}: portfolio-beta check unavailable ({e}) - failing open.")
 
+        # TOP-5 CONCENTRATION CAP (2026-08-25 fix): algo/risk/var.py's concentration_report()
+        # already documents "Concentration > 30% in top 5 holdings -> WARNING" as this system's
+        # own convention, same report-only gap as the beta check above - a portfolio can
+        # satisfy every PER-POSITION cap (max_position_size_pct) while still breaching this
+        # AGGREGATE one (e.g. 5 positions each just under an 8% per-position cap already sum
+        # past 30%). Reuses var.py's own 30% convention rather than inventing a new number.
+        try:
+            with DatabaseContext("read") as cur:
+                top5_ok, top5_reason = self._check_top5_concentration(
+                    symbol, position_value_dec, Decimal(str(portfolio_value)), cur
+                )
+                if not top5_ok:
+                    return (False, top5_reason)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[PRE-TRADE] {symbol}: top-5 concentration check unavailable ({e}) - failing open.")
+
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
             f"portfolio ${portfolio_value:.2f}, {side} order approved"
@@ -552,6 +568,53 @@ class PreTradeChecks:
             return False, (
                 f"Entry would push portfolio beta to {portfolio_beta_after:.2f}, exceeding "
                 f"{max_portfolio_beta:.2f} limit (candidate beta {candidate_beta:.2f}) - risk-management check"
+            )
+        return True, None
+
+    def _check_top5_concentration(
+        self, symbol: str, position_value: Decimal, portfolio_value: Decimal, cur: PsycopgCursor[Any]
+    ) -> tuple[bool, str | None]:
+        """Block a new entry that would push the top-5-holdings share of portfolio value
+        above max_top5_concentration_pct, reusing the same 30% convention var.py's
+        concentration_report() already documents for its (previously report-only) WARNING
+        threshold.
+
+        Distinct from max_position_size_pct (a per-position cap): five positions can each sit
+        just under that per-position limit and still sum well past a sane aggregate top-5
+        share. Uses each open position's current dollar value (quantity * current_price) plus
+        this candidate's position_value, ranks the top 5 by value, and compares their sum
+        against portfolio_value (total equity, same denominator every other check in this
+        file uses). Fails OPEN only on a data error (via run_all's except clause) - unlike the
+        correlation/beta checks above, every input here (algo_positions.quantity/current_price)
+        is already required, non-optional data for any open position, so there is no
+        legitimate "insufficient data" case to fail open on.
+        """
+        cur.execute(
+            "SELECT quantity, current_price FROM algo_positions WHERE status = %s AND symbol != %s",
+            ("open", symbol),
+        )
+        position_values = [
+            Decimal(str(qty)) * Decimal(str(price))
+            for qty, price in cur.fetchall()
+            if qty is not None and price is not None
+        ]
+        position_values.append(position_value)
+
+        if portfolio_value <= 0:
+            return True, None
+
+        top5_value = sum(sorted(position_values, reverse=True)[:5])
+        top5_pct = float(top5_value / portfolio_value * 100)
+
+        try:
+            max_top5_pct = float(self.config["max_top5_concentration_pct"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        if top5_pct > max_top5_pct:
+            return False, (
+                f"Entry would push top-5-holdings concentration to {top5_pct:.1f}%, exceeding "
+                f"{max_top5_pct:.1f}% limit - risk-management check"
             )
         return True, None
 
