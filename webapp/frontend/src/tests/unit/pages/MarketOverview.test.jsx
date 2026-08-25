@@ -229,6 +229,155 @@ describe("MarketsHealth - Data Sections", () => {
   });
 });
 
+describe("MarketsHealth - Capital Routing Card", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  it("renders GLD/IEF/DBC/CASH legs with trend direction when capital_routing data is present", async () => {
+    const { api } = await import("../../../services/api.js");
+    api.get.mockImplementation((url) => {
+      if (url.includes("/api/algo/markets")) {
+        return Promise.resolve({
+          data: {
+            market_health: "healthy",
+            capital_routing: {
+              uninvested_capital_pct: 35.2,
+              move_index: 88.4,
+              move_veto: false,
+              gld_trend_up: true,
+              gld_weight: 0.4,
+              ief_trend_up: false,
+              ief_weight: 0.1,
+              dbc_trend_up: true,
+              dbc_weight: 0.2,
+              cash_weight: 0.3,
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderWithProviders(<MarketsHealth />);
+
+    await waitFor(
+      () => {
+        const text = document.body.textContent;
+        expect(text).toContain("Capital Routing");
+        expect(text).toContain("GLD");
+        expect(text).toContain("IEF");
+        expect(text).toContain("DBC");
+        expect(text).toContain("CASH");
+      },
+      { timeout: 5000 }
+    );
+  });
+
+  it("shows an unavailable message instead of legs when capital_routing.data_unavailable is set", async () => {
+    const { api } = await import("../../../services/api.js");
+    api.get.mockImplementation((url) => {
+      if (url.includes("/api/algo/markets")) {
+        return Promise.resolve({
+          data: {
+            market_health: "healthy",
+            capital_routing: {
+              data_unavailable: true,
+              reason: "stale_price_data",
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderWithProviders(<MarketsHealth />);
+
+    await waitFor(
+      () => {
+        const text = document.body.textContent;
+        expect(text).toContain("Capital Routing");
+        expect(text).toContain("Unavailable");
+        expect(text).toContain("stale_price_data");
+      },
+      { timeout: 5000 }
+    );
+  });
+});
+
+describe("MarketsHealth - Sector Rotation Signal Card", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  it("renders the latest DEFENSIVE/CYCLICAL signal badge from /api/algo/sector-rotation", async () => {
+    const { api } = await import("../../../services/api.js");
+    api.get.mockImplementation((url) => {
+      if (url.includes("/api/algo/markets")) {
+        return Promise.resolve({ data: { market_health: "healthy" } });
+      }
+      if (url.includes("/api/algo/sector-rotation")) {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                date: "2026-08-20",
+                signal: "NEUTRAL",
+                defensive_lead_score: 40,
+                cyclical_weak_score: 45,
+                weeks_persistent: 1,
+              },
+              {
+                date: "2026-08-24",
+                signal: "DEFENSIVE",
+                defensive_lead_score: 68,
+                cyclical_weak_score: 30,
+                weeks_persistent: 3,
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderWithProviders(<MarketsHealth />);
+
+    await waitFor(
+      () => {
+        const text = document.body.textContent;
+        expect(text).toContain("Sector Rotation Signal");
+        expect(text).toContain("DEFENSIVE");
+      },
+      { timeout: 5000 }
+    );
+  });
+
+  it("shows a not-available state when the sector-rotation endpoint returns no items", async () => {
+    const { api } = await import("../../../services/api.js");
+    api.get.mockImplementation((url) => {
+      if (url.includes("/api/algo/markets")) {
+        return Promise.resolve({ data: { market_health: "healthy" } });
+      }
+      if (url.includes("/api/algo/sector-rotation")) {
+        return Promise.resolve({ data: { items: [] } });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderWithProviders(<MarketsHealth />);
+
+    await waitFor(
+      () => {
+        const text = document.body.textContent;
+        expect(text).toContain("Sector Rotation Signal");
+        expect(text).toContain("Signal data not available");
+      },
+      { timeout: 5000 }
+    );
+  });
+});
+
 describe("MarketsHealth - Error Handling", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
