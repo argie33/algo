@@ -798,8 +798,11 @@ class PositionSizer:
         Calculate position size for a new trade.
 
         CRITICAL FIX (Session 393): When enforce_total_risk_limit=True, checks total open risk
-        across all positions and scales position size down if we're running low on 4% limit capacity.
-        This prevents individual position sizing from pushing aggregate risk over 4%.
+        across all positions and scales position size down if we're running low on
+        max_total_risk_pct's limit capacity (config-driven, not a fixed number - see the
+        2026-08-06 fix below and [[t1_t2_t3_reason_hardcoded_r_multiple_stale_fixed_20260825]]
+        in memory for why a specific percentage isn't restated here).
+        This prevents individual position sizing from pushing aggregate risk over that limit.
 
         Args:
             portfolio_value: Pre-fetched portfolio value to skip Alpaca API call.
@@ -846,7 +849,8 @@ class PositionSizer:
         """Internal method for position calculation.
 
         CRITICAL FIX (Session 393): When enforce_total_risk_limit=True, checks total open risk
-        and scales position size down if aggregate risk would exceed 4% limit.
+        and scales position size down if aggregate risk would exceed max_total_risk_pct's
+        configured limit (not a fixed number - see the 2026-08-06 fix below).
 
         Raises RuntimeError/ValueError for all error conditions. Let caller handle exceptions.
         Only returns success dict or explicit sizing denial (no_room, drawdown_halt, concentration, etc).
@@ -1270,7 +1274,16 @@ class PositionSizer:
                             logger.info(
                                 f"[POSITION_SIZER] {symbol}: Risk-limited sizing applied. "
                                 f"Current risk {(current_risk_dollars / pv_dec * Decimal(100)):.2f}%, "
-                                f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
+                                # BUG FOUND 2026-08-25 (same class as
+                                # [[t1_t2_t3_reason_hardcoded_r_multiple_stale_fixed_20260825]]):
+                                # this line still hardcoded "4% limit" even though line 1227's
+                                # threshold computation was already fixed 2026-08-06 to read
+                                # max_risk_pct from config (live value: 8.0%) - the two sibling
+                                # reason strings a few lines above (risk_limit/
+                                # risk_limit_scaled_zero) already correctly use {max_risk_pct},
+                                # only this log line was missed. Every risk-limited-scale-down
+                                # since the 2026-08-06 fix logged the wrong percentage.
+                                f"scaled from {base_shares} to {shares} shares to stay within {max_risk_pct:.1f}% limit"
                             )
             except Exception as e:
                 # CRITICAL FIX: this used to log a warning and fall through to use the

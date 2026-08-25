@@ -726,7 +726,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # margin while staying a small, cheap per-symbol fetch.
                 cur.execute(
                     """
-                    SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share
+                    SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share,
+                           shares_outstanding_diluted, shares_outstanding_basic
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC
@@ -3562,6 +3563,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         ratio = latest_f / previous_f
         return float(((ratio ** (1.0 / years)) - 1) * 100)
 
+    # FIXED 2026-08-24 (goal: NVDA DCF margin-of-safety audit): eps_growth_3y/5y compared raw
+    # as-reported EPS across a stock-split boundary without any split-adjustment guard. SEC
+    # 10-Ks only restate the comparative fiscal years shown in that filing (typically 2 prior
+    # years) - a fiscal year older than that keeps its ORIGINAL pre-split EPS forever unless a
+    # later filing happens to restate it too. Live-confirmed on NVDA (10-for-1 split, June
+    # 2024): annual_income_statement has FY2023-FY2026 correctly restated post-split
+    # (EPS 0.18/1.21/2.97/4.93, shares_outstanding_diluted ~25B each) but FY2021/FY2022 still
+    # pre-split (EPS 1.76/3.91, shares_outstanding_diluted ~2.5B - 10x fewer shares). eps_growth_5y
+    # compared FY2026 (4.93, post-split) against FY2021 (1.76, pre-split) and got 22.88% CAGR -
+    # a plausible-looking number that is actually ~4x too low, since the true split-adjusted
+    # FY2021 EPS is 1.76/10=0.176 and the real CAGR is ~95%. Guarded by checking
+    # shares_outstanding at the two endpoints: a >=EPS_SPLIT_GUARD_SHARE_RATIO ratio is far
+    # beyond any real 5-year buyback/dilution drift and means the two EPS values are on
+    # different per-share bases - CAGR is meaningless there, same category of "mathematically
+    # undefined" as the sign-flip case below, not a real data gap.
+    EPS_SPLIT_GUARD_SHARE_RATIO = 1.5
+
     def _compute_period_growth(
         self,
         symbol: str,
@@ -3571,6 +3589,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         metrics: dict[str, Any],
         failed_metrics: list[str],
         sign_change_metrics: set[str],
+        split_discontinuity_metrics: set[str] | None = None,
+        shares_by_year: dict[int, float] | None = None,
     ) -> None:
         """Compute growth for a single period (nominally 1y, 3y, or 5y).
 
@@ -3589,6 +3609,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         few data points and must not be reported to the user as "insufficient history" (found
         2026-08-17: 796 of 1,493 symbols flagged eps_growth_1y "insufficient_history" actually
         had ample EPS history - this sign-flip case, not a real data gap).
+
+        shares_by_year (EPS calls only - see EPS_SPLIT_GUARD_SHARE_RATIO above): when a
+        fiscal-year share count is on record for both endpoints and they differ by more than
+        EPS_SPLIT_GUARD_SHARE_RATIO, the two EPS values are on different split bases and the
+        metric fails closed into sign_change_metrics's sibling set instead of returning a
+        silently-wrong number.
         """
         required_count = offset + 1
         if len(values) < required_count:
@@ -3608,6 +3634,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             sign_change_metrics.add(metric_key)
             return
 
+        if shares_by_year:
+            shares_latest = shares_by_year.get(latest_year)
+            shares_target = shares_by_year.get(target_year)
+            if shares_latest and shares_target:
+                share_ratio = max(shares_latest, shares_target) / min(shares_latest, shares_target)
+                if share_ratio >= self.EPS_SPLIT_GUARD_SHARE_RATIO:
+                    failed_metrics.append(metric_key)
+                    if split_discontinuity_metrics is not None:
+                        split_discontinuity_metrics.add(metric_key)
+                    return
+
         growth = self._cagr(latest_val, target_val, actual_years)
         if growth is not None:
             metrics[metric_key] = float(round(growth, 2))
@@ -3619,7 +3656,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         Calculates CAGR for 1y, 3y, 5y periods using compound annual growth rate formula.
         income_rows: List of (fiscal_year, total_revenue, operating_income, net_income,
-        earnings_per_share) sorted DESC by fiscal_year (most recent first).
+        earnings_per_share[, shares_outstanding_diluted, shares_outstanding_basic]) sorted
+        DESC by fiscal_year (most recent first). The two shares columns are optional (older
+        5-tuple test fixtures still work) and feed the EPS_SPLIT_GUARD_SHARE_RATIO guard.
         """
         if not income_rows:
             return self._unavailable_marker("growth_metrics", symbol)
@@ -3639,11 +3678,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         revenues: list[tuple[int, float]] = []
         eps_values: list[tuple[int, float]] = []
+        shares_by_year: dict[int, float] = {}
         for row in income_rows:
             try:
                 fiscal_year = int(row[0]) if row[0] is not None else None
                 rev = float(row[1]) if row[1] is not None else None
                 eps = float(row[4]) if row[4] is not None else None
+                # shares_outstanding_diluted/basic (row[5]/row[6]) are only present in the live
+                # production query - defensive len() check keeps older 5-tuple test fixtures
+                # working unchanged (see EPS_SPLIT_GUARD_SHARE_RATIO comment above).
+                shares = None
+                if len(row) > 5 and row[5] is not None:
+                    shares = float(row[5])
+                elif len(row) > 6 and row[6] is not None:
+                    shares = float(row[6])
                 rev = self._nan_to_none(rev)
                 eps = self._nan_to_none(eps)
                 if fiscal_year is None:
@@ -3652,28 +3700,55 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     revenues.append((fiscal_year, rev))
                 if eps is not None and eps != 0:
                     eps_values.append((fiscal_year, eps))
+                if shares is not None and shares > 0 and fiscal_year not in shares_by_year:
+                    shares_by_year[fiscal_year] = shares
             except (ValueError, TypeError):
                 continue
 
         failed_metrics: list[str] = []
         sign_change_metrics: set[str] = set()
+        split_discontinuity_metrics: set[str] = set()
         self._compute_period_growth(
             symbol, revenues, 1, "revenue_growth_1y", metrics, failed_metrics, sign_change_metrics
         )
         self._compute_period_growth(
-            symbol, eps_values, 1, "eps_growth_1y", metrics, failed_metrics, sign_change_metrics
+            symbol,
+            eps_values,
+            1,
+            "eps_growth_1y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            split_discontinuity_metrics,
+            shares_by_year,
         )
         self._compute_period_growth(
             symbol, revenues, 3, "revenue_growth_3y", metrics, failed_metrics, sign_change_metrics
         )
         self._compute_period_growth(
-            symbol, eps_values, 3, "eps_growth_3y", metrics, failed_metrics, sign_change_metrics
+            symbol,
+            eps_values,
+            3,
+            "eps_growth_3y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            split_discontinuity_metrics,
+            shares_by_year,
         )
         self._compute_period_growth(
             symbol, revenues, 5, "revenue_growth_5y", metrics, failed_metrics, sign_change_metrics
         )
         self._compute_period_growth(
-            symbol, eps_values, 5, "eps_growth_5y", metrics, failed_metrics, sign_change_metrics
+            symbol,
+            eps_values,
+            5,
+            "eps_growth_5y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            split_discontinuity_metrics,
+            shares_by_year,
         )
 
         if not revenues and not eps_values:
@@ -3682,6 +3757,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         def _growth_reason(metric_key: str) -> str | None:
             if metric_key in sign_change_metrics:
                 return "growth_undefined_sign_change"
+            if metric_key in split_discontinuity_metrics:
+                return "growth_undefined_share_count_discontinuity"
             if metric_key in failed_metrics:
                 return "insufficient_history"
             return None

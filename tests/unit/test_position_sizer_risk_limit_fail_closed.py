@@ -148,3 +148,50 @@ class TestPositionSizerRiskLimitScaleDownRounding:
             f"scaled position's risk_dollars ({result['risk_dollars']}) must not exceed "
             f"the $500 available capacity under the 4% aggregate risk cap"
         )
+
+
+class TestPositionSizerRiskLimitScaleDownLogMessage:
+    """Regression for a real bug found 2026-08-25 (same class as
+    [[t1_t2_t3_reason_hardcoded_r_multiple_stale_fixed_20260825]]): the scale-down branch's
+    log message hardcoded "4% limit" as literal text, even though the actual threshold
+    computation a few lines above it was already fixed 2026-08-06 to read max_total_risk_pct
+    from config (live value: 8.0%) - the two sibling reason strings in this same function
+    (risk_limit/risk_limit_scaled_zero, both already tested above via their returned "reason"
+    field) correctly used the dynamic value; only this one log.info() call was missed. Uses a
+    non-4% max_total_risk_pct specifically so a reversion to the old hardcoded "4%" text would
+    fail this test."""
+
+    def test_log_message_uses_configured_risk_pct_not_hardcoded_4_percent(self, caplog):
+        config = dict(CONFIG)
+        config["max_total_risk_pct"] = 8.0  # deliberately not 4.0 - the old hardcoded value
+        sizer = PositionSizer(config=config)
+        defaults = {
+            "symbol": "AAPL",
+            "entry_price": Decimal("100"),
+            "stop_loss_price": Decimal("91"),
+            "portfolio_value": Decimal("100000"),
+            "enforce_total_risk_limit": True,
+        }
+        # current open risk $7500 + this position's base $1000 (1% of $100k) = $8500 = 8.5% >
+        # the 8% cap -> scale-down triggers, same mechanics as the rounding test above.
+        patches = _patched(sizer)
+        mock_cur = patch("algo.trading.position_sizer.DatabaseContext")
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patches[5],
+            patches[6],
+            mock_cur as MockDB,
+            caplog.at_level("INFO"),
+        ):
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (Decimal("7500"),)
+            result = sizer._calculate_with_external_cursor(**defaults)
+
+        assert result["status"] == "ok"
+        scale_down_logs = [r.message for r in caplog.records if "Risk-limited sizing applied" in r.message]
+        assert scale_down_logs, "expected the risk-limited scale-down log message to fire"
+        assert "8.0% limit" in scale_down_logs[0]
+        assert "4% limit" not in scale_down_logs[0]

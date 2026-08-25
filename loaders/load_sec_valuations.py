@@ -942,16 +942,7 @@ class SecValuationsLoader(OptimalLoader):
                 )
                 if is_capex_exempt and capex is None:
                     capex = 0
-                yearly_fcfs = []
-                for row_ocf, row_capex, _row_dividends in cash_rows:
-                    if row_ocf is None:
-                        continue
-                    if row_capex is None:
-                        if not is_capex_exempt:
-                            continue
-                        row_capex = 0
-                    yearly_fcfs.append(float(row_ocf) - float(row_capex))
-                avg_fcf_fallback = sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 2 else None
+                avg_fcf_fallback = self._compute_avg_fcf_fallback(cash_rows, is_capex_exempt)
 
                 # Beta (stability_metrics, 60-day covariance vs SPY - see load_risk_metrics_daily.py's
                 # _get_beta_from_db) + the live 10Y Treasury yield feed the DCF's CAPM discount
@@ -1140,6 +1131,46 @@ class SecValuationsLoader(OptimalLoader):
             float(row[0]) / 100.0 if row and row[0] is not None else self.DCF_DEFAULT_RISK_FREE_RATE
         )
         return self._risk_free_rate_cache
+
+    @staticmethod
+    def _compute_avg_fcf_fallback(cash_rows: list[tuple[Any, Any, Any]], is_capex_exempt: bool) -> float | None:
+        """Average FCF (OCF - CapEx) across up to 3 fetched fiscal years, skipping any year
+        with unusable ocf/capex - used when the latest year alone can't produce a usable FCF
+        (negative, or capex not yet tagged - see fetch_incremental's `cash_rows` query, most
+        recent 3 fiscal years DESC).
+
+        cash_rows: (operating_cash_flow, capex, dividends_paid) tuples, most recent year
+        first (dividends_paid unused here, kept for call-site tuple-unpacking convenience).
+        is_capex_exempt: depository institutions / the insurance capex-exempt allowlist
+        never report capex - treat it as 0 rather than unknowable for every year, not just
+        the latest (see DEPOSITORY_INSTITUTION_SIC_CODES/INSURANCE_CAPEX_EXEMPT_SYMBOLS).
+
+        FIXED 2026-08-24 (goal: "missing_cash_flow_data" coverage audit): this used to
+        require >=2 usable years to compute an "average" - reasonable when the gap is just
+        the current, still-open fiscal year (the common case this fallback was built for),
+        but real filers can lag capex tagging TWO years deep at once, not just one.
+        Live-confirmed via VLO (Valero): capex is real and correctly extracted for FY2024
+        ($2.057B, matches Valero's public figure) via the "PaymentsToAcquireProductiveAssets"
+        concept fallback, but NULL for FY2025/FY2026 (both not yet re-tagged in the
+        3-fiscal-year fetch window) - leaving only 1 usable year, below the old >=2 floor,
+        so avg_fcf_fallback stayed None and both fcf_yield and margin_of_safety were
+        permanently NULL despite a real, recent, correctly-extracted FCF figure sitting
+        right there. Same root cause as COIN and likely a meaningful slice of the 543
+        universe symbols carrying margin_of_safety_unavailable_reason='missing_cash_flow_data'
+        (live DB scan, 2026-08-24). A single real recent year is still far better than a
+        permanent NULL - "average" of 1 value is just that value, so `sum/len` is correct
+        unchanged; only the floor moved from >=2 to >=1.
+        """
+        yearly_fcfs = []
+        for row_ocf, row_capex, _row_dividends in cash_rows:
+            if row_ocf is None:
+                continue
+            if row_capex is None:
+                if not is_capex_exempt:
+                    continue
+                row_capex = 0
+            yearly_fcfs.append(float(row_ocf) - float(row_capex))
+        return sum(yearly_fcfs) / len(yearly_fcfs) if len(yearly_fcfs) >= 1 else None
 
     def _compute_dcf_intrinsic_value(
         self,

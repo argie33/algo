@@ -264,3 +264,32 @@ class TestAvgFcfFallback:
         result = loader._compute_valuations(**kwargs)
         # latest-year fcf = -40, market_cap = 5.0 * 10.0 = 50 -> fcf_yield = -80%, within bounds.
         assert result["fcf_yield"] == -80.0
+
+
+class TestComputeAvgFcfFallback:
+    """Regression tests for the 2026-08-24 fix (see _compute_avg_fcf_fallback's docstring):
+    a single usable (ocf, capex) year must produce a fallback value, not require 2+ to
+    average - live-confirmed via VLO, whose 2 most-recently-fetched fiscal years both lack
+    a tagged capex figure while the 3rd-most-recent has a real, correct one."""
+
+    def test_single_usable_year_no_longer_requires_a_second(self) -> None:
+        loader = _make_loader()
+        # Most recent 2 years unusable (capex not yet tagged), 3rd year usable.
+        cash_rows = [(100.0, None, None), (90.0, None, None), (80.0, 20.0, None)]
+        assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 60.0
+
+    def test_two_usable_years_still_averages(self) -> None:
+        loader = _make_loader()
+        cash_rows = [(100.0, 40.0, None), (80.0, 20.0, None)]
+        # (60 + 60) / 2 = 60.0
+        assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 60.0
+
+    def test_no_usable_years_returns_none(self) -> None:
+        loader = _make_loader()
+        cash_rows = [(None, None, None), (100.0, None, None)]
+        assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) is None
+
+    def test_capex_exempt_treats_missing_capex_as_zero(self) -> None:
+        loader = _make_loader()
+        cash_rows = [(100.0, None, None)]
+        assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=True) == 100.0

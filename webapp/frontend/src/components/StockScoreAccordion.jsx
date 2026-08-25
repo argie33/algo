@@ -953,6 +953,9 @@ const MOMENTUM_SCHEMA = [
 // and was already used:false / display-only) - stock_margin_of_safety (the DCF % discount
 // to intrinsic value, which *is* comparable across symbols) is now the single informational
 // read for this signal, kept visible but unweighted.
+// REINSTATED 2026-08-24 (user-directed): margin_of_safety_pct is back in the Value factor
+// score at its original 20% weight (load_stock_scores.py::_score_value) - same curve as the
+// original 2026-08-17 add. stock_margin_of_safety is used:true again below.
 // RENAMED 2026-08-19 (user-reported confusion): "Intrinsic Value (DCF)" -> "Margin of
 // Safety (DCF)". The 2026-08-18 rename above swapped in "Intrinsic Value (DCF)" as the
 // label for this same %, reasoning the % discount to intrinsic value IS the margin of
@@ -1030,7 +1033,8 @@ const VALUE_SCHEMA = [
     key: "stock_margin_of_safety",
     label: "Margin of Safety (DCF)",
     fmt: (v) => pct(v, 1),
-    used: false,
+    used: true,
+    weight: "20%",
   },
 ];
 

@@ -1555,13 +1555,19 @@ class StockScoresLoader(OptimalLoader):
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + PEG (15%) + FCF yield (12%)
-        + Dividend yield (8%) + Forward P/E (15%) + EV/EBITDA (12%) + EV/Revenue (10%).
-        Peak zone for growth stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield.
+        + Dividend yield (8%) + Forward P/E (15%) + EV/EBITDA (12%) + EV/Revenue (10%) +
+        Margin of Safety / DCF discount to intrinsic value (20%). Peak zone for growth
+        stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
 
-        NOTE 2026-08-18: margin_of_safety_pct (DCF discount to intrinsic value) is
-        deliberately NOT a Value input - it's the one metric we keep for cross-symbol
-        comparability, but it's displayed as an informational read (see
-        StockScoreAccordion.jsx) rather than folded into any factor score.
+        REINSTATED 2026-08-24 (user-directed, goal: NVDA margin-of-safety audit): removed
+        2026-08-18 (commit e38a6667d) on the reasoning that margin_of_safety_pct should stay
+        display-only for cross-symbol comparability. User explicitly asked for it back in the
+        Value calculation - restored verbatim (same curve/weight as the original 2026-08-17
+        add, commit 28e7ebf7d). Known caveat carried over from the DCF audit the same day: the
+        underlying DCF caps forecast growth at 15%/yr, so a hypergrowth name (priced for far
+        higher growth than the cap) will structurally show a large negative margin of safety
+        here even when its other fundamentals are excellent - this is a real, understood bias
+        in this specific input, not a bug in the scoring math.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
@@ -1713,9 +1719,24 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += evr_score * 0.10
             total_weight += 0.10
 
-        # margin_of_safety_pct (DCF discount to intrinsic value) is intentionally excluded
-        # from Value scoring - see docstring note above. Still computed/stored by
-        # load_sec_valuations.py and displayed informationally, just not weighted here.
+        # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
+        # migration 1208) - positive means the stock trades below its DCF intrinsic value
+        # (undervalued), negative means above (overvalued). Unlike every other field in this
+        # function, a legitimate value can be negative (a real, meaningful "overvalued"
+        # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
+        # drop this input instead of being correctly scored low.
+        if metrics.get("margin_of_safety_pct") is not None:
+            mos = metrics["margin_of_safety_pct"]
+            if mos >= 50:
+                mos_score = 100
+            elif mos >= 0:
+                mos_score = 60 + mos * 0.8  # 0% -> 60, 50% -> 100
+            elif mos >= -50:
+                mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
+            else:
+                mos_score = 0
+            weighted_sum += mos_score * 0.20
+            total_weight += 0.20
 
         if total_weight > 0:
             return weighted_sum / total_weight
