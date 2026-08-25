@@ -57,6 +57,25 @@ class LivePerformance:
         During initial ramp-up (< 30 snapshots): Uses available data for visibility.
         After stabilization (>= 30): Full 252-day history required.
 
+        RISK-FREE RATE FIX (goal, 2026-08-25): now subtracts the real risk-free rate (FRED
+        DGS3MO, already loaded by load_economic_data.py for other macro factors) instead of
+        the implicit 0.0 this used before - see calculate_sharpe_ratio's docstring for why an
+        uncorrected Sharpe is materially overstated at current (~4.5-5%) T-bill yields.
+        DGS3MO is stored as a raw percentage point (e.g. 4.5, matching this file's other
+        economic_data readers like T5YIE/T10Y2Y) - divided by 100 for the decimal annual rate
+        calculate_sharpe_ratio expects. Falls back to 0.0 (the prior behavior) with a warning
+        if DGS3MO is ever unavailable - this is a Sharpe-accuracy improvement, not new
+        required data, so a transient macro-data gap must not break live Sharpe reporting the
+        way a missing *trading* input would.
+
+        NOTE: algo/reporting/tests/backtest/reference_metrics.json's sharpe_ratio=1.42 baseline
+        predates this fix and its own risk-free-rate treatment is undocumented/unknown - the
+        live-vs-backtest Sharpe ratio comparison below (see calculate_performance_summary) may
+        now compare a risk-adjusted live figure against a baseline of unknown methodology.
+        Not resolved here (would require re-deriving the original backtest, which this session
+        has no source data for) - flagged so the comparison's apples-to-oranges risk is
+        documented rather than silently assumed consistent.
+
         Args:
             lookback_days: Days to look back (default 252 = 1 year)
 
@@ -67,6 +86,21 @@ class LivePerformance:
             ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
+            risk_free_rate_annual = 0.0
+            with DatabaseContext("read") as rf_cur:
+                rf_cur.execute(
+                    "SELECT value::float FROM economic_data WHERE series_id = 'DGS3MO' "
+                    "AND date <= CURRENT_DATE AND value IS NOT NULL ORDER BY date DESC LIMIT 1"
+                )
+                rf_row = rf_cur.fetchone()
+                if rf_row is not None and rf_row[0] is not None:
+                    risk_free_rate_annual = float(rf_row[0]) / 100.0
+                else:
+                    logger.warning(
+                        "[ROLLING_SHARPE] DGS3MO risk-free rate unavailable - using 0.0 "
+                        "(Sharpe will be the pre-fix raw-return figure, not excess-return)"
+                    )
+
             # Cash-flow-adjusted (migration 1134): adjusted_equity backs out capital
             # deposits/withdrawals so a return series built from it reflects trading
             # performance only - raw total_portfolio_value would inject one artificial
@@ -100,7 +134,7 @@ class LivePerformance:
                 if values[i - 1] > 0:
                     daily_returns.append((values[i] - values[i - 1]) / values[i - 1])
 
-            return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
+            return MetricsCalculator.calculate_sharpe_ratio(daily_returns, risk_free_rate_annual=risk_free_rate_annual)
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 

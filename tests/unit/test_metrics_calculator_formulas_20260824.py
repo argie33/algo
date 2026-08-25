@@ -49,6 +49,28 @@ class TestSharpeRatio:
         with pytest.raises(ValueError, match="Insufficient data"):
             M.calculate_sharpe_ratio(None)
 
+    def test_risk_free_rate_reduces_sharpe_via_mean_only(self) -> None:
+        """2026-08-25 finance-goal fix: subtracting a constant daily rf shifts the mean but
+        not the std, so the risk-adjusted Sharpe must equal the raw-return Sharpe's formula
+        with (mean - daily_rf) in place of mean - not some other adjustment to std or N."""
+        returns = [0.01, 0.02, -0.01, 0.015, -0.005]
+        mean = sum(returns) / len(returns)
+        variance = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
+        std = variance**0.5
+        risk_free_rate_annual = 0.045
+        daily_rf = risk_free_rate_annual / 252
+        expected = round(((mean - daily_rf) / std) * (252**0.5), 3)
+        actual = M.calculate_sharpe_ratio(returns, risk_free_rate_annual=risk_free_rate_annual)
+        raw = M.calculate_sharpe_ratio(returns)
+        assert actual is not None
+        assert raw is not None
+        assert actual == expected
+        assert actual < raw
+
+    def test_default_risk_free_rate_is_zero_preserves_old_behavior(self) -> None:
+        returns = [0.01, 0.02, -0.01, 0.015, -0.005]
+        assert M.calculate_sharpe_ratio(returns) == M.calculate_sharpe_ratio(returns, risk_free_rate_annual=0.0)
+
 
 class TestSortinoRatioDownsideDeviationFix:
     def test_matches_hand_computed_downside_deviation_over_all_observations(self) -> None:

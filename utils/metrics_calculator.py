@@ -86,15 +86,32 @@ class MetricsCalculator:
     def calculate_sharpe_ratio(
         returns: list[float] | None,
         min_observations: int = 5,
+        risk_free_rate_annual: float = 0.0,
     ) -> float | None:
         """Calculate 252-day annualized Sharpe ratio from daily returns.
 
-        Formula: (mean_return / std_return) * sqrt(252)
+        Formula: ((mean_return - daily_rf) / std_return) * sqrt(252), daily_rf =
+        risk_free_rate_annual / 252
         Annualization: assumes 252 trading days per year
+
+        FIXED (goal, 2026-08-25): risk_free_rate_annual defaults to 0.0 (the prior,
+        unconditional behavior - a raw-return Sharpe, not excess-return Sharpe). That default
+        was a reasonable approximation only while T-bill yields were near-zero; at ~4.5-5%
+        (2026 3-month T-bill), an uncorrected Sharpe overstates the risk-adjusted return by
+        roughly risk_free_rate_annual / annualized_vol - not a rounding difference for a
+        strategy with, say, 15-20% annualized vol. Subtracting a constant (daily_rf) from
+        every return shifts the mean but leaves std unchanged, so only the numerator moves -
+        this is why the fix is expressed as a mean adjustment rather than rebuilding the whole
+        returns list. Callers that want the textbook excess-return Sharpe must pass the real
+        rate explicitly (e.g. from FRED's DGS3MO); the 0.0 default exists so unrelated callers
+        (including this file's own tests) don't get a silent behavior change.
 
         Args:
             returns: List of daily returns as decimals (e.g., 0.01 for +1%)
             min_observations: Minimum daily returns needed (default 5)
+            risk_free_rate_annual: Annualized risk-free rate as a decimal (e.g. 0.045 for
+                4.5%), default 0.0. Divided by 252 to get the daily rate subtracted from
+                each return before annualizing.
 
         Returns:
             Sharpe ratio (float). Never returns None - raises ValueError on insufficient
@@ -119,7 +136,8 @@ class MetricsCalculator:
             std_ret = statistics.stdev(returns) if len(returns) > 1 else 0
             if std_ret <= 0:
                 raise ValueError("Zero standard deviation: cannot calculate Sharpe ratio")
-            sharpe = (mean_ret / std_ret) * (252**0.5)
+            daily_rf = risk_free_rate_annual / 252
+            sharpe = ((mean_ret - daily_rf) / std_ret) * (252**0.5)
             return cast(float, round(sharpe, 3))
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise ValueError(f"Sharpe ratio calculation failed: {e}") from e
