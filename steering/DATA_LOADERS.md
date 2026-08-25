@@ -184,6 +184,17 @@ to the 4 already-stale rows so they don't keep misleading anyone reading
 `data_loader_status` as if `reason` were live-maintained (it still isn't, for FAILED
 rows - only cleared on success).
 
+**Correction (2026-08-25):** the `sector_rotation_signal` half of the "all 3 have real,
+currently-scheduled loaders" claim above was wrong, or became wrong - live audit that date
+found `SectorRotationDetector` (`algo/signals/sector_rotation.py`) had exactly one call site
+in the entire repo, a hardcoded-date `__main__` block, never invoked by any loader/scheduler/
+orchestrator phase (see `sector_rotation_signal_orphaned_never_scheduled_fixed_20260825` in
+memory, commit `a3f67003c`) - the table had been silently going stale this whole time. Now
+fixed: wired into `loaders/load_market_status_daily.py`'s `_compute_market_exposure()` and
+registered in `loader_registry.py`'s `LOADER_TABLES`, verified live via the real scheduler.
+`industry_ranking`/`naaim` were not re-checked as part of that fix - don't assume this
+correction extends to them without verifying independently.
+
 ---
 
 ## FIXED 2026-07-28: institutional_holdings_13f never refreshed unresolved symbols, freezing pre-OpenFIGI-fix reason strings
