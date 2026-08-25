@@ -434,13 +434,26 @@ def validate_position_count(expected_approximate: int | None = None) -> bool:
             open_count = sum(position_symbols.values())
 
             # Get all symbols with open trades and positive quantity
-            cur.execute("""
+            # BUG FOUND 2026-08-25 (real-money-readiness goal session, sweep for the same bug
+            # class as phase1_data_freshness.py's orphaned-position fix): this hardcoded
+            # ('filled', 'open') pair omitted 'partially_filled'/'active'/'pending'/
+            # 'paper_pending' from TradeStatus.all_open(). A real, legitimately open position
+            # whose trade sits at 'partially_filled' (a routine, reachable state - this
+            # system explicitly targets the illiquid/small-cap names most likely to partial-
+            # fill, per liquidity_checks.py) would be invisible to this query, falsely
+            # tripping "orphaned_in_positions" below and logging a misleading CRITICAL
+            # governance-violation message for a perfectly healthy position - a "cry wolf"
+            # false positive that undermines trust in this validator's real findings.
+            cur.execute(
+                """
                 SELECT symbol, SUM(quantity) as total_qty
                 FROM algo_trades
-                WHERE status IN ('filled', 'open')
+                WHERE status = ANY(%s)
                 GROUP BY symbol
                 HAVING SUM(quantity) > 0
-            """)
+                """,
+                (list(TradeStatus.all_open()),),
+            )
             trade_symbols = {row[0]: row[1] for row in cur.fetchall()}
 
             # STRICT VALIDATION: Check for discrepancies

@@ -1059,7 +1059,17 @@ class DailyReconciliation:
                 # instead of depending on another migration actually landing.)
                 # When price_daily has no entry, current_price must be NULL to indicate missing data.
                 # This prevents position_value from being calculated incorrectly (showing 0% gain/loss).
-                cur.execute("""
+                # BUG FOUND 2026-08-25 (real-money-readiness goal session, sweep for the same
+                # bug class as phase1_data_freshness.py's orphaned-position fix): this hand-
+                # rolled ('open', 'filled', 'active', 'partially_filled') list silently
+                # omitted 'pending'/'paper_pending' from TradeStatus.all_open() - a
+                # paper_pending trade (recorded as a real committed position while Alpaca was
+                # unreachable, per that status's own definition) was excluded from this
+                # position-value/unrealized-P&L reconciliation query with no error, just a
+                # quietly incomplete portfolio total. Use TradeStatus.all_open() directly
+                # (the single source of truth) instead of a second hand-copied subset.
+                cur.execute(
+                    """
                     WITH latest_prices AS (
                         SELECT DISTINCT ON (symbol) symbol, close as current_price
                         FROM price_daily
@@ -1074,7 +1084,7 @@ class DailyReconciliation:
                             (at.entry_quantity * lp.current_price) as position_value
                         FROM algo_trades at
                         LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
-                        WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
+                        WHERE at.status = ANY(%s)
                           AND at.exit_date IS NULL
                           AND at.entry_price IS NOT NULL
                           AND at.entry_price > 0
@@ -1084,7 +1094,9 @@ class DailyReconciliation:
                     FROM open_trades
                     WHERE avg_entry_price IS NOT NULL AND avg_entry_price > 0
                     ORDER BY symbol
-                """)
+                    """,
+                    (list(TradeStatus.all_open()),),
+                )
 
                 positions = cur.fetchall()
 

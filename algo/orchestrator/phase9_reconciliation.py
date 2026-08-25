@@ -1161,17 +1161,26 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
     """
     try:
         with DatabaseContext("read") as cursor:
-            cursor.execute("""
+            # BUG FOUND 2026-08-25 (real-money-readiness goal session, sweep for the same bug
+            # class as phase1_data_freshness.py's orphaned-position fix): the hand-rolled
+            # ('open', 'filled', 'partially_filled') list omitted 'active'/'pending'/
+            # 'paper_pending' from TradeStatus.all_open() - a corrupted trade left in one of
+            # those statuses by the exact partial/buggy exit-write this function exists to
+            # detect would silently never surface here. Use TradeStatus.all_open() directly.
+            cursor.execute(
+                """
                 SELECT trade_id, symbol, entry_price, exit_date,
                        profit_loss_dollars, stop_loss_price, entry_quantity
                 FROM algo_trades
                 WHERE exit_date IS NOT NULL
                   AND exit_price IS NULL
                   AND exit_reason ILIKE '%Closed position recorded during reconciliation%'
-                  AND (status = 'open' OR status = 'filled' OR status = 'partially_filled')
+                  AND status = ANY(%s)
                 ORDER BY exit_date DESC
                 LIMIT 100
-            """)
+                """,
+                (list(TradeStatus.all_open()),),
+            )
             corrupted = cursor.fetchall()
 
         if not corrupted:
