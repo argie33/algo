@@ -44,9 +44,26 @@ DB_STATEMENT_TIMEOUT_MS = 30000  # 30s timeout for large table scans (increased 
 # reads these via RegimeManager.REGIME_PARAMS for report display); the position-sizing
 # consumer (get_position_size_multiplier_from_regime()) was deleted 2026-08-24 for
 # double-counting exposure_pct - see algo/orchestration/regime_manager.py's REGIME_PARAMS comment.
+#
+# BUG FOUND 2026-08-25 (money-% goal session): these were 1.0/0.75/0.5/0.0 - the SAME wrong
+# values already found drifted in lambda/api/routes/risk_dashboard.py's _TIER_RISK_MULTIPLIERS
+# (see risk_dashboard_position_size_multiplier_drift_fixed_20260825 in memory) and
+# lambda/api/routes/algo_handlers/signals.py's now-fixed _TIER_CONFIG - a 4th independent
+# hand-copy of algo/risk/exposure_policy.py's EXPOSURE_TIERS risk_multiplier field
+# (real values: 1.0/0.65/0.35/0.0), silently drifted. Because daily_report.py surfaces
+# "position_size_mult" directly in the generated daily report (Phase 9, logged + persisted
+# to algo_audit_log every trading day), this was a real, live, human-facing wrong number -
+# 15% overstated for uptrend_under_pressure, 43% overstated for caution.
+#
+# Not derived from EXPOSURE_TIERS directly here (would require importing algo.risk.
+# exposure_policy - a DB-backed business-logic module - into this file, which this module's
+# own docstring describes as compile-time-only constants with no such dependencies) - keep
+# these 4 values manually in sync with EXPOSURE_TIERS's risk_multiplier field if that tier
+# is ever retuned again (it has been 3x in one day before - see
+# exposure_tier_min_composite_score_selectivity_raised_20260824 in memory).
 REGIME_POSITION_SIZE_CONFIRMED_UPTREND = 1.0
-REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE = 0.75
-REGIME_POSITION_SIZE_CAUTION = 0.5
+REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE = 0.65
+REGIME_POSITION_SIZE_CAUTION = 0.35
 REGIME_POSITION_SIZE_CORRECTION = 0.0
 
 # Regime-based hold time multipliers (applied to max_hold_days = 20)
