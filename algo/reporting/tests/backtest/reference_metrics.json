@@ -1,5 +1,6 @@
 {
   "description": "Backtest baseline metrics for live-to-backtest comparison (Minervini swing system, 2023-2025)",
+  "provenance_warning": "Unverified. This file has exactly one commit in its history (92c8000c6, 2026-07-09, a low-rigor self-graded session) and no evidence it was ever produced by algo/backtest/run_backtest.py - that engine did not compute sortino_ratio/calmar_ratio until 2026-08-25 and still has no avg_win_r/avg_loss_r/expectancy tracking, yet this file has values for all of them. Its risk-free-rate treatment (if any) for sharpe_ratio is undocumented, so comparing it against the now risk-free-adjusted live Sharpe (fixed 2026-08-25, see utils/metrics_calculator.py) may compare inconsistent methodologies. Cannot be regenerated locally: buy_sell_daily (the signal source run_backtest.py needs) only has local history from 2026-06-12 onward, short of this file's claimed 2023-2025 period. See algo/reporting/performance.py's backtest_vs_live_comparison() docstring for full detail. Treat sharpe_ratio/win_rate_pct/max_drawdown_pct (the only 3 fields any code actually reads) as a rough, unverified directional baseline, not a precise reference.",
   "backtest_period": "2023-01-01 to 2025-06-30",
   "trading_days": 504,
   "total_trades": 156,

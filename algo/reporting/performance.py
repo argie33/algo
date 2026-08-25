@@ -412,6 +412,32 @@ class LivePerformance:
     def backtest_vs_live_comparison(self) -> dict[str, Any]:
         """Compare live metrics to backtest reference metrics.
 
+        PROVENANCE WARNING (found 2026-08-25, goal session, auditing the risk-free-rate
+        Sharpe fix's own "flagged, not fixed" note): reference_metrics.json's sharpe_ratio=1.42
+        baseline has exactly ONE commit in its entire git history (92c8000c6, 2026-07-09,
+        "SESSION 18: Complete Audit Resolution Verification" - a low-rigor, self-graded
+        session, Haiku-authored) and was never modified since. There is no evidence it was
+        ever produced by this repo's own backtest engine (algo/backtest/run_backtest.py):
+        that engine did not compute sortino_ratio/calmar_ratio at all until this same fix
+        (see run_backtest.py's 2026-08-25 fix note) and still has no avg_win_r/avg_loss_r/
+        expectancy/average_winning_trade_pct/average_losing_trade_pct tracking (R-multiples
+        aren't computed there) - yet the reference file has real-looking values for every one
+        of those fields. This is consistent with the file being a hand-written/estimated
+        placeholder from that early low-rigor session rather than genuine backtest output.
+        Locally, `buy_sell_daily` (the signal source run_backtest.py reads) only has history
+        from 2026-06-12 onward - the file's claimed "2023-01-01 to 2025-06-30" backtest_period
+        cannot be regenerated or verified against this local DB at all, so this could not be
+        corrected by re-running the backtest here. ONLY sharpe_ratio, win_rate_pct, and
+        max_drawdown_pct below are actually read/used (see below) - the other fields in the
+        JSON are inert decoration, never consumed by any code.
+
+        Separately (already noted 2026-08-25 in rolling_sharpe()'s docstring): even taking
+        sharpe_ratio=1.42 at face value, its risk-free-rate treatment is undocumented, so
+        comparing it against the now risk-free-adjusted live_sharpe below may compare
+        inconsistent methodologies. `methodology_note` below surfaces both caveats to callers
+        (e.g. the dashboard) instead of leaving them as a code comment nobody serving the
+        comparison result would see.
+
         Returns:
             dict with live/backtest Sharpe, win rate, etc. and ratio,
             or data_unavailable marker if comparison cannot be computed.
@@ -492,6 +518,14 @@ class LivePerformance:
                 "live_expectancy": live_expectancy,
                 "live_max_dd": live_max_dd,
                 "backtest_max_dd": backtest_metrics.get("max_drawdown_pct"),
+                "methodology_note": (
+                    "backtest reference_metrics.json has unverifiable provenance (see this "
+                    "method's docstring) and its risk-free-rate treatment is undocumented - "
+                    "live_sharpe now nets the real DGS3MO rate (fixed 2026-08-25) while "
+                    "backtest_sharpe's own methodology is unknown, so sharpe_ratio may compare "
+                    "inconsistent methodologies. Treat the resulting ratio/warning threshold "
+                    "as directional, not precise."
+                ),
             }
         except (FileNotFoundError, OSError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -607,7 +641,9 @@ class LivePerformance:
                 if sharpe_ratio and sharpe_ratio < 0.7:
                     result["status"] = "warning"
                     result["warning"] = (
-                        f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
+                        f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f}) "
+                        f"- NOTE: backtest baseline has unverifiable provenance and undocumented "
+                        f"risk-free-rate methodology, see backtest_vs_live_comparison() docstring"
                     )
                     logger.warning(f"  Performance warning: {result['warning']}")
 

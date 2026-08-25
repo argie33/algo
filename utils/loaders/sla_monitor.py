@@ -65,8 +65,16 @@ LOADER_SLA_TARGETS = {
     "market_health_daily": (20 * 60, 30 * 60, 60 * 60),
     "market_exposure_daily": (10 * 60, 20 * 60, 30 * 60),
     "algo_metrics_daily": (12 * 60, 60 * 60, 120 * 60),
-    "technical_data_daily_vectorized": (20 * 60, 45 * 60, 60 * 60),
-    "technical_data_daily": (60 * 60, 90 * 60, 120 * 60),  # Old non-vectorized version
+    # FIXED 2026-08-25 (goal session, SLA-sweep): "technical_data_daily_vectorized" was dead -
+    # VectorizedTechnicalLoader (loaders/load_technical_indicators.py) sets
+    # self.table_name = "technical_data_daily", so SLAMonitor(self.table_name) has only ever
+    # looked up the entry below, never this one. That left the real live loader graded against
+    # the "Old non-vectorized version" thresholds (60/90/120 min) instead of its own tuned
+    # ones - live-confirmed via 5 sampled full-universe runs 2026-08-21 through 08-25, all
+    # 233-287s (~4-5 min), so the real SLA was ~15x too lenient even at the critical
+    # threshold: a genuine 10-20x slowdown (40-80 min) would still show green. Merged the dead
+    # key's calibrated values into the real one and removed the unreachable duplicate.
+    "technical_data_daily": (20 * 60, 45 * 60, 60 * 60),
     "buy_sell_daily": (30 * 60, 120 * 60, 180 * 60),
     # FIXED 2026-08-23 (same audit as price_daily above): this key was "sector_ranking", one of
     # load_sector_industry_daily.py's 3 output_tables, but SLAMonitor is only ever instantiated
