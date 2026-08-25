@@ -64,30 +64,50 @@ def _check_rs_weakening(ticker: str, signal_date: str) -> bool:
 
 
 def _check_sector_weak(ticker: str, signal_date: str) -> bool:
-    """Check if sector has a negative signal."""
+    """Check if the market is showing a defensive sector rotation warning.
+
+    FIXED 2026-08-25 (see [[sector_rotation_signal_orphaned_never_scheduled_fixed_20260825]]
+    in memory): this had TWO independent bugs, either one alone sufficient to make it
+    permanently inert since it was written, regardless of the (separately fixed) staleness of
+    sector_rotation_signal itself:
+    (1) Queried `sector = <candidate's own GICS sector>` (via a company_profile join), but
+        algo/signals/sector_rotation.py's SectorRotationDetector._persist() has only ever
+        written ONE row per date, hardcoded to the literal sector value "market_rotation" (a
+        single market-wide defensive-vs-cyclical rotation signal, not a per-GICS-sector
+        breakdown - confirmed by lambda/api/routes/algo_handlers/sector.py's
+        _get_sector_rotation(), the dashboard's own consumer of this same table, which
+        correctly queries `WHERE sector = 'market_rotation'`). A per-candidate sector name
+        (e.g. "Technology") could never match that row.
+    (2) Even after fixing (1), the value comparison checked
+        `signal.lower() in ("weak", "decline", "warning", "negative")` - but
+        SectorRotationDetector._determine_rotation_signal() only ever returns one of
+        "severe_defensive_rotation" / "defensive_rotation_warning" / "mild_defensive_lead" /
+        "neutral". None of those match any string in that set (exact-membership, not
+        substring, so "defensive_rotation_warning" containing "warning" still doesn't count).
+    Net effect: this check could not have returned True a single time in this codebase's
+    history. Fixed to query the real single market-wide row and match its real vocabulary -
+    the two elevated tiers (severe_defensive_rotation/defensive_rotation_warning) are the
+    module's own definition of a real, persistent defensive-leadership warning; mild/neutral
+    are not treated as weak, consistent with DEFENSIVE_LEAD_SCORE_MODERATE_THRESHOLD being the
+    module's own bar for "this is worth acting on" (see its docstring's exposure-reduction
+    trigger at the same threshold).
+    """
     try:
         with DatabaseContext("read") as cur:
-            cur.execute("SELECT sector FROM company_profile WHERE symbol = %s", (ticker,))
-            sector_row = cur.fetchone()
-            if sector_row is None:
-                return False
-
-            sector = sector_row[0]
-
             cur.execute(
                 """
                 SELECT signal
                 FROM sector_rotation_signal
-                WHERE sector = %s AND date = %s
+                WHERE sector = 'market_rotation' AND date = %s
                 """,
-                (sector, signal_date),
+                (signal_date,),
             )
             sector_row = cur.fetchone()
             if sector_row is None:
                 return False
 
             signal = sector_row[0]
-            return signal and signal.lower() in ("weak", "decline", "warning", "negative")
+            return signal and signal.lower() in ("severe_defensive_rotation", "defensive_rotation_warning")
     except Exception as e:
         # FIXED 2026-08-09: fail CLOSED - see _check_rs_weakening's comment above for why.
         logger.warning(f"[PREENTRY] Sector check errored for {ticker}, failing closed (flagged): {e}")

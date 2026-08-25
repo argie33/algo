@@ -38,11 +38,15 @@ LOADER_TABLES: dict[str, list[str]] = {
     # capital_routing_daily (2026-08-24): computed inline by algo/risk/capital_routing.py's
     # CapitalRouting().compute(), called from this same loader's run() right after
     # MarketExposure().compute() - not a separate loader script.
+    # sector_rotation_signal (2026-08-25): same pattern, algo/signals/sector_rotation.py's
+    # SectorRotationDetector().compute() - was previously never invoked by any scheduled job
+    # (see [[sector_rotation_signal_orphaned_never_scheduled_fixed_20260825]] in memory).
     "load_market_status_daily.py": [
         "market_health_daily",
         "market_exposure_daily",
         "market_sentiment",
         "capital_routing_daily",
+        "sector_rotation_signal",
     ],
     "load_naaim.py": ["naaim"],
     "load_aaii_sentiment.py": ["aaii_sentiment"],

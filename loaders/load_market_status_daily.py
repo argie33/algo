@@ -59,11 +59,16 @@ class MarketStatusDailyLoader(OptimalLoader):
     # already use. Without this, data_loader_status.capital_routing_daily was left seeded at
     # whatever migration 1228 initialized it to (completion_pct=0.0, status=NULL) forever -
     # never touched again despite the table itself being correctly populated every run.
+    # sector_rotation_signal (2026-08-25): computed by algo/signals/sector_rotation.py's
+    # SectorRotationDetector().compute() call within this same run (see below) - same
+    # convention as capital_routing_daily above. Was previously never invoked by any
+    # scheduled job (see [[sector_rotation_signal_orphaned_never_scheduled_fixed_20260825]]).
     output_tables = [
         "market_health_daily",
         "market_exposure_daily",
         "market_sentiment",
         "capital_routing_daily",
+        "sector_rotation_signal",
     ]
     primary_key = ("date",)
     watermark_field = "date"
@@ -610,6 +615,27 @@ class MarketStatusDailyLoader(OptimalLoader):
                 CapitalRouting().compute(eval_date, force_recompute=force_recompute)
             except Exception as routing_err:
                 logger.error(f"[MARKET_STATUS] Capital routing computation failed (non-fatal): {routing_err}")
+
+            # Sector rotation (2026-08-25, see
+            # [[sector_rotation_signal_orphaned_never_scheduled_fixed_20260825]] in memory):
+            # SectorRotationDetector was only ever invoked manually via `__main__` with a
+            # hardcoded date - the market-exposure redesign dropped its old caller here when
+            # it collapsed to a trend-only composite, but nobody removed or rewired
+            # phase8_preentry_health_check.py's `_check_sector_weak()`, which still queries
+            # sector_rotation_signal for TODAY's date on every entry candidate. With nothing
+            # writing fresh rows, that query always returned no-row-for-today, so the check
+            # silently, permanently returned "not weak" regardless of real sector conditions -
+            # one of Phase 8's 4 pre-entry health checks was dead weight. Wired back in here
+            # (same non-fatal satellite-computation pattern as CapitalRouting above) since
+            # SectorRotationDetector.compute() reads sector_ranking, which THIS loader does
+            # not populate and has no other dependency on - a failure here must not fail the
+            # exposure computation everything else depends on.
+            try:
+                from algo.signals.sector_rotation import SectorRotationDetector
+
+                SectorRotationDetector().compute(eval_date)
+            except Exception as rotation_err:
+                logger.error(f"[MARKET_STATUS] Sector rotation computation failed (non-fatal): {rotation_err}")
 
             return result_with_data
 
