@@ -64,13 +64,15 @@ def _assert_pct_matches(jsx_key: str, py_weight: float) -> None:
 class TestValueScoreWeightBadges:
     def test_weights_match_code(self):
         src = inspect.getsource(StockScoresLoader._score_value)
+        # fpe_score/stock_forward_pe removed 2026-08-25 (goal: full scoring-architecture
+        # audit) - forward_pe dropped entirely from _score_value (analyst_earnings_estimates
+        # has zero historical depth, so this input could never be validated).
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "fcf_score": "fcf_yield",
             "div_score": "stock_dividend_yield",
-            "fpe_score": "stock_forward_pe",
             "eve_score": "stock_ev_ebitda",
             "evr_score": "stock_ev_revenue",
         }
@@ -92,15 +94,15 @@ class TestPositioningScoreWeightBadges:
 
 class TestStabilityScoreWeightBadges:
     def test_volatility_and_beta_weights_match_code(self):
+        # volatility_12m/30d and downside_volatility_252d/30d removed 2026-08-25 (goal: full
+        # scoring-architecture audit) - all six volatility inputs correlated 0.52-0.92 with
+        # each other (measured directly), so consolidated to one symmetric + one downside
+        # window (60d) and redistributed the freed weight to beta/max_drawdown.
         src = inspect.getsource(StockScoresLoader._score_stability)
         score_var_to_jsx_key = {
-            "vol_score": "volatility_12m",
             "v60_score": "volatility_60d",
-            "v30_score": "volatility_30d",
             "beta_score": "beta",
-            "dvol_score": "downside_volatility_252d",
             "dvol60_score": "downside_volatility_60d",
-            "dvol30_score": "downside_volatility_30d",
             "dd_score": "max_drawdown_1y",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
@@ -114,8 +116,10 @@ class TestMomentumScoreWeightBadges:
         assert dict_match, "expected a `weights = {...}` dict literal in _score_momentum"
         dict_weights = {k: float(v) for k, v in re.findall(r'"(\w+)":\s*(0\.\d+)', dict_match.group(1))}
 
+        # momentum_1m removed 2026-08-25 (goal: full scoring-architecture audit) - dropped
+        # per the standard academic 12-1 momentum construction (Jegadeesh 1990 short-term
+        # reversal); see _score_momentum's docstring for the empirical confirmation.
         field_to_jsx_key = {
-            "momentum_1m": "momentum_1m",
             "momentum_3m": "momentum_3m",
             "momentum_6m": "momentum_6m",
             "momentum_12m": "momentum_12_3",

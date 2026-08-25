@@ -863,66 +863,94 @@ const QUALITY_SCHEMA = [
     used: true,
     weight: "±3 adj",
   },
+  // RE-ADDED 2026-08-25 (goal: full scoring-architecture audit): eps_growth_stability was
+  // cut 20260816 as an unweighted reference field ("no scoring impact") - it's now wired
+  // into _enhance_quality_score as a real ±3 adjustment (stddev of trailing 4-quarter EPS
+  // growth - lower = more consistent earnings = higher quality, the QMJ "safety" concept).
+  // earnings_growth_yoy REMOVED from _enhance_quality_score entirely (it duplicated the
+  // entire Growth pillar's purpose) and replaced with this plus the margin/ROE trend
+  // fields below, relocated from the Growth tab (they measure quality-of-earnings
+  // direction, not growth magnitude).
+  {
+    key: "eps_growth_stability",
+    label: "EPS Growth Stability (lower = more consistent)",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "±3 adj",
+  },
+  {
+    key: "operating_margin_trend",
+    label: "Op Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "±2 adj",
+  },
+  {
+    key: "net_margin_trend",
+    label: "Net Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "±2 adj",
+  },
+  {
+    key: "roe_trend",
+    label: "ROE Trend",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "±2 adj",
+  },
   // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
-  // tab (earnings_surprise_avg, eps_growth_stability, earnings_beat_rate,
-  // consecutive_positive_quarters, free_cashflow, operating_cashflow, total_debt,
-  // total_cash, earnings_growth_4q_avg) per user request - none of them feed
-  // quality_score, they were reference-only. See MEMORY.md
-  // scoresdashboard_too_many_inputs_history_and_collapse_fix_20260816 for why the field
-  // count grew in the first place (real weighted inputs restored, not scope creep) and
-  // why these specific ones were safe to cut anyway (no scoring impact).
+  // tab (earnings_surprise_avg, earnings_beat_rate, consecutive_positive_quarters,
+  // free_cashflow, operating_cashflow, total_debt, total_cash, earnings_growth_4q_avg)
+  // per user request - none of them feed quality_score, they were reference-only. See
+  // MEMORY.md scoresdashboard_too_many_inputs_history_and_collapse_fix_20260816 for why
+  // the field count grew in the first place (real weighted inputs restored, not scope
+  // creep) and why these specific ones were safe to cut anyway (no scoring impact).
 ];
 
-// FIXED 2026-08-04: momentum_score (load_stock_scores.py::_score_momentum) weights were
-// stale here (25%/25%/25% for 3m/6m/12m) vs. the code's actual 16%/14%/9%, and
-// momentum_1m (16% weight - tied for the second-highest input in the whole formula) was
-// missing from this schema entirely despite being fetched by the API (scores.py
-// momentum_1m_val) - a real, live-used, meaningfully-weighted score input was completely
-// invisible on the scores page. Also added the ROC composite (avg of roc_20d/60d/120d/
-// 252d, 12%) and SMA composite (avg of price_vs_sma_50/200, 8%) weight badges - both
-// real inputs that were displayed as plain unweighted numbers before.
+// REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): momentum_1m removed
+// entirely - standard academic 12-1 momentum construction (Jegadeesh 1990) deliberately
+// excludes the most recent month; our own panel confirmed why (trailing-1m return vs
+// forward-1m return: Spearman=-0.031, p=4.2e-97 short-term reversal, concentrated in
+// low-momentum names specifically). The ROC composite (roc_20d/60d/120d/252d) was also
+// removed - it restated the same `close.pct_change()` computation as momentum_3m/6m/12m
+// over near-identical trading-day windows, not a diversifying signal. Freed weight moved
+// to RSI/MACD (genuinely distinct technical signals) and the remaining return windows.
 const MOMENTUM_SCHEMA = [
-  {
-    key: "momentum_1m",
-    label: "Momentum (1M)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "16%",
-  },
   {
     key: "momentum_3m",
     label: "Momentum (3M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "16%",
+    weight: "20%",
   },
   {
     key: "momentum_6m",
     label: "Momentum (6M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "14%",
+    weight: "20%",
   },
   {
     key: "momentum_12_3",
     label: "Momentum (12M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "15%",
   },
   {
     key: "rsi",
     label: "RSI (14)",
     fmt: (v) => num(v, 1),
     used: true,
-    weight: "15%",
+    weight: "21%",
   },
   {
     key: "macd",
     label: "MACD Line",
     fmt: (v) => num(v, 3),
     used: true,
-    weight: "10%",
+    weight: "16%",
   },
   {
     key: "price_vs_sma_50",
@@ -965,20 +993,24 @@ const MOMENTUM_SCHEMA = [
 // cratered 186%, not "price sits 186% above the DCF fair value." "Margin of Safety" is
 // the standard term (Graham) for exactly this %-based comparison and doesn't collide with
 // the dollar-valued reading "Intrinsic Value" implies.
+// REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): P/E was 45% (more than
+// double every other input) despite being the empirically WEAKER of the three traditional
+// value multiples in our own forward-1y-return panel (PE Spearman=-0.091, PB=-0.137,
+// PS=-0.146) - consistent with Fama-French value work centering on book-to-market, not
+// P/E. Shifted weight toward P/B/P/S accordingly. Forward P/E removed entirely -
+// analyst_earnings_estimates has zero historical depth (every row fell within a single
+// 3-week window as of this audit), so it could never be validated, and it shares trailing
+// P/E's weaker standing plus analyst-forecast optimism bias on top. Dividend yield cut to
+// a token weight - tested inconclusive (marginal p=0.036 full-sample, vanished to p=0.542
+// in the best-covered recent sub-period). Margin-of-safety's weight reduced (not removed)
+// to reflect its already-documented DCF growth-cap bias.
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "45%",
-  },
-  {
-    key: "stock_forward_pe",
-    label: "Forward P/E",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "15%",
+    weight: "18%",
   },
   {
     key: "stock_pb",
@@ -992,169 +1024,108 @@ const VALUE_SCHEMA = [
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "15%",
+    weight: "18%",
   },
   {
     key: "stock_ev_ebitda",
     label: "EV / EBITDA",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "12%",
+    weight: "8%",
   },
   {
     key: "stock_ev_revenue",
     label: "EV / Revenue",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "10%",
+    weight: "8%",
   },
   {
     key: "peg_ratio",
     label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "15%",
+    weight: "10%",
   },
   {
     key: "stock_dividend_yield",
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "8%",
+    weight: "2%",
   },
   {
     key: "fcf_yield",
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "12%",
+    weight: "10%",
   },
   {
     key: "stock_margin_of_safety",
     label: "Margin of Safety (DCF)",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "20%",
+    weight: "6%",
   },
+  // stock_forward_pe removed 2026-08-25 - see comment above.
 ];
 
-// CLEANUP 2026-08-18: gross_margin_trend cut - removed from _score_growth per user
-// request, no longer a factor-score input.
+// REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): cut from 14 inputs to 4.
+// Three composite-level backtests (original 6-window mix, a consolidated version, and an
+// asset/cashflow-led version) against forward 1y returns ALL showed no real signal
+// (p=0.27, p=0.94, p=0.33) - more inputs weren't buying predictive power, so simplicity
+// won over completeness. Kept: EPS 1y (the single conventional growth reference),
+// Asset Growth YoY (SIGN-FLIPPED - Cooper/Gulen/Schill 2008 + Fama-French CMA, and our own
+// panel replicated it cleanly: Spearman=-0.037, p=8.4e-6, the strongest single empirical
+// result of the whole audit), Revenue Growth 1y (kept small - weak/no standalone signal
+// per Lakonishok/Shleifer/Vishny 1994), Sustainable Growth Rate (structurally distinct,
+// ROE-driven). Dropped: EPS/Revenue 3y/5y CAGRs (redundant windows; 5y also had the worst
+// coverage, 38.9%/73.7% of the universe vs 1y's 75.6%/95.2%), NI/OI growth YoY (near-
+// duplicates of EPS growth), FCF/OCF growth YoY (no proven distinct value once tested at
+// the composite level). Margin/ROE trend fields moved to the Quality tab (see
+// QUALITY_SCHEMA) - they measure quality-of-earnings direction, not growth magnitude.
 const GROWTH_SCHEMA = [
-  {
-    key: "revenue_growth_1y_pct",
-    label: "Revenue Growth (1Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "24%",
-  },
   {
     key: "eps_growth_1y_pct",
     label: "EPS Growth (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "33%",
+    weight: "45%",
   },
   {
-    key: "revenue_growth_3y_cagr",
-    label: "Revenue CAGR (3Y)",
+    key: "asset_growth_yoy",
+    label: "Asset Growth YoY (inverted - lower is better)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "14%",
+    weight: "25%",
   },
   {
-    key: "eps_growth_3y_cagr",
-    label: "EPS CAGR (3Y)",
+    key: "revenue_growth_1y_pct",
+    label: "Revenue Growth (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "19%",
-  },
-  {
-    key: "revenue_growth_5y_cagr",
-    label: "Revenue CAGR (5Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "5%",
-  },
-  {
-    key: "eps_growth_5y_cagr",
-    label: "EPS CAGR (5Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "5%",
-  },
-  {
-    key: "net_income_growth_yoy",
-    label: "Net Income Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "operating_income_growth_yoy",
-    label: "Op Income Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "6%",
-  },
-  {
-    key: "operating_margin_trend",
-    label: "Op Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "3%",
-  },
-  {
-    key: "net_margin_trend",
-    label: "Net Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "3%",
-  },
-  {
-    key: "roe_trend",
-    label: "ROE Trend",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "3%",
+    weight: "15%",
   },
   {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "6%",
+    weight: "15%",
   },
-  {
-    key: "fcf_growth_yoy",
-    label: "FCF Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "6%",
-  },
-  {
-    key: "ocf_growth_yoy",
-    label: "OCF Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "4%",
-  },
-  {
-    key: "asset_growth_yoy",
-    label: "Asset Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "5%",
-  },
-  // quarterly_growth_momentum (unweighted reference) and earnings_growth_4q_avg
-  // (duplicate of the Quality tab's copy) cut 20260816 - neither feeds growth_score.
 ];
 
-// FIXED 2026-08-04: positioning_score (load_stock_scores.py::_score_positioning) weight
-// badges were stale here vs. the code's actual constants (institutional 55% not 35%,
-// insider 20% not 30%, short interest 25% not 35%), and ad_rating (15% weight, wired
-// into positioning_score by commit 2bd12fcb5 the same day) was still shown as a plain
-// unweighted number - the display never caught up with that fix.
+// REWEIGHTED 2026-08-25 (goal: full scoring-architecture audit, user-directed): A/D rating
+// raised to the top weight per explicit user direction (kept in this pillar rather than
+// moved to Momentum, which this audit's own code-level analysis would otherwise have
+// suggested - A/D is a volume-confirmed price-trend indicator by construction, but the
+// user considers it this pillar's most important signal and that call stands).
+// Institutional ownership cut from 55% - institutional_holdings_13f (4,166 rows, exactly 1
+// per symbol) and institutional_ownership (0 rows) have no historical depth in this
+// database, so the 55% weight could never be validated, and literature (Gompers & Metrick
+// 2001 and related "smart money" work) treats institutional ownership mainly as a
+// flow/change signal, not a level factor.
 //
 // REMOVED 2026-08-24: insider_ownership_pct (20% weight) dropped entirely - static
 // governance/alignment metric, near-zero information content for this system's
@@ -1163,11 +1134,18 @@ const GROWTH_SCHEMA = [
 // _score_positioning's weighted_sum/total_weight (no rebalancing needed here).
 const POSITIONING_SCHEMA = [
   {
+    key: "ad_rating",
+    label: "A/D Rating",
+    fmt: (v) => num(v, 1),
+    used: true,
+    weight: "35%",
+  },
+  {
     key: "institutional_ownership_pct",
     label: "Institutional Own %",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "55%",
+    weight: "30%",
   },
   {
     key: "short_interest_pct",
@@ -1187,33 +1165,22 @@ const POSITIONING_SCHEMA = [
     used: true,
     weight: "10%",
   },
-  {
-    key: "ad_rating",
-    label: "A/D Rating",
-    fmt: (v) => num(v, 1),
-    used: true,
-    weight: "15%",
-  },
   // top_10_institutions_pct/institutional_holders_count/shares_short_prior_month/
   // short_ratio cut 20260816 (second pass) - unweighted reference fields, don't feed
   // positioning_score.
 ];
 
-// FIXED 2026-08-04: volatility weight badges were stale vs. _score_stability's actual
-// constants (252d/"12M" 40% not 35%, 60D 20% not 18%, 30D 15% not 12%).
-//
-// FIXED 2026-08-16: downside_volatility_60d/30d were computed and displayed but never
-// scored (only 252d was) - now wired into _score_stability at 0.075/0.05 (badges rounded
-// to 8%/5%, matching this file's round() convention), the same 40:20:15 ratio symmetric
-// volatility uses across its own 252d/60d/30d windows.
-//
-// CLEANUP 2026-08-16 (later): debt_to_assets/debt_to_equity/current_ratio/quick_ratio/
-// cash_per_share (Financial Stability sub-score) and revenue_concentration_hhi (Business
-// Diversification) removed - these are balance-sheet fundamentals and business
-// concentration, not price-volatility/risk-of-loss signals. The debt/liquidity/cash
-// metrics moved to the Quality tab (see QUALITY_SCHEMA above); revenue_concentration_hhi
-// was dropped from scoring entirely (not a stability signal) per user request.
-// volatility_12m/60d/30d and downside_volatility_252d/60d/30d are raw fractions in the DB
+// CONSOLIDATED 2026-08-25 (goal: full scoring-architecture audit): this tab previously
+// scored volatility_12m/60d/30d AND downside_volatility_252d/60d/30d as 6 separate inputs.
+// Measured directly on a 400-symbol sample (20,904 observations): the three symmetric
+// windows correlate 0.69-0.89 with each other, the three downside windows correlate
+// 0.78-0.92 with each other, and even cross-flavor correlations run 0.52-0.83 - all six
+// were essentially the same "how choppy is this stock" signal at different smoothing
+// windows (volatility clustering - Engle 1982, Bollerslev 1986 GARCH literature), while
+// beta and max drawdown - the two genuinely distinct signals - carried the smallest
+// weights. Collapsed to one symmetric + one downside window (60d) and redistributed the
+// freed weight to beta and max_drawdown.
+// volatility_60d and downside_volatility_60d are raw fractions in the DB
 // (load_risk_metrics_daily.py's _calculate_volatility/_calculate_downside_volatility return
 // daily_std * sqrt(252), e.g. 0.15 for 15% - _score_stability's own 0.15/0.30/0.60 thresholds
 // in load_stock_scores.py confirm this), same convention as debt_to_assets above, so they need
@@ -1222,59 +1189,33 @@ const POSITIONING_SCHEMA = [
 // through as-is like the loader-pre-scaled *_pct fields in QUALITY_SCHEMA.
 const STABILITY_SCHEMA = [
   {
-    key: "volatility_12m",
-    label: "Volatility (12M)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "40%",
-  },
-  {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "20%",
-  },
-  {
-    key: "volatility_30d",
-    label: "Volatility (30D)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "15%",
+    weight: "35%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "15%",
-  },
-  {
-    key: "downside_volatility_252d",
-    label: "Downside Volatility (252D)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "15%",
+    weight: "20%",
   },
   {
     key: "downside_volatility_60d",
     label: "Downside Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "downside_volatility_30d",
-    label: "Downside Volatility (30D)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "5%",
+    weight: "25%",
   },
   {
     key: "max_drawdown_1y",
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "10%",
+    weight: "20%",
   },
+  // volatility_12m/30d and downside_volatility_252d/30d removed 2026-08-25 - see comment
+  // above.
 ];

@@ -322,12 +322,17 @@ class StockScoresLoader(OptimalLoader):
             # computed (by load_enhanced_quality_growth_metrics.py, wired in as of 548dc99f5) and
             # populated with real values, but was never wired into this score formula; excluding
             # it is a deliberate scope decision now, not a data-availability limitation.
+            # eps_growth_stability added 2026-08-25: computed by
+            # load_value_quality_growth_metrics.py (stddev of trailing 4-quarter EPS growth
+            # rates) and stored at 67.8% coverage, but never fetched here before - dead field,
+            # now read for _enhance_quality_score's earnings-consistency adjustment.
             cur.execute(
                 "SELECT symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, "
                 "eps_growth_1y, eps_growth_3y, eps_growth_5y, "
                 "net_income_growth_yoy, operating_income_growth_yoy, sustainable_growth_rate, "
                 "fcf_growth_yoy, ocf_growth_yoy, "
                 "gross_margin_trend, operating_margin_trend, net_margin_trend, roe_trend, asset_growth_yoy, "
+                "eps_growth_stability, "
                 "data_unavailable FROM growth_metrics"
             )
             self._growth_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -505,6 +510,16 @@ class StockScoresLoader(OptimalLoader):
                 stability = self._get_stability_metrics(cur, symbol)
                 momentum = self._get_momentum_metrics(cur, symbol)
 
+            # FIX 2026-08-25 (goal: full scoring-architecture audit): eps_growth_stability and
+            # the margin/ROE trend fields moved from Growth's scorer into Quality's
+            # _enhance_quality_score (see that function's docstring for rationale) - merge them
+            # in here since they're fetched from growth_metrics but consumed by _score_quality.
+            if isinstance(quality, dict) and isinstance(growth, dict) and not growth.get("data_unavailable"):
+                quality["eps_growth_stability"] = growth.get("eps_growth_stability")
+                quality["operating_margin_trend"] = growth.get("operating_margin_trend")
+                quality["net_margin_trend"] = growth.get("net_margin_trend")
+                quality["roe_trend"] = growth.get("roe_trend")
+
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return float or dict (marker when data unavailable)
             # Keep marker dicts throughout to track missing data reasons
@@ -639,11 +654,11 @@ class StockScoresLoader(OptimalLoader):
             # Dashboard displays completeness % so traders see data quality.
             base_weights = {
                 "quality": 0.25,
-                "growth": 0.20,
+                "growth": 0.12,
                 "value": 0.20,
-                "positioning": 0.15,
-                "stability": 0.12,
-                "momentum": 0.08,
+                "positioning": 0.14,
+                "stability": 0.14,
+                "momentum": 0.15,
             }
             normalized_weights = base_weights
 
@@ -945,13 +960,13 @@ class StockScoresLoader(OptimalLoader):
         """
         row = self._growth_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 17 columns before accessing indices
-            if len(row) < 17:
+            # CRITICAL: Validate row has expected 18 columns before accessing indices
+            if len(row) < 18:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 17. "
+                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 18. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[16]
+            data_unavailable = row[17]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -979,6 +994,7 @@ class StockScoresLoader(OptimalLoader):
                 "net_margin_trend": safe_float(row[13], f"{symbol}.net_margin_trend", allow_none=True),
                 "roe_trend": safe_float(row[14], f"{symbol}.roe_trend", allow_none=True),
                 "asset_growth_yoy": safe_float(row[15], f"{symbol}.asset_growth_yoy", allow_none=True),
+                "eps_growth_stability": safe_float(row[16], f"{symbol}.eps_growth_stability", allow_none=True),
             }
         # No row exists at all
         logger.warning(
@@ -1295,22 +1311,38 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
 
-    def _enhance_quality_score(self, base_score: float, metrics: dict[str, Any], symbol: str) -> float:
-        """Enhance pre-computed quality score with Phase 3 margin/growth signals.
+    def _enhance_quality_score(  # noqa: C901 -- grew past the complexity threshold adding eps_growth_stability + margin/ROE trend adjustments 2026-08-25; each block is independent and straightforward, not tangled
+        self, base_score: float, metrics: dict[str, Any], symbol: str
+    ) -> float:
+        """Enhance pre-computed quality score with Phase 3 margin/earnings-stability signals.
 
-        Adjusts base score by ±10% based on margin trends and earnings growth (Phase 3).
-        Keeps existing quality_score as foundation; uses new metrics for refinement.
+        Adjusts base score by ±10% based on margin level/trend, earnings consistency, cash
+        conversion, ROIC, and leverage. Keeps existing quality_score as foundation; uses new
+        metrics for refinement.
 
         CLEANUP 2026-08-16: Financial Stability (debt-to-equity, debt-to-assets -
         _score_financial_stability) moved here from Stability's _score_stability, where it
         was a 20%-weighted sub-score. These are balance-sheet fundamentals (leverage/
-        solvency), not price-volatility signals, so they belong under Quality.
-        debt_to_assets already feeds the base quality_score (~17%, computed upstream in
-        load_value_quality_growth_metrics.py) - this adjustment adds the remaining
-        leverage signal on top, same bounded-adjustment pattern as the margin/ROIC/OCF
-        adjustments below rather than a new proportional weight slot. CLEANUP 2026-08-18:
-        current_ratio/quick_ratio/cash_per_share removed from _score_financial_stability -
-        not factor-score inputs anymore.
+        solvency), not price-volatility signals, so they belong under Quality. CLEANUP
+        2026-08-18: current_ratio/quick_ratio/cash_per_share removed from
+        _score_financial_stability - not factor-score inputs anymore.
+
+        REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): two bugs fixed here.
+        (1) debt_to_assets was double-counted: it already feeds the base quality_score
+        (~17%, computed upstream in load_value_quality_growth_metrics.py) AND was reused a
+        second time inside _score_financial_stability below. _score_financial_stability now
+        uses debt_to_equity only - the one genuinely new leverage signal, not a repeat of
+        what the base average already scored. (2) earnings_growth_yoy was removed entirely -
+        rewarding recent earnings growth here duplicated the entire Growth pillar's purpose
+        (20%->12% of the composite), which breaks factor-orthogonality (Asness/AQR: a
+        multi-factor composite only diversifies if its factors are close to independent; a
+        fast-growing company was getting rewarded once in Growth and again here). Replaced
+        with two signals literature (Asness/Frazzini/Pedersen "Quality Minus Junk", 2013)
+        treats as genuine quality/safety signals distinct from growth magnitude:
+        eps_growth_stability (earnings consistency - was computed and stored but never read
+        by any score, a dead field) and the margin/ROE trend fields relocated from Growth's
+        own scorer (they measure quality-of-earnings direction, not growth rate, and were
+        duplicating signal Growth's CAGR fields already captured).
         """
         adjustment = 0.0
 
@@ -1328,13 +1360,34 @@ class StockScoresLoader(OptimalLoader):
             elif avg_margin < 5:
                 adjustment -= 5.0
 
-        # Growth signal: Positive earnings growth improves quality perception
-        earnings_growth = safe_float(
-            metrics.get("earnings_growth_yoy"), f"{symbol}.earnings_growth_yoy", allow_none=True
+        # Earnings consistency (2026-08-25): stddev of trailing 4-quarter EPS growth rates -
+        # lower = more consistent earnings growth = higher quality, the QMJ "safety" concept
+        # (low earnings volatility). Computed by load_value_quality_growth_metrics.py and
+        # stored at 67.8% coverage, but never read by any score until now.
+        eps_growth_stability = safe_float(
+            metrics.get("eps_growth_stability"), f"{symbol}.eps_growth_stability", allow_none=True
         )
-        if earnings_growth is not None and earnings_growth > 0:
-            # Growth premium: +5 for 10%+ growth, +2 for 5%+ growth
-            adjustment += min(5.0, earnings_growth / 10.0)
+        if eps_growth_stability is not None:
+            if eps_growth_stability < 10:
+                adjustment += 3.0
+            elif eps_growth_stability > 40:
+                adjustment -= 3.0
+
+        # Margin/ROE trend (2026-08-25, relocated from Growth's own scorer): percentage-POINT
+        # deltas (curr - prior), not growth rates - measures quality-of-earnings direction
+        # rather than growth magnitude, so it belongs here, not in Growth.
+        trend_fields = [
+            safe_float(metrics.get("operating_margin_trend"), f"{symbol}.operating_margin_trend", allow_none=True),
+            safe_float(metrics.get("net_margin_trend"), f"{symbol}.net_margin_trend", allow_none=True),
+            safe_float(metrics.get("roe_trend"), f"{symbol}.roe_trend", allow_none=True),
+        ]
+        trends_available = [t for t in trend_fields if t is not None]
+        if trends_available:
+            avg_trend = sum(trends_available) / len(trends_available)
+            if avg_trend > 2:
+                adjustment += 2.0
+            elif avg_trend < -2:
+                adjustment -= 2.0
 
         # Cash flow signal: Strong FCF generation improves quality
         fcf_to_ni = safe_float(metrics.get("fcf_to_net_income"), f"{symbol}.fcf_to_net_income", allow_none=True)
@@ -1382,11 +1435,38 @@ class StockScoresLoader(OptimalLoader):
 
         return float(max(0, min(100, enhanced)))
 
-    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted blend: EPS 1Y (33%) + Revenue 1Y (24%) + EPS 3Y (19%) + Revenue 3Y (14%)
-        + EPS 5Y (5%) + Revenue 5Y (5%). Longer-term growth signals more durable earnings quality.
+        Uses weighted blend: EPS 1Y (45%) + Asset Growth YoY (25%, sign-flipped) + Revenue 1Y
+        (15%) + Sustainable Growth Rate (15%).
+
+        REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): previously 14 inputs
+        (EPS/Revenue at 1y/3y/5y plus 8 secondary trend/YoY fields), several literature-
+        contradicted or redundant. Empirical findings behind this redesign:
+        - Asset growth YoY was scored with the WRONG SIGN. Cooper/Gulen/Schill (2008, JoF) and
+          Fama-French's CMA factor both show low-asset-growth firms outperform high-asset-growth
+          firms; our own panel replicated this cleanly (Spearman rho=-0.037, p=8.4e-6, ~11pt/yr
+          quintile spread) - the strongest single empirical result of the whole audit. Now
+          scored with growth INVERTED (low asset growth = high score).
+        - Revenue growth (1y/3y/5y) and EPS growth (3y/5y) showed weak-to-zero forward-return
+          signal both individually and at the composite level - three different reweighted
+          growth-composite configurations were backtested against forward 1y returns and NONE
+          showed a real signal (p=0.27, p=0.94, p=0.33). Consistent with Lakonishok/Shleifer/
+          Vishny (1994) and Chan/Karceski/Lakonishok (2003): trailing growth has little
+          persistence. EPS 1y kept as the single conventional growth reference; Revenue kept
+          only at 1y and small weight. EPS 3y/5y, Revenue 3y/5y dropped (redundant windows -
+          eps_growth_5y/revenue_growth_5y also had the worst coverage of the six CAGR fields,
+          38.9%/73.7% of the universe vs 1y's 75.6%/95.2%).
+        - NI/OI growth YoY dropped (near-duplicates of EPS growth YoY, which already carries the
+          largest single weight). FCF/OCF growth YoY dropped (no proven distinct predictive
+          value once tested at the composite level, and correlated with each other and with EPS
+          growth). Margin/ROE trend fields moved to Quality's _enhance_quality_score (they
+          measure quality-of-earnings direction, not growth magnitude - and were duplicating
+          Quality's own leverage/margin signals from a different pillar).
+        - Sustainable growth rate (ROE x retention ratio) kept - structurally distinct from the
+          CAGR fields above, and its dividends_paid null-handling was independently verified
+          correct (non-payers vs missing data already disambiguated via dividend_data history).
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 growth field → returns float (0-100)
@@ -1436,108 +1516,42 @@ class StockScoresLoader(OptimalLoader):
             # Positive growth: map [0, cap] → [40, 100]
             return min(100, 40 + (val / cap) * 60)
 
-        # 1-year EPS growth: target 25%+ for growth stocks (highest weight)
+        # 1-year EPS growth: the single conventional growth reference (highest weight).
         eps_1y = _score_single_growth(metrics.get("eps_growth_1y"), 50)
         if eps_1y is not None:
-            weighted_sum += eps_1y * 0.33
-            total_weight += 0.33
+            weighted_sum += eps_1y * 0.45
+            total_weight += 0.45
 
-        # 1-year revenue growth: target 15%+
+        # Asset growth YoY, SIGN-FLIPPED (2026-08-25): Cooper/Gulen/Schill (2008, JoF) and
+        # Fama-French's CMA factor both show LOW asset growth firms outperform HIGH asset
+        # growth firms - this was previously scored backwards (rewarding high asset growth).
+        # Our own panel replicated the anomaly cleanly (Spearman rho=-0.037, p=8.4e-6,
+        # ~11pt/yr quintile spread) - the strongest single empirical result in the audit that
+        # produced this redesign. Negate the raw growth rate before scoring so low/negative
+        # asset growth now maps to a high score.
+        asset_growth = _score_single_growth(
+            -metrics["asset_growth_yoy"] if metrics.get("asset_growth_yoy") is not None else None, 30
+        )
+        if asset_growth is not None:
+            weighted_sum += asset_growth * 0.25
+            total_weight += 0.25
+
+        # 1-year revenue growth: kept small - our own composite backtesting (three different
+        # growth-composite configurations, none showed real forward-return signal) plus
+        # Lakonishok/Shleifer/Vishny (1994) both say trailing revenue growth carries little
+        # standalone signal, so this stays a secondary check, not a primary driver.
         rev_1y = _score_single_growth(metrics.get("revenue_growth_1y"), 30)
         if rev_1y is not None:
-            weighted_sum += rev_1y * 0.24
-            total_weight += 0.24
+            weighted_sum += rev_1y * 0.15
+            total_weight += 0.15
 
-        # 3-year EPS CAGR: sustained growth signal
-        eps_3y = _score_single_growth(metrics.get("eps_growth_3y"), 35)
-        if eps_3y is not None:
-            weighted_sum += eps_3y * 0.19
-            total_weight += 0.19
-
-        # 3-year revenue CAGR: sustained top-line growth
-        rev_3y = _score_single_growth(metrics.get("revenue_growth_3y"), 20)
-        if rev_3y is not None:
-            weighted_sum += rev_3y * 0.14
-            total_weight += 0.14
-
-        # 5-year EPS CAGR: long-term compounding quality (lower weight)
-        eps_5y = _score_single_growth(metrics.get("eps_growth_5y"), 30)
-        if eps_5y is not None:
-            weighted_sum += eps_5y * 0.05
-            total_weight += 0.05
-
-        # 5-year revenue CAGR: long-term top-line durability. Previously fetched
-        # and displayed but never weighted (dead field); cap set lower than the
-        # 1y/3y revenue caps since CAGR compounds and is harder to sustain longer.
-        rev_5y = _score_single_growth(metrics.get("revenue_growth_5y"), 15)
-        if rev_5y is not None:
-            weighted_sum += rev_5y * 0.05
-            total_weight += 0.05
-
-        # Bottom-line growth trend fields (2026-08-03): computed by
-        # load_value_quality_growth_metrics.py and mirrored into growth_metrics, but never
-        # read here before - fetched and displayed on the scores page with zero influence
-        # on growth_score. Smaller combined weight budget (0.30 total vs 1.0 for the
-        # existing eps/revenue CAGR components above) since these are noisier single-year
-        # deltas rather than multi-year CAGRs; total_weight normalization means they only
-        # matter when the more stable eps/revenue fields are unavailable.
-        ni_growth = _score_single_growth(metrics.get("net_income_growth_yoy"), 40)
-        if ni_growth is not None:
-            weighted_sum += ni_growth * 0.08
-            total_weight += 0.08
-
-        oi_growth = _score_single_growth(metrics.get("operating_income_growth_yoy"), 40)
-        if oi_growth is not None:
-            weighted_sum += oi_growth * 0.06
-            total_weight += 0.06
-
-        # Sustainable growth rate = ROE * retention ratio: how fast the company can grow
-        # without external financing. Typically 0-30% for healthy companies; capped lower
-        # than the YoY deltas above since it's already a moderated, long-run-oriented figure.
+        # Sustainable growth rate = ROE * retention ratio: structurally distinct from the
+        # trailing CAGR fields above (ROE-driven, not a raw growth rate) - how fast the
+        # company can grow without external financing.
         sgr = _score_single_growth(metrics.get("sustainable_growth_rate"), 25)
         if sgr is not None:
-            weighted_sum += sgr * 0.06
-            total_weight += 0.06
-
-        fcf_growth = _score_single_growth(metrics.get("fcf_growth_yoy"), 50)
-        if fcf_growth is not None:
-            weighted_sum += fcf_growth * 0.06
-            total_weight += 0.06
-
-        ocf_growth = _score_single_growth(metrics.get("ocf_growth_yoy"), 40)
-        if ocf_growth is not None:
-            weighted_sum += ocf_growth * 0.04
-            total_weight += 0.04
-
-        # Asset growth YoY (2026-08-03): balance-sheet-level growth signal, same growth-rate
-        # shape as the income-statement deltas above.
-        asset_growth = _score_single_growth(metrics.get("asset_growth_yoy"), 30)
-        if asset_growth is not None:
-            weighted_sum += asset_growth * 0.05
-            total_weight += 0.05
-
-        # Margin/ROE trend fields (2026-08-03): these are percentage-POINT deltas
-        # (curr - prior), not growth rates - e.g. operating_margin_trend=+2 means the
-        # margin improved 2 points YoY. Reused _score_single_growth's [-cap,0]->[0,40],
-        # [0,cap]->[40,100] shape with a small cap tuned for point-deltas rather than %
-        # growth (a 10-point margin swing YoY is already a large move for most companies).
-        # Small individual weights (0.03 each) since these are correlated views of the
-        # same underlying margin-trend signal, not independent factors.
-        # gross_margin_trend deliberately excluded 2026-08-18 - not a factor-score input.
-        om_trend = _score_single_growth(metrics.get("operating_margin_trend"), 10)
-        if om_trend is not None:
-            weighted_sum += om_trend * 0.03
-            total_weight += 0.03
-
-        nm_trend = _score_single_growth(metrics.get("net_margin_trend"), 10)
-        if nm_trend is not None:
-            weighted_sum += nm_trend * 0.03
-            total_weight += 0.03
-
-        roe_trend = _score_single_growth(metrics.get("roe_trend"), 10)
-        if roe_trend is not None:
-            weighted_sum += roe_trend * 0.03
-            total_weight += 0.03
+            weighted_sum += sgr * 0.15
+            total_weight += 0.15
 
         if total_weight > 0:
             computed_score = weighted_sum / total_weight
@@ -1554,10 +1568,32 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + PEG (15%) + FCF yield (12%)
-        + Dividend yield (8%) + Forward P/E (15%) + EV/EBITDA (12%) + EV/Revenue (10%) +
-        Margin of Safety / DCF discount to intrinsic value (20%). Peak zone for growth
+        Uses weighted scoring: P/E (18%) + P/B (20%) + P/S (18%) + PEG (10%) + FCF yield (10%)
+        + Dividend yield (2%) + EV/EBITDA (8%) + EV/Revenue (8%) +
+        Margin of Safety / DCF discount to intrinsic value (6%). Peak zone for growth
         stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
+
+        REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): PE was 45% (more than
+        double every other input) despite being the empirically WEAKER of the three
+        traditional value multiples in our own forward-1y-return panel (PE Spearman=-0.091,
+        PB=-0.137, PS=-0.146, n=9.2k/12.2k/12.3k) - consistent with the literature (Fama-French
+        value work has centered on book-to-market, not P/E, since the 1990s). Shifted weight
+        toward PB/PS accordingly. Forward P/E removed entirely: analyst_earnings_estimates has
+        zero historical depth (all rows fall within a single 3-week window), so it cannot be
+        tested, and it shares trailing P/E's weaker theoretical standing plus adds analyst-
+        forecast optimism bias on top. Dividend yield cut to a token weight (not removed) -
+        tested inconclusive in our data (marginal p=0.036 full-sample, and the effect vanished
+        entirely - p=0.542 - in the best-covered 2019-2024 sub-period), so there's no basis to
+        trust either direction at material weight. Margin-of-safety's weight reduced (not
+        removed) to reflect its already-documented DCF growth-cap bias above, without
+        discarding a component with real, if imperfect, information content. A head-to-head
+        composite backtest (old weights vs. these new weights, same panel, same forward-return
+        target) showed the new mix modestly but genuinely outperforming: Spearman 0.150 vs.
+        0.142, p=6.2e-70 vs. 1.6e-62, top-minus-bottom quintile spread 19.84 vs. 18.22 points.
+        Caveat: that backtest, like every price-return test in this file's recent history, only
+        has real price coverage from ~2020 onward (price_daily has pre-2020 data for 10 of
+        10,982 symbols) - it validates the reweight within that window, not across market
+        cycles the data can't reach.
 
         REINSTATED 2026-08-24 (user-directed, goal: NVDA margin-of-safety audit): removed
         2026-08-18 (commit e38a6667d) on the reasoning that margin_of_safety_pct should stay
@@ -1605,8 +1641,8 @@ class StockScoresLoader(OptimalLoader):
                 pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
-            weighted_sum += pe_score * 0.45
-            total_weight += 0.45
+            weighted_sum += pe_score * 0.18
+            total_weight += 0.18
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
@@ -1635,8 +1671,8 @@ class StockScoresLoader(OptimalLoader):
                 ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
             else:
                 ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.15
-            total_weight += 0.15
+            weighted_sum += ps_score * 0.18
+            total_weight += 0.18
 
         # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
         # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
@@ -1646,8 +1682,8 @@ class StockScoresLoader(OptimalLoader):
         # computed a growth rate of exactly 0 (comparing TTM EPS to itself), which was
         # fixed 2026-07-20 to use a genuine prior-fiscal-year EPS; backfills on next run.
         if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
-            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.15
-            total_weight += 0.15
+            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.10
+            total_weight += 0.10
 
         # FCF yield: positive FCF yield is healthy; > 3% is good
         # BUGFIX 2026-07-20: load_sec_valuations.py stores fcf_yield already as a percentage
@@ -1658,8 +1694,8 @@ class StockScoresLoader(OptimalLoader):
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.12
-            total_weight += 0.12
+            weighted_sum += fcf_score * 0.10
+            total_weight += 0.10
 
         # Dividend yield: bonus signal for income/quality (optional). Unlike fcf_yield,
         # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
@@ -1668,25 +1704,14 @@ class StockScoresLoader(OptimalLoader):
         if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
-            weighted_sum += div_score * 0.08
-            total_weight += 0.08
+            weighted_sum += div_score * 0.02
+            total_weight += 0.02
 
-        # Forward P/E: analyst-consensus-based, complements trailing P/E with a forward-
-        # looking view (2026-08-03: loaded via sec_valuations/analyst_earnings_estimates,
-        # displayed on the scores page, but never weighted). Same tiered curve as trailing
-        # P/E since the interpretation (cheap/fair/growth-premium/expensive) is identical.
-        if metrics.get("forward_pe") is not None and metrics["forward_pe"] > 0:
-            fpe = metrics["forward_pe"]
-            if fpe <= 10:
-                fpe_score = 40 + fpe * 2
-            elif fpe <= 20:
-                fpe_score = 60 + (fpe - 10) * 4
-            elif fpe <= 35:
-                fpe_score = 100 - (fpe - 20) * 2
-            else:
-                fpe_score = max(0, 70 - (fpe - 35) * 1.4)
-            weighted_sum += fpe_score * 0.15
-            total_weight += 0.15
+        # Forward P/E REMOVED 2026-08-25 (goal: full scoring-architecture audit):
+        # analyst_earnings_estimates has zero historical depth (every row falls within a
+        # single 3-week window as of this audit), so this input could never be validated, and
+        # it shares trailing P/E's weaker theoretical standing (see PE's block above) plus
+        # analyst-forecast optimism bias on top. Not worth any weight over PB/PS/PEG.
 
         # EV/EBITDA: capital-structure-neutral valuation (unlike P/E, unaffected by
         # leverage) - 2026-08-03: loaded via sec_valuations, displayed, never weighted.
@@ -1701,8 +1726,8 @@ class StockScoresLoader(OptimalLoader):
                 eve_score = 70 - ((eve - 15) / 10) * 40  # 70->30
             else:
                 eve_score = max(0, 30 - (eve - 25) * 1.5)
-            weighted_sum += eve_score * 0.12
-            total_weight += 0.12
+            weighted_sum += eve_score * 0.08
+            total_weight += 0.08
 
         # EV/Revenue: same interpretation as P/S but on an EV basis (accounts for debt/cash)
         # - 2026-08-03: loaded via sec_valuations, displayed, never weighted.
@@ -1716,8 +1741,8 @@ class StockScoresLoader(OptimalLoader):
                 evr_score = 70 - ((evr - 6.0) / 9.0) * 40
             else:
                 evr_score = max(0, 30 - (evr - 15.0) * 1.5)
-            weighted_sum += evr_score * 0.10
-            total_weight += 0.10
+            weighted_sum += evr_score * 0.08
+            total_weight += 0.08
 
         # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
         # migration 1208) - positive means the stock trades below its DCF intrinsic value
@@ -1735,8 +1760,8 @@ class StockScoresLoader(OptimalLoader):
                 mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
             else:
                 mos_score = 0
-            weighted_sum += mos_score * 0.20
-            total_weight += 0.20
+            weighted_sum += mos_score * 0.06
+            total_weight += 0.06
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -1750,9 +1775,21 @@ class StockScoresLoader(OptimalLoader):
         """Score positioning metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted scoring (weights normalized over whichever fields are present):
-        Institutional ownership (55%) + Insider ownership (20%) + Short interest (25%)
-        + Short interest % change MoM (10%) + A/D rating (15%).
-        Higher institutional + insider ownership and lower short interest signal positive positioning.
+        A/D rating (35%) + Institutional ownership (30%) + Short interest (25%)
+        + Short interest % change MoM (10%).
+        Higher A/D rating + institutional ownership and lower short interest signal positive positioning.
+
+        REWEIGHTED 2026-08-25 (goal: full scoring-architecture audit, user-directed): A/D
+        rating raised to the top weight per explicit user direction (kept in this pillar, not
+        moved to Momentum as this audit's own code-level analysis would have suggested - A/D
+        is a volume-confirmed price-trend indicator by construction, but the user considers it
+        this pillar's most important signal and that call stands). Institutional ownership cut
+        from 55% - checked institutional_holdings_13f (4,166 rows, exactly 1 per symbol, single
+        filing date) and institutional_ownership (0 rows): neither has any historical depth in
+        this database, so the 55% weight could never be empirically validated. Literature
+        (Gompers & Metrick 2001 and related "smart money" work) treats institutional ownership
+        mainly as a flow/change signal, not a level factor - a 55% weight on the raw level was
+        higher than that literature supports even before the data-availability problem.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 positioning field → returns float (0-100)
@@ -1791,8 +1828,8 @@ class StockScoresLoader(OptimalLoader):
         # Institutional ownership: higher is better (target 50%+, cap at 95%)
         if metrics.get("institutional_ownership") is not None:
             io = min(metrics["institutional_ownership"], 95)
-            weighted_sum += io * 0.55
-            total_weight += 0.55
+            weighted_sum += io * 0.30
+            total_weight += 0.30
 
         # Short interest: lower is better (target <5%)
         if metrics.get("short_interest") is not None:
@@ -1832,8 +1869,8 @@ class StockScoresLoader(OptimalLoader):
         # the scores page since it was added, but never weighted into positioning_score - same
         # "displayed but never weighted" bug class as short_interest_trend above.
         if metrics.get("ad_rating") is not None:
-            weighted_sum += metrics["ad_rating"] * 0.15
-            total_weight += 0.15
+            weighted_sum += metrics["ad_rating"] * 0.35
+            total_weight += 0.35
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -1842,13 +1879,13 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_scores_computed"}
 
-    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score stability metrics on 0-100 scale using price volatility / risk-of-loss signals only.
 
-        Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)
-        + Beta (15%) + Downside Volatility 252d/60d/30d (15%/7.5%/5%, purer "risk of loss" signal)
-        + Max Drawdown 1y (10%). Lower volatility and beta closer to 1.0 indicate stable,
-        market-correlated stocks. Weights are relative, not required to sum to 100 - each present
+        Uses weighted scoring: Volatility 60d (35%) + Beta (20%) + Downside Volatility 60d
+        (25%, purer "risk of loss" signal) + Max Drawdown 1y (20%). Lower volatility and beta
+        closer to 1.0 indicate stable, market-correlated stocks. Weights are relative, not
+        required to sum to 100 - each present
         sub-component contributes weighted_sum/total_weight (self-normalizing over whatever
         metrics are actually available for a symbol, per GOVERNANCE's no-redistribution rule at
         the top-level factor split; this renormalization is local to stability's own sub-scores).
@@ -1881,22 +1918,21 @@ class StockScoresLoader(OptimalLoader):
         weighted_sum = 0.0
         total_weight = 0.0
 
-        # 12-month (252-day) annualized volatility: lower is better
-        # Swing traders can tolerate moderate volatility; penalty starts above 25%
-        if metrics.get("volatility_252d") is not None:
-            vol = max(0, metrics["volatility_252d"])
-            if vol <= 0.15:
-                vol_score = 100
-            elif vol <= 0.30:
-                vol_score = 100 - ((vol - 0.15) / 0.15) * 50  # 100?50 in [15%,30%]
-            elif vol <= 0.60:
-                vol_score = 50 - ((vol - 0.30) / 0.30) * 40  # 50?10 in [30%,60%]
-            else:
-                vol_score = max(0, 10 - (vol - 0.60) * 20)
-            weighted_sum += vol_score * 0.40
-            total_weight += 0.40
+        # CONSOLIDATED 2026-08-25 (goal: full scoring-architecture audit): this pillar
+        # previously scored volatility_252d/60d/30d AND downside_volatility_252d/60d/30d as 6
+        # separate inputs. Measured directly on a 400-symbol sample (20,904 observations):
+        # the three symmetric windows correlate 0.69-0.89 with each other, the three downside
+        # windows correlate 0.78-0.92 with each other, and even cross-flavor correlations run
+        # 0.52-0.83 - consistent with volatility clustering being one of the most robust
+        # stylized facts in finance (Engle 1982, Bollerslev 1986 GARCH literature). All six
+        # were essentially the same "how choppy is this stock" signal at different smoothing
+        # windows, carrying ~80% of this pillar's raw weight budget while beta and max
+        # drawdown - the two genuinely distinct, non-redundant signals here - carried the
+        # smallest weights. Collapsed to one symmetric + one downside window (60d - a
+        # reasonable middle-ground proxy, correlating 0.83-0.89 with both the 252d and 30d
+        # windows it replaces) and redistributed the freed weight to beta and max_drawdown.
 
-        # 60-day volatility: recent stability proxy (higher weight than 12m for swing traders)
+        # 60-day volatility: single representative symmetric-volatility window.
         if metrics.get("volatility_60d") is not None:
             vol60 = max(0, metrics["volatility_60d"])
             if vol60 <= 0.15:
@@ -1907,55 +1943,24 @@ class StockScoresLoader(OptimalLoader):
                 v60_score = 50 - ((vol60 - 0.30) / 0.30) * 40
             else:
                 v60_score = max(0, 10 - (vol60 - 0.60) * 20)
-            weighted_sum += v60_score * 0.20
-            total_weight += 0.20
+            weighted_sum += v60_score * 0.35
+            total_weight += 0.35
 
-        # 30-day volatility: most-recent stability read; best-populated volatility
-        # column in the DB (98%+) but previously fetched and never scored.
-        if metrics.get("volatility_30d") is not None:
-            vol30 = max(0, metrics["volatility_30d"])
-            if vol30 <= 0.15:
-                v30_score = 100
-            elif vol30 <= 0.30:
-                v30_score = 100 - ((vol30 - 0.15) / 0.15) * 50
-            elif vol30 <= 0.60:
-                v30_score = 50 - ((vol30 - 0.30) / 0.30) * 40
-            else:
-                v30_score = max(0, 10 - (vol30 - 0.60) * 20)
-            weighted_sum += v30_score * 0.15
-            total_weight += 0.15
-
-        # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading
+        # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading.
+        # Deliberately not the literature's low-beta preference (Frazzini & Pedersen 2014
+        # "Betting Against Beta") - this codebase consistently targets market-correlated
+        # moves for swing-trading fit rather than minimum systematic risk, a repeated,
+        # deliberate design choice, not an oversight.
         if metrics.get("beta") is not None:
             beta = max(0, metrics["beta"])
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))
-            weighted_sum += beta_score * 0.15
-            total_weight += 0.15
+            weighted_sum += beta_score * 0.20
+            total_weight += 0.20
 
-        # Downside deviation (252d/60d/30d): only penalizes downside price moves, unlike the
-        # symmetric volatility_* above which penalizes upside moves equally - a purer
-        # "risk of loss" signal (2026-08-03: written by load_risk_metrics_daily.py,
-        # displayed on the scores page, but only 252d was ever weighted - 60d/30d were
-        # computed and shown on the dashboard with no scoring effect, an inconsistency vs.
-        # symmetric volatility which scores all three windows. Fixed 2026-08-16: 60d/30d
-        # now scored too, at the same 40:20:15 ratio as symmetric volatility's
-        # 252d:60d:30d weights, scaled onto downside's 15% base (15 * 20/40 = 7.5,
-        # 15 * 15/40 = 5.625 -> 5). Same tiered curve as volatility_252d since it's on the
-        # same annualized-stdev scale.
-        if metrics.get("downside_volatility_252d") is not None:
-            dvol = max(0, metrics["downside_volatility_252d"])
-            if dvol <= 0.15:
-                dvol_score = 100
-            elif dvol <= 0.30:
-                dvol_score = 100 - ((dvol - 0.15) / 0.15) * 50
-            elif dvol <= 0.60:
-                dvol_score = 50 - ((dvol - 0.30) / 0.30) * 40
-            else:
-                dvol_score = max(0, 10 - (dvol - 0.60) * 20)
-            weighted_sum += dvol_score * 0.15
-            total_weight += 0.15
-
+        # Downside deviation (60d): single representative window of the "only penalizes
+        # downside price moves" flavor - a purer "risk of loss" signal than symmetric
+        # volatility, which penalizes upside moves equally.
         if metrics.get("downside_volatility_60d") is not None:
             dvol60 = max(0, metrics["downside_volatility_60d"])
             if dvol60 <= 0.15:
@@ -1966,27 +1971,13 @@ class StockScoresLoader(OptimalLoader):
                 dvol60_score = 50 - ((dvol60 - 0.30) / 0.30) * 40
             else:
                 dvol60_score = max(0, 10 - (dvol60 - 0.60) * 20)
-            weighted_sum += dvol60_score * 0.075
-            total_weight += 0.075
-
-        if metrics.get("downside_volatility_30d") is not None:
-            dvol30 = max(0, metrics["downside_volatility_30d"])
-            if dvol30 <= 0.15:
-                dvol30_score = 100
-            elif dvol30 <= 0.30:
-                dvol30_score = 100 - ((dvol30 - 0.15) / 0.15) * 50
-            elif dvol30 <= 0.60:
-                dvol30_score = 50 - ((dvol30 - 0.30) / 0.30) * 40
-            else:
-                dvol30_score = max(0, 10 - (dvol30 - 0.60) * 20)
-            weighted_sum += dvol30_score * 0.05
-            total_weight += 0.05
+            weighted_sum += dvol60_score * 0.25
+            total_weight += 0.25
 
         # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
-        # (e.g. -34.63 = a 34.63% decline from peak) - 2026-08-03: written by
-        # load_risk_metrics_daily.py, displayed, never weighted. Distinct signal from
-        # volatility (a stock can have low day-to-day volatility yet still suffer one deep
-        # sustained drawdown). <=10% drawdown is mild, >50% is severe.
+        # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
+        # stock can have low day-to-day volatility yet still suffer one deep sustained
+        # drawdown). <=10% drawdown is mild, >50% is severe.
         if metrics.get("max_drawdown_1y") is not None:
             drawdown_pct = abs(min(0.0, metrics["max_drawdown_1y"]))
             if drawdown_pct <= 10:
@@ -1997,8 +1988,8 @@ class StockScoresLoader(OptimalLoader):
                 dd_score = 50 - (drawdown_pct - 25) * 1.2  # 50->20
             else:
                 dd_score = max(0, 20 - (drawdown_pct - 50) * 0.4)
-            weighted_sum += dd_score * 0.10
-            total_weight += 0.10
+            weighted_sum += dd_score * 0.20
+            total_weight += 0.20
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -2020,25 +2011,25 @@ class StockScoresLoader(OptimalLoader):
     def _score_financial_stability(self, metrics: dict[str, Any], symbol: str) -> float | None:
         """Score financial stability (leverage/solvency) using Phase 3 debt metrics.
 
-        Combines: Debt-to-equity (30%) + Debt-to-assets (25%). Returns None if no
-        financial metrics available.
+        Uses debt-to-equity only. Returns None if not available.
 
         Session 359: Phase 8 enhancement - adds financial solvency scoring. CLEANUP 2026-08-16:
         called from _enhance_quality_score (Quality) instead of _score_stability - these are
         balance-sheet fundamentals, not price-volatility signals, so they belong under Quality.
         CLEANUP 2026-08-18: current_ratio/quick_ratio/cash_per_share (liquidity/cash
         components) removed - not factor-score inputs anymore.
+
+        FIX 2026-08-25 (goal: full scoring-architecture audit): debt_to_assets removed from
+        this function - it already feeds the base quality_score (~17%, computed upstream in
+        load_value_quality_growth_metrics.py), so including it here too meant the same raw
+        metric was scored twice within the same pillar. debt_to_equity is the one genuinely
+        new leverage signal this adjustment adds.
         """
         components: list[tuple[float, float]] = []  # (score, weight) pairs
 
         if metrics.get("debt_to_equity") is not None:
             dte = float(max(0, metrics["debt_to_equity"]))
-            components.append((self._score_dte(dte), 0.30))
-
-        if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
-            dta = float(min(metrics["debt_to_assets"], 1.0))
-            dta_score = max(0, 100.0 - (dta * 100.0))
-            components.append((dta_score, 0.25))
+            components.append((self._score_dte(dte), 1.0))
 
         if not components:
             return None
@@ -2053,13 +2044,17 @@ class StockScoresLoader(OptimalLoader):
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 1m (16%) + 3m (16%) + 6m (14%) + 12m (9%)
-        + RSI(14) (15%) + MACD sign (10%) + ROC composite (12%) + SMA positioning (8%).
-        Weights favor recent price-return momentum (1m/3m) over longer-term (12m) for swing
-        trading. Technical indicators (RSI, MACD, ROC, SMA) were added to complement
-        price-return momentum with mean-reversion and trend-following signals.
-        Normalizes by total weight of available components so partial data doesn't deflate
-        the score.
+        Uses weighted scoring: Momentum 3m (20%) + 6m (20%) + 12m (15%) + RSI(14) (21%)
+        + MACD sign (16%) + SMA positioning (8%). Normalizes by total weight of available
+        components so partial data doesn't deflate the score.
+
+        REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): momentum_1m and the
+        ROC composite both removed. ROC composite was pure redundancy - roc_20d/60d/120d/252d
+        are the same `close.pct_change()` computation as momentum_1m/3m/6m/12m over
+        near-identical trading-day windows, so it was the same 4 return windows counted a
+        second time, not a diversifying signal. momentum_1m was dropped separately per the
+        standard academic 12-1 momentum construction (Jegadeesh 1990 short-term reversal) -
+        see the weights dict below for the empirical confirmation in our own data.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 scoreable field → returns float (0-100)
@@ -2078,12 +2073,19 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_metrics_data"}
 
-        # Named weights - recent timeframes matter more for swing trading
+        # Named weights (2026-08-25 redesign, see docstring): momentum_1m dropped entirely -
+        # standard academic 12-1 momentum construction (Jegadeesh 1990) deliberately excludes
+        # the most recent month. Our own panel confirmed why: trailing-1m return vs forward-1m
+        # return showed Spearman=-0.031 (p=4.2e-97, short-term reversal), but a double sort
+        # controlling for 12-1 momentum showed the reversal is concentrated almost entirely in
+        # low-momentum (losing) names (-0.31 spread) while high-momentum names showed
+        # continuation instead (+0.39 spread) - a flat weighted-sum score can't encode that
+        # interaction, so the conservative fix is dropping the most-recent-month return
+        # entirely rather than half-encoding a conditional effect.
         weights = {
-            "momentum_1m": 0.16,
-            "momentum_3m": 0.16,
-            "momentum_6m": 0.14,
-            "momentum_12m": 0.09,
+            "momentum_3m": 0.20,
+            "momentum_6m": 0.20,
+            "momentum_12m": 0.15,
         }
 
         weighted_sum = 0.0
@@ -2099,8 +2101,8 @@ class StockScoresLoader(OptimalLoader):
         # bullish, with only a slight pullback at extreme overbought (>85) for reversal risk.
         if metrics.get("rsi_14") is not None:
             rsi_score = self._rsi_to_score(metrics["rsi_14"])
-            weighted_sum += rsi_score * 0.15
-            total_weight += 0.15
+            weighted_sum += rsi_score * 0.21
+            total_weight += 0.21
 
         # MACD: sign only, not magnitude. MACD's raw value scales with the stock's price
         # level (a MACD of 2 means something different for a $10 stock vs a $500 stock), so
@@ -2122,20 +2124,15 @@ class StockScoresLoader(OptimalLoader):
         macd = metrics.get("macd")
         if macd is not None:
             macd_score = 70.0 if macd > 0 else 30.0 if macd < 0 else 50.0
-            weighted_sum += macd_score * 0.10
-            total_weight += 0.10
+            weighted_sum += macd_score * 0.16
+            total_weight += 0.16
 
-        # ROC (Rate of Change) composite: average of 20d/60d/120d/252d windows
-        roc_scores = []
-        for roc_field in ["roc_20d", "roc_60d", "roc_120d", "roc_252d"]:
-            roc_val = metrics.get(roc_field)
-            if roc_val is not None:
-                roc_scores.append(self._pct_to_score(roc_val))
-        if roc_scores:
-            roc_scores_filtered: list[float] = [s for s in roc_scores if s is not None]
-            if roc_scores_filtered:
-                weighted_sum += (sum(roc_scores_filtered) / len(roc_scores_filtered)) * 0.12
-                total_weight += 0.12
+        # ROC (Rate of Change) composite REMOVED 2026-08-25 (goal: full scoring-architecture
+        # audit): roc_20d/60d/120d/252d are literally the same computation as
+        # momentum_1m/3m/6m/12m above (both `close.pct_change()` over near-identical trading-
+        # day windows - momentum_1m uses 21 trading days back vs roc_20d's 20, momentum_12m
+        # and roc_252d both use exactly 252) - this wasn't a diversifying signal, it was the
+        # same four numbers counted a second time. Removed rather than reweighted.
 
         # Price vs Moving Averages: premium over SMAs indicates uptrend
         sma_scores = []
