@@ -85,10 +85,14 @@ class TestDebtToEquityNoEquityReason:
         assert metrics["debt_to_equity_unavailable_reason"] == "missing_sec_data"
 
     def test_real_equity_still_computes_normally(self, monkeypatch):
+        # debt_to_equity's formula changed 2026-08-26 (Quality pillar exhaustive-input review):
+        # interest-bearing Debt / Equity (matches what was Fama-MacBeth-validated), not Total
+        # Liabilities / Equity - so this now sources debt from ev_metrics (total_debt_ev), the
+        # same production-quality figure ROIC/ROCE use, rather than total_liabilities.
         loader = _make_loader(monkeypatch, no_recent_equity_symbols=frozenset({"AAT"}))
         row = _quality_row(stockholders_equity=100_000_000.0, total_liabilities=200_000_000.0)
 
-        metrics = loader._compute_quality_metrics("AAT", row, ev_metrics=None)
+        metrics = loader._compute_quality_metrics("AAT", row, ev_metrics=(300_000_000.0, 0.0, 0.0))
 
-        assert metrics["debt_to_equity"] == 2.0
+        assert metrics["debt_to_equity"] == 3.0
         assert metrics.get("debt_to_equity_unavailable_reason") is None

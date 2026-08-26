@@ -797,63 +797,51 @@ export { QUALITY_SCHEMA, RISK_SCHEMA };
 // for why splitting one score across a base formula + a bump layer was real architectural
 // debt independent of the literature findings.
 //
-// NOW DISPLAYABLE 2026-08-26 (migration 1236): Operating Profitability, Gross Profitability,
-// Accruals Ratio, and Margin Volatility are persisted to quality_metrics and exposed via the
-// API (see lambda/api/routes/scores.py's quality_inputs) - added to this schema below, closing
-// the "computed but invisible" gap this comment used to flag. Altman Z''-Score (migration 1237)
-// added the same day once retained_earnings' backfill gave it real Fama-MacBeth evidence.
-// ROIC and Payout Ratio ARE already persisted/exposed (roic_pct, payout_ratio) but were
-// never added to this schema even when they were bounded adjustments - added now that
-// they're real weighted inputs.
+// REBUILT 2026-08-26 (Quality pillar exhaustive-input review, user-directed). ROIC,
+// Operating Profitability, Gross Profitability, Accruals Ratio, Margin Volatility, and Debt
+// to Assets all removed from scoring (weak/insignificant Fama-MacBeth evidence, or replaced
+// by a stronger alternative - see loaders/load_value_quality_growth_metrics.py's
+// weighted_score comment for the full evidence). ROCE (replaces ROIC), FCF Margin (replaces
+// Accruals), and Debt to Equity (replaces Debt to Assets) added - all three tested with
+// meaningfully stronger and more time-stable Fama-MacBeth evidence than what they replaced
+// (see that same comment). Current Ratio was proposed and tested too but showed no
+// cross-sectional signal (t=-0.30/0.32, sign-flips across a half-split robustness check) -
+// deliberately excluded despite being a standard quality-investing checklist item.
 const QUALITY_SCHEMA = [
   {
     key: "return_on_equity_pct",
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~5%",
+    weight: "~11%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~12.5%",
+    weight: "~18%",
   },
   {
-    key: "return_on_invested_capital_pct",
-    label: "ROIC",
+    key: "return_on_capital_employed_pct",
+    label: "ROCE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~10%",
+    weight: "~18%",
   },
   {
-    key: "operating_profitability_pct",
-    label: "Operating Profitability",
+    key: "fcf_margin_pct",
+    label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~5%",
+    weight: "~15%",
   },
   {
-    key: "gross_profitability_pct",
-    label: "Gross Profitability",
-    fmt: (v) => pct(v, 1),
+    key: "debt_to_equity",
+    label: "Debt to Equity",
+    fmt: (v) => num(v, 2),
     used: true,
-    weight: "~12.5%",
-  },
-  {
-    key: "accruals_ratio_pct",
-    label: "Accruals Ratio",
-    fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "~10%",
-  },
-  {
-    key: "margin_volatility",
-    label: "Margin Volatility",
-    fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "~5%",
+    weight: "~18%",
   },
   {
     key: "altman_z_score",
@@ -870,18 +858,11 @@ const QUALITY_SCHEMA = [
     weight: "~5%",
   },
   {
-    key: "debt_to_assets",
-    label: "Debt to Assets",
-    fmt: (v) => pct(v == null ? null : v * 100, 1),
-    used: true,
-    weight: "~15%",
-  },
-  {
     key: "payout_ratio",
     label: "Payout Ratio",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~10%",
+    weight: "~5%",
   },
   // earnings_growth_yoy briefly restored here 2026-08-26, then MOVED to the Growth tab the
   // same day (user directive) - it's a growth-magnitude signal, not a quality one, so its

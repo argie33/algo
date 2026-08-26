@@ -2184,23 +2184,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("net_margin")
 
-            # Debt to Equity = Total Liabilities / Shareholders' Equity
-            # FIXED 2026-08-19 (goal: financial-calc accuracy audit): same near-zero-
-            # denominator garbage-value bound as interest_coverage below (also an unscaled
-            # raw ratio, same >1000 threshold). Live-confirmed: EROC debt_to_equity=8,508,
-            # CCII=2,901, WHLR=3,747; 60 symbols system-wide with |debt_to_equity| > 100,
-            # including real operating companies with legitimately near-zero book equity
-            # (e.g. CL at 295.65) whose value is real but not comparable/scoreable the same
-            # way a near-zero-revenue margin blowup isn't.
-            if total_liabilities is not None and stockholders_equity is not None and stockholders_equity != 0:
-                computed_debt_to_equity = total_liabilities / stockholders_equity
-                if abs(computed_debt_to_equity) > 1000:
-                    failed_metrics.append("debt_to_equity")
-                    implausible_ratio_metrics.append("debt_to_equity")
-                else:
-                    metrics["debt_to_equity"] = float(computed_debt_to_equity)
-            else:
-                failed_metrics.append("debt_to_equity")
+            # Debt to Equity: MOVED 2026-08-26 (Quality pillar exhaustive-input review) - see
+            # the new computation right after roic_pct below, alongside ROCE. The old formula
+            # here (Total Liabilities / Equity) was quietly a DIFFERENT, broader ratio than
+            # what algo/research/fama_macbeth_quality_factors.py actually Fama-MacBeth-tested
+            # (interest-bearing Debt / Equity, t=3.12-3.29) - total_liabilities includes AP,
+            # deferred revenue, accrued expenses etc., not just financial leverage. Standard
+            # finance usage of "Debt-to-Equity" also means interest-bearing debt, not total
+            # liabilities, so the old formula was mislabeled as well as untested. Now computed
+            # from debt_for_roic (the same production-quality, sec_valuations-preferred debt
+            # figure already used for ROIC/ROCE) / equity, matching what was actually validated.
 
             # Debt to Assets = Total Liabilities / Total Assets
             # Both inputs are already fetched above for ROA; this was previously never
@@ -2793,6 +2786,54 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("roic_pct")
 
+            # ROCE (Return on Capital Employed) ADDED 2026-08-26 (Quality pillar exhaustive-
+            # input review, user-directed): EBIT / (Equity + Debt), deliberately NO cash
+            # subtraction - unlike roic_pct above, whose cash-netted invested_capital goes
+            # negative for well-capitalized, profitable companies (~31% of all roic_pct
+            # missing_sec_data cases, e.g. ALNY, see the comment above). Reuses the same
+            # production-quality debt_for_roic/roic_stockholders_equity inputs as roic_pct
+            # (real sec_valuations.total_debt with a multi-year fallback, not a same-year-only
+            # proxy) and roic_operating_income as the EBIT proxy (pretax, classic ROCE
+            # convention - not NOPAT). FM-validated: t=2.10 univariate/1.91 multivariate (151
+            # months, 2014-2026), and - unlike roic_pct (t=0.45, sign-flips 1.84/-0.79 across a
+            # half-split robustness check) - stable across both halves (t=1.50/1.50 exactly).
+            # Panel coverage 70.8% vs. roic_pct's 38.9%, directly reflecting the fixed cash-
+            # netting failure mode. Replaces roic_score in the composite (see weighted_score).
+            capital_employed = (
+                roic_stockholders_equity + debt_for_roic
+                if roic_stockholders_equity is not None and debt_for_roic is not None
+                else None
+            )
+            roce_pct_negative_capital_employed = capital_employed is not None and capital_employed <= 0
+            if roic_operating_income is not None and capital_employed is not None and capital_employed > 0:
+                computed_roce_pct = (roic_operating_income / capital_employed) * 100
+                if abs(computed_roce_pct) > 1000:
+                    failed_metrics.append("roce_pct")
+                    implausible_ratio_metrics.append("roce_pct")
+                else:
+                    metrics["roce_pct"] = float(computed_roce_pct)
+            else:
+                failed_metrics.append("roce_pct")
+
+            # Debt to Equity: interest-bearing Debt / Equity - see the removed-block comment
+            # near total_liabilities/debt_to_assets above for why this replaced the old Total
+            # Liabilities / Equity formula. Reuses debt_for_roic/roic_stockholders_equity, same
+            # production-quality inputs as ROIC/ROCE above. FM-validated: t=3.12 univariate/
+            # 3.29 multivariate (151 months) - the strongest single leverage signal tested,
+            # though a half-split check shows it strengthening over time (t=1.50 first half,
+            # 2.84 second half) rather than being uniformly strong throughout, and a joint
+            # regression against debt_to_assets shows real overlap (corr=0.67) - debt_to_assets
+            # was therefore replaced by this, not scored alongside it (see weighted_score).
+            if roic_stockholders_equity is not None and debt_for_roic is not None and roic_stockholders_equity != 0:
+                computed_debt_to_equity = debt_for_roic / roic_stockholders_equity
+                if abs(computed_debt_to_equity) > 1000:
+                    failed_metrics.append("debt_to_equity")
+                    implausible_ratio_metrics.append("debt_to_equity")
+                else:
+                    metrics["debt_to_equity"] = float(computed_debt_to_equity)
+            else:
+                failed_metrics.append("debt_to_equity")
+
             # FCF to Net Income = Free Cash Flow / Net Income
             if free_cash_flow is not None and net_income is not None and net_income != 0:
                 metrics["fcf_to_net_income"] = float(free_cash_flow / net_income)
@@ -3383,9 +3424,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # distress" - the two stories this tension is actually about. Needs a real
             # distress-risk proxy (e.g. Altman Z-score, interest-coverage-based) to resolve
             # properly, not more debt_to_assets-only tests. Left unchanged pending that.
-            debt_to_assets_score = (
-                100.0 - metrics["debt_to_assets"] * 100.0 if metrics["debt_to_assets"] is not None else None
-            )
+            # debt_to_assets_score REMOVED 2026-08-26 (Quality pillar exhaustive-input review) -
+            # replaced by debt_to_equity_score in the composite (see that field's own comment,
+            # near roic_pct/roce_pct below, for the correlation/redundancy evidence). metrics
+            # ["debt_to_assets"] itself (computed above) is still persisted/displayed.
             # Interest coverage: solvency curve, not a raw percentage. <1.5x is going-concern
             # risk territory, >=10x is effectively debt-service-risk-free.
             interest_coverage_score = None
@@ -3485,10 +3527,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if operating_income is not None and stockholders_equity is not None and stockholders_equity > 0
                 else None
             )
-            operating_profitability_score = (
-                # Same curve as roe_score - identical denominator (book equity), same scale.
-                _margin_curve(operating_profitability, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-                if operating_profitability is not None
+            # operating_profitability_score/gross_profitability_score/roic_score/accruals_score/
+            # margin_volatility_score REMOVED 2026-08-26 (Quality pillar exhaustive-input
+            # review, user-directed rebuild) - all five failed to clear this repo's own |t|>2
+            # bar in the 2026-08-26 re-check (gross_profitability t=1.02, operating_profitability
+            # t=-0.55, accruals_ratio t=-1.85, margin_volatility t=-1.28/-1.51) or were replaced
+            # by a more robust alternative (roic_score -> roce_score, see below). The raw values
+            # (operating_profitability, gross_profitability, accruals_ratio, margin_volatility,
+            # roic_pct) are all still computed and persisted for display - only their scoring
+            # curves and composite weight are removed. See weighted_score below for the full
+            # final composite and the validation behind each surviving component.
+            operating_profitability = (
+                (operating_income - (interest_expense or 0.0)) / stockholders_equity * 100.0
+                if operating_income is not None and stockholders_equity is not None and stockholders_equity > 0
                 else None
             )
             gross_profitability = (
@@ -3496,21 +3547,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if revenue is not None and cost_of_revenue is not None and total_assets is not None and total_assets > 0
                 else None
             )
-            gross_profitability_score = (
-                _margin_curve(gross_profitability, [(10.0, 40.0), (25.0, 75.0), (45.0, 100.0)])
-                if gross_profitability is not None
-                else None
-            )
-            roic_pct_val = metrics.get("roic_pct")
-            roic_score = (
-                _margin_curve(roic_pct_val, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-                if roic_pct_val is not None
-                else None
-            )
-            # Accruals Ratio (Sloan 1996, Hribar-Collins cash-flow-statement shortcut): lower
-            # (more cash-backed, less accrual-heavy) earnings persist better and predict HIGHER
-            # forward returns - inverted curve, same convention as debt_to_assets_score's
-            # "lower is better" inversion above.
             accruals_ratio = (
                 (net_income - operating_cash_flow) / total_assets * 100.0
                 if net_income is not None
@@ -3519,22 +3555,63 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and total_assets > 0
                 else None
             )
-            accruals_score = (
-                max(0.0, min(100.0, 100.0 - ((accruals_ratio + 5.0) / 20.0) * 100.0))
-                if accruals_ratio is not None
+            # ROCE score: same curve shape as the old roic_score (both are "return on capital
+            # deployed" measures, similar scale) - see the roce_pct computation's own comment
+            # (near roic_pct above) for why ROCE replaces ROIC in the composite.
+            roce_pct_val = metrics.get("roce_pct")
+            roce_score = (
+                _margin_curve(roce_pct_val, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+                if roce_pct_val is not None
                 else None
             )
+            # FCF Margin (free_cash_flow / revenue) ADDED 2026-08-26 (Quality pillar exhaustive-
+            # input review): cash-conversion efficiency net of capex - distinct from Accruals
+            # Ratio (never nets out capex; correlation between the two in the FM panel was only
+            # 0.13, genuinely independent signal). FM-validated: t=2.03 univariate/1.93
+            # multivariate (151 months), stable across a half-split check (t=1.32/1.53).
+            # Replaces accruals_score in the composite.
+            #
+            # FIXED 2026-08-26 (same-session live verification): initial version had no
+            # implausible-ratio bound, unlike every other ratio in this file (net_margin,
+            # operating_margin, roic_pct, roe, roa, debt_to_equity, etc. all guard |ratio|>1000
+            # - see test_quality_metrics_roe_debt_ratio_implausible_bound.py's own docstring for
+            # why this class of bug keeps recurring). Live-caught: 321 rows with |fcf_margin| >
+            # 500% right after this field's first production run, near-zero-revenue shells with
+            # large negative FCF (e.g. MYSE: fcf_margin=-776,645%, revenue ~$550). Same >1000
+            # bound as its siblings now applied.
+            fcf_margin = None
+            if free_cash_flow is not None and revenue is not None and revenue > 0:
+                computed_fcf_margin = free_cash_flow / revenue * 100.0
+                if abs(computed_fcf_margin) > 1000:
+                    failed_metrics.append("fcf_margin")
+                    implausible_ratio_metrics.append("fcf_margin")
+                else:
+                    fcf_margin = float(computed_fcf_margin)
+            fcf_margin_score = (
+                _margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+                if fcf_margin is not None
+                else None
+            )
+            # Debt-to-Equity score: inverted (lower leverage = higher score), anchored to the
+            # <0.5 "preferred" threshold used broadly in quality-investing practice (e.g.
+            # investing.com's quality-company checklist) - 0.5 maps to 75, 1.0 to 50, 2.0+ to 0.
+            # Negative D/E (negative book equity - real financial distress, not a scale quirk)
+            # floors to 0 rather than inverting into a spuriously high score. FM-validated:
+            # t=3.12 univariate/3.29 multivariate (151 months) - the strongest single leverage
+            # signal tested, though it strengthens over time (half-split t=1.50/2.84) rather
+            # than being uniformly strong. Replaces debt_to_assets_score in the composite (see
+            # that field's own removal note below) - the two were correlated at 0.67 and a
+            # joint regression showed real overlap, not independent signals.
+            debt_to_equity_val = metrics.get("debt_to_equity")
+            if debt_to_equity_val is None:
+                debt_to_equity_score = None
+            elif debt_to_equity_val < 0:
+                debt_to_equity_score = 0.0
+            else:
+                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
             # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
             # multi-year income_rows this function doesn't have (see _compute_margin_volatility).
-            # Lower earnings/margin volatility = safer, better quality - inverted curve. Weight
-            # cut 20% -> 5% 2026-08-26 (t=-1.28/-1.51, doesn't clear this repo's |t|>2 bar - see
-            # the reweight comment on weighted_score below for the full re-check and where the
-            # freed weight went).
-            margin_volatility_score = (
-                max(0.0, min(100.0, 100.0 - (margin_volatility / 20.0) * 100.0))
-                if margin_volatility is not None
-                else None
-            )
+            # Still computed/persisted for display; no longer scored (see removal note above).
             # Payout Ratio (Fama & French 2001; La Porta et al.) - higher (within reason) is
             # better; metrics["payout_ratio"] is already computed above (dividends_paid/net_income).
             payout_ratio_val = metrics.get("payout_ratio")
@@ -3583,10 +3660,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
 
-            def _cluster_avg(a: float | None, b: float | None) -> float | None:
-                vals = [v for v in (a, b) if v is not None]
-                return sum(vals) / len(vals) if vals else None
-
             def _weighted_avg(components: list[tuple[float | None, float]]) -> float | None:
                 """components: [(score_or_None, weight), ...]. Renormalizes over whichever
                 components are actually available, same "1/n over available" spirit as the old
@@ -3597,49 +3670,46 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     return None
                 return sum(v * w for v, w in available) / total_weight
 
-            equity_cluster = _cluster_avg(roe_score, operating_profitability_score)
-            asset_cluster = _cluster_avg(roa_score, gross_profitability_score)
-            # REWEIGHTED 2026-08-26 (goal: quality-input completeness pass, margin_volatility
-            # evidence check): margin_volatility_score held the LARGEST weight in this composite
-            # (20%) despite never clearing this repo's own |t|>2 bar - re-ran
-            # algo/research/fama_macbeth_quality_factors.py's ALTMAN_CANDIDATE_COLS-isolation-
-            # fixed harness (151 months, 2014-2026) and got margin_volatility_3y t=-1.28
-            # univariate / -1.51 multivariate, same "doesn't clear the bar" territory this repo
-            # has excluded/downweighted components for before (volume_confirmation_score,
-            # earnings_growth_yoy). Cut 20% -> 5%, redistributed the freed 15% to the two
-            # components that DO clear |t|>2 in the same re-run: debt_to_assets (10% -> 15%,
-            # t=2.11/2.18) and asset_cluster (15% -> 25%, carried by roa's t=2.16/1.95 - its
-            # gross_profitability half is weak alone but the cluster average is dominated by
-            # roa's real signal). equity_cluster/roic/accruals/interest_coverage/payout left
-            # untouched - out of scope for this specific finding, and this repo has a documented
-            # precedent (growth_quality_inputs_restored_user_distrust_20260826) of the user
-            # reverting a broader backtest-driven reweight on point-in-time-panel-caveats
-            # grounds, so a full re-audit of every component needs its own explicit pass, not a
-            # side effect of fixing this one.
-            # REWEIGHTED AGAIN 2026-08-26 (Altman Z''-Score added, same session): funded its new
-            # 10% weight by cutting the two weakest/most-inconsistent-signed remaining
-            # components rather than touching anything already reviewed above -
-            # interest_coverage_score (10% -> 5%: t=-1.47 multivariate vs. +0.16 univariate,
-            # sign-flips between the two tests, the least stable of anything in this composite)
-            # and accruals_score (15% -> 10%: consistently negative-signed but t=-1.84/-1.49,
-            # doesn't clear the bar either). roic_score explicitly NOT touched despite its own
-            # t=0.45 near-zero result - that check used an approximate invested-capital formula
-            # (this file's real production formula uses sec_valuations.total_debt with a
-            # multi-year fallback; the research-harness proxy uses same-year long_term_debt +
-            # short_term_debt only), so a near-zero result there is less trustworthy than the
-            # margin_volatility/altman_z checks (which used the exact same formula as
-            # production) - flagged for the user rather than acted on.
+            # REBUILT 2026-08-26 (Quality pillar exhaustive-input review, user-directed).
+            # equity_cluster/asset_cluster (ROE+OperatingProfitability, ROA+GrossProfitability)
+            # REMOVED - ROE/ROA now scored standalone; OperatingProfitability/GrossProfitability
+            # dropped from scoring entirely (weak/insignificant: t=-0.55/1.02, see the removal
+            # note above raw values are still computed/persisted). debt_to_assets_score REMOVED,
+            # replaced by debt_to_equity_score (see that field's own comment - correlated 0.67,
+            # not independent, D/E tested stronger: t=3.12 vs 2.18). roic_score REMOVED, replaced
+            # by roce_score (fixes ROIC's cash-netting coverage gap, more time-stable). Accruals
+            # REMOVED, replaced by fcf_margin_score (independent signal, corr=0.13 with accruals,
+            # tests stronger: t=2.03 vs -1.85). margin_volatility_score REMOVED entirely (t=-1.28/
+            # -1.51, weakest surviving-in-composite component before this rebuild, no replacement
+            # candidate identified this pass).
+            #
+            # Final 8-component composite, weights set from BOTH full-151-month t-stat magnitude
+            # AND a half-split (2014-2020 vs 2020-2026) time-stability check - a component whose
+            # t-stat holds up identically across both eras (roce: 1.50/1.50) is weighted higher
+            # relative to its raw t-stat than one whose apparent strength turned out to be
+            # concentrated in a short/recent window. Altman Z''-Score is the clearest case of
+            # that correction: its naive full-sample t=3.49 looked like the strongest component
+            # of anything ever tested here, but that number comes from only 41 months (limited by
+            # retained_earnings coverage, vs. 151 for everything else) - splitting even THAT short
+            # window in half shows real decay (t=4.40 first half -> 1.39 second half), so it is
+            # deliberately NOT weighted as the composite's anchor despite the highest single
+            # t-stat on record. debt_to_equity/roa/roce/fcf_margin/roe (the "core five", combined
+            # 80%) are the components with either the strongest full-sample evidence or the best
+            # demonstrated time-stability, per explicit user direction after reviewing this same
+            # half-split evidence. current_ratio tested (t=-0.30/0.32, sign-flips across the
+            # half-split too) and was deliberately excluded - no cross-sectional signal despite
+            # being a standard quality-investing checklist item (investing.com's own <1.5
+            # threshold recommendation notwithstanding).
             weighted_score = _weighted_avg(
                 [
-                    (equity_cluster, 10.0),
-                    (asset_cluster, 25.0),
-                    (roic_score, 10.0),
-                    (accruals_score, 10.0),
-                    (debt_to_assets_score, 15.0),
-                    (interest_coverage_score, 5.0),
-                    (margin_volatility_score, 5.0),
-                    (payout_score, 10.0),
+                    (roe_score, 11.0),
+                    (roa_score, 18.0),
+                    (roce_score, 18.0),
+                    (fcf_margin_score, 15.0),
+                    (debt_to_equity_score, 18.0),
                     (altman_z_score_curve, 10.0),
+                    (interest_coverage_score, 5.0),
+                    (payout_score, 5.0),
                 ]
             )
 
@@ -3662,6 +3732,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["margin_volatility"] = margin_volatility
             metrics["margin_volatility_unavailable_reason"] = (
                 "insufficient_history" if margin_volatility is None else None
+            )
+            # PERSISTED 2026-08-26 (Quality pillar exhaustive-input review): fcf_margin is a
+            # newly-scored composite component (see its own comment above) - migration 1238
+            # added the column + reason companion. roce_pct's own metrics[...]/reason fields are
+            # already set near its computation above (same pattern as roic_pct).
+            metrics["fcf_margin"] = fcf_margin
+            metrics["fcf_margin_unavailable_reason"] = (
+                ("implausible_ratio" if "fcf_margin" in implausible_ratio_metrics else "missing_sec_data")
+                if "fcf_margin" in failed_metrics
+                else None
             )
             metrics["altman_z_score"] = altman_z_score
             if altman_z_score is not None:
@@ -3791,6 +3871,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
+                else None
+            )
+            metrics["roce_pct_unavailable_reason"] = (
+                (
+                    "implausible_ratio"
+                    if "roce_pct" in implausible_ratio_metrics
+                    else "negative_capital_employed"
+                    if roce_pct_negative_capital_employed
+                    else "missing_sec_data"
+                )
+                if "roce_pct" in failed_metrics
                 else None
             )
             metrics["fcf_to_net_income_unavailable_reason"] = (
@@ -4306,8 +4397,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              earnings_growth_4q_avg_unavailable_reason,
              gross_profitability_unavailable_reason, operating_profitability_unavailable_reason,
              accruals_ratio_unavailable_reason, margin_volatility_unavailable_reason,
-             altman_z_score_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             altman_z_score_unavailable_reason,
+             roce_pct, roce_pct_unavailable_reason, fcf_margin, fcf_margin_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -4395,6 +4487,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 accruals_ratio_unavailable_reason = EXCLUDED.accruals_ratio_unavailable_reason,
                 margin_volatility_unavailable_reason = EXCLUDED.margin_volatility_unavailable_reason,
                 altman_z_score_unavailable_reason = EXCLUDED.altman_z_score_unavailable_reason,
+                roce_pct = EXCLUDED.roce_pct,
+                roce_pct_unavailable_reason = EXCLUDED.roce_pct_unavailable_reason,
+                fcf_margin = EXCLUDED.fcf_margin,
+                fcf_margin_unavailable_reason = EXCLUDED.fcf_margin_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -4492,6 +4588,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("accruals_ratio_unavailable_reason"),
                 row.get("margin_volatility_unavailable_reason"),
                 row.get("altman_z_score_unavailable_reason"),
+                row.get("roce_pct"),
+                row.get("roce_pct_unavailable_reason"),
+                row.get("fcf_margin"),
+                row.get("fcf_margin_unavailable_reason"),
             ),
         )
 

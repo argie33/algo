@@ -56,6 +56,7 @@ def _quality_row(
     income_tax_expense=None,
     pretax_income=None,
     interest_expense=None,
+    free_cash_flow=None,
 ):
     # Same 33-column shape as test_quality_metrics_ratio_garbage_value_bound.py's fixture.
     return (
@@ -73,7 +74,7 @@ def _quality_row(
         None,  # 11 shares_outstanding
         cost_of_revenue,  # 12
         None,  # 13 operating_cash_flow
-        None,  # 14 free_cash_flow
+        free_cash_flow,  # 14 free_cash_flow
         None,  # 15 dividends_paid
         None,  # 16 earnings_per_share
         None,  # 17 prior_year_eps
@@ -158,6 +159,19 @@ class TestImplausibleRatioReasonNotConflatedWithMissingSecData:
 
         assert metrics["interest_coverage"] is None
         assert metrics["interest_coverage_unavailable_reason"] == "implausible_ratio"
+
+    def test_fcf_margin_bound_reports_implausible_ratio(self, monkeypatch):
+        # ADDED 2026-08-26 (Quality pillar exhaustive-input review): fcf_margin's first
+        # production run had no bound at all (unlike every sibling ratio tested above) - live-
+        # caught 321 rows with |fcf_margin| > 500% (e.g. MYSE: -776,645%, revenue ~$550), same
+        # near-zero-revenue-shell failure mode as gross_margin/net_margin/operating_margin above.
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(revenue=1_000.0, free_cash_flow=-2_000_000.0)
+
+        metrics = loader._compute_quality_metrics("MYSE", row, ev_metrics=None)
+
+        assert metrics["fcf_margin"] is None
+        assert metrics["fcf_margin_unavailable_reason"] == "implausible_ratio"
 
     def test_genuine_missing_data_still_reports_missing_sec_data(self, monkeypatch):
         # Control: no revenue/operating_income at all (not a bound suppression) must keep

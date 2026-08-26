@@ -126,8 +126,11 @@ class TestRoeRoaDebtRatioImplausibleBound:
 
     def test_debt_to_equity_bound_reports_implausible_ratio(self, monkeypatch):
         loader = _make_loader(monkeypatch)
-        # total_liabilities=200M / stockholders_equity=10,000 -> 20,000x, past the bound.
-        row = _quality_row(stockholders_equity=10_000.0)
+        # debt_to_equity's formula changed 2026-08-26 (Quality pillar exhaustive-input review):
+        # interest-bearing Debt / Equity, sourced from long_term_debt (via debt_for_roic) with
+        # no ev_metrics override here - no longer total_liabilities / Equity.
+        # long_term_debt=200M / stockholders_equity=10,000 -> 20,000x, past the bound.
+        row = _quality_row(stockholders_equity=10_000.0, long_term_debt=200_000_000.0)
 
         metrics = loader._compute_quality_metrics("EROC", row, ev_metrics=None)
 
@@ -167,7 +170,9 @@ class TestRoeRoaDebtRatioImplausibleBound:
         # Control: ordinary, plausible inputs must keep computing real values, not be
         # accidentally suppressed by the new bound.
         loader = _make_loader(monkeypatch)
-        row = _quality_row(stockholders_equity=100_000_000.0)
+        # long_term_debt=200M supplies debt_to_equity's numerator (see the implausible-bound
+        # test above for why - formula changed 2026-08-26 to interest-bearing Debt / Equity).
+        row = _quality_row(stockholders_equity=100_000_000.0, long_term_debt=200_000_000.0)
 
         metrics = loader._compute_quality_metrics("NORMALCO", row, ev_metrics=None)
 

@@ -76,6 +76,36 @@ ALTMAN_CANDIDATE_COLS = ["altman_z_score"]
 # so don't risk it poisoning EXTENDED_CANDIDATE_COLS' already-validated cross-section.
 ROIC_CANDIDATE_COLS = ["roic_pct"]
 
+# NEW 2026-08-26 (goal: user-directed exhaustive-input review, quality-completeness-pass-2).
+# Batched into one isolated pass (own dropna scope, separate from everything above) - their
+# underlying fields (current_assets/current_liabilities ~69.5%, free_cash_flow ~89% of
+# annual_cash_flow rows) have much higher standalone coverage than retained_earnings ever did,
+# so joint-dropna poisoning risk is low, but isolating them from the already-validated base-6/
+# extended/altman/roic tests above still costs nothing and follows this module's own precedent.
+# - roce: EBIT / Capital Employed (Debt + Equity, NO cash netting) - classic textbook ROCE,
+#   proposed as a robustness check against roic_pct's own cash-netting failure mode (production's
+#   invested_capital = equity + debt - cash goes negative for well-capitalized/cash-rich
+#   companies - live-confirmed ~31% of all roic_pct "missing_sec_data" cases in
+#   load_value_quality_growth_metrics.py, e.g. ALNY). If roce tests better AND has better
+#   coverage than roic_pct, it's a candidate to REPLACE roic_score in the composite, not stack
+#   alongside it - same "one representative per dimension" principle already applied to
+#   ROE/Operating-Profitability and ROA/Gross-Profitability sharing denominators.
+# - fcf_margin: free_cash_flow / revenue. Distinct from accruals_ratio (NI-OCF)/Assets - accruals
+#   only checks earnings-vs-cash, never nets out capex, so a capital-intensive business can pass
+#   the accruals test while still burning most of its operating cash on capex. fcf_margin catches
+#   that. Deliberately NOT also adding capex/sales as a separate candidate: fcf_margin economically
+#   IS ocf_margin - capex/sales (FCF = OCF - Capex), so scoring both would double-count the same
+#   capital-intensity information under two names.
+# - debt_to_equity: quality_metrics stores this today but it has never been scored OR tested -
+#   debt_to_assets (already in the composite, evidence-backed t=2.11-2.18) covers the same
+#   leverage dimension from a different denominator. Tested here to check for genuinely
+#   independent signal, not assumed redundant.
+# - current_ratio: liquidity, not previously tested for Quality at all (this repo's Risk pillar
+#   doesn't score it either - see quality_pillar_work_landed... note on the CLEANUP 2026-08-16
+#   move of debt/liquidity fields out of Stability/Risk display and into quality_inputs display,
+#   without ever wiring them into either composite).
+NEW_CANDIDATE_COLS = ["roce", "fcf_margin", "debt_to_equity", "current_ratio"]
+
 
 def fetch_annual_quality_fundamentals() -> pd.DataFrame:
     sql = """
@@ -85,7 +115,7 @@ def fetch_annual_quality_fundamentals() -> pd.DataFrame:
                b.stockholders_equity, b.total_assets, b.long_term_debt, b.short_term_debt,
                b.current_assets, b.current_liabilities, b.total_liabilities, b.retained_earnings,
                b.cash_and_equivalents,
-               c.operating_cash_flow, c.dividends_paid
+               c.operating_cash_flow, c.dividends_paid, c.free_cash_flow
         FROM annual_income_statement i
         LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
         LEFT JOIN annual_cash_flow c ON c.symbol = i.symbol AND c.fiscal_year = i.fiscal_year
@@ -118,6 +148,7 @@ def fetch_annual_quality_fundamentals() -> pd.DataFrame:
         "cash_and_equivalents",
         "operating_cash_flow",
         "dividends_paid",
+        "free_cash_flow",
     ]
     df = pd.DataFrame(rows, columns=cols)
     for c in cols:
@@ -202,6 +233,27 @@ def build_quality_panel(fund: pd.DataFrame) -> pd.DataFrame:
     x3 = np.where(fund["total_assets"] > 0, fund["operating_income"] / fund["total_assets"], np.nan)
     x4 = np.where(fund["total_liabilities"] > 0, fund["stockholders_equity"] / fund["total_liabilities"], np.nan)
     out["altman_z_score"] = 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
+
+    # --- NEW_CANDIDATE_COLS (2026-08-26 user-directed exhaustive-input review) ---
+    # ROCE: EBIT / Capital Employed, Capital Employed = Debt + Equity (NO cash subtraction -
+    # this is the deliberate difference from roic_pct above, see NEW_CANDIDATE_COLS' own
+    # comment). operating_income is used as the EBIT proxy, same convention this module
+    # already uses for interest_coverage/operating_profitability/altman_z's x3 term.
+    capital_employed = fund["stockholders_equity"] + total_debt
+    out["roce"] = np.where(capital_employed > 0, fund["operating_income"] / capital_employed, np.nan)
+    # FCF Margin: free_cash_flow / revenue - cash-conversion efficiency net of capex, distinct
+    # from accruals_ratio (see NEW_CANDIDATE_COLS comment for why).
+    out["fcf_margin"] = np.where(fund["revenue"] > 0, fund["free_cash_flow"] / fund["revenue"], np.nan)
+    # Debt-to-Equity: same total_debt numerator as debt_to_assets above, equity denominator
+    # instead of assets. No |ratio|>1000 style implausibility clamp here (unlike production's
+    # loader) - _build_records' own 1st/99th percentile winsorization below handles outliers for
+    # this harness's purposes.
+    out["debt_to_equity"] = np.where(fund["stockholders_equity"] > 0, total_debt / fund["stockholders_equity"], np.nan)
+    # Current Ratio: current_assets / current_liabilities - the same two fields already used for
+    # Altman Z's working_capital term above, just as a ratio instead of a difference.
+    out["current_ratio"] = np.where(
+        fund["current_liabilities"] > 0, fund["current_assets"] / fund["current_liabilities"], np.nan
+    )
 
     fund_sorted = fund.sort_values(["symbol", "fiscal_year"]).copy()
     fund_sorted["total_debt"] = fund_sorted["long_term_debt"].fillna(0) + fund_sorted["short_term_debt"].fillna(0)
@@ -355,6 +407,40 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
     roic_uni = _fama_macbeth(roic_records, ROIC_CANDIDATE_COLS)
     mean, t = roic_uni["roic_pct"]
     print(f"{'roic_pct':22s} {mean:10.5f} {t:8.2f}")
+
+    # NEW_CANDIDATE_COLS: roce, fcf_margin, debt_to_equity, current_ratio - see that constant's
+    # own comment for why each was proposed and why they're batched into one isolated pass.
+    new_records = _build_records(months, px, quality_panel, NEW_CANDIDATE_COLS, horizon_months, min_cross_section)
+    if not new_records:
+        print("\n(no usable cross-sectional months for roce/fcf_margin/debt_to_equity/current_ratio)")
+        return
+    new_sizes = [len(f) for _, f in new_records]
+    print(
+        f"\n=== New candidates (roce/fcf_margin/debt_to_equity/current_ratio): {len(new_records)} "
+        f"usable months ({new_records[0][0]} to {new_records[-1][0]}), "
+        f"median cross-section {int(np.median(new_sizes))} ==="
+    )
+    print("\n=== Univariate Fama-MacBeth (each new candidate alone) ===")
+    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s}")
+    for c in NEW_CANDIDATE_COLS:
+        uni = _fama_macbeth(new_records, [c])
+        mean, t = uni[c]
+        print(f"{c:18s} {mean:10.5f} {t:8.2f}")
+
+    print("\n=== Multivariate Fama-MacBeth (new candidates jointly) ===")
+    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
+    new_multi = _fama_macbeth(new_records, NEW_CANDIDATE_COLS)
+    for name, (mean, t) in new_multi.items():
+        print(f"{name:18s} {mean:10.5f} {t:8.2f} {len(new_records):9d}")
+
+    # roce vs roic_pct: also check whether roce actually improves on roic_pct's known coverage
+    # gap (see NEW_CANDIDATE_COLS comment - ~31% of roic_pct failures are negative invested
+    # capital from cash-netting). Coverage-in-the-panel is a decent proxy for that same
+    # cash-netting failure mode reproducing itself here.
+    roic_coverage = quality_panel["roic_pct"].notna().mean()
+    roce_coverage = quality_panel["roce"].notna().mean()
+    print(f"\nroic_pct point-in-time panel coverage: {roic_coverage:.1%}")
+    print(f"roce point-in-time panel coverage: {roce_coverage:.1%}")
 
 
 def main() -> None:
