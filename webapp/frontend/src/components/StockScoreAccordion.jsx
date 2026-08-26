@@ -1023,6 +1023,12 @@ const MOMENTUM_SCHEMA = [
 // (the opposite ranking from the pooled-Spearman claim that originally justified cutting
 // PE from 45% to 18%) - see loaders/load_stock_scores.py's _score_value docstring
 // ("PE-vs-PB/PS RANKING DISPUTE - RESOLVED") for the full evidence.
+// SUPERSEDED 2026-08-26: that whole prior ranking chain, including the "independent
+// re-verification" pass, shared one selection-bias flaw (requiring PE alongside PB/PS
+// requires positive earnings, excluding unprofitable/small firms). Bias-corrected re-test
+// REVERSES it: PB is now the STRONGEST of the three (univariate t=-9.34), PE the
+// weakest/near-null (t=-4.11 univariate, -0.96 multivariate). See loaders/load_stock_scores.py's
+// _score_value docstring ("PE-vs-PB/PS RANKING - REVERSED") for the full evidence.
 //
 // PE/PB/PS REVERSED AGAIN 2026-08-25 (later same day, follow-up pass): every prior PE/PB/PS
 // verdict above (both the original ranking and the "PB weakest" re-verification) used a test

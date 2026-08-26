@@ -116,7 +116,7 @@ def build_value_panel(fund: pd.DataFrame) -> pd.DataFrame:
     out["dividend_per_share"] = fund["dividends_paid"].abs() / shares
     out["ebitda_per_share"] = ebitda / shares
     out["net_debt_per_share"] = net_debt / shares
-    out["shares_diluted"] = shares
+    out["shares_diluted"] = shares  # for the size factor (market_cap = price * shares_diluted)
 
     out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
         days=REPORTING_LAG_DAYS
@@ -147,7 +147,7 @@ def compute_ratios(gframe: pd.DataFrame, price: pd.Series) -> pd.DataFrame:
     # z-score via the winsorization quantile boundaries below. Not negated here (unlike the
     # composite script's value_proxy, which flips sign so "higher = better" for every
     # component) - this script reports raw ratios and lets the regression coefficient's own
-    # sign show direction, same convention as pe/pb/ps/ev_ebitda/ev_revenue above.
+    # sign show direction, same convention as pe/pb/ps above.
     market_cap = df["price"] * df["shares_diluted"]
     ratios["size"] = np.where((market_cap >= 1e6) & (market_cap <= 1e13), np.log10(market_cap), np.nan)
     return ratios
@@ -186,11 +186,18 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         fwd_ret = px.iloc[i + horizon_months] / px.iloc[i] - 1.0
         frame = ratios.join(fwd_ret.rename("fwd_ret"), how="inner")
         frame = frame.replace([np.inf, -np.inf], np.nan)
-        # Only require the columns this run actually tests (VALUE_FACTOR_COLS) plus fwd_ret -
-        # ratios also still carries ev_ebitda/ev_revenue (kept computed for anyone re-running
-        # the original duplicate-detection comparison) which shouldn't force rows out just for
-        # being NaN in a column nothing here regresses on.
-        frame = frame.dropna(subset=[*VALUE_FACTOR_COLS, "fwd_ret"])
+        # RELAXED PANEL CONSTRUCTION (2026-08-25, later pass - goal: fix the residual selection
+        # bias this script still had even after removing ev_ebitda/ev_revenue from
+        # VALUE_FACTOR_COLS above). Requiring PE specifically means requiring POSITIVE EARNINGS
+        # (PE is undefined for eps<=0) - a strict row-wise .dropna() across all 6 active columns
+        # meant every symbol-month needed positive earnings just to test PB/PS/size, which
+        # systematically excludes unprofitable/small/distressed firms - exactly the population
+        # several of these effects (especially size, and it turns out PB) concentrate in. Only
+        # fwd_ret is required now; each factor is winsorized+z-scored over its OWN available
+        # population first (below), then missing values are zero-imputed (neutral, post-z-score)
+        # rather than dropping the whole row - this IS the fix that reversed the PE/PB/PS
+        # ranking, see [[value_pe_pb_ps_ranking_reversed_selection_bias_fix_20260825]].
+        frame = frame.dropna(subset=["fwd_ret"])
         frame = frame[(frame["fwd_ret"] > -0.95) & (frame["fwd_ret"] < 5.0)]
         if len(frame) < min_cross_section:
             continue
@@ -198,7 +205,8 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
             lo, hi = frame[col].quantile([0.01, 0.99])
             frame[col] = frame[col].clip(lo, hi)
             std = frame[col].std()
-            frame[col] = (frame[col] - frame[col].mean()) / std if std > 0 else 0.0
+            frame[col] = (frame[col] - frame[col].mean()) / std if std and std > 0 else frame[col] * 0.0
+        frame[VALUE_FACTOR_COLS] = frame[VALUE_FACTOR_COLS].fillna(0.0)
         records.append((month, frame))
 
     if not records:

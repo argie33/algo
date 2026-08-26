@@ -1807,12 +1807,10 @@ class StockScoresLoader(OptimalLoader):
         (see "PE-vs-PB/PS RANKING - REVERSED" note below) after a selection-bias fix reversed
         which of the three multiples is strongest. EV/EBITDA and EV/Revenue REMOVED
         2026-08-25 (see RESOLVED note below) - duplicated P/E and P/S respectively, not
-        independent signals. PE/PB/PS reweighted a second time same day (see "PE-vs-PB/PS
-        RANKING DISPUTE - RESOLVED" note below) after a sub-period-robust FM test found PB -
-        not PE - is the weakest of the three, contradicting the pooled-Spearman finding that
-        originally justified cutting PE to 18%. The other seven inputs were then uniformly
-        scaled by x0.8 (same day, third pass) to free 20pts for the new Size input without
-        reopening either of the two just-resolved ranking disputes above. Peak zone for growth
+        independent signals. PE/PB/PS weighting has moved several times the same day and once
+        more the day after on a corrected sample - see "PE-vs-PB/PS RANKING - REVERSED" note
+        below for the FINAL, currently-live ranking (PB strongest, PS second, PE weakest) before
+        trusting any earlier note in this docstring's own history. Peak zone for growth
         stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
 
         SIZE FACTOR added 2026-08-25 (goal: close the highest-confidence gap found in this
@@ -2013,6 +2011,17 @@ class StockScoresLoader(OptimalLoader):
         is the one built on a sample that doesn't structurally exclude where the signal lives,
         and it reproduces across two independent specs (univariate/multivariate) and two
         independent sub-periods, the same bar the prior "independently re-verified" pass used.
+
+        CONCURRENT INDEPENDENT VERIFICATION (merge note): a parallel session reached this same
+        conclusion at nearly the same time via a near-identical redesign of
+        algo/research/fama_macbeth_value_factors.py itself (rather than an ad hoc script),
+        acting on the identical weight numbers (PE 10%/PB 22%/PS 21%/FCF 10%). Its multivariate
+        PS coefficient came out weaker (t=-1.61 vs this pass's t=-4.01) because its
+        VALUE_FACTOR_COLS still included ev_ebitda/ev_revenue (r=0.93/1.00 duplicates of pe/ps
+        - see the RESOLVED note above) alongside PB/PS, reintroducing collinearity this pass's
+        VALUE_FACTOR_COLS avoids by excluding those already-confirmed-dead columns entirely.
+        PB's dominance (t=-5.93 to -9.34 depending on spec, both passes) is the load-bearing,
+        convergent result either way.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
