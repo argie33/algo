@@ -60,6 +60,17 @@ class RegimeManager:
     # deleted the same day for double-counting exposure_pct against
     # get_market_exposure_multiplier() - see test_position_sizer_no_regime_double_count_20260824.py)
     # and were removed; this dict key and its REGIME_POSITION_SIZE_* constants were not.
+    #
+    # max_hold_days_mult/target_1-3_mult (REGIME_TARGET_*/REGIME_HOLD_DAYS_* -
+    # _regime_target_hold_days_inert, RESOLVED 2026-08-25): same shape as position_size_mult
+    # above in that get_adjusted_config() (the only place these get applied) has zero real
+    # callers, but a DIFFERENT resolution - not double-counting like position_size_mult, but a
+    # hard data-availability wall: validating whether regime-scaled exits actually help would
+    # need real trade history across at least one correction/caution regime, and none exists
+    # locally (buy_sell_daily's real entry-signal history only goes back to 2026-06-12; every
+    # available window shows confirmed_uptrend/uptrend_under_pressure only). See
+    # get_adjusted_config()'s own docstring for the full writeup. Intentionally left un-wired,
+    # not an accidental bug - revisit once real correction/caution-regime trade history exists.
     REGIME_PARAMS: ClassVar[dict[str, Any]] = {
         "confirmed_uptrend": {
             "position_size_mult": REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
@@ -247,6 +258,32 @@ class RegimeManager:
         get_adjusted_config()'s output into ExitEngine's config after backtesting it the same
         way vol_managed_multiplier was validated, or (b) mark this display-only like
         position_size_mult and stop implying it's live, or (c) leave as documented dead code.
+
+        RESOLVED 2026-08-25 (same day, user directed: "build a real backtest first"): option
+        (a) is not achievable with data that exists locally today - checked concretely, not
+        assumed. `run_backtest.py`'s own real entry-signal source, `buy_sell_daily`, has only
+        2.5 months of history (2026-06-12 to 2026-08-25, live-queried) - nowhere near enough
+        trades to compare static vs. regime-scaled exits with any statistical power. Worse:
+        the regime dimension itself has no correction/caution representation to test against
+        in ANY available window - `market_exposure_daily`'s full history (28 days) shows only
+        confirmed_uptrend/uptrend_under_pressure, zero correction/caution days. (SPY's own
+        30-week-trend + realized-vol history goes back to 1993 and could reconstruct `regime`
+        for decades without the DB table - the real blocker is pairing that with actual stock-
+        level trade entries, which `buy_sell_daily` cannot supply before 2026-06-12.) Building
+        a backtest anyway (e.g. on synthetic entries) would produce a number that LOOKS like
+        evidence but isn't - exactly the failure mode this file's own bar (vol_managed_multiplier
+        stayed inert until real evidence existed) is designed to prevent.
+
+        DECISION: keep this method un-wired (option (c), effectively also (b) - see the
+        `_regime_target_hold_days_inert` marker on the class-level comment above, added to
+        make this an intentional, monitored state rather than an implicit one). Revisit ONLY
+        when `buy_sell_daily` (or an equivalent real entry-signal history) accumulates enough
+        history to include at least one real correction or caution regime - until then, no
+        amount of engineering effort here produces trustworthy evidence either way. Pinned by
+        tests/unit/test_regime_manager_adjusted_config_never_wired_20260825.py plus
+        tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py (the data-
+        constraint finding above, so a future session with more history doesn't have to
+        re-derive it).
         """
         # Fail-fast: base_config must have critical values (validated at init time)
         if "max_hold_days" not in base_config or base_config["max_hold_days"] is None:

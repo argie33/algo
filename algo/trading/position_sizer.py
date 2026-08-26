@@ -1140,6 +1140,37 @@ class PositionSizer:
         # deliberately: e.g. raise max_position_size_pct above the loosest tier (28%) so the
         # regime dial becomes the actual binding day-to-day constraint, or leave the static
         # cap authoritative and remove/simplify the now-decorative tier-driven branch instead.
+        #
+        # RESOLVED 2026-08-25 (same day, user directed: figure out what's best and act):
+        # KEEP the static 4.75% cap authoritative. Do NOT raise max_position_size_pct.
+        # Reasoning, not just caution:
+        # 1. 4.75% is coherent with this system's own design, exactly not approximately:
+        #    live-confirmed algo_config.max_positions=20 x 4.75% = 95.0%, which equals
+        #    max_total_invested_pct (95.0%) exactly - a clean, deliberate-looking design
+        #    relationship (a fully-invested, evenly-capped 20-name book exactly fills the
+        #    total-invested ceiling with no slack). Raising max_position_size_pct to 28%
+        #    (confirmed_uptrend's tier value) would let ONE position reach ~6x an
+        #    equal-weighted 20-way share - a large, real increase in single-name concentration
+        #    risk that breaks this exact relationship and cuts against this session's own
+        #    diversification goal, with no new evidence to justify it.
+        # 2. Rescaling EXPOSURE_TIERS' max_concentration_pct values DOWN instead (to nest
+        #    under 4.75%) was considered and rejected too: those values carry their own real,
+        #    independent, live-P&L-validated tuning history (see exposure_policy.py's
+        #    "TUNING FIX (2026-08-02): Raised from 20% to 28%. Was forcing exits at winners.
+        #    -2.43% avg return on forced exits" - a real, measured cost of a tighter cap).
+        #    Rescaling them without equivalent new evidence would silently discard a decision
+        #    that was already validated against real trading outcomes, for a different regime
+        #    of the system (a different max_positions/portfolio-construction point in time)
+        #    that no longer applies the same way - not something to do casually either.
+        # 3. Could not arbitrate between these two real-but-conflicting numbers with a fresh
+        #    backtest: same hard data-availability wall as
+        #    regime_manager.py's get_adjusted_config() finding - see
+        #    tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py.
+        # Net: the concentration branch below stays exactly as-is (correct, real defense-in-
+        # depth code, just non-binding under today's numbers) - not simplified/removed either,
+        # since it would activate correctly and immediately if either number is ever
+        # independently retuned in the future. Monitored by
+        # test_position_sizer_concentration_dial_inert_under_real_config_20260825.py.
         max_conc_val = self.config.get("max_concentration_pct")
         if max_conc_val is None:
             raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")

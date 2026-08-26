@@ -666,22 +666,41 @@ class StockScoresLoader(OptimalLoader):
             # within-pillar findings above. Underpowered for confidently rewriting these
             # percentages; flagged, not acted on.
             #
-            # SEPARATE, HIGHER-CONFIDENCE FINDING (same pass): checked what canonical
-            # institutional factor models actually include (Fama-French 1992/1993, MSCI
-            # Barra's style factors) - SIZE (market cap, the original Fama-French SMB factor,
-            # Banz 1981) is completely absent from this 6-pillar list, not represented in any
-            # pillar. Tested directly: log(market_cap) [=price x shares_outstanding_diluted,
-            # same point-in-time reconstruction as the Value pillar] vs forward 1-month return,
-            # 150 months 2014-2026, median 2,601 symbols: t=-5.37 - nearly as strong as
-            # volatility_60d's t=-6.1 (the single strongest finding of this whole re-audit) and
-            # far stronger than any of the 6 existing pillars' top-level composite
-            # coefficients above. Smaller companies show a robust, large forward-return premium
-            # in this exact dataset, matching 60+ years of replicated literature. This is a
-            # structural gap (an entire missing factor, not a reweighting question within an
-            # existing pillar) - flagged as the single highest-confidence opportunity from this
-            # whole pass, but NOT implemented here: adding a 7th factor changes the DB schema/
-            # API/frontend, a bigger scope decision than this pass's per-pillar reweighting,
-            # left for explicit user direction.
+            # SIZE FACTOR - RESOLVED 2026-08-25 (real-money-readiness follow-up, user asked to
+            # dig in and decide, not just flag): SIZE (market cap, Fama-French SMB, Banz 1981)
+            # was found completely absent from all 6 pillars, tested standalone at t=-5.37 (150
+            # months 2014-2026, median 2,601 symbols - nearly as strong as volatility_60d's
+            # t=-6.1, the strongest single finding of the whole re-audit) and IMPLEMENTED as a
+            # 20%-weighted sub-component inside the Value pillar (see _score_value's docstring,
+            # commit 2d77f7bfd) - NOT a top-level 7th pillar (effective top-level weight ~4% =
+            # value's 20% x size's 20% internal share).
+            #
+            # Follow-up question: does promoting Size to its own top-level composite slot (vs.
+            # leaving it inside Value) have real backing? Extended
+            # algo/research/fama_macbeth_composite_weights.py to add log(market_cap) as a 7th
+            # factor in the SAME multivariate regression this file's `base_weights` above were
+            # tested with. Result: t=0.47 multivariate (controlling for the other 6), t=0.86
+            # univariate - NOT significant, apparently contradicting the standalone t=-5.37.
+            # Root cause, not a real reversal: this composite-level regression requires ALL 6
+            # pillars' data simultaneously (same "underpowered... tilting toward larger,
+            # more-established names" sample-selection bias already flagged for the base_weights
+            # test two paragraphs up) - median cross-section drops from ~2,601 (Size's own clean
+            # test) to 850 once every symbol needs coverage across all 6 pillars at once. The
+            # size premium concentrates in small/thinly-covered names, which this intersection
+            # requirement disproportionately excludes - so a null here is a sample-selection
+            # artifact, not evidence Size lacks signal once conditioned on the other 6.
+            #
+            # DECISION: do NOT promote Size to a 7th top-level pillar. Not because the idea is
+            # wrong, but because the one test that could actually justify that larger schema/
+            # API/frontend commitment is structurally underpowered with current data (same
+            # reconstruction-coverage gap that already blocks re-deriving the 6 base_weights
+            # themselves), and rebuilding it properly would mean reconstructing point-in-time
+            # coverage for the full small-cap-inclusive universe across all 6 pillars at once -
+            # a materially bigger lift than this factor-audit pass, not something to build to
+            # settle one factor's placement. The existing Value sub-component captures real,
+            # independently-tested signal (t=-5.37, unconfounded by this sample bias) at a
+            # reasonable weight; revisit only if that reconstruction work happens anyway for
+            # other reasons.
             base_weights = {
                 "quality": 0.25,
                 "growth": 0.12,

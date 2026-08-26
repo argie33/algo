@@ -26,6 +26,16 @@ This test exists so that relationship is asserted explicitly rather than only na
 comment - if either value ever changes such that a real exposure tier becomes the binding
 constraint, this test's assumptions should be revisited (not silently left describing a
 now-stale reality).
+
+RESOLVED 2026-08-25 (same day, user directed: figure out what's best and act): keep the
+static 4.75% cap authoritative, do NOT raise max_position_size_pct to unlock the tier dial, and
+do NOT rescale EXPOSURE_TIERS down either (those values carry their own real, independent,
+live-P&L-validated tuning history - see exposure_policy.py's "TUNING FIX (2026-08-02)"
+comment). See position_sizer.py's own "RESOLVED 2026-08-25" comment at the concentration-check
+site for the full reasoning, including the exact 20 x 4.75% = 95.0% = max_total_invested_pct
+relationship pinned by test_max_positions_times_cap_exactly_equals_total_invested_ceiling
+below, and tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py for why a
+fresh backtest could not arbitrate between the two real-but-conflicting numbers.
 """
 
 from decimal import Decimal
@@ -38,6 +48,8 @@ from algo.trading.position_sizer import PositionSizer
 # defaults, which happen to tell the same story: 5.0 vs 50.0).
 REAL_MAX_POSITION_SIZE_PCT = 4.75
 REAL_MAX_CONCENTRATION_PCT_BASE = 50.0
+REAL_MAX_POSITIONS = 20
+REAL_MAX_TOTAL_INVESTED_PCT = 95.0
 
 CONFIG = {
     "base_risk_pct": 1.0,
@@ -120,3 +132,19 @@ class TestConcentrationDialInertUnderRealConfig:
                 f"would mean this finding is stale and position_sizer.py's comment should be "
                 f"revisited."
             )
+
+    def test_max_positions_times_cap_exactly_equals_total_invested_ceiling(self):
+        """The core evidence behind the 2026-08-25 'keep the static cap authoritative'
+        decision: a fully-invested, evenly-capped REAL_MAX_POSITIONS-name book exactly fills
+        REAL_MAX_TOTAL_INVESTED_PCT with no slack - a clean, deliberate-looking design
+        relationship that raising max_position_size_pct to unlock the exposure-tier
+        concentration dial (up to 28%) would break. If this stops being exact, re-verify the
+        live algo_config values before assuming the 'keep as-is' decision still holds."""
+        assert REAL_MAX_POSITIONS * REAL_MAX_POSITION_SIZE_PCT == REAL_MAX_TOTAL_INVESTED_PCT, (
+            f"{REAL_MAX_POSITIONS} x {REAL_MAX_POSITION_SIZE_PCT}% = "
+            f"{REAL_MAX_POSITIONS * REAL_MAX_POSITION_SIZE_PCT}%, no longer exactly "
+            f"{REAL_MAX_TOTAL_INVESTED_PCT}% - re-verify live algo_config.max_positions/"
+            f"max_position_size_pct/max_total_invested_pct before trusting this test's pinned "
+            f"constants or the design-coherence argument in position_sizer.py's 'RESOLVED "
+            f"2026-08-25' comment."
+        )

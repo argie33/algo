@@ -79,6 +79,18 @@ logger = logging.getLogger(__name__)
 
 PILLAR_COLS = ["growth_proxy", "value_proxy", "quality_proxy", "stability_proxy", "momentum_proxy", "positioning_proxy"]
 
+# ADDED 2026-08-25 (goal: real-money-readiness follow-up) to answer a specific open question:
+# does log(market_cap) (the Size factor, t=-5.37 standalone per
+# stock_scores_size_factor_missing_and_composite_weights_tested_20260825) retain independent
+# significance when controlling for ALL SIX existing pillar proxies jointly, not just alone?
+# If yes, that's real evidence Size carries information the other 6 pillars don't already
+# capture between them - the right bar for "does this deserve its own top-level composite
+# slot" per Grinold & Kahn's IC-weighting framework, same standard this whole script applies
+# to the other 6. Kept as a strict ADDITION to PILLAR_COLS (SEVEN_COL) rather than folded into
+# the six above, so the original 6-pillar run this script already produced stays reproducible
+# unchanged - this augments it, doesn't replace it.
+SEVEN_COLS = [*PILLAR_COLS, "size_proxy"]
+
 
 def _zwinsor(s: pd.Series) -> pd.Series:
     s = s.replace([np.inf, -np.inf], np.nan)
@@ -140,6 +152,7 @@ def build_value_panel_raw() -> pd.DataFrame:
     out["dividend_per_share"] = fund["dividends_paid"].abs() / shares
     out["ebitda_per_share"] = ebitda / shares
     out["net_debt_per_share"] = net_debt / shares
+    out["shares_diluted"] = shares  # for size_proxy (market_cap = price * shares_diluted below)
     out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
         days=REPORTING_LAG_DAYS
     )
@@ -219,6 +232,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
             "dividend_per_share",
             "ebitda_per_share",
             "net_debt_per_share",
+            "shares_diluted",
         ],
     )
     quality_monthly = merge_asof_monthly(
@@ -313,6 +327,16 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
 
         positioning_proxy = _zwinsor(ad_panel.iloc[i])
 
+        # SIZE PROXY (added 2026-08-25, see SEVEN_COLS comment above): market_cap = price *
+        # diluted shares outstanding, same point-in-time construction as the rest of this
+        # panel (no look-ahead - shares_diluted comes from the same as-of fundamentals join as
+        # every other value_monthly field). Oriented like every other proxy here (higher =
+        # better/more bullish forward-return signal), so sign-flipped: -log(market_cap), since
+        # smaller companies showed the positive forward-return premium (Banz 1981 / t=-5.37 on
+        # raw log(market_cap) vs return, i.e. return falls as size rises).
+        market_cap = price * v["shares_diluted"]
+        size_proxy = _zwinsor(-np.log(market_cap.where(market_cap > 0)))
+
         fwd_ret = ret.iloc[i + 1]
 
         frame = pd.DataFrame(
@@ -323,6 +347,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
                 "stability_proxy": stability_proxy,
                 "momentum_proxy": momentum_proxy,
                 "positioning_proxy": positioning_proxy,
+                "size_proxy": size_proxy,
                 "fwd_ret": fwd_ret,
             }
         )
@@ -331,7 +356,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         if len(frame) < min_cross_section:
             continue
 
-        for col in PILLAR_COLS:
+        for col in SEVEN_COLS:
             frame[col] = _zwinsor(frame[col])
 
         records.append((month, frame))
@@ -343,7 +368,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     print(f"Usable cross-sectional months: {len(records)}  ({records[0][0]} to {records[-1][0]})")
     print(f"Median cross-section size: {int(np.median(sizes))}\n")
 
-    print("=== Multivariate Fama-MacBeth: TOP-LEVEL pillar combination ===")
+    print("=== Multivariate Fama-MacBeth: TOP-LEVEL pillar combination (6 pillars) ===")
     print(f"{'pillar':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
     multi = _fama_macbeth(records, PILLAR_COLS)
     for name, (mean, t) in multi.items():
@@ -356,8 +381,25 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         mean, t = uni[c]
         print(f"{c:18s} {mean:10.5f} {t:8.2f}")
 
+    # ADDED 2026-08-25: does Size retain independent significance once it has to compete with
+    # ALL 6 existing pillars in the SAME multivariate regression, on the SAME sample (the
+    # 6-pillar run above re-run implicitly restricted to months/symbols with usable
+    # shares_diluted, for a clean apples-to-apples comparison)?
+    print("\n=== Multivariate Fama-MacBeth: TOP-LEVEL pillar combination + SIZE (7 factors) ===")
+    print(f"{'pillar':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
+    multi7 = _fama_macbeth(records, SEVEN_COLS)
+    for name, (mean, t) in multi7.items():
+        print(f"{name:18s} {mean:10.5f} {t:8.2f} {len(records):9d}")
+
+    print("\n=== Univariate Fama-MacBeth: SIZE alone (same sample as above) ===")
+    uni_size = _fama_macbeth(records, ["size_proxy"])
+    mean, t = uni_size["size_proxy"]
+    print(f"{'size_proxy':18s} {mean:10.5f} {t:8.2f}")
+
     print(
         "\nCurrent live base_weights: quality=0.25 growth=0.12 value=0.20 positioning=0.14 stability=0.14 momentum=0.15"
+        " (size_proxy has no top-level slot - it's a 20% sub-component inside value_proxy's live"
+        " formula only, effective top-level weight ~4%)"
     )
 
 
