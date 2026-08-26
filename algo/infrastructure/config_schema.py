@@ -34,7 +34,16 @@ VALIDATION_SCHEMA = {
     # Filter Thresholds (all critical hard-gates; must not be zero)
     "min_completeness_score": ("int", 1, 100, True, 70),  # Fail-closed to 70%
     "min_stock_price": ("float", 0.1, 1000.0, False, 5.0),
-    "min_signal_quality_score": ("int", 1, 100, True, 60),  # Fail-closed to 60
+    # 82 = ~72% pass rate against the corrected composite's actual achievable distribution
+    # (volume_confirmation excluded 2026-08-26 - see signal_quality_scorer.py's
+    # BUY_COMPOSITE_EXCLUDED_COMPONENTS), matching the ORIGINAL July 2026 calibration's
+    # explicit target selectivity (commit c37adac72: "72% of signals qualify"). The removed
+    # component collapsed the achievable range upward (median jumped from ~61 to 97 - most
+    # remaining components are largely implied by the entry trigger itself), so reusing the
+    # raw threshold VALUE 60 would now pass ~99% of signals (see
+    # signal_quality_score_threshold_recalibrated_20260826 memory) - 82 was chosen to
+    # reproduce the same PASS-RATE target, not the same number.
+    "min_signal_quality_score": ("int", 1, 100, True, 82),  # Fail-closed to 82
     "max_signal_quality_score": ("int", 1, 100, False, 100),  # Max quality score threshold
     "max_signal_age_hours": ("int", 1, 168, False, 24),  # Max age of EOD signals (hours); default 24h
     "min_volume_ma_50d": ("int", 1, 10000000, True, 300000),

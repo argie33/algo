@@ -161,9 +161,11 @@ class AlgoConfig:
         ),
         "min_stock_price": ("5.0", "float", "Minimum stock price $", "Filter Thresholds"),
         "min_signal_quality_score": (
-            "60",
+            "82",
             "int",
-            "Minimum SQS 0-100 (signal quality gate)",
+            "Minimum SQS 0-100 (signal quality gate) - ~72% pass rate on the corrected "
+            "composite (volume_confirmation excluded), matching the original 2026-07-31 "
+            "calibration's target selectivity - see config_schema.py's comment",
             "Filter Thresholds",
         ),
         "max_signal_quality_score": (

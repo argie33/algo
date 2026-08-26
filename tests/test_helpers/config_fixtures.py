@@ -26,7 +26,7 @@ BASE_CONFIG: dict[str, Any] = {
     # Filter Thresholds
     "min_completeness_score": 70,
     "min_stock_price": 5.0,
-    "min_signal_quality_score": 60,
+    "min_signal_quality_score": 82,
     "min_volume_ma_50d": 300000,
     "min_avg_daily_dollar_volume": 500000,
     "require_stock_stage_2": True,

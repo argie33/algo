@@ -280,8 +280,8 @@ class TestConfigFailClosedBehavior:
         # Should fail the set (return False)
         assert not success, "set() should return False when applying fail-closed default"
         # But config should be set to safe default
-        assert config.get("min_signal_quality_score") == 60, (
-            "Should revert to fail-closed default 60 when 0 is attempted"
+        assert config.get("min_signal_quality_score") == 82, (
+            "Should revert to fail-closed default 82 when 0 is attempted"
         )
 
     def test_set_out_of_range_critical_value_uses_fail_closed_default(self):
@@ -292,7 +292,7 @@ class TestConfigFailClosedBehavior:
         # Attempt to set critical threshold above max
         success = config.set("min_signal_quality_score", "200", "int", changed_by="test")
         assert not success
-        assert config.get("min_signal_quality_score") == 60
+        assert config.get("min_signal_quality_score") == 82
 
     def test_set_valid_critical_value_succeeds(self):
         """Should accept valid critical values."""
