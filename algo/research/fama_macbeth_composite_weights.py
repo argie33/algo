@@ -19,26 +19,63 @@ and regresses forward return on all 6 jointly.
 Pillar proxies (z-scored components combined at each pillar's LIVE weight ratios - NOT
 independently re-derived per-component weights, since that's what the per-pillar scripts
 already tested; this script answers the separate top-level question):
-- growth_proxy: eps_growth_1y*0.45 + (-asset_growth_yoy)*0.25 + revenue_growth_1y*0.15 +
-  sustainable_growth_rate*0.15 (matches _score_growth's live weights)
-- value_proxy: -pe*0.18 -pb*0.20 -ps*0.18 + fcf_yield*0.10 + dividend_yield*0.02 -ev_ebitda*0.08
-  -ev_revenue*0.08 (matches _score_value's live weights; PEG/margin-of-safety excluded, not
-  computed here)
+- growth_proxy: eps_growth_1y*0.25 + (-asset_growth_yoy)*0.30 + revenue_growth_1y*0.20 +
+  sustainable_growth_rate*0.20 (matches _score_growth's live post-reweight weights, see
+  [[growth_pillar_reweighted_horizon_matched_20260825]])
+- value_proxy: -pe*0.10 -pb*0.22 -ps*0.21 + fcf_yield*0.10 + dividend_yield*0.03 -size*0.20
+  (matches _score_value's CURRENT live weights, including the 2026-08-25 EV/EBITDA+EV/Revenue
+  removal, Size-factor addition, AND the later same-day PE/PB/PS reversal - see
+  [[value_pe_pb_ps_ranking_reversed_selection_bias_fix_20260825]]; PEG/margin-of-safety still
+  excluded, not computed here - PEG needs a growth cross-term, margin-of-safety is a full DCF
+  model, neither is a single point-in-time ratio like the rest of this panel)
 - quality_proxy: simple average of roe/roa/operating_margin/net_margin/(-debt_to_assets)/
   interest_coverage (matches the upstream equal-weighted-6 formula)
 - stability_proxy: (-vol_60d)*0.45 + (-|beta-1|)*0.20 + (-downside_vol_60d)*0.15 + max_dd*0.20
   (matches this session's ALREADY-SHIPPED stability reweight)
-- momentum_proxy: mom_3m*0.20 + mom_6m*0.20 + mom_12m*0.15 + rsi_14*0.21 + macd_sign*0.16 +
-  avg(price_vs_sma_50,price_vs_sma_200)*0.08 (matches _score_momentum's live weights)
+- momentum_proxy: mom_3m*0.20 + mom_12_1*0.35 + rsi_14*0.21 + macd_sign*0.16 +
+  avg(price_vs_sma_50,price_vs_sma_200)*0.08 (matches _score_momentum's live POST-12-1-REDESIGN
+  weights, see [[fama_macbeth_momentum_collinearity_found_20260825]] - mom_6m/mom_12m were
+  replaced by the derived Jegadeesh 1990 skip-month construction; this script previously still
+  used the pre-redesign stale split, which re-introduced the exact mom_6m/mom_12m r=0.83
+  collinearity that construction was built to fix)
 - positioning_proxy: ad_rating only (institutional_ownership/short_interest confirmed
   untestable - see fama_macbeth_positioning_ad_rating_null memory)
+- size_proxy: -log10(market_cap), tested as an OPTIONAL 7th factor (SEVEN_COLS), not part of
+  the core 6-pillar PILLAR_COLS regression - see "SIZE AS 7TH PILLAR" note below.
 
 Each raw component is winsorized/z-scored the same way as its origin script BEFORE being
 combined into the pillar proxy (so no single outlier component dominates the weighted sum),
-then the resulting 6 pillar proxies are z-scored AGAIN at the top level before the final
+then the resulting pillar proxies are z-scored AGAIN at the top level before the final
 regression - so the final coefficients are directly comparable "how much does a 1-std move in
-this whole pillar's current formula predict forward return, controlling for the other 5
-pillars" numbers.
+this whole pillar's current formula predict forward return, controlling for the others"
+numbers.
+
+PARTIAL-AVAILABILITY REDESIGN 2026-08-25 (same day, later pass - goal: fix the original
+version's underpowered test rather than leave it flagged as inconclusive). The original
+version required ALL 6 pillar proxies non-null per symbol-month (a strict dropna()), which
+only kept the intersection of annual-fundamentals coverage (growth/value/quality, ~5,700
+symbols) AND full price-history coverage (stability/momentum/positioning, up to 10,982
+symbols) - 109 months, median 850 symbols, likely biased toward larger/more-established
+names, and underpowered enough that the resulting coefficients were all short of conventional
+significance. Now: missing pillar proxies are z-scored over whatever's available that month,
+then imputed to 0 (the z-scored mean - "no extra information" for that stock-month) rather
+than dropping the row, matching the live composite_score's own tolerance for partial pillar
+availability (loaders/load_stock_scores.py's base_weights loop skips unavailable metrics and
+renormalizes over what's present, rather than requiring every metric). Also fixed two
+staleness bugs found while rebuilding value_proxy/momentum_proxy to match the live formulas
+(they still used pre-2026-08-25-redesign weights) - see those proxies' inline comments.
+Result: median cross-section jumped from 850 to ~6,500 symbols.
+
+SIZE AS 7TH PILLAR - reconciled 2026-08-25 (concurrent-session merge). A separate pass
+(landed on main as commit 92b685119, based on the ORIGINAL pre-redesign version of this
+script) independently asked the same question this file's docstring already flagged as
+underpowered: does log(market_cap) retain independent significance as a 7th top-level factor,
+controlling for all 6 real pillars jointly? That pass found t=0.47 (not significant) but
+reasoned analytically that this was likely a sample-selection artifact (the same
+strict-all-6-required bias this redesign pass fixes empirically) rather than fixing the bias
+and re-measuring. SEVEN_COLS/size_proxy from that pass are kept here, now running on the
+properly-repowered partial-availability sample instead of the original underpowered one - see
+the run() output for the actual (not theoretical) answer this produces.
 
 Usage:
     python -m algo.research.fama_macbeth_composite_weights [options]
@@ -79,17 +116,30 @@ logger = logging.getLogger(__name__)
 
 PILLAR_COLS = ["growth_proxy", "value_proxy", "quality_proxy", "stability_proxy", "momentum_proxy", "positioning_proxy"]
 
-# ADDED 2026-08-25 (goal: real-money-readiness follow-up) to answer a specific open question:
-# does log(market_cap) (the Size factor, t=-5.37 standalone per
-# stock_scores_size_factor_missing_and_composite_weights_tested_20260825) retain independent
+# ADDED 2026-08-25 (goal: real-money-readiness follow-up, landed on main as commit 92b685119)
+# to answer a specific open question: does log(market_cap) (the Size factor, t=-5.37 standalone
+# per stock_scores_size_factor_missing_and_composite_weights_tested_20260825) retain independent
 # significance when controlling for ALL SIX existing pillar proxies jointly, not just alone?
 # If yes, that's real evidence Size carries information the other 6 pillars don't already
 # capture between them - the right bar for "does this deserve its own top-level composite
 # slot" per Grinold & Kahn's IC-weighting framework, same standard this whole script applies
-# to the other 6. Kept as a strict ADDITION to PILLAR_COLS (SEVEN_COL) rather than folded into
-# the six above, so the original 6-pillar run this script already produced stays reproducible
-# unchanged - this augments it, doesn't replace it.
-SEVEN_COLS = [*PILLAR_COLS, "size_proxy"]
+# to the other 6. Uses "value_proxy_nosize" (PE/PB/PS/FCF/Div only) instead of the real
+# value_proxy for this one test - value_proxy already has Size baked in at 20% internal
+# weight, so testing it alongside a separate size_proxy double-counts Size's contribution
+# (confirmed directly: doing so gives size_proxy t=8.86 and value_proxy t=-5.46, a
+# double-counting collinearity artifact, not a clean read). Kept as a strict ADDITION
+# (SEVEN_COLS) rather than replacing PILLAR_COLS, so the original 6-pillar run (which
+# correctly uses the real, Size-inclusive value_proxy, matching the live formula) stays
+# reproducible unchanged - this augments it, doesn't replace it.
+SEVEN_COLS = [
+    "growth_proxy",
+    "value_proxy_nosize",
+    "quality_proxy",
+    "stability_proxy",
+    "momentum_proxy",
+    "positioning_proxy",
+    "size_proxy",
+]
 
 
 def _zwinsor(s: pd.Series) -> pd.Series:
@@ -140,19 +190,13 @@ def build_sgr_panel() -> pd.DataFrame:
 def build_value_panel_raw() -> pd.DataFrame:
     fund = fetch_annual_value_fundamentals()
     shares = fund["shares_diluted"]
-    ebitda = fund["operating_income"] + fund["depreciation_expense"] + fund["amortization_expense"]
-    net_debt = (
-        fund["long_term_debt"].fillna(0) + fund["short_term_debt"].fillna(0) - fund["cash_and_equivalents"].fillna(0)
-    )
     out = fund[["symbol", "fiscal_year"]].copy()
     out["eps"] = fund["eps"]
     out["book_value_per_share"] = fund["stockholders_equity"] / shares
     out["sales_per_share"] = fund["revenue"] / shares
     out["fcf_per_share"] = fund["free_cash_flow"] / shares
     out["dividend_per_share"] = fund["dividends_paid"].abs() / shares
-    out["ebitda_per_share"] = ebitda / shares
-    out["net_debt_per_share"] = net_debt / shares
-    out["shares_diluted"] = shares  # for size_proxy (market_cap = price * shares_diluted below)
+    out["shares_diluted"] = shares
     out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
         days=REPORTING_LAG_DAYS
     )
@@ -230,8 +274,6 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
             "sales_per_share",
             "fcf_per_share",
             "dividend_per_share",
-            "ebitda_per_share",
-            "net_debt_per_share",
             "shares_diluted",
         ],
     )
@@ -256,10 +298,10 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
             continue
 
         growth_proxy = (
-            0.45 * _zwinsor(g["eps_growth_1y"])
-            + 0.25 * _zwinsor(-g["asset_growth_yoy"])
-            + 0.15 * _zwinsor(g["revenue_growth_1y"])
-            + 0.15 * _zwinsor(s["sustainable_growth_rate"])
+            0.25 * _zwinsor(g["eps_growth_1y"])
+            + 0.30 * _zwinsor(-g["asset_growth_yoy"])
+            + 0.20 * _zwinsor(g["revenue_growth_1y"])
+            + 0.20 * _zwinsor(s["sustainable_growth_rate"])
         )
 
         price = px.iloc[i].reindex(v.index)
@@ -268,18 +310,41 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         ps = np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan)
         fcf_yield = v["fcf_per_share"] / price
         dividend_yield = v["dividend_per_share"] / price
-        ev_per_share = price + v["net_debt_per_share"]
-        ev_ebitda = np.where(v["ebitda_per_share"] > 0, ev_per_share / v["ebitda_per_share"], np.nan)
-        ev_revenue = np.where(v["sales_per_share"] > 0, ev_per_share / v["sales_per_share"], np.nan)
-        value_proxy = (
-            0.18 * _zwinsor(-pd.Series(pe, index=v.index))
-            + 0.20 * _zwinsor(-pd.Series(pb, index=v.index))
-            + 0.18 * _zwinsor(-pd.Series(ps, index=v.index))
+        # Known data-quality issue (see SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO in
+        # load_value_quality_growth_metrics.py / memory's shares-outstanding-scale-error
+        # findings): a small number of symbols have corrupted shares_diluted values (observed
+        # up to 3.5e15 - no real company has ever had anywhere near that many shares
+        # outstanding). Sanity-bound market cap to a real-world plausible range ($1M-$10T,
+        # covering everything from micro-caps to the largest companies in history) before
+        # taking log10, so a handful of corrupted rows can't distort a whole month's z-score
+        # via the winsorization quantile boundaries. Outside this range, treat as missing
+        # (NaN) rather than a garbage extreme - it gets zero-imputed downstream like any other
+        # unavailable pillar input. Reused below for size_proxy too (SEVEN_COLS test), so the
+        # 7-factor run gets the same sanity guard as value_proxy's own Size sub-component.
+        market_cap = price * v["shares_diluted"]
+        log_mc = np.where((market_cap >= 1e6) & (market_cap <= 1e13), np.log10(market_cap), np.nan)
+        # PE/PB/PS weights REVERSED 2026-08-25 (later same day, following
+        # value_pe_pb_ps_ranking_reversed_selection_bias_fix_20260825): the original
+        # fama_macbeth_value_factors.py test (and this proxy's own earlier weights) shared a
+        # selection-bias flaw requiring all inputs simultaneously non-null - implicitly
+        # requiring positive earnings, excluding unprofitable/small/distressed firms. A
+        # bias-corrected rerun reversed the ranking: PB is now the strongest of the three
+        # multiples, PE the weakest.
+        # value_proxy_nosize: same PE/PB/PS/FCF/Div weights, Size term dropped - used ONLY for
+        # the SEVEN_COLS test below, alongside a separate size_proxy. Testing value_proxy
+        # (which already has Size baked in at 20%) next to a standalone size_proxy double-
+        # counts Size's contribution - confirmed directly: doing so gave size_proxy t=8.86 and
+        # value_proxy t=-5.46, the same "counted twice" collinearity artifact already caught
+        # elsewhere in this codebase (Momentum's redundant windows, Value's own EV/EBITDA/PE
+        # duplication). value_proxy_nosize + size_proxy avoids that overlap.
+        value_proxy_nosize = (
+            0.10 * _zwinsor(-pd.Series(pe, index=v.index))
+            + 0.22 * _zwinsor(-pd.Series(pb, index=v.index))
+            + 0.21 * _zwinsor(-pd.Series(ps, index=v.index))
             + 0.10 * _zwinsor(fcf_yield)
-            + 0.02 * _zwinsor(dividend_yield)
-            + 0.08 * _zwinsor(-pd.Series(ev_ebitda, index=v.index))
-            + 0.08 * _zwinsor(-pd.Series(ev_revenue, index=v.index))
+            + 0.03 * _zwinsor(dividend_yield)
         )
+        value_proxy = value_proxy_nosize + 0.20 * _zwinsor(-pd.Series(log_mc, index=v.index))
 
         quality_proxy = (
             _zwinsor(q["roe"])
@@ -311,15 +376,13 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         )
 
         mom_3m = _trailing_cumret(px, i, 3)
-        mom_6m = _trailing_cumret(px, i, 6)
-        mom_12m = _trailing_cumret(px, i, 12)
+        mom_12_1 = _trailing_cumret(px, i - 1, 11)  # skip most-recent month (Jegadeesh 1990)
         rsi = indicators["rsi_14"].iloc[i]
         macd_sign = indicators["macd_sign"].iloc[i]
         sma_avg = (indicators["price_vs_sma_50"].iloc[i] + indicators["price_vs_sma_200"].iloc[i]) / 2.0
         momentum_proxy = (
             0.20 * _zwinsor(mom_3m)
-            + 0.20 * _zwinsor(mom_6m)
-            + 0.15 * _zwinsor(mom_12m)
+            + 0.35 * _zwinsor(mom_12_1)
             + 0.21 * _zwinsor(rsi)
             + 0.16 * _zwinsor(macd_sign)
             + 0.08 * _zwinsor(sma_avg)
@@ -327,15 +390,12 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
 
         positioning_proxy = _zwinsor(ad_panel.iloc[i])
 
-        # SIZE PROXY (added 2026-08-25, see SEVEN_COLS comment above): market_cap = price *
-        # diluted shares outstanding, same point-in-time construction as the rest of this
-        # panel (no look-ahead - shares_diluted comes from the same as-of fundamentals join as
-        # every other value_monthly field). Oriented like every other proxy here (higher =
-        # better/more bullish forward-return signal), so sign-flipped: -log(market_cap), since
-        # smaller companies showed the positive forward-return premium (Banz 1981 / t=-5.37 on
-        # raw log(market_cap) vs return, i.e. return falls as size rises).
-        market_cap = price * v["shares_diluted"]
-        size_proxy = _zwinsor(-np.log(market_cap.where(market_cap > 0)))
+        # SIZE PROXY (SEVEN_COLS test, see module docstring "SIZE AS 7TH PILLAR"): oriented
+        # like every other proxy here (higher = better/more bullish forward-return signal), so
+        # sign-flipped from the sanity-bounded log_mc computed above - smaller companies showed
+        # the positive forward-return premium (Banz 1981 / t=-5.37 on raw log(market_cap) vs
+        # return, i.e. return falls as size rises).
+        size_proxy = _zwinsor(-pd.Series(log_mc, index=v.index))
 
         fwd_ret = ret.iloc[i + 1]
 
@@ -343,6 +403,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
             {
                 "growth_proxy": growth_proxy,
                 "value_proxy": value_proxy,
+                "value_proxy_nosize": value_proxy_nosize,
                 "quality_proxy": quality_proxy,
                 "stability_proxy": stability_proxy,
                 "momentum_proxy": momentum_proxy,
@@ -351,13 +412,33 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
                 "fwd_ret": fwd_ret,
             }
         )
-        frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
+        # REDESIGNED 2026-08-25 (goal: fix the underpowered original test - see module
+        # docstring "PARTIAL-AVAILABILITY REDESIGN" note). Previously required all 6 pillar
+        # proxies non-null (dropna() on the whole frame), which only kept symbol-months where
+        # a stock had BOTH full annual-fundamentals coverage (growth/value/quality, ~5,700
+        # symbols) AND full price-history coverage (stability/momentum/positioning, up to
+        # 10,982 symbols) - shrinking the sample to 109 months/850 symbols and likely biasing
+        # toward larger, more-established names. Now: only fwd_ret is mandatory (can't test
+        # without an outcome); each pillar proxy is z-scored over whatever's actually
+        # available that month, THEN missing pillars are imputed to 0 (the z-scored mean -
+        # "no extra information beyond average" for that stock-month, not zero return) rather
+        # than dropping the row. This mirrors the live composite_score's own "skip
+        # unavailable, renormalize over what's present" tolerance (loaders/load_stock_scores.py
+        # base_weights loop) instead of an artificially strict all-6-required test that
+        # doesn't match how the production formula actually combines partial data.
+        # value_proxy_nosize/size_proxy (built off value_monthly's narrower index) need the
+        # same post-alignment treatment as PILLAR_COLS - loop over the union of both column
+        # sets (PILLAR_COLS already contains "value_proxy"; SEVEN_COLS adds
+        # "value_proxy_nosize" and "size_proxy") so every column actually used by either test
+        # gets z-scored/imputed, not just whichever list happens to be iterated last.
+        frame = frame.replace([np.inf, -np.inf], np.nan)
+        frame = frame.dropna(subset=["fwd_ret"])
         frame = frame[(frame["fwd_ret"] > -0.95) & (frame["fwd_ret"] < 5.0)]
         if len(frame) < min_cross_section:
             continue
 
-        for col in SEVEN_COLS:
-            frame[col] = _zwinsor(frame[col])
+        for col in dict.fromkeys([*PILLAR_COLS, *SEVEN_COLS]):
+            frame[col] = _zwinsor(frame[col]).fillna(0.0)
 
         records.append((month, frame))
 
@@ -381,10 +462,9 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         mean, t = uni[c]
         print(f"{c:18s} {mean:10.5f} {t:8.2f}")
 
-    # ADDED 2026-08-25: does Size retain independent significance once it has to compete with
-    # ALL 6 existing pillars in the SAME multivariate regression, on the SAME sample (the
-    # 6-pillar run above re-run implicitly restricted to months/symbols with usable
-    # shares_diluted, for a clean apples-to-apples comparison)?
+    # ADDED 2026-08-25 (commit 92b685119, now run on the fixed partial-availability sample
+    # instead of the original underpowered one): does Size retain independent significance
+    # once it has to compete with ALL 6 existing pillars in the SAME multivariate regression?
     print("\n=== Multivariate Fama-MacBeth: TOP-LEVEL pillar combination + SIZE (7 factors) ===")
     print(f"{'pillar':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
     multi7 = _fama_macbeth(records, SEVEN_COLS)
@@ -397,7 +477,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     print(f"{'size_proxy':18s} {mean:10.5f} {t:8.2f}")
 
     print(
-        "\nCurrent live base_weights: quality=0.25 growth=0.12 value=0.20 positioning=0.14 stability=0.14 momentum=0.15"
+        "\nCurrent live base_weights: quality=0.25 growth=0.12 value=0.21 positioning=0.12 stability=0.18 momentum=0.12"
         " (size_proxy has no top-level slot - it's a 20% sub-component inside value_proxy's live"
         " formula only, effective top-level weight ~4%)"
     )

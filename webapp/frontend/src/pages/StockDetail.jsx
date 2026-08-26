@@ -1221,13 +1221,21 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
   // (no weight redistribution per GOVERNANCE) - bar value = score * weight (points earned
   // toward the 100-point composite), bar max = weight * 100.
+  // CORRECTED 2026-08-25: this array had drifted out of sync with the live base_weights
+  // (was growth=0.2/positioning=0.15/stability=0.12/momentum=0.08 - none of which matched
+  // load_stock_scores.py even before that same day's composite reweight) - no test covers
+  // this file the way test_scores_frontend_weight_badges_match_backend.py covers the Value
+  // pillar's own sub-component badges, so the drift went uncaught. Now matches current
+  // base_weights exactly: quality=0.25, growth=0.12, value=0.21, positioning=0.12,
+  // stability=0.18, momentum=0.12 (see [[composite_weights_reweighted_size_factor_reconfirmed_20260825]]
+  // memory / this function's own docstring in load_stock_scores.py for the evidence).
   const FACTOR_WEIGHTS = [
     ["Quality", "quality_score", 0.25],
-    ["Growth", "growth_score", 0.2],
-    ["Value", "value_score", 0.2],
-    ["Positioning", "positioning_score", 0.15],
-    ["Stability", "stability_score", 0.12],
-    ["Momentum", "momentum_score", 0.08],
+    ["Growth", "growth_score", 0.12],
+    ["Value", "value_score", 0.21],
+    ["Positioning", "positioning_score", 0.12],
+    ["Stability", "stability_score", 0.18],
+    ["Momentum", "momentum_score", 0.12],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

@@ -12,6 +12,20 @@ EV/EBITDA, and EV/Revenue jointly. PEG (needs a growth-rate cross-term) and marg
 DCF discount (a full valuation model, not a single ratio, and already under separate active
 audit per DCF-related fixes landed 2026-08-25) are OUT OF SCOPE here - not tested.
 
+UPDATED 2026-08-25 (same day, later pass - goal: check whether Value's OWN internal weighting
+combines its inputs efficiently, following up on
+[[composite_weights_reweighted_size_factor_reconfirmed_20260825]]'s side-finding that
+value_proxy at live weights scored notably weaker than a standalone Size test). EV/EBITDA and
+EV/Revenue REMOVED from VALUE_FACTOR_COLS - already confirmed as PE/PS duplicates and removed
+from the live formula the same day (r=1.00/0.93, see load_stock_scores.py's Value docstring),
+so re-testing them here would just restate an already-closed finding. Size (log10 market cap,
+same point-in-time price*shares_diluted reconstruction as
+algo/research/fama_macbeth_composite_weights.py, same sanity bound against the known
+shares_diluted scale-error outliers) ADDED, since it's now a live Value input (20% weight) that
+this script predates. VALUE_FACTOR_COLS now matches the CURRENT live Value formula's testable
+inputs exactly: PE/PB/PS/FCF-yield/dividend-yield/Size (PEG/margin-of-safety still out of scope
+per the reasons above).
+
 Ratio convention: every ratio computed from PER-SHARE fundamentals (book value/share, sales/
 share, FCF/share, dividend/share, EBITDA/share, net-debt/share) merged with price at scoring
 time, so no separate share-count series needs re-joining - e.g. P/B = price / book_value_per_
@@ -40,7 +54,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-VALUE_FACTOR_COLS = ["pe", "pb", "ps", "fcf_yield", "dividend_yield", "ev_ebitda", "ev_revenue"]
+VALUE_FACTOR_COLS = ["pe", "pb", "ps", "fcf_yield", "dividend_yield", "size"]
 
 
 def fetch_annual_value_fundamentals() -> pd.DataFrame:
@@ -102,6 +116,7 @@ def build_value_panel(fund: pd.DataFrame) -> pd.DataFrame:
     out["dividend_per_share"] = fund["dividends_paid"].abs() / shares
     out["ebitda_per_share"] = ebitda / shares
     out["net_debt_per_share"] = net_debt / shares
+    out["shares_diluted"] = shares
 
     out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
         days=REPORTING_LAG_DAYS
@@ -124,6 +139,17 @@ def compute_ratios(gframe: pd.DataFrame, price: pd.Series) -> pd.DataFrame:
     ev_per_share = df["price"] + df["net_debt_per_share"]
     ratios["ev_ebitda"] = np.where(df["ebitda_per_share"] > 0, ev_per_share / df["ebitda_per_share"], np.nan)
     ratios["ev_revenue"] = np.where(df["sales_per_share"] > 0, ev_per_share / df["sales_per_share"], np.nan)
+
+    # Size: log10(market_cap), sanity-bounded to a real-world plausible range ($1M-$10T) before
+    # taking the log - shares_diluted has known scale-error outliers (observed up to 3.5e15,
+    # see SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO / composite_weights_reweighted_size_factor_
+    # reconfirmed_20260825 memory), so a handful of corrupted rows can't distort a whole month's
+    # z-score via the winsorization quantile boundaries below. Not negated here (unlike the
+    # composite script's value_proxy, which flips sign so "higher = better" for every
+    # component) - this script reports raw ratios and lets the regression coefficient's own
+    # sign show direction, same convention as pe/pb/ps/ev_ebitda/ev_revenue above.
+    market_cap = df["price"] * df["shares_diluted"]
+    ratios["size"] = np.where((market_cap >= 1e6) & (market_cap <= 1e13), np.log10(market_cap), np.nan)
     return ratios
 
 
@@ -146,6 +172,7 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         "dividend_per_share",
         "ebitda_per_share",
         "net_debt_per_share",
+        "shares_diluted",
     ]
     monthly_fund = merge_asof_monthly(months, value_panel, cols=fundamentals_cols)
 
@@ -158,7 +185,12 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         ratios = compute_ratios(gframe, px.iloc[i])
         fwd_ret = px.iloc[i + horizon_months] / px.iloc[i] - 1.0
         frame = ratios.join(fwd_ret.rename("fwd_ret"), how="inner")
-        frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
+        frame = frame.replace([np.inf, -np.inf], np.nan)
+        # Only require the columns this run actually tests (VALUE_FACTOR_COLS) plus fwd_ret -
+        # ratios also still carries ev_ebitda/ev_revenue (kept computed for anyone re-running
+        # the original duplicate-detection comparison) which shouldn't force rows out just for
+        # being NaN in a column nothing here regresses on.
+        frame = frame.dropna(subset=[*VALUE_FACTOR_COLS, "fwd_ret"])
         frame = frame[(frame["fwd_ret"] > -0.95) & (frame["fwd_ret"] < 5.0)]
         if len(frame) < min_cross_section:
             continue

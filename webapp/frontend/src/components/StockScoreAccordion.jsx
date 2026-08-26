@@ -1024,6 +1024,18 @@ const MOMENTUM_SCHEMA = [
 // PE from 45% to 18%) - see loaders/load_stock_scores.py's _score_value docstring
 // ("PE-vs-PB/PS RANKING DISPUTE - RESOLVED") for the full evidence.
 //
+// PE/PB/PS REVERSED AGAIN 2026-08-25 (later same day, follow-up pass): every prior PE/PB/PS
+// verdict above (both the original ranking and the "PB weakest" re-verification) used a test
+// script requiring all 6 value inputs simultaneously non-null, which implicitly required
+// positive earnings (PE undefined for eps<=0) - systematically excluding unprofitable/small/
+// distressed firms, exactly where these effects concentrate. A selection-bias-corrected
+// rerun (only forward return mandatory, missing inputs imputed rather than dropped)
+// completely inverts the ranking: PB is now the STRONGEST of the three (robust across
+// univariate/multivariate specs and 2 independent sub-periods), PE the weakest/null. FCF
+// yield also flipped sign vs the old test and is now treated as a fragile null. See
+// loaders/load_stock_scores.py's _score_value docstring ("PE-vs-PB/PS RANKING - REVERSED")
+// for the full evidence.
+//
 // SIZE (market_cap) ADDED 2026-08-25 (goal: close the highest-confidence gap found in this
 // session's full stock_scores re-audit) - Fama-French SMB (Banz 1981) was completely absent
 // from all 6 pillars despite market_cap already being available (77.4% coverage on
@@ -1040,21 +1052,21 @@ const VALUE_SCHEMA = [
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "10%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "10%",
+    weight: "22%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "21%",
   },
   {
     key: "peg_ratio",
@@ -1075,7 +1087,7 @@ const VALUE_SCHEMA = [
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "13%",
+    weight: "10%",
   },
   {
     key: "stock_margin_of_safety",

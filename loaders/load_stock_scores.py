@@ -648,66 +648,124 @@ class StockScoresLoader(OptimalLoader):
             # - 50 with 3/6 = really 50/60 (incomplete picture)
             # Dashboard displays completeness % so traders see data quality.
             #
-            # OPEN QUESTION 2026-08-25 (goal: re-audit ALL stock_scores inputs, including
-            # whether the pillar LIST itself is complete): these 6 percentages have no
+            # RESOLVED 2026-08-25 (goal: re-audit ALL stock_scores inputs, including whether
+            # the pillar LIST itself is complete, and finally close out the "underpowered,
+            # not acted on" composite-weight question below). These 6 percentages have no
             # documented empirical basis anywhere in this file - just hand-set numbers. Built
-            # algo/research/fama_macbeth_composite_weights.py to test them properly (Grinold &
-            # Kahn's "Active Portfolio Management" - the standard practitioner reference for
-            # combining multiple alpha signals - treats this as a regression/IC-weighting
-            # problem, exactly what multivariate Fama-MacBeth does). Result on the available
-            # data (109 months, 2017-2026, median 850 symbols - a materially smaller/more
-            # selective sample than any single-pillar test, since it requires ALL 6 pillars'
-            # data simultaneously, likely tilting the sample toward larger/more-established
-            # names): value_proxy strongest (t=1.78 multivariate, 1.83 univariate, still short
-            # of conventional significance), growth/quality/positioning weakly positive,
-            # stability/momentum came back negatively signed in THIS reduced sample (opposite
-            # their own single-pillar-test signs) - likely a selection-bias artifact of the
-            # intersection-of-6-panels requirement, not a reversal of those pillars' real
-            # within-pillar findings above. Underpowered for confidently rewriting these
-            # percentages; flagged, not acted on.
+            # algo/research/fama_macbeth_composite_weights.py to test them via Grinold & Kahn's
+            # "Active Portfolio Management" combining-alphas methodology (regression-weight
+            # signals by realized predictive power controlling for correlation among them -
+            # exactly what multivariate Fama-MacBeth does).
             #
-            # SIZE FACTOR - RESOLVED 2026-08-25 (real-money-readiness follow-up, user asked to
-            # dig in and decide, not just flag): SIZE (market cap, Fama-French SMB, Banz 1981)
-            # was found completely absent from all 6 pillars, tested standalone at t=-5.37 (150
-            # months 2014-2026, median 2,601 symbols - nearly as strong as volatility_60d's
-            # t=-6.1, the strongest single finding of the whole re-audit) and IMPLEMENTED as a
-            # 20%-weighted sub-component inside the Value pillar (see _score_value's docstring,
-            # commit 2d77f7bfd) - NOT a top-level 7th pillar (effective top-level weight ~4% =
-            # value's 20% x size's 20% internal share).
+            # FIRST PASS (same day, earlier): required all 6 pillar proxies non-null per
+            # symbol-month (strict dropna()) - only kept the intersection of annual-fundamentals
+            # coverage (growth/value/quality) AND full price-history coverage (stability/
+            # momentum/positioning): 109 months, median 850 symbols, likely biased toward
+            # larger/more-established names. value_proxy came out strongest (t=1.78 multivariate/
+            # 1.83 univariate, still short of conventional significance); stability/momentum
+            # came back negatively signed, opposite their own single-pillar-test signs -
+            # suspected selection-bias artifact. Underpowered; not acted on.
+            #
+            # REDESIGNED PASS (same day, later): relaxed the all-6-required rule - only
+            # forward return is mandatory; each pillar proxy is z-scored over whatever's
+            # actually available that month, then missing pillars are imputed to 0 (the
+            # z-scored mean), matching this exact base_weights loop's own "skip unavailable,
+            # renormalize over what's present" tolerance rather than an artificially strict
+            # test. Result: 110 months (2017-2026), median cross-section jumped from 850 to
+            # 6,505 symbols (7.6x) - a materially less selective sample. Also caught and fixed
+            # two staleness bugs in the proxy construction itself before trusting the result:
+            # value_proxy still used the pre-audit EV/EBITDA+EV/Revenue split (removed from the
+            # live formula as PE/PS duplicates the same day) instead of the live formula's
+            # actual PE/PB/PS/FCF/dividend/Size mix, and momentum_proxy still used the
+            # pre-redesign mom_6m/mom_12m split (replaced live by the derived 12-1 skip-month
+            # construction) instead of mom_3m/mom_12_1/RSI/MACD/SMA - both fixed to match
+            # current live weights before this test's numbers were trusted.
+            #
+            # Multivariate (controlling for the other 5): stability_proxy t=1.91, value_proxy
+            # t=1.39, growth_proxy t=1.16, positioning_proxy t=0.82, quality_proxy t=0.81,
+            # momentum_proxy t=-0.87 (negatively signed). Univariate: value_proxy t=1.60,
+            # stability_proxy t=1.31, quality_proxy t=1.22, growth_proxy t=0.81,
+            # positioning_proxy t=0.23, momentum_proxy t=0.05. No pillar clears the
+            # conventional |t|=2 significance bar in this run, but Stability and Value are
+            # consistently the two strongest across both specs, while Momentum (negatively
+            # signed both ways) and Positioning (weak both ways, consistent with
+            # ad_rating's already-documented null finding - see this file's Positioning
+            # docstring) are consistently the two weakest. ACTED ON with a proportionate
+            # reweight (not a full rewrite, given no pillar reaches clean significance):
+            # stability 0.14->0.18 (+4, strongest multivariate showing, consistent with this
+            # pillar's own volatility_60d being the single strongest sub-factor found in the
+            # entire multi-pillar audit), value 0.20->0.21 (+1, clear univariate leader),
+            # momentum 0.15->0.12 (-3, negatively signed both specs, consistent with this
+            # pillar's own sub-factors also testing null), positioning 0.14->0.12 (-2,
+            # consistent with ad_rating's own t=-0.23 null result), growth/quality left
+            # unchanged (0.12/0.25 - more ambiguous multivariate-vs-univariate showings, no
+            # clear case for moving either direction beyond what their own within-pillar
+            # audits already did).
+            #
+            # As a side effect of rebuilding value_proxy to match the live formula, this pass
+            # also independently re-confirmed the Size factor (see this pillar's own docstring
+            # "SIZE FACTOR" note): a standalone diagnostic -log(market_cap) test in this exact
+            # point-in-time panel scored t=4.42 (positive coefficient = smaller cap, higher
+            # forward return - same direction as the original t=-5.37 claim, reproduced via an
+            # entirely independent methodology/script). Notably, value_proxy AT LIVE WEIGHTS
+            # (t=1.39/1.60) scores well below Size tested alone (t=4.42) or below the
+            # pre-Size-addition value_proxy that also lacked EV/EBITDA+EV/Revenue duplication
+            # (t=2.48/2.59, from an earlier diagnostic run of this same script) - suggesting
+            # Value's OWN internal PE/PB/PS/FCF/Div/Size weighting may not be combining these
+            # 6 inputs efficiently (the same "combining alphas" problem Grinold-Kahn solves at
+            # the top level may also apply within this pillar). Flagged as a follow-up, not
+            # acted on here - out of scope for this pass, which only tests the top-level mix.
+            #
+            # SIZE FACTOR AS 7TH PILLAR - RESOLVED 2026-08-25 (real-money-readiness follow-up,
+            # user asked to dig in and decide, not just flag; reconciled same day with the
+            # REDESIGNED PASS above during a concurrent-session merge). SIZE (market cap,
+            # Fama-French SMB, Banz 1981) was found completely absent from all 6 pillars,
+            # tested standalone at t=-5.37 (150 months 2014-2026, median 2,601 symbols) and
+            # IMPLEMENTED as a 20%-weighted sub-component inside the Value pillar (see
+            # _score_value's docstring, commit 2d77f7bfd) - NOT a top-level 7th pillar
+            # (effective top-level weight ~4% = value's 21% x size's 20% internal share).
             #
             # Follow-up question: does promoting Size to its own top-level composite slot (vs.
-            # leaving it inside Value) have real backing? Extended
-            # algo/research/fama_macbeth_composite_weights.py to add log(market_cap) as a 7th
-            # factor in the SAME multivariate regression this file's `base_weights` above were
-            # tested with. Result: t=0.47 multivariate (controlling for the other 6), t=0.86
-            # univariate - NOT significant, apparently contradicting the standalone t=-5.37.
-            # Root cause, not a real reversal: this composite-level regression requires ALL 6
-            # pillars' data simultaneously (same "underpowered... tilting toward larger,
-            # more-established names" sample-selection bias already flagged for the base_weights
-            # test two paragraphs up) - median cross-section drops from ~2,601 (Size's own clean
-            # test) to 850 once every symbol needs coverage across all 6 pillars at once. The
-            # size premium concentrates in small/thinly-covered names, which this intersection
-            # requirement disproportionately excludes - so a null here is a sample-selection
-            # artifact, not evidence Size lacks signal once conditioned on the other 6.
+            # leaving it inside Value) have real backing? A first attempt at this (extending
+            # the ORIGINAL, strict-dropna version of fama_macbeth_composite_weights.py to add
+            # log(market_cap) as a 7th factor) found t=0.47 multivariate/t=0.86 univariate -
+            # not significant - and reasoned analytically that this was likely the same
+            # sample-selection bias already flagged for the base_weights test, without actually
+            # fixing the bias and re-measuring.
             #
-            # DECISION: do NOT promote Size to a 7th top-level pillar. Not because the idea is
-            # wrong, but because the one test that could actually justify that larger schema/
-            # API/frontend commitment is structurally underpowered with current data (same
-            # reconstruction-coverage gap that already blocks re-deriving the 6 base_weights
-            # themselves), and rebuilding it properly would mean reconstructing point-in-time
-            # coverage for the full small-cap-inclusive universe across all 6 pillars at once -
-            # a materially bigger lift than this factor-audit pass, not something to build to
-            # settle one factor's placement. The existing Value sub-component captures real,
-            # independently-tested signal (t=-5.37, unconfounded by this sample bias) at a
-            # reasonable weight; revisit only if that reconstruction work happens anyway for
-            # other reasons.
+            # RE-TESTED 2026-08-25 (same-day merge reconciliation) on the REDESIGNED PASS's
+            # properly-repowered sample (6,505 vs 850 median symbols): naively adding size_proxy
+            # as a 7th column alongside the existing value_proxy (which already has Size baked
+            # in at 20% internal weight) gave size_proxy t=8.86 and value_proxy t=-5.46 - a
+            # DOUBLE-COUNTING artifact (the same bug class as Momentum's redundant windows and
+            # Value's own EV/EBITDA/PE duplication elsewhere in this file), not a clean read.
+            # Rebuilt value_proxy WITHOUT its Size sub-component (same relative PE/PB/PS/FCF/Div
+            # weights) and tested THAT alongside a separate size_proxy instead, removing the
+            # overlap: size_proxy t=7.62, value_proxy_nosize t=0.86 (growth_proxy t=2.72,
+            # stability_proxy t=2.38, quality/momentum/positioning all weak, consistent with the
+            # 6-pillar run). This is a clean, methodologically sound result, NOT contaminated by
+            # double-counting - and it is dramatically stronger than every existing pillar's own
+            # top-level coefficient (stability's 2.38-2.41 is the next-best). This EMPIRICALLY
+            # OVERTURNS the prior "not significant, sample-selection artifact, don't promote"
+            # conclusion, which was reasoned about analytically rather than verified by actually
+            # fixing the bias and re-measuring - per this session's own "re-run claims, don't
+            # just build on them" lesson ([[pe_pb_ps_ranking_independently_reverified_20260825]]).
+            #
+            # DECISION: NOT unilaterally acted on here. This reverses a decision the prior pass
+            # reached with explicit user involvement ("user asked to dig in and decide"), and
+            # promoting Size to a real top-level pillar is a DB schema/API/frontend commitment,
+            # not a pure weight-tuning change - surfaced explicitly to the user rather than
+            # silently overridden, even though the evidence is now much stronger than either
+            # prior pass had. If the user confirms, the schema/API/frontend work (new
+            # `size_score` column + API field + a 7th slot in every composite-breakdown display)
+            # still needs to be built - not done as part of this reconciliation pass.
             base_weights = {
                 "quality": 0.25,
                 "growth": 0.12,
-                "value": 0.20,
-                "positioning": 0.14,
-                "stability": 0.14,
-                "momentum": 0.15,
+                "value": 0.21,
+                "positioning": 0.12,
+                "stability": 0.18,
+                "momentum": 0.12,
             }
             normalized_weights = base_weights
 
@@ -1719,9 +1777,11 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (20%) + P/B (10%) + P/S (20%) + PEG (8%) + FCF yield (13%)
+        Uses weighted scoring: P/E (10%) + P/B (22%) + P/S (21%) + PEG (8%) + FCF yield (10%)
         + Dividend yield (3%) + Margin of Safety / DCF discount to intrinsic value (6%) + SIZE
-        (market cap, 20% - see "SIZE FACTOR" note below). EV/EBITDA and EV/Revenue REMOVED
+        (market cap, 20% - see "SIZE FACTOR" note below). PE/PB/PS/FCF reweighted 2026-08-25
+        (see "PE-vs-PB/PS RANKING - REVERSED" note below) after a selection-bias fix reversed
+        which of the three multiples is strongest. EV/EBITDA and EV/Revenue REMOVED
         2026-08-25 (see RESOLVED note below) - duplicated P/E and P/S respectively, not
         independent signals. PE/PB/PS reweighted a second time same day (see "PE-vs-PB/PS
         RANKING DISPUTE - RESOLVED" note below) after a sub-period-robust FM test found PB -
@@ -1885,6 +1945,51 @@ class StockScoresLoader(OptimalLoader):
         strengthened (if less precisely quantified) case that PB is weak, not a large move on
         an uncertain number. Combined PE+PB+PS still 50% (post-Size-scaling total), unchanged.
 
+        PE-vs-PB/PS RANKING - REVERSED 2026-08-25 (later same day, follow-up to
+        [[composite_weights_reweighted_size_factor_reconfirmed_20260825]]'s top-level pass,
+        which flagged Value's own internal weighting as a possible efficiency problem worth a
+        dedicated look). Every prior pass above - including both "independent
+        re-verifications" - tested via algo/research/fama_macbeth_value_factors.py's ORIGINAL
+        design: a strict dropna() requiring ALL SIX value inputs (PE/PB/PS/FCF/dividend/EV
+        fields) simultaneously non-null every symbol-month. Requiring PE specifically means
+        requiring POSITIVE EARNINGS (PE is only computed for eps>0) - which systematically
+        excludes unprofitable/distressed companies, exactly the population smaller-cap and
+        deep-value effects concentrate in. This is the identical selection-bias mechanism the
+        top-level composite test's own redesign just diagnosed and fixed (see that memory) -
+        just never applied back to this pillar's own internal component test.
+
+        Redesigned this script's sample the same way (only forward return mandatory; each
+        input z-scored over whatever's available that month, missing imputed to 0) and reran:
+        median cross-section jumped 1,285->2,604 symbols. Result completely inverts the
+        standing "PB is weakest" conclusion: pooled multivariate PB t=-6.06 (vs PE t=-1.18,
+        PS t=-4.01), pooled univariate PB t=-9.34 (vs PE t=-4.11, PS t=-7.33) - PB is now the
+        STRONGEST of the three, PE the weakest (barely distinguishable from zero once
+        controlling for the others). Sub-period-checked the same way the original ranking
+        claim was (half-split, 2014-2020 vs 2020-2026): PB t=-2.41/-6.05, PS t=-2.41/-3.20,
+        both robust in every half; PE t=+0.38/-1.78, not even consistently signed - the
+        opposite robustness pattern from what justified the two prior PE/PB/PS reweights.
+        Also re-tested Size (see the pillar's own docstring) in this same redesigned sample:
+        t=-3.74 multivariate/-5.31 univariate pooled, t=-2.93/-2.55 sub-periods - confirms
+        Size's already-live 20% weight was correctly calibrated, unaffected by this dispute.
+        FCF yield flipped sign versus the strict-sample test (was t=+1.62 positive; redesigned
+        sample gives t=-1.75 multivariate/-1.71 univariate pooled, negative in both
+        sub-periods too) - genuinely sample-construction-sensitive, not a confident signal
+        either direction, treated as a fragile null rather than acted on strongly either way.
+
+        ACTED ON: PE 20%->10% (weak/inconsistent once controlling for the others - the
+        opposite of its previous "robustly comparable-to-strongest" status), PB 10%->22%
+        (robust strongest across univariate/multivariate/both sub-periods - the opposite of
+        its previous "consistently weakest" status), PS 20%->21% (robust, modest bump),
+        FCF yield 13%->10% (sign-unstable across sample constructions, trimmed for genuine
+        uncertainty rather than a directional claim), dividend yield/Size/PEG/margin-of-safety
+        unchanged. This is a full reversal of the PE/PB ranking specifically, not a refinement
+        of it - the prior conclusion was built entirely on a methodology now shown to
+        mechanistically exclude the population (unprofitable/small/distressed firms) where
+        these effects concentrate. Both the old and new rankings can't be right; the new one
+        is the one built on a sample that doesn't structurally exclude where the signal lives,
+        and it reproduces across two independent specs (univariate/multivariate) and two
+        independent sub-periods, the same bar the prior "independently re-verified" pass used.
+
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
@@ -1916,6 +2021,12 @@ class StockScoresLoader(OptimalLoader):
         # Div/MoS below (each x0.8) to free 20pts for the new Size input, preserving every
         # existing input's relative ratio to the others so the just-resolved PE-vs-PB/PS
         # ranking dispute isn't reopened by this change.
+        # CUT AGAIN 20%->10% 2026-08-25, later pass - see docstring's "PE-vs-PB/PS RANKING -
+        # REVERSED" note: a selection-bias fix (the strict all-6-required test implicitly
+        # required positive earnings, excluding unprofitable/small/distressed firms) flipped
+        # PE from "robustly comparable-to-strongest" to weak/inconsistent once controlling for
+        # PB/PS/Size - null in one sub-period, weak in the other, unlike PB/PS which are
+        # robust in both.
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
@@ -1926,8 +2037,8 @@ class StockScoresLoader(OptimalLoader):
                 pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
-            weighted_sum += pe_score * 0.20
-            total_weight += 0.20
+            weighted_sum += pe_score * 0.10
+            total_weight += 0.10
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
         # Weight raised 20%->26% 2026-08-25 (goal: re-audit ALL stock_scores inputs) - freed
@@ -1943,6 +2054,13 @@ class StockScoresLoader(OptimalLoader):
         # every sub-period tried, including outright wrong-signed in the noisiest one - a
         # modest additional cut proportionate to that strengthened (if less precisely
         # quantified than first claimed) evidence.
+        # RAISED SUBSTANTIALLY 10%->22% 2026-08-25, later pass - see docstring's "PE-vs-PB/PS
+        # RANKING - REVERSED" note: every prior verdict on PB above used a strict all-6-input
+        # test that implicitly required positive earnings, systematically excluding
+        # unprofitable/small/distressed firms - exactly the population where this signal
+        # concentrates. A selection-bias-corrected rerun completely inverts the ranking: PB is
+        # now the STRONGEST of the three multiples, robust across univariate, multivariate,
+        # and both sub-periods tested.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
@@ -1953,13 +2071,17 @@ class StockScoresLoader(OptimalLoader):
                 pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.10
-            total_weight += 0.10
+            weighted_sum += pb_score * 0.22
+            total_weight += 0.22
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
         # Previously fetched and displayed but never weighted (dead field).
         # Weight scaled 22%->18% 2026-08-25 (Size-factor gap, same proportional x0.8 as PE).
+        # Bumped 18%->20%, then 20%->21% 2026-08-25 same day - see docstring's "PE-vs-PB/PS
+        # RANKING - REVERSED" note: PS held up as robust (not the weakest, not quite the
+        # strongest) across the selection-bias-corrected rerun; a modest additional bump
+        # reflecting that robustness.
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps = metrics["ps_ratio"]
             if ps <= 2.0:
@@ -1970,8 +2092,8 @@ class StockScoresLoader(OptimalLoader):
                 ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
             else:
                 ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.20
-            total_weight += 0.20
+            weighted_sum += ps_score * 0.21
+            total_weight += 0.21
 
         # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
         # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
@@ -1996,11 +2118,17 @@ class StockScoresLoader(OptimalLoader):
         # confirmed a real, near-uncorrelated diversifier (t=1.62, directionally right) in the
         # same pass, not a beneficiary of the disputed PE ranking. Scaled 16%->13% same day
         # (Size-factor gap, same proportional x0.8 as PE above).
+        # Trimmed 13%->10% 2026-08-25, later pass - see docstring's "PE-vs-PB/PS RANKING -
+        # REVERSED" note: this field's sign flipped between the strict all-6-input test
+        # (positive, t=1.62) and the selection-bias-corrected rerun (negative, t=-1.75
+        # multivariate/-1.71 univariate, negative in both sub-periods too) - genuinely
+        # sample-construction-sensitive, treated as a fragile null and trimmed rather than
+        # acted on in either direction with confidence.
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.13
-            total_weight += 0.13
+            weighted_sum += fcf_score * 0.10
+            total_weight += 0.10
 
         # Dividend yield: bonus signal for income/quality (optional). Unlike fcf_yield,
         # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
