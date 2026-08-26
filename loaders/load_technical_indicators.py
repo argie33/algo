@@ -542,6 +542,19 @@ class VectorizedTechnicalLoader:
                 # Volume MA
                 symbol_df["volume_ma_50"] = compute_volume_ma(symbol_df["volume"], 50)
 
+                # Amihud (2002) illiquidity: trailing 21-trading-day average of |daily return| /
+                # dollar volume - see algo/research/fama_macbeth_liquidity_factor.py for the FM
+                # validation (t=3.34, distinct from Size at r=-0.18) that motivated adding this;
+                # see liquidity_amihud_gap_flagged_not_implemented_20260825 for the prior audit
+                # that found this gap. Scaled by 1e6 for a readable NUMERIC magnitude - the raw
+                # ratio is ~1e-8 to 1e-6 for a liquid large-cap. min_periods=15 (not 21) so a
+                # symbol with a few gap days in its trailing month still gets a value rather
+                # than NaN from one missing bar.
+                daily_return = symbol_df["close"].pct_change()
+                dollar_volume = symbol_df["close"] * symbol_df["volume"]
+                daily_illiq = (daily_return.abs() / dollar_volume).where(dollar_volume > 0)
+                symbol_df["amihud_illiquidity"] = daily_illiq.rolling(window=21, min_periods=15).mean() * 1e6
+
                 # Mansfield RS (SPY comparison) - optional; NaN if SPY unavailable or insufficient history
                 import numpy as np
 
@@ -959,6 +972,7 @@ class VectorizedTechnicalLoader:
             "bb_middle",
             "bb_lower",
             "volume_ma_50",
+            "amihud_illiquidity",
             "adx",
             "plus_di",
             "minus_di",
