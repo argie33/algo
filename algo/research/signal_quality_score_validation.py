@@ -21,6 +21,18 @@ history - once MIN_ROBUST_MONTHS worth of independent months exist, its own outp
 
 Usage:
     python -m algo.research.signal_quality_score_validation [--start-date DATE] [--horizons 5,10,20]
+
+FORMULA-REGIME NOTE (found 2026-08-26, re-auditing the original 2026-08-25 finding): commit
+`a9671ba8a` (landed 2026-08-20) fixed Phase 7's live intraday path from an independently
+reimplemented, unweighted 3-of-7-component formula to the single shared, weighted
+compute_signal_quality_components() also used by the batch loader - i.e. `signal_quality_score`
+values before 2026-08-20 and on/after it are NOT the same formula. As of 2026-08-26, ~94% of
+buy_sell_daily's BUY rows with a score predate that fix. The default --start-date is therefore
+2026-08-20 (the fix's landing date), NOT the earliest available history - pooling pre-fix rows
+with post-fix rows would silently average across two different scoring formulas and produce a
+number that doesn't describe the formula actually gating trades today. Pass an earlier
+--start-date explicitly only if you specifically want the old-formula regime (e.g. to compare
+the two eras), not as a default.
 """
 
 import argparse
@@ -88,8 +100,15 @@ def _pooled_correlations(df: pd.DataFrame, horizon: int) -> tuple[float, float, 
     return pearson, spearman, len(sub)
 
 
-def _quintile_breakdown(df: pd.DataFrame, horizon: int) -> pd.DataFrame:
+def _quintile_breakdown(df: pd.DataFrame, horizon: int) -> pd.DataFrame | None:
+    """None (not an empty DataFrame) signals 'not enough resolved signals yet' - distinct from
+    a genuine zero-variance/degenerate result, so callers can print a clear reason instead of
+    qcut's opaque IndexError on an empty array (hit 2026-08-26 re-running this post the
+    formula-unification default start-date change: horizons longer than the elapsed calendar
+    time since the fix landed have literally zero rows with a resolved forward return yet)."""
     sub = df[["signal_quality_score", f"fwd_ret_{horizon}"]].dropna()
+    if len(sub) < 10:
+        return None
     sub = sub.assign(quintile=pd.qcut(sub["signal_quality_score"], 5, labels=False, duplicates="drop"))
     return sub.groupby("quintile")[f"fwd_ret_{horizon}"].agg(["mean", "count"])
 
@@ -130,14 +149,21 @@ def run(start_date: str, horizons: list[int]) -> None:
     for h in horizons:
         pearson, spearman, n = _pooled_correlations(df, h)
         print(f"=== {h}-day forward return (n={n}) ===")
+        if n < 10:
+            print(f"  *** Fewer than 10 signals have a resolved {h}-day forward return yet - skipping. ***\n")
+            continue
         print(f"  Pooled Pearson corr(signal_quality_score, fwd_ret): {pearson:+.4f}")
         print(f"  Pooled Spearman corr:                               {spearman:+.4f}")
 
         quint = _quintile_breakdown(df, h)
-        print("  Quintile breakdown (0=lowest sqs, 4=highest):")
-        for q, row in quint.iterrows():
-            print(f"    Q{int(q)}: mean_fwd_ret={row['mean']:+.4%}  n={int(row['count'])}")
-        monotonic = quint["mean"].is_monotonic_increasing
+        if quint is None:
+            print("  Quintile breakdown: skipped (fewer than 10 resolved signals)")
+            monotonic = False
+        else:
+            print("  Quintile breakdown (0=lowest sqs, 4=highest):")
+            for q, row in quint.iterrows():
+                print(f"    Q{int(q)}: mean_fwd_ret={row['mean']:+.4%}  n={int(row['count'])}")
+            monotonic = quint["mean"].is_monotonic_increasing
         print(f"  Monotonic (higher score -> higher forward return)?  {monotonic}")
 
         r1, r2 = _split_sample_check(df, h)
@@ -156,7 +182,12 @@ def run(start_date: str, horizons: list[int]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--start-date", default="2000-01-01", help="Earliest signal date to include")
+    parser.add_argument(
+        "--start-date",
+        default="2026-08-20",
+        help="Earliest signal date to include (default: the a9671ba8a formula-unification landing "
+        "date - see FORMULA-REGIME NOTE in this module's docstring for why this isn't earliest-history)",
+    )
     parser.add_argument("--horizons", default="5,10,20", help="Comma-separated forward-return horizons in trading days")
     args = parser.parse_args()
 
