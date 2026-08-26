@@ -46,6 +46,23 @@ from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+# Composite pillar weights (must sum to 1.0). Single source of truth - see
+# _compute_stock_score's "Fixed base weights" block below for the full empirical-basis
+# history/docstring. Module-level (not just a local var inside that method) specifically so
+# tests and other consumers can import the real live value instead of hand-copying it - this
+# codebase has repeatedly found stale hand-copied duplicates of these exact percentages
+# drifting out of sync elsewhere (StockDetail.jsx's FACTOR_WEIGHTS, tests/test_formula_accuracy.py,
+# algo/infrastructure/constants.py's REGIME_POSITION_SIZE_*, dashboard risk-panel display) -
+# see [[risk_dashboard_position_size_multiplier_drift_fixed_20260825]] and siblings in memory.
+BASE_PILLAR_WEIGHTS: dict[str, float] = {
+    "quality": 0.25,
+    "growth": 0.12,
+    "value": 0.21,
+    "positioning": 0.12,
+    "stability": 0.18,
+    "momentum": 0.12,
+}
+
 
 class StockScoresLoader(OptimalLoader):
     table_name = "stock_scores"
@@ -664,7 +681,35 @@ class StockScoresLoader(OptimalLoader):
             # their own single-pillar-test signs) - likely a selection-bias artifact of the
             # intersection-of-6-panels requirement, not a reversal of those pillars' real
             # within-pillar findings above. Underpowered for confidently rewriting these
-            # percentages; flagged, not acted on.
+            # percentages; flagged, not acted on. SUPERSEDED - see RESOLVED note below.
+            #
+            # RESOLVED 2026-08-25 (reconstructed same day after this exact fix was lost to an
+            # uncommitted-work race mid-session - see [[composite_weights_reweighted_size_factor_reconfirmed_20260825]]
+            # in memory; this reconstruction was independently RE-RUN against live data rather
+            # than trusting the lost session's recorded numbers, since those couldn't be
+            # verified). Fixed two staleness bugs in algo/research/fama_macbeth_composite_weights.py
+            # (value_proxy still used the pre-audit EV/EBITDA+EV/Revenue split removed from the
+            # live formula the same day; momentum_proxy still used the pre-redesign mom_6m/
+            # mom_12m split instead of the live 12-1 skip-month construction) and relaxed the
+            # all-6-pillars-required intersection to only require a forward return, zero-
+            # imputing any individually-missing pillar (each pillar proxy is already z-scored at
+            # construction, so 0 = neutral/average) instead of dropping the whole symbol-month -
+            # matching the live composite formula's own "skip unavailable, renormalize over
+            # what's present" tolerance. Median cross-section grew from 850 to 6,505 symbols
+            # (110 usable months, 2017-2026). Multivariate (controlling for other 5):
+            # stability_proxy t=2.70, value_proxy t=2.05 - both clear the conventional |t|=2
+            # significance bar; growth t=0.66, positioning t=0.92, quality t=0.32, momentum
+            # t=-0.94 (negatively signed) do not. Univariate: value_proxy t=2.47, stability_proxy
+            # t=1.88 - the same two strongest pillars in both specs; momentum t=0.01 and
+            # positioning t=0.23 the two weakest in both specs, growth/quality in between and
+            # ambiguous. Stability and Value are the consistently strongest pair; Momentum and
+            # Positioning the consistently weakest pair - independently confirms the direction
+            # (not the exact magnitude) of the lost session's finding via a fresh live run.
+            # ACTED ON with a modest, proportionate reweight (not a full rewrite - single-period
+            # backtest, same conservative-adjustment convention used throughout this file's
+            # other pillar reweights): stability 0.14->0.18, value 0.20->0.21, momentum
+            # 0.15->0.12, positioning 0.14->0.12, growth/quality unchanged (0.12/0.25 - both
+            # ambiguous, no clear case either direction in either spec). Sum stays 1.00.
             #
             # SIZE FACTOR - RESOLVED 2026-08-25 (real-money-readiness follow-up, user asked to
             # dig in and decide, not just flag): SIZE (market cap, Fama-French SMB, Banz 1981)
@@ -701,14 +746,7 @@ class StockScoresLoader(OptimalLoader):
             # independently-tested signal (t=-5.37, unconfounded by this sample bias) at a
             # reasonable weight; revisit only if that reconstruction work happens anyway for
             # other reasons.
-            base_weights = {
-                "quality": 0.25,
-                "growth": 0.12,
-                "value": 0.20,
-                "positioning": 0.14,
-                "stability": 0.14,
-                "momentum": 0.15,
-            }
+            base_weights = BASE_PILLAR_WEIGHTS
             normalized_weights = base_weights
 
             # Clamp scores to 0-100, keep markers for missing data

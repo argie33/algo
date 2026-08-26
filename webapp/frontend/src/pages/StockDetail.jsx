@@ -1221,13 +1221,15 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
   // (no weight redistribution per GOVERNANCE) - bar value = score * weight (points earned
   // toward the 100-point composite), bar max = weight * 100.
+  // Must match loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly - guarded by
+  // tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py.
   const FACTOR_WEIGHTS = [
     ["Quality", "quality_score", 0.25],
-    ["Growth", "growth_score", 0.2],
-    ["Value", "value_score", 0.2],
-    ["Positioning", "positioning_score", 0.15],
-    ["Stability", "stability_score", 0.12],
-    ["Momentum", "momentum_score", 0.08],
+    ["Growth", "growth_score", 0.12],
+    ["Value", "value_score", 0.21],
+    ["Positioning", "positioning_score", 0.12],
+    ["Stability", "stability_score", 0.18],
+    ["Momentum", "momentum_score", 0.12],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

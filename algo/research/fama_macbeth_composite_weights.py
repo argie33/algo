@@ -21,15 +21,16 @@ independently re-derived per-component weights, since that's what the per-pillar
 already tested; this script answers the separate top-level question):
 - growth_proxy: eps_growth_1y*0.45 + (-asset_growth_yoy)*0.25 + revenue_growth_1y*0.15 +
   sustainable_growth_rate*0.15 (matches _score_growth's live weights)
-- value_proxy: -pe*0.18 -pb*0.20 -ps*0.18 + fcf_yield*0.10 + dividend_yield*0.02 -ev_ebitda*0.08
-  -ev_revenue*0.08 (matches _score_value's live weights; PEG/margin-of-safety excluded, not
-  computed here)
+- value_proxy: -pe*0.20 -pb*0.10 -ps*0.20 + fcf_yield*0.13 + dividend_yield*0.03 + size*0.20
+  (matches _score_value's live PE/PB/PS/FCF/Div/Size weights post-2026-08-25 reweight; PEG/
+  margin-of-safety excluded, not computed here - 86% of the live pillar's total weight)
 - quality_proxy: simple average of roe/roa/operating_margin/net_margin/(-debt_to_assets)/
   interest_coverage (matches the upstream equal-weighted-6 formula)
 - stability_proxy: (-vol_60d)*0.45 + (-|beta-1|)*0.20 + (-downside_vol_60d)*0.15 + max_dd*0.20
   (matches this session's ALREADY-SHIPPED stability reweight)
-- momentum_proxy: mom_3m*0.20 + mom_6m*0.20 + mom_12m*0.15 + rsi_14*0.21 + macd_sign*0.16 +
-  avg(price_vs_sma_50,price_vs_sma_200)*0.08 (matches _score_momentum's live weights)
+- momentum_proxy: mom_3m*0.20 + mom_12_1*0.35 + rsi_14*0.21 + macd_sign*0.16 +
+  avg(price_vs_sma_50,price_vs_sma_200)*0.08 (matches _score_momentum's live weights
+  post-2026-08-25 12-1 skip-month redesign - mom_6m/mom_12m replaced)
 - positioning_proxy: ad_rating only (institutional_ownership/short_interest confirmed
   untestable - see fama_macbeth_positioning_ad_rating_null memory)
 
@@ -74,6 +75,7 @@ from algo.research.fama_macbeth_price_factors import (
 )
 from algo.research.fama_macbeth_quality_factors import fetch_annual_quality_fundamentals
 from algo.research.fama_macbeth_value_factors import fetch_annual_value_fundamentals
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
 
 logger = logging.getLogger(__name__)
 
@@ -268,17 +270,18 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         ps = np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan)
         fcf_yield = v["fcf_per_share"] / price
         dividend_yield = v["dividend_per_share"] / price
-        ev_per_share = price + v["net_debt_per_share"]
-        ev_ebitda = np.where(v["ebitda_per_share"] > 0, ev_per_share / v["ebitda_per_share"], np.nan)
-        ev_revenue = np.where(v["sales_per_share"] > 0, ev_per_share / v["sales_per_share"], np.nan)
+        # size_z computed here (not just inside the standalone size_proxy diagnostic below) so
+        # value_proxy can include it at its live 20% in-pillar weight - Size lives INSIDE Value
+        # in production (_score_value's "SIZE FACTOR" note, commit 2d77f7bfd), not a 7th pillar.
+        market_cap_for_value = price * v["shares_diluted"]
+        size_z = _zwinsor(-np.log(market_cap_for_value.where(market_cap_for_value > 0)))
         value_proxy = (
-            0.18 * _zwinsor(-pd.Series(pe, index=v.index))
-            + 0.20 * _zwinsor(-pd.Series(pb, index=v.index))
-            + 0.18 * _zwinsor(-pd.Series(ps, index=v.index))
-            + 0.10 * _zwinsor(fcf_yield)
-            + 0.02 * _zwinsor(dividend_yield)
-            + 0.08 * _zwinsor(-pd.Series(ev_ebitda, index=v.index))
-            + 0.08 * _zwinsor(-pd.Series(ev_revenue, index=v.index))
+            0.20 * _zwinsor(-pd.Series(pe, index=v.index))
+            + 0.10 * _zwinsor(-pd.Series(pb, index=v.index))
+            + 0.20 * _zwinsor(-pd.Series(ps, index=v.index))
+            + 0.13 * _zwinsor(fcf_yield)
+            + 0.03 * _zwinsor(dividend_yield)
+            + 0.20 * size_z
         )
 
         quality_proxy = (
@@ -311,15 +314,17 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         )
 
         mom_3m = _trailing_cumret(px, i, 3)
-        mom_6m = _trailing_cumret(px, i, 6)
-        mom_12m = _trailing_cumret(px, i, 12)
+        # mom_12_1 = proper Jegadeesh 1990 skip-month construction (12mo-ago to 1mo-ago),
+        # same idiom as fama_macbeth_momentum_factors.py's own `_trailing_cumret(px, i - 1, 11)`.
+        # Replaces mom_6m/mom_12m below, matching _score_momentum's live 2026-08-25 redesign
+        # (momentum_6m/12m REPLACED by this derived construction, see that method's docstring).
+        mom_12_1 = _trailing_cumret(px, i - 1, 11)
         rsi = indicators["rsi_14"].iloc[i]
         macd_sign = indicators["macd_sign"].iloc[i]
         sma_avg = (indicators["price_vs_sma_50"].iloc[i] + indicators["price_vs_sma_200"].iloc[i]) / 2.0
         momentum_proxy = (
             0.20 * _zwinsor(mom_3m)
-            + 0.20 * _zwinsor(mom_6m)
-            + 0.15 * _zwinsor(mom_12m)
+            + 0.35 * _zwinsor(mom_12_1)
             + 0.21 * _zwinsor(rsi)
             + 0.16 * _zwinsor(macd_sign)
             + 0.08 * _zwinsor(sma_avg)
@@ -333,12 +338,26 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         # every other value_monthly field). Oriented like every other proxy here (higher =
         # better/more bullish forward-return signal), so sign-flipped: -log(market_cap), since
         # smaller companies showed the positive forward-return premium (Banz 1981 / t=-5.37 on
-        # raw log(market_cap) vs return, i.e. return falls as size rises).
-        market_cap = price * v["shares_diluted"]
-        size_proxy = _zwinsor(-np.log(market_cap.where(market_cap > 0)))
+        # raw log(market_cap) vs return, i.e. return falls as size rises). Reuses size_z (same
+        # expression) computed above for value_proxy's own 20% Size sub-component.
+        size_proxy = size_z
 
         fwd_ret = ret.iloc[i + 1]
 
+        # RELAXED PANEL CONSTRUCTION (2026-08-25, reconstructed 2026-08-25 after this session's
+        # own composite-weights redesign was lost to an uncommitted-work race - see
+        # [[composite_weights_reweighted_size_factor_reconfirmed_20260825]]): pd.DataFrame({...})
+        # from a dict of Series already aligns on the UNION of all 7 proxy indices plus
+        # fwd_ret's own (broadest - every symbol with price data), not their intersection.
+        # Previously this frame went straight into .dropna() with no subset=, which silently
+        # required all 6 pillars (+size) simultaneously non-null per symbol-month - the same
+        # "underpowered, tilts toward larger/more-established names" sample-selection bias this
+        # file's own base_weights docstring note already flags (850-symbol median vs ~2,600 for
+        # a single-pillar test). Only fwd_ret is required now; each pillar proxy is ALREADY
+        # z-scored at construction (mean~0/std~1 over its own available sub-universe), so a
+        # missing pillar is filled with 0 (the neutral/average value after z-scoring) instead of
+        # dropping the whole symbol-month row - matching the live composite formula's own
+        # "skip unavailable, renormalize over what's present" tolerance.
         frame = pd.DataFrame(
             {
                 "growth_proxy": growth_proxy,
@@ -351,13 +370,12 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
                 "fwd_ret": fwd_ret,
             }
         )
-        frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
+        frame = frame.replace([np.inf, -np.inf], np.nan)
+        frame = frame.dropna(subset=["fwd_ret"])
         frame = frame[(frame["fwd_ret"] > -0.95) & (frame["fwd_ret"] < 5.0)]
+        frame[SEVEN_COLS] = frame[SEVEN_COLS].fillna(0.0)
         if len(frame) < min_cross_section:
             continue
-
-        for col in SEVEN_COLS:
-            frame[col] = _zwinsor(frame[col])
 
         records.append((month, frame))
 
@@ -396,8 +414,9 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     mean, t = uni_size["size_proxy"]
     print(f"{'size_proxy':18s} {mean:10.5f} {t:8.2f}")
 
+    live_weights = " ".join(f"{k}={v}" for k, v in BASE_PILLAR_WEIGHTS.items())
     print(
-        "\nCurrent live base_weights: quality=0.25 growth=0.12 value=0.20 positioning=0.14 stability=0.14 momentum=0.15"
+        f"\nCurrent live base_weights: {live_weights}"
         " (size_proxy has no top-level slot - it's a 20% sub-component inside value_proxy's live"
         " formula only, effective top-level weight ~4%)"
     )
