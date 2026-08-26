@@ -53,13 +53,14 @@ describe("QUALITY_SCHEMA debt_to_assets formatting", () => {
 });
 
 describe("STABILITY_SCHEMA volatility formatting", () => {
+  // volatility_12m/30d and downside_volatility_252d/30d REMOVED from STABILITY_SCHEMA
+  // 2026-08-25 (goal: full scoring-architecture audit) - the six symmetric/downside
+  // volatility windows correlated 0.52-0.92 with each other (measured directly), so this
+  // pillar consolidated to one representative window per flavor (60d) and redistributed
+  // the freed weight to beta/max_drawdown. Only the two 60d fields remain to test here.
   it.each([
-    ["volatility_12m", 0.16],
     ["volatility_60d", 0.17],
-    ["volatility_30d", 0.15],
-    ["downside_volatility_252d", 0.12],
     ["downside_volatility_60d", 0.11],
-    ["downside_volatility_30d", 0.12],
   ])("scales %s's raw fraction to a percent for display", (key, fraction) => {
     const f = field(STABILITY_SCHEMA, key);
     const expectedPct = `+${(fraction * 100).toFixed(2)}%`;

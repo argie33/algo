@@ -137,7 +137,7 @@ def render_header_components(
         )
 
     exp_panel = (
-        panel_exposure_compact(ctx.exp_factors)
+        panel_exposure_compact(ctx.exp_factors, cr=ctx.capital_routing)
         if not has_error(ctx.exp_factors)
         else Panel("[red]Exposure factors unavailable[/]")
     )
@@ -285,7 +285,7 @@ def render_expanded_view(  # noqa: C901
         case "exposure":
             if has_error(ctx.exp_factors):
                 return _expanded_layout(*_exp_top, Panel("[red]Exposure factors unavailable[/]", border_style="red"))
-            return _expanded_layout(*_exp_top, panel_exposure_expanded(ctx.exp_factors))
+            return _expanded_layout(*_exp_top, panel_exposure_expanded(ctx.exp_factors, cr=ctx.capital_routing))
         case "market":
             if has_error(ctx.mkt):
                 return _expanded_layout(*_exp_top, Panel("[red]Market data unavailable[/]", border_style="red"))

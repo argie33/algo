@@ -66,7 +66,7 @@ from dashboard.data_validation import StrictValidationError, safe_float
 
 from ..formatter_strategies import TierFormatter
 from ..formatters import fmt_age, mini_bar
-from ..utilities import TIER_COLOR, G, R, Y
+from ..utilities import MG, TIER_COLOR, G, R, Y
 from ._helpers import _error_panel
 
 _tier_formatter = TierFormatter()
@@ -108,8 +108,31 @@ def _component_value(components: dict[str, Any], sub_key: str, field: str) -> fl
     return safe_float(sub.get(field), default=None)
 
 
+def _sev_color(value: float | None, good: float, bad: float, invert: bool = False) -> str:
+    """Traffic-light color for a raw metric value against two thresholds ("color pop" pass,
+    2026-08-25). Purely a display aid over pillar_risk/pillar_confirm's own zero-weight,
+    context-only fields (see PILLAR_MAP/market_exposure.py's W_PILLAR_RISK=W_PILLAR_CONFIRM=0)
+    - this never changes scoring, only how a value already computed reads at a glance, same
+    way TIER_COLOR already colors the headline exposure_pct. invert=True means higher is
+    better (e.g. breadth %); default is lower-is-better (e.g. VIX, credit spread)."""
+    if value is None:
+        return "dim"
+    if invert:
+        return G if value >= good else (Y if value >= bad else R)
+    return G if value <= good else (Y if value <= bad else R)
+
+
 def _pillar_detail(key: str, f: dict[str, Any]) -> str:
-    """Short value string summarizing a pillar's component detail for the compact panel."""
+    """Short value string summarizing a pillar's component detail for the compact panel.
+
+    COLOR POP PASS (2026-08-25, user feedback that this panel read flat next to the other
+    panels' green/red/cyan accents): each branch now colors its own values (severity
+    traffic-light via _sev_color, or up/down green/red) instead of returning plain text the
+    caller used to wrap in a single blanket [dim] - that blanket wrap would otherwise mute
+    these colors right back down. Values are still display-only (pillar_risk/pillar_confirm
+    carry zero composite weight - see market_exposure.py); coloring them doesn't change what
+    they mean, just how fast they read.
+    """
     if error_boundary.has_error(f):
         return "[yellow]⚠[/]"
     components = f.get("components")
@@ -125,10 +148,11 @@ def _pillar_detail(key: str, f: dict[str, Any]) -> str:
         mom_val = _component_value(components, "spy_momentum", "value")
         parts = []
         if ma_pct is not None:
-            parts.append(f"MA:{'+' if ma_pct >= 0 else ''}{ma_pct:.1f}%")
+            mc = G if ma_pct >= 0 else R
+            parts.append(f"[{mc}]MA:{'+' if ma_pct >= 0 else ''}{ma_pct:.1f}%[/]")
         if mom_val is not None:
-            parts.append(f"Mom:{mom_val:+.1f}%(ctx)")
-        return f" {' '.join(parts)}" if parts else "[yellow]⚠[/]"
+            parts.append(f"[dim]Mom:{mom_val:+.1f}%(ctx)[/]")
+        return " ".join(parts) if parts else "[yellow]⚠[/]"
 
     if key == "pillar_risk":
         vix_v = _component_value(components, "vix_regime", "value")
@@ -137,12 +161,12 @@ def _pillar_detail(key: str, f: dict[str, Any]) -> str:
         sp_c = None if error_boundary.has_error(sp) or not isinstance(sp, dict) else sp.get("count")
         parts = []
         if vix_v is not None:
-            parts.append(f"VIX:{vix_v:.1f}")
+            parts.append(f"[{_sev_color(vix_v, 15, 25)}]VIX:{vix_v:.1f}[/]")
         if cs_v is not None:
-            parts.append(f"HY:{cs_v:.2f}%")
+            parts.append(f"[{_sev_color(cs_v, 3.5, 5.5)}]HY:{cs_v:.2f}%[/]")
         if isinstance(sp_c, (int, float)):
-            parts.append(f"SP:{int(sp_c)}d")
-        return f" {' '.join(parts)}" if parts else "[yellow]⚠[/]"
+            parts.append(f"[{_sev_color(float(sp_c), 2, 5)}]SP:{int(sp_c)}d[/]")
+        return " ".join(parts) if parts else "[yellow]⚠[/]"
 
     if key == "pillar_confirm":
         participation = components.get("participation")
@@ -159,10 +183,11 @@ def _pillar_detail(key: str, f: dict[str, Any]) -> str:
         )
         parts = []
         if b50 is not None:
-            parts.append(f"B:{b50:.0f}%")
+            parts.append(f"[{_sev_color(b50, 55, 40, invert=True)}]B:{b50:.0f}%[/]")
         if spread is not None:
-            parts.append(f"AAII:{spread:+.0f}")
-        return f" {' '.join(parts)}" if parts else "[yellow]⚠[/]"
+            sc = MG if abs(spread) >= 20 else "dim"
+            parts.append(f"[{sc}]AAII:{spread:+.0f}[/]")
+        return " ".join(parts) if parts else "[yellow]⚠[/]"
 
     return "[yellow]⚠[/]"
 
@@ -210,14 +235,53 @@ def _policy_tier_compact_item(exp_f: dict[str, Any]) -> str:
     return " · ".join(parts)
 
 
+def _multi_asset_compact_item(cr: Any) -> str:
+    """Compact-panel summary line for the leftover-capital multi-asset router
+    (algo/risk/capital_routing.py: GLD/IEF/DBC/cash for the slice of capital the equity
+    exposure dial isn't using). Added 2026-08-25 per explicit user direction: the exposure
+    panels should surface what the system is watching/deciding across asset classes even
+    though (see exposure_score_goal_20260824_open_discussion_items item 4 in memory) real
+    order execution for these legs is deliberately NOT wired up yet - "signal only" is
+    stated explicitly here rather than left implicit, so this never reads as if capital is
+    actually moving. Always shown, never hidden - same convention as every row in this
+    panel. Full detail (trend/vol/MOVE veto per leg) lives in the expanded panel and in the
+    separate CAPITAL ROUTING panel; this is the compact-panel pointer to it."""
+    if error_boundary.has_error(cr) or not isinstance(cr, dict) or cr.get("data_unavailable"):
+        return "[dim]Multi-Asset:[/] [yellow]⚠ unavailable[/]"
+
+    uninvested = cr.get("uninvested_capital_pct")
+    u_s = f"{uninvested:.0f}%" if isinstance(uninvested, (int, float)) else "?"
+
+    legs = [
+        ("GLD", cr.get("gld_trend_up"), cr.get("gld_weight")),
+        ("IEF", cr.get("ief_trend_up"), cr.get("ief_weight")),
+        ("DBC", cr.get("dbc_trend_up"), cr.get("dbc_weight")),
+    ]
+    parts = []
+    for sym, trend_up, weight in legs:
+        w_s = f"{weight * 100:.0f}%" if isinstance(weight, (int, float)) else "-"
+        c = G if trend_up is True else (R if trend_up is False else "dim")
+        parts.append(f"[{c}]{sym}:{w_s}[/]")
+    cash_w = cr.get("cash_weight")
+    cash_s = f"{cash_w * 100:.0f}%" if isinstance(cash_w, (int, float)) else "-"
+    parts.append(f"[dim]Cash:{cash_s}[/]")
+    return f"[dim]Multi-Asset ({u_s} uninvested, signal only):[/] " + " ".join(parts)
+
+
 @register_panel(
     "exp",
     endpoint_deps=["exp_factors"],
     optional=True,
     description="Exposure",
 )
-def panel_exposure_compact(exp_f: Any) -> Any:
-    """Exposure score breakdown - compact 2-col layout (3 pillars + macro watch)."""
+def panel_exposure_compact(exp_f: Any, cr: Any = None) -> Any:
+    """Exposure score breakdown - compact 2-col layout (3 pillars + macro watch + multi-asset).
+
+    `cr` (capital_routing API data) is optional and independent of exp_f's own
+    data-availability - always fetched regardless of this panel's endpoint_deps (see
+    dashboard/fetchers.py's fixed FETCHERS dict), so a caller can omit it (renders the
+    unavailable marker via _multi_asset_compact_item) without breaking the rest of the panel.
+    """
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
@@ -297,7 +361,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:
             continue
 
         det = _pillar_detail(key, f)
-        det_s = f" [dim]{det.strip()}[/]" if det else ""
+        det_s = f" {det}" if det else ""
 
         if max_pts <= 0:
             # Zero-weight pillar (veto/context only, e.g. pillar_risk/pillar_confirm since
@@ -327,6 +391,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:
     # baked silently into the headline number.
     items.append(_vol_managed_scaling_item(factors))
     items.append(_policy_tier_compact_item(exp_f))
+    items.append(_multi_asset_compact_item(cr))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -364,6 +429,11 @@ def _pillar_expanded_rows(
 ) -> list[tuple[str, str, str]]:
     """Build (sub_label, value_string, context) rows for one pillar's components, used
     by the expanded panel to show each sub-signal beneath its pillar's summary row.
+
+    COLOR POP PASS (2026-08-25): value strings now carry Rich markup (severity/direction
+    color via _sev_color or plain green/red-by-sign) instead of returning bare text - the
+    render loop below uses Text.from_markup on this column accordingly. Same display-only
+    caveat as _pillar_detail: coloring a value doesn't change whether it's scored.
     """
     if error_boundary.has_error(f):
         return [("  (unavailable)", "--", "pillar failed to compute - see summary row above")]
@@ -386,7 +456,7 @@ def _pillar_expanded_rows(
         rows.append(
             (
                 "  30-Week Trend",
-                f"{v:+.1f}% vs MA" if isinstance(v, (int, float)) else "--",
+                f"[{G if v >= 0 else R}]{v:+.1f}% vs MA[/]" if isinstance(v, (int, float)) else "--",
                 "SPY vs 30-week MA (100% of pillar - the sole scored input)",
             )
         )
@@ -394,7 +464,7 @@ def _pillar_expanded_rows(
         rows.append(
             (
                 "  SPY 12mo Momentum",
-                f"{v:+.1f}%" if isinstance(v, (int, float)) else "--",
+                f"[{G if v >= 0 else R}]{v:+.1f}%[/]" if isinstance(v, (int, float)) else "--",
                 "Trailing 12-month return, TSMOM (not scored - context/dashboard only)",
             )
         )
@@ -410,10 +480,13 @@ def _pillar_expanded_rows(
             rsi = mtech.get("rsi_14")
             macd_z = mtech.get("macd_z")
             macd_s = f" MACD(z={macd_z:+.1f})" if isinstance(macd_z, (int, float)) else ""
+            # Momentum-following convention (not mean-reversion) - see the pillar's own
+            # RSI-scoring comment elsewhere in this codebase: higher RSI reads bullish here.
+            rsi_c = _sev_color(rsi, 55, 45, invert=True) if isinstance(rsi, (int, float)) else "dim"
             rows.append(
                 (
                     "  Market Technicals",
-                    f"RSI {rsi:.1f}{macd_s}" if isinstance(rsi, (int, float)) else "--",
+                    f"[{rsi_c}]RSI {rsi:.1f}[/]{macd_s}" if isinstance(rsi, (int, float)) else "--",
                     "RSI(14)+MACD, blended (not scored - context/dashboard only)",
                 )
             )
@@ -426,21 +499,26 @@ def _pillar_expanded_rows(
         rows.append(
             (
                 "  VIX Regime",
-                f"VIX {v:.1f}" if isinstance(v, (int, float)) else "--",
+                f"[{_sev_color(v, 15, 25)}]VIX {v:.1f}[/]" if isinstance(v, (int, float)) else "--",
                 "Volatility level + 5-session trend",
             )
         )
         v = cs.get("value")
         rows.append(
-            ("  Credit Spread", f"{v:.2f}% OAS" if isinstance(v, (int, float)) else "--", "HY OAS, credit leads equity")
+            (
+                "  Credit Spread",
+                f"[{_sev_color(v, 3.5, 5.5)}]{v:.2f}% OAS[/]" if isinstance(v, (int, float)) else "--",
+                "HY OAS, credit leads equity",
+            )
         )
         cnt = sp.get("count")
         rg = sp.get("regime")
         rg_s = rg[:10] if isinstance(rg, str) else "?"
+        cnt_c = _sev_color(float(cnt), 2, 5) if isinstance(cnt, (int, float)) else "dim"
         rows.append(
             (
                 "  Selling Pressure",
-                f"{cnt}d / {rg_s}" if cnt is not None else "--",
+                f"[{cnt_c}]{cnt}d / {rg_s}[/]" if cnt is not None else "--",
                 "Heavy-volume down days, last 25 sessions",
             )
         )
@@ -458,7 +536,8 @@ def _pillar_expanded_rows(
         rows.append(
             (
                 "  Breadth",
-                f"50d:{b50:.0f}% / 200d:{b200:.0f}%"
+                f"[{_sev_color(b50, 55, 40, invert=True)}]50d:{b50:.0f}%[/] / "
+                f"[{_sev_color(b200, 55, 40, invert=True)}]200d:{b200:.0f}%[/]"
                 if isinstance(b50, (int, float)) and isinstance(b200, (int, float))
                 else "--",
                 "% stocks above 50/200-DMA, blended 37.5%/62.5%",
@@ -468,19 +547,31 @@ def _pillar_expanded_rows(
         rows.append(
             (
                 "  New Highs/Lows",
-                f"NH:{nh} NL:{nl} {nh - nl:+d}" if isinstance(nh, int) and isinstance(nl, int) else "--",
+                f"NH:{nh} NL:{nl} [{G if nh - nl >= 0 else R}]{nh - nl:+d}[/]"
+                if isinstance(nh, int) and isinstance(nl, int)
+                else "--",
                 "52-week new highs vs lows",
             )
         )
         rel = ad.get("relation")
+        rel_c = "dim"
+        if isinstance(rel, str):
+            rel_c = G if "confirm" in rel or "up" in rel else (Y if "diverg" in rel else "dim")
         rows.append(
-            ("  Advance/Decline", rel.replace("_", " ") if isinstance(rel, str) else "--", "A/D direction vs SPY")
+            (
+                "  Advance/Decline",
+                f"[{rel_c}]{rel.replace('_', ' ')}[/]" if isinstance(rel, str) else "--",
+                "A/D direction vs SPY",
+            )
         )
         bull, bear = aaii.get("bullish_pct"), aaii.get("bearish_pct")
+        aaii_c = "dim"
+        if isinstance(bull, (int, float)) and isinstance(bear, (int, float)) and abs(bull - bear) >= 20:
+            aaii_c = MG
         rows.append(
             (
                 "  Retail Sentiment (AAII)",
-                f"Bull:{bull:.0f}% Bear:{bear:.0f}%"
+                f"[{aaii_c}]Bull:{bull:.0f}% Bear:{bear:.0f}%[/]"
                 if isinstance(bull, (int, float)) and isinstance(bear, (int, float))
                 else "--",
                 "Contrarian at extremes only",
@@ -492,10 +583,11 @@ def _pillar_expanded_rows(
             )
         else:
             v = pc.get("value")
+            pc_c = MG if isinstance(v, (int, float)) and (v >= 1.0 or v <= 0.6) else "dim"
             rows.append(
                 (
                     "  Put/Call Ratio",
-                    f"{v:.2f} P/C" if isinstance(v, (int, float)) else "--",
+                    f"[{pc_c}]{v:.2f} P/C[/]" if isinstance(v, (int, float)) else "--",
                     "Options sentiment, contrarian at extremes",
                 )
             )
@@ -503,8 +595,98 @@ def _pillar_expanded_rows(
     return rows
 
 
-def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
-    """Full-screen exposure score detail - 3 pillars with sub-component values, plus macro watch."""
+def _multi_asset_expanded_rows(cr: Any) -> list[Text | Table]:
+    """Full expanded-panel section for the leftover-capital multi-asset router
+    (algo/risk/capital_routing.py: GLD/IEF/DBC/cash for the slice of capital the equity
+    exposure dial above isn't using). Added 2026-08-25 per explicit user direction that the
+    exposure panels should show more of what the system is tracking across asset classes,
+    even though no capital is actually routed there yet - see
+    exposure_score_goal_20260824_open_discussion_items item 4 in memory: real order
+    execution for these legs was explicitly deferred ("keep decision-only for now"), so
+    "signal only" is stated up front here, not left to be inferred from context.
+    """
+    rows: list[Text | Table] = []
+    if error_boundary.has_error(cr) or not isinstance(cr, dict) or cr.get("data_unavailable"):
+        reason = error_boundary.get_error_message(cr) if isinstance(cr, dict) else "no data"
+        if reason is None:
+            reason = cr.get("reason") if isinstance(cr, dict) else "no data"
+        reason_s = f"  [dim]({reason[:60]})[/]" if isinstance(reason, str) else ""
+        rows.append(
+            Text.from_markup(
+                f"[bold]Multi-Asset Capital Routing[/] [dim](leftover capital not in "
+                f"equities - GLD/IEF/DBC/cash)[/]  [yellow]⚠ unavailable[/]{reason_s}"
+            )
+        )
+        return rows
+
+    uninvested = cr.get("uninvested_capital_pct")
+    u_s = f"{uninvested:.1f}%" if isinstance(uninvested, (int, float)) else "--"
+    move_index = cr.get("move_index")
+    move_veto = cr.get("move_veto")
+    move_s = f"MOVE {move_index:.1f}" if isinstance(move_index, (int, float)) else "MOVE ⚠ unavailable"
+    veto_s = "  [yellow]⚠ IEF vetoed (MOVE≥160 - acute bond-market dislocation)[/]" if move_veto else ""
+
+    rows.append(
+        Text.from_markup(
+            "[bold]Multi-Asset Capital Routing[/] [dim](leftover capital not in equities - "
+            "GLD/IEF/DBC/cash, algo/risk/capital_routing.py)[/]  "
+            "[yellow]⚠ signal only - no live order execution wired yet[/]"
+        )
+    )
+    rows.append(Text.from_markup(f"[dim]Uninvested capital:[/] {u_s}   [dim]{move_s}[/]{veto_s}"))
+
+    tbl = Table.grid(padding=(0, 2), expand=True)
+    tbl.add_column("leg", ratio=1)
+    tbl.add_column("trend", ratio=1)
+    tbl.add_column("vol(20d)", ratio=1)
+    tbl.add_column("weight of uninvested slice", ratio=2)
+
+    legs = [
+        ("GLD", cr.get("gld_trend_up"), cr.get("gld_vol_20d"), cr.get("gld_weight")),
+        ("IEF", cr.get("ief_trend_up"), cr.get("ief_vol_20d"), cr.get("ief_weight")),
+        ("DBC", cr.get("dbc_trend_up"), cr.get("dbc_vol_20d"), cr.get("dbc_weight")),
+    ]
+    for sym, trend_up, vol_20d, weight in legs:
+        if trend_up is True:
+            trend_s = f"[{G}]UP[/]"
+        elif trend_up is False:
+            trend_s = f"[{R}]DOWN[/]"
+        else:
+            trend_s = "[dim]--[/]"
+        if sym == "IEF" and move_veto:
+            trend_s += " [yellow](vetoed)[/]"
+        vol_s = f"{vol_20d * 100:.1f}%" if isinstance(vol_20d, (int, float)) else "--"
+        w = weight if isinstance(weight, (int, float)) else 0.0
+        bar_f = int(min(w, 1.0) * 10)
+        wc = G if w >= 0.3 else (Y if w > 0 else "dim")
+        bar_s = f"[{wc}]{'█' * bar_f}[/][dim]{'░' * (10 - bar_f)}[/] [{wc}]{w * 100:.0f}%[/]"
+        tbl.add_row(
+            Text(sym, style="bold"),
+            Text.from_markup(trend_s),
+            Text(vol_s, style="dim"),
+            Text.from_markup(bar_s),
+        )
+    cash_w = cr.get("cash_weight")
+    cash_s = f"{cash_w * 100:.0f}%" if isinstance(cash_w, (int, float)) else "--"
+    tbl.add_row(
+        Text("CASH", style="bold dim"),
+        Text("--", style="dim"),
+        Text("--", style="dim"),
+        Text(cash_s, style="dim"),
+    )
+    rows.append(tbl)
+    return rows
+
+
+def panel_exposure_expanded(exp_f: Any, cr: Any = None) -> Any:  # noqa: C901
+    """Full-screen exposure score detail - 3 pillars with sub-component values, plus macro
+    watch and multi-asset capital routing.
+
+    `cr` (capital_routing API data) is optional - always fetched independently of exp_f's
+    own availability (see dashboard/fetchers.py's fixed FETCHERS dict), so a caller can omit
+    it and this degrades to the unavailable marker in _multi_asset_expanded_rows rather than
+    breaking the rest of the panel.
+    """
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -702,7 +884,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 pillar_context.get(key, ""),
             )
         for sub_label, val_s, ctx in _pillar_expanded_rows(key, label, max_pts, "", f):
-            tbl.add_row(Text(sub_label, style="dim"), Text(""), Text(""), Text(""), Text(val_s, style="white"), ctx)
+            tbl.add_row(Text(sub_label, style="dim"), Text(""), Text(""), Text(""), Text.from_markup(val_s), ctx)
 
     rows.append(tbl)
     rows.append(Rule(style="dim"))
@@ -772,6 +954,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
         else:
             rows.append(Text.from_markup("[bold]Vol-Managed Scaling[/]  [yellow]⚠ unavailable[/]"))
+
+    rows.append(Rule(style="dim"))
+    rows.extend(_multi_asset_expanded_rows(cr))
 
     # Active Policy Tier (algo/risk/exposure_policy.py's EXPOSURE_TIERS) - the concrete
     # trading consequence of exposure_pct/regime above: how selective (min_composite_score),

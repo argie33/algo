@@ -3292,6 +3292,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # debt_to_assets is "lower is better" so it's converted to a comparable
             # higher-is-better score before joining the same clamp-and-average as the
             # raw percentage metrics below (100 - debt_to_assets%, e.g. 30% debt -> 70).
+            #
+            # SIGN QUESTION - re-audited 2026-08-25 (goal: full scoring-architecture audit),
+            # NOT flipped: algo/research/fama_macbeth_quality_factors.py found debt_to_assets
+            # POSITIVELY signed vs forward return (univariate t=2.28, multivariate t=2.19,
+            # 60mo pooled) - higher leverage associated with HIGHER forward return, opposite
+            # this "low debt is good" inversion. A decile sort ruled out a linear-regression
+            # artifact (deciles 0-6, the well-populated low-to-moderate-leverage range, rise
+            # roughly monotonically from 0.70%/mo to 1.04%/mo - not a U-shape). Genuinely
+            # unresolved literature tension, not miscalibration: Modigliani-Miller (more debt
+            # mechanically raises equity beta and expected return - textbook, undisputed) vs.
+            # the documented distress-risk anomaly (Campbell/Hilscher/Szilagyi 2008, JoF -
+            # distressed/high-leverage firms empirically underperform). Additional reasoning
+            # this pass, still not dispositive enough to flip a live-money sign: the monotonic
+            # rise spans deciles 0-6 (low-to-moderate leverage, not the sparse high-leverage
+            # tail where genuine bankruptcy/default risk would concentrate per Campbell et
+            # al.'s own methodology, which uses a real default-probability measure, not raw
+            # debt_to_assets) - that shape reads more like MM's smooth leverage-beta
+            # relationship than a distress cliff, but this data was sorted on debt_to_assets
+            # itself, not an independent distress/default-risk proxy, so it can't cleanly
+            # separate "healthy firm using leverage for growth" from "firm approaching
+            # distress" - the two stories this tension is actually about. Needs a real
+            # distress-risk proxy (e.g. Altman Z-score, interest-coverage-based) to resolve
+            # properly, not more debt_to_assets-only tests. Left unchanged pending that.
             debt_to_assets_score = (
                 100.0 - metrics["debt_to_assets"] * 100.0 if metrics["debt_to_assets"] is not None else None
             )
