@@ -111,6 +111,7 @@ from algo.research.fama_macbeth_price_factors import (
 )
 from algo.research.fama_macbeth_quality_factors import fetch_annual_quality_fundamentals
 from algo.research.fama_macbeth_value_factors import fetch_annual_value_fundamentals
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
 
 logger = logging.getLogger(__name__)
 
@@ -399,6 +400,20 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
 
         fwd_ret = ret.iloc[i + 1]
 
+        # RELAXED PANEL CONSTRUCTION (2026-08-25, reconstructed 2026-08-25 after this session's
+        # own composite-weights redesign was lost to an uncommitted-work race - see
+        # [[composite_weights_reweighted_size_factor_reconfirmed_20260825]]): pd.DataFrame({...})
+        # from a dict of Series already aligns on the UNION of all 7 proxy indices plus
+        # fwd_ret's own (broadest - every symbol with price data), not their intersection.
+        # Previously this frame went straight into .dropna() with no subset=, which silently
+        # required all 6 pillars (+size) simultaneously non-null per symbol-month - the same
+        # "underpowered, tilts toward larger/more-established names" sample-selection bias this
+        # file's own base_weights docstring note already flags (850-symbol median vs ~2,600 for
+        # a single-pillar test). Only fwd_ret is required now; each pillar proxy is ALREADY
+        # z-scored at construction (mean~0/std~1 over its own available sub-universe), so a
+        # missing pillar is filled with 0 (the neutral/average value after z-scoring) instead of
+        # dropping the whole symbol-month row - matching the live composite formula's own
+        # "skip unavailable, renormalize over what's present" tolerance.
         frame = pd.DataFrame(
             {
                 "growth_proxy": growth_proxy,
@@ -476,8 +491,9 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     mean, t = uni_size["size_proxy"]
     print(f"{'size_proxy':18s} {mean:10.5f} {t:8.2f}")
 
+    live_weights = " ".join(f"{k}={v}" for k, v in BASE_PILLAR_WEIGHTS.items())
     print(
-        "\nCurrent live base_weights: quality=0.25 growth=0.12 value=0.21 positioning=0.12 stability=0.18 momentum=0.12"
+        f"\nCurrent live base_weights: {live_weights}"
         " (size_proxy has no top-level slot - it's a 20% sub-component inside value_proxy's live"
         " formula only, effective top-level weight ~4%)"
     )

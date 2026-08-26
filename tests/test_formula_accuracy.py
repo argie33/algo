@@ -5,6 +5,8 @@ Finance-grade testing for all critical calculations.
 
 import math
 
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
+
 
 class TestVolatilityCalculation:
     """Verify annualized volatility (√252 factor) is correct."""
@@ -273,16 +275,15 @@ class TestStockScoreWeights:
     """Verify composite stock score weights."""
 
     def test_base_weights_sum_to_100(self) -> None:
-        """Base factor weights must sum to 100%."""
-        weights = {
-            "quality": 0.25,
-            "growth": 0.20,
-            "value": 0.20,
-            "positioning": 0.15,
-            "stability": 0.12,
-            "momentum": 0.08,
-        }
-        total = sum(weights.values())
+        """Base factor weights must sum to 100%.
+
+        Uses the live BASE_PILLAR_WEIGHTS (loaders/load_stock_scores.py) rather than a
+        hardcoded copy - a hand-copied duplicate here had already drifted stale (still showed
+        growth=0.20/positioning=0.15/stability=0.12/momentum=0.08, pre-dating even the
+        2026-08-25 scoring-architecture redesign) without this test ever catching it, since it
+        only checked internal self-consistency, not agreement with the real weights.
+        """
+        total = sum(BASE_PILLAR_WEIGHTS.values())
         assert abs(total - 1.0) < 0.001
 
     def test_value_component_weights(self) -> None:
@@ -389,22 +390,13 @@ class TestRebalanceLogic:
 
     def test_weight_redistribution_three_of_six_metrics(self) -> None:
         """When 3 of 6 stock score metrics available, redistribute weights."""
-        base_weights = {
-            "quality": 0.25,
-            "growth": 0.20,
-            "value": 0.20,
-            "positioning": 0.15,
-            "stability": 0.12,
-            "momentum": 0.08,
-        }
-
         available = ["quality", "growth", "value"]
-        available_weight = sum(base_weights[m] for m in available)
+        available_weight = sum(BASE_PILLAR_WEIGHTS[m] for m in available)
 
         # Normalize to 100%
         normalized = {}
         for metric in available:
-            normalized[metric] = base_weights[metric] / available_weight
+            normalized[metric] = BASE_PILLAR_WEIGHTS[metric] / available_weight
 
         assert abs(sum(normalized.values()) - 1.0) < 0.001
 

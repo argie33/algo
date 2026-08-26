@@ -46,6 +46,23 @@ from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+# Composite pillar weights (must sum to 1.0). Single source of truth - see
+# _compute_stock_score's "Fixed base weights" block below for the full empirical-basis
+# history/docstring. Module-level (not just a local var inside that method) specifically so
+# tests and other consumers can import the real live value instead of hand-copying it - this
+# codebase has repeatedly found stale hand-copied duplicates of these exact percentages
+# drifting out of sync elsewhere (StockDetail.jsx's FACTOR_WEIGHTS, tests/test_formula_accuracy.py,
+# algo/infrastructure/constants.py's REGIME_POSITION_SIZE_*, dashboard risk-panel display) -
+# see [[risk_dashboard_position_size_multiplier_drift_fixed_20260825]] and siblings in memory.
+BASE_PILLAR_WEIGHTS: dict[str, float] = {
+    "quality": 0.25,
+    "growth": 0.12,
+    "value": 0.21,
+    "positioning": 0.12,
+    "stability": 0.18,
+    "momentum": 0.12,
+}
+
 
 class StockScoresLoader(OptimalLoader):
     table_name = "stock_scores"
@@ -657,6 +674,20 @@ class StockScoresLoader(OptimalLoader):
             # signals by realized predictive power controlling for correlation among them -
             # exactly what multivariate Fama-MacBeth does).
             #
+            # CONCURRENT INDEPENDENT RECONSTRUCTION (2026-08-25, merge note): this exact
+            # composite-weights fix was worked on by two parallel sessions at once after an
+            # earlier attempt was lost to an uncommitted-work race (see
+            # [[composite_weights_reweighted_size_factor_reconfirmed_20260825]] /
+            # [[stock_scores_composite_weights_reconstruction_after_lost_commit_20260826]]).
+            # The other session's independent re-run found stability_proxy t=2.70/value_proxy
+            # t=2.05 multivariate (both clearing |t|=2) - slightly stronger than this session's
+            # own t=1.91/1.39 below, most likely from minor sample/construction differences
+            # (this version additionally fixes the PE/PB/PS-within-Value selection bias, see
+            # below, which the other session's value_proxy didn't include). Both independently
+            # reached the identical qualitative conclusion and the identical reweight numbers -
+            # convergent evidence the direction is real, not an artifact of either session's
+            # specific methodology choices.
+            #
             # FIRST PASS (same day, earlier): required all 6 pillar proxies non-null per
             # symbol-month (strict dropna()) - only kept the intersection of annual-fundamentals
             # coverage (growth/value/quality) AND full price-history coverage (stability/
@@ -759,14 +790,7 @@ class StockScoresLoader(OptimalLoader):
             # prior pass had. If the user confirms, the schema/API/frontend work (new
             # `size_score` column + API field + a 7th slot in every composite-breakdown display)
             # still needs to be built - not done as part of this reconciliation pass.
-            base_weights = {
-                "quality": 0.25,
-                "growth": 0.12,
-                "value": 0.21,
-                "positioning": 0.12,
-                "stability": 0.18,
-                "momentum": 0.12,
-            }
+            base_weights = BASE_PILLAR_WEIGHTS
             normalized_weights = base_weights
 
             # Clamp scores to 0-100, keep markers for missing data
