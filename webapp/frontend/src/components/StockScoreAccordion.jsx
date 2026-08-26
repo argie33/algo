@@ -1023,6 +1023,12 @@ const MOMENTUM_SCHEMA = [
 // (the opposite ranking from the pooled-Spearman claim that originally justified cutting
 // PE from 45% to 18%) - see loaders/load_stock_scores.py's _score_value docstring
 // ("PE-vs-PB/PS RANKING DISPUTE - RESOLVED") for the full evidence.
+// SUPERSEDED 2026-08-26: that whole prior ranking chain, including the "independent
+// re-verification" pass, shared one selection-bias flaw (requiring PE alongside PB/PS
+// requires positive earnings, excluding unprofitable/small firms). Bias-corrected re-test
+// REVERSES it: PB is now the STRONGEST of the three (univariate t=-9.34), PE the
+// weakest/near-null (t=-4.11 univariate, -0.96 multivariate). See loaders/load_stock_scores.py's
+// _score_value docstring ("PE-vs-PB/PS RANKING - REVERSED") for the full evidence.
 //
 // SIZE (market_cap) ADDED 2026-08-25 (goal: close the highest-confidence gap found in this
 // session's full stock_scores re-audit) - Fama-French SMB (Banz 1981) was completely absent
@@ -1040,21 +1046,21 @@ const VALUE_SCHEMA = [
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "10%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "10%",
+    weight: "22%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "21%",
   },
   {
     key: "peg_ratio",
@@ -1075,7 +1081,7 @@ const VALUE_SCHEMA = [
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "13%",
+    weight: "10%",
   },
   {
     key: "stock_margin_of_safety",

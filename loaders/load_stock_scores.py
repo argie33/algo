@@ -1757,16 +1757,14 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (20%) + P/B (10%) + P/S (20%) + PEG (8%) + FCF yield (13%)
+        Uses weighted scoring: P/E (10%) + P/B (22%) + P/S (21%) + PEG (8%) + FCF yield (10%)
         + Dividend yield (3%) + Margin of Safety / DCF discount to intrinsic value (6%) + SIZE
         (market cap, 20% - see "SIZE FACTOR" note below). EV/EBITDA and EV/Revenue REMOVED
         2026-08-25 (see RESOLVED note below) - duplicated P/E and P/S respectively, not
-        independent signals. PE/PB/PS reweighted a second time same day (see "PE-vs-PB/PS
-        RANKING DISPUTE - RESOLVED" note below) after a sub-period-robust FM test found PB -
-        not PE - is the weakest of the three, contradicting the pooled-Spearman finding that
-        originally justified cutting PE to 18%. The other seven inputs were then uniformly
-        scaled by x0.8 (same day, third pass) to free 20pts for the new Size input without
-        reopening either of the two just-resolved ranking disputes above. Peak zone for growth
+        independent signals. PE/PB/PS weighting has moved several times the same day and once
+        more the day after on a corrected sample - see "PE-vs-PB/PS RANKING - REVERSED" note
+        below for the FINAL, currently-live ranking (PB strongest, PS second, PE weakest) before
+        trusting any earlier note in this docstring's own history. Peak zone for growth
         stocks: P/E 15-30, P/B < 5, PEG < 1-2, positive FCF yield, positive margin of safety.
 
         SIZE FACTOR added 2026-08-25 (goal: close the highest-confidence gap found in this
@@ -1923,6 +1921,38 @@ class StockScoresLoader(OptimalLoader):
         strengthened (if less precisely quantified) case that PB is weak, not a large move on
         an uncertain number. Combined PE+PB+PS still 50% (post-Size-scaling total), unchanged.
 
+        PE-vs-PB/PS RANKING - REVERSED 2026-08-25/26 (found and fixed same day as the
+        composite base_weights work, then lost to the same uncommitted-work race and
+        reconstructed 2026-08-26 - see
+        [[stock_scores_composite_weights_reconstruction_after_lost_commit_20260826]] in
+        memory): every prior pass above, including the "INDEPENDENT RE-VERIFICATION" one,
+        used the same selection-biased sample construction in
+        algo/research/fama_macbeth_value_factors.py - a strict row-wise dropna() across all
+        value ratios meant requiring PE (undefined for eps<=0, i.e. requiring POSITIVE
+        EARNINGS) to even test PB/PS/size, systematically excluding unprofitable/small/
+        distressed firms - exactly the population several of these effects (especially size)
+        concentrate in. Relaxed to only require a forward return, z-scoring each ratio over
+        its own available population and zero-imputing the rest (same treatment as the
+        composite base_weights reconstruction). Median cross-section grew 1,285->2,604
+        symbols (151 usable months, 2014-2026) - reconstructed independently, not by trusting
+        the lost session's numbers, and the univariate result reproduced almost exactly
+        (PE t=-4.11, PB t=-9.34, PS t=-7.33 - matching the lost session's own claimed numbers
+        to 2 decimal places), giving high confidence the reconstruction is faithful:
+        - Multivariate: PB t=-5.93 (strongest), PE t=-0.96 (near-null), PS t=-1.61 (weaker
+          here due to collinearity with ev_revenue, r=0.93 - see the EV/EBITDA/EV/Revenue
+          duplicate-signal note above)
+        - Univariate: PB t=-9.34, PS t=-7.33, PE t=-4.11 - PB and PS both clearly stronger
+          than PE in the single-factor spec too
+        PB is now robustly the STRONGEST of the three multiples, the exact opposite of every
+        prior pass's conclusion above (all of which shared the same selection-bias flaw and
+        never actually tested an alternative sample construction, despite one being labeled
+        an "independent re-verification"). PE is weakest/near-null in both specs. ACTED ON:
+        PE 20%->10%, PB 10%->22%, PS 20%->21%, FCF yield 13%->10% (fcf_yield's own sign also
+        flipped negative on the corrected sample, t=-1.71/-1.75 in the same reconstruction -
+        treated as a genuine sample-sensitive null, cut modestly rather than reversed with
+        confidence). Dividend/Size/PEG/Margin-of-Safety unchanged. Weights still sum to 100%
+        (10+22+21+8+10+3+6+20).
+
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
@@ -1954,6 +1984,8 @@ class StockScoresLoader(OptimalLoader):
         # Div/MoS below (each x0.8) to free 20pts for the new Size input, preserving every
         # existing input's relative ratio to the others so the just-resolved PE-vs-PB/PS
         # ranking dispute isn't reopened by this change.
+        # CUT 20%->10% 2026-08-26 (reconstructed after being lost to an uncommitted-work race
+        # - see this function's docstring "PE-vs-PB/PS RANKING - REVERSED" note below).
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
@@ -1964,8 +1996,8 @@ class StockScoresLoader(OptimalLoader):
                 pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
-            weighted_sum += pe_score * 0.20
-            total_weight += 0.20
+            weighted_sum += pe_score * 0.10
+            total_weight += 0.10
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
         # Weight raised 20%->26% 2026-08-25 (goal: re-audit ALL stock_scores inputs) - freed
@@ -1981,6 +2013,11 @@ class StockScoresLoader(OptimalLoader):
         # every sub-period tried, including outright wrong-signed in the noisiest one - a
         # modest additional cut proportionate to that strengthened (if less precisely
         # quantified than first claimed) evidence.
+        # RAISED 10%->22% 2026-08-26 (reconstructed after being lost to a race - see docstring
+        # "PE-vs-PB/PS RANKING - REVERSED" note): the "PB weakest" conclusion above turned out
+        # to rest on a selection-biased sample (requiring PE alongside PB/PS excludes
+        # unprofitable/small firms); on a bias-corrected sample PB is robustly the STRONGEST of
+        # the three, not the weakest.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
@@ -1991,13 +2028,16 @@ class StockScoresLoader(OptimalLoader):
                 pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.10
-            total_weight += 0.10
+            weighted_sum += pb_score * 0.22
+            total_weight += 0.22
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
         # Previously fetched and displayed but never weighted (dead field).
         # Weight scaled 22%->18% 2026-08-25 (Size-factor gap, same proportional x0.8 as PE).
+        # RAISED 20%->21% 2026-08-26 (reconstructed after being lost to a race - see docstring
+        # "PE-vs-PB/PS RANKING - REVERSED" note): PS confirmed second-strongest of the three on
+        # the bias-corrected sample.
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps = metrics["ps_ratio"]
             if ps <= 2.0:
@@ -2008,8 +2048,8 @@ class StockScoresLoader(OptimalLoader):
                 ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
             else:
                 ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.20
-            total_weight += 0.20
+            weighted_sum += ps_score * 0.21
+            total_weight += 0.21
 
         # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
         # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
@@ -2034,11 +2074,16 @@ class StockScoresLoader(OptimalLoader):
         # confirmed a real, near-uncorrelated diversifier (t=1.62, directionally right) in the
         # same pass, not a beneficiary of the disputed PE ranking. Scaled 16%->13% same day
         # (Size-factor gap, same proportional x0.8 as PE above).
+        # CUT 13%->10% 2026-08-26 (reconstructed after being lost to a race): the bias-corrected
+        # re-test of the full pillar (see docstring "PE-vs-PB/PS RANKING - REVERSED" note) found
+        # fcf_yield's own sign flipped negative (t=-1.71/-1.75 sub-periods, was +1.62 under the
+        # old selection-biased sample) - treated as a genuine, sample-sensitive null rather than
+        # a confident reversal, so cut modestly (not to zero) to free weight for PB/PS above.
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.13
-            total_weight += 0.13
+            weighted_sum += fcf_score * 0.10
+            total_weight += 0.10
 
         # Dividend yield: bonus signal for income/quality (optional). Unlike fcf_yield,
         # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
