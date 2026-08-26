@@ -227,7 +227,12 @@ class PriceTransformer:
         return is_trading_day
 
     def _validate_row_prices(
-        self, row: dict[str, Any], symbol: str | None, prior_close_by_symbol: dict[str, float | None], tracker: Any
+        self,
+        row: dict[str, Any],
+        symbol: str | None,
+        prior_close_by_symbol: dict[str, float | None],
+        prior_ohlc_by_symbol: dict[str, tuple[float, float, float, float] | None],
+        tracker: Any,
     ) -> tuple[bool, str | None]:
         from utils.data.tick_validator import validate_price_tick
 
@@ -256,8 +261,9 @@ class PriceTransformer:
         if symbol is None:
             return False, None
 
-        # Explicit check for symbol in prior close dict
+        # Explicit check for symbol in prior close/ohlc dicts
         symbol_prior_close = prior_close_by_symbol[symbol] if symbol in prior_close_by_symbol else None
+        symbol_prior_ohlc = prior_ohlc_by_symbol[symbol] if symbol in prior_ohlc_by_symbol else None
         is_valid, errors = validate_price_tick(
             symbol=symbol,
             open_price=open_val,
@@ -267,6 +273,7 @@ class PriceTransformer:
             volume=volume_val,
             prior_close=symbol_prior_close,
             is_etf=(self.asset_class == "etf"),
+            prior_ohlc=symbol_prior_ohlc,
         )
 
         if not is_valid and tracker:
@@ -288,6 +295,7 @@ class PriceTransformer:
         row: dict[str, Any],
         trading_day_set: set[Any] | None,
         prior_close_by_symbol: dict[str, float | None],
+        prior_ohlc_by_symbol: dict[str, tuple[float, float, float, float] | None],
         tracker: Any,
     ) -> tuple[bool, int, int, int]:
         """Process single row; returns (was_valid, non_trading_count, parse_error_count,
@@ -326,7 +334,9 @@ class PriceTransformer:
             logger.warning("[unknown] Missing symbol, skipping row")
             return False, 0, 1, 0
 
-        is_valid, error_msg = self._validate_row_prices(row, symbol, prior_close_by_symbol, tracker)
+        is_valid, error_msg = self._validate_row_prices(
+            row, symbol, prior_close_by_symbol, prior_ohlc_by_symbol, tracker
+        )
         if not is_valid:
             if error_msg:
                 row_date_for_log = row["date"] if "date" in row else None
@@ -347,6 +357,8 @@ class PriceTransformer:
                 # following day's data, typically within one extra rejected day.
                 if error_msg.startswith("price gap > 30%") and "close" in row:
                     prior_close_by_symbol[symbol] = row["close"]
+                    if all(k in row for k in ("open", "high", "low", "close")):
+                        prior_ohlc_by_symbol[symbol] = (row["open"], row["high"], row["low"], row["close"])
             return False, 0, 0, 1
 
         if tracker:
@@ -357,43 +369,53 @@ class PriceTransformer:
                 source_api="yfinance",
             )
         prior_close_by_symbol[symbol] = row["close"] if "close" in row else None
+        if all(k in row for k in ("open", "high", "low", "close")):
+            prior_ohlc_by_symbol[symbol] = (row["open"], row["high"], row["low"], row["close"])
         return True, 0, 0, 0
 
-    def _seed_prior_closes(self, rows: list[dict[str, Any]], min_row_date: Any) -> dict[str, float | None]:
-        """Seed prior_close_by_symbol from the last known-good close already in price_daily,
-        strictly before this batch's earliest date - not an empty dict.
+    def _seed_prior_state(
+        self, rows: list[dict[str, Any]], min_row_date: Any
+    ) -> tuple[dict[str, float | None], dict[str, tuple[float, float, float, float] | None]]:
+        """Seed prior_close_by_symbol AND prior_ohlc_by_symbol from the last known-good row
+        already in price_daily, strictly before this batch's earliest date - not empty dicts.
 
         BUG FOUND 2026-08-26 (real-money-readiness review): without this, prior_close_by_symbol
-        starts empty on every call, and TickValidator._check_sequence's 30%-gap/split-detection
+        started empty on every call, and TickValidator._check_sequence's 30%-gap/split-detection
         check (`if not self.prior_close: return`) silently no-ops for the FIRST row it sees per
         symbol in a batch. A normal daily incremental load passes exactly one row per symbol -
-        so that row is ALWAYS the first one seen, meaning the sequence check has been silently
+        so that row is ALWAYS the first one seen, meaning the sequence check had been silently
         disabled for the routine, everyday ingestion path (only ever engaging within a
         multi-row backfill batch, where row 2+ has a same-batch prior_close). Live-confirmed via
         a self-reverting single-day price spike/dip signature (close jumps >8x from the day
         before AND reverts >8x by the day after - a real move wouldn't undo itself by the next
         print) affecting 553 rows across 261 distinct symbols in just the last 2 years alone (a
         bounded query - the true full-history count is higher), including dates within the last
-        2 weeks (e.g. VSTD repeating the identical anomalous 0.0986 print on 3 separate dates -
-        consistent with a stale/duplicate vendor response, which this file's own docstring lists
-        as an intended check ("5. DUPLICATE") that was never actually implemented in
-        utils/data/tick_validator.py). All affected symbols sampled were marked active=True in
-        stock_symbols, i.e. not structurally excluded from the live trading universe.
+        2 weeks. Fixed same day: [[price_daily_sequence_check_never_fired_daily_loads_fixed_20260826]].
 
-        Best-effort: a seeding failure must not block price ingestion (this closes a validation
-        gap, it doesn't add a hard requirement) - falls back to the pre-fix empty dict on any
-        DB error, same behavior as before this fix.
+        prior_ohlc_by_symbol feeds TickValidator._check_duplicate (added 2026-08-26, same
+        seeding gap - this file's own docstring lists "5. DUPLICATE - same OHLC values
+        repeated (API rate limit hit)" as an intended check that had never actually been
+        implemented). Live-confirmed real and distinct from the sequence-check gap: 770 rows
+        across 243 distinct symbols in price_daily (2025+) have open/high/low/close ALL
+        exactly equal to the prior trading day's values while claiming substantial, DIFFERENT
+        real trading volume on both days - a 0% close-to-close gap (so the sequence check
+        never engages), essentially impossible for two genuinely independent trading sessions.
+        See [[price_daily_duplicate_stale_quote_check_implemented_20260826]].
+
+        Best-effort: a seeding failure must not block price ingestion (this closes validation
+        gaps, it doesn't add a hard requirement) - falls back to empty dicts (pre-fix behavior)
+        on any DB error.
         """
         symbols = {row["symbol"] for row in rows if row.get("symbol")}
         if not symbols:
-            return {}
+            return {}, {}
         try:
             from utils.db.context import DatabaseContext
 
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT DISTINCT ON (symbol) symbol, close
+                    SELECT DISTINCT ON (symbol) symbol, open, high, low, close
                     FROM price_daily
                     WHERE symbol = ANY(%s) AND date < %s AND close IS NOT NULL
                       AND COALESCE(data_unavailable, false) = false
@@ -401,14 +423,20 @@ class PriceTransformer:
                     """,
                     (list(symbols), min_row_date),
                 )
-                return {r[0]: float(r[1]) for r in cur.fetchall()}
+                prior_close_by_symbol: dict[str, float | None] = {}
+                prior_ohlc_by_symbol: dict[str, tuple[float, float, float, float] | None] = {}
+                for r in cur.fetchall():
+                    symbol, o, h, low_p, c = r[0], float(r[1]), float(r[2]), float(r[3]), float(r[4])
+                    prior_close_by_symbol[symbol] = c
+                    prior_ohlc_by_symbol[symbol] = (o, h, low_p, c)
+                return prior_close_by_symbol, prior_ohlc_by_symbol
         except Exception as e:
             logger.warning(
-                f"[PRICE_TRANSFORMER] Failed to seed prior_close_by_symbol from price_daily ({e}) - "
-                "falling back to unseeded validation for this batch (sequence check won't apply to "
-                "each symbol's first row here, same as before this fix)."
+                f"[PRICE_TRANSFORMER] Failed to seed prior state from price_daily ({e}) - "
+                "falling back to unseeded validation for this batch (sequence/duplicate checks "
+                "won't apply to each symbol's first row here, same as before these fixes)."
             )
-            return {}
+            return {}, {}
 
     def validate_and_transform(self, rows: list[dict[str, Any]], tracker: Any = None) -> list[dict[str, Any]]:
         """Validate and filter rows with trading day filtering and provenance tracking.
@@ -444,14 +472,14 @@ class PriceTransformer:
             )
 
         final_validated = []
-        prior_close_by_symbol: dict[str, float | None] = self._seed_prior_closes(rows, min_row_date)
+        prior_close_by_symbol, prior_ohlc_by_symbol = self._seed_prior_state(rows, min_row_date)
         non_trading_filtered = 0
         parse_errors = 0
         validation_rejected = 0
 
         for row in rows:
             is_valid, non_trading, parse_error, val_rejected = self._process_row(
-                row, trading_day_set, prior_close_by_symbol, tracker
+                row, trading_day_set, prior_close_by_symbol, prior_ohlc_by_symbol, tracker
             )
             if is_valid:
                 final_validated.append(row)

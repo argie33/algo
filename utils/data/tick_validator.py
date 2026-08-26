@@ -36,6 +36,7 @@ class TickValidator:
         prior_close: float | None = None,
         is_etf: bool = False,
         security_type: str = "equity",  # 'equity', 'et', 'index'
+        prior_ohlc: tuple[float, float, float, float] | None = None,
     ):
         """
         Args:
@@ -43,11 +44,16 @@ class TickValidator:
             prior_close: Previous close price (for sequence check)
             is_etf: Whether this is an ETF (affects volume thresholds)
             security_type: Type of security for appropriate thresholds
+            prior_ohlc: (open, high, low, close) of the prior trading day, for the
+                duplicate-tick check (item 5 in this class's docstring - documented since
+                this file's introduction but never implemented until 2026-08-26; see
+                [[price_daily_duplicate_stale_quote_check_implemented_20260826]])
         """
         self.symbol = symbol
         self.prior_close = prior_close
         self.is_etf = is_etf
         self.security_type = security_type
+        self.prior_ohlc = prior_ohlc
         self.errors: list[str] = []
 
     def validate(
@@ -103,6 +109,13 @@ class TickValidator:
         # 5. SEQUENCE - can't jump >30% in one day
         if self.prior_close:
             self._check_sequence(open_price, close, volume)
+        if self.errors:
+            return self.errors
+
+        # 6. DUPLICATE - identical OHLC to the prior trading day with real claimed volume
+        # (a stale/cached vendor response, not two genuinely independent trading sessions)
+        if self.prior_ohlc:
+            self._check_duplicate(open_price, high, low, close, volume)
         if self.errors:
             return self.errors
 
@@ -297,6 +310,53 @@ class TickValidator:
                 return True
         return False
 
+    # Tolerance for "same value" on OHLC comparison - tighter than the 30% sequence-check
+    # tolerance since this check exists to catch a value that's IDENTICAL (not merely
+    # similar) to the prior day, i.e. a stale/cached response, not organic price stability.
+    _DUPLICATE_PRICE_TOLERANCE = 1e-6
+
+    def _check_duplicate(
+        self,
+        open_price: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: int,
+    ) -> None:
+        """Item 5 in this class's docstring ("DUPLICATE - same OHLC values repeated (API
+        rate limit hit)") - documented since this file's introduction but never actually
+        implemented until 2026-08-26 (found via a full-repo grep: no _check_duplicate
+        method, no call to any duplicate-detection logic anywhere in validate()).
+
+        Live-confirmed real, ongoing, and distinct from the 30%-gap sequence check fixed
+        the same day ([[price_daily_sequence_check_never_fired_daily_loads_fixed_20260826]]):
+        770 rows across 243 distinct symbols in price_daily (2025+) have open AND high AND
+        low AND close all EXACTLY equal to the immediately prior trading day's values, while
+        claiming substantial and DIFFERENT real trading volume on both days (e.g. one
+        example: 1,212,414 vs 1,604,076 shares, four matching OHLC values to the exact
+        cent/fraction) - a 0% close-to-close gap, so the sequence check's 30% threshold
+        never engages, and genuinely independent trading sessions essentially never produce
+        4 identical values by chance. Consistent with a stale/cached vendor response being
+        served for a new day rather than a fresh quote. Requires volume > 0 (real claimed
+        trading activity) specifically to avoid rejecting a genuinely illiquid symbol's
+        legitimate "last known price carried forward, no new trades" day (see
+        _check_volume_sanity's docstring - zero volume alone isn't an error).
+        """
+        if self.prior_ohlc is None or volume <= 0:
+            return
+        prior_open, prior_high, prior_low, prior_close = self.prior_ohlc
+        tol = self._DUPLICATE_PRICE_TOLERANCE
+        if (
+            abs(open_price - prior_open) <= tol
+            and abs(high - prior_high) <= tol
+            and abs(low - prior_low) <= tol
+            and abs(close - prior_close) <= tol
+        ):
+            self.errors.append(
+                f"duplicate OHLC vs prior day with real volume ({volume}): "
+                f"O={open_price} H={high} L={low} C={close} - suspected stale/cached data"
+            )
+
 
 class TickValidationBatch:
     def __init__(self, symbol: str, is_etf: bool = False):
@@ -304,6 +364,7 @@ class TickValidationBatch:
         self.is_etf = is_etf
         self.ticks: list[dict[str, Any]] = []
         self.prior_close: float | None = None
+        self.prior_ohlc: tuple[float, float, float, float] | None = None
 
     def add_tick(
         self,
@@ -324,6 +385,7 @@ class TickValidationBatch:
             symbol=self.symbol,
             prior_close=self.prior_close,
             is_etf=self.is_etf,
+            prior_ohlc=self.prior_ohlc,
         )
         errors = validator.validate(open_price, high, low, close, volume, date)
 
@@ -339,6 +401,7 @@ class TickValidationBatch:
                 }
             )
             self.prior_close = close
+            self.prior_ohlc = (open_price, high, low, close)
 
         return (len(errors) == 0, errors)
 
@@ -355,6 +418,7 @@ def validate_price_tick(
     volume: int,
     prior_close: float | None = None,
     is_etf: bool = False,
+    prior_ohlc: tuple[float, float, float, float] | None = None,
 ) -> tuple[bool, list[str]]:
     """
     Convenience function to validate a single tick.
@@ -366,6 +430,7 @@ def validate_price_tick(
         symbol=symbol,
         prior_close=prior_close,
         is_etf=is_etf,
+        prior_ohlc=prior_ohlc,
     )
     errors = validator.validate(open_price, high, low, close, volume)
     return (len(errors) == 0, errors)

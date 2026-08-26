@@ -68,6 +68,7 @@ class TestValidationRejectionNotMislabeledParseError:
             {"symbol": "TEST", "date": "not-a-date", "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1},
             trading_day_set=set(),
             prior_close_by_symbol={},
+            prior_ohlc_by_symbol={},
             tracker=None,
         )
         assert len(result) == 4
