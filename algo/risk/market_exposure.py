@@ -550,6 +550,7 @@ class MarketExposure:
     _VOL_MANAGED_REALIZED_WINDOW_DAYS = 21  # 1 trading month, matches Moreira & Muir's own window
     _VOL_MANAGED_CAP_LO = 0.25
     _VOL_MANAGED_CAP_HI = 2.0
+    _VOL_MANAGED_ACTIVATION_DATE = _date(2026, 8, 24)  # Phase B backtest date; pinned to 1.0 (inert) before this
 
     def _vol_managed_multiplier(self, eval_date: _date, cur: PsycopgCursor[Any]) -> float:
         """Layer 2: volatility-managed scaling multiplier (Moreira & Muir, 2017, JoF -
@@ -590,7 +591,16 @@ class MarketExposure:
         missing/insufficient/non-finite data or DB error - this is an optional scaling
         layer on top of the composite, not a required factor; the composite score itself
         must not become unavailable because this layer can't compute.
+
+        Gated on eval_date < _VOL_MANAGED_ACTIVATION_DATE returning inert 1.0: this
+        multiplier was not live in production before that date, so a backfill/recompute
+        for an earlier eval_date must reproduce what was actually decided then, not
+        silently apply today's code to history (that would corrupt the historical record
+        this system's own future regime backtests read as ground truth).
         """
+        if eval_date < self._VOL_MANAGED_ACTIVATION_DATE:
+            return 1.0
+
         try:
             cur.execute(
                 "SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s "
@@ -930,7 +940,11 @@ class MarketExposure:
                 },
                 "vol_managed_scaling": {
                     "multiplier": vol_mult,
-                    "note": "active since 2026-08-24 (Phase B backtest passed on SPY/QQQ)",
+                    "note": (
+                        "active since 2026-08-24 (Phase B backtest passed on SPY/QQQ)"
+                        if eval_date >= self._VOL_MANAGED_ACTIVATION_DATE
+                        else "inert (pinned 1.0): eval_date precedes 2026-08-24 activation"
+                    ),
                 },
             }
 

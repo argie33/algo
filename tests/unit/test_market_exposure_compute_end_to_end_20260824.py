@@ -159,3 +159,38 @@ class TestComputeEndToEndVetoAndVolScaling:
 
         assert any("HY credit spread" in reason for reason in result["halt_reasons"])
         assert result["capped_score"] <= 30.0
+
+
+class TestVolManagedScalingActivationDateGating:
+    """vol_managed_scaling was pinned to inert 1.0 in production before 2026-08-24 (Phase B
+    backtest activation). A recompute/backfill for an eval_date before that must reproduce
+    the real 1.0 that was actually live then, not silently apply today's code to history -
+    otherwise market_exposure_daily rows become look-ahead-contaminated for future regime
+    backtests that read this table as the historical record of what the system decided.
+    """
+
+    def test_real_multiplier_short_circuits_to_inert_before_activation_date(self):
+        me = MarketExposure()
+        fake_cur = MagicMock()
+
+        result = me._vol_managed_multiplier(date(2026, 8, 23), fake_cur)
+
+        assert result == 1.0
+        fake_cur.execute.assert_not_called()
+
+    def test_note_reflects_inert_state_for_pre_activation_eval_date(self):
+        me = _clean_factor_mocks(MarketExposure())
+
+        result = _run_compute(me, date(2026, 8, 20))
+
+        note = result["factors"]["vol_managed_scaling"]["note"]
+        assert "inert" in note
+        assert "2026-08-24" in note
+
+    def test_note_reflects_active_state_on_and_after_activation_date(self):
+        me = _clean_factor_mocks(MarketExposure())
+
+        result = _run_compute(me, date(2026, 8, 24))
+
+        note = result["factors"]["vol_managed_scaling"]["note"]
+        assert note == "active since 2026-08-24 (Phase B backtest passed on SPY/QQQ)"
