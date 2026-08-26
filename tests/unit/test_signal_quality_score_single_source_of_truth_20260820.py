@@ -24,7 +24,11 @@ import inspect
 
 from algo.orchestrator import phase7_signal_generation
 from loaders import load_signal_quality_scores
-from loaders.signal_quality_scorer import COMPONENT_MAXES, compute_signal_quality_components
+from loaders.signal_quality_scorer import (
+    BUY_COMPOSITE_EXCLUDED_COMPONENTS,
+    COMPONENT_MAXES,
+    compute_signal_quality_components,
+)
 
 
 class TestSharedCompositeFormulaUsedEverywhere:
@@ -67,6 +71,12 @@ class TestComponentMaxesUnchanged:
             "vcp_pattern": 10,
         }
 
+    def test_buy_composite_excluded_components(self):
+        """Guards the 2026-08-26 evidence-based exclusion itself - a change here silently
+        reweights every live BUY composite_sqs at once, so it needs to be a deliberate,
+        visible diff backed by its own evidence, not an incidental one."""
+        assert BUY_COMPOSITE_EXCLUDED_COMPONENTS == frozenset({"volume_confirmation"})
+
 
 class TestComputeSignalQualityComponents:
     def test_only_3_of_7_components_available_is_normalized_not_raw_capped_at_95(self):
@@ -91,10 +101,37 @@ class TestComputeSignalQualityComponents:
         # without input data - only institutional_ownership and vcp_pattern are genuinely
         # excluded here since no data was supplied for them.
         assert result["unavailable_components"] == ["institutional_ownership", "vcp_pattern"]
-        # base=50/50, volume=20/20, trend=25/25, distance=0/15, market_stage=10/10 (stage 2)
-        # -> (50+20+25+0+10) / (50+20+25+15+10) * 100 = 105/120*100 = 87
-        assert result["composite_sqs"] == 87
+        # base=50/50, volume=20/20 (still computed/returned, but excluded from the BUY
+        # composite's weighting since 2026-08-26 - see BUY_COMPOSITE_EXCLUDED_COMPONENTS),
+        # trend=25/25, distance=0/15, market_stage=10/10 (stage 2)
+        # -> (50+25+0+10) / (50+25+15+10) * 100 = 85/100*100 = 85
+        assert result["composite_sqs"] == 85
         assert result["composite_sqs"] != min(100, 50 + 20 + 25)  # the old buggy value (95)
+
+    def test_sell_composite_untouched_by_the_buy_only_exclusion(self):
+        """The 2026-08-26 volume_confirmation exclusion is scoped to BUY only - it was
+        never tested for SELL (whose RSI 20-60/bearish-MACD criteria are a different
+        economic claim) and SELL isn't consumed by real trade entry anyway (long-only in
+        practice - Phase 7 filters to signal='BUY'). Same inputs as the BUY test above,
+        signal_type='SELL': volume_confirmation must still count toward the composite."""
+        result = compute_signal_quality_components(
+            signal_type="SELL",
+            rsi=40.0,  # inside SellSignalScorer's 20-60 confirmation band
+            macd=0.5,
+            macd_signal=1.0,  # macd < macd_signal - bearish cross, SELL's confirmation condition
+            minervini_score=1.0,
+            weinstein_stage=4,
+            percent_from_52w_high=None,
+            institutional_ownership=None,
+            vcp_strength=None,
+        )
+        # base=45/50 (SELL's base ceiling is still 50, same COMPONENT_MAXES as BUY - it just
+        # doesn't reach it), volume=20/20 (still counted - this is the point of the test),
+        # trend=25/25 (minervini<2 + stage 4 both max SELL's inverted criteria),
+        # distance=0/15, market_stage=5/10 (stage 4 -> score_market_stage's (1,4) tier, not
+        # the (2,3) tier that scores 10)
+        # -> (45+20+25+0+5) / (50+20+25+15+10) * 100 = 95/120*100 = 79
+        assert result["composite_sqs"] == 79
 
     def test_matches_batch_loader_composite_for_equivalent_inputs(self):
         """Cross-check: compute_signal_quality_components() must produce the exact composite

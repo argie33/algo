@@ -32,6 +32,28 @@ COMPONENT_MAXES: dict[str, int] = {
     "vcp_pattern": 10,
 }
 
+# Evidence-based exclusion from the BUY composite's WEIGHTING only (2026-08-26 real-money-
+# readiness review; algo/research/signal_quality_score_historical_backtest.py). A 10-year,
+# 125-independent-month Fama-MacBeth backtest (8,131 reconstructed BUY signals, 150 liquid
+# symbols) found volume_confirmation_score (RSI 40-80 + bullish MACD cross) has a
+# STATISTICALLY SIGNIFICANT NEGATIVE correlation with forward returns at 2 of 3 horizons
+# (5d t=-2.59, 10d t=-1.81, 20d t=-2.41) - stocks already showing "confirmed" bullish
+# RSI/MACD right at breakout tended to underperform subsequently over the tested window,
+# plausibly short-term mean-reversion after an already-extended move - the opposite of what
+# a quality filter should reward. trend_template_score and market_stage_score (both
+# Weinstein-stage-derived) showed the right sign consistently (5d t=+1.37/+1.93, not yet
+# individually significant); distance_from_high_score showed no reliable signal either way -
+# neither was touched. This composite's overall null result (t~0) was masking this real
+# negative signal offsetting the real positive ones.
+#
+# Still computed and returned for display/analytics (volume_confirmation_score in the return
+# dict, still counted toward data_completeness - the underlying RSI/MACD data IS available,
+# this is a weighting decision, not a data-availability one) - only excluded from
+# total_max/composite_sqs. SELL is untouched (not tested, no evidence either way, and SELL
+# isn't consumed by real trade entry - Phase 7 filters to signal='BUY' only, this system is
+# long-only in practice).
+BUY_COMPOSITE_EXCLUDED_COMPONENTS: frozenset[str] = frozenset({"volume_confirmation"})
+
 
 class SignalQualityScorer(ABC):
     """Base strategy for signal quality scoring."""
@@ -265,6 +287,10 @@ def compute_signal_quality_components(
     of each component's own percentage, and NOT a raw point-sum clamped at 100. Both of
     those alternatives were shipped and fixed as real bugs previously - see
     tests/unit/test_signal_quality_composite_weighting.py.
+
+    For BUY, components in BUY_COMPOSITE_EXCLUDED_COMPONENTS are still computed and
+    returned (display/analytics, still counted toward data_completeness) but excluded from
+    total_max/composite_sqs - see that constant's docstring for the backtest evidence.
     """
     scorer = get_signal_scorer(signal_type)
     base_quality_score = scorer.calculate_base_quality_score()
@@ -280,14 +306,18 @@ def compute_signal_quality_components(
         "market_stage": score_market_stage(weinstein_stage),
         "vcp_pattern": score_vcp_pattern(vcp_strength),
     }
+    composite_excluded = BUY_COMPOSITE_EXCLUDED_COMPONENTS if signal_type == "BUY" else frozenset()
+    weighted_components = {k: v for k, v in all_components.items() if k not in composite_excluded}
 
-    available_maxes = {k: COMPONENT_MAXES[k] for k, v in all_components.items() if v is not None}
+    available_maxes = {k: COMPONENT_MAXES[k] for k, v in weighted_components.items() if v is not None}
     unavailable_components = [k for k, v in all_components.items() if v is None]
     total_max = sum(available_maxes.values())
     composite_sqs = (
-        int(sum(v for v in all_components.values() if v is not None) / total_max * 100) if total_max > 0 else 0
+        int(sum(v for v in weighted_components.values() if v is not None) / total_max * 100) if total_max > 0 else 0
     )
-    data_completeness = min(99.99, round((len(available_maxes) / len(COMPONENT_MAXES)) * 100, 2))
+    data_completeness = min(
+        99.99, round((len(available_maxes) / (len(COMPONENT_MAXES) - len(composite_excluded))) * 100, 2)
+    )
 
     return {
         "base_quality_score": int(base_quality_score),

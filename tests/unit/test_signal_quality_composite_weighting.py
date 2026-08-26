@@ -52,9 +52,14 @@ def test_composite_weights_by_component_max_not_equal_average():
     # Available components: base_quality=50/50, volume_confirmation=0/20,
     # trend_template=0/25, distance_from_high=0/15, institutional_ownership=10/10,
     # market_stage=0/10 (vcp_pattern is None/unavailable, excluded).
-    # Weighted-sum-over-available-maxes: (50+0+0+0+10+0) / (50+20+25+15+10+10) * 100
-    expected_total_max = 50 + 20 + 25 + 15 + 10 + 10
-    expected_numerator = 50 + 0 + 0 + 0 + 10 + 0
+    # volume_confirmation is ALSO excluded from the BUY composite's weighting (2026-08-26,
+    # see loaders/signal_quality_scorer.py::BUY_COMPOSITE_EXCLUDED_COMPONENTS - a 10-year
+    # backtest found it has a statistically significant NEGATIVE correlation with forward
+    # returns, the opposite of what a quality filter should reward).
+    # Weighted-sum-over-available-maxes, volume_confirmation excluded:
+    # (50+0+0+10+0) / (50+25+15+10+10) * 100
+    expected_total_max = 50 + 25 + 15 + 10 + 10
+    expected_numerator = 50 + 0 + 0 + 10 + 0
     expected_composite = int(expected_numerator / expected_total_max * 100)
 
     assert row["composite_sqs"] == expected_composite
@@ -66,7 +71,7 @@ def test_composite_weights_by_component_max_not_equal_average():
     # plausible-looking value comes out.
     old_buggy_composite = int(sum([100, 0, 0, 0, 100, 0]) / 6)
     assert row["composite_sqs"] != old_buggy_composite
-    assert row["composite_sqs"] == 46
+    assert row["composite_sqs"] == 54
 
 
 def test_composite_is_bounded_when_all_components_present_and_maxed():
