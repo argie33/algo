@@ -319,15 +319,6 @@ VALIDATION_SCHEMA = {
     # Grade Override Configuration
     "grade_override_enabled": ("bool", None, None, False, False),
     "grade_override_max_duration_minutes": ("int", 1, 10000, False, 60),
-    # Swing Score Weights
-    # Stored and consumed as whole-number percentages (0-100), not fractions --
-    # see algo/orchestration/weight_optimizer.py (MIN_WEIGHT=3, MAX_WEIGHT=40) and
-    # migrations/versions/018_reseed_algo_config.py's seed values (25, 20, 20, 12, 10, 8, 5).
-    "swing_weight_momentum": ("int", 0, 100, False, 20),
-    "swing_weight_volume": ("int", 0, 100, False, 12),
-    "swing_weight_fundamentals": ("int", 0, 100, False, 10),
-    "swing_weight_sector": ("int", 0, 100, False, 8),
-    "swing_weight_multi_timeframe": ("int", 0, 100, False, 5),
     # Corporate Action Configuration
     "patrol_corporate_action_lookback_days": ("int", 1, 365, False, 30),
     # Negative: a single-day price drop signaling a likely split/reverse-split (see
@@ -386,9 +377,6 @@ VALIDATION_SCHEMA = {
     "stale_loader_threshold_minutes": ("int", 1, 1440, False, 60),  # Alert if loader stale
     "stale_order_alert_minutes": ("int", 1, 1440, False, 30),  # Alert if order pending
     "stale_order_auto_cancel_minutes": ("int", 1, 1440, False, 120),  # Auto-cancel stale orders
-    # Swing Score Weights - Setup Phase
-    "swing_weight_setup": ("int", 0, 100, False, 25),  # Setup quality weight
-    "swing_weight_trend": ("int", 0, 100, False, 20),  # Trend quality weight
     # API Configuration
     "alpaca_api_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),  # Alpaca API base URL
     # Retry Configuration

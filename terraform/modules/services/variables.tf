@@ -782,21 +782,6 @@ variable "rds_security_group_id" {
   default     = ""
 }
 
-# ============================================================
-# Weight Optimization Task Configuration
-# ============================================================
-
-variable "weight_optimization_task_definition_arn" {
-  description = "ARN of the weight optimization ECS task definition (from loaders module)"
-  type        = string
-  default     = ""
-}
-
-variable "algo_lambda_sg_id" {
-  description = "Security group ID for algo Lambda (for ECS task networking)"
-  type        = string
-  default     = ""
-}
 
 variable "node_env" {
   description = "Node.js environment (development, production)"
@@ -861,4 +846,3 @@ variable "eod_pipeline_state_machine_arn" {
 # ============================================================
 # Data Loader Pipeline Schedulers
 # ============================================================
-

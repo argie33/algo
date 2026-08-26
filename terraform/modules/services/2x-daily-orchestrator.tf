@@ -225,56 +225,6 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 }
 
 # ============================================================
-# Daily Weight Optimization (6:00 PM ET)
-# Runs AFTER orchestrator completion to trigger continuous improvement loop
-# Invokes: loaders/load_weight_optimization.py via ECS scheduled task
-# - Populates signal_trade_performance from closed trades
-# - Computes IC (Information Coefficient) per component
-# - Adapts swing_score weights based on realized P&L
-# - Logs changes to algo_weight_history
-# - Weekly: walk-forward backtest validation (Fridays)
-# ============================================================
-
-# Weight optimization scheduler - enabled when weight_optimization_task_definition_arn is provided
-# The ARN is passed from the loaders module output to enable this scheduler
-resource "aws_scheduler_schedule" "weight_optimization" {
-  count = var.weight_optimization_task_definition_arn != "" ? 1 : 0
-
-  name                         = "${var.project_name}-weight-optimization-${var.environment}"
-  description                  = "Daily weight optimization: 6:00 PM ET (after orchestrator, continuous improvement loop)"
-  schedule_expression          = "cron(0 18 ? * MON-FRI *)" # 6:00 PM ET (America/New_York auto-handles EST/EDT)
-  schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  # Target: invoke weight optimization ECS task via Lambda bridge
-  # (EventBridge Scheduler doesn't support direct ECS task scheduling in all regions,
-  #  so we use Lambda as a bridge to invoke the ECS task)
-  target {
-    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
-    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
-    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
-    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      source                              = "eventbridge-scheduler"
-      trigger_type                        = "daily_optimization"
-      run_date                            = "now"
-      lookback_days                       = 7
-      dry_run                             = false
-      weight_optimization_task_arn        = var.weight_optimization_task_definition_arn
-      weight_optimization_cluster_arn     = var.ecs_cluster_arn
-      weight_optimization_subnets         = var.private_subnet_ids
-      weight_optimization_security_groups = [var.algo_lambda_sg_id]
-    })
-  }
-}
-
-# ============================================================
 # Data Patrol Schedule (Handled by Step Functions EOD Pipeline)
 # ============================================================
 # Data patrol runs as part of the EOD pipeline (4:05 PM ET) in Step Functions,

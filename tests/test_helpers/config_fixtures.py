@@ -149,14 +149,7 @@ BASE_CONFIG: dict[str, Any] = {
     "min_order_size_dollars": 100.0,
     "phase1_min_coverage_pct": 75,
     "phase1_min_symbol_count": 8000,
-    # Swing Trader Score Weights
-    "swing_weight_setup": 25,
-    "swing_weight_trend": 20,
-    "swing_weight_momentum": 20,
-    "swing_weight_volume": 12,
-    "swing_weight_fundamentals": 10,
-    "swing_weight_sector": 8,
-    "swing_weight_multi_timeframe": 5,
+    # Swing Trader Score Thresholds
     "swing_min_trend_score": 5,
     "swing_min_industry_rank": 100,
     "swing_days_to_earnings_block": 5,
@@ -217,7 +210,6 @@ def bull_market_config() -> dict[str, Any]:
             "vix_caution_risk_reduction": 0.9,  # Less reduction when VIX rises
             "require_stage_2_market": False,  # Less strict market requirement
             "max_distribution_days": 5,  # Tolerate more distribution
-            "swing_weight_momentum": 25,  # Weight momentum more in bull
         }
     )
     return config

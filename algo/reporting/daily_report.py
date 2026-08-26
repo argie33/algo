@@ -47,12 +47,6 @@ class DailyFinanceReport:
                 report["strategy"] = {}
 
             try:
-                report["components"] = self._fetch_components(cur, report_date)
-            except (RuntimeError, ValueError) as e:
-                logger.warning(f"Component data unavailable: {e}")
-                report["components"] = {}
-
-            try:
                 report["regime"] = self._fetch_regime(report_date)
             except RuntimeError as e:
                 logger.warning(f"Regime data unavailable: {e}")
@@ -268,60 +262,6 @@ class DailyFinanceReport:
                 "details": f"{type(e).__name__}: {str(e)[:100]}",
             }
 
-    def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """IC and weight for each component.
-
-        CORRECTED 2026-08-25 (goal: "before real money" live-run sweep): SignalAttributionEngine
-        (algo/signals/attribution.py) is PERMANENTLY deprecated - swing_trader_scores was
-        removed and compute_ic() always returns every component data_unavailable=True by
-        design, not just early in the day. `algo_component_attribution`'s newest row is over a
-        month stale (last written before the deprecation landed) and Phase 9's
-        `_compute_signal_attribution` guards persist() specifically to avoid writing more
-        all-NULL rows now - this table will not receive new data again while the engine stays
-        deprecated. The previous wording here ("may not be available early in the day... wait
-        for end-of-day loaders") implied a same-day timing gap that doesn't exist - this is a
-        permanent, by-design analytics-only gap (does not affect trading), not a race with a
-        loader that will eventually catch up. Returns empty dict when unavailable - the report
-        can still be generated without component analysis.
-        """
-        try:
-            cur.execute(
-                """
-                SELECT component, ic_value, ic_pvalue FROM algo_component_attribution
-                WHERE report_date = %s
-                ORDER BY component
-                """,
-                (report_date,),
-            )
-            rows = cur.fetchall()
-
-            if not rows:
-                logger.info(
-                    f"[DAILY_REPORT] No component attribution data available for {report_date} "
-                    f"(SignalAttributionEngine is permanently deprecated - this is expected, not "
-                    f"a timing gap)."
-                )
-                return {
-                    "data_unavailable": True,
-                    "reason": "no_component_attribution_data",
-                    "details": "SignalAttributionEngine is permanently deprecated; no new data will be written",
-                }
-
-            components = {}
-            for comp, ic, pval in rows:
-                if ic is not None and pval is not None:
-                    components[comp] = {
-                        "ic": round(float(ic), 3),
-                        "pvalue": round(float(pval), 3),
-                        "status": self._ic_interpretation(float(ic)),
-                    }
-                else:
-                    components[comp] = {"status": "no_data"}
-
-            return components
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Component data conversion failed for {report_date}: {e}") from e
-
     def _fetch_regime(self, report_date: _date) -> dict[str, Any]:
         """Current regime and parameter multipliers."""
         regime = self.regime_mgr.get_current_regime(report_date)
@@ -435,8 +375,6 @@ class DailyFinanceReport:
         regime = report["regime"]
         if not regime:
             raise ValueError("Report missing required field: regime")
-        components = report.get("components", {})
-        # components can be empty dict when SignalAttributionEngine is deprecated or data not yet available
         portfolio = report["portfolio"]
         if not portfolio:
             raise ValueError("Report missing required field: portfolio")
@@ -482,32 +420,7 @@ class DailyFinanceReport:
             "",
             "Strategy (last 50 trades):",
             f"  Win rate: {win_rate_str} | Profit factor: {profit_factor_str} | Expectancy: {exp_r_str}",
-            "",
-            "Component IC (alpha contribution):",
         ]
-
-        for comp in [
-            "setup_quality",
-            "trend_quality",
-            "momentum_rs",
-            "volume",
-            "fundamentals",
-            "sector_industry",
-            "multi_timeframe",
-        ]:
-            if comp not in components:
-                lines.append(f"  {comp:20s} r=N/A        MISSING")
-                continue
-
-            comp_data = components[comp]
-            status = comp_data["status"]
-
-            if status == "no_data":
-                lines.append(f"  {comp:20s} r=N/A        {status.upper():10s}")
-            else:
-                ic = comp_data["ic"]
-                status_marker = "*" if status == "strong" else "◇" if status == "moderate" else " "
-                lines.append(f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}")
 
         signals = report["signals"]
         candidates_date = signals.get("candidates_date")
@@ -567,19 +480,6 @@ class DailyFinanceReport:
             warnings.append(f"[WARN]️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")
 
         return warnings
-
-    def _ic_interpretation(self, ic_value: float) -> str:
-        """Interpret IC value."""
-        if ic_value >= 0.40:
-            return "strong"
-        elif ic_value >= 0.25:
-            return "moderate"
-        elif ic_value >= 0.10:
-            return "weak"
-        elif ic_value >= 0:
-            return "noise"
-        else:
-            return "negative"  # anti-predictive - signal has inverted
 
     def _count_open_positions(self, cur: Any, report_date: _date) -> int:
         """Count open positions."""

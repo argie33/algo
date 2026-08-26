@@ -1144,16 +1144,6 @@ class AlgoConfig:
             "SQL Query Configuration",
         ),
         # Retry Configuration (replaces 3 hardcoded retry counts)
-        # Swing score component weights (must mirror VALIDATION_SCHEMA's fail_closed values --
-        # these keys had no DEFAULTS entry at all, so AlgoConfig.get() returned None whenever the
-        # database row was missing or failed validation, with no fallback to fall back to. This
-        # broke WeightOptimizer.get_current_weights() every time it ran, halting Phase 9 on every
-        # single orchestrator run with "Weight config key ... returned None").
-        "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %", "Swing Scoring"),
-        "swing_weight_volume": ("12", "int", "Swing score: Volume weight %", "Swing Scoring"),
-        "swing_weight_fundamentals": ("10", "int", "Swing score: Fundamentals weight %", "Swing Scoring"),
-        "swing_weight_sector": ("8", "int", "Swing score: Sector/industry weight %", "Swing Scoring"),
-        "swing_weight_multi_timeframe": ("5", "int", "Swing score: Multi-timeframe weight %", "Swing Scoring"),
         # API & Data Configuration
         "alpaca_api_key": ("", "string", "Alpaca API key (from environment)", "System"),
         "alpaca_api_secret": ("", "string", "Alpaca API secret (from environment)", "System"),
@@ -1315,19 +1305,6 @@ class AlgoConfig:
             "int",
             "Auto-cancel if order pending for this many minutes",
             "Risk Management",
-        ),
-        # Swing Score Weights (Setup and Trend)
-        "swing_weight_setup": (
-            "25",
-            "int",
-            "Swing score: Setup quality weight %",
-            "Swing Scoring",
-        ),
-        "swing_weight_trend": (
-            "20",
-            "int",
-            "Swing score: Trend quality weight %",
-            "Swing Scoring",
         ),
         # API Configuration
         "alpaca_api_base_url": (

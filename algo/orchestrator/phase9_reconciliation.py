@@ -522,68 +522,6 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
     return trades_processed
 
 
-def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
-    from algo.signals.attribution import SignalAttributionEngine
-
-    attr_result: dict[str, Any] = {}
-    available_components = 0
-
-    # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own
-    # module docstring: "swing scores have been removed; this module ... returns
-    # unavailable data") - compute_ic() always returns every component marked
-    # data_unavailable=True, never a real ic_value. This is EXPECTED behavior.
-    # Even though the feature is deprecated, we run it and guard persist() to avoid
-    # writing all-NULL rows on every Phase 9 run when all components are unavailable.
-    # This does NOT affect trading - signal attribution is for analytics/backtesting only.
-    try:
-        attribution = SignalAttributionEngine()
-        attr_result = attribution.compute_ic(run_date, lookback_trades=40)
-        total_components = len(attr_result)
-        logger.info(
-            f"Signal attribution: IC computed for {total_components} components "
-            f"(deprecated feature - data unavailable is EXPECTED, not an error)"
-        )
-        for comp, ic_data in attr_result.items():
-            ic_value = ic_data.get("ic_value")
-            ic_pvalue = ic_data.get("ic_pvalue")
-            if ic_value is None or ic_pvalue is None:
-                if ic_data.get("data_unavailable"):
-                    if "reason" not in ic_data or ic_data["reason"] is None:
-                        logger.critical(
-                            f"[PHASE 9 CRITICAL] IC data marked unavailable but missing 'reason' field. "
-                            f"Component: {comp}. Data keys: {list(ic_data.keys())}. "
-                            f"Cannot determine why IC is unavailable. Check upstream IC calculation."
-                        )
-                        raise ValueError(
-                            f"[PHASE 9] IC data for {comp} marked unavailable but missing 'reason' field. "
-                            "Cannot proceed with incomplete data_unavailable marker."
-                        )
-                    reason = ic_data["reason"]
-                    logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
-                    continue
-                logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
-                raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
-            available_components += 1
-            logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
-
-        # Guard: only persist if at least one component has real data (not all unavailable)
-        if available_components > 0:
-            attribution.persist(run_date, attr_result)
-            status = "success"
-            summary = f"{available_components}/{total_components} components analyzed"
-        else:
-            # All components deprecated/unavailable - don't persist null rows
-            status = "warn"
-            summary = f"0/{total_components} components available (feature deprecated)"
-    except Exception as e:
-        logger.error(f"[ATTRIBUTION] Signal attribution computation failed: {e}")
-        status = "warn"
-        summary = f"Signal attribution failed: {e}"
-
-    log_phase_result_fn(9, "ic_computation", status, summary)
-    return attr_result
-
-
 def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
     from algo.reporting import DailyFinanceReport
 
@@ -1009,140 +947,6 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
         raise RuntimeError(error_msg) from e
     finally:
         log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
-
-
-def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
-    """Run weight optimization. Gracefully skip if regime data unavailable (data quality issue, not code bug)."""
-    from algo.infrastructure.config.main import AlgoConfig
-    from algo.orchestration import RegimeManager as _RegimeManager
-    from algo.orchestration import WeightOptimizer
-
-    opt_result: dict[str, Any] = {"changes": []}
-    try:
-        # CRITICAL: Validate config is actually an AlgoConfig instance
-        # This prevents obscure errors and provides clear failure message
-        if config is None:
-            raise ValueError(
-                "[PHASE 9 CRITICAL] config is None when calling weight optimizer. "
-                "Configuration must be passed explicitly through entire phase chain."
-            )
-
-        # Verify config is an AlgoConfig instance (not a dict or other type)
-        if not isinstance(config, AlgoConfig):
-            logger.error(
-                f"[PHASE 9] Config type mismatch: expected AlgoConfig, got {type(config).__module__}.{type(config).__name__}. "
-                f"Skipping weight optimization to prevent downstream failures. "
-                f"This indicates config was transformed or incorrectly passed from orchestrator."
-            )
-            log_phase_result_fn(9, "weight_optimization", "skipped", f"config type error: {type(config).__name__}")
-            return {"success": True, "changes": [], "skipped": True, "reason": "config type mismatch"}
-
-        if not hasattr(config, "get"):
-            raise ValueError(
-                f"[PHASE 9 CRITICAL] config missing get() method. "
-                f"Expected AlgoConfig, received {type(config).__name__}. "
-                f"This indicates config transformation or incorrect type passed from orchestrator."
-            )
-        if not hasattr(config, "set"):
-            raise ValueError(
-                f"[PHASE 9 CRITICAL] config missing set() method. "
-                f"Expected AlgoConfig, received {type(config).__name__}. "
-                f"This indicates config transformation or incorrect type passed from orchestrator."
-            )
-
-        try:
-            _current_regime = _RegimeManager().get_current_regime(run_date)
-        except RuntimeError as regime_e:
-            # FAIL-FAST: Regime data unavailable is a critical data quality issue
-            # Weight optimization requires market regime data; without it, portfolio management is incomplete.
-            # Do not silently skip optimization - surface the data quality issue to operators.
-            error_msg = (
-                f"[PHASE 9 FAIL-FAST] Market regime data unavailable: {regime_e}. "
-                f"Cannot optimize portfolio weights without market exposure analysis. "
-                f"This indicates Phase 5 (Exposure Policy) did not complete successfully. "
-                f"Check Phase 5 logs and market_exposure_daily table for data availability."
-            )
-            logger.critical(error_msg)
-            log_phase_result_fn(9, "weight_optimization", "error", f"regime unavailable: {str(regime_e)[:60]}")
-            raise RuntimeError(error_msg) from regime_e
-
-        optimizer = WeightOptimizer(config)
-        opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)
-
-        # FAIL-FAST: Check if optimization failed and raise immediately
-        # Don't silently continue with unoptimized weights - surface real errors to operators
-        if not opt_result.get("success", False):
-            error_msg = (
-                f"[PHASE 9] Weight optimization failed. "
-                f"Cannot proceed with unoptimized portfolio weights. "
-                f"Error: {opt_result.get('error', 'Unknown error')}. "
-                f"Check Information Coefficient data and trade history availability."
-            )
-            logger.critical(error_msg)
-            raise RuntimeError(error_msg)
-
-        if opt_result.get("changes"):
-            logger.info(f"Weight optimization: {len(opt_result['changes'])} changes applied")
-            for change in opt_result["changes"]:
-                logger.info(f"  {change['component']}: {change['old_weight']}% -> {change['new_weight']}%")
-        else:
-            logger.info("Weight optimization: no changes (insufficient trades or weights stable)")
-    except ValueError as e:
-        error_msg = (
-            f"CRITICAL: Weight optimization failed: {e}. "
-            f"Cannot optimize portfolio weights without sufficient trade history. "
-            f"Portfolio exposure remains unoptimized and unvalidated."
-        )
-        logger.critical(error_msg)
-        raise ValueError(error_msg) from e
-    except ImportError as e:
-        error_msg = (
-            f"CRITICAL: Weight optimization requires scipy/numpy (not available): {e}. "
-            f"Cannot optimize portfolio without mathematical dependencies. "
-            f"Install: pip install scipy numpy"
-        )
-        logger.critical(error_msg)
-        raise RuntimeError(error_msg) from e
-    except Exception as e:
-        error_msg = f"CRITICAL: Weight optimization failed unexpectedly: {e}"
-        logger.critical(error_msg, exc_info=True)
-        raise RuntimeError(error_msg) from e
-
-    if opt_result is None:
-        error_msg = (
-            "Weight optimization failed or did not complete, reconciliation cannot proceed. "
-            "WeightOptimizer.apply() returned None instead of a result dictionary. "
-            "This indicates an internal failure in the optimization engine."
-        )
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
-
-    # CRITICAL: Explicit validation - no silent empty list defaults
-    changes = opt_result.get("changes")
-    if changes is None:
-        raise ValueError(
-            "[PHASE 9] Weight optimization result missing 'changes' field. "
-            "Optimization failed or returned malformed data. Cannot proceed with reconciliation."
-        )
-    if not isinstance(changes, list):
-        raise ValueError(
-            f"[PHASE 9] Weight optimization 'changes' is not a list: {type(changes)}. "
-            "Data structure corrupted or optimization returned invalid type."
-        )
-    if "success" not in opt_result:
-        raise RuntimeError(
-            "[PHASE 9] CRITICAL: weight optimization result missing 'success' field. "
-            "Cannot determine if optimization completed successfully. "
-            "Check weight_optimizer.optimize() return value."
-        )
-    opt_status = "success" if opt_result["success"] else "warn"
-    log_phase_result_fn(
-        9,
-        "weight_optimization",
-        opt_status,
-        f"{len(changes) if changes else 0} weight changes",
-    )
-    return opt_result
 
 
 def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None:
@@ -1916,30 +1720,10 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         # Step 1: Populate signal_trade_performance from closed trades
         _populate_signal_trade_performance(log_phase_result_fn)
 
-        # Step 2: Compute IC via attribution engine
-        _compute_signal_attribution(run_date, log_phase_result_fn)
-
-        # Step 3: Run weight optimization (if enough trades)
-        # Weight optimization raises explicit RuntimeError/ValueError on critical failures.
-        # These must propagate to halt Phase 9 per GOVERNANCE (fail-fast on missing data).
-        # Only catch ImportError (optional scipy/numpy dependency).
-        try:
-            _optimize_weights(config, run_date, log_phase_result_fn)
-        except ImportError as e:
-            error_msg = (
-                f"[PHASE 9] Weight optimization requires scipy/numpy (not available): {e}. "
-                f"This is a setup issue, not a data quality issue. "
-                f"Install: pip install scipy numpy"
-            )
-            logger.error(error_msg)
-            log_phase_result_fn(9, "weight_optimization", "warn", "dependency missing: scipy/numpy")
-            # Don't raise - scipy is optional for setup, but if weight optimization fails
-            # for data reasons, that WILL be caught and raised above
-
-        # Step 4: Generate institutional daily report
+        # Step 2: Generate institutional daily report
         _generate_daily_report(run_date, log_phase_result_fn)
 
-        # Step 5: Compute and log live performance metrics (always run, even on non-trading days)
+        # Step 3: Compute and log live performance metrics (always run, even on non-trading days)
         # Performance metrics raises explicit RuntimeError/ValueError on critical failures.
         # These must propagate to halt Phase 9 per GOVERNANCE (fail-fast on missing data).
         # Only catch ImportError (optional scipy/numpy dependency).
@@ -1956,12 +1740,12 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
             # Don't raise - scipy is optional for setup, but if perf metrics fails
             # for data reasons, that WILL be caught and raised above
 
-        # Step 6: Compute and log risk metrics (always run, even on non-trading days)
+        # Step 4: Compute and log risk metrics (always run, even on non-trading days)
         # Risk metrics computation MUST succeed - it feeds position sizing and risk limits.
         # Fail-fast per GOVERNANCE if risk data unavailable.
         _compute_risk_metrics(config, run_date, log_phase_result_fn)
 
-        # Step 7: Update algo_metrics_daily with actual trade results from this run
+        # Step 5: Update algo_metrics_daily with actual trade results from this run
         # Metrics update must persist trade results to audit trail.
         # Fail-fast per GOVERNANCE - audit trail integrity is non-negotiable.
         _update_daily_metrics(run_date, log_phase_result_fn)

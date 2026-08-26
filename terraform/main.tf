@@ -319,7 +319,6 @@ module "services" {
   rds_security_group_id                  = module.vpc.rds_security_group_id
   enable_execution_monitor               = var.enable_execution_monitor
   enable_execution_monitor_schedule      = var.enable_execution_monitor_schedule
-  algo_lambda_sg_id                      = module.vpc.algo_lambda_security_group_id
   node_env                               = local.node_env
   dev_mode                               = local.dev_mode
   alert_email_to                         = var.alert_email_to

@@ -119,15 +119,12 @@ PIPELINE_REMOVED_TABLES = {
     # Alpha/ML archive (historical experiments)
     "algo_model_registry",
     "algo_champion_challenger",
-    "algo_component_attribution",
-    "algo_information_coefficient",
     "algo_position_sizing_audit",
     "algo_stop_loss_audit",
     "algo_tca",
     "algo_trade_adds",
     "algo_trade_r_distribution",
     "algo_exit_rules_distribution",
-    "algo_weight_history",
     "algo_daily_return_histogram",  # Analytics table (empty)
     "algo_data_patrol",  # Analytics table (empty)
     "algo_holding_period_histogram",  # Analytics table (empty)
