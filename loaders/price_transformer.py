@@ -359,6 +359,57 @@ class PriceTransformer:
         prior_close_by_symbol[symbol] = row["close"] if "close" in row else None
         return True, 0, 0, 0
 
+    def _seed_prior_closes(self, rows: list[dict[str, Any]], min_row_date: Any) -> dict[str, float | None]:
+        """Seed prior_close_by_symbol from the last known-good close already in price_daily,
+        strictly before this batch's earliest date - not an empty dict.
+
+        BUG FOUND 2026-08-26 (real-money-readiness review): without this, prior_close_by_symbol
+        starts empty on every call, and TickValidator._check_sequence's 30%-gap/split-detection
+        check (`if not self.prior_close: return`) silently no-ops for the FIRST row it sees per
+        symbol in a batch. A normal daily incremental load passes exactly one row per symbol -
+        so that row is ALWAYS the first one seen, meaning the sequence check has been silently
+        disabled for the routine, everyday ingestion path (only ever engaging within a
+        multi-row backfill batch, where row 2+ has a same-batch prior_close). Live-confirmed via
+        a self-reverting single-day price spike/dip signature (close jumps >8x from the day
+        before AND reverts >8x by the day after - a real move wouldn't undo itself by the next
+        print) affecting 553 rows across 261 distinct symbols in just the last 2 years alone (a
+        bounded query - the true full-history count is higher), including dates within the last
+        2 weeks (e.g. VSTD repeating the identical anomalous 0.0986 print on 3 separate dates -
+        consistent with a stale/duplicate vendor response, which this file's own docstring lists
+        as an intended check ("5. DUPLICATE") that was never actually implemented in
+        utils/data/tick_validator.py). All affected symbols sampled were marked active=True in
+        stock_symbols, i.e. not structurally excluded from the live trading universe.
+
+        Best-effort: a seeding failure must not block price ingestion (this closes a validation
+        gap, it doesn't add a hard requirement) - falls back to the pre-fix empty dict on any
+        DB error, same behavior as before this fix.
+        """
+        symbols = {row["symbol"] for row in rows if row.get("symbol")}
+        if not symbols:
+            return {}
+        try:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM price_daily
+                    WHERE symbol = ANY(%s) AND date < %s AND close IS NOT NULL
+                      AND COALESCE(data_unavailable, false) = false
+                    ORDER BY symbol, date DESC
+                    """,
+                    (list(symbols), min_row_date),
+                )
+                return {r[0]: float(r[1]) for r in cur.fetchall()}
+        except Exception as e:
+            logger.warning(
+                f"[PRICE_TRANSFORMER] Failed to seed prior_close_by_symbol from price_daily ({e}) - "
+                "falling back to unseeded validation for this batch (sequence check won't apply to "
+                "each symbol's first row here, same as before this fix)."
+            )
+            return {}
+
     def validate_and_transform(self, rows: list[dict[str, Any]], tracker: Any = None) -> list[dict[str, Any]]:
         """Validate and filter rows with trading day filtering and provenance tracking.
 
@@ -393,7 +444,7 @@ class PriceTransformer:
             )
 
         final_validated = []
-        prior_close_by_symbol: dict[str, float | None] = {}
+        prior_close_by_symbol: dict[str, float | None] = self._seed_prior_closes(rows, min_row_date)
         non_trading_filtered = 0
         parse_errors = 0
         validation_rejected = 0
