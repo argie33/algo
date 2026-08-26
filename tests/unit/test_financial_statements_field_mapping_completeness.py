@@ -14,6 +14,7 @@ reintroduce the same class of bug without a test failing.
 """
 
 from loaders.load_financial_statements import (
+    _ANNUAL_BALANCE_EXTRA,
     _BALANCE_FIELD_MAPPING,
     _CASHFLOW_FIELD_MAPPING,
     _INCOME_FIELD_MAPPING,
@@ -67,6 +68,7 @@ _BALANCE_CONCEPTS = [
     "ShortTermBorrowings",
     "OperatingLeaseLiability",
     "FinanceLeaseLiability",
+    "RetainedEarningsAccumulatedDeficit",
 ]
 
 _CASHFLOW_CONCEPTS = [
@@ -113,7 +115,14 @@ class TestFieldMappingCoversFetchedConcepts:
         assert not unmapped, f"Fetched but unmapped income concepts (data silently dropped): {unmapped}"
 
     def test_balance_sheet_concepts_all_mapped(self) -> None:
-        unmapped = _unmapped(_BALANCE_CONCEPTS, _BALANCE_IFRS_ALIASES, _BALANCE_FIELD_MAPPING)
+        # RetainedEarningsAccumulatedDeficit is annual-only (_ANNUAL_BALANCE_EXTRA, merged into
+        # the annual balance-sheet config's field_mapping - see load_financial_statements.py's
+        # get_balance_sheet_config()) - annual_balance_sheet is the only table with a
+        # retained_earnings column (migration 1234); quarterly/TTM balance sheet configs must
+        # NOT gain this mapping or every fetch raises sec_base.py's "not in target schema"
+        # RuntimeError (live-caught 2026-08-26 - see _ANNUAL_BALANCE_EXTRA's own comment).
+        combined_mapping = {**_BALANCE_FIELD_MAPPING, **_ANNUAL_BALANCE_EXTRA}
+        unmapped = _unmapped(_BALANCE_CONCEPTS, _BALANCE_IFRS_ALIASES, combined_mapping)
         assert not unmapped, f"Fetched but unmapped balance sheet concepts (data silently dropped): {unmapped}"
 
     def test_cash_flow_concepts_all_mapped(self) -> None:

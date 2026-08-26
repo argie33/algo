@@ -982,7 +982,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
   const v = scoreRow?.value_inputs || {};
   const q = scoreRow?.quality_inputs || {};
   const m = scoreRow?.momentum_inputs || {};
-  const s = scoreRow?.stability_inputs || {};
+  const s = scoreRow?.risk_inputs || {};
   const p = scoreRow?.positioning_inputs || {};
 
   // Fetch business segment metrics
@@ -1151,9 +1151,8 @@ function ScoreBars({ scores }) {
     ["Momentum", scores.momentum_score],
     ["Value", scores.value_score],
     ["Growth", scores.growth_score],
-    ["Stability", scores.stability_score],
+    ["Risk", scores.risk_score],
     ["Positioning", scores.positioning_score],
-    ["Size", scores.size_score],
   ];
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
@@ -1222,21 +1221,18 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
   // (no weight redistribution per GOVERNANCE) - bar value = score * weight (points earned
   // toward the 100-point composite), bar max = weight * 100.
-  // UPDATED 2026-08-26: Size promoted from a Value-pillar sub-component to its own top-level
-  // 7th pillar (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar in
-  // the whole re-audit - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS and
-  // _score_size docstrings). Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS
-  // exactly - guarded by
-  // tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't
-  // drift silently again.
+  // UPDATED 2026-08-26: Size (market cap) was briefly promoted to its own top-level 7th
+  // pillar, then removed from scoring entirely the same day (user directive) - not a scored
+  // input anywhere now. Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly -
+  // guarded by tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this
+  // can't drift silently again.
   const FACTOR_WEIGHTS = [
-    ["Quality", "quality_score", 0.2],
-    ["Growth", "growth_score", 0.1],
-    ["Value", "value_score", 0.17],
-    ["Positioning", "positioning_score", 0.1],
-    ["Stability", "stability_score", 0.14],
-    ["Momentum", "momentum_score", 0.09],
-    ["Size", "size_score", 0.2],
+    ["Quality", "quality_score", 0.25],
+    ["Growth", "growth_score", 0.12],
+    ["Value", "value_score", 0.21],
+    ["Positioning", "positioning_score", 0.12],
+    ["Risk", "risk_score", 0.18],
+    ["Momentum", "momentum_score", 0.12],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

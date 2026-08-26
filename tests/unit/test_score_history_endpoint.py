@@ -45,7 +45,7 @@ def _row(score_date, composite_score, composite_rank, rs_percentile=None):
         "growth_score": None,
         "value_score": None,
         "positioning_score": None,
-        "stability_score": None,
+        "risk_score": None,
         "data_completeness": None,
     }
 

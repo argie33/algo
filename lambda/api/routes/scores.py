@@ -105,8 +105,7 @@ def handle(
                 "value_score",
                 "growth_score",
                 "positioning_score",
-                "stability_score",
-                "size_score",
+                "risk_score",
                 "symbol",
             ]
             if sort_by not in allowed_sorts:
@@ -168,8 +167,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     cp.sector,
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
-                    sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
-                    sc.size_score,
+                    sc.value_score, sc.growth_score, sc.positioning_score, sc.risk_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -179,7 +177,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     (vm.symbol IS NULL OR vm.data_unavailable = TRUE) AS _value_data_unavailable,
                     (sc.growth_score IS NULL) AS _growth_data_unavailable,
                     (pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,
-                    (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,
+                    (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _risk_data_unavailable,
                     ROUND(CASE
                         WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
                         ELSE NULL
@@ -215,6 +213,16 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     qm.roa_unavailable_reason,
                     qm.roic_pct,
                     qm.roic_pct_unavailable_reason,
+                    qm.gross_profitability,
+                    qm.gross_profitability_unavailable_reason,
+                    qm.operating_profitability,
+                    qm.operating_profitability_unavailable_reason,
+                    qm.accruals_ratio,
+                    qm.accruals_ratio_unavailable_reason,
+                    qm.margin_volatility,
+                    qm.margin_volatility_unavailable_reason,
+                    qm.altman_z_score,
+                    qm.altman_z_score_unavailable_reason,
                     COALESCE(gm_calc.calculated_gross_margin, qm.gross_margin) AS gross_margin_pct,
                     qm.gross_margin_unavailable_reason,
                     qm.ebitda_margin AS ebitda_margin_pct,
@@ -497,14 +505,12 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             d["growth_score"] = None
         if d.get("_positioning_data_unavailable"):
             d["positioning_score"] = None
-        if d.get("_stability_data_unavailable"):
-            d["stability_score"] = None
+        if d.get("_risk_data_unavailable"):
+            d["risk_score"] = None
         if d.get("_financial_data_unavailable"):
             d["quality_score"] = None
         if d.get("_value_data_unavailable"):
             d["value_score"] = None
-            # Size (market_cap) is sourced from the same value_metrics row as Value.
-            d["size_score"] = None
 
         # Build factor input objects
         def _build_factor_inputs(data: dict[str, Any]) -> None:
@@ -517,6 +523,18 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "return_on_assets_pct_unavailable_reason": data.get("roa_unavailable_reason"),
                 "return_on_invested_capital_pct": data.get("roic_pct"),
                 "return_on_invested_capital_pct_unavailable_reason": data.get("roic_pct_unavailable_reason"),
+                "gross_profitability_pct": data.get("gross_profitability"),
+                "gross_profitability_pct_unavailable_reason": data.get("gross_profitability_unavailable_reason"),
+                "operating_profitability_pct": data.get("operating_profitability"),
+                "operating_profitability_pct_unavailable_reason": data.get(
+                    "operating_profitability_unavailable_reason"
+                ),
+                "accruals_ratio_pct": data.get("accruals_ratio"),
+                "accruals_ratio_pct_unavailable_reason": data.get("accruals_ratio_unavailable_reason"),
+                "margin_volatility": data.get("margin_volatility"),
+                "margin_volatility_unavailable_reason": data.get("margin_volatility_unavailable_reason"),
+                "altman_z_score": data.get("altman_z_score"),
+                "altman_z_score_unavailable_reason": data.get("altman_z_score_unavailable_reason"),
                 "gross_margin_pct": data.get("gross_margin_pct"),
                 "gross_margin_pct_unavailable_reason": data.get("gross_margin_unavailable_reason"),
                 "operating_margin_pct": data.get("operating_margin_val"),
@@ -739,8 +757,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "ad_rating_unavailable_reason": data.get("ad_rating_unavailable_reason"),
             }
 
-            # Stability Inputs
-            data["stability_inputs"] = {
+            # Risk Inputs
+            data["risk_inputs"] = {
                 "volatility_12m": data.get("volatility_12m_val"),
                 "volatility_12m_unavailable_reason": data.get("volatility_12m_unavailable_reason"),
                 "volatility_60d": data.get("volatility_60d_val"),
@@ -759,8 +777,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 # CLEANUP 2026-08-16: debt_to_assets/debt_to_equity/current_ratio/quick_ratio/
                 # cash_per_share (Financial Stability) and revenue_concentration_hhi (Business
-                # Diversification) removed from here - no longer scored under Stability
-                # (see loaders/load_stock_scores.py _score_stability). The debt/liquidity/cash
+                # Diversification) removed from here - no longer scored under Risk
+                # (see loaders/load_stock_scores.py _score_risk). The debt/liquidity/cash
                 # metrics now live under quality_inputs instead; revenue_concentration_hhi was
                 # dropped from scoring entirely. segment_count/largest_segment_revenue_pct/
                 # is_diversified below were always unweighted reference fields, kept as-is.
@@ -809,7 +827,7 @@ def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
             SELECT
                 score_date, composite_score, composite_rank, rs_percentile,
                 momentum_score, quality_score, growth_score, value_score,
-                positioning_score, stability_score, size_score, data_completeness
+                positioning_score, risk_score, data_completeness
             FROM stock_scores_history
             WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
             ORDER BY score_date ASC
@@ -881,8 +899,7 @@ def _get_stock_scores(  # noqa: C901
             "value_score": "value_score",
             "growth_score": "growth_score",
             "positioning_score": "positioning_score",
-            "stability_score": "stability_score",
-            "size_score": "size_score",
+            "risk_score": "risk_score",
             "symbol": "symbol",
         }
         sort_col = allowed_sorts.get(sort_by, "composite_score")
@@ -1073,8 +1090,7 @@ def _get_stock_scores(  # noqa: C901
                     cp.sector,
                     cp.industry,
                     fs.composite_score, fs.momentum_score, fs.quality_score,
-                    fs.value_score, fs.growth_score, fs.positioning_score, fs.stability_score,
-                    fs.size_score,
+                    fs.value_score, fs.growth_score, fs.positioning_score, fs.risk_score,
                     fs.rs_percentile, fs.data_completeness,
                     fs.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -1084,7 +1100,7 @@ def _get_stock_scores(  # noqa: C901
                     (vm.symbol IS NULL OR vm.data_unavailable = TRUE) AS _value_data_unavailable,
                     (fs.growth_score IS NULL) AS _growth_data_unavailable,
                     (pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,
-                    (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,
+                    (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _risk_data_unavailable,
                     ROUND(CASE
                         WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
                         ELSE NULL
@@ -1120,6 +1136,16 @@ def _get_stock_scores(  # noqa: C901
                     qm.roa_unavailable_reason,
                     qm.roic_pct,
                     qm.roic_pct_unavailable_reason,
+                    qm.gross_profitability,
+                    qm.gross_profitability_unavailable_reason,
+                    qm.operating_profitability,
+                    qm.operating_profitability_unavailable_reason,
+                    qm.accruals_ratio,
+                    qm.accruals_ratio_unavailable_reason,
+                    qm.margin_volatility,
+                    qm.margin_volatility_unavailable_reason,
+                    qm.altman_z_score,
+                    qm.altman_z_score_unavailable_reason,
                     COALESCE(gm_calc.calculated_gross_margin, qm.gross_margin) AS gross_margin_pct,
                     qm.gross_margin_unavailable_reason,
                     qm.ebitda_margin AS ebitda_margin_pct,
@@ -1405,7 +1431,7 @@ def _get_stock_scores(  # noqa: C901
             - value_inputs: valuation ratios (PE, PB, PS, etc.)
             - growth_inputs: revenue/EPS growth rates
             - positioning_inputs: institutional/insider ownership, short interest
-            - stability_inputs: volatility, beta
+            - risk_inputs: volatility, beta
             """
             # Quality Inputs: ROE, ROA, ROIC, margins, debt, ratios
             d["quality_inputs"] = {
@@ -1415,6 +1441,16 @@ def _get_stock_scores(  # noqa: C901
                 "return_on_assets_pct_unavailable_reason": d.get("roa_unavailable_reason"),
                 "return_on_invested_capital_pct": d.get("roic_pct"),
                 "return_on_invested_capital_pct_unavailable_reason": d.get("roic_pct_unavailable_reason"),
+                "gross_profitability_pct": d.get("gross_profitability"),
+                "gross_profitability_pct_unavailable_reason": d.get("gross_profitability_unavailable_reason"),
+                "operating_profitability_pct": d.get("operating_profitability"),
+                "operating_profitability_pct_unavailable_reason": d.get("operating_profitability_unavailable_reason"),
+                "accruals_ratio_pct": d.get("accruals_ratio"),
+                "accruals_ratio_pct_unavailable_reason": d.get("accruals_ratio_unavailable_reason"),
+                "margin_volatility": d.get("margin_volatility"),
+                "margin_volatility_unavailable_reason": d.get("margin_volatility_unavailable_reason"),
+                "altman_z_score": d.get("altman_z_score"),
+                "altman_z_score_unavailable_reason": d.get("altman_z_score_unavailable_reason"),
                 "gross_margin_pct": d.get("gross_margin_pct"),
                 "gross_margin_pct_unavailable_reason": d.get("gross_margin_unavailable_reason"),
                 "operating_margin_pct": d.get("operating_margin_val"),
@@ -1622,8 +1658,8 @@ def _get_stock_scores(  # noqa: C901
                 "ad_rating_unavailable_reason": d.get("ad_rating_unavailable_reason"),
             }
 
-            # Stability Inputs: Volatility, beta, financial stability
-            d["stability_inputs"] = {
+            # Risk Inputs: Volatility, beta, financial stability
+            d["risk_inputs"] = {
                 "volatility_12m": d.get("volatility_12m_val"),
                 "volatility_12m_unavailable_reason": d.get("volatility_12m_unavailable_reason"),
                 "volatility_60d": d.get("volatility_60d_val"),
@@ -1641,7 +1677,7 @@ def _get_stock_scores(  # noqa: C901
                 "beta": d.get("beta_val"),
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 # CLEANUP 2026-08-16: same "moved to Quality" cleanup as the other
-                # stability_inputs block above - see that comment for details.
+                # risk_inputs block above - see that comment for details.
                 "segment_count": d.get("segment_count"),
                 "largest_segment_revenue_pct": d.get("largest_segment_revenue_pct"),
                 "is_diversified": d.get("is_diversified"),
@@ -1667,14 +1703,12 @@ def _get_stock_scores(  # noqa: C901
                 d["growth_score"] = None
             if d.get("_positioning_data_unavailable"):
                 d["positioning_score"] = None
-            if d.get("_stability_data_unavailable"):
-                d["stability_score"] = None
+            if d.get("_risk_data_unavailable"):
+                d["risk_score"] = None
             if d.get("_financial_data_unavailable"):
                 d["quality_score"] = None
             if d.get("_value_data_unavailable"):
                 d["value_score"] = None
-                # Size (market_cap) is sourced from the same value_metrics row as Value.
-                d["size_score"] = None
 
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)
@@ -2189,7 +2223,7 @@ _TABLE_GROUP = {
     "growth_metrics": "Growth",
     "value_metrics": "Value",
     "positioning_metrics": "Positioning",
-    "stability_metrics": "Stability",
+    "stability_metrics": "Risk",
     "stock_scores": "Scoring",
     "stock_symbols": "Universe",
     "dividend_data": "Dividend",

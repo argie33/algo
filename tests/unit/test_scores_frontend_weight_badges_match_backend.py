@@ -17,7 +17,7 @@ constant, e.g. `pe_score * 0.45`) rather than duplicated as a hardcoded literal,
 test keeps tracking future weight tuning automatically - only the JSX side needs updating
 when a weight changes, and this test is what catches it if someone forgets. Intentionally
 scoped to the flat, single-level weighted-average components (value/positioning/
-stability's top-level terms, momentum's dict-based 1m/3m/6m/12m weights and its
+risk's top-level terms, momentum's dict-based 1m/3m/6m/12m weights and its
 rsi/macd terms) - Quality's base score and its +/-10 point "enhancement" adjustment are a
 different shape (equal-weighted average + bounded adjustment, not a flat weighted sum)
 and are deliberately out of scope.
@@ -75,15 +75,15 @@ class TestValueScoreWeightBadges:
         # TestSizeScoreWeightBadges below for its (trivial, single-input) coverage. The
         # remaining 7 inputs here were rescaled x1.25 to restore the 100% they held before
         # Size's 20% carve-out (later rescaled again x0.92 the same day - see next note).
-        # illiq_score (amihud_illiquidity) ADDED 2026-08-26 (same day, later pass) as a new
-        # 8%-weighted sub-component - see _score_value's "AMIHUD ILLIQUIDITY" docstring note.
+        # illiq_score (amihud_illiquidity) ADDED 2026-08-26, REMOVED same day (user directive)
+        # - see _score_value's "AMIHUD ILLIQUIDITY" docstring note. The 7 inputs below are
+        # back at their pre-Amihud weights.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "fcf_score": "fcf_yield",
             "div_score": "stock_dividend_yield",
-            "illiq_score": "amihud_illiquidity",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
@@ -92,21 +92,46 @@ class TestValueScoreWeightBadges:
         _assert_pct_matches("peg_ratio", peg_weight)
 
 
-class TestSizeScoreWeightBadges:
-    def test_market_cap_is_the_sole_input(self):
-        """Size is a single-input pillar (log10(market_cap) bucketed curve, not a weighted
-        blend) - there's no `* 0.NN` weight to extract, so this just pins that the JSX badge
-        says so rather than a stale numeric weight that would silently drift meaningless."""
+class TestGrowthScoreWeightBadges:
+    def test_weights_match_code(self):
+        # RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction) -
+        # back to the pre-08-25 14-input set; see _score_growth's docstring. No class existed
+        # here for Growth before this, which is exactly how the 08-25 cut to 4 inputs (and a
+        # later same-day revert of the Quality trend fields - see that docstring) was able to
+        # drift from what the JSX schema claimed without any test catching it.
+        src = inspect.getsource(StockScoresLoader._score_growth)
+        score_var_to_jsx_key = {
+            "eps_1y": "eps_growth_1y_pct",
+            "rev_1y": "revenue_growth_1y_pct",
+            "eps_3y": "eps_growth_3y_cagr",
+            "rev_3y": "revenue_growth_3y_cagr",
+            "eps_5y": "eps_growth_5y_cagr",
+            "rev_5y": "revenue_growth_5y_cagr",
+            "ni_growth": "net_income_growth_yoy",
+            "oi_growth": "operating_income_growth_yoy",
+            "sgr": "sustainable_growth_rate",
+            "fcf_growth": "fcf_growth_yoy",
+            "ocf_growth": "ocf_growth_yoy",
+            "asset_growth": "asset_growth_yoy",
+            "om_trend": "operating_margin_trend",
+            "nm_trend": "net_margin_trend",
+            "roe_trend": "roe_trend",
+        }
+        for score_var, jsx_key in score_var_to_jsx_key.items():
+            _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+
+
+class TestSizeScoreRemoved:
+    def test_market_cap_is_not_a_scored_input(self):
+        """Size (market cap) was briefly promoted to a 7th top-level pillar 2026-08-26, then
+        removed from scoring entirely the same day (user directive) - see
+        loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS docstring. Guards against the JSX
+        schema drifting back to advertising market_cap as a scored factor."""
+        assert not hasattr(StockScoresLoader, "_score_size")
         with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
             jsx_source = f.read()
-        assert '"market_cap"' in jsx_source
-        match = re.search(
-            r'key: "market_cap".*?weight: "([^"]+)"',
-            jsx_source,
-            re.DOTALL,
-        )
-        assert match, "expected a market_cap schema entry with a weight field"
-        assert match.group(1) == "sole input"
+        assert '"market_cap"' not in jsx_source
+        assert "size_score" not in jsx_source
 
 
 class TestPositioningScoreWeightBadges:
@@ -118,13 +143,13 @@ class TestPositioningScoreWeightBadges:
         _assert_pct_matches("ad_rating", _weight_for_score_var(src, 'metrics["ad_rating"]'))
 
 
-class TestStabilityScoreWeightBadges:
+class TestRiskScoreWeightBadges:
     def test_volatility_and_beta_weights_match_code(self):
         # volatility_12m/30d and downside_volatility_252d/30d removed 2026-08-25 (goal: full
         # scoring-architecture audit) - all six volatility inputs correlated 0.52-0.92 with
         # each other (measured directly), so consolidated to one symmetric + one downside
         # window (60d) and redistributed the freed weight to beta/max_drawdown.
-        src = inspect.getsource(StockScoresLoader._score_stability)
+        src = inspect.getsource(StockScoresLoader._score_risk)
         score_var_to_jsx_key = {
             "v60_score": "volatility_60d",
             "beta_score": "beta",

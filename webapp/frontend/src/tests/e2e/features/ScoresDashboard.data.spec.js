@@ -31,7 +31,7 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
           momentum_score: 71.5,
           sentiment_score: 68.9,
           positioning_score: 75.4,
-          stability_score: 81.2,
+          risk_score: 81.2,
           momentum_inputs: {
             momentum_6_1: 0.52,
             momentum_9_1: 0.48,
@@ -66,7 +66,7 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
             eps_growth_stability: 12.4,
             payout_ratio: 0.15,
           },
-          stability_inputs: {
+          risk_inputs: {
             volatility_12m_pct: 32.45,
             volatility_risk_component: null,
             max_drawdown_52w_pct: 28.75,
@@ -98,7 +98,7 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
           momentum_score: 74.2,
           sentiment_score: 82.3,
           positioning_score: 79.8,
-          stability_score: 86.5,
+          risk_score: 86.5,
           momentum_inputs: {
             momentum_6_1: 0.58,
             momentum_9_1: 0.54,
@@ -133,7 +133,7 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
             eps_growth_stability: 8.3,
             payout_ratio: 0.22,
           },
-          stability_inputs: {
+          risk_inputs: {
             volatility_12m_pct: 28.12,
             volatility_risk_component: null,
             max_drawdown_52w_pct: 24.35,
@@ -226,9 +226,9 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     ) {
     }
 
-    // Look for Stability score
-    const stabilityScore = page.locator("text=/Stability/i");
-    if (await stabilityScore.isVisible({ timeout: 5000 }).catch(() => false)) {
+    // Look for Risk score
+    const riskScore = page.locator("text=/Risk/i");
+    if (await riskScore.isVisible({ timeout: 5000 }).catch(() => false)) {
     }
   });
 
@@ -372,7 +372,7 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
             momentum_score: 70.0,
             sentiment_score: 65.0,
             positioning_score: 75.0,
-            stability_score: 85.0,
+            risk_score: 85.0,
             quality_inputs: {
               return_on_equity_pct: 0.25,
               gross_margin_pct: 0.4,

@@ -521,6 +521,12 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # field_mapping fallback (load_financial_statements.py's _DEBT_FALLBACK_ONLY_FIELDS),
         # which only ever sees "long_term_debt_noncurrent" if this function is bypassed.
         "LongTermDebtCurrent",
+        # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
+        # Retained Earnings/Total Assets term (the one term not derivable from concepts
+        # already fetched above). Standard, near-universal US-GAAP concept - every filer with
+        # a statement of stockholders' equity reports it, no known taxonomy-variant fallback
+        # needed the way LongTermDebt/InterestExpense above required.
+        "RetainedEarningsAccumulatedDeficit",
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
     _fill_long_term_debt_from_noncurrent_current_split(rows)

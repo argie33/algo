@@ -121,7 +121,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
     t.add_column("Val", justify="right", no_wrap=True, width=4)
     t.add_column("Grow", justify="right", no_wrap=True, width=5)
-    t.add_column("Stab", justify="right", no_wrap=True, width=5)
+    t.add_column("Risk", justify="right", no_wrap=True, width=5)
     t.add_column("Pos", justify="right", no_wrap=True, width=4)
     t.add_column("Sector", style="dim", no_wrap=True, width=16)
 
@@ -133,7 +133,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         qual = safe_get_field(sc, "quality_score")
         val = safe_get_field(sc, "value_score")
         grwth = safe_get_field(sc, "growth_score")
-        stab = safe_get_field(sc, "stability_score")
+        risk = safe_get_field(sc, "risk_score")
         pos = safe_get_field(sc, "positioning_score")
         sector = safe_get_field(sc, "sector", "--")
         comp_v: float | None = safe_float(comp)
@@ -169,7 +169,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
                 _score_cell(qual),
                 _score_cell(val),
                 _score_cell(grwth),
-                _score_cell(stab),
+                _score_cell(risk),
                 _score_cell(pos),
                 Text(str(sector), style="dim"),
             ]
@@ -182,7 +182,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
 def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
     """Build 6 tables showing top 15 for each factor score, arranged in 2 rows x 3 columns.
 
-    Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Stability, Positioning).
+    Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Risk, Positioning).
     """
     if not isinstance(top_scores, list) or not top_scores:
         layout = Layout()
@@ -195,7 +195,7 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
         ("Quality", "quality_score"),
         ("Value", "value_score"),
         ("Growth", "growth_score"),
-        ("Stability", "stability_score"),
+        ("Risk", "risk_score"),
         ("Positioning", "positioning_score"),
     ]
 

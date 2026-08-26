@@ -11,7 +11,7 @@
  *    `pct(v * 100, ...)`.
  * 2) STABILITY_SCHEMA's six volatility/downside_volatility fields: also raw fractions
  *    (load_risk_metrics_daily.py's _calculate_volatility/_calculate_downside_volatility return
- *    daily_std * sqrt(252), e.g. 0.15 for 15%; load_stock_scores.py's _score_stability scores
+ *    daily_std * sqrt(252), e.g. 0.15 for 15%; load_stock_scores.py's _score_risk scores
  *    them against 0.15/0.30/0.60 thresholds, confirming the fraction convention).
  *
  * Found live 2026-08-18 from a real dashboard screenshot (Loews Corp / L):
@@ -29,7 +29,7 @@
 import { describe, it, expect } from "vitest";
 import {
   QUALITY_SCHEMA,
-  STABILITY_SCHEMA,
+  RISK_SCHEMA,
 } from "../../../components/StockScoreAccordion";
 
 const field = (schema, key) => schema.find((s) => s.key === key);
@@ -52,8 +52,8 @@ describe("QUALITY_SCHEMA debt_to_assets formatting", () => {
   });
 });
 
-describe("STABILITY_SCHEMA volatility formatting", () => {
-  // volatility_12m/30d and downside_volatility_252d/30d REMOVED from STABILITY_SCHEMA
+describe("RISK_SCHEMA volatility formatting", () => {
+  // volatility_12m/30d and downside_volatility_252d/30d REMOVED from RISK_SCHEMA
   // 2026-08-25 (goal: full scoring-architecture audit) - the six symmetric/downside
   // volatility windows correlated 0.52-0.92 with each other (measured directly), so this
   // pillar consolidated to one representative window per flavor (60d) and redistributed
@@ -62,7 +62,7 @@ describe("STABILITY_SCHEMA volatility formatting", () => {
     ["volatility_60d", 0.17],
     ["downside_volatility_60d", 0.11],
   ])("scales %s's raw fraction to a percent for display", (key, fraction) => {
-    const f = field(STABILITY_SCHEMA, key);
+    const f = field(RISK_SCHEMA, key);
     const expectedPct = `+${(fraction * 100).toFixed(2)}%`;
     expect(f.fmt(fraction)).toBe(expectedPct);
     // The bug this guards against: displaying the bare fraction as if it were already a percent.
@@ -70,12 +70,12 @@ describe("STABILITY_SCHEMA volatility formatting", () => {
   });
 
   it("max_drawdown_1y is passed through unscaled (already pre-scaled by the loader)", () => {
-    const maxDrawdown = field(STABILITY_SCHEMA, "max_drawdown_1y");
+    const maxDrawdown = field(RISK_SCHEMA, "max_drawdown_1y");
     expect(maxDrawdown.fmt(-8.05)).toBe("-8.05%");
   });
 
   it("beta is not percent-formatted", () => {
-    const beta = field(STABILITY_SCHEMA, "beta");
+    const beta = field(RISK_SCHEMA, "beta");
     expect(beta.fmt(0.72)).toBe("0.72");
   });
 });

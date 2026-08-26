@@ -239,6 +239,9 @@ def generate_historical_buy_signals(symbol: str, df: pd.DataFrame) -> list[dict[
     try:
         signals = generator.run(symbol, rows)
     except (RuntimeError, ValueError) as e:
+        # Not an error for the overall backtest run: one symbol's signal generation failing
+        # (e.g. insufficient indicator history) means no candidates for this symbol only -
+        # already surfaced via the warning above, run() continues to the rest of the universe.
         logger.warning(f"[BACKTEST] {symbol}: signal generation failed, skipping - {e}")
         return []
 

@@ -269,7 +269,7 @@ def handle(  # noqa: C901
                             AVG(ss.value_score) as value_score,
                             AVG(ss.quality_score) as quality_score,
                             AVG(ss.growth_score) as growth_score,
-                            AVG(ss.stability_score) as stability_score,
+                            AVG(ss.risk_score) as risk_score,
                             sp.perf_1d,
                             sp.perf_5d,
                             sp.perf_20d,
@@ -390,7 +390,7 @@ def handle(  # noqa: C901
                 value_score = DatabaseResultValidator.safe_get_float(s, "value_score", default=None)
                 quality_score = DatabaseResultValidator.safe_get_float(s, "quality_score", default=None)
                 growth_score = DatabaseResultValidator.safe_get_float(s, "growth_score", default=None)
-                stability_score = DatabaseResultValidator.safe_get_float(s, "stability_score", default=None)
+                risk_score = DatabaseResultValidator.safe_get_float(s, "risk_score", default=None)
                 trailing_pe = DatabaseResultValidator.safe_get_float(s, "avg_trailing_pe", default=None)
                 pb_ratio = DatabaseResultValidator.safe_get_float(s, "avg_pb_ratio", default=None)
                 pe_percentile = DatabaseResultValidator.safe_get_float(s, "pe_percentile", default=None)
@@ -409,7 +409,7 @@ def handle(  # noqa: C901
                         "value_score": value_score,
                         "quality_score": quality_score,
                         "growth_score": growth_score,
-                        "stability_score": stability_score,
+                        "risk_score": risk_score,
                         "current_momentum": momentum_label,
                         "current_trend": trend_label,
                         "performance_1d": perf1d,

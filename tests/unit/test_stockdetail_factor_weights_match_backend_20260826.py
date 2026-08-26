@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Regression test guarding StockDetail.jsx's top-level FACTOR_WEIGHTS radar (Quality/Growth/
-Value/Positioning/Stability/Momentum pillar mix) against drifting away from
+Value/Positioning/Risk/Momentum pillar mix) against drifting away from
 loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS - the real, live composite-score weights.
 
 Found live 2026-08-26 (goal: reconstruct a composite-weights reweight lost to an uncommitted-
@@ -26,9 +26,8 @@ _PILLAR_TO_JSX_KEY = {
     "growth": "growth_score",
     "value": "value_score",
     "positioning": "positioning_score",
-    "stability": "stability_score",
+    "risk": "risk_score",
     "momentum": "momentum_score",
-    "size": "size_score",
 }
 
 

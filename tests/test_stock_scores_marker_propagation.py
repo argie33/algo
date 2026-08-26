@@ -58,7 +58,7 @@ class TestMarkerPropagation(unittest.TestCase):
             },
             "value": 72.5,  # Float score
             "positioning": None,  # None (no score)
-            "stability": {  # Marker: data unavailable
+            "risk": {  # Marker: data unavailable
                 "symbol": "AAPL",
                 "data_unavailable": True,
                 "reason": "insufficient_price_history",
@@ -74,7 +74,7 @@ class TestMarkerPropagation(unittest.TestCase):
             "growth": 0.20,
             "value": 0.20,
             "positioning": 0.15,
-            "stability": 0.10,
+            "risk": 0.10,
             "momentum": 0.10,
         }
 
@@ -96,8 +96,8 @@ class TestMarkerPropagation(unittest.TestCase):
         self.assertIn("growth", unavailable_metrics)
         self.assertEqual(unavailable_metrics["growth"], "no_growth_metrics_data")
 
-        self.assertIn("stability", unavailable_metrics)
-        self.assertEqual(unavailable_metrics["stability"], "insufficient_price_history")
+        self.assertIn("risk", unavailable_metrics)
+        self.assertEqual(unavailable_metrics["risk"], "insufficient_price_history")
 
         # ✅ Unavailable metrics don't contribute to score
         # Score should only include: quality (85*0.25) + value (72.5*0.20) + momentum (68*0.10)
@@ -120,12 +120,12 @@ class TestMarkerPropagation(unittest.TestCase):
             "value_score": 72.5,
             "momentum_score": 68.0,
             "positioning_score": None,
-            "stability_score": None,
+            "risk_score": None,
             "data_completeness": 0.50,  # 3 out of 6 metrics available
             "unavailable_metrics": {
                 "growth": "no_growth_metrics_data",
                 "positioning": "no_positioning_metrics_data",
-                "stability": "insufficient_price_history",
+                "risk": "insufficient_price_history",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -135,7 +135,7 @@ class TestMarkerPropagation(unittest.TestCase):
         self.assertIsInstance(unavailable, dict)
         if isinstance(unavailable, dict):
             self.assertEqual(unavailable.get("growth"), "no_growth_metrics_data")
-            self.assertEqual(unavailable.get("stability"), "insufficient_price_history")
+            self.assertEqual(unavailable.get("risk"), "insufficient_price_history")
 
         # ✅ data_completeness reflects actual available data
         self.assertEqual(response["data_completeness"], 0.50)

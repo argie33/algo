@@ -75,26 +75,21 @@ class TestCompleteAWSDeployment:
         assert hasattr(loader, "_score_growth"), "StockScoresLoader must have _score_growth method"
 
         # Check the method contains the proper weights in code comments/implementation
-        # Weights updated 2026-08-25 (goal: full scoring-architecture audit) - cut from 14
-        # inputs to 4 after composite backtests against forward-1y returns showed the
-        # dropped fields (EPS/Revenue 3y/5y, NI/OI/FCF/OCF growth YoY) carried no real
-        # signal, and asset_growth_yoy was found scored with the wrong sign. See
-        # _score_growth's own docstring for the empirical detail (independently replicated
-        # via a point-in-time reconstruction off annual_balance_sheet + price_daily:
-        # Spearman rho=-0.0389 vs the docstring's claimed -0.037 for the asset-growth
-        # sign-flip - not a placeholder claim).
-        #
-        # Reweighted again same day (horizon-matched re-audit, see _score_growth's docstring
-        # "OPEN QUESTION"/per-field comments): a real Fama-MacBeth test at this system's
-        # actual 1-month trading horizon found eps_growth_1y's null was the cleanest (no
-        # literature explanation), so its weight was cut 45%->25% and the freed weight moved
-        # to asset_growth_yoy (25%->30%, whose null has a credible McLean-Pontiff
-        # post-publication-decay explanation and whose sign wasn't contradicted) and to
-        # revenue_growth_1y (15%->20%).
+        # RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction):
+        # back to the pre-08-25 14-input weighting - the 08-25 cut rested on this system's
+        # own exploratory backtests (composite p=0.27/0.94/0.33, and a same-day Fama-MacBeth
+        # rerun whose own docstring flagged real caveats: no true SEC filing-date data, a
+        # flat calendar-fiscal-year-end assumption, n=12 independent years for its cleanest
+        # check) rather than external validated research. See _score_growth's docstring.
+        # asset_growth_yoy's sign flip is the one piece kept (Cooper/Gulen/Schill 2008, JoF +
+        # Fama-French CMA - externally peer-reviewed, independently replicated here too), but
+        # its weight reverts to the original 5% along with everything else.
         source = inspect.getsource(loader._score_growth)
-        assert "0.25" in source, "EPS 1Y should have 25% weight"
-        assert "0.30" in source, "Asset Growth YoY (sign-flipped) should have 30% weight"
-        assert "0.20" in source, "Revenue 1Y and Sustainable Growth Rate should each have 20% weight"
+        assert "0.33" in source, "EPS 1Y should have 33% weight"
+        assert "0.24" in source, "Revenue 1Y should have 24% weight"
+        assert "0.19" in source, "EPS 3Y should have 19% weight"
+        assert "0.14" in source, "Revenue 3Y should have 14% weight"
+        assert "0.05" in source, "Asset Growth YoY (sign-flipped), EPS 5Y, and Revenue 5Y should each have 5% weight"
 
     def test_growth_metrics_marked_enrichment(self):
         """Verify growth_metrics is enrichment-only (not critical for core trading)."""

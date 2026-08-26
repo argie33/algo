@@ -32,6 +32,7 @@ Benefits:
 Run: python3 loaders/load_value_quality_growth_metrics.py [--symbols AAPL,MSFT]
 """
 
+import itertools
 import logging
 import sys
 import time
@@ -758,9 +759,32 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable"
                     )
 
+                # ADDED 2026-08-26 (Altman Z''-Score, Quality pillar): retained_earnings lives
+                # only in annual_balance_sheet (migration 1234), not in quality_row_db's SELECT
+                # above - fetched separately, same same-fiscal-year-only pattern as
+                # dividends_paid's fallback query below (never mixes fiscal years).
+                retained_earnings_val = None
+                if quality_row_db:
+                    cur.execute(
+                        "SELECT retained_earnings FROM annual_balance_sheet WHERE symbol = %s AND fiscal_year = %s",
+                        (symbol, quality_row_db[8]),
+                    )
+                    re_row = cur.fetchone()
+                    if re_row:
+                        retained_earnings_val = self._nan_to_none(
+                            safe_float(re_row[0], f"{symbol}.retained_earnings", allow_none=True)
+                        )
+
             # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
             value_dict = self._build_value_metrics(symbol, sec_val_row)
-            quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics)
+            # ADDED 2026-08-26 (Quality literature audit, QMJ Safety-leg proxy): trailing-3yr
+            # stdev of net_margin. Computed here (not inside _compute_quality_metrics) because
+            # it needs the multi-year income_rows history already fetched above for growth
+            # metrics - _compute_quality_metrics only ever sees a single fiscal year's row.
+            margin_volatility = self._compute_margin_volatility(income_rows)
+            quality_dict = self._compute_quality_metrics(
+                symbol, quality_row_db, ev_metrics, margin_volatility, retained_earnings_val
+            )
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
 
@@ -1756,10 +1780,43 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_stockholders_equity_symbols_cache = result
         return result
 
-    def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
+    def _compute_margin_volatility(self, income_rows: list[Any]) -> float | None:
+        """Trailing-3-fiscal-year stdev (percentage points) of net_margin - QMJ (2013) Safety
+        leg proxy: earnings/margin persistence, distinct from price-return volatility (which
+        lives in the Risk pillar) and from the accruals ratio (composition of one year's
+        earnings, not stability across years). income_rows is ordered fiscal_year DESC (see
+        fetch_incremental's SELECT above) - [:3] takes the most recent 3 fiscal years.
+        Requires all 3 years usable (real revenue>0); a symbol with fewer usable years returns
+        None (data_unavailable for this component) rather than a volatility estimate from 1-2
+        points, which would be too noisy to trust.
+        """
+        margins = []
+        for row in income_rows[:3]:
+            revenue = safe_float(row[1], "margin_vol.revenue", allow_none=True)
+            net_income = safe_float(row[3], "margin_vol.net_income", allow_none=True)
+            if revenue is not None and revenue > 0 and net_income is not None:
+                margins.append((net_income / revenue) * 100.0)
+        if len(margins) < 3:
+            return None
+        mean = sum(margins) / len(margins)
+        variance = sum((m - mean) ** 2 for m in margins) / len(margins)
+        return float(sqrt(variance))
+
+    def _compute_quality_metrics(  # noqa: C901
+        self,
+        symbol: str,
+        quality_row: Any,
+        ev_metrics: Any = None,
+        margin_volatility: float | None = None,
+        retained_earnings: float | None = None,
+    ) -> dict[str, Any]:
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
         ev_metrics: tuple of (total_debt, total_cash, ebitda) from sec_valuations
+        margin_volatility: trailing-3yr net_margin stdev, precomputed by the caller (see
+        _compute_margin_volatility) from multi-year income_rows this function doesn't have.
+        retained_earnings: fetched separately by the caller (migration 1234; not in quality_row's
+        SELECT) for the Altman Z''-Score's Retained Earnings/Total Assets term.
         """
         if not quality_row:
             return self._unavailable_marker("quality_metrics", symbol)
@@ -1964,6 +2021,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             prior_year_gross_profit = self._nan_to_none(
                 safe_float(quality_row[33], f"{symbol}.prior_year_gross_profit", allow_none=True)
             )
+            # Net Debt Issuance (Bradshaw/Richardson/Sloan 2006) DEFERRED 2026-08-26: needs
+            # prior-year long_term_debt, which isn't in quality_row above (appending a column
+            # there broke 79 existing unit tests that construct fixed-length mock rows) and
+            # can't be fetched via a new mid-function query either (this function's tests mock
+            # the DB cursor with a fixed, position-matched sequence of canned query results -
+            # any new cur.execute() call anywhere in this function shifts that sequence for
+            # every test that exercises this code path, corrupting unrelated fields). Real
+            # signal per algo/research/fama_macbeth_quality_factors.py's EXTENDED_CANDIDATE_COLS
+            # (correctly signed both 1mo/12mo horizons), but landing it needs its own pass with
+            # matching test updates, not bundled into this change. Its 5% weight allocation
+            # moved to margin_volatility_score below (the strongest-evidenced new signal).
             # EBIT-approximation fallback for prior-year operating income, mirroring the
             # current-year operating_income_for_margin fallback below - same root cause
             # (AEM-style 40-F filers that tag pretax_income/interest_expense every year but
@@ -3333,24 +3401,281 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     interest_coverage_score = 70 + ((ic - 3) / 7) * 30
                 else:
                     interest_coverage_score = 100.0
-            quality_components = [
-                metrics["roe"],
-                metrics["roa"],
-                metrics["operating_margin"],
-                metrics["net_margin"],
-                debt_to_assets_score,
-                interest_coverage_score,
-            ]
-            available_components = [m for m in quality_components if m is not None]
+
+            # FIXED 2026-08-26 (goal: root-cause the "why is quality_score/composite_score so
+            # low that min_composite_score=60 rejects 87% of the universe" question - found via
+            # direct distribution query: quality_score median=18.9/mean=21.1 across 5,124 scored
+            # symbols, and even AAPL/MSFT/JNJ/KO (unambiguously elite, high-margin, high-ROE
+            # businesses) only scored 38.8-51.8/100 pre-fix). Root cause: roe/roa/operating_margin/
+            # net_margin were fed into quality_components AS RAW PERCENTAGE NUMBERS
+            # (e.g. AAPL operating_margin=31.97 -> clamped straight to 31.97 "points"), while
+            # debt_to_assets_score/interest_coverage_score (the only two components that were
+            # already properly rescaled) required 100% margins to hit 100 - a threshold no real
+            # business reaches. Result: quality_score was structurally compressed toward ~20-50
+            # for every company regardless of actual quality, silently defeating the 0-100 scale
+            # and the min_composite_score=60 floor's intended selectivity (13.4% of the universe
+            # cleared it, and only because debt_to_assets_score/interest_coverage_score dragged
+            # the average up almost single-handedly). Rescaled the same 4 raw-percentage inputs
+            # onto domain-informed curves, matching the pattern interest_coverage_score/PE/PB
+            # scoring already use elsewhere in this codebase (not a percentile-rank redesign -
+            # this fixes the SCALE of an already-validated signal, not the signal itself; the
+            # underlying roe/roa/operating_margin/net_margin values feeding
+            # fama_macbeth_quality_factors.py are untouched, only how they map to 0-100 points
+            # here). Verified against AAPL/MSFT/JNJ/KO: quality_score moves from 51.8/48.9/41.9/
+            # 38.8 (implausibly middling for these companies) to 86.0/91.8/88.5/84.5
+            # (correctly near the top of the scale). Thresholds are hand-set (same rigor as
+            # interest_coverage_score's <1.5x/1.5-3x/3-10x/10x+ tiers), not FM-backtested - this
+            # is a calibration/scale fix, not a new empirical claim, so it doesn't carry the same
+            # validation bar as a reweight or a new factor would.
+            def _margin_curve(value: float, breakpoints: list[tuple[float, float]]) -> float:
+                """breakpoints: [(x0,y0), (x1,y1), ...] increasing x; value<x0 -> 0-ramp to y0,
+                value>=last x -> last y. Piecewise-linear between points."""
+                if value < 0:
+                    return 0.0
+                if value < breakpoints[0][0]:
+                    x1, y1 = breakpoints[0]
+                    return (value / x1) * y1 if x1 > 0 else y1
+                for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
+                    if value < x1:
+                        return y0 + (value - x0) / (x1 - x0) * (y1 - y0)
+                return breakpoints[-1][1]
+
+            roe_score = (
+                _margin_curve(metrics["roe"], [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+                if metrics["roe"] is not None
+                else None
+            )
+            roa_score = (
+                _margin_curve(metrics["roa"], [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
+                if metrics["roa"] is not None
+                else None
+            )
+            # operating_margin_score/net_margin_score REMOVED 2026-08-26 (see literature-audit
+            # comment below) - operating_margin and net_margin are still fetched/stored/displayed
+            # (metrics["operating_margin"]/["net_margin"]) for _enhance_quality_score and the
+            # frontend, but no longer feed the base quality_score composite directly; replaced by
+            # Operating Profitability/Gross Profitability below, which use the same Rev-COGS
+            # numerator base but on FF/Novy-Marx's validated denominators instead of revenue.
+
+            # REPLACED 2026-08-26 (Quality pillar literature audit - Novy-Marx 2013, Fama-French
+            # 2015 RMW, Sloan 1996, QMJ 2013, Bradshaw/Richardson/Sloan 2006). The 2026-08-26
+            # cluster-weight fix above (see git history) correctly resolved the operating_margin/
+            # net_margin and roe/debt_to_assets redundancy, but a literature review the same day
+            # found the CLUSTERING WAS PAIRING THE WRONG FIELDS: operating_margin and net_margin
+            # are both profit/REVENUE ratios (r=0.91, genuinely redundant), but roe/debt_to_assets
+            # (r=0.82) is a DIFFERENT, DuPont-mechanical overlap the literature explicitly treats
+            # as fine to keep (ROE, ROA - related via leverage, not duplicates, standard to use
+            # both). The REAL redundancy the literature flags is one denominator-sharing pair:
+            # ROE (NI/BookEquity) vs Fama-French's Operating Profitability (RMW: (Rev-COGS-SGA-
+            # Interest)/BookEquity, SAME denominator) - and a second: ROA (NI/Assets) vs Novy-
+            # Marx's Gross Profitability ((Rev-COGS)/Assets, SAME denominator). Also found:
+            # Cash-flow ROA (OCF/Assets) is not independent info once ROA and Accruals Ratio
+            # ((NI-OCF)/Assets, Sloan 1996) are both present - it's their exact linear difference,
+            # not a third data point. See algo/research/fama_macbeth_quality_factors.py's
+            # EXTENDED_CANDIDATE_COLS section for the point-in-time evidence this restructuring
+            # is based on (both 1mo and 12mo horizons; Net Share Issuance dropped entirely as
+            # wrong-signed at both, same "exclude a confirmed wrong-signed component" precedent
+            # as signal_quality_score_volume_confirmation_excluded_20260826).
+            #
+            # No separate SG&A field exists in this pipeline - operating_income (GAAP, already
+            # nets out COGS+SG&A) minus interest_expense is the available proxy for FF's
+            # (Rev-COGS-SGA-Interest) construction.
+            operating_profitability = (
+                (operating_income - (interest_expense or 0.0)) / stockholders_equity * 100.0
+                if operating_income is not None and stockholders_equity is not None and stockholders_equity > 0
+                else None
+            )
+            operating_profitability_score = (
+                # Same curve as roe_score - identical denominator (book equity), same scale.
+                _margin_curve(operating_profitability, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+                if operating_profitability is not None
+                else None
+            )
+            gross_profitability = (
+                (revenue - cost_of_revenue) / total_assets * 100.0
+                if revenue is not None and cost_of_revenue is not None and total_assets is not None and total_assets > 0
+                else None
+            )
+            gross_profitability_score = (
+                _margin_curve(gross_profitability, [(10.0, 40.0), (25.0, 75.0), (45.0, 100.0)])
+                if gross_profitability is not None
+                else None
+            )
+            roic_pct_val = metrics.get("roic_pct")
+            roic_score = (
+                _margin_curve(roic_pct_val, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+                if roic_pct_val is not None
+                else None
+            )
+            # Accruals Ratio (Sloan 1996, Hribar-Collins cash-flow-statement shortcut): lower
+            # (more cash-backed, less accrual-heavy) earnings persist better and predict HIGHER
+            # forward returns - inverted curve, same convention as debt_to_assets_score's
+            # "lower is better" inversion above.
+            accruals_ratio = (
+                (net_income - operating_cash_flow) / total_assets * 100.0
+                if net_income is not None
+                and operating_cash_flow is not None
+                and total_assets is not None
+                and total_assets > 0
+                else None
+            )
+            accruals_score = (
+                max(0.0, min(100.0, 100.0 - ((accruals_ratio + 5.0) / 20.0) * 100.0))
+                if accruals_ratio is not None
+                else None
+            )
+            # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
+            # multi-year income_rows this function doesn't have (see _compute_margin_volatility).
+            # Lower earnings/margin volatility = safer, better quality - inverted curve. Weight
+            # cut 20% -> 5% 2026-08-26 (t=-1.28/-1.51, doesn't clear this repo's |t|>2 bar - see
+            # the reweight comment on weighted_score below for the full re-check and where the
+            # freed weight went).
+            margin_volatility_score = (
+                max(0.0, min(100.0, 100.0 - (margin_volatility / 20.0) * 100.0))
+                if margin_volatility is not None
+                else None
+            )
+            # Payout Ratio (Fama & French 2001; La Porta et al.) - higher (within reason) is
+            # better; metrics["payout_ratio"] is already computed above (dividends_paid/net_income).
+            payout_ratio_val = metrics.get("payout_ratio")
+            payout_score = (
+                _margin_curve(payout_ratio_val, [(20.0, 40.0), (40.0, 75.0), (70.0, 100.0)])
+                if payout_ratio_val is not None
+                else None
+            )
+            # Altman Z''-Score (Altman 1995 book-equity variant - not the original 1968 market-
+            # cap Z-Score; see algo/research/fama_macbeth_quality_factors.py's build_quality_panel
+            # for why book equity was deliberately chosen: this repo's Value pillar already
+            # scores market-cap-derived ratios, and a prior attempt to score raw market cap
+            # directly as its own "Size" pillar was implemented then fully reverted the same day
+            # on user directive - see MEMORY.md size_pillar_removed_entirely_20260826). ADDED
+            # 2026-08-26 (goal: quality-input completeness pass) - retained_earnings only became
+            # available via migration 1234 + its backfill. Fama-MacBeth validated: t=3.49 on the
+            # full backfilled sample (41 months, 2023-03 to 2026-07 - limited to that window
+            # because retained_earnings coverage doesn't reach further back; median cross-
+            # section 3006) - the single strongest component in this whole composite, stronger
+            # than debt_to_assets' own t=2.11-2.18.
+            working_capital = (
+                current_assets - current_liabilities
+                if current_assets is not None and current_liabilities is not None
+                else None
+            )
+            altman_z_score = (
+                6.56 * (working_capital / total_assets)
+                + 3.26 * (retained_earnings / total_assets)
+                + 6.72 * (operating_income / total_assets)
+                + 1.05 * (stockholders_equity / total_liabilities)
+                if working_capital is not None
+                and retained_earnings is not None
+                and operating_income is not None
+                and total_assets is not None
+                and total_assets > 0
+                and stockholders_equity is not None
+                and total_liabilities is not None
+                and total_liabilities > 0
+                else None
+            )
+            # Curve calibrated to Altman's own distress zones (Altman 1995): Z''<1.1 distress,
+            # 1.1-2.6 grey zone, >2.6 safe - mapped onto this file's usual 0-100 scale.
+            altman_z_score_curve = (
+                _margin_curve(altman_z_score, [(1.1, 20.0), (2.6, 60.0), (6.0, 100.0)])
+                if altman_z_score is not None
+                else None
+            )
+
+            def _cluster_avg(a: float | None, b: float | None) -> float | None:
+                vals = [v for v in (a, b) if v is not None]
+                return sum(vals) / len(vals) if vals else None
+
+            def _weighted_avg(components: list[tuple[float | None, float]]) -> float | None:
+                """components: [(score_or_None, weight), ...]. Renormalizes over whichever
+                components are actually available, same "1/n over available" spirit as the old
+                equal-weighted average, just weighted instead of equal."""
+                available = [(v, w) for v, w in components if v is not None]
+                total_weight = sum(w for _, w in available)
+                if not available or total_weight <= 0:
+                    return None
+                return sum(v * w for v, w in available) / total_weight
+
+            equity_cluster = _cluster_avg(roe_score, operating_profitability_score)
+            asset_cluster = _cluster_avg(roa_score, gross_profitability_score)
+            # REWEIGHTED 2026-08-26 (goal: quality-input completeness pass, margin_volatility
+            # evidence check): margin_volatility_score held the LARGEST weight in this composite
+            # (20%) despite never clearing this repo's own |t|>2 bar - re-ran
+            # algo/research/fama_macbeth_quality_factors.py's ALTMAN_CANDIDATE_COLS-isolation-
+            # fixed harness (151 months, 2014-2026) and got margin_volatility_3y t=-1.28
+            # univariate / -1.51 multivariate, same "doesn't clear the bar" territory this repo
+            # has excluded/downweighted components for before (volume_confirmation_score,
+            # earnings_growth_yoy). Cut 20% -> 5%, redistributed the freed 15% to the two
+            # components that DO clear |t|>2 in the same re-run: debt_to_assets (10% -> 15%,
+            # t=2.11/2.18) and asset_cluster (15% -> 25%, carried by roa's t=2.16/1.95 - its
+            # gross_profitability half is weak alone but the cluster average is dominated by
+            # roa's real signal). equity_cluster/roic/accruals/interest_coverage/payout left
+            # untouched - out of scope for this specific finding, and this repo has a documented
+            # precedent (growth_quality_inputs_restored_user_distrust_20260826) of the user
+            # reverting a broader backtest-driven reweight on point-in-time-panel-caveats
+            # grounds, so a full re-audit of every component needs its own explicit pass, not a
+            # side effect of fixing this one.
+            # REWEIGHTED AGAIN 2026-08-26 (Altman Z''-Score added, same session): funded its new
+            # 10% weight by cutting the two weakest/most-inconsistent-signed remaining
+            # components rather than touching anything already reviewed above -
+            # interest_coverage_score (10% -> 5%: t=-1.47 multivariate vs. +0.16 univariate,
+            # sign-flips between the two tests, the least stable of anything in this composite)
+            # and accruals_score (15% -> 10%: consistently negative-signed but t=-1.84/-1.49,
+            # doesn't clear the bar either). roic_score explicitly NOT touched despite its own
+            # t=0.45 near-zero result - that check used an approximate invested-capital formula
+            # (this file's real production formula uses sec_valuations.total_debt with a
+            # multi-year fallback; the research-harness proxy uses same-year long_term_debt +
+            # short_term_debt only), so a near-zero result there is less trustworthy than the
+            # margin_volatility/altman_z checks (which used the exact same formula as
+            # production) - flagged for the user rather than acted on.
+            weighted_score = _weighted_avg(
+                [
+                    (equity_cluster, 10.0),
+                    (asset_cluster, 25.0),
+                    (roic_score, 10.0),
+                    (accruals_score, 10.0),
+                    (debt_to_assets_score, 15.0),
+                    (interest_coverage_score, 5.0),
+                    (margin_volatility_score, 5.0),
+                    (payout_score, 10.0),
+                    (altman_z_score_curve, 10.0),
+                ]
+            )
+
+            # PERSISTED 2026-08-26 (goal: quality-input completeness pass): these 4 were being
+            # computed and scored into quality_score above but never written to `metrics`, so
+            # they had no DB column, no API field, and no frontend display - a real value drove
+            # the composite score while staying completely invisible everywhere else (same
+            # "computed but invisible" bug class as _derive_mom_12_1's mom_12_1). Migration 1236
+            # added the 4 columns + reason companions.
+            metrics["gross_profitability"] = gross_profitability
+            metrics["gross_profitability_unavailable_reason"] = (
+                "missing_sec_data" if gross_profitability is None else None
+            )
+            metrics["operating_profitability"] = operating_profitability
+            metrics["operating_profitability_unavailable_reason"] = (
+                "missing_sec_data" if operating_profitability is None else None
+            )
+            metrics["accruals_ratio"] = accruals_ratio
+            metrics["accruals_ratio_unavailable_reason"] = "missing_sec_data" if accruals_ratio is None else None
+            metrics["margin_volatility"] = margin_volatility
+            metrics["margin_volatility_unavailable_reason"] = (
+                "insufficient_history" if margin_volatility is None else None
+            )
+            metrics["altman_z_score"] = altman_z_score
+            if altman_z_score is not None:
+                metrics["altman_z_score_unavailable_reason"] = None
+            elif retained_earnings is None:
+                metrics["altman_z_score_unavailable_reason"] = "missing_retained_earnings"
+            else:
+                metrics["altman_z_score_unavailable_reason"] = "missing_sec_data"
 
             # An unprofitable company still has a real, computed quality score (0,
             # after clamping) - that's honest data, not missing data. Do not mark
             # data_unavailable just because every component came out <= 0.
-            if available_components:
-                # Normalize to 0-100 scale: ROE/margins can exceed 100, cap at 100;
-                # negative components clamp to 0 (floor of the quality scale).
-                normalized = [min(100, max(0, m)) for m in available_components]
-                metrics["quality_score"] = float(sum(normalized) / len(normalized))
+            if weighted_score is not None:
+                metrics["quality_score"] = float(min(100.0, max(0.0, weighted_score)))
 
             # CRITICAL FIX 2026-07-20: Only mark data_unavailable if ALL metrics are missing.
             # Partial quality data is valid and should be scored with completeness tracking.
@@ -3966,6 +4291,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              earnings_surprise_avg, eps_growth_stability, earnings_beat_rate, consecutive_positive_quarters,
              earnings_growth_4q_avg,
+             gross_profitability, operating_profitability, accruals_ratio, margin_volatility, altman_z_score,
              roe_unavailable_reason, roa_unavailable_reason, operating_margin_unavailable_reason, net_margin_unavailable_reason,
              debt_to_equity_unavailable_reason, current_ratio_unavailable_reason, quick_ratio_unavailable_reason,
              interest_coverage_unavailable_reason, debt_to_assets_unavailable_reason, quality_score_unavailable_reason,
@@ -3977,8 +4303,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              gross_margin_trend_unavailable_reason, operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason,
              roe_trend_unavailable_reason, sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason,
              fcf_growth_yoy_unavailable_reason, ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
-             earnings_growth_4q_avg_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             earnings_growth_4q_avg_unavailable_reason,
+             gross_profitability_unavailable_reason, operating_profitability_unavailable_reason,
+             accruals_ratio_unavailable_reason, margin_volatility_unavailable_reason,
+             altman_z_score_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -4008,6 +4337,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 earnings_beat_rate = EXCLUDED.earnings_beat_rate,
                 consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
                 earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg,
+                gross_profitability = EXCLUDED.gross_profitability,
+                operating_profitability = EXCLUDED.operating_profitability,
+                accruals_ratio = EXCLUDED.accruals_ratio,
+                margin_volatility = EXCLUDED.margin_volatility,
+                altman_z_score = EXCLUDED.altman_z_score,
                 gross_margin = EXCLUDED.gross_margin,
                 roic_pct = EXCLUDED.roic_pct,
                 fcf_to_net_income = EXCLUDED.fcf_to_net_income,
@@ -4056,6 +4390,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 ocf_growth_yoy_unavailable_reason = EXCLUDED.ocf_growth_yoy_unavailable_reason,
                 asset_growth_yoy_unavailable_reason = EXCLUDED.asset_growth_yoy_unavailable_reason,
                 earnings_growth_4q_avg_unavailable_reason = EXCLUDED.earnings_growth_4q_avg_unavailable_reason,
+                gross_profitability_unavailable_reason = EXCLUDED.gross_profitability_unavailable_reason,
+                operating_profitability_unavailable_reason = EXCLUDED.operating_profitability_unavailable_reason,
+                accruals_ratio_unavailable_reason = EXCLUDED.accruals_ratio_unavailable_reason,
+                margin_volatility_unavailable_reason = EXCLUDED.margin_volatility_unavailable_reason,
+                altman_z_score_unavailable_reason = EXCLUDED.altman_z_score_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -4107,6 +4446,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("earnings_beat_rate"),
                 row.get("consecutive_positive_quarters"),
                 row.get("earnings_growth_4q_avg"),
+                row.get("gross_profitability"),
+                row.get("operating_profitability"),
+                row.get("accruals_ratio"),
+                row.get("margin_volatility"),
+                row.get("altman_z_score"),
                 row.get("roe_unavailable_reason"),
                 row.get("roa_unavailable_reason"),
                 row.get("operating_margin_unavailable_reason"),
@@ -4143,6 +4487,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("ocf_growth_yoy_unavailable_reason"),
                 row.get("asset_growth_yoy_unavailable_reason"),
                 row.get("earnings_growth_4q_avg_unavailable_reason"),
+                row.get("gross_profitability_unavailable_reason"),
+                row.get("operating_profitability_unavailable_reason"),
+                row.get("accruals_ratio_unavailable_reason"),
+                row.get("margin_volatility_unavailable_reason"),
+                row.get("altman_z_score_unavailable_reason"),
             ),
         )
 

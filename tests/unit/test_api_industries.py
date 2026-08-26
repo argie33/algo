@@ -58,7 +58,7 @@ def test_industries_detail_endpoint_validation():
         "value_score": 70.0,
         "quality_score": 80.0,
         "growth_score": 85.0,
-        "stability_score": 75.0,
+        "risk_score": 75.0,
         "data_freshness": {"data_age_days": 0, "is_stale": False, "warning": None},
     }
 

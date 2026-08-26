@@ -81,7 +81,7 @@ class TestAWSLambdaOrchestrationFlow:
                 "momentum_score": 71.0,
                 "volatility_score": 65.0,
                 "positioning_score": 72.0,
-                "stability_score": 70.0,
+                "risk_score": 70.0,
                 "data_count": 6,  # All 6 metrics available
             }
         ]

@@ -502,6 +502,17 @@ _BALANCE_FIELD_MAPPING = {
     **_MARKER_FIELDS,
 }
 
+# ADDED 2026-08-26 (Quality pillar literature audit): Altman Z''-Score's Retained Earnings/
+# Total Assets term - see sec_statements.py's get_balance_sheet() comment. Annual-only: migration
+# 1234 added `retained_earnings` to annual_balance_sheet only (nothing in this codebase consumes
+# a quarterly or TTM Altman Z''), so this must NOT be merged into _BALANCE_FIELD_MAPPING itself -
+# that dict is shared with quarterly_balance_sheet's config below, whose schema_cols has no
+# `retained_earnings` column. Live-caught 2026-08-26: merging it into the shared base dict made
+# every single quarterly_balance_sheet fetch raise sec_base.py's "not in target schema"
+# RuntimeError (self._schema_cols is a hardcoded per-config frozenset, not introspected from the
+# live DB, so it doesn't just silently pass through).
+_ANNUAL_BALANCE_EXTRA = {"retained_earnings_accumulated_deficit": "retained_earnings"}
+
 _CASHFLOW_FIELD_MAPPING = {
     "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
     # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): fallback-only, see
@@ -720,7 +731,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
     if period == "annual":
         return {
             "table_name": "annual_balance_sheet",
-            "field_mapping": dict(_BALANCE_FIELD_MAPPING),
+            "field_mapping": {**_BALANCE_FIELD_MAPPING, **_ANNUAL_BALANCE_EXTRA},
             "fallback_only_fields": _DEBT_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
@@ -741,6 +752,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "short_term_debt",
                     "operating_lease_liability",
                     "finance_lease_liability",
+                    "retained_earnings",
                     "created_at",
                     "data_unavailable",
                     "reason",

@@ -94,7 +94,7 @@ All fail-fast patterns are enforced. See git log for remediation commits: `git l
 
 **Three layers of gates** (all hot-reloadable via `algo_config` table):
 
-1. **Entry quality:** Signal quality score ≥75 (`min_signal_quality_score` - drifted stale here as 60, verified live 2026-08-20), completeness ≥70% (`min_completeness_score`), volume ≥300k (`min_volume_ma_50d`), dollar volume ≥$500k (`min_avg_daily_dollar_volume`). Swing score is retired (migration 103) - trading logic is composite_score-only.
+1. **Entry quality:** Signal quality score ≥82 (`min_signal_quality_score` - recalibrated from an undocumented 75 to this evidence-based value 2026-08-26, migration 1233, commit `feaf99c2c`, after excluding `volume_confirmation_score` from the composite collapsed the score distribution upward; this line previously said "≥75 ... drifted stale here as 60" - both numbers were stale), completeness ≥70% (`min_completeness_score`), volume ≥300k (`min_volume_ma_50d`), dollar volume ≥$500k (`min_avg_daily_dollar_volume`). Swing score is retired (migration 103) - trading logic is composite_score-only.
 2. **Earnings blackout:** 7 days before, 3 days after
 3. **Quality gates (warn-only):** RS slope, volume decay
 
@@ -177,7 +177,7 @@ whether it's actually reachable for a given phase before citing it in a debuggin
 - **Market regime:** `market_exposure_daily` (as of 2026-08-24, composite score is 100% Trend & Momentum only — Independent Risk Layers and Breadth & Sentiment are computed every run but carry zero composite weight, used solely as hard-veto triggers/dashboard context, not scored inputs — plus a slow macro veto, fail-open if EOD fails). The trend-only score is then scaled by a volatility-managed multiplier (`_vol_managed_multiplier()`, Moreira & Muir 2017, target/realized-vol ratio capped [0.25, 2.0], applied *before* the hard-veto caps below) — active since 2026-08-24 after passing its own required backtest on SPY/QQQ; degrades to neutral 1.0 on missing/invalid data, never blocks scoring.
 - **Earnings:** `earnings_calendar` (loaded 4:29 AM, retains 60 days)
 
-**Signal generation pipeline:** Fetch buy_sell_daily BUY signals → Filter: close > SMA_50, not bottom 40% range → Liquidity check top 10 → Rank by composite_score → Return candidates.
+**Signal generation pipeline:** Fetch buy_sell_daily BUY signals → Filter: close > SMA_50, not bottom 40% range, composite_score >= floor threshold → Rank by `signal_quality_score` descending (NOT composite_score - corrected 2026-08-26, this line was stale; see "CRITICAL FIX (Session 377)" in `phase7_signal_generation.py`) → Liquidity check top `LIQUIDITY_CHECK_LIMIT` (20) → Phase 8 re-sorts the survivors by `composite_score` for its own concentration-limited capital allocation. Two different scores rank at two different stages - `signal_quality_score` decides who even survives to Phase 8, `composite_score` only decides execution order among those survivors. Open question (not yet actionable, too little `buy_sell_daily` history): Session 377's SQS-over-composite_score choice was based on a hypothesis about short-term predictive power that a 2026-08-26 empirical check of live signals did not support - see `signal_quality_score_pooled_check_no_predictive_power_found_20260825` in memory.
 
 ---
 

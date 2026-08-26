@@ -248,7 +248,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 "value_score": None,
                 "quality_score": None,
                 "growth_score": None,
-                "stability_score": None,
+                "risk_score": None,
                 "performance_1d": perf_1d,
                 "performance_5d": perf_5d,
                 "performance_20d": perf_20d,
@@ -306,7 +306,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
                 AVG(ss.value_score)      AS value_score,
                 AVG(ss.quality_score)    AS quality_score,
                 AVG(ss.growth_score)     AS growth_score,
-                AVG(ss.stability_score)  AS stability_score
+                AVG(ss.risk_score)  AS risk_score
             FROM company_profile cp
             LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
                 AND (ss.data_unavailable = FALSE OR ss.data_unavailable IS NULL)
@@ -338,7 +338,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
         "value_score": _extract_float(_sf(r.get("value_score"))),
         "quality_score": _extract_float(_sf(r.get("quality_score"))),
         "growth_score": _extract_float(_sf(r.get("growth_score"))),
-        "stability_score": _extract_float(_sf(r.get("stability_score"))),
+        "risk_score": _extract_float(_sf(r.get("risk_score"))),
         "data_freshness": freshness,
     }
 

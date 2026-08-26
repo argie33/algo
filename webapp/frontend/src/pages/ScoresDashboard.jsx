@@ -43,7 +43,7 @@ const scoreClass = (v) => {
 };
 
 // For composite_score only. Sub-factor scores (quality/growth/value/momentum/
-// positioning/stability) use subScoreColor's looser band instead — matches the
+// positioning/risk) use subScoreColor's looser band instead — matches the
 // CLI dashboard's _composite_score_color 80/60/40 vs _score_cell 70/50/30 split
 // (composite is a weighted aggregate that clusters higher, individual factors
 // vary more; using this same band for both meant the same sub-score value
@@ -90,8 +90,7 @@ const SORT_FIELDS = [
   { value: "value_score", label: "Value" },
   { value: "growth_score", label: "Growth" },
   { value: "positioning_score", label: "Positioning" },
-  { value: "stability_score", label: "Stability" },
-  { value: "size_score", label: "Size" },
+  { value: "risk_score", label: "Risk" },
 ];
 
 const FACTORS = [
@@ -131,20 +130,11 @@ const FACTORS = [
     tone: "var(--purple)",
   },
   {
-    key: "stability",
-    label: "Stability",
-    scoreKey: "stability_score",
+    key: "risk",
+    label: "Risk",
+    scoreKey: "risk_score",
     icon: Shield,
     tone: "var(--text-2)",
-  },
-  {
-    key: "size",
-    label: "Size",
-    scoreKey: "size_score",
-    icon: Layers,
-    // Reuses Value's cyan tone - Size (SMB) and Value (HML) are sibling factors in the
-    // original Fama-French model, and this codebase is out of distinct unused theme tones.
-    tone: "var(--cyan)",
   },
 ];
 
@@ -1327,10 +1317,10 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: subScoreColor(s.stability_score) }}
+                      style={{ color: subScoreColor(s.risk_score) }}
                     >
                       <SafeMetricValue
-                        value={s.stability_score}
+                        value={s.risk_score}
                         formatter="number"
                         fallback="—"
                       />

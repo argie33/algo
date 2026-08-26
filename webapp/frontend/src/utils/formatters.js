@@ -477,7 +477,7 @@ export const getFactorFieldLabel = (fieldName) => {
     eps_growth_stability: "EPS Growth Stability",
     payout_ratio: "Payout Ratio",
 
-    // Stability
+    // Risk
     volatility_12m_pct: "Volatility (12M)",
     max_drawdown_52w_pct: "Max Drawdown (52W)",
     beta: "Beta",

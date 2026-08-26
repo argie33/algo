@@ -37,8 +37,11 @@ Pipeline:
 6. Filter: close > sma_50 (uptrend confirmation)
 7. Filter: composite_score >= min threshold (30)
 8. Close quality gate: skip weak closes (bottom of day's range = distribution)
-9. Liquidity checks on top LIQUIDITY_CHECK_LIMIT candidates
-10. Return composite-score-ranked candidates to Phase 8
+9. Liquidity checks on top LIQUIDITY_CHECK_LIMIT candidates (ranked by signal_quality_score,
+   not composite_score - see note below)
+10. Return signal_quality_score-ranked candidates to Phase 8 (Phase 8 re-sorts the survivors
+    by composite_score for its own concentration-limited capital allocation - two different
+    scores are used at two different pipeline stages, not one consistent ranking)
 
 CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipeline
 (4:05 PM ET) must complete and populate buy_sell_daily (which depends on technical_data_daily).
@@ -69,8 +72,26 @@ Why no fallback to computed scores? Using COALESCE(composite_score, strength*50)
 INSTEAD: INNER JOIN requires stock_scores coverage. Signals are only generated for
 symbols with full quality/growth/value/positioning/stability metrics available.
 
-Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
-positioning 15%, stability 12%, momentum 8%).
+Ranking: NOT composite_score, despite this doc's own claim below having said so for a long
+time (stale - never updated after the change described next). composite_score from
+stock_scores is used only as a floor filter (>= min threshold, see step 7) plus an
+informational field. The actual sort that determines which candidates survive to the
+liquidity check and Phase 8 (see LIQUIDITY_CHECK_LIMIT in step 9) is signal_quality_score
+descending - CRITICAL FIX (Session 377), on the hypothesis that SQS (RSI/MACD/Minervini/
+Weinstein-based) predicts 1-5 day price action better than composite_score's fundamental
+pillars do. NOTE (2026-08-26): the first empirical check of that hypothesis against real
+live buy_sell_daily signals found the opposite of what Session 377 predicted - SQS shows
+~zero-to-negative correlation with forward returns (non-monotonic quintiles, top quintile
+worst in the 10-day cut) and live BUY signals averaged negative forward returns while SPY
+was flat-to-up (see signal_quality_score_pooled_check_no_predictive_power_found_20260825 /
+algo/research/signal_quality_score_validation.py). That check is on only ~2.5 months of
+buy_sell_daily history (too thin to safely act on per this codebase's own robustness
+standard elsewhere), so the ranking has NOT been reverted - but the original Session 377
+rationale for preferring SQS over composite_score here should be re-tested, not assumed,
+once more history accrues. composite_score's 6 pillars (quality/growth/value/positioning/
+risk/momentum - "stability" renamed to "risk" 2026-08-26, migration 1235; a 7th "size"
+pillar was promoted then fully removed the same day, this list was stale on both counts)
+each carry their own multi-year Fama-MacBeth validation, unlike SQS's hand-set COMPONENT_MAXES.
 
 Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradation mode).
 """

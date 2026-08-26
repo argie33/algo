@@ -789,7 +789,7 @@ DASHBOARD_ENDPOINTS = {
             required_fields=[],
             optional_fields=["top", "total", "universe_total", "avg_composite", "grades", "data_freshness"],
             field_types={"top": list, "total": int, "universe_total": int, "avg_composite": float, "grades": dict},
-            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, stability_score, sector, industry, current_price, change_percent, rs_percentile), plus universe_total/avg_composite/grades summary metrics over the full filtered universe",
+            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, risk_score, sector, industry, current_price, change_percent, rs_percentile), plus universe_total/avg_composite/grades summary metrics over the full filtered universe",
         ),
         "freshness_max_age_seconds": 14400,
         "strict_fields": [],
@@ -837,7 +837,7 @@ DASHBOARD_ENDPOINTS = {
                 "value_score",
                 "quality_score",
                 "growth_score",
-                "stability_score",
+                "risk_score",
                 "data_freshness",
             ],
             field_types={

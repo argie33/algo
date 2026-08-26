@@ -6,7 +6,6 @@ import {
   TrendingUp,
   Users,
   Shield,
-  Layers,
   Inbox,
 } from "lucide-react";
 import {
@@ -190,16 +189,10 @@ const FACTORS = [
     icon: Users,
   },
   {
-    key: "stability",
-    label: "Stability",
-    scoreKey: "stability_score",
+    key: "risk",
+    label: "Risk",
+    scoreKey: "risk_score",
     icon: Shield,
-  },
-  {
-    key: "size",
-    label: "Size",
-    scoreKey: "size_score",
-    icon: Layers,
   },
 ];
 
@@ -712,18 +705,10 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           inputsKey="positioning_inputs"
         />
         <InputsCard
-          title="Stability"
+          title="Risk"
           stock={stock}
-          schema={STABILITY_SCHEMA}
-          inputsKey="stability_inputs"
-        />
-        {/* market_cap lives in value_inputs (same value_metrics row Value reads) - no
-            separate backend inputsKey needed for this single-field pillar. */}
-        <InputsCard
-          title="Size"
-          stock={stock}
-          schema={SIZE_SCHEMA}
-          inputsKey="value_inputs"
+          schema={RISK_SCHEMA}
+          inputsKey="risk_inputs"
         />
       </div>
 
@@ -760,7 +745,7 @@ const StockScoreAccordion = ({
 };
 
 export default StockScoreAccordion;
-export { QUALITY_SCHEMA, STABILITY_SCHEMA };
+export { QUALITY_SCHEMA, RISK_SCHEMA };
 
 // ─── Input Schemas ──────────────────────────────────────────────────────────
 // Ground-truthed against loaders/load_stock_scores.py and
@@ -787,133 +772,122 @@ export { QUALITY_SCHEMA, STABILITY_SCHEMA };
 // collected: false -> live-DB audit found ~0% population across the whole
 //   universe (i.e. this isn't a per-stock gap, the pipeline doesn't produce it)
 
-// FIXED 2026-08-04: quality_score (load_stock_scores.py::_score_quality) is NOT a
-// 6-input linear weighting of ROE/ROA/ROIC/Profit Margin/Op Margin/Debt-Equity as this
-// schema previously claimed - it's an equal-weighted average of up to 6 DIFFERENT
-// components (roe, roa, operating_margin, net_margin, debt_to_assets inverted,
-// interest_coverage - each ~17% when all present, self-normalizing over whichever are
-// available), then adjusted +/-10 points by _enhance_quality_score using a separate set
-// of signals (margins_avg, earnings_growth_yoy, fcf_to_net_income, roic_pct,
-// ocf_to_net_income). ROIC/FCF-to-NI/OCF-to-NI are real inputs but are bounded +/- point
-// adjustments, not proportional weights, hence the "adj" labels below instead of a %.
+// REDESIGNED 2026-08-26 (Quality literature audit: Novy-Marx 2013, Fama-French 2015 RMW,
+// Sloan 1996, QMJ 2013, Altman 1995 - see loaders/load_stock_scores.py's _score_quality
+// docstring and algo/research/fama_macbeth_quality_factors.py's EXTENDED_CANDIDATE_COLS/
+// ALTMAN_CANDIDATE_COLS for the full evidence). quality_score is 10 weighted signals: an
+// equity-profitability cluster (ROE + Operating Profitability, 10% combined, ~5% each), an
+// asset-profitability cluster (ROA + Gross Profitability, 25% combined, ~12.5% each), ROIC
+// (10%), Accruals Ratio (10%), Debt-to-Assets (15%), Interest Coverage (5%), Margin
+// Volatility (5%), Payout Ratio (10%), Altman Z''-Score (10%).
+// TWO REWEIGHTS same day, both evidence-driven (see loaders/load_value_quality_growth_metrics.py's
+// weighted_score comments for the full t-stats): (1) margin_volatility held 20% - the LARGEST
+// weight in the composite - despite t=-1.28/-1.51, below this repo's own |t|>2 bar; cut to 5%,
+// freed 15% went to Debt-to-Assets (10%->15%, t=2.11/2.18) and the asset cluster (15%->25%,
+// carried by ROA's t=2.16/1.95). (2) Altman Z''-Score added (t=3.49 on the full
+// retained_earnings-backfilled sample - the single strongest-evidenced component in this whole
+// composite), funded by cutting Interest Coverage (10%->5%: sign-flips between univariate
+// +0.16 and multivariate -1.47, the least stable component here) and Accruals Ratio (15%->10%:
+// consistently negative-signed but t=-1.84/-1.49, doesn't clear the bar either). ROIC's own
+// t=0.45 near-zero check was NOT acted on - that check used an approximate invested-capital
+// formula, less trustworthy than the exact-formula checks behind the other two reweights.
+// This REPLACES the old ±adjustment layer entirely (EBITDA Margin/FCF-NI/OCF-NI/
+// Debt-to-Equity rows below are GONE - none of them influence quality_score anymore, so
+// displaying them would be actively wrong, not just stale) - see _score_quality's docstring
+// for why splitting one score across a base formula + a bump layer was real architectural
+// debt independent of the literature findings.
 //
-// CLEANUP 2026-08-16: debt_to_equity/current_ratio/quick_ratio/cash_per_share moved here
-// from the Stability tab - they're balance-sheet leverage/liquidity/cash metrics
-// (_score_financial_stability), not price-volatility signals, so they belong under
-// Quality. They now feed _enhance_quality_score as a bounded +/-3 adjustment (same
-// pattern as margins/ROIC/OCF above), not a proportional weight.
-// CLEANUP 2026-08-18: gross_margin/current_ratio/quick_ratio/cash_per_share cut entirely
-// per user request - none of them belong in the factor scores anymore. gross_margin
-// dropped out of _enhance_quality_score's margin-quality average; current_ratio/
-// quick_ratio/cash_per_share dropped out of _score_financial_stability. debt_to_equity
-// stays (still a real ±3 adj input); debt_to_assets stays (still a real ~17% input).
+// NOW DISPLAYABLE 2026-08-26 (migration 1236): Operating Profitability, Gross Profitability,
+// Accruals Ratio, and Margin Volatility are persisted to quality_metrics and exposed via the
+// API (see lambda/api/routes/scores.py's quality_inputs) - added to this schema below, closing
+// the "computed but invisible" gap this comment used to flag. Altman Z''-Score (migration 1237)
+// added the same day once retained_earnings' backfill gave it real Fama-MacBeth evidence.
+// ROIC and Payout Ratio ARE already persisted/exposed (roic_pct, payout_ratio) but were
+// never added to this schema even when they were bounded adjustments - added now that
+// they're real weighted inputs.
 const QUALITY_SCHEMA = [
   {
     key: "return_on_equity_pct",
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~5%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~12.5%",
   },
   {
-    key: "profit_margin_pct",
-    label: "Profit Margin",
+    key: "return_on_invested_capital_pct",
+    label: "ROIC",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~10%",
   },
   {
-    key: "operating_margin_pct",
-    label: "Operating Margin",
+    key: "operating_profitability_pct",
+    label: "Operating Profitability",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~5%",
   },
   {
-    key: "ebitda_margin_pct",
-    label: "EBITDA Margin",
+    key: "gross_profitability_pct",
+    label: "Gross Profitability",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "±3 adj",
+    weight: "~12.5%",
   },
   {
-    key: "fcf_to_net_income",
-    label: "FCF / Net Income",
+    key: "accruals_ratio_pct",
+    label: "Accruals Ratio",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "~10%",
+  },
+  {
+    key: "margin_volatility",
+    label: "Margin Volatility",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "~5%",
+  },
+  {
+    key: "altman_z_score",
+    label: "Altman Z''-Score",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "±2 adj",
-  },
-  {
-    key: "operating_cf_to_net_income",
-    label: "OCF / Net Income",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "±2 adj",
+    weight: "~10%",
   },
   {
     key: "interest_coverage",
     label: "Interest Coverage",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~17%",
+    weight: "~5%",
   },
   {
     key: "debt_to_assets",
     label: "Debt to Assets",
     fmt: (v) => pct(v == null ? null : v * 100, 1),
     used: true,
-    weight: "~17%",
+    weight: "~15%",
   },
   {
-    key: "debt_to_equity",
-    label: "Debt / Equity",
-    fmt: (v) => num(v, 2),
+    key: "payout_ratio",
+    label: "Payout Ratio",
+    fmt: (v) => pct(v, 1),
     used: true,
-    weight: "±3 adj",
+    weight: "~10%",
   },
-  // RE-ADDED 2026-08-25 (goal: full scoring-architecture audit): eps_growth_stability was
-  // cut 20260816 as an unweighted reference field ("no scoring impact") - it's now wired
-  // into _enhance_quality_score as a real ±3 adjustment (stddev of trailing 4-quarter EPS
-  // growth - lower = more consistent earnings = higher quality, the QMJ "safety" concept).
-  // earnings_growth_yoy REMOVED from _enhance_quality_score entirely (it duplicated the
-  // entire Growth pillar's purpose) and replaced with this plus the margin/ROE trend
-  // fields below, relocated from the Growth tab (they measure quality-of-earnings
-  // direction, not growth magnitude).
-  {
-    key: "eps_growth_stability",
-    label: "EPS Growth Stability (lower = more consistent)",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "±3 adj",
-  },
-  {
-    key: "operating_margin_trend",
-    label: "Op Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "±2 adj",
-  },
-  {
-    key: "net_margin_trend",
-    label: "Net Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "±2 adj",
-  },
-  {
-    key: "roe_trend",
-    label: "ROE Trend",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "±2 adj",
-  },
+  // earnings_growth_yoy briefly restored here 2026-08-26, then MOVED to the Growth tab the
+  // same day (user directive) - it's a growth-magnitude signal, not a quality one, so its
+  // real home is GROWTH_SCHEMA below, not here. eps_growth_stability/operating_margin_trend/
+  // net_margin_trend/roe_trend never lived in Quality in the long-standing pre-08-25
+  // baseline either - also scored in Growth instead.
   // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
   // tab (earnings_surprise_avg, earnings_beat_rate, consecutive_positive_quarters,
   // free_cashflow, operating_cashflow, total_debt, total_cash, earnings_growth_4q_avg)
@@ -1057,46 +1031,44 @@ const MOMENTUM_SCHEMA = [
 // loaders/load_stock_scores.py's _score_value docstring ("PE-vs-PB/PS RANKING - REVERSED")
 // for the full evidence.
 //
-// SIZE (market_cap) MOVED OUT 2026-08-26 - promoted from a 20%-weighted sub-component here to
-// its own top-level "Size" pillar/tab (see SIZE_SCHEMA below and FACTORS' "size" entry above).
-// The 7 remaining inputs below were rescaled x1.25 to restore the 100% they held before Size's
-// 20% carve-out - see loaders/load_stock_scores.py's _score_value docstring for the evidence
-// trail (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar).
-// AMIHUD ILLIQUIDITY added 2026-08-26 (same day, later pass) as a new 8%-weighted
-// sub-component - see loaders/load_stock_scores.py's _score_value docstring "AMIHUD
-// ILLIQUIDITY" note for the full evidence trail (Fama-MacBeth t=2.07-2.41). The other 7
-// inputs below were rescaled again (x0.92) to free these 8 points. Raw value not yet wired
-// into this page's API response for display (it lives on technical_data_daily, not the
-// value_metrics/stock_scores join this page already uses) - the weight badge is accurate
-// (it drives the real score), the row will show "N/A" until that display wiring is added.
+// SIZE (market_cap) MOVED OUT 2026-08-26 - briefly promoted to its own top-level "Size"
+// pillar/tab the same day, then removed from scoring entirely (user directive) - market_cap
+// is not a scored input anywhere on this page now. The 7 remaining inputs below stayed at
+// the x1.25-rescaled weights that restored their pre-Size 100% (see
+// loaders/load_stock_scores.py's _score_value docstring for that history).
+// AMIHUD ILLIQUIDITY added 2026-08-26, REMOVED same day (user directive - see
+// loaders/load_stock_scores.py's _score_value docstring "AMIHUD ILLIQUIDITY" note for why:
+// real academic signal, but scored favoring harder-to-trade micro-caps in a way that's
+// hard to trust given this system's flat, likely-understated slippage assumption). The
+// other 7 inputs below are back at their pre-Amihud weights.
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "11%",
+    weight: "12%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "26%",
+    weight: "28%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "24%",
+    weight: "26%",
   },
   {
     key: "peg_ratio",
     label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "9%",
+    weight: "10%",
   },
   {
     key: "stock_dividend_yield",
@@ -1110,97 +1082,146 @@ const VALUE_SCHEMA = [
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "12%",
+    weight: "13%",
   },
   {
     key: "stock_margin_of_safety",
     label: "Margin of Safety (DCF)",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "6%",
-  },
-  {
-    key: "amihud_illiquidity",
-    label: "Amihud Illiquidity",
-    fmt: (v) => num(v, 6),
-    used: true,
-    weight: "8%",
+    weight: "7%",
   },
   // stock_forward_pe removed 2026-08-25 - see comment above.
-  // market_cap moved to the Size pillar 2026-08-26 - see SIZE_SCHEMA below.
+  // market_cap briefly moved to a Size pillar 2026-08-26, then removed from scoring
+  // entirely the same day (user directive) - not a scored input anywhere on this page now.
 ];
 
-// SIZE (market cap, Fama-French SMB / Banz 1981) - its own top-level pillar since 2026-08-26
-// (previously a 20%-weighted sub-component of Value). Single-input pillar: market_cap is the
-// sole driver of size_score via a log10-bucketed curve, not a weighted blend, so there's no
-// "weight" in the usual multi-input sense - it's the pillar's entire signal by construction.
-// See loaders/load_stock_scores.py's StockScoresLoader._score_size docstring for the evidence
-// trail (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar in the whole
-// stock_scores re-audit) and the log10-bucketed scoring curve.
-const SIZE_SCHEMA = [
-  {
-    key: "market_cap",
-    label: "Market Cap",
-    fmt: (v) => (v == null ? "—" : `$${(v / 1e9).toFixed(2)}B`),
-    used: true,
-    weight: "sole input",
-  },
-];
+// SIZE pillar (market cap) REMOVED 2026-08-26 (user directive) - briefly promoted to its own
+// top-level pillar the same day it was added, then removed from scoring entirely. market_cap
+// is not a scored input, and has no schema/card, anywhere on this page now.
 
-// REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): cut from 14 inputs to 4.
-// Three composite-level backtests (original 6-window mix, a consolidated version, and an
-// asset/cashflow-led version) against forward 1y returns ALL showed no real signal
-// (p=0.27, p=0.94, p=0.33) - more inputs weren't buying predictive power, so simplicity
-// won over completeness. Kept: EPS 1y (the single conventional growth reference),
-// Asset Growth YoY (SIGN-FLIPPED - Cooper/Gulen/Schill 2008 + Fama-French CMA, and our own
-// panel replicated it cleanly: Spearman=-0.037, p=8.4e-6, the strongest single empirical
-// result of the whole audit), Revenue Growth 1y (kept small - weak/no standalone signal
-// per Lakonishok/Shleifer/Vishny 1994), Sustainable Growth Rate (structurally distinct,
-// ROE-driven). Dropped: EPS/Revenue 3y/5y CAGRs (redundant windows; 5y also had the worst
-// coverage, 38.9%/73.7% of the universe vs 1y's 75.6%/95.2%), NI/OI growth YoY (near-
-// duplicates of EPS growth), FCF/OCF growth YoY (no proven distinct value once tested at
-// the composite level). Margin/ROE trend fields briefly moved to the Quality tab same day,
-// then removed from scoring entirely on user feedback (see QUALITY_SCHEMA comment) - not
-// re-homed, since they don't earn their keep empirically even in their correct conceptual
-// home (Quality, per Piotroski F-Score / AFP Quality Minus Junk literature).
-//
-// REWEIGHTED 2026-08-25 (goal: horizon-matched re-audit, later same day): eps_growth_1y cut
-// 45%->25% - Fama-MacBeth at the 1-month horizon (matched to this system's actual weeks-scale
-// swing-trading holding period) found it robustly null (t=0.76/0.97), the cleanest null in
-// this pillar across every horizon/spec tested. asset_growth_yoy/revenue_growth_1y/
-// sustainable_growth_rate raised to absorb the freed weight - see
-// loaders/load_stock_scores.py's _score_growth docstring for the full per-field reasoning
-// (asset_growth's weaker-than-claimed showing has a specific explanation - McLean & Pontiff
-// 2016 post-publication anomaly decay - that eps_growth_1y's null doesn't have).
+// RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction): back
+// to the pre-08-25 14-input set. The 2026-08-25 cut to 4 inputs rested on this system's own
+// exploratory backtests (composite-level p=0.27/0.94/0.33, plus later Fama-MacBeth reruns
+// whose own docstrings flagged real caveats - no true SEC filing-date data, a flat
+// calendar-fiscal-year-end assumption, n=12 independent years for the cleanest check) -
+// not external validated research. See loaders/load_stock_scores.py's _score_growth
+// docstring for the full reasoning. asset_growth_yoy's SIGN FLIP is the one exception kept
+// from that redesign (Cooper/Gulen/Schill 2008, JoF + Fama-French CMA - externally
+// peer-reviewed, not this system's own backtest; independently replicated here too:
+// Spearman=-0.037, p=8.4e-6) - its weight reverts to the original 5% though, since the
+// 25-30% it briefly carried came from the same disputed process as everything else here.
 const GROWTH_SCHEMA = [
-  {
-    key: "eps_growth_1y_pct",
-    label: "EPS Growth (1Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "25%",
-  },
-  {
-    key: "asset_growth_yoy",
-    label: "Asset Growth YoY (inverted - lower is better)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "30%",
-  },
   {
     key: "revenue_growth_1y_pct",
     label: "Revenue Growth (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "24%",
+  },
+  {
+    key: "eps_growth_1y_pct",
+    label: "EPS Growth (1Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "33%",
+  },
+  {
+    key: "revenue_growth_3y_cagr",
+    label: "Revenue CAGR (3Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "14%",
+  },
+  {
+    key: "eps_growth_3y_cagr",
+    label: "EPS CAGR (3Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "19%",
+  },
+  {
+    key: "revenue_growth_5y_cagr",
+    label: "Revenue CAGR (5Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "5%",
+  },
+  {
+    key: "eps_growth_5y_cagr",
+    label: "EPS CAGR (5Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "5%",
+  },
+  {
+    key: "net_income_growth_yoy",
+    label: "Net Income Growth YoY",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "8%",
+  },
+  {
+    key: "operating_income_growth_yoy",
+    label: "Op Income Growth YoY",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "6%",
+  },
+  {
+    key: "operating_margin_trend",
+    label: "Op Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "3%",
+  },
+  {
+    key: "net_margin_trend",
+    label: "Net Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "3%",
+  },
+  {
+    key: "roe_trend",
+    label: "ROE Trend",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "3%",
   },
   {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "6%",
   },
+  {
+    key: "fcf_growth_yoy",
+    label: "FCF Growth YoY",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "6%",
+  },
+  {
+    key: "ocf_growth_yoy",
+    label: "OCF Growth YoY",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "4%",
+  },
+  {
+    key: "asset_growth_yoy",
+    label: "Asset Growth YoY (inverted - lower is better)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "5%",
+  },
+  // earnings_growth_yoy briefly moved here 2026-08-26 from the Quality tab, then removed
+  // from scoring entirely the same day (user directive) - live coverage was too sparse
+  // ("No data" for most symbols in practice) to earn its keep as either pillar's input.
+  // quarterly_growth_momentum (unweighted reference) and earnings_growth_4q_avg
+  // (duplicate of the Quality tab's copy) cut 20260816 - neither feeds growth_score.
 ];
 
 // REWEIGHTED 2026-08-25 (goal: full scoring-architecture audit, user-directed): A/D rating
@@ -1269,12 +1290,12 @@ const POSITIONING_SCHEMA = [
 // freed weight to beta and max_drawdown.
 // volatility_60d and downside_volatility_60d are raw fractions in the DB
 // (load_risk_metrics_daily.py's _calculate_volatility/_calculate_downside_volatility return
-// daily_std * sqrt(252), e.g. 0.15 for 15% - _score_stability's own 0.15/0.30/0.60 thresholds
+// daily_std * sqrt(252), e.g. 0.15 for 15% - _score_risk's own 0.15/0.30/0.60 thresholds
 // in load_stock_scores.py confirm this), same convention as debt_to_assets above, so they need
 // the same *100 scaling pct() doesn't do itself. max_drawdown_1y is the odd one out here -
 // _calculate_max_drawdown already multiplies by 100 (returns e.g. -25.5), so it's passed
 // through as-is like the loader-pre-scaled *_pct fields in QUALITY_SCHEMA.
-const STABILITY_SCHEMA = [
+const RISK_SCHEMA = [
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
@@ -1313,5 +1334,5 @@ const STABILITY_SCHEMA = [
   // added no independent signal once volatility_60d was controlled for (t=+1.39, wrong-
   // signed) - consistent with the 2026-08-25 consolidation's own correlation finding.
   // Moved 10pts from downside_vol (25%->15%) to vol (35%->45%). See
-  // _score_stability's docstring in load_stock_scores.py for the full writeup.
+  // _score_risk's docstring in load_stock_scores.py for the full writeup.
 ];

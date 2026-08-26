@@ -66,7 +66,7 @@ def _db_context_mock(price_rows, spy_rows, debt_to_assets=None):
 
 class TestVolatility252dRequiresMeaningfulSample:
     """volatility_252d is scored as "12-month annualized volatility" and given 0.40 weight
-    in load_stock_scores.py._score_stability - the single highest weight of any stability
+    in load_stock_scores.py._score_risk - the single highest weight of any risk
     sub-component (more than volatility_60d's 0.20 or volatility_30d's 0.15). It previously
     only required len(returns) >= 2 (a divide-by-zero guard borrowed from
     _calculate_volatility, not a real sample-size floor), so a stock with a handful of days
@@ -106,9 +106,9 @@ class TestZeroVolatilityIsPreservedNotDiscarded:
     """A stock with an unchanged closing price for its entire lookback window (illiquid/
     thinly-traded tickers, or a halted symbol carrying a stale last price) computes a
     genuine volatility of exactly 0.0. `if vol_Nd else None` treats 0.0 as falsy and
-    silently discards it as "unavailable" - load_stock_scores.py._score_stability checks
+    silently discards it as "unavailable" - load_stock_scores.py._score_risk checks
     `is not None` to decide whether to include each component, so this dropped a real,
-    meaningful "very low volatility" reading from the stability score entirely."""
+    meaningful "very low volatility" reading from the risk score entirely."""
 
     def _flat_rows(self, n: int, today: date, price: float = 100.0) -> list[tuple[date, float]]:
         return [(today - timedelta(days=i), price) for i in range(n)]
