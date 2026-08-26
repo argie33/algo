@@ -1059,37 +1059,44 @@ const MOMENTUM_SCHEMA = [
 //
 // SIZE (market_cap) MOVED OUT 2026-08-26 - promoted from a 20%-weighted sub-component here to
 // its own top-level "Size" pillar/tab (see SIZE_SCHEMA below and FACTORS' "size" entry above).
-// The 7 remaining inputs below are rescaled x1.25 to restore the 100% they held before Size's
+// The 7 remaining inputs below were rescaled x1.25 to restore the 100% they held before Size's
 // 20% carve-out - see loaders/load_stock_scores.py's _score_value docstring for the evidence
 // trail (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar).
+// AMIHUD ILLIQUIDITY added 2026-08-26 (same day, later pass) as a new 8%-weighted
+// sub-component - see loaders/load_stock_scores.py's _score_value docstring "AMIHUD
+// ILLIQUIDITY" note for the full evidence trail (Fama-MacBeth t=2.07-2.41). The other 7
+// inputs below were rescaled again (x0.92) to free these 8 points. Raw value not yet wired
+// into this page's API response for display (it lives on technical_data_daily, not the
+// value_metrics/stock_scores join this page already uses) - the weight badge is accurate
+// (it drives the real score), the row will show "N/A" until that display wiring is added.
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "12%",
+    weight: "11%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "28%",
+    weight: "26%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "26%",
+    weight: "24%",
   },
   {
     key: "peg_ratio",
     label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "10%",
+    weight: "9%",
   },
   {
     key: "stock_dividend_yield",
@@ -1103,14 +1110,21 @@ const VALUE_SCHEMA = [
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "13%",
+    weight: "12%",
   },
   {
     key: "stock_margin_of_safety",
     label: "Margin of Safety (DCF)",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "7%",
+    weight: "6%",
+  },
+  {
+    key: "amihud_illiquidity",
+    label: "Amihud Illiquidity",
+    fmt: (v) => num(v, 6),
+    used: true,
+    weight: "8%",
   },
   // stock_forward_pe removed 2026-08-25 - see comment above.
   // market_cap moved to the Size pillar 2026-08-26 - see SIZE_SCHEMA below.

@@ -74,13 +74,16 @@ class TestValueScoreWeightBadges:
         # pillar (StockScoresLoader._score_size), no longer part of _score_value at all. See
         # TestSizeScoreWeightBadges below for its (trivial, single-input) coverage. The
         # remaining 7 inputs here were rescaled x1.25 to restore the 100% they held before
-        # Size's 20% carve-out.
+        # Size's 20% carve-out (later rescaled again x0.92 the same day - see next note).
+        # illiq_score (amihud_illiquidity) ADDED 2026-08-26 (same day, later pass) as a new
+        # 8%-weighted sub-component - see _score_value's "AMIHUD ILLIQUIDITY" docstring note.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "fcf_score": "fcf_yield",
             "div_score": "stock_dividend_yield",
+            "illiq_score": "amihud_illiquidity",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))

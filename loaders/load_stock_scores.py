@@ -388,6 +388,19 @@ class StockScoresLoader(OptimalLoader):
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
+            # amihud_illiquidity added 2026-08-26 (goal: close the Amihud illiquidity gap found
+            # 2026-08-25 - see liquidity_amihud_gap_flagged_not_implemented_20260825 and
+            # _score_value's "AMIHUD ILLIQUIDITY" docstring section for the full evidence trail).
+            # A separate cache (not folded into _value_cache's SELECT above) because this field
+            # lives on technical_data_daily - a real daily time series, unlike value_metrics'
+            # single-row-per-symbol snapshot - so it needs its own "latest row per symbol" query
+            # rather than a plain unfiltered SELECT.
+            cur.execute(
+                "SELECT DISTINCT ON (symbol) symbol, amihud_illiquidity FROM technical_data_daily "
+                "WHERE amihud_illiquidity IS NOT NULL ORDER BY symbol, date DESC"
+            )
+            self._amihud_cache: dict[str, float] = {row[0]: float(row[1]) for row in cur.fetchall()}
+
             # shares_short_prior_month/short_interest_pct_change added: written by
             # load_positioning_metrics.py (migration 1184, pct_change replacing the former
             # short_interest_trend enum column in migration 1203) but never read here before -
@@ -1234,6 +1247,10 @@ class StockScoresLoader(OptimalLoader):
                 "ev_revenue": safe_float(row[8], f"{symbol}.ev_revenue", allow_none=True),
                 "margin_of_safety_pct": safe_float(row[9], f"{symbol}.margin_of_safety_pct", allow_none=True),
                 "market_cap": safe_float(row[10], f"{symbol}.market_cap", allow_none=True),
+                # Sourced from a separate cache (technical_data_daily, not value_metrics) - see
+                # the amihud_illiquidity cache-population comment above. Not part of the 12-column
+                # value_metrics row-length validation above since it isn't in that row at all.
+                "amihud_illiquidity": self._amihud_cache.get(symbol),
             }
         # No row exists at all
         logger.warning(
@@ -1847,8 +1864,9 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (12%) + P/B (28%) + P/S (26%) + PEG (10%) + FCF yield (13%)
-        + Dividend yield (4%) + Margin of Safety / DCF discount to intrinsic value (7%).
+        Uses weighted scoring: P/E (11%) + P/B (26%) + P/S (24%) + PEG (9%) + FCF yield (12%)
+        + Dividend yield (4%) + Margin of Safety / DCF discount to intrinsic value (6%)
+        + Amihud illiquidity (8%, added 2026-08-26 - see "AMIHUD ILLIQUIDITY" note below).
         PE/PB/PS/FCF reweighted 2026-08-25 (see "PE-vs-PB/PS RANKING - REVERSED" note below)
         after a selection-bias fix reversed which of the three multiples is strongest.
         EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (see RESOLVED note below) - duplicated
@@ -1865,10 +1883,13 @@ class StockScoresLoader(OptimalLoader):
         PROMOTED TO 7TH PILLAR" docstring section for the full evidence trail: size_proxy
         t=7.63 multivariate, more than 3x every other pillar's own coefficient) - REMOVED from
         this function entirely to avoid double-counting now that it has its own composite
-        slot. The 7 remaining inputs above are rescaled back to their pre-Size-addition
+        slot. The 7 remaining inputs above were rescaled back to their pre-Size-addition
         relative proportions (each x1.25, restoring the 100% they held before Size's 20%
         carve-out) rather than left permanently discounted for an input that no longer lives
-        here.
+        here. SUPERSEDED the same day by the "AMIHUD ILLIQUIDITY" note below - those same 7
+        inputs were rescaled again (x0.92) a few hours later to free 8 points for the new
+        Amihud sub-component, so the live weights in the code above no longer match the x1.25
+        figures quoted here; this paragraph is kept for history, not current state.
 
         REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): PE was 45% (more than
         double every other input) despite being the empirically WEAKER of the three
@@ -2085,12 +2106,11 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
 
         # P/E ratio: sweet spot 15-30 for growth momentum stocks
-        # RESCALED 10%->12% 2026-08-26: Size (previously a 20%-weighted sub-component here)
-        # promoted to its own top-level pillar (see _compute_stock_score's "SIZE PROMOTED TO
-        # 7TH PILLAR" note) - the other 7 inputs here are scaled x1.25 to restore the 100%
-        # they held before Size's 20% carve-out, preserving their relative proportions to
-        # each other (weakest of the three multiples per the selection-bias-corrected rerun -
-        # see "PE-vs-PB/PS RANKING - REVERSED" note below).
+        # RESCALED 12%->11% 2026-08-26: Amihud illiquidity added as a new 8%-weighted
+        # sub-component below (see that block's comment) - the other 7 inputs here (including
+        # this one) are scaled x0.92 to free the 8 points, preserving their relative
+        # proportions to each other (weakest of the three multiples per the selection-bias-
+        # corrected rerun - see "PE-vs-PB/PS RANKING - REVERSED" note below).
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
@@ -2101,15 +2121,14 @@ class StockScoresLoader(OptimalLoader):
                 pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
-            weighted_sum += pe_score * 0.12
-            total_weight += 0.12
+            weighted_sum += pe_score * 0.11
+            total_weight += 0.11
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
-        # RESCALED 22%->28% 2026-08-26 (Size promoted to its own top-level pillar, see PE's
-        # comment above for the x1.25 rescale rationale). PB is the STRONGEST of the three
-        # multiples per the selection-bias-corrected rerun (see "PE-vs-PB/PS RANKING -
-        # REVERSED" note below), robust across univariate, multivariate, and both sub-periods
-        # tested.
+        # RESCALED 28%->26% 2026-08-26 (Amihud illiquidity added, see PE's comment above for
+        # the x0.92 rescale rationale). PB is the STRONGEST of the three multiples per the
+        # selection-bias-corrected rerun (see "PE-vs-PB/PS RANKING - REVERSED" note below),
+        # robust across univariate, multivariate, and both sub-periods tested.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
@@ -2120,14 +2139,14 @@ class StockScoresLoader(OptimalLoader):
                 pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.28
-            total_weight += 0.28
+            weighted_sum += pb_score * 0.26
+            total_weight += 0.26
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
-        # RESCALED 21%->26% 2026-08-26 (Size promoted to its own top-level pillar, see PE's
-        # comment above). PS held up as robust (not the weakest, not quite the strongest)
-        # across the selection-bias-corrected rerun.
+        # RESCALED 26%->24% 2026-08-26 (Amihud illiquidity added, see PE's comment above). PS
+        # held up as robust (not the weakest, not quite the strongest) across the
+        # selection-bias-corrected rerun.
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps = metrics["ps_ratio"]
             if ps <= 2.0:
@@ -2138,8 +2157,8 @@ class StockScoresLoader(OptimalLoader):
                 ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
             else:
                 ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.26
-            total_weight += 0.26
+            weighted_sum += ps_score * 0.24
+            total_weight += 0.24
 
         # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
         # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
@@ -2148,11 +2167,10 @@ class StockScoresLoader(OptimalLoader):
         # this loader's own PEG computation (load_sec_valuations.py) previously always
         # computed a growth rate of exactly 0 (comparing TTM EPS to itself), which was
         # fixed 2026-07-20 to use a genuine prior-fiscal-year EPS; backfills on next run.
-        # RESCALED 8%->10% 2026-08-26 (Size promoted to its own top-level pillar, see PE's
-        # comment above).
+        # RESCALED 10%->9% 2026-08-26 (Amihud illiquidity added, see PE's comment above).
         if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
-            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.10
-            total_weight += 0.10
+            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.09
+            total_weight += 0.09
 
         # FCF yield: positive FCF yield is healthy; > 3% is good
         # BUGFIX 2026-07-20: load_sec_valuations.py stores fcf_yield already as a percentage
@@ -2160,24 +2178,24 @@ class StockScoresLoader(OptimalLoader):
         # re-multiply by 100 assuming a decimal fraction, so fcf_pct came out ~100x too high
         # (e.g. 227 for AAPL) and saturated fcf_score to 100 for virtually every FCF-positive
         # stock regardless of actual yield. This component was effectively a dead constant.
-        # RESCALED 10%->13% 2026-08-26 (Size promoted to its own top-level pillar, see PE's
-        # comment above). This field's sign flipped between an earlier strict-sample test
-        # (positive, t=1.62) and the selection-bias-corrected rerun (negative, t=-1.75
-        # multivariate/-1.71 univariate) - genuinely sample-construction-sensitive, treated as
-        # a fragile null, kept at a modest weight rather than acted on in either direction.
+        # RESCALED 13%->12% 2026-08-26 (Amihud illiquidity added, see PE's comment above). This
+        # field's sign flipped between an earlier strict-sample test (positive, t=1.62) and the
+        # selection-bias-corrected rerun (negative, t=-1.75 multivariate/-1.71 univariate) -
+        # genuinely sample-construction-sensitive, treated as a fragile null, kept at a modest
+        # weight rather than acted on in either direction.
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.13
-            total_weight += 0.13
+            weighted_sum += fcf_score * 0.12
+            total_weight += 0.12
 
         # Dividend yield: bonus signal for income/quality (optional). Unlike fcf_yield,
         # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
         # stored as a decimal fraction (0.03 = 3%), so the *100 conversion below is correct
         # for this field - do not "fix" it to match fcf_yield's convention.
-        # RESCALED 3%->4% 2026-08-26 (Size promoted to its own top-level pillar, see PE's
-        # comment above); kept small since this field's own signal is still inconclusive
-        # (t=0.98).
+        # Weight unchanged at 4% by the 2026-08-26 Amihud rescale (see PE's comment above) -
+        # 4% * 0.92 = 3.68, rounds back to 4; kept small since this field's own signal is
+        # still inconclusive (t=0.98).
         if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
@@ -2212,8 +2230,7 @@ class StockScoresLoader(OptimalLoader):
         # function, a legitimate value can be negative (a real, meaningful "overvalued"
         # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
         # drop this input instead of being correctly scored low.
-        # RESCALED 6%->7% 2026-08-26 (Size promoted to its own top-level pillar, see PE's
-        # comment above).
+        # RESCALED 7%->6% 2026-08-26 (Amihud illiquidity added, see PE's comment above).
         if metrics.get("margin_of_safety_pct") is not None:
             mos = metrics["margin_of_safety_pct"]
             if mos >= 50:
@@ -2224,13 +2241,55 @@ class StockScoresLoader(OptimalLoader):
                 mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
             else:
                 mos_score = 0
-            weighted_sum += mos_score * 0.07
-            total_weight += 0.07
+            weighted_sum += mos_score * 0.06
+            total_weight += 0.06
 
         # SIZE (market cap) REMOVED from here 2026-08-26 - promoted to its own top-level
         # pillar. See StockScoresLoader._score_size for the extracted scoring logic and
         # _compute_stock_score's "SIZE PROMOTED TO 7TH PILLAR" docstring section for the
         # evidence trail.
+
+        # AMIHUD ILLIQUIDITY added 2026-08-26 (goal: close the gap found 2026-08-25 - see
+        # liquidity_amihud_gap_flagged_not_implemented_20260825). Amihud (2002, Journal of
+        # Financial Markets) illiquidity - |daily return| / dollar volume, trailing 21-day
+        # mean, computed by loaders/load_technical_indicators.py and stored on
+        # technical_data_daily.amihud_illiquidity (migration 1232). Validated via
+        # algo/research/fama_macbeth_liquidity_factor.py: a proper monthly two-pass
+        # Fama-MacBeth test (not a pooled panel - see that module's docstring), 127 months
+        # 2016-01 to 2026-07, median 3,837 symbols/month: univariate t=2.41, multivariate
+        # (controlling for log dollar volume as a liquidity-family size proxy) t=2.07 - real
+        # and distinct from that proxy (pooled correlation only -0.354), positive-signed
+        # (MORE illiquid -> HIGHER forward return, the standard Amihud illiquidity-premium
+        # direction, one of empirical finance's most replicated anomalies).
+        #
+        # Scoring the standard direction (higher illiquidity = higher score) is NOT in
+        # tension with this system's hard liquidity gates (min_avg_daily_dollar_volume,
+        # min_volume_ma_50d in algo/infrastructure/config_schema.py, enforced well before a
+        # candidate ever reaches scoring) - those gates already exclude the extreme illiquid
+        # tail that can't be traded at this system's size; this scores the REMAINING
+        # variation among names that already clear the investability floor, a standard
+        # "gate for tradability, then tilt within the investable universe" factor
+        # construction, not a contradiction of the gates.
+        #
+        # log10-scaled since Amihud spans several orders of magnitude even within a
+        # liquidity-gated universe (confirmed live: micro-caps like AACG ~5.5 vs. liquid
+        # large-caps like AAPL/MSFT ~0.00004-0.0001). Bucket boundaries taken from this
+        # system's own live distribution (see the FM script's run output), not data-fitted.
+        # Added at a modest 8% weight, proportionate to its t-stat (comparable to FCF
+        # yield's t=1.62/-1.75, well below PB/PS's t=6-9) - the other 7 inputs above were
+        # rescaled x0.92 to free these 8 points (see PE's comment above).
+        if metrics.get("amihud_illiquidity") is not None and metrics["amihud_illiquidity"] >= 0:
+            log_illiq = math.log10(max(metrics["amihud_illiquidity"], 1e-6))
+            if log_illiq <= -4:
+                illiq_score = 40.0
+            elif log_illiq <= -2:
+                illiq_score = 40 + (log_illiq + 4) / 2 * 30  # 40 -> 70 across [-4, -2]
+            elif log_illiq <= 0:
+                illiq_score = 70 + (log_illiq + 2) / 2 * 30  # 70 -> 100 across [-2, 0]
+            else:
+                illiq_score = 100.0
+            weighted_sum += illiq_score * 0.08
+            total_weight += 0.08
 
         if total_weight > 0:
             return weighted_sum / total_weight
