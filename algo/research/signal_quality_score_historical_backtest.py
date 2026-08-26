@@ -268,6 +268,13 @@ def generate_historical_buy_signals(symbol: str, df: pd.DataFrame) -> list[dict[
                 "entry_close": sig["close"],
                 "signal_quality_score": components["composite_sqs"],
                 "data_completeness": components["data_completeness"],
+                # base_quality_score is a hardcoded constant (always 50 for BUY - see
+                # loaders/signal_quality_scorer.py::BuySignalScorer.calculate_base_quality_score) -
+                # deliberately excluded here, it cannot correlate with anything by construction.
+                "volume_confirmation_score": components["volume_confirmation_score"],
+                "trend_template_score": components["trend_template_score"],
+                "distance_from_high_score": components["distance_from_high_score"],
+                "market_stage_score": components["market_stage_score"],
             }
         )
     return buys
@@ -304,16 +311,20 @@ def attach_forward_returns(
     return buys_df
 
 
-def fama_macbeth_monthly(df: pd.DataFrame, horizon: int) -> dict[str, float]:
+def fama_macbeth_monthly(df: pd.DataFrame, score_col: str, horizon: int) -> dict[str, float]:
     """Real monthly cross-sectional Fama-MacBeth: one Pearson correlation per calendar
     month (pooled panels double-count within-month correlation; this doesn't), then a
-    one-sample t-test of the mean monthly correlation against zero across months."""
-    sub = df[["month", "signal_quality_score", f"fwd_ret_{horizon}"]].dropna()
+    one-sample t-test of the mean monthly correlation against zero across months.
+    Generic over score_col so each signal_quality_score COMPONENT can be tested
+    individually, not just the composite - a composite null result doesn't prove every
+    component is uninformative; it could mean real signal in one component is being
+    diluted/offset by noise in others once summed together."""
+    sub = df[["month", score_col, f"fwd_ret_{horizon}"]].dropna()
     monthly_corrs = []
     for _month, g in sub.groupby("month"):
-        if len(g) < 10 or g["signal_quality_score"].std() == 0:
+        if len(g) < 10 or g[score_col].std() == 0:
             continue
-        r = g["signal_quality_score"].corr(g[f"fwd_ret_{horizon}"])
+        r = g[score_col].corr(g[f"fwd_ret_{horizon}"])
         if pd.notna(r):
             monthly_corrs.append(r)
     n_months = len(monthly_corrs)
@@ -362,17 +373,28 @@ def run(start_date: str, end_date: str, universe_size: int, horizons: list[int])
 
     buys_df = attach_forward_returns(buys_df, price_by_symbol, horizons)
 
+    component_cols = [
+        "signal_quality_score",
+        "volume_confirmation_score",
+        "trend_template_score",
+        "distance_from_high_score",
+        "market_stage_score",
+    ]
+
     for h in horizons:
-        fm = fama_macbeth_monthly(buys_df, h)
         print(f"=== {h}-day forward return: Fama-MacBeth monthly cross-sectional check ===")
-        print(f"  Independent months used: {fm['n_months']}")
-        print(f"  Mean monthly Pearson corr(signal_quality_score, fwd_ret): {fm['mean_corr']:+.4f}")
-        print(f"  t-stat (mean monthly corr vs 0, across months):           {fm['t_stat']:+.2f}")
+        print("  Component breakdown (base_quality_score excluded - hardcoded constant, can't correlate):")
+        for col in component_cols:
+            fm = fama_macbeth_monthly(buys_df, col, h)
+            label = "COMPOSITE" if col == "signal_quality_score" else col
+            print(
+                f"    {label:28s} n_months={fm['n_months']:<4d} mean_corr={fm['mean_corr']:+.4f}  t={fm['t_stat']:+.2f}"
+            )
 
         sub = buys_df[["signal_quality_score", f"fwd_ret_{h}"]].dropna()
         if len(sub) >= 10:
             quint = sub.assign(q=pd.qcut(sub["signal_quality_score"], 5, labels=False, duplicates="drop"))
-            print("  Quintile breakdown (0=lowest sqs, 4=highest), pooled across full period:")
+            print("  Composite quintile breakdown (0=lowest sqs, 4=highest), pooled across full period:")
             for q, g in quint.groupby("q"):
                 print(f"    Q{int(q)}: mean_fwd_ret={g[f'fwd_ret_{h}'].mean():+.4%}  n={len(g)}")
             monotonic = quint.groupby("q")[f"fwd_ret_{h}"].mean().is_monotonic_increasing
