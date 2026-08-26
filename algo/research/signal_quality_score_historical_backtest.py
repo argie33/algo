@@ -90,6 +90,41 @@ def select_universe(size: int, min_history_start: str) -> list[str]:
         return [r[0] for r in cur.fetchall()]
 
 
+_SPIKE_RATIO = 8.0  # matches the live-verified detection query in [[price_daily_sequence_check_never_fired_daily_loads_fixed_20260826]]
+
+
+def _scrub_reverting_spikes(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """Defense-in-depth against the price_daily data-integrity bug fixed in
+    loaders/price_transformer.py (2026-08-26): a bad print that entered the DB before that
+    fix landed is still sitting in history - this fix only stops NEW ones. Same signature
+    used to find and quantify that bug: a single day's close jumps >8x from the day before
+    AND reverts >8x by the day after (a real move doesn't undo itself on the very next
+    print). Carries the prior day's OHLC forward for that one row rather than dropping it,
+    to keep the trading-day index intact for rolling-window indicators.
+    """
+    close = df["close"]
+    prev_close = close.shift(1)
+    next_close = close.shift(-1)
+    is_spike = (
+        (prev_close > 0)
+        & (next_close > 0)
+        & ((close / prev_close) > _SPIKE_RATIO)
+        & ((close / next_close) > _SPIKE_RATIO)
+    )
+    n_spikes = int(is_spike.sum())
+    if n_spikes == 0:
+        return df
+    logger.warning(
+        f"[BACKTEST] {symbol}: scrubbing {n_spikes} reverting-spike row(s) "
+        "(price_daily data-integrity bug - see price_daily_sequence_check_never_fired_daily_loads_fixed_20260826)"
+    )
+    df = df.copy()
+    spike_idx = df.index[is_spike]
+    for col in ("open", "high", "low", "close"):
+        df.loc[spike_idx, col] = df[col].shift(1).loc[spike_idx]
+    return df
+
+
 def fetch_price_history(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     """Raw OHLCV, then detect_and_adjust_splits() back-adjusts ALL of open/high/low/close
     (not just close) for stock splits - the same function loaders/load_technical_indicators.py
@@ -116,6 +151,7 @@ def fetch_price_history(symbol: str, start_date: str, end_date: str) -> pd.DataF
     df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
     for c in ("open", "high", "low", "close", "volume"):
         df[c] = df[c].astype(float)
+    df = _scrub_reverting_spikes(df, symbol)
     return detect_and_adjust_splits(df)
 
 
