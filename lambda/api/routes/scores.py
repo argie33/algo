@@ -106,6 +106,7 @@ def handle(
                 "growth_score",
                 "positioning_score",
                 "stability_score",
+                "size_score",
                 "symbol",
             ]
             if sort_by not in allowed_sorts:
@@ -168,6 +169,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
+                    sc.size_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -501,6 +503,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             d["quality_score"] = None
         if d.get("_value_data_unavailable"):
             d["value_score"] = None
+            # Size (market_cap) is sourced from the same value_metrics row as Value.
+            d["size_score"] = None
 
         # Build factor input objects
         def _build_factor_inputs(data: dict[str, Any]) -> None:
@@ -805,7 +809,7 @@ def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
             SELECT
                 score_date, composite_score, composite_rank, rs_percentile,
                 momentum_score, quality_score, growth_score, value_score,
-                positioning_score, stability_score, data_completeness
+                positioning_score, stability_score, size_score, data_completeness
             FROM stock_scores_history
             WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
             ORDER BY score_date ASC
@@ -878,6 +882,7 @@ def _get_stock_scores(  # noqa: C901
             "growth_score": "growth_score",
             "positioning_score": "positioning_score",
             "stability_score": "stability_score",
+            "size_score": "size_score",
             "symbol": "symbol",
         }
         sort_col = allowed_sorts.get(sort_by, "composite_score")
@@ -1069,6 +1074,7 @@ def _get_stock_scores(  # noqa: C901
                     cp.industry,
                     fs.composite_score, fs.momentum_score, fs.quality_score,
                     fs.value_score, fs.growth_score, fs.positioning_score, fs.stability_score,
+                    fs.size_score,
                     fs.rs_percentile, fs.data_completeness,
                     fs.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -1667,6 +1673,8 @@ def _get_stock_scores(  # noqa: C901
                 d["quality_score"] = None
             if d.get("_value_data_unavailable"):
                 d["value_score"] = None
+                # Size (market_cap) is sourced from the same value_metrics row as Value.
+                d["size_score"] = None
 
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)

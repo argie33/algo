@@ -70,21 +70,40 @@ class TestValueScoreWeightBadges:
         # eve_score/evr_score (EV/EBITDA, EV/Revenue) removed same day, same-pass follow-up -
         # r=1.00/0.93 duplicates of ps_ratio/pe_ratio respectively, see _score_value's
         # docstring RESOLVED note.
-        # size_score (market_cap) ADDED 2026-08-25 (Size-factor gap, see _score_value's
-        # docstring "SIZE FACTOR" note) - the other 7 inputs here scaled x0.8 to free 20pts.
+        # size_score (market_cap) MOVED OUT 2026-08-26 - promoted to its own top-level "Size"
+        # pillar (StockScoresLoader._score_size), no longer part of _score_value at all. See
+        # TestSizeScoreWeightBadges below for its (trivial, single-input) coverage. The
+        # remaining 7 inputs here were rescaled x1.25 to restore the 100% they held before
+        # Size's 20% carve-out.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "fcf_score": "fcf_yield",
             "div_score": "stock_dividend_yield",
-            "size_score": "market_cap",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
         # PEG is scored via a helper call, not a `*_score` local - checked directly.
         peg_weight = _weight_for_score_var(src, 'self._peg_to_score(metrics["peg_ratio"])')
         _assert_pct_matches("peg_ratio", peg_weight)
+
+
+class TestSizeScoreWeightBadges:
+    def test_market_cap_is_the_sole_input(self):
+        """Size is a single-input pillar (log10(market_cap) bucketed curve, not a weighted
+        blend) - there's no `* 0.NN` weight to extract, so this just pins that the JSX badge
+        says so rather than a stale numeric weight that would silently drift meaningless."""
+        with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
+            jsx_source = f.read()
+        assert '"market_cap"' in jsx_source
+        match = re.search(
+            r'key: "market_cap".*?weight: "([^"]+)"',
+            jsx_source,
+            re.DOTALL,
+        )
+        assert match, "expected a market_cap schema entry with a weight field"
+        assert match.group(1) == "sole input"
 
 
 class TestPositioningScoreWeightBadges:

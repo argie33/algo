@@ -91,6 +91,7 @@ const SORT_FIELDS = [
   { value: "growth_score", label: "Growth" },
   { value: "positioning_score", label: "Positioning" },
   { value: "stability_score", label: "Stability" },
+  { value: "size_score", label: "Size" },
 ];
 
 const FACTORS = [
@@ -135,6 +136,15 @@ const FACTORS = [
     scoreKey: "stability_score",
     icon: Shield,
     tone: "var(--text-2)",
+  },
+  {
+    key: "size",
+    label: "Size",
+    scoreKey: "size_score",
+    icon: Layers,
+    // Reuses Value's cyan tone - Size (SMB) and Value (HML) are sibling factors in the
+    // original Fama-French model, and this codebase is out of distinct unused theme tones.
+    tone: "var(--cyan)",
   },
 ];
 

@@ -107,6 +107,7 @@ export interface StockScore {
   positioning_score: number;
   sentiment_score: number | null;
   stability_score: number;
+  size_score: number;
   current_price: number;
   price_change_1d: number;
   [key: string]: any; // For additional metrics

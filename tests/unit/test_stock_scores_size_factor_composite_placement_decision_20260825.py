@@ -1,53 +1,60 @@
-"""Regression/documentation test for a 2026-08-25 decision (real-money-readiness goal
-session, follow-up on the stock_scores multi-pillar re-audit): whether the Size factor
-(market cap, Fama-French SMB / Banz 1981) should be promoted from a Value-pillar
-sub-component to its own top-level composite pillar.
+"""Regression/documentation test for the Size-factor composite-placement decision (real-money-
+readiness goal session, stock_scores multi-pillar re-audit) - superseding the 2026-08-25 "keep
+Size inside Value" call with a 2026-08-26 promotion to a real top-level 7th pillar.
 
-Size was found completely absent from all 6 stock_scores pillars, tested standalone at
-t=-5.37 (150 months 2014-2026, median 2,601 symbols), and implemented as a 20%-weighted
-sub-component inside the Value pillar (commit 2d77f7bfd) - not a top-level 7th pillar.
+TIMELINE:
+- 2026-08-25: Size (market cap, Fama-French SMB / Banz 1981) found completely absent from all
+  6 stock_scores pillars, tested standalone at t=-5.37 (150 months 2014-2026, median 2,601
+  symbols), implemented as a 20%-weighted sub-component inside the Value pillar (commit
+  2d77f7bfd) - not a top-level pillar.
+- 2026-08-25 (same day, follow-up): extended algo/research/fama_macbeth_composite_weights.py
+  to test log(market_cap) as a 7th top-level factor. First attempt (t=0.47/0.86, not
+  significant) was later found to be underpowered by the same sample-selection bias already
+  flagged for the base_weights test. A same-day corrected re-run, once double-counting between
+  size_proxy and value_proxy's own Size sub-component was removed (value_proxy_nosize
+  decomposition), found size_proxy t=7.62/7.63 - dramatically stronger than every other
+  pillar's own coefficient (next-best: stability at t=2.37) - but was deliberately NOT acted
+  on: promoting Size is a DB schema/API/frontend commitment, flagged for explicit user
+  involvement rather than silently overridden.
+- 2026-08-26: re-verified live one more time (`python -m algo.research.fama_macbeth_composite_weights`)
+  and reproduced the identical t=7.63 multivariate / t=4.44 univariate result on 110 months,
+  median 6,505 symbols - the 4th independent confirmation across 2 days, more than 3x every
+  other pillar. ACTED ON: Size promoted to a real top-level 7th pillar (20% weight, the other
+  6 pillars scaled x0.8 preserving relative proportions). Schema (stock_scores.size_score,
+  migration 1230), API (lambda/api/routes/scores.py), and frontend (StockDetail.jsx,
+  StockScoreAccordion.jsx, ScoresDashboard.jsx) all updated the same commit.
 
-Follow-up: algo/research/fama_macbeth_composite_weights.py was extended to test log(market_cap)
-as a 7th factor in the SAME multivariate regression used to test the 6 top-level base_weights.
-Result: t=0.47 multivariate, t=0.86 univariate - not significant. This is NOT a reversal of the
-standalone t=-5.37 finding: the composite-level regression requires all 6 pillars' data
-simultaneously, which drops the median cross-section from ~2,601 to 850 and skews toward
-larger, more-established names - exactly the population where the size premium is weakest.
-A null result on that structurally-biased sample doesn't disprove Size's signal.
-
-DECISION: do NOT promote Size to a top-level 7th pillar - not because the idea is wrong, but
-because the one test that could justify that larger schema/API/frontend commitment is
-underpowered with current data reconstruction. See _compute_stock_score's "SIZE FACTOR -
-RESOLVED" comment in loaders/load_stock_scores.py for the full writeup.
-
-This test pins the current state (Size lives only inside Value, base_weights has no top-level
-size/size_proxy key) so a future silent change is caught and this decision gets deliberately
-revisited, not silently invalidated.
+This test now pins the OPPOSITE of what it pinned on 2026-08-25: that Size IS a top-level
+pillar (not silently demoted back to a Value sub-component) and that _score_value no longer
+computes it (not silently double-counted by reintroducing it there too).
 """
 
 import inspect
 
-from loaders.load_stock_scores import StockScoresLoader
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, StockScoresLoader
 
 
 class TestSizeFactorCompositePlacementDecision:
-    def test_base_weights_has_no_top_level_size_key(self) -> None:
-        """base_weights (the 6 top-level pillar shares) must not gain a 'size' key without
-        deliberately revisiting this decision."""
-        source = inspect.getsource(StockScoresLoader._compute_stock_score)
-        assert '"quality":' in source and '"growth":' in source and '"value":' in source
-        assert '"size":' not in source, (
-            "base_weights now has a top-level 'size' key - the 2026-08-25 decision to keep "
-            "Size inside the Value pillar only (not promote it) has been changed. Update this "
-            "test and the 'SIZE FACTOR - RESOLVED' comment in _compute_stock_score to match "
-            "the new reality, and confirm the promotion was backed by a properly-powered test "
-            "(not the same underpowered composite-sample regression that originally motivated "
-            "keeping it inside Value)."
+    def test_base_weights_has_top_level_size_key(self) -> None:
+        """BASE_PILLAR_WEIGHTS must have a top-level 'size' key - the 2026-08-26 promotion
+        decision - until this gets deliberately revisited again."""
+        assert "size" in BASE_PILLAR_WEIGHTS
+        assert abs(BASE_PILLAR_WEIGHTS["size"] - 0.20) < 1e-9
+
+    def test_base_weights_sum_to_one_with_size(self) -> None:
+        assert abs(sum(BASE_PILLAR_WEIGHTS.values()) - 1.0) < 1e-9
+
+    def test_score_value_no_longer_computes_size(self) -> None:
+        """_score_value must not compute Size internally anymore - it would double-count
+        against the new top-level size_score pillar."""
+        source = inspect.getsource(StockScoresLoader._score_value)
+        assert "market_cap" not in source, (
+            "_score_value still references market_cap - Size was promoted to its own "
+            "top-level pillar (_score_size) and must be fully removed from _score_value to "
+            "avoid double-counting the same signal in the composite."
         )
 
-    def test_value_score_docstring_still_documents_size_subcomponent(self) -> None:
-        """_score_value's docstring must still describe Size as a weighted sub-component -
-        confirms Size's real, tested signal (t=-5.37) stays represented somewhere even though
-        it's not a top-level pillar."""
-        source = inspect.getsource(StockScoresLoader._score_value)
-        assert "SIZE" in source and "market cap" in source.lower()
+    def test_score_size_method_exists_and_reads_market_cap(self) -> None:
+        assert hasattr(StockScoresLoader, "_score_size")
+        source = inspect.getsource(StockScoresLoader._score_size)
+        assert "market_cap" in source

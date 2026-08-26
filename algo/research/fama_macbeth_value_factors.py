@@ -54,6 +54,13 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+# "size" kept here for backward comparability with this script's own PE/PB/PS ranking history
+# (its multivariate spec controls for size the same way live _score_value used to, back when
+# Size was a sub-component of Value) - it no longer represents a live Value input as of
+# 2026-08-26, when Size was promoted to its own top-level pillar (see
+# loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS and _score_size docstrings). Removing it
+# would change this script's PE/PB/PS coefficients (Size is correlated with all three), so it's
+# left in for continuity rather than re-litigating that ranking here.
 VALUE_FACTOR_COLS = ["pe", "pb", "ps", "fcf_yield", "dividend_yield", "size"]
 
 

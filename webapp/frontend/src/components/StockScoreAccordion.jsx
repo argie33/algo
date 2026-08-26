@@ -6,6 +6,7 @@ import {
   TrendingUp,
   Users,
   Shield,
+  Layers,
   Inbox,
 } from "lucide-react";
 import {
@@ -193,6 +194,12 @@ const FACTORS = [
     label: "Stability",
     scoreKey: "stability_score",
     icon: Shield,
+  },
+  {
+    key: "size",
+    label: "Size",
+    scoreKey: "size_score",
+    icon: Layers,
   },
 ];
 
@@ -710,6 +717,14 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           schema={STABILITY_SCHEMA}
           inputsKey="stability_inputs"
         />
+        {/* market_cap lives in value_inputs (same value_metrics row Value reads) - no
+            separate backend inputsKey needed for this single-field pillar. */}
+        <InputsCard
+          title="Size"
+          stock={stock}
+          schema={SIZE_SCHEMA}
+          inputsKey="value_inputs"
+        />
       </div>
 
       {/* Recent trading signals */}
@@ -1042,74 +1057,80 @@ const MOMENTUM_SCHEMA = [
 // loaders/load_stock_scores.py's _score_value docstring ("PE-vs-PB/PS RANKING - REVERSED")
 // for the full evidence.
 //
-// SIZE (market_cap) ADDED 2026-08-25 (goal: close the highest-confidence gap found in this
-// session's full stock_scores re-audit) - Fama-French SMB (Banz 1981) was completely absent
-// from all 6 pillars despite market_cap already being available (77.4% coverage on
-// value_metrics, no schema/API change needed - already returned by lambda/api/routes/
-// scores.py). log(market_cap) vs forward 1-month return tested at t=-5.37 (150 months,
-// median 2,601 symbols) - nearly as strong as volatility_60d's t=-6.1, this session's
-// single strongest finding. The other 7 inputs below were uniformly scaled x0.8 to free
-// 20pts for this, not re-litigating either ranking dispute already resolved above. See
-// loaders/load_stock_scores.py's _score_value docstring ("SIZE FACTOR") for the full
-// evidence and the log10-bucketed scoring curve.
+// SIZE (market_cap) MOVED OUT 2026-08-26 - promoted from a 20%-weighted sub-component here to
+// its own top-level "Size" pillar/tab (see SIZE_SCHEMA below and FACTORS' "size" entry above).
+// The 7 remaining inputs below are rescaled x1.25 to restore the 100% they held before Size's
+// 20% carve-out - see loaders/load_stock_scores.py's _score_value docstring for the evidence
+// trail (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar).
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "10%",
+    weight: "12%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "22%",
+    weight: "28%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "21%",
+    weight: "26%",
   },
   {
     key: "peg_ratio",
     label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "8%",
+    weight: "10%",
   },
   {
     key: "stock_dividend_yield",
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "3%",
+    weight: "4%",
   },
   {
     key: "fcf_yield",
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "10%",
+    weight: "13%",
   },
   {
     key: "stock_margin_of_safety",
     label: "Margin of Safety (DCF)",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "6%",
-  },
-  {
-    key: "market_cap",
-    label: "Market Cap (Size)",
-    fmt: (v) => (v == null ? "—" : `$${(v / 1e9).toFixed(2)}B`),
-    used: true,
-    weight: "20%",
+    weight: "7%",
   },
   // stock_forward_pe removed 2026-08-25 - see comment above.
+  // market_cap moved to the Size pillar 2026-08-26 - see SIZE_SCHEMA below.
+];
+
+// SIZE (market cap, Fama-French SMB / Banz 1981) - its own top-level pillar since 2026-08-26
+// (previously a 20%-weighted sub-component of Value). Single-input pillar: market_cap is the
+// sole driver of size_score via a log10-bucketed curve, not a weighted blend, so there's no
+// "weight" in the usual multi-input sense - it's the pillar's entire signal by construction.
+// See loaders/load_stock_scores.py's StockScoresLoader._score_size docstring for the evidence
+// trail (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar in the whole
+// stock_scores re-audit) and the log10-bucketed scoring curve.
+const SIZE_SCHEMA = [
+  {
+    key: "market_cap",
+    label: "Market Cap",
+    fmt: (v) => (v == null ? "—" : `$${(v / 1e9).toFixed(2)}B`),
+    used: true,
+    weight: "sole input",
+  },
 ];
 
 // REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): cut from 14 inputs to 4.

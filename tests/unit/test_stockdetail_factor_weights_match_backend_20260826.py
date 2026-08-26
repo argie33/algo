@@ -28,6 +28,7 @@ _PILLAR_TO_JSX_KEY = {
     "positioning": "positioning_score",
     "stability": "stability_score",
     "momentum": "momentum_score",
+    "size": "size_score",
 }
 
 

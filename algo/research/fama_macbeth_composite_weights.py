@@ -77,6 +77,20 @@ and re-measuring. SEVEN_COLS/size_proxy from that pass are kept here, now runnin
 properly-repowered partial-availability sample instead of the original underpowered one - see
 the run() output for the actual (not theoretical) answer this produces.
 
+ACTED ON 2026-08-26: after 4 independent measurements across 2 days all found size_proxy
+dramatically stronger than every other pillar (t=-5.37 standalone genesis test, t=4.42
+independent re-confirmation, t=8.86 double-counted, t=7.62/7.63 clean corrected, reproduced
+live one more time immediately before acting), Size was promoted from a Value sub-component to
+its own real top-level 7th pillar in loaders/load_stock_scores.py (BASE_PILLAR_WEIGHTS now has
+a "size": 0.20 key; the other 6 weights scaled x0.8). This means `value_proxy` below (which
+still includes a `-size*0.20` term to match the OLD live formula for historical/comparison
+purposes) no longer matches _score_value's CURRENT live weights - `value_proxy_nosize` is now
+the accurate live decomposition of what "value" means in the composite, and `size_proxy` is a
+real top-level factor, not merely an optional SEVEN_COLS add-on. Left the regression code
+itself unchanged (both proxies were already computed every run, just re-labeled in
+interpretation) rather than rewriting this diagnostic script's internals - the two docstring
+notes above are kept as historical narrative of how the promotion question was investigated.
+
 Usage:
     python -m algo.research.fama_macbeth_composite_weights [options]
 """

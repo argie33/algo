@@ -1153,6 +1153,7 @@ function ScoreBars({ scores }) {
     ["Growth", scores.growth_score],
     ["Stability", scores.stability_score],
     ["Positioning", scores.positioning_score],
+    ["Size", scores.size_score],
   ];
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
@@ -1221,19 +1222,21 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
   // (no weight redistribution per GOVERNANCE) - bar value = score * weight (points earned
   // toward the 100-point composite), bar max = weight * 100.
-  // CORRECTED 2026-08-25: this array had drifted out of sync with the live base_weights
-  // (was growth=0.2/positioning=0.15/stability=0.12/momentum=0.08 - none of which matched
-  // load_stock_scores.py even before that same day's composite reweight). Now matches
-  // loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly - guarded by
+  // UPDATED 2026-08-26: Size promoted from a Value-pillar sub-component to its own top-level
+  // 7th pillar (size_proxy t=7.63 multivariate, the strongest coefficient of any pillar in
+  // the whole re-audit - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS and
+  // _score_size docstrings). Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS
+  // exactly - guarded by
   // tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't
   // drift silently again.
   const FACTOR_WEIGHTS = [
-    ["Quality", "quality_score", 0.25],
-    ["Growth", "growth_score", 0.12],
-    ["Value", "value_score", 0.21],
-    ["Positioning", "positioning_score", 0.12],
-    ["Stability", "stability_score", 0.18],
-    ["Momentum", "momentum_score", 0.12],
+    ["Quality", "quality_score", 0.2],
+    ["Growth", "growth_score", 0.1],
+    ["Value", "value_score", 0.17],
+    ["Positioning", "positioning_score", 0.1],
+    ["Stability", "stability_score", 0.14],
+    ["Momentum", "momentum_score", 0.09],
+    ["Size", "size_score", 0.2],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];
