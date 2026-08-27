@@ -177,3 +177,62 @@ class TestComputeDataUnavailable:
         result = cr.compute(date(2026, 8, 24), force_recompute=True)
         assert result["data_unavailable"] is True
         assert "market_exposure_daily" in result["reason"]
+
+    def test_persist_never_sends_null_for_not_null_weight_columns(self, monkeypatch):
+        """BUG FOUND 2026-08-27 (pre-live-money audit, live-reproduced against the real local
+        DB): the data_unavailable branch's result dict has no gld_weight/ief_weight/
+        dbc_weight/cash_weight/move_veto keys at all, and _persist() used to pass
+        result.get(...) straight into the INSERT - a real None, not a missing param. Those 4
+        weight columns are NOT NULL in the schema (migration 1227, DEFAULT 0/0/0/1) - but an
+        explicit NULL in an INSERT always overrides a column DEFAULT, so this crashed with
+        psycopg2.errors.NotNullViolation on every real call to this "graceful degradation"
+        path instead of persisting the data_unavailable row it was trying to write. The
+        old test above used a fully no-op fake cursor.execute() that silently accepted
+        anything, including params real Postgres would reject - this test instead captures
+        the actual params tuple and checks it the way a NOT NULL constraint would.
+        """
+        cr = CapitalRouting()
+
+        class _FakeCalendar:
+            @staticmethod
+            def is_trading_day(d):
+                return True
+
+        monkeypatch.setattr("algo.infrastructure.MarketCalendar", _FakeCalendar)
+        monkeypatch.setattr(cr, "try_load_cached", lambda eval_date: None)
+
+        captured_params = []
+
+        class _FakeCursor:
+            def execute(self, query, params=None):
+                if params is not None and "INSERT INTO capital_routing_daily" in query:
+                    captured_params.append(params)
+
+            def fetchone(self):
+                return None
+
+        class _FakeDbContext:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return _FakeCursor()
+
+            def __exit__(self, *a):
+                return False
+
+        monkeypatch.setattr("algo.risk.capital_routing.DatabaseContext", _FakeDbContext)
+        result = cr.compute(date(2026, 8, 24), force_recompute=True)
+        assert result["data_unavailable"] is True
+        assert len(captured_params) == 1
+        # Column order per _persist()'s INSERT: date, exposure_pct, uninvested_capital_pct,
+        # gld_trend_up, ief_trend_up, dbc_trend_up, gld_vol_20d, ief_vol_20d, dbc_vol_20d,
+        # gld_weight, ief_weight, dbc_weight, cash_weight, move_index, move_veto, factors,
+        # data_unavailable, reason
+        params = captured_params[0]
+        not_null_weight_indices = {9: "gld_weight", 10: "ief_weight", 11: "dbc_weight", 12: "cash_weight"}
+        for idx, name in not_null_weight_indices.items():
+            assert params[idx] is not None, f"{name} (index {idx}) is None - would violate NOT NULL constraint"
+        assert params[14] is not None, "move_veto (index 14) is None - would violate NOT NULL constraint"
+        assert params[9:13] == (0.0, 0.0, 0.0, 1.0)
+        assert params[14] is False

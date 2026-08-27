@@ -446,6 +446,22 @@ class CapitalRouting:
     def _persist(self, eval_date: _date, result: dict[str, Any]) -> None:
         data_unavailable = bool(result.get("data_unavailable"))
         factors_json = json.dumps(result.get("factors"), default=str) if result.get("factors") else None
+        # BUG FOUND 2026-08-27 (pre-live-money audit): gld_weight/ief_weight/dbc_weight/
+        # cash_weight are NOT NULL in the schema (migration 1227), with column DEFAULTs of
+        # 0/0/0/1 for exactly this "nothing computed yet" case - but an explicit NULL in an
+        # INSERT always overrides a column DEFAULT, and compute()'s data_unavailable branch
+        # returns a result dict with none of these keys at all, so result.get(...) below was
+        # passing a real None for each. Live-reproduced: any day market_exposure_daily hasn't
+        # been computed yet crashed this "graceful degradation" path itself with
+        # psycopg2.errors.NotNullViolation, instead of persisting the clean
+        # data_unavailable=True row it was trying to write. Default to the same 0.0/0.0/0.0/1.0
+        # convention try_load_cached() above already uses when reading these columns back as
+        # NULL, and False for move_veto (also NOT NULL, same failure mode).
+        gld_weight = result.get("gld_weight")
+        ief_weight = result.get("ief_weight")
+        dbc_weight = result.get("dbc_weight")
+        cash_weight = result.get("cash_weight")
+        move_veto = result.get("move_veto")
         with DatabaseContext("write") as cur:
             cur.execute(
                 """
@@ -484,12 +500,12 @@ class CapitalRouting:
                     result.get("gld_vol_20d"),
                     result.get("ief_vol_20d"),
                     result.get("dbc_vol_20d"),
-                    result.get("gld_weight"),
-                    result.get("ief_weight"),
-                    result.get("dbc_weight"),
-                    result.get("cash_weight"),
+                    gld_weight if gld_weight is not None else 0.0,
+                    ief_weight if ief_weight is not None else 0.0,
+                    dbc_weight if dbc_weight is not None else 0.0,
+                    cash_weight if cash_weight is not None else 1.0,
                     result.get("move_index"),
-                    result.get("move_veto"),
+                    move_veto if move_veto is not None else False,
                     factors_json,
                     data_unavailable,
                     result.get("reason"),
