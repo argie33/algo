@@ -490,7 +490,6 @@ class StockScoresLoader(OptimalLoader):
                         "growth_score": None,
                         "value_score": None,
                         "momentum_score": None,
-                        "positioning_score": None,
                         "risk_score": None,
                         "data_completeness": 0,
                         "data_unavailable": True,
@@ -514,7 +513,6 @@ class StockScoresLoader(OptimalLoader):
                     "growth_score": None,
                     "value_score": None,
                     "momentum_score": None,
-                    "positioning_score": None,
                     "risk_score": None,
                     "data_completeness": 0,
                     "data_unavailable": True,
@@ -878,6 +876,20 @@ class StockScoresLoader(OptimalLoader):
                 else [],
             }
 
+            # MINIMAL UNBLOCK 2026-08-26 (concurrent-session DB/code mismatch): a concurrent
+            # session applied migration 1237_retire_positioning_score_from_stock_scores to the
+            # SHARED local dev DB, dropping stock_scores.positioning_score - but their actual
+            # code changes (weight reallocation, frontend, this file's own retirement) are
+            # uncommitted in a separate worktree (size-factor-promotion), not landed here.
+            # Since migrations hit the one shared DB regardless of worktree, this branch's
+            # writes were crashing with UndefinedColumn. Fix here is deliberately narrow: drop
+            # positioning_score from the dicts that map to real DB columns (this one, the two
+            # data_unavailable markers above, and snapshot_score_history()'s INSERT/SELECT/
+            # ON CONFLICT below) so writes succeed again. Did NOT touch _score_positioning,
+            # BASE_PILLAR_WEIGHTS["positioning"], data_completeness's /6 denominator, or the
+            # components/data_sources JSON blobs (those aren't literal SQL columns, safe to
+            # leave stale) - the real retirement (reweighting, frontend, tests) is that other
+            # session's deliberate, larger in-progress work, not something to improvise here.
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -885,7 +897,6 @@ class StockScoresLoader(OptimalLoader):
                 "growth_score": extract_score_value(clamped_growth),
                 "value_score": extract_score_value(clamped_value),
                 "momentum_score": extract_score_value(clamped_momentum),
-                "positioning_score": extract_score_value(clamped_positioning),
                 "risk_score": extract_score_value(clamped_risk),
                 # Placeholder only: update_rs_percentiles() (post_run(), batch rank pass)
                 # overwrites this with the real PERCENT_RANK() value for every symbol once the
@@ -1394,31 +1405,40 @@ class StockScoresLoader(OptimalLoader):
         computation - if pre-computed score missing, returns explicit data_unavailable marker.
         For financial accuracy, missing scores are better than fabricated heuristics.
 
-        REDESIGNED 2026-08-26 (literature audit: Novy-Marx 2013, Fama-French 2015 RMW,
-        Sloan 1996, QMJ 2013, Bradshaw/Richardson/Sloan 2006 - see
-        algo/research/fama_macbeth_quality_factors.py's EXTENDED_CANDIDATE_COLS for the
-        point-in-time evidence). The upstream quality_score
-        (load_value_quality_growth_metrics.py) is now a 9-weighted-component blend: an
-        equity-profitability cluster (ROE + Operating Profitability, 10%), an asset-
-        profitability cluster (ROA + Gross Profitability, 15%), ROIC (10%), Accruals Ratio
-        (15%), Debt-to-Assets (10%), Interest Coverage (10%), Margin Volatility (15%), Net
-        Debt Issuance (5%), Payout Ratio (10%) - clusters average their two raw scores into
-        one effective signal first (same double-counting fix as the prior cluster-weight
-        redesign), then all effective signals combine at the weights above, renormalized over
-        whichever are available for a given symbol.
+        REBUILT 2026-08-26 (Quality pillar exhaustive-input review, user-directed - supersedes
+        this docstring's earlier "9-weighted-component cluster blend" description, which
+        described the c568eccfe state, not the current one). The upstream quality_score
+        (load_value_quality_growth_metrics.py) is now a 7-weighted-component blend, no
+        clusters: ROA 18%, ROCE 18% (replaces ROIC - fixes ROIC's cash-netting coverage gap),
+        Debt-to-Equity 18% (replaces Debt-to-Assets - tests stronger, t=3.12 vs 2.18), FCF
+        Margin 15% (replaces Accruals Ratio - independent signal, corr=0.13), ROE 11%,
+        Interest Coverage 5%, Payout Ratio 5% - renormalized over whichever are available for a
+        given symbol, with a 40% minimum-available-weight floor (below that, quality_score is
+        None rather than a thin-sample extrapolation - see
+        load_value_quality_growth_metrics.py's quality_components comment). Weights are set
+        from both full-sample t-stat magnitude AND a half-split time-stability check, not raw
+        t-stat alone. Operating/Gross Profitability and Margin Volatility were tested and
+        dropped entirely (no replacement candidate cleared the bar); Current Ratio was tested
+        and excluded (no cross-sectional signal despite being a standard quality-investing
+        checklist item).
+
+        Altman Z''-Score ADDED then REMOVED same day (2026-08-26, user directive) - not on new
+        negative evidence, but a methodological objection: the literature frames Z''-Score as a
+        discrete distress-triage classifier ("quick check of economic health; if it flags a
+        problem, do more detailed analysis"), not a continuously-scaled input meant to be
+        averaged into a magnitude-weighted composite - independently reinforcing what the data
+        already flagged as this component's weakest point (its t=3.49 came from only 41 months
+        and decayed hard within that short window, t=4.40->1.39 half-split). Raw altman_z_score
+        still computed/persisted for reference, unscored; where a distress-flag use belongs (if
+        anywhere) is deliberately left open for later, not decided today.
 
         This REPLACES the previous "_enhance_quality_score" ±10-point bump layer entirely -
-        every signal that layer used to bump on (EBITDA margin, FCF/NI, ROIC, OCF/NI,
-        debt-to-equity via _score_financial_stability) is now either a real weighted input in
-        the base formula above (ROIC), superseded by a literature-grounded replacement
-        (Accruals Ratio subsumes the FCF/NI and OCF/NI cash-quality signals; Gross/Operating
-        Profitability subsume the EBITDA-margin signal), or dropped as redundant (debt-to-
-        equity was a monotonic transform of debt-to-assets, already the base formula's
-        leverage input - literature: "pick D/A or D/E, not both"). Splitting one quality
-        signal across two differently-weighted functions in two different files was real
-        architectural debt (user-flagged 2026-08-26) independent of the literature findings -
-        collapsing to one function fixes both at once. _score_financial_stability/_score_dte
-        removed as dead code (no other callers).
+        every signal that layer used to bump on is now either a real weighted input in the
+        base formula above, superseded by a literature-grounded replacement, or dropped as
+        redundant. Splitting one quality signal across two differently-weighted functions in
+        two different files was real architectural debt (user-flagged 2026-08-26) independent
+        of the literature findings - collapsing to one function fixes both at once.
+        _score_financial_stability/_score_dte removed as dead code (no other callers).
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.warning(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
@@ -2922,7 +2942,7 @@ class StockScoresLoader(OptimalLoader):
                     INSERT INTO stock_scores_history (
                         symbol, score_date, composite_score, composite_rank,
                         momentum_score, quality_score, growth_score, value_score,
-                        positioning_score, risk_score, rs_percentile,
+                        risk_score, rs_percentile,
                         data_completeness, updated_at
                     )
                     SELECT
@@ -2931,7 +2951,7 @@ class StockScoresLoader(OptimalLoader):
                         composite_score,
                         RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS composite_rank,
                         momentum_score, quality_score, growth_score, value_score,
-                        positioning_score, risk_score, rs_percentile,
+                        risk_score, rs_percentile,
                         data_completeness, CURRENT_TIMESTAMP
                     FROM stock_scores
                     WHERE data_unavailable IS NOT TRUE AND composite_score IS NOT NULL
@@ -2942,7 +2962,6 @@ class StockScoresLoader(OptimalLoader):
                         quality_score = EXCLUDED.quality_score,
                         growth_score = EXCLUDED.growth_score,
                         value_score = EXCLUDED.value_score,
-                        positioning_score = EXCLUDED.positioning_score,
                         risk_score = EXCLUDED.risk_score,
                         rs_percentile = EXCLUDED.rs_percentile,
                         data_completeness = EXCLUDED.data_completeness,
