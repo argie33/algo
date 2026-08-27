@@ -5,6 +5,7 @@ import {
   DollarSign,
   TrendingUp,
   Shield,
+  Layers,
   Inbox,
 } from "lucide-react";
 import {
@@ -186,6 +187,12 @@ const FACTORS = [
     label: "Risk",
     scoreKey: "risk_score",
     icon: Shield,
+  },
+  {
+    key: "size",
+    label: "Size",
+    scoreKey: "size_score",
+    icon: Layers,
   },
 ];
 
@@ -703,6 +710,14 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           schema={RISK_SCHEMA}
           inputsKey="risk_inputs"
         />
+        {/* market_cap lives in value_inputs (same value_metrics row Value reads) - no
+            separate backend inputsKey needed for this single-field pillar. */}
+        <InputsCard
+          title="Size"
+          stock={stock}
+          schema={SIZE_SCHEMA}
+          inputsKey="value_inputs"
+        />
       </div>
 
       {/* Recent trading signals */}
@@ -812,8 +827,15 @@ export { QUALITY_SCHEMA, RISK_SCHEMA };
 // Piotroski (2000 JAR) / QMJ (2019) both place improvement-in-profitability signals in
 // Quality, not Growth. Same 3% each weight, just relocated - not a new empirical claim.
 //
-// Weight percentages below are all recomputed against the new 11-component nominal total
-// (106 = 90 + margin_volatility's 7 + the 3 trend fields' 3 each).
+// asset_turnover ADDED 2026-08-27 (goal: act on the pending candidate flagged by the
+// 2026-08-27 missing-metrics sweep - see MEMORY.md
+// quality_asset_turnover_piotroski_tested_20260827). Classic DuPont efficiency component
+// (Revenue / Total Assets), never previously tested by this pillar. FM-validated: t=3.03 full
+// sample/3.00 first half/1.54 second half - same evidentiary tier as margin_volatility,
+// weighted the same (7 of 113 nominal).
+//
+// Weight percentages below are all recomputed against the new 12-component nominal total
+// (113 = 90 + margin_volatility's 7 + the 3 trend fields' 3 each + asset_turnover's 7).
 const QUALITY_SCHEMA = [
   {
     key: "return_on_equity_pct",
@@ -827,49 +849,56 @@ const QUALITY_SCHEMA = [
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~16%",
   },
   {
     key: "return_on_capital_employed_pct",
     label: "ROCE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~16%",
   },
   {
     key: "fcf_margin_pct",
     label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~14%",
+    weight: "~13%",
   },
   {
     key: "debt_to_equity",
     label: "Debt to Equity",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~17%",
+    weight: "~16%",
   },
   {
     key: "interest_coverage",
     label: "Interest Coverage",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~5%",
+    weight: "~4%",
   },
   {
     key: "payout_ratio",
     label: "Payout Ratio",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~5%",
+    weight: "~4%",
   },
   {
     key: "margin_volatility",
     label: "Margin Volatility (3Y)",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~7%",
+    weight: "~6%",
+  },
+  {
+    key: "asset_turnover_pct",
+    label: "Asset Turnover",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "~6%",
   },
   {
     key: "operating_margin_trend",
@@ -1045,11 +1074,12 @@ const MOMENTUM_SCHEMA = [
 // loaders/load_stock_scores.py's _score_value docstring ("PE-vs-PB/PS RANKING - REVERSED")
 // for the full evidence.
 //
-// SIZE (market_cap) MOVED OUT 2026-08-26 - briefly promoted to its own top-level "Size"
-// pillar/tab the same day, then removed from scoring entirely (user directive) - market_cap
-// is not a scored input anywhere on this page now. The 7 remaining inputs below stayed at
-// the x1.25-rescaled weights that restored their pre-Size 100% (see
-// loaders/load_stock_scores.py's _score_value docstring for that history).
+// SIZE (market_cap) MOVED OUT 2026-08-26 - promoted to its own top-level "Size" pillar/tab
+// (see SIZE_SCHEMA below and FACTORS' "size" entry above), removed from scoring the same day
+// on a UX/product objection, then RE-PROMOTED 2026-08-27 on new era-robust half-split
+// evidence - see loaders/load_stock_scores.py's _score_size docstring for the full history.
+// The 7 inputs below stay at the x1.25-rescaled weights that restored their pre-Size 100%
+// (unaffected by Size's re-promotion this time, since Value never absorbed market_cap back).
 // AMIHUD ILLIQUIDITY added 2026-08-26, REMOVED same day (user directive - see
 // loaders/load_stock_scores.py's _score_value docstring "AMIHUD ILLIQUIDITY" note for why:
 // real academic signal, but scored favoring harder-to-trade micro-caps in a way that's
@@ -1110,9 +1140,21 @@ const VALUE_SCHEMA = [
   // entirely the same day (user directive) - not a scored input anywhere on this page now.
 ];
 
-// SIZE pillar (market cap) REMOVED 2026-08-26 (user directive) - briefly promoted to its own
-// top-level pillar the same day it was added, then removed from scoring entirely. market_cap
-// is not a scored input, and has no schema/card, anywhere on this page now.
+// SIZE (market cap, Fama-French SMB / Banz 1981) - top-level pillar again since 2026-08-27
+// (re-promoted after being removed 2026-08-26 on a UX/product objection, not a dispute of the
+// evidence - see loaders/load_stock_scores.py's _score_size docstring for the full history).
+// Single-input pillar: market_cap is the sole driver of size_score via a log10-bucketed
+// curve, not a weighted blend, so there's no "weight" in the usual multi-input sense - it's
+// the pillar's entire signal by construction.
+const SIZE_SCHEMA = [
+  {
+    key: "market_cap",
+    label: "Market Cap",
+    fmt: (v) => (v == null ? "—" : `$${(v / 1e9).toFixed(2)}B`),
+    used: true,
+    weight: "sole input",
+  },
+];
 
 // RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction): back
 // to the pre-08-25 14-input set. The 2026-08-25 cut to 4 inputs rested on this system's own

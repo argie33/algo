@@ -1951,6 +1951,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             SELECT
                 fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
                 fs.quality_score, fs.value_score, fs.risk_score,
+                fs.size_score,
                 fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
                 pl.close AS current_price,
                 ROUND(CASE

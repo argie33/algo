@@ -125,17 +125,18 @@ class TestGrowthScoreWeightBadges:
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
 
 
-class TestSizeScoreRemoved:
-    def test_market_cap_is_not_a_scored_input(self):
-        """Size (market cap) was briefly promoted to a 7th top-level pillar 2026-08-26, then
-        removed from scoring entirely the same day (user directive) - see
-        loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS docstring. Guards against the JSX
-        schema drifting back to advertising market_cap as a scored factor."""
-        assert not hasattr(StockScoresLoader, "_score_size")
+class TestSizeScoreRePromoted:
+    def test_market_cap_is_a_scored_input(self):
+        """Size (market cap) was briefly promoted to a 7th top-level pillar 2026-08-26, removed
+        from scoring entirely the same day (a UX/product objection, not a dispute of the
+        evidence), then RE-PROMOTED 2026-08-27 on new era-robust half-split evidence - see
+        loaders/load_stock_scores.py's _score_size docstring for the full trail. Guards against
+        the JSX schema drifting away from advertising market_cap as the scored Size pillar."""
+        assert hasattr(StockScoresLoader, "_score_size")
         with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
             jsx_source = f.read()
-        assert '"market_cap"' not in jsx_source
-        assert "size_score" not in jsx_source
+        assert '"market_cap"' in jsx_source
+        assert "size_score" in jsx_source
 
 
 class TestPositioningScoreRemoved:

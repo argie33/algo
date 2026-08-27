@@ -89,6 +89,7 @@ const SORT_FIELDS = [
   { value: "value_score", label: "Value" },
   { value: "growth_score", label: "Growth" },
   { value: "risk_score", label: "Risk" },
+  { value: "size_score", label: "Size" },
 ];
 
 const FACTORS = [
@@ -126,6 +127,15 @@ const FACTORS = [
     scoreKey: "risk_score",
     icon: Shield,
     tone: "var(--text-2)",
+  },
+  {
+    key: "size",
+    label: "Size",
+    scoreKey: "size_score",
+    icon: Layers,
+    // Reuses Value's cyan tone - Size (SMB) and Value (HML) are sibling factors in the
+    // original Fama-French model, and this codebase is out of distinct unused theme tones.
+    tone: "var(--cyan)",
   },
 ];
 
@@ -1211,6 +1221,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                   <th className="num">M</th>
                   <th className="num">V</th>
                   <th className="num">G</th>
+                  <th className="num">R</th>
                   <th className="num">S</th>
                 </tr>
               </thead>
@@ -1301,6 +1312,16 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                     >
                       <SafeMetricValue
                         value={s.risk_score}
+                        formatter="number"
+                        fallback="—"
+                      />
+                    </td>
+                    <td
+                      className="num mono tnum t-xs"
+                      style={{ color: subScoreColor(s.size_score) }}
+                    >
+                      <SafeMetricValue
+                        value={s.size_score}
                         formatter="number"
                         fallback="—"
                       />

@@ -7,6 +7,7 @@ Computes composite stock scores by aggregating:
 - Value metrics (P/E, P/B, P/S ratios, dividend yield)
 - Momentum/Relative Strength (1m/3m/6m/12m returns)
 - Stability metrics (volatility, beta)
+- Size (market cap - re-promoted to a top-level pillar 2026-08-27, see BASE_PILLAR_WEIGHTS)
 
 Positioning (A/D rating, institutional ownership, short interest) is NOT part of the
 composite - retired as a top-level pillar 2026-08-27 (see BASE_PILLAR_WEIGHTS). Its inputs
@@ -17,7 +18,7 @@ Each factor is normalized to 0-100 scale and weighted.
 Final composite score is weighted average of all factors.
 
 CRITICAL GOVERNANCE RULES:
-- Minimum 1/5 metrics required for any stock score - degraded-mode scoring is allowed (SPACs/
+- Minimum 1/6 metrics required for any stock score - degraded-mode scoring is allowed (SPACs/
   new listings, see Session 530 note on min_required_metrics below); trading gates separately
   filter on data_completeness >= 70% (min_completeness_score), which is the real entry-quality
   bar (no IPO exceptions there either)
@@ -61,10 +62,14 @@ logger = logging.getLogger(__name__)
 # drifting out of sync elsewhere (StockDetail.jsx's FACTOR_WEIGHTS, tests/test_formula_accuracy.py,
 # algo/infrastructure/constants.py's REGIME_POSITION_SIZE_*, dashboard risk-panel display) -
 # see [[risk_dashboard_position_size_multiplier_drift_fixed_20260825]] and siblings in memory.
-# SIZE PILLAR REMOVED 2026-08-26 (user directive): market cap is no longer a scored input at
-# all - not as a top-level pillar, not folded back into Value either. This reverts the
-# 2026-08-26 "promote Size to a 7th pillar" change (commit 869e431c3) entirely; weights below
-# are the pre-promotion values. See _score_size's removal note for what was deleted.
+# SIZE PILLAR RE-PROMOTED 2026-08-27 (user directive, reversing the 2026-08-26 removal - see
+# _score_size's own docstring for the full history and the era-robust half-split evidence that
+# prompted re-promotion: t=4.62 first half 2017-2021 / t=5.68 second half 2022-2026, its first
+# actual robustness test rather than repeated point-estimates on a growing sample). Size gets
+# 20%, the same top-level share as its original 2026-08-26 promotion; the other 5 pillars are
+# scaled by x0.8 to free that weight, preserving their relative proportions to each other
+# (quality 0.25->0.20, growth 0.18->0.14, value 0.21->0.17, risk 0.24->0.19, momentum
+# 0.12->0.10 - rounded to whole cents, summing to exactly 0.80).
 #
 # POSITIONING RETIRED AS A COMPOSITE PILLAR 2026-08-27 (evidence-driven, see migration
 # 1240_retire_positioning_score_from_stock_scores.sql for the full trail). Its only
@@ -98,11 +103,12 @@ logger = logging.getLogger(__name__)
 # still surfaces them via positioning_inputs for display - only the synthesized 0-100
 # "positioning_score" composite, which no longer has a coherent empirical basis, is dropped.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
-    "quality": 0.25,
-    "growth": 0.18,
-    "value": 0.21,
-    "risk": 0.24,
-    "momentum": 0.12,
+    "quality": 0.20,
+    "growth": 0.14,
+    "value": 0.17,
+    "risk": 0.19,
+    "momentum": 0.10,
+    "size": 0.20,
 }
 
 
@@ -566,7 +572,7 @@ class StockScoresLoader(OptimalLoader):
         Do not return None or fake markers - callers must know immediately if scoring failed.
 
         Returns dict with keys: symbol, composite_score, quality_score, growth_score,
-        value_score, momentum_score, risk_score, rs_percentile, data_completeness
+        value_score, momentum_score, risk_score, size_score, rs_percentile, data_completeness
 
         Raises:
             RuntimeError: If insufficient metrics available to compute valid score
@@ -587,6 +593,8 @@ class StockScoresLoader(OptimalLoader):
             value_score = self._score_value(value, symbol)
             risk_score = self._score_risk(risk_metrics, symbol)
             momentum_score = self._score_momentum(momentum, symbol)
+            # Size shares Value's upstream value_metrics row (market_cap) - no separate fetch.
+            size_score = self._score_size(value, symbol)
 
             # Extract numeric scores for computation, track unavailability reasons
             def is_real_score(result: float | dict[str, Any] | None) -> bool:
@@ -602,15 +610,17 @@ class StockScoresLoader(OptimalLoader):
             # Count data completeness: only float scores count as "real data"
             # Markers (dicts with data_unavailable=True) are excluded from count
             # Session 260: Momentum loader now fixed and included in completeness calculation
-            # 5 pillars are evaluated: quality, growth, value, risk, momentum (Positioning
-            # retired as a composite pillar 2026-08-27 - see BASE_PILLAR_WEIGHTS)
-            # Minimum 70% completeness (3.5/5 metrics) required per GOVERNANCE.md
+            # 6 pillars are evaluated: quality, growth, value, risk, momentum, size (Positioning
+            # retired as a composite pillar 2026-08-27; Size re-promoted 2026-08-27 - see
+            # BASE_PILLAR_WEIGHTS)
+            # Minimum 70% completeness (4.2/6 metrics) required per GOVERNANCE.md
             all_scores = {
                 "quality": quality_score,
                 "growth": growth_score,
                 "value": value_score,
                 "risk": risk_score,
                 "momentum": momentum_score,
+                "size": size_score,
             }
             real_scores = [s for s in all_scores.values() if is_real_score(s)]
             data_count = len(real_scores)
@@ -618,31 +628,31 @@ class StockScoresLoader(OptimalLoader):
                 name: get_marker_reason(score) for name, score in all_scores.items() if not is_real_score(score)
             }
 
-            # CRITICAL FIX 2026-07-19: Log when scores computed with <5 metrics for visibility.
+            # CRITICAL FIX 2026-07-19: Log when scores computed with <6 metrics for visibility.
             # Traders need to see completeness % in dashboards to filter based on GOVERNANCE entry gates.
-            if data_count < 5 and data_count >= 4:
+            if data_count < 6 and data_count >= 5:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
                     f"Missing: {', '.join(missing)}. Trading filter gate: completeness >= 70% per GOVERNANCE."
                 )
-            elif data_count < 4:
+            elif data_count < 5:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
-                    f"Minimum 4 metrics ensures diversity against single-metric bias."
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
+                    f"Minimum 5 metrics ensures diversity against single-metric bias."
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
-            # Calculate completeness on 5 pillars (quality, growth, value, risk, momentum)
-            data_completeness = min(99.99, round((data_count / 5.0) * 100, 2))
+            # Calculate completeness on 6 pillars (quality, growth, value, risk, momentum, size)
+            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # CRITICAL FIX 2026-07-19: Compute score for all symbols with 4+/5 metrics, mark completeness for trading filters.
+            # CRITICAL FIX 2026-07-19: Compute score for all symbols with 5+/6 metrics, mark completeness for trading filters.
             # Previous: Rejected any score with <70% completeness, removing 1,635 valid candidates from universe.
-            # New: Calculate scores for all candidates with sufficient diversity (4+ metrics), let trading logic
+            # New: Calculate scores for all candidates with sufficient diversity (5+ metrics), let trading logic
             # (entry gates) filter based on completeness %. This gives traders full visibility + control.
             # GOVERNANCE.md says: "Signals < 70% completeness are excluded from scoring" (trading exclusion, not computation exclusion).
-            # The minimum 4 metrics check below ensures sufficient diversity to prevent single-metric bias.
+            # The minimum 5 metrics check below ensures sufficient diversity to prevent single-metric bias.
             # Completeness % is still tracked and reported for operator/trader visibility.
 
             # Session 530: Enable degraded-mode scoring for SPACs/new listings
@@ -655,10 +665,10 @@ class StockScoresLoader(OptimalLoader):
             if data_count < min_required_metrics:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero metrics available. "
-                    f"Got {data_count}/5 metrics. Cannot compute score with no metric data."
+                    f"Got {data_count}/6 metrics. Cannot compute score with no metric data."
                 )
 
-            # GOVERNANCE COMPLIANCE: Compute scores with 4+/5 metrics (sufficient diversity).
+            # GOVERNANCE COMPLIANCE: Compute scores with 5+/6 metrics (sufficient diversity).
             # No weight redistribution fallbacks (normalized weights stay fixed).
             # Trading gates will filter based on completeness % >= 70% per GOVERNANCE.md line 62.
             # Reason: Rejecting a few-metric-short score wastes valid signals; incomplete data is honest data marked visible.
@@ -669,6 +679,7 @@ class StockScoresLoader(OptimalLoader):
                 "value": is_real_score(value_score),
                 "risk": is_real_score(risk_score),
                 "momentum": is_real_score(momentum_score),
+                "size": is_real_score(size_score),
             }
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
@@ -683,27 +694,27 @@ class StockScoresLoader(OptimalLoader):
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.error(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero real metrics available. "
-                    f"Available {real_metric_count}/5. "
+                    f"Available {real_metric_count}/6. "
                     f"Missing: {', '.join(missing_metrics)}. "
                     f"Cannot compute even degraded score without any real data."
                 )
                 raise ValueError(
-                    f"{symbol}: zero metrics ({real_metric_count}/5, impossible to score). "
+                    f"{symbol}: zero metrics ({real_metric_count}/6, impossible to score). "
                     f"Cannot compute score with zero available metrics."
                 )
 
             if real_metric_count < 2:
                 # Degraded mode: score with 1 metric only (for SPACs/new listings)
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/5 metrics available. "
-                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 5 * 100)}%)"
+                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/6 metrics available. "
+                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 6 * 100)}%)"
                 )
 
             # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
             # Unavailable metrics contribute 0 to composite (their weight is skipped, lost).
             # This means composite score is 0-100 scale, where:
-            # - 100 = all 7 metrics perfect
-            # - 50 with all 7 = truly 50/100
+            # - 100 = all 6 metrics perfect
+            # - 50 with all 6 = truly 50/100
             # - 50 with only some pillars available = an incomplete picture (only the available
             #   pillars' weight contributed; missing pillars' weight is simply not counted)
             # Dashboard displays completeness % so traders see data quality.
@@ -778,15 +789,14 @@ class StockScoresLoader(OptimalLoader):
             #
             # SIZE FACTOR (market cap) - promoted to a 7th top-level pillar 2026-08-26 (Fama-
             # French SMB/Banz 1981, tested at size_proxy t=7.63 multivariate - the strongest
-            # coefficient of any pillar in this file's re-audit), then REMOVED entirely the
-            # same day (user directive - market cap should not be a scored input at all,
-            # whether as its own pillar or folded back into Value). BASE_PILLAR_WEIGHTS above
-            # is back to its pre-Size 6-pillar values. Full evidence trail for why Size was
-            # promoted (and the double-counting bug that was caught along the way) is in git
-            # history - see commit 869e431c3 - not repeated here since it no longer describes
-            # live behavior. _score_size and its DB column/API/frontend wiring were removed;
-            # the stock_scores.size_score column itself is left in the schema (unused) rather
-            # than migrated away.
+            # coefficient of any pillar in this file's re-audit), REMOVED entirely the same day
+            # (user directive - a UX/product objection to seeing it on the scores page, not a
+            # dispute of the evidence), then RE-PROMOTED 2026-08-27 (user directive, on new
+            # era-robust half-split evidence - t=4.62/5.68 across 2017-2021/2022-2026, its
+            # first genuine robustness test rather than repeated point-estimates on a growing
+            # sample). See _score_size's own docstring for the full history and evidence trail
+            # - not repeated here. BASE_PILLAR_WEIGHTS above is a 6-pillar dict again (size back
+            # at 20%, the other 5 scaled by x0.8 same as the original 2026-08-26 promotion).
             base_weights = BASE_PILLAR_WEIGHTS
             normalized_weights = base_weights
 
@@ -802,6 +812,7 @@ class StockScoresLoader(OptimalLoader):
             clamped_value = clamp_score(value_score)
             clamped_risk = clamp_score(risk_score)
             clamped_momentum = clamp_score(momentum_score)
+            clamped_size = clamp_score(size_score)
 
             # Composite: only use metrics that are actually available
             # Do NOT redistribute weights (GOVERNANCE rule: no weight redistribution)
@@ -813,6 +824,7 @@ class StockScoresLoader(OptimalLoader):
                 ("value", clamped_value),
                 ("risk", clamped_risk),
                 ("momentum", clamped_momentum),
+                ("size", clamped_size),
             ]:
                 # Only use base weight if metric is available
                 # CRITICAL: Require explicit availability flag for each metric (fail-fast if missing)
@@ -882,6 +894,7 @@ class StockScoresLoader(OptimalLoader):
                 "value": extract_score_value(clamped_value),
                 "risk": extract_score_value(clamped_risk),
                 "momentum": extract_score_value(clamped_momentum),
+                "size": extract_score_value(clamped_size),
             }
 
             # Build data sources attribution for transparency
@@ -899,6 +912,7 @@ class StockScoresLoader(OptimalLoader):
                 "momentum": ["technical_data_daily", "market_status_daily", "insider_transaction_velocity"]
                 if extract_score_value(clamped_momentum)
                 else [],
+                "size": ["sec_valuations"] if extract_score_value(clamped_size) else [],
             }
 
             # POSITIONING FULLY RETIRED 2026-08-27 (supersedes the 2026-08-26 "minimal unblock"
@@ -910,6 +924,12 @@ class StockScoresLoader(OptimalLoader):
             # load_positioning_metrics.py keeps computing/storing them for the scores API's
             # informational positioning_inputs display; this loader just no longer reads or
             # scores them.
+            #
+            # SIZE RE-PROMOTED 2026-08-27 (see _score_size's docstring and BASE_PILLAR_WEIGHTS'
+            # comment for the full history/evidence trail) - size_score now appears alongside
+            # the other 5 pillars in all_scores/score_availability/the composite loop/
+            # components/data_sources, this result dict, and snapshot_score_history()'s INSERT
+            # below (same columns the original 2026-08-26 promotion added).
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -918,6 +938,7 @@ class StockScoresLoader(OptimalLoader):
                 "value_score": extract_score_value(clamped_value),
                 "momentum_score": extract_score_value(clamped_momentum),
                 "risk_score": extract_score_value(clamped_risk),
+                "size_score": extract_score_value(clamped_size),
                 # Placeholder only: update_rs_percentiles() (post_run(), batch rank pass)
                 # overwrites this with the real PERCENT_RANK() value for every symbol once the
                 # whole run succeeds. NULL here (not 0.0) so that if post_run() is skipped -
@@ -971,7 +992,7 @@ class StockScoresLoader(OptimalLoader):
     #   * _get_momentum_metrics: 5 columns (current through price_12m_ago)
     # - All _score_* functions return marker dicts if input metrics are missing/incomplete
     # - Momentum metrics: Require proper lookback periods (30d/60d/120d/252d), not degraded estimates
-    # - Stock minimum: 1/5 metrics (degraded-mode scoring allowed); trading gates separately
+    # - Stock minimum: 1/6 metrics (degraded-mode scoring allowed); trading gates separately
     #   filter on data_completeness >= 70% regardless of stock age (no IPO exceptions there)
     #
     # MARKER HANDLING by _compute_stock_score():
@@ -1376,22 +1397,25 @@ class StockScoresLoader(OptimalLoader):
         computation - if pre-computed score missing, returns explicit data_unavailable marker.
         For financial accuracy, missing scores are better than fabricated heuristics.
 
-        REBUILT 2026-08-26 (Quality pillar exhaustive-input review, user-directed - supersedes
-        this docstring's earlier "9-weighted-component cluster blend" description, which
-        described the c568eccfe state, not the current one). The upstream quality_score
-        (load_value_quality_growth_metrics.py) is now a 7-weighted-component blend, no
-        clusters: ROA 18%, ROCE 18% (replaces ROIC - fixes ROIC's cash-netting coverage gap),
-        Debt-to-Equity 18% (replaces Debt-to-Assets - tests stronger, t=3.12 vs 2.18), FCF
-        Margin 15% (replaces Accruals Ratio - independent signal, corr=0.13), ROE 11%,
-        Interest Coverage 5%, Payout Ratio 5% - renormalized over whichever are available for a
-        given symbol, with a 40% minimum-available-weight floor (below that, quality_score is
-        None rather than a thin-sample extrapolation - see
-        load_value_quality_growth_metrics.py's quality_components comment). Weights are set
-        from both full-sample t-stat magnitude AND a half-split time-stability check, not raw
-        t-stat alone. Operating/Gross Profitability and Margin Volatility were tested and
-        dropped entirely (no replacement candidate cleared the bar); Current Ratio was tested
-        and excluded (no cross-sectional signal despite being a standard quality-investing
-        checklist item).
+        REBUILT 2026-08-26, EXTENDED 2026-08-27 (Quality pillar exhaustive-input review,
+        user-directed - supersedes this docstring's earlier "9-weighted-component cluster
+        blend" description, which described the c568eccfe state, not the current one). The
+        upstream quality_score (load_value_quality_growth_metrics.py) is now a 12-weighted-
+        component blend, no clusters: ROA 18%, ROCE 18% (replaces ROIC - fixes ROIC's
+        cash-netting coverage gap), Debt-to-Equity 18% (replaces Debt-to-Assets - tests
+        stronger, t=3.12 vs 2.18), FCF Margin 15% (replaces Accruals Ratio - independent
+        signal, corr=0.13), ROE 11%, Margin Volatility (3Y) and Asset Turnover ~6% each
+        (second-tier candidates re-added/added 2026-08-27), Interest Coverage 5%, Payout Ratio
+        5%, Operating Margin Trend/Net Margin Trend/ROE Trend ~3% each (relocated from Growth
+        2026-08-27, per Piotroski/QMJ placement) - renormalized over whichever are available
+        for a given symbol, with a 40-point minimum-available-weight floor out of a 113-point
+        nominal total (below that, quality_score is None rather than a thin-sample
+        extrapolation - see load_value_quality_growth_metrics.py's quality_components
+        comment). Weights are set from both full-sample t-stat magnitude AND a half-split
+        time-stability check, not raw t-stat alone. Operating/Gross Profitability were tested
+        and dropped entirely (no replacement candidate cleared the bar); Current Ratio was
+        tested and excluded (no cross-sectional signal despite being a standard
+        quality-investing checklist item).
 
         Altman Z''-Score ADDED then REMOVED same day (2026-08-26, user directive) - not on new
         negative evidence, but a methodological objection: the literature frames Z''-Score as a
@@ -2042,11 +2066,69 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_scores_computed"}
 
-    # _score_size (market cap / Fama-French SMB Size pillar) REMOVED 2026-08-26 (user
-    # directive) - market cap is no longer a scored input anywhere in this file. Full history
-    # (added as a Value sub-component 2026-08-25, promoted to a 7th top-level pillar
-    # 2026-08-26, removed entirely the same day) is in git history - see commit 869e431c3 for
-    # the promotion this reverts.
+    def _score_size(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
+        """Score the Size pillar (market cap, Fama-French SMB / Banz 1981) on a 0-100 scale.
+
+        Single-input pillar: reads `market_cap` off the same `value_metrics` row already
+        fetched for _score_value (no separate DB query - shares the upstream table).
+
+        RE-PROMOTED 2026-08-27 (user directive, reversing the 2026-08-26 removal). Full prior
+        history: added as a 20%-weighted Value sub-component 2026-08-25 (size_proxy t=-5.37);
+        promoted to a top-level 7th pillar 2026-08-26 (t=7.62/7.63 multivariate, 4 independent
+        confirmations - see commit 869e431c3); removed entirely the same day on a UX/product
+        objection ("not sure why market cap still lingering on our scores page we dont want it
+        included there" - not a dispute of the evidence). Re-promoted here after the evidence
+        cleared a bar it had never actually been tested against: an era-robust half-split (not
+        just repeated point-estimates on a growing sample) - first half (2017-2021) t=4.62,
+        second half (2022-2026) t=5.68, genuinely stable and strengthening in the more recent
+        era (see MEMORY.md
+        composite_weights_growth_proxy_stale_fixed_and_size_half_split_verified_20260827). User
+        explicitly directed re-promotion on this new evidence ("if size is a good one per what
+        we know then we should do what is best").
+
+        The "will this just produce an all-microcap portfolio" concern is structurally
+        addressed two ways, independent of the scoring curve: (1) the curve below is bucketed,
+        not a naive linear reward for going smaller - it flatlines at 100 for the entire
+        micro-cap bucket (<$300M) rather than continuing to reward ever-smaller names, and
+        floors at 10 for mega-caps rather than zeroing them out; (2) Size is only 1 of 6
+        pillars in the composite, so a low-quality/low-value micro-cap still gets dragged down
+        by the other 5; (3) `algo/risk/liquidity_checks.py`'s `LiquidityChecks.run_all()`
+        enforces a genuinely independent tradability floor at actual trade-entry time
+        (Phase 7) regardless of what any score says (min_adv_shares=50,000,
+        min_adv_dollars=$500,000/day, plus an IPO-age check - fails closed on missing data).
+
+        Scored on log10(market_cap) rather than raw dollars - market cap spans 5+ orders of
+        magnitude (micro-cap ~$50M to mega-cap >$3T), so a linear scale on the raw dollar
+        figure would compress the entire distinction between small and mid caps into a
+        rounding error next to the mega-cap tail. Bucket boundaries follow standard
+        market-cap tier conventions (micro <$300M, small $300M-2B, mid $2B-10B, large
+        $10B-200B, mega >$200B) rather than a data-fitted curve, since the FM test validates
+        the DIRECTION and rough magnitude of the size effect, not a precise functional form.
+
+        RETURN TYPES (STRICT, matches every other _score_* method):
+        - metrics available with a positive market_cap -> returns float (0-100)
+        - metrics marked data_unavailable=True, missing, or market_cap not usable -> marker dict
+        """
+        if not metrics or metrics.get("data_unavailable"):
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for size_score({symbol})")
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_data"}
+
+        if metrics.get("market_cap") is not None and metrics["market_cap"] > 0:
+            log_mc = math.log10(metrics["market_cap"])
+            if log_mc <= 8.48:  # <= ~$300M (micro-cap)
+                size_score = 100.0
+            elif log_mc <= 9.30:  # <= ~$2B (small-cap)
+                size_score = 100 - (log_mc - 8.48) / (9.30 - 8.48) * 20  # 100 -> 80
+            elif log_mc <= 10.0:  # <= ~$10B (mid-cap)
+                size_score = 80 - (log_mc - 9.30) / (10.0 - 9.30) * 20  # 80 -> 60
+            elif log_mc <= 11.3:  # <= ~$200B (large-cap)
+                size_score = 60 - (log_mc - 10.0) / (11.3 - 10.0) * 30  # 60 -> 30
+            else:  # mega-cap
+                size_score = max(10.0, 30 - (log_mc - 11.3) * 15)
+            return size_score
+
+        logger.debug(f"[STOCK_SCORES] No market_cap found to score size_score({symbol})")
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_market_cap_data"}
 
     # _score_positioning REMOVED 2026-08-27 (Positioning retired as a composite pillar - see
     # BASE_PILLAR_WEIGHTS for the full evidence trail: A/D rating null across every methodology
@@ -2775,7 +2857,7 @@ class StockScoresLoader(OptimalLoader):
                     INSERT INTO stock_scores_history (
                         symbol, score_date, composite_score, composite_rank,
                         momentum_score, quality_score, growth_score, value_score,
-                        risk_score, rs_percentile,
+                        risk_score, size_score, rs_percentile,
                         data_completeness, updated_at
                     )
                     SELECT
@@ -2784,7 +2866,7 @@ class StockScoresLoader(OptimalLoader):
                         composite_score,
                         RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS composite_rank,
                         momentum_score, quality_score, growth_score, value_score,
-                        risk_score, rs_percentile,
+                        risk_score, size_score, rs_percentile,
                         data_completeness, CURRENT_TIMESTAMP
                     FROM stock_scores
                     WHERE data_unavailable IS NOT TRUE AND composite_score IS NOT NULL
@@ -2796,6 +2878,7 @@ class StockScoresLoader(OptimalLoader):
                         growth_score = EXCLUDED.growth_score,
                         value_score = EXCLUDED.value_score,
                         risk_score = EXCLUDED.risk_score,
+                        size_score = EXCLUDED.size_score,
                         rs_percentile = EXCLUDED.rs_percentile,
                         data_completeness = EXCLUDED.data_completeness,
                         updated_at = CURRENT_TIMESTAMP

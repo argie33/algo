@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Regression test guarding StockDetail.jsx's top-level FACTOR_WEIGHTS radar (Quality/Growth/
-Value/Risk/Momentum pillar mix) against drifting away from
+Value/Risk/Momentum/Size pillar mix) against drifting away from
 loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS - the real, live composite-score weights.
 
 Positioning REMOVED 2026-08-27: retired as a top-level composite pillar entirely (evidence-
 driven - see BASE_PILLAR_WEIGHTS for the full trail), not just a stale-weight drift case.
+
+Size RE-ADDED 2026-08-27: re-promoted to a top-level pillar after being briefly removed
+2026-08-26 - see loaders/load_stock_scores.py's _score_size docstring for the full history.
 
 Found live 2026-08-26 (goal: reconstruct a composite-weights reweight lost to an uncommitted-
 work race, verify nothing else drifted while at it): StockDetail.jsx's FACTOR_WEIGHTS was
@@ -30,6 +33,7 @@ _PILLAR_TO_JSX_KEY = {
     "value": "value_score",
     "risk": "risk_score",
     "momentum": "momentum_score",
+    "size": "size_score",
 }
 
 

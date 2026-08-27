@@ -1152,6 +1152,7 @@ function ScoreBars({ scores }) {
     ["Value", scores.value_score],
     ["Growth", scores.growth_score],
     ["Risk", scores.risk_score],
+    ["Size", scores.size_score],
   ];
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
@@ -1220,21 +1221,23 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
   // (no weight redistribution per GOVERNANCE) - bar value = score * weight (points earned
   // toward the 100-point composite), bar max = weight * 100.
-  // UPDATED 2026-08-26: Size (market cap) was briefly promoted to its own top-level 7th
-  // pillar, then removed from scoring entirely the same day (user directive) - not a scored
-  // input anywhere now.
   // UPDATED 2026-08-27: Positioning retired as a composite pillar entirely (evidence-driven -
   // see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full trail). Its freed 12%
-  // moved to Growth (+6) and Risk (+6). Matches loaders/load_stock_scores.py's
-  // BASE_PILLAR_WEIGHTS exactly - guarded by
-  // tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't drift
-  // silently again.
+  // moved to Growth (+6) and Risk (+6).
+  // UPDATED 2026-08-27 (later same day): Size (market cap) was briefly promoted to a
+  // top-level 7th pillar on 2026-08-26, removed the same day on a UX/product objection, then
+  // RE-PROMOTED here on new era-robust half-split evidence (t=4.62/5.68 across
+  // 2017-2021/2022-2026) - see loaders/load_stock_scores.py's _score_size docstring for the
+  // full history. Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly - guarded
+  // by tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't
+  // drift silently again.
   const FACTOR_WEIGHTS = [
-    ["Quality", "quality_score", 0.25],
-    ["Growth", "growth_score", 0.18],
-    ["Value", "value_score", 0.21],
-    ["Risk", "risk_score", 0.24],
-    ["Momentum", "momentum_score", 0.12],
+    ["Quality", "quality_score", 0.2],
+    ["Growth", "growth_score", 0.14],
+    ["Value", "value_score", 0.17],
+    ["Risk", "risk_score", 0.19],
+    ["Momentum", "momentum_score", 0.1],
+    ["Size", "size_score", 0.2],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

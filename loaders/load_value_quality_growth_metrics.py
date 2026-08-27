@@ -3617,6 +3617,35 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if fcf_margin is not None
                 else None
             )
+            # Asset Turnover (Revenue / Total Assets, x100 - same "ratio-as-percentage" storage
+            # convention as gross_profitability, for consistent bound-checking/curve tooling)
+            # ADDED 2026-08-27 (goal: act on the pending candidate flagged by the 2026-08-27
+            # missing-metrics sweep - see MEMORY.md
+            # quality_asset_turnover_piotroski_tested_20260827). Classic DuPont efficiency
+            # component, never previously tested by this pillar's own candidate lists
+            # (fama_macbeth_quality_factors.py). FM-validated: t=3.03 full sample (151mo)/3.00
+            # first half (<2020-06)/1.54 second half (>=2020-06) - positive, moderate, more
+            # time-consistent than net_margin (which decayed to near-zero), though not as
+            # rock-solid as the "core five". Same evidentiary tier as margin_volatility_score
+            # (t=-2.42/-2.20/-1.34) - weighted the same (7.0) accordingly, below the core five,
+            # above interest_coverage/payout's legacy 5% each. Breakpoints are a domain-judgment
+            # starting point (not separately FM-fit to inflection points, same caveat as
+            # fcf_margin/payout's curves) - a turnover ratio of 0.3x (capital-intensive/
+            # utilities) maps to 40, 0.8x (typical industrial) to 75, 1.5x+ (retail/services) to
+            # 100.
+            asset_turnover = None
+            if revenue is not None and total_assets is not None and total_assets > 0:
+                computed_asset_turnover = revenue / total_assets * 100.0
+                if abs(computed_asset_turnover) > 1000:
+                    failed_metrics.append("asset_turnover")
+                    implausible_ratio_metrics.append("asset_turnover")
+                else:
+                    asset_turnover = float(computed_asset_turnover)
+            asset_turnover_score = (
+                _margin_curve(asset_turnover, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
+                if asset_turnover is not None
+                else None
+            )
             # Debt-to-Equity score: inverted (lower leverage = higher score), anchored to the
             # <0.5 "preferred" threshold used broadly in quality-investing practice (e.g.
             # investing.com's quality-company checklist) - 0.5 maps to 75, 1.0 to 50, 2.0+ to 0.
@@ -3748,13 +3777,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # -1.51, weakest surviving-in-composite component before this rebuild, no replacement
             # candidate identified this pass).
             #
-            # 11-component composite (margin_volatility_score re-added AND operating_margin_
-            # trend_score/net_margin_trend_score/roe_trend_score relocated from Growth, all
-            # 2026-08-27, see their own comments above - min_quality_weight_pct below still
-            # calibrated against the original 90-point nominal weight sum, now 106 (90+7+3+3+3);
-            # the 40.0 floor shifts from ~44% to ~38% of nominal total - still comfortably above
-            # any thin-sample case found so far, not re-derived this pass, revisit if a new
-            # thin-sample outlier surfaces).
+            # 12-component composite (margin_volatility_score re-added, operating_margin_
+            # trend_score/net_margin_trend_score/roe_trend_score relocated from Growth, and
+            # asset_turnover_score added, all 2026-08-27, see their own comments above -
+            # min_quality_weight_pct below still calibrated against the original 90-point
+            # nominal weight sum, now 113 (90+7+3+3+3+7); the 40.0 floor shifts from ~44% to
+            # ~35% of nominal total - still comfortably above any thin-sample case found so far,
+            # not re-derived this pass, revisit if a new thin-sample outlier surfaces).
             # Weights set from BOTH full-151-month t-stat magnitude
             # AND a half-split (2014-2020 vs 2020-2026) time-stability check - a component whose
             # t-stat holds up identically across both eras (roce: 1.50/1.50) is weighted higher
@@ -3802,6 +3831,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (operating_margin_trend_score, 3.0),
                 (net_margin_trend_score, 3.0),
                 (roe_trend_score, 3.0),
+                (asset_turnover_score, 7.0),
             ]
             # COMPLETENESS FLOOR added 2026-08-26 (quality-completeness pass, live-verified):
             # renormalizing over 1-3 available components let a single extreme raw ratio
@@ -3851,6 +3881,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["fcf_margin_unavailable_reason"] = (
                 ("implausible_ratio" if "fcf_margin" in implausible_ratio_metrics else "missing_sec_data")
                 if "fcf_margin" in failed_metrics
+                else None
+            )
+            metrics["asset_turnover"] = asset_turnover
+            metrics["asset_turnover_unavailable_reason"] = (
+                ("implausible_ratio" if "asset_turnover" in implausible_ratio_metrics else "missing_sec_data")
+                if "asset_turnover" in failed_metrics
                 else None
             )
             metrics["altman_z_score"] = altman_z_score
@@ -4514,8 +4550,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              gross_profitability_unavailable_reason, operating_profitability_unavailable_reason,
              accruals_ratio_unavailable_reason, margin_volatility_unavailable_reason,
              altman_z_score_unavailable_reason,
-             roce_pct, roce_pct_unavailable_reason, fcf_margin, fcf_margin_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             roce_pct, roce_pct_unavailable_reason, fcf_margin, fcf_margin_unavailable_reason,
+             asset_turnover, asset_turnover_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -4607,6 +4644,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 roce_pct_unavailable_reason = EXCLUDED.roce_pct_unavailable_reason,
                 fcf_margin = EXCLUDED.fcf_margin,
                 fcf_margin_unavailable_reason = EXCLUDED.fcf_margin_unavailable_reason,
+                asset_turnover = EXCLUDED.asset_turnover,
+                asset_turnover_unavailable_reason = EXCLUDED.asset_turnover_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -4708,6 +4747,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("roce_pct_unavailable_reason"),
                 row.get("fcf_margin"),
                 row.get("fcf_margin_unavailable_reason"),
+                row.get("asset_turnover"),
+                row.get("asset_turnover_unavailable_reason"),
             ),
         )
 

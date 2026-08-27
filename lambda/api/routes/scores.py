@@ -105,6 +105,7 @@ def handle(
                 "value_score",
                 "growth_score",
                 "risk_score",
+                "size_score",
                 "symbol",
             ]
             if sort_by not in allowed_sorts:
@@ -167,6 +168,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.risk_score,
+                    sc.size_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -216,6 +218,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     qm.roce_pct_unavailable_reason,
                     qm.fcf_margin,
                     qm.fcf_margin_unavailable_reason,
+                    qm.asset_turnover,
+                    qm.asset_turnover_unavailable_reason,
                     qm.gross_profitability,
                     qm.gross_profitability_unavailable_reason,
                     qm.operating_profitability,
@@ -517,6 +521,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             d["quality_score"] = None
         if d.get("_value_data_unavailable"):
             d["value_score"] = None
+            # Size (market_cap) is sourced from the same value_metrics row as Value.
+            d["size_score"] = None
 
         # Build factor input objects
         def _build_factor_inputs(data: dict[str, Any]) -> None:
@@ -533,6 +539,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "return_on_capital_employed_pct_unavailable_reason": data.get("roce_pct_unavailable_reason"),
                 "fcf_margin_pct": data.get("fcf_margin"),
                 "fcf_margin_pct_unavailable_reason": data.get("fcf_margin_unavailable_reason"),
+                "asset_turnover_pct": data.get("asset_turnover"),
+                "asset_turnover_pct_unavailable_reason": data.get("asset_turnover_unavailable_reason"),
                 "gross_profitability_pct": data.get("gross_profitability"),
                 "gross_profitability_pct_unavailable_reason": data.get("gross_profitability_unavailable_reason"),
                 "operating_profitability_pct": data.get("operating_profitability"),
@@ -837,7 +845,7 @@ def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
             SELECT
                 score_date, composite_score, composite_rank, rs_percentile,
                 momentum_score, quality_score, growth_score, value_score,
-                risk_score, data_completeness
+                risk_score, size_score, data_completeness
             FROM stock_scores_history
             WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
             ORDER BY score_date ASC
@@ -909,6 +917,7 @@ def _get_stock_scores(  # noqa: C901
             "value_score": "value_score",
             "growth_score": "growth_score",
             "risk_score": "risk_score",
+            "size_score": "size_score",
             "symbol": "symbol",
         }
         sort_col = allowed_sorts.get(sort_by, "composite_score")
@@ -1100,6 +1109,7 @@ def _get_stock_scores(  # noqa: C901
                     cp.industry,
                     fs.composite_score, fs.momentum_score, fs.quality_score,
                     fs.value_score, fs.growth_score, fs.risk_score,
+                    fs.size_score,
                     fs.rs_percentile, fs.data_completeness,
                     fs.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -1149,6 +1159,8 @@ def _get_stock_scores(  # noqa: C901
                     qm.roce_pct_unavailable_reason,
                     qm.fcf_margin,
                     qm.fcf_margin_unavailable_reason,
+                    qm.asset_turnover,
+                    qm.asset_turnover_unavailable_reason,
                     qm.gross_profitability,
                     qm.gross_profitability_unavailable_reason,
                     qm.operating_profitability,
@@ -1458,6 +1470,8 @@ def _get_stock_scores(  # noqa: C901
                 "return_on_capital_employed_pct_unavailable_reason": d.get("roce_pct_unavailable_reason"),
                 "fcf_margin_pct": d.get("fcf_margin"),
                 "fcf_margin_pct_unavailable_reason": d.get("fcf_margin_unavailable_reason"),
+                "asset_turnover_pct": d.get("asset_turnover"),
+                "asset_turnover_pct_unavailable_reason": d.get("asset_turnover_unavailable_reason"),
                 "gross_profitability_pct": d.get("gross_profitability"),
                 "gross_profitability_pct_unavailable_reason": d.get("gross_profitability_unavailable_reason"),
                 "operating_profitability_pct": d.get("operating_profitability"),
@@ -1726,6 +1740,8 @@ def _get_stock_scores(  # noqa: C901
                 d["quality_score"] = None
             if d.get("_value_data_unavailable"):
                 d["value_score"] = None
+                # Size (market_cap) is sourced from the same value_metrics row as Value.
+                d["size_score"] = None
 
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)

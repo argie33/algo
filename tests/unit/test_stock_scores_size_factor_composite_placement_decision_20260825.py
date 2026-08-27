@@ -1,6 +1,6 @@
 """Regression/documentation test for the Size-factor composite-placement decision (real-money-
-readiness goal session, stock_scores multi-pillar re-audit) - superseding the 2026-08-26
-"promote Size to a top-level 7th pillar" call with a same-day removal (user directive).
+readiness goal session, stock_scores multi-pillar re-audit) - now pinning the 2026-08-27
+re-promotion, the third flip of this same decision.
 
 TIMELINE:
 - 2026-08-25: Size (market cap, Fama-French SMB / Banz 1981) found completely absent from all
@@ -11,16 +11,21 @@ TIMELINE:
   x0.8 preserving relative proportions) after size_proxy repeatedly tested at t=7.63
   multivariate, more than 3x every other pillar's own coefficient (commit 869e431c3). Schema
   (stock_scores.size_score), API, and frontend all updated the same commit.
-- 2026-08-26 (same day, later): REMOVED entirely (user directive) - market cap is not a scored
-  input at all anymore, whether as its own pillar or folded back into Value. `_score_size` was
-  deleted, BASE_PILLAR_WEIGHTS reverted to its pre-promotion 6-pillar values, and the API/
-  frontend wiring (allowed_sorts, FACTOR_WEIGHTS, SIZE_SCHEMA/FACTORS entries) was rolled back.
-  The stock_scores.size_score column itself is left in the schema (unused) rather than
-  migrated away.
+- 2026-08-26 (same day, later): REMOVED entirely (user directive) - a UX/product objection to
+  seeing market cap on the scores page, not a dispute of the evidence ("not sure why market cap
+  still lingering on our scores page we dont want it included there"). `_score_size` was
+  deleted, BASE_PILLAR_WEIGHTS reverted to its pre-promotion values, and the API/frontend
+  wiring was rolled back. The stock_scores.size_score column itself was left in the schema
+  (unused) rather than migrated away.
+- 2026-08-27: RE-PROMOTED to a top-level pillar again (20% weight, the other 5 - Positioning
+  having been separately retired in the interim - scaled x0.8), on explicit user direction
+  after the evidence cleared a bar it had never actually been tested against: an era-robust
+  half-split (t=4.62 first half 2017-2021, t=5.68 second half 2022-2026 - genuinely stable,
+  not just a repeated point-estimate on a growing sample). See
+  loaders/load_stock_scores.py's _score_size docstring for the full evidence trail.
 
-This test now pins the OPPOSITE of what it pinned right after the 2026-08-26 promotion: that
-Size is NOT a top-level pillar, `_score_size` does not exist, and neither `_score_value` nor
-any other scorer reads `market_cap`.
+This test now pins the CURRENT state: Size IS a top-level pillar again, `_score_size` exists
+and reads `market_cap` off the Value pillar's upstream value_metrics row.
 """
 
 import inspect
@@ -28,24 +33,29 @@ import inspect
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, StockScoresLoader
 
 
-class TestSizeFactorRemovedFromComposite:
-    def test_base_weights_has_no_size_key(self) -> None:
-        """BASE_PILLAR_WEIGHTS must not have a top-level 'size' key - the 2026-08-26 removal
+class TestSizeFactorRePromotedToComposite:
+    def test_base_weights_has_size_key(self) -> None:
+        """BASE_PILLAR_WEIGHTS must have a top-level 'size' key - the 2026-08-27 re-promotion
         decision - until this gets deliberately revisited again."""
-        assert "size" not in BASE_PILLAR_WEIGHTS
+        assert "size" in BASE_PILLAR_WEIGHTS
+        assert BASE_PILLAR_WEIGHTS["size"] == 0.20
 
-    def test_base_weights_sum_to_one_without_size(self) -> None:
+    def test_base_weights_sum_to_one_with_size(self) -> None:
         assert abs(sum(BASE_PILLAR_WEIGHTS.values()) - 1.0) < 1e-9
 
-    def test_score_size_method_removed(self) -> None:
-        assert not hasattr(StockScoresLoader, "_score_size")
+    def test_score_size_method_exists(self) -> None:
+        assert hasattr(StockScoresLoader, "_score_size")
 
-    def test_no_scorer_reads_market_cap(self) -> None:
-        """market_cap must not be a scored input anywhere - not in _score_value (its
-        pre-promotion home) and not reintroduced elsewhere as a substitute for the removed
-        Size pillar. Checks actual metrics.get("market_cap")/metrics["market_cap"] reads, not
-        a raw substring match - comments are allowed to mention market_cap by name (e.g. to
-        document that it's deliberately unused) without tripping this guard."""
+    def test_score_size_reads_market_cap(self) -> None:
+        source = inspect.getsource(StockScoresLoader._score_size)
+        assert 'metrics.get("market_cap")' in source or 'metrics["market_cap"]' in source
+
+    def test_no_other_scorer_reads_market_cap(self) -> None:
+        """market_cap must be read only by _score_size, not reintroduced as a sub-component of
+        any other pillar (e.g. folded back into Value) - it's a standalone top-level pillar,
+        not a weighted blend input elsewhere. Checks actual metrics.get("market_cap")/
+        metrics["market_cap"] reads, not a raw substring match - comments are allowed to
+        mention market_cap by name without tripping this guard."""
         for method_name in (
             "_score_value",
             "_score_quality",
@@ -55,6 +65,6 @@ class TestSizeFactorRemovedFromComposite:
         ):
             source = inspect.getsource(getattr(StockScoresLoader, method_name))
             assert 'metrics.get("market_cap")' not in source and 'metrics["market_cap"]' not in source, (
-                f"{method_name} reads metrics market_cap - Size was removed from scoring entirely "
-                "2026-08-26 (user directive) and must not be reintroduced anywhere."
+                f"{method_name} reads metrics market_cap - Size is its own top-level pillar "
+                "(_score_size) and market_cap must not also be scored as a sub-component elsewhere."
             )
