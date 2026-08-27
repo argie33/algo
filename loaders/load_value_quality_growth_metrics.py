@@ -1007,11 +1007,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     )
                     cf_div_row = cur.fetchone()
                     if cf_div_row:
-                        dividend_yield = float(cf_div_row[0]) / float(market_cap)
-                        logger.debug(
-                            f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
-                            f"aggregate yield: {dividend_yield:.2%}"
-                        )
+                        # PLAUSIBILITY BOUND added 2026-08-26 (same fix as the net_payout_yield
+                        # fallback just below - found while validating that new field, this
+                        # older TIER 3 dividend fallback carried the identical, longer-standing
+                        # gap). market_cap here can be a real but badly-scaled
+                        # shares_outstanding figure sec_valuations itself already refused to
+                        # compute a ratio against - live-confirmed PARA: real market cap ~$8B+,
+                        # but company_info_sec.shares_outstanding (2,690,579, off by ~2-3
+                        # orders of magnitude) produced a $4.65M "market cap" here, inflating
+                        # this fallback's dividend_yield to 29.87%. 100% matches
+                        # load_sec_valuations.py's own primary dividend_yield bound.
+                        candidate = float(cf_div_row[0]) / float(market_cap)
+                        if 0 < candidate <= 1.0:
+                            dividend_yield = candidate
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
+                                f"aggregate yield: {dividend_yield:.2%}"
+                            )
+                        else:
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback "
+                                f"yield out of bounds ({candidate:.2%}), leaving NULL"
+                            )
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback failed: {e}")
 
@@ -1043,11 +1060,42 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         total_payout = (0.0 if cf_div is None else float(cf_div)) + (
                             0.0 if cf_buyback is None else abs(float(cf_buyback))
                         )
-                        if total_payout > 0:
+                        # PLAUSIBILITY BOUND added after live spot-checking this fallback
+                        # (2026-08-26, same day, later pass): unlike sec_valuations' own fresh
+                        # net_payout_yield computation (load_sec_valuations.py, gated at 150%),
+                        # this fallback's market_cap comes from wherever the loader already
+                        # landed - it can be a real but broken shares_outstanding figure sec_
+                        # valuations itself already refused to compute a ratio against (that's
+                        # WHY this fallback tier is even reached). Live-confirmed: PARA's
+                        # company_info_sec.shares_outstanding (2,690,579) is off by ~2-3 orders
+                        # of magnitude from its real ~656M share count, producing a $4.65M
+                        # "market cap" for a real multi-billion-dollar company - dividing any
+                        # real payout figure by that gives an absurd yield. This is the SAME
+                        # bug class the dividend TIER 3 fallback just above already carries
+                        # (dividend_yield showed the identical 29.87% for PARA before this fix)
+                        # - not something net_payout_yield introduced, but not a reason to
+                        # silently inherit it into a brand-new field either.
+                        # TIGHTENED 150%->50% same day, later still: the 150% bound (borrowed
+                        # from load_sec_valuations.py's fresh-computation path, which has real
+                        # cross-checks - yfinance sanity check, shares-outstanding scale-mismatch
+                        # guard - upstream of it) was too loose for THIS fallback specifically,
+                        # which has none of those upstream guards. Live-confirmed after landing
+                        # the 150% version: 5 symbols (MKZR, DDT, FGNX, AHT, ASBP) still showed
+                        # 111-148% total payout yield - implausible for real economics (even
+                        # aggressive shareholder-return companies rarely exceed 15-20%/yr) and
+                        # the same broken-shares-outstanding pattern as PARA, just narrowly under
+                        # the looser cap by chance. 50% is still generous versus real-world norms
+                        # while catching this fallback's actual failure mode.
+                        if 0 < total_payout / float(market_cap) <= 0.5:
                             net_payout_yield = total_payout / float(market_cap)
                             logger.debug(
                                 f"[VALUE_METRICS] {symbol}: Using annual_cash_flow "
                                 f"dividends+buybacks aggregate net payout yield: {net_payout_yield:.2%}"
+                            )
+                        elif total_payout > 0:
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout yield "
+                                f"out of bounds ({total_payout / float(market_cap):.2%}), leaving NULL"
                             )
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout fallback failed: {e}")
