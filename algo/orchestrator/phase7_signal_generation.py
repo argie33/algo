@@ -37,11 +37,10 @@ Pipeline:
 6. Filter: close > sma_50 (uptrend confirmation)
 7. Filter: composite_score >= min threshold (30)
 8. Close quality gate: skip weak closes (bottom of day's range = distribution)
-9. Liquidity checks on top LIQUIDITY_CHECK_LIMIT candidates (ranked by signal_quality_score,
-   not composite_score - see note below)
-10. Return signal_quality_score-ranked candidates to Phase 8 (Phase 8 re-sorts the survivors
-    by composite_score for its own concentration-limited capital allocation - two different
-    scores are used at two different pipeline stages, not one consistent ranking)
+9. Liquidity checks on top LIQUIDITY_CHECK_LIMIT candidates (ranked by composite_score
+   descending - see note below)
+10. Return composite_score-ranked candidates to Phase 8 (Phase 8 re-sorts the same field for
+    its own concentration-limited capital allocation - one consistent ranking end-to-end)
 
 CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipeline
 (4:05 PM ET) must complete and populate buy_sell_daily (which depends on technical_data_daily).
@@ -72,26 +71,35 @@ Why no fallback to computed scores? Using COALESCE(composite_score, strength*50)
 INSTEAD: INNER JOIN requires stock_scores coverage. Signals are only generated for
 symbols with full quality/growth/value/positioning/stability metrics available.
 
-Ranking: NOT composite_score, despite this doc's own claim below having said so for a long
-time (stale - never updated after the change described next). composite_score from
-stock_scores is used only as a floor filter (>= min threshold, see step 7) plus an
-informational field. The actual sort that determines which candidates survive to the
-liquidity check and Phase 8 (see LIQUIDITY_CHECK_LIMIT in step 9) is signal_quality_score
-descending - CRITICAL FIX (Session 377), on the hypothesis that SQS (RSI/MACD/Minervini/
-Weinstein-based) predicts 1-5 day price action better than composite_score's fundamental
-pillars do. NOTE (2026-08-26): the first empirical check of that hypothesis against real
-live buy_sell_daily signals found the opposite of what Session 377 predicted - SQS shows
+Ranking: composite_score descending (RESTORED 2026-08-27, real-money-readiness review).
+History: this was composite_score-ranked originally; Session 377 switched the sort key to
+signal_quality_score (SQS - RSI/MACD/Minervini/Weinstein-based) on the hypothesis that
+technical quality predicts 1-5 day price action better than composite_score's fundamental
+pillars, targeting a 33%->50%+ win-rate improvement. That hypothesis was empirically tested
+against real live buy_sell_daily signals on 2026-08-26 and found to be false: SQS showed
 ~zero-to-negative correlation with forward returns (non-monotonic quintiles, top quintile
-worst in the 10-day cut) and live BUY signals averaged negative forward returns while SPY
+WORST in the 10-day cut) and live BUY signals averaged negative forward returns while SPY
 was flat-to-up (see signal_quality_score_pooled_check_no_predictive_power_found_20260825 /
-algo/research/signal_quality_score_validation.py). That check is on only ~2.5 months of
-buy_sell_daily history (too thin to safely act on per this codebase's own robustness
-standard elsewhere), so the ranking has NOT been reverted - but the original Session 377
-rationale for preferring SQS over composite_score here should be re-tested, not assumed,
-once more history accrues. composite_score's 6 pillars (quality/growth/value/positioning/
-risk/momentum - "stability" renamed to "risk" 2026-08-26, migration 1235; a 7th "size"
-pillar was promoted then fully removed the same day, this list was stale on both counts)
-each carry their own multi-year Fama-MacBeth validation, unlike SQS's hand-set COMPONENT_MAXES.
+algo/research/signal_quality_score_validation.py). Compounding this, run_backtest.py's
+touted 1.42 Sharpe ranked candidates the same SQS-first way, so it was never independent
+confirmation the ranking worked - it shared the same untested assumption live trading did.
+Switched back to composite_score 2026-08-27: composite_score's pillars (quality/growth/
+value/positioning/risk/momentum - "stability" renamed to "risk" 2026-08-26, migration 1235)
+each carry their own multi-year Fama-MacBeth validation, unlike SQS's hand-set
+COMPONENT_MAXES which have never been shown to predict returns. signal_quality_score is
+still computed and still gates entries via Phase 8's separate min_signal_quality_score
+floor (an independent quality bar, not a ranking mechanism) - only the SORT KEY changed.
+
+NOTE for anyone re-testing this later: run_backtest.py intentionally still ranks by
+signal_quality_score, NOT composite_score - see that module's docstring. This is not an
+oversight; stock_scores (and therefore composite_score) has no historical date dimension
+(a symbol's composite_score there is always TODAY's snapshot), so using it to rank a
+backtest's historical BUY signals would be look-ahead-biased. A point-in-time
+stock_scores_history table exists (migration 1221) but only has snapshots from 2026-08-24
+onward - too shallow to backtest composite_score-ranking validly yet. Once it accumulates
+enough history, run_backtest.py should be updated to join stock_scores_history by
+(symbol, score_date) and rank by composite_score there, to actually validate this live
+change rather than assume it.
 
 Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradation mode).
 """
@@ -1453,40 +1461,41 @@ def _should_halt_on_zero_scored_symbols(score_result: dict[str, Any]) -> bool:
     )
 
 
-def _validate_signal_quality_score_for_ranking(sqs: Any, symbol: Any) -> None:
-    """Fail fast if a signal_quality_score is unfit to be used as a ranking sort key.
+def _validate_composite_score_for_ranking(score: Any, symbol: Any) -> None:
+    """Fail fast if a composite_score is unfit to be used as a ranking sort key.
 
-    None/wrong-type checks alone are not sufficient: isinstance(sqs, (int, float)) does
-    NOT catch NaN/Infinity - float('nan') is a real float instance (BUG FOUND 2026-08-10,
-    same NaN-comparison-guard class fixed elsewhere this session). A NaN key sailing
-    through into a downstream .sort() call has no total order in Python (NaN < x and
+    None/wrong-type checks alone are not sufficient: isinstance(score, (int, float)) does
+    NOT catch NaN/Infinity - float('nan') is a real float instance (same NaN-comparison-guard
+    class as the original signal_quality_score version of this check, found 2026-08-10). A NaN
+    key sailing through into a downstream .sort() call has no total order in Python (NaN < x and
     x < NaN are both False) - the NaN-scored signal's position in the ranked list is
     undefined, potentially landing at the top and proceeding toward real trade execution
     as if it were the highest-quality candidate.
 
     Raises:
-        RuntimeError: if sqs is None (a logic error - callers must filter None first).
-        ValueError: if sqs is non-numeric, NaN, or Infinity.
+        RuntimeError: if score is None (a logic error - callers must filter None first).
+        ValueError: if score is non-numeric, NaN, or Infinity.
     """
-    if sqs is None:
+    if score is None:
         msg = (
-            f"[PHASE 7 CRITICAL] Signal {symbol} has None signal_quality_score "
-            f"after all filters. This is a logic error in the filtering code - None values should "
-            f"have been removed by prior filters. Failing fast to expose the issue."
+            f"[PHASE 7 CRITICAL] Signal {symbol} has None composite_score "
+            f"after all filters. This is a logic error in the filtering code - the upstream "
+            f"INNER JOIN requires composite_score IS NOT NULL, so this should be unreachable. "
+            f"Failing fast to expose the issue."
         )
         logger.critical(msg)
         raise RuntimeError(msg)
-    if not isinstance(sqs, (int, float)):
+    if not isinstance(score, (int, float)):
         msg = (
-            f"[PHASE 7 CRITICAL] Signal {symbol} signal_quality_score is {type(sqs).__name__}, "
-            f"expected float. Signal quality score must be numeric for sorting. Cannot proceed."
+            f"[PHASE 7 CRITICAL] Signal {symbol} composite_score is {type(score).__name__}, "
+            f"expected float. composite_score must be numeric for sorting. Cannot proceed."
         )
         logger.critical(msg)
         raise ValueError(msg)
-    if math.isnan(sqs) or math.isinf(sqs):
+    if math.isnan(score) or math.isinf(score):
         msg = (
-            f"[PHASE 7 CRITICAL] Signal {symbol} signal_quality_score is non-finite "
-            f"({sqs!r}). Cannot sort/rank by a NaN/Infinity score - would produce undefined "
+            f"[PHASE 7 CRITICAL] Signal {symbol} composite_score is non-finite "
+            f"({score!r}). Cannot sort/rank by a NaN/Infinity score - would produce undefined "
             f"ordering and could rank a corrupted signal as top-quality. Failing fast."
         )
         logger.critical(msg)
@@ -2176,12 +2185,11 @@ def run(  # noqa: C901
             f"This may suppress valid candidates."
         )
 
-    # FAIL-FAST: Validate signal_quality_score is present and numeric before sorting
-    # CRITICAL FIX (Session 377): Rank by technical quality (SQS) not fundamental quality (composite_score)
-    # Composite_score reflects long-term fundamental strength (balance sheet, growth, value)
-    # but doesn't predict short-term price movement. Signal_quality_score (based on RSI, MACD,
-    # Minervini, Weinstein) is more predictive of 1-5 day price action. Switching to SQS-based
-    # ranking should improve win rate from 33% to 50%+.
+    # signal_quality_score is still required to be present here even though it's no longer the
+    # ranking key (RESTORED to composite_score 2026-08-27 - see module docstring for the full
+    # history/evidence): Phase 8's separate min_signal_quality_score floor gate still needs a
+    # real numeric SQS for every surviving candidate, so a candidate without one is still
+    # rejected at this stage rather than deferred to a less clear failure downstream.
 
     # Defensive: Filter out any candidates with None signal_quality_score (shouldn't happen but catch edge cases)
     before_filter = len(quality_filtered)
@@ -2224,7 +2232,7 @@ def run(  # noqa: C901
         )
 
     for sig in quality_filtered:
-        _validate_signal_quality_score_for_ranking(sig.get("signal_quality_score"), sig.get("symbol"))
+        _validate_composite_score_for_ranking(sig.get("composite_score"), sig.get("symbol"))
 
     # CRITICAL: Final defensive filter - remove ANY signals with None scores before sorting
     # (defensive in case filtering above had gaps)
@@ -2239,7 +2247,8 @@ def run(  # noqa: C901
             7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
         )
 
-    quality_filtered.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
+    # RANKING KEY (restored 2026-08-27 - see module docstring): composite_score descending.
+    quality_filtered.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
     # Liquidity checks on top candidates - parallelized
     # ISSUE 13 FIX: Improved timeout handling with per-task monitoring
@@ -2343,11 +2352,11 @@ def run(  # noqa: C901
         except Exception as e:
             logger.warning(f"[PHASE 7] Could not filter inactive symbols: {e}. Continuing with current list.")
 
-    # Final ranking by signal_quality_score (already validated by quality_filtered sort, but re-validate for safety)
+    # Final ranking by composite_score (already validated by quality_filtered sort, but re-validate for safety)
     if liq_passed:
         for sig in liq_passed:
-            # signal_quality_score and signal_date are critical; market_stage is optional (used only for logging)
-            required_fields = ["signal_quality_score", "signal_date"]
+            # composite_score and signal_date are critical; market_stage is optional (used only for logging)
+            required_fields = ["composite_score", "signal_date"]
             missing_fields = [f for f in required_fields if f not in sig or sig[f] is None]
             if missing_fields:
                 sym = sig.get("symbol", "UNKNOWN_SYMBOL")
@@ -2359,7 +2368,9 @@ def run(  # noqa: C901
             # market_stage is optional - provide default if missing (used only for logging)
             if not sig.get("market_stage"):
                 sig["market_stage"] = "unknown"
-        liq_passed.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
+        for sig in liq_passed:
+            _validate_composite_score_for_ranking(sig.get("composite_score"), sig.get("symbol"))
+        liq_passed.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
     logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")
     for i, sig in enumerate(liq_passed[:10]):
