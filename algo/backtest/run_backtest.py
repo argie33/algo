@@ -6,6 +6,23 @@ Simulates the live algo strategy historically:
   - Entry trigger: BUY signal in buy_sell_daily (pivot breakout above swing high with SMA50 filter)
   - Ranking: signal_quality_score (contemporaneous, from buy_sell_daily) - this INTENTIONALLY
     NO LONGER matches live Phase 7's ranking as of 2026-08-27 (see below for why).
+  - Entry fill assumption: THE SIGNAL DAY'S OWN CLOSE (`_get_daily_buy_signals` returns
+    `entry_price = b.close`, the same day's closing price the breakout was detected on) - zero
+    entry lag, only the flat DEFAULT_SLIPPAGE_BPS haircut applied on top. This does NOT match
+    live Phase 8, which enters using whatever `technical_data_daily.close` is freshest when
+    Phase 8 actually runs - live-DB evidence (2026-08-27, real-money-readiness review, n=104
+    closed local trades) shows entries land anywhere from the SAME calendar day (50/116) to
+    1 day later (62/116) to 3 days later (4/116) relative to signal_date, and of the 36 trades
+    that could be matched back to their triggering buy_sell_daily.buylevel, entries averaged
+    +0.75% (median +0.55%) ABOVE that breakout trigger price, worse than the trigger level on
+    72% of them - understandable for a breakout system (a working breakout keeps running while
+    the pipeline catches up to it) but not modeled here at all. This means this backtest's
+    Sharpe/win-rate numbers are systematically optimistic beyond just the ranking-mechanism
+    caveat above - they assume a fill quality no real run of this pipeline has ever achieved.
+    Not fixed here (n=36 local-paper-mode sample is too thin to calibrate a real lag-cost model
+    from, and changing the simulation's entry-timing model is a bigger, separate change from a
+    docstring fix) - flagged so nobody mistakes the 1.42 Sharpe for what live execution timing
+    would actually produce even before the ranking-mechanism divergence above.
 
 Live Phase 7 ranking history: originally composite_score, Session 377 switched it to
 signal_quality_score (SQS) on a short-term-predictive-power hypothesis, a 2026-08-26 empirical
