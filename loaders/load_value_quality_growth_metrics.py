@@ -781,10 +781,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # stdev of net_margin. Computed here (not inside _compute_quality_metrics) because
             # it needs the multi-year income_rows history already fetched above for growth
             # metrics - _compute_quality_metrics only ever sees a single fiscal year's row.
-            margin_volatility = self._compute_margin_volatility(income_rows)
+            margin_volatility, margin_volatility_unavailable_reason = self._compute_margin_volatility(income_rows)
             quality_dict = self._compute_quality_metrics(
                 symbol, quality_row_db, ev_metrics, margin_volatility, retained_earnings_val
             )
+            if margin_volatility is None and isinstance(quality_dict, dict):
+                quality_dict["margin_volatility_unavailable_reason"] = margin_volatility_unavailable_reason
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
 
@@ -1780,7 +1782,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_stockholders_equity_symbols_cache = result
         return result
 
-    def _compute_margin_volatility(self, income_rows: list[Any]) -> float | None:
+    def _compute_margin_volatility(self, income_rows: list[Any]) -> tuple[float | None, str | None]:
         """Trailing-3-fiscal-year stdev (percentage points) of net_margin - QMJ (2013) Safety
         leg proxy: earnings/margin persistence, distinct from price-return volatility (which
         lives in the Risk pillar) and from the accruals ratio (composition of one year's
@@ -1789,18 +1791,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         Requires all 3 years usable (real revenue>0); a symbol with fewer usable years returns
         None (data_unavailable for this component) rather than a volatility estimate from 1-2
         points, which would be too noisy to trust.
+
+        Returns (value, unavailable_reason) - reason is only meaningful when value is None.
+
+        FIXED 2026-08-26 (live-caught): unlike every sibling margin ratio in this file
+        (net_margin/gross_margin/operating_margin/fcf_margin all guard |ratio|>1000, see
+        test_quality_metrics_implausible_ratio_reason.py), this function computed each year's
+        raw margin inline with NO implausible-value bound - a near-zero-revenue year (SEC
+        tagging garbage, not a real business characteristic) produced a margin in the billions
+        of percent, and squaring+sqrt-ing that in the variance calc overflowed
+        quality_metrics.margin_volatility's NUMERIC(10,2) column, crashing the ENTIRE row's
+        INSERT for that symbol (live-caught: TKLF, one bad fiscal year's margin blocked its
+        whole quality_metrics write, not just this one field). Same >1000 bound as every
+        sibling ratio, applied per-year before the variance calc so one garbage year correctly
+        falls back to "insufficient usable years" (same path as a missing year) instead of
+        poisoning the stdev with an astronomical outlier.
         """
         margins = []
+        implausible = False
         for row in income_rows[:3]:
             revenue = safe_float(row[1], "margin_vol.revenue", allow_none=True)
             net_income = safe_float(row[3], "margin_vol.net_income", allow_none=True)
             if revenue is not None and revenue > 0 and net_income is not None:
-                margins.append((net_income / revenue) * 100.0)
+                margin = (net_income / revenue) * 100.0
+                if abs(margin) > 1000:
+                    implausible = True
+                    continue
+                margins.append(margin)
         if len(margins) < 3:
-            return None
+            return None, ("implausible_ratio" if implausible else "insufficient_history")
         mean = sum(margins) / len(margins)
         variance = sum((m - mean) ** 2 for m in margins) / len(margins)
-        return float(sqrt(variance))
+        return float(sqrt(variance)), None
 
     def _compute_quality_metrics(  # noqa: C901
         self,
@@ -3494,10 +3516,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             # operating_margin_score/net_margin_score REMOVED 2026-08-26 (see literature-audit
             # comment below) - operating_margin and net_margin are still fetched/stored/displayed
-            # (metrics["operating_margin"]/["net_margin"]) for _enhance_quality_score and the
-            # frontend, but no longer feed the base quality_score composite directly; replaced by
-            # Operating Profitability/Gross Profitability below, which use the same Rev-COGS
-            # numerator base but on FF/Novy-Marx's validated denominators instead of revenue.
+            # (metrics["operating_margin"]/["net_margin"]) for reference, but no longer feed
+            # quality_score at all - not through the base composite, and not through
+            # `_enhance_quality_score`, which was itself removed the same day (see
+            # loaders/load_stock_scores.py's `_score_quality` docstring). Confirmed via a
+            # dedicated interaction check that neither carries independent signal once ROA is
+            # controlled for (see quality_operating_net_margin_no_independent_signal_over_roa_
+            # 20260826 in MEMORY.md) - not a stale TODO, a closed finding.
 
             # REPLACED 2026-08-26 (Quality pillar literature audit - Novy-Marx 2013, Fama-French
             # 2015 RMW, Sloan 1996, QMJ 2013, Bradshaw/Richardson/Sloan 2006). The 2026-08-26
