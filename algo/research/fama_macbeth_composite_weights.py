@@ -28,8 +28,10 @@ already tested; this script answers the separate top-level question):
   [[value_pe_pb_ps_ranking_reversed_selection_bias_fix_20260825]]; PEG/margin-of-safety still
   excluded, not computed here - PEG needs a growth cross-term, margin-of-safety is a full DCF
   model, neither is a single point-in-time ratio like the rest of this panel)
-- quality_proxy: simple average of roe/roa/operating_margin/net_margin/(-debt_to_assets)/
-  interest_coverage (matches the upstream equal-weighted-6 formula)
+- quality_proxy: REBUILT 2026-08-26 (was stale, still the pre-audit base-6 formula) - roe*0.122
+  + roa*0.20 + roce*0.20 + fcf_margin*0.167 + (-debt_to_equity)*0.20 + interest_coverage*0.056
+  + payout_ratio*0.056 (matches _score_quality's current 8-component live weights, Altman Z
+  excluded and the rest renormalized - see quality_proxy's own inline comment for why)
 - stability_proxy: (-vol_60d)*0.45 + (-|beta-1|)*0.20 + (-downside_vol_60d)*0.15 + max_dd*0.20
   (matches this session's ALREADY-SHIPPED stability reweight)
 - momentum_proxy: mom_3m*0.20 + mom_12_1*0.35 + rsi_14*0.21 + macd_sign*0.16 +
@@ -123,7 +125,7 @@ from algo.research.fama_macbeth_price_factors import (
     _trailing_cumret,
     fetch_month_end_prices,
 )
-from algo.research.fama_macbeth_quality_factors import fetch_annual_quality_fundamentals
+from algo.research.fama_macbeth_quality_factors import build_quality_panel, fetch_annual_quality_fundamentals
 from algo.research.fama_macbeth_value_factors import fetch_annual_value_fundamentals
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
 
@@ -188,17 +190,23 @@ def build_growth_and_sgr_panel() -> pd.DataFrame:
 
 
 def build_sgr_panel() -> pd.DataFrame:
-    """Sustainable growth rate = ROE * retention ratio, from quality+value fundamentals."""
+    """Sustainable growth rate = ROE * retention ratio, from quality fundamentals.
+
+    FIXED 2026-08-26 (found while rebuilding quality_proxy - this script had never actually
+    run since fama_macbeth_quality_factors.py's fetch_annual_quality_fundamentals() gained its
+    own dividends_paid column, 2026-08-26's payout_ratio work): previously merged in
+    dividends_paid from fetch_annual_value_fundamentals() even though the quality fetch already
+    carries the same annual_cash_flow-sourced column - the merge silently suffixed both to
+    dividends_paid_x/_y, and the plain "dividends_paid" lookup below raised a bare KeyError.
+    Quality's own dividends_paid is the same underlying data; the value-side merge was
+    redundant, not a second source of truth - dropped it.
+    """
     q = fetch_annual_quality_fundamentals()
-    v = fetch_annual_value_fundamentals()
-    merged = q.merge(v[["symbol", "fiscal_year", "dividends_paid"]], on=["symbol", "fiscal_year"], how="left")
-    roe = np.where(merged["stockholders_equity"] > 0, merged["net_income"] / merged["stockholders_equity"], np.nan)
-    retention = np.where(merged["net_income"] > 0, 1.0 - merged["dividends_paid"].abs() / merged["net_income"], np.nan)
-    out = merged[["symbol", "fiscal_year"]].copy()
+    roe = np.where(q["stockholders_equity"] > 0, q["net_income"] / q["stockholders_equity"], np.nan)
+    retention = np.where(q["net_income"] > 0, 1.0 - q["dividends_paid"].abs() / q["net_income"], np.nan)
+    out = q[["symbol", "fiscal_year"]].copy()
     out["sustainable_growth_rate"] = roe * retention
-    out["known_date"] = pd.to_datetime(merged["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
-        days=REPORTING_LAG_DAYS
-    )
+    out["known_date"] = pd.to_datetime(q["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(days=REPORTING_LAG_DAYS)
     return out.dropna(subset=["known_date"])
 
 
@@ -218,30 +226,19 @@ def build_value_panel_raw() -> pd.DataFrame:
     return out.dropna(subset=["known_date"])
 
 
-def build_quality_panel_raw() -> pd.DataFrame:
-    fund = fetch_annual_quality_fundamentals()
-    out = fund[["symbol", "fiscal_year"]].copy()
-    out["roe"] = np.where(fund["stockholders_equity"] > 0, fund["net_income"] / fund["stockholders_equity"], np.nan)
-    out["roa"] = np.where(fund["total_assets"] > 0, fund["net_income"] / fund["total_assets"], np.nan)
-    out["operating_margin"] = np.where(fund["revenue"] > 0, fund["operating_income"] / fund["revenue"], np.nan)
-    out["net_margin"] = np.where(fund["revenue"] > 0, fund["net_income"] / fund["revenue"], np.nan)
-    total_debt = fund["long_term_debt"].fillna(0) + fund["short_term_debt"].fillna(0)
-    out["debt_to_assets"] = np.where(fund["total_assets"] > 0, total_debt / fund["total_assets"], np.nan)
-    out["interest_coverage"] = np.where(
-        fund["interest_expense"] > 0, fund["operating_income"] / fund["interest_expense"], np.nan
-    )
-    out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
-        days=REPORTING_LAG_DAYS
-    )
-    return out.dropna(subset=["known_date"])
-
-
 def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     logger.info("Building fundamentals panels (growth/value/quality/SGR)")
     growth_fund = build_growth_and_sgr_panel()
     sgr_fund = build_sgr_panel()
     value_fund = build_value_panel_raw()
-    quality_fund = build_quality_panel_raw()
+    # REBUILT 2026-08-26 (goal: answer "does Quality's CURRENT formula still hold up combined
+    # with the other 5 pillars" - this proxy was stale, still built from the ORIGINAL base-6
+    # equal-weighted formula (roe/roa/operating_margin/net_margin/debt_to_assets/
+    # interest_coverage) from before ANY of 2026-08-26's three quality rebuilds (cluster-9,
+    # Altman Z added, then the current ROCE/FCF-Margin/D2E 8-component composite). Reuses
+    # fama_macbeth_quality_factors.py's own build_quality_panel() instead of re-deriving the
+    # same ratios a second time here - that module is the source of truth for these formulas.
+    quality_fund = build_quality_panel(fetch_annual_quality_fundamentals())
 
     logger.info("Fetching price panel + momentum/stability indicators")
     price_df = fetch_month_end_prices(start_date, end_date)
@@ -295,7 +292,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     quality_monthly = merge_asof_monthly(
         months,
         quality_fund,
-        cols=["roe", "roa", "operating_margin", "net_margin", "debt_to_assets", "interest_coverage"],
+        cols=["roe", "roa", "roce", "fcf_margin", "debt_to_equity", "interest_coverage", "payout_ratio"],
     )
 
     beta_window = 24
@@ -361,14 +358,28 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         )
         value_proxy = value_proxy_nosize + 0.20 * _zwinsor(-pd.Series(log_mc, index=v.index))
 
+        # REBUILT 2026-08-26 to match _score_quality's CURRENT live weights (ROA/ROCE/D2E 18%
+        # each, FCF Margin 15%, ROE 11%, Altman Z 10%, Interest Coverage/Payout 5% each - see
+        # quality_fund's own comment). Altman Z is deliberately EXCLUDED here and the remaining
+        # 7 weights renormalized to sum to 1.0 (11/18/18/15/18/5/5 = 90 -> /0.90): unlike every
+        # other component, Altman Z's retained_earnings input has ~23% overall coverage and is
+        # effectively 0% before 2023-03 (see quality_pillar_altman_z_added_and_reweighted_20260826
+        # in MEMORY.md) - since this proxy is a plain additive sum (one NaN term nukes the whole
+        # row, unlike production's per-symbol renormalize-over-available), including it would
+        # make quality_proxy NaN for most of 2014-2023 and get zero-imputed as "no information"
+        # by this script's own pillar-level fallback - understating Quality's real signal for
+        # the 7 well-covered components across most of the panel. Same "isolate the sparse
+        # candidate" precedent fama_macbeth_quality_factors.py itself already applies
+        # (ALTMAN_CANDIDATE_COLS's own dropna-poisoning fix).
         quality_proxy = (
-            _zwinsor(q["roe"])
-            + _zwinsor(q["roa"])
-            + _zwinsor(q["operating_margin"])
-            + _zwinsor(q["net_margin"])
-            + _zwinsor(-q["debt_to_assets"])
-            + _zwinsor(q["interest_coverage"])
-        ) / 6.0
+            (11.0 / 90.0) * _zwinsor(q["roe"])
+            + (18.0 / 90.0) * _zwinsor(q["roa"])
+            + (18.0 / 90.0) * _zwinsor(q["roce"])
+            + (15.0 / 90.0) * _zwinsor(q["fcf_margin"])
+            + (18.0 / 90.0) * _zwinsor(-q["debt_to_equity"])
+            + (5.0 / 90.0) * _zwinsor(q["interest_coverage"])
+            + (5.0 / 90.0) * _zwinsor(q["payout_ratio"])
+        )
 
         win = ret.iloc[i - vol_window + 1 : i + 1]
         vol = win.std() * np.sqrt(12)
@@ -477,6 +488,17 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     sizes = [len(f) for _, f in records]
     print(f"Usable cross-sectional months: {len(records)}  ({records[0][0]} to {records[-1][0]})")
     print(f"Median cross-section size: {int(np.median(sizes))}\n")
+
+    # ADDED 2026-08-26 (goal: diagnose quality_proxy's multivariate sign once it was rebuilt to
+    # match the current live formula - a negative/flipped multivariate coefficient next to a
+    # positive univariate one is the classic signature of multicollinearity between regressors,
+    # not necessarily a real reversal; check the actual pairwise correlations before trusting
+    # either sign at face value).
+    pooled = pd.concat([f for _, f in records], ignore_index=True)
+    corr_cols = [*dict.fromkeys([*PILLAR_COLS, "size_proxy"])]
+    print("=== Pooled pillar-proxy pairwise correlations (multicollinearity diagnostic) ===")
+    print(pooled[corr_cols].corr().round(2).to_string())
+    print()
 
     print("=== Multivariate Fama-MacBeth: TOP-LEVEL pillar combination (6 pillars) ===")
     print(f"{'pillar':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")

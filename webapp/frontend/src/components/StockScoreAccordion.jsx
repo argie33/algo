@@ -813,57 +813,55 @@ const QUALITY_SCHEMA = [
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~11%",
+    weight: "~12%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~18%",
+    weight: "~20%",
   },
   {
     key: "return_on_capital_employed_pct",
     label: "ROCE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~18%",
+    weight: "~20%",
   },
   {
     key: "fcf_margin_pct",
     label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~15%",
+    weight: "~17%",
   },
   {
     key: "debt_to_equity",
     label: "Debt to Equity",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~18%",
-  },
-  {
-    key: "altman_z_score",
-    label: "Altman Z''-Score",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "~10%",
+    weight: "~20%",
   },
   {
     key: "interest_coverage",
     label: "Interest Coverage",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~5%",
+    weight: "~6%",
   },
   {
     key: "payout_ratio",
     label: "Payout Ratio",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~5%",
+    weight: "~6%",
   },
+  // altman_z_score REMOVED 2026-08-26 (same day it was added, user directive) - it's a
+  // discrete distress-triage classifier in the literature, not meant to be averaged into a
+  // continuous magnitude-weighted composite like the 7 fields above. Raw value still computed/
+  // persisted in quality_metrics for reference, just not scored or shown here - see
+  // load_value_quality_growth_metrics.py's quality_components comment for the full reasoning.
   // earnings_growth_yoy briefly restored here 2026-08-26, then MOVED to the Growth tab the
   // same day (user directive) - it's a growth-magnitude signal, not a quality one, so its
   // real home is GROWTH_SCHEMA below, not here. eps_growth_stability/operating_margin_trend/

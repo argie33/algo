@@ -3652,21 +3652,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and total_liabilities > 0
                 else None
             )
-            # Curve calibrated to Altman's own distress zones (Altman 1995): Z''<1.1 distress,
-            # 1.1-2.6 grey zone, >2.6 safe - mapped onto this file's usual 0-100 scale.
-            altman_z_score_curve = (
-                _margin_curve(altman_z_score, [(1.1, 20.0), (2.6, 60.0), (6.0, 100.0)])
-                if altman_z_score is not None
-                else None
-            )
 
-            def _weighted_avg(components: list[tuple[float | None, float]]) -> float | None:
+            def _weighted_avg(
+                components: list[tuple[float | None, float]], min_weight_pct: float = 0.0
+            ) -> float | None:
                 """components: [(score_or_None, weight), ...]. Renormalizes over whichever
                 components are actually available, same "1/n over available" spirit as the old
-                equal-weighted average, just weighted instead of equal."""
+                equal-weighted average, just weighted instead of equal. Returns None if the
+                available weight doesn't clear min_weight_pct - renormalizing a 1-2 component
+                sample up to a full 0-100 score is a thin-sample extrapolation, not an honest
+                partial score (see quality_score's own call site for the live-verified case)."""
                 available = [(v, w) for v, w in components if v is not None]
                 total_weight = sum(w for _, w in available)
-                if not available or total_weight <= 0:
+                if not available or total_weight <= 0 or total_weight < min_weight_pct:
                     return None
                 return sum(v * w for v, w in available) / total_weight
 
@@ -3683,35 +3681,69 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # -1.51, weakest surviving-in-composite component before this rebuild, no replacement
             # candidate identified this pass).
             #
-            # Final 8-component composite, weights set from BOTH full-151-month t-stat magnitude
+            # Final 7-component composite, weights set from BOTH full-151-month t-stat magnitude
             # AND a half-split (2014-2020 vs 2020-2026) time-stability check - a component whose
             # t-stat holds up identically across both eras (roce: 1.50/1.50) is weighted higher
             # relative to its raw t-stat than one whose apparent strength turned out to be
-            # concentrated in a short/recent window. Altman Z''-Score is the clearest case of
-            # that correction: its naive full-sample t=3.49 looked like the strongest component
-            # of anything ever tested here, but that number comes from only 41 months (limited by
-            # retained_earnings coverage, vs. 151 for everything else) - splitting even THAT short
-            # window in half shows real decay (t=4.40 first half -> 1.39 second half), so it is
-            # deliberately NOT weighted as the composite's anchor despite the highest single
-            # t-stat on record. debt_to_equity/roa/roce/fcf_margin/roe (the "core five", combined
-            # 80%) are the components with either the strongest full-sample evidence or the best
-            # demonstrated time-stability, per explicit user direction after reviewing this same
-            # half-split evidence. current_ratio tested (t=-0.30/0.32, sign-flips across the
-            # half-split too) and was deliberately excluded - no cross-sectional signal despite
-            # being a standard quality-investing checklist item (investing.com's own <1.5
-            # threshold recommendation notwithstanding).
-            weighted_score = _weighted_avg(
-                [
-                    (roe_score, 11.0),
-                    (roa_score, 18.0),
-                    (roce_score, 18.0),
-                    (fcf_margin_score, 15.0),
-                    (debt_to_equity_score, 18.0),
-                    (altman_z_score_curve, 10.0),
-                    (interest_coverage_score, 5.0),
-                    (payout_score, 5.0),
-                ]
-            )
+            # concentrated in a short/recent window. debt_to_equity/roa/roce/fcf_margin/roe (the
+            # "core five", combined 80% of the 8-component version below) are the components with
+            # either the strongest full-sample evidence or the best demonstrated time-stability,
+            # per explicit user direction after reviewing this same half-split evidence.
+            # current_ratio tested (t=-0.30/0.32, sign-flips across the half-split too) and was
+            # deliberately excluded - no cross-sectional signal despite being a standard
+            # quality-investing checklist item (investing.com's own <1.5 threshold
+            # recommendation notwithstanding).
+            #
+            # Altman Z''-Score REMOVED from scoring 2026-08-26 (same day as the 8-component
+            # version below shipped, user directive) - not on new negative evidence, but on a
+            # methodological objection: the Z''-Score's academic and practitioner literature
+            # frames it as a DISCRETE distress-triage classifier ("quick check of economic
+            # health; if the score indicates a problem, do more detailed analysis"), not a
+            # continuously-scaled input meant to be averaged into a magnitude-weighted composite
+            # alongside ROA/ROE/margin ratios - that use conflates "is this company in the grey
+            # zone" with "how much better is a Z of 6 than a Z of 3", which the model was never
+            # designed to answer. This independently reinforces what the data already flagged as
+            # this component's own weakest point: its naive full-sample t=3.49 looked like the
+            # strongest signal of anything ever tested here, but comes from only 41 months
+            # (retained_earnings coverage, vs. 151 for everything else) and decays hard within
+            # even that short window on a half-split check (t=4.40 first half -> 1.39 second
+            # half) - both the methodology and the evidence pointed the same direction. Raw
+            # Raw altman_z_score still computed and persisted (quality_metrics table, frontend
+            # removed - see StockScoreAccordion.jsx) for reference, just unscored - same
+            # treatment as debt_to_assets/current_ratio/margin_volatility above. Its 0-100
+            # scoring curve (altman_z_score_curve) is deleted, not just unused - it had no other
+            # purpose than feeding this composite.
+            # Deliberately left OPEN where (or whether) a distress-flag use belongs - e.g. a
+            # discrete gate on GOVERNANCE's trading-eligibility checks, separate from the
+            # continuous quality_score - not decided today, revisit later.
+            quality_components = [
+                (roe_score, 11.0),
+                (roa_score, 18.0),
+                (roce_score, 18.0),
+                (fcf_margin_score, 15.0),
+                (debt_to_equity_score, 18.0),
+                (interest_coverage_score, 5.0),
+                (payout_score, 5.0),
+            ]
+            # COMPLETENESS FLOOR added 2026-08-26 (quality-completeness pass, live-verified):
+            # renormalizing over 1-3 available components let a single extreme raw ratio
+            # (e.g. PBT/SBR's ROA of 761%/961%, oil/gas royalty trusts with atypical capital
+            # structures) drive quality_score all the way to 100.00. Found live: 8 of 5191
+            # symbols (ASA/BAR/BSEM/CRT/NRP/NRT/PBT/SBR) hit quality_score=100.00 from only
+            # 18-38% of the composite's weight (found when this was still an 8-component
+            # composite incl. Altman Z, since removed below - the specific symbols/percentages
+            # are unaffected, none of the 8 had altman_z_score available anyway) - and
+            # critically, stock_scores.data_completeness (6-pillar count) treated these as a
+            # fully "real" quality pillar just like a symbol with every component available,
+            # since that gate only checks "is quality_score a float", not how much of the
+            # composite backed it - GOVERNANCE's 70% trading-
+            # eligibility floor did NOT catch these (6 of the 8 verified as live-eligible,
+            # data_completeness>=99.99%, data_unavailable=False). 40% is set just above NRP's
+            # 38% (roa+fcf_margin+interest_coverage), the largest available-weight case found
+            # among the 8 - not an arbitrary round number.
+            min_quality_weight_pct = 40.0
+            available_quality_weight = sum(w for v, w in quality_components if v is not None)
+            weighted_score = _weighted_avg(quality_components, min_weight_pct=min_quality_weight_pct)
 
             # PERSISTED 2026-08-26 (goal: quality-input completeness pass): these 4 were being
             # computed and scored into quality_score above but never written to `metrics`, so
@@ -3986,7 +4018,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             ):
                 metrics["revision_trend_score_unavailable_reason"] = "no_analyst_estimates"
 
-            metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed
+            # Score can be partial; only mark unavailable if ALL metrics failed OR the
+            # available weight didn't clear the completeness floor above (thin-sample
+            # extrapolation, not honest partial data - see quality_components' own comment).
+            if weighted_score is None and 0 < available_quality_weight < min_quality_weight_pct:
+                metrics["quality_score_unavailable_reason"] = "insufficient_completeness"
+            else:
+                metrics["quality_score_unavailable_reason"] = None
 
             if failed_metrics:
                 # Log which metrics are incomplete (for debugging), but don't mark data_unavailable

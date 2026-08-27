@@ -106,12 +106,22 @@ ROIC_CANDIDATE_COLS = ["roic_pct"]
 #   without ever wiring them into either composite).
 NEW_CANDIDATE_COLS = ["roce", "fcf_margin", "debt_to_equity", "current_ratio"]
 
+# CASH_QUALITY_CANDIDATE_COLS (2026-08-26, user-prompted cash-vs-earnings-quality follow-up) -
+# own isolated pass, same dropna-poisoning reasoning as every other candidate list above.
+# fcf_to_net_income and net_debt_to_ebitda/net_debt_to_fcf need depreciation_expense/
+# amortization_expense (added to fetch_annual_quality_fundamentals() for this), which have
+# their own coverage gaps separate from the base-6/NEW_CANDIDATE_COLS fields - see
+# build_quality_panel()'s own comment for the formulas and what each is meant to catch.
+CASH_QUALITY_CANDIDATE_COLS = ["fcf_to_net_income", "net_debt_to_ebitda", "net_debt_to_fcf"]
+
 
 def fetch_annual_quality_fundamentals() -> pd.DataFrame:
     sql = """
         SELECT i.symbol, i.fiscal_year,
                i.revenue, i.operating_income, i.net_income, i.interest_expense, i.cost_of_revenue,
                i.shares_outstanding_diluted, i.pretax_income, i.income_tax_expense,
+               COALESCE(i.depreciation_expense, 0) AS depreciation_expense,
+               COALESCE(i.amortization_expense, 0) AS amortization_expense,
                b.stockholders_equity, b.total_assets, b.long_term_debt, b.short_term_debt,
                b.current_assets, b.current_liabilities, b.total_liabilities, b.retained_earnings,
                b.cash_and_equivalents,
@@ -137,6 +147,8 @@ def fetch_annual_quality_fundamentals() -> pd.DataFrame:
         "shares_outstanding_diluted",
         "pretax_income",
         "income_tax_expense",
+        "depreciation_expense",
+        "amortization_expense",
         "stockholders_equity",
         "total_assets",
         "long_term_debt",
@@ -254,6 +266,27 @@ def build_quality_panel(fund: pd.DataFrame) -> pd.DataFrame:
     out["current_ratio"] = np.where(
         fund["current_liabilities"] > 0, fund["current_assets"] / fund["current_liabilities"], np.nan
     )
+
+    # --- CASH_QUALITY_CANDIDATE_COLS (2026-08-26, user-prompted: "earnings can be a stage
+    # actor's applause, FCF is the money they take home" - does the market actually reward
+    # companies whose reported earnings are backed by real cash, beyond what fcf_margin/
+    # debt_to_equity already capture?) ---
+    # FCF-to-Net-Income: how much of reported profit converts to real cash - a company with
+    # high earnings but chronically low/negative FCF is the literal "hollow applause" case.
+    # Distinct from fcf_margin (FCF/revenue, cash efficiency per dollar of sales) and from
+    # accruals_ratio (already tested, t=-1.85, dropped) - this is a ratio of two bottom-line
+    # figures, not scaled by revenue or assets.
+    out["fcf_to_net_income"] = np.where(fund["net_income"] > 0, fund["free_cash_flow"] / fund["net_income"], np.nan)
+    # Net Debt / EBITDA and Net Debt / FCF: leverage relative to actual cash-generating
+    # capacity, not book equity/assets like debt_to_equity/debt_to_assets above - the classic
+    # credit-analysis framing ("how many years of cash flow to pay off the debt"). EBITDA
+    # reconstructed the same way fama_macbeth_value_factors.py's build_value_panel() already
+    # does for its own ev_ebitda candidate (operating_income + D&A) - reused here instead of
+    # re-deriving a third EBITDA definition in this file.
+    ebitda = fund["operating_income"] + fund["depreciation_expense"].fillna(0) + fund["amortization_expense"].fillna(0)
+    net_debt = total_debt - fund["cash_and_equivalents"].fillna(0)
+    out["net_debt_to_ebitda"] = np.where(ebitda > 0, net_debt / ebitda, np.nan)
+    out["net_debt_to_fcf"] = np.where(fund["free_cash_flow"] > 0, net_debt / fund["free_cash_flow"], np.nan)
 
     fund_sorted = fund.sort_values(["symbol", "fiscal_year"]).copy()
     fund_sorted["total_debt"] = fund_sorted["long_term_debt"].fillna(0) + fund_sorted["short_term_debt"].fillna(0)
@@ -441,6 +474,37 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
     roce_coverage = quality_panel["roce"].notna().mean()
     print(f"\nroic_pct point-in-time panel coverage: {roic_coverage:.1%}")
     print(f"roce point-in-time panel coverage: {roce_coverage:.1%}")
+
+    # CASH_QUALITY_CANDIDATE_COLS: fcf_to_net_income (earnings-quality: does profit convert to
+    # real cash), net_debt_to_ebitda/net_debt_to_fcf (leverage relative to actual cash
+    # generation, not book equity/assets) - see that constant's own comment.
+    cq_records = _build_records(
+        months, px, quality_panel, CASH_QUALITY_CANDIDATE_COLS, horizon_months, min_cross_section
+    )
+    if not cq_records:
+        print("\n(no usable cross-sectional months for fcf_to_net_income/net_debt_to_ebitda/net_debt_to_fcf)")
+        return
+    cq_sizes = [len(f) for _, f in cq_records]
+    print(
+        f"\n=== Cash-quality candidates (fcf_to_net_income/net_debt_to_ebitda/net_debt_to_fcf): "
+        f"{len(cq_records)} usable months ({cq_records[0][0]} to {cq_records[-1][0]}), "
+        f"median cross-section {int(np.median(cq_sizes))} ==="
+    )
+    print("\n=== Univariate Fama-MacBeth (each cash-quality candidate alone) ===")
+    print(f"{'factor':20s} {'mean_coef':>10s} {'t_stat':>8s}")
+    for c in CASH_QUALITY_CANDIDATE_COLS:
+        uni = _fama_macbeth(cq_records, [c])
+        mean, t = uni[c]
+        print(f"{c:20s} {mean:10.5f} {t:8.2f}")
+
+    print("\n=== Multivariate Fama-MacBeth (cash-quality candidates jointly) ===")
+    print(f"{'factor':20s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
+    cq_multi = _fama_macbeth(cq_records, CASH_QUALITY_CANDIDATE_COLS)
+    for name, (mean, t) in cq_multi.items():
+        print(f"{name:20s} {mean:10.5f} {t:8.2f} {len(cq_records):9d}")
+
+    for c in CASH_QUALITY_CANDIDATE_COLS:
+        print(f"{c} point-in-time panel coverage: {quality_panel[c].notna().mean():.1%}")
 
 
 def main() -> None:
