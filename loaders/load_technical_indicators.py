@@ -1188,6 +1188,57 @@ def _apply_schema_migrations() -> None:
         logger.warning(f"Schema migration failed (non-fatal, will retry next run): {e}")
 
 
+def _log_tech_loader_execution(final_status: str, result: dict[str, Any], loader: Any) -> None:
+    """Log execution time/status to data_loader_runs for monitoring.
+
+    Extracted 2026-08-27 (ON CONFLICT column-gap sweep) from an inline block in main() into
+    its own function so this is directly unit-testable, matching the pattern already used for
+    the identical logging in load_prices.py's log_loader_execution().
+
+    FIX: started_at was previously missing from the DO UPDATE SET clause below, so a same-day
+    retry (this table's own conflict key is loader_name+run_date) kept whatever started_at the
+    FIRST attempt had while completed_at kept advancing to NOW() on each retry - completed_at -
+    started_at balloons even though duration_seconds (correctly updated) stays accurate. Same
+    bug, same table, already found/fixed independently in load_prices.py's own data_loader_runs
+    write - see that file's own comment for the live-confirmed price_daily case (39.59s real vs
+    1h36m derived). Matches that fix's pattern: started_at computed as NOW() minus this run's
+    own duration (not a bare NOW()), and explicitly re-set on every UPDATE via EXCLUDED, not
+    just the first INSERT.
+    """
+    try:
+        with DatabaseContext("write") as cur:
+            duration_seconds = loader._get_required_duration(result)  # FAIL-FAST: required for monitoring
+            cur.execute(
+                """
+                INSERT INTO data_loader_runs (
+                    loader_name, table_name, run_date, status, records_loaded,
+                    duration_seconds, started_at, completed_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, NOW() - (%s * interval '1 second'), NOW()
+                )
+                ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    records_loaded = EXCLUDED.records_loaded,
+                    duration_seconds = EXCLUDED.duration_seconds,
+                    started_at = EXCLUDED.started_at,
+                    completed_at = NOW()
+            """,
+                (
+                    "technical_data_daily_vectorized",
+                    "technical_data_daily",
+                    date.today(),
+                    final_status,
+                    result["rows_inserted"],
+                    duration_seconds,
+                    duration_seconds,
+                ),
+            )
+    except psycopg2.Error as e:
+        logger.warning(f"Failed to log execution metrics (non-critical): {e}")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(f"Unexpected error logging execution (non-critical): {e}", exc_info=True)
+
+
 def main() -> int:
     """Vectorized Technical Data Loader.
 
@@ -1327,35 +1378,7 @@ def main() -> int:
             exit_code = 1
 
         # Log execution time
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    """
-                    INSERT INTO data_loader_runs (
-                        loader_name, table_name, run_date, status, records_loaded,
-                        duration_seconds, started_at, completed_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                    )
-                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
-                        status = EXCLUDED.status,
-                        records_loaded = EXCLUDED.records_loaded,
-                        duration_seconds = EXCLUDED.duration_seconds,
-                        completed_at = NOW()
-                """,
-                    (
-                        "technical_data_daily_vectorized",
-                        "technical_data_daily",
-                        date.today(),
-                        final_status,
-                        result["rows_inserted"],
-                        loader._get_required_duration(result),  # FAIL-FAST: duration_sec is REQUIRED for monitoring
-                    ),
-                )
-        except psycopg2.Error as e:
-            logger.warning(f"Failed to log execution metrics (non-critical): {e}")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Unexpected error logging execution (non-critical): {e}", exc_info=True)
+        _log_tech_loader_execution(final_status, result, loader)
 
         return exit_code
 
