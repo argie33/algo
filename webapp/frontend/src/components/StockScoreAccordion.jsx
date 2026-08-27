@@ -807,59 +807,101 @@ export { QUALITY_SCHEMA, RISK_SCHEMA };
 // (see that same comment). Current Ratio was proposed and tested too but showed no
 // cross-sectional signal (t=-0.30/0.32, sign-flips across a half-split robustness check) -
 // deliberately excluded despite being a standard quality-investing checklist item.
+//
+// margin_volatility RE-ADDED 2026-08-27 (goal: close out the SHAP-interaction sweep's
+// flagged lead - see MEMORY.md quality_margin_volatility_3y_revalidated_borderline_20260827).
+// A proper multivariate re-test (controlling for the other 7 live components, not the
+// pooled-univariate test that got it cut 2026-08-26) found t=-2.42 full-sample, sign-
+// consistent across both halves - real, second-tier evidence, same class as asset_turnover.
+//
+// operating_margin_trend/net_margin_trend/roe_trend MOVED HERE FROM GROWTH 2026-08-27 (goal:
+// resolve the pillar-placement question flagged in growth_missing_metrics_swept_20260827) -
+// Piotroski (2000 JAR) / QMJ (2019) both place improvement-in-profitability signals in
+// Quality, not Growth. Same 3% each weight, just relocated - not a new empirical claim.
+//
+// Weight percentages below are all recomputed against the new 11-component nominal total
+// (106 = 90 + margin_volatility's 7 + the 3 trend fields' 3 each).
 const QUALITY_SCHEMA = [
   {
     key: "return_on_equity_pct",
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~12%",
+    weight: "~10%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~20%",
+    weight: "~17%",
   },
   {
     key: "return_on_capital_employed_pct",
     label: "ROCE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~20%",
+    weight: "~17%",
   },
   {
     key: "fcf_margin_pct",
     label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "~14%",
   },
   {
     key: "debt_to_equity",
     label: "Debt to Equity",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~20%",
+    weight: "~17%",
   },
   {
     key: "interest_coverage",
     label: "Interest Coverage",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~6%",
+    weight: "~5%",
   },
   {
     key: "payout_ratio",
     label: "Payout Ratio",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~6%",
+    weight: "~5%",
+  },
+  {
+    key: "margin_volatility",
+    label: "Margin Volatility (3Y)",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "~7%",
+  },
+  {
+    key: "operating_margin_trend",
+    label: "Op Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "~3%",
+  },
+  {
+    key: "net_margin_trend",
+    label: "Net Margin Trend",
+    fmt: (v) => `${num(v, 2)} pp`,
+    used: true,
+    weight: "~3%",
+  },
+  {
+    key: "roe_trend",
+    label: "ROE Trend",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "~3%",
   },
   // altman_z_score REMOVED 2026-08-26 (same day it was added, user directive) - it's a
   // discrete distress-triage classifier in the literature, not meant to be averaged into a
-  // continuous magnitude-weighted composite like the 7 fields above. Raw value still computed/
+  // continuous magnitude-weighted composite like the 8 fields above. Raw value still computed/
   // persisted in quality_metrics for reference, just not scored or shown here - see
   // load_value_quality_growth_metrics.py's quality_components comment for the full reasoning.
   // earnings_growth_yoy briefly restored here 2026-08-26, then MOVED to the Growth tab the
@@ -1147,27 +1189,11 @@ const GROWTH_SCHEMA = [
     used: true,
     weight: "6%",
   },
-  {
-    key: "operating_margin_trend",
-    label: "Op Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "3%",
-  },
-  {
-    key: "net_margin_trend",
-    label: "Net Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "3%",
-  },
-  {
-    key: "roe_trend",
-    label: "ROE Trend",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "3%",
-  },
+  // operating_margin_trend/net_margin_trend/roe_trend MOVED to QUALITY_SCHEMA 2026-08-27 (goal:
+  // resolve this pillar's own placement question - Piotroski 2000 JAR / QMJ 2019 both place
+  // improvement-in-profitability signals in Quality's domain, not Growth's - see
+  // load_stock_scores.py's _score_growth docstring for the full reasoning). Still scored,
+  // still 3% each, just relocated - not removed.
   {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",

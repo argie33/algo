@@ -99,6 +99,12 @@ class TestGrowthScoreWeightBadges:
         # here for Growth before this, which is exactly how the 08-25 cut to 4 inputs (and a
         # later same-day revert of the Quality trend fields - see that docstring) was able to
         # drift from what the JSX schema claimed without any test catching it.
+        #
+        # om_trend/nm_trend/roe_trend REMOVED from this dict 2026-08-27 (goal: resolve the
+        # Growth-vs-Quality placement question, see growth_missing_metrics_swept_20260827) -
+        # relocated to Quality's composite (load_value_quality_growth_metrics.py), which this
+        # test class doesn't cover (Quality's sub-component shape is deliberately out of scope
+        # here per this file's own module docstring). Growth is now an 11-input set.
         src = inspect.getsource(StockScoresLoader._score_growth)
         score_var_to_jsx_key = {
             "eps_1y": "eps_growth_1y_pct",
@@ -113,9 +119,6 @@ class TestGrowthScoreWeightBadges:
             "fcf_growth": "fcf_growth_yoy",
             "ocf_growth": "ocf_growth_yoy",
             "asset_growth": "asset_growth_yoy",
-            "om_trend": "operating_margin_trend",
-            "nm_trend": "net_margin_trend",
-            "roe_trend": "roe_trend",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))

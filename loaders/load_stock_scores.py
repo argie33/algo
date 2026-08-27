@@ -1473,7 +1473,7 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
 
-    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt from the restored 14-input formula, not new logic; CI ruff-gate cleanup pass 2026-08-11
+    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
         RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction):
@@ -1482,6 +1482,19 @@ class StockScoresLoader(OptimalLoader):
         YoY (6%) + Sustainable Growth Rate (6%) + FCF growth YoY (6%) + OCF growth YoY (4%) +
         Asset Growth YoY (5%, SIGN-FLIPPED - see below) + Operating/Net Margin Trend (3% each)
         + ROE Trend (3%). User's explicit reasoning: the 2026-08-25 redesign's case for
+        dropping these 10 fields rested on this system's own exploratory backtests - not
+        external validated research (see the full paragraph below for detail).
+
+        MARGIN/ROE TREND FIELDS MOVED TO QUALITY 2026-08-27 (goal: resolve this pillar's own
+        placement question, flagged since the 2026-08-27 missing-metrics sweep - see MEMORY.md
+        growth_missing_metrics_swept_20260827). Operating Margin Trend, Net Margin Trend, and
+        ROE Trend (3% each, 9% combined) are now scored in Quality instead
+        (load_value_quality_growth_metrics.py's quality_components), per Piotroski (2000 JAR)
+        and Asness/Frazzini/Pedersen's Quality Minus Junk (2019) - both place improvement-in-
+        profitability signals in Quality's domain (is the existing business getting more/less
+        profitable), not Growth's (is the business getting bigger). This is now an 11-input
+        blend; the paragraph below describes the historical 14-input restoration these 3
+        fields were originally part of before this relocation.
         dropping these 10 fields rested on this system's own exploratory backtests - three
         composite-level configurations (p=0.27/0.94/0.33) plus later Fama-MacBeth reruns that
         the docstrings themselves flagged with real caveats (no true SEC filing-date data, a
@@ -1643,25 +1656,13 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += asset_growth * 0.05
             total_weight += 0.05
 
-        # Margin/ROE trend fields: percentage-POINT deltas (curr - prior), not growth rates -
-        # e.g. operating_margin_trend=+2 means the margin improved 2 points YoY. Reuses
-        # _score_single_growth's [-cap,0]->[0,40], [0,cap]->[40,100] shape with a small cap
-        # tuned for point-deltas. Small individual weights since these are correlated views
-        # of the same underlying margin-trend signal, not independent factors.
-        om_trend = _score_single_growth(metrics.get("operating_margin_trend"), 10)
-        if om_trend is not None:
-            weighted_sum += om_trend * 0.03
-            total_weight += 0.03
-
-        nm_trend = _score_single_growth(metrics.get("net_margin_trend"), 10)
-        if nm_trend is not None:
-            weighted_sum += nm_trend * 0.03
-            total_weight += 0.03
-
-        roe_trend = _score_single_growth(metrics.get("roe_trend"), 10)
-        if roe_trend is not None:
-            weighted_sum += roe_trend * 0.03
-            total_weight += 0.03
+        # Margin/ROE trend fields (operating_margin_trend/net_margin_trend/roe_trend) MOVED to
+        # Quality 2026-08-27 (goal: resolve this pillar's own long-flagged placement question -
+        # see MEMORY.md growth_missing_metrics_swept_20260827 and
+        # load_value_quality_growth_metrics.py's quality_components comment for the literature
+        # basis: Piotroski 2000 JAR / QMJ 2019 both place improvement-in-profitability signals
+        # in Quality, not Growth). Scored there now with the same curve shape, unchanged weight
+        # (3% each) - not removed from scoring, relocated.
 
         if total_weight > 0:
             computed_score = weighted_sum / total_weight

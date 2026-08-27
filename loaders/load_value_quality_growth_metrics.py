@@ -3636,7 +3636,49 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
             # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
             # multi-year income_rows this function doesn't have (see _compute_margin_volatility).
-            # Still computed/persisted for display; no longer scored (see removal note above).
+            # RE-ADDED to scoring 2026-08-27 (goal: revisit the SHAP-interaction sweep's flagged
+            # lead, see MEMORY.md quality_margin_volatility_3y_revalidated_borderline_20260827).
+            # The 2026-08-26 removal (t=-1.28/-1.51 pooled linear) undersold this component - a
+            # SHAP interaction sweep across all 21 Quality candidates later found it has the
+            # HIGHEST main-effect ML importance of any candidate (beats roa), and a proper
+            # multivariate re-test controlling for the other 7 live components (not a pooled
+            # univariate one) found t=-2.42 full-sample, sign-consistent both halves (-2.20/
+            # -1.34 - never flips, unlike current_ratio's rejected -0.30/0.32) though it decays
+            # ~40% in magnitude - a real but second-tier signal, same evidentiary class as
+            # asset_turnover (t=3.03/3.00/1.54), weighted accordingly below (below the "core
+            # five" of roa/roce/debt_to_equity/fcf_margin/roe, above interest_coverage/payout's
+            # legacy 5% each). Inverted curve: LOWER volatility (more stable margins) scores
+            # higher, consistent with the negative FM coefficient. Breakpoints are a reasonable
+            # domain-judgment starting point (not separately FM-fit to specific inflection
+            # points, same caveat as fcf_margin/payout's curves above) - revisit if live
+            # distribution data suggests a better fit.
+            margin_volatility_val = metrics.get("margin_volatility")
+            margin_volatility_score = (
+                100.0 - _margin_curve(margin_volatility_val, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+                if margin_volatility_val is not None
+                else None
+            )
+
+            # Operating/Net Margin Trend + ROE Trend - MOVED here from Growth 2026-08-27 (goal:
+            # resolve the placement question flagged in MEMORY.md growth_missing_metrics_swept_
+            # 20260827: Piotroski (2000 JAR) and Asness/Frazzini/Pedersen's QMJ (2019) both place
+            # improvement-in-profitability signals inside Quality, not Growth - these measure
+            # whether a company's existing business is getting more/less profitable, not whether
+            # it's getting bigger, which is Growth's actual domain. Values are point-in-time
+            # trailing percentage-POINT deltas (curr - prior), already computed above in this
+            # same function - reuses the exact [-cap,0]->[0,40]/[0,cap]->[40,100] curve shape
+            # _score_growth used for these fields (loaders/load_stock_scores.py), unchanged, just
+            # relocated - not a re-derivation or a new empirical claim.
+            def _trend_score(value: float | None, cap: float = 10.0) -> float | None:
+                if value is None:
+                    return None
+                if value <= 0:
+                    return max(0.0, 40.0 + (value / 50.0) * 40.0)
+                return min(100.0, 40.0 + (value / cap) * 60.0)
+
+            operating_margin_trend_score = _trend_score(metrics.get("operating_margin_trend"))
+            net_margin_trend_score = _trend_score(metrics.get("net_margin_trend"))
+            roe_trend_score = _trend_score(metrics.get("roe_trend"))
             # Payout Ratio (Fama & French 2001; La Porta et al.) - higher (within reason) is
             # better; metrics["payout_ratio"] is already computed above (dividends_paid/net_income).
             payout_ratio_val = metrics.get("payout_ratio")
@@ -3706,7 +3748,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # -1.51, weakest surviving-in-composite component before this rebuild, no replacement
             # candidate identified this pass).
             #
-            # Final 7-component composite, weights set from BOTH full-151-month t-stat magnitude
+            # 11-component composite (margin_volatility_score re-added AND operating_margin_
+            # trend_score/net_margin_trend_score/roe_trend_score relocated from Growth, all
+            # 2026-08-27, see their own comments above - min_quality_weight_pct below still
+            # calibrated against the original 90-point nominal weight sum, now 106 (90+7+3+3+3);
+            # the 40.0 floor shifts from ~44% to ~38% of nominal total - still comfortably above
+            # any thin-sample case found so far, not re-derived this pass, revisit if a new
+            # thin-sample outlier surfaces).
+            # Weights set from BOTH full-151-month t-stat magnitude
             # AND a half-split (2014-2020 vs 2020-2026) time-stability check - a component whose
             # t-stat holds up identically across both eras (roce: 1.50/1.50) is weighted higher
             # relative to its raw t-stat than one whose apparent strength turned out to be
@@ -3749,6 +3798,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (debt_to_equity_score, 18.0),
                 (interest_coverage_score, 5.0),
                 (payout_score, 5.0),
+                (margin_volatility_score, 7.0),
+                (operating_margin_trend_score, 3.0),
+                (net_margin_trend_score, 3.0),
+                (roe_trend_score, 3.0),
             ]
             # COMPLETENESS FLOOR added 2026-08-26 (quality-completeness pass, live-verified):
             # renormalizing over 1-3 available components let a single extreme raw ratio
