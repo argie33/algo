@@ -19,9 +19,14 @@ and regresses forward return on all 6 jointly.
 Pillar proxies (z-scored components combined at each pillar's LIVE weight ratios - NOT
 independently re-derived per-component weights, since that's what the per-pillar scripts
 already tested; this script answers the separate top-level question):
-- growth_proxy: eps_growth_1y*0.25 + (-asset_growth_yoy)*0.30 + revenue_growth_1y*0.20 +
-  sustainable_growth_rate*0.20 (matches _score_growth's live post-reweight weights, see
-  [[growth_pillar_reweighted_horizon_matched_20260825]])
+- growth_proxy: REBUILT 2026-08-27 - the 2026-08-25 4-input redesign (eps_growth_1y*0.25 +
+  (-asset_growth_yoy)*0.30 + revenue_growth_1y*0.20 + sustainable_growth_rate*0.20) documented
+  here was REVERTED the same day it was written (see
+  growth_pillar_current_state_verified_14input_restored_20260826 in MEMORY.md) - this script
+  kept running the reverted formula for a full day before being caught. Now matches
+  _score_growth's actual live 14-input blend (renormalized over the 12 of 14 inputs this
+  panel builds - see growth_proxy's own inline comment for the omitted 3 margin/ROE-trend
+  fields, 9% of the live total, not fabricated here).
 - value_proxy: -pe*0.10 -pb*0.22 -ps*0.21 + fcf_yield*0.10 + dividend_yield*0.03 -size*0.20
   (matches _score_value's CURRENT live weights, including the 2026-08-25 EV/EBITDA+EV/Revenue
   removal, Size-factor addition, AND the later same-day PE/PB/PS reversal - see
@@ -100,12 +105,16 @@ Usage:
 import argparse
 import logging
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.linear_model import Lasso, Ridge
 
 from algo.research.fama_macbeth_growth_factors import (
     REPORTING_LAG_DAYS,
+    build_growth_panel,
     fetch_annual_fundamentals,
     merge_asof_monthly,
 )
@@ -167,28 +176,6 @@ def _zwinsor(s: pd.Series) -> pd.Series:
     return (s - s.mean()) / std if std and std > 0 else s * 0.0
 
 
-def build_growth_and_sgr_panel() -> pd.DataFrame:
-    fund = fetch_annual_fundamentals()
-    fund = fund.sort_values(["symbol", "fiscal_year"]).reset_index(drop=True)
-    g = fund.groupby("symbol", group_keys=False)
-
-    def growth(col: str, n: int = 1) -> pd.Series:
-        prior = g[col].shift(n)
-        valid = (prior > 0) & (fund[col] > 0)
-        out = pd.Series(np.nan, index=fund.index)
-        out[valid] = (fund[col][valid] / prior[valid]) ** (1.0 / n) - 1.0
-        return out
-
-    out = fund[["symbol", "fiscal_year"]].copy()
-    out["eps_growth_1y"] = growth("eps")
-    out["revenue_growth_1y"] = growth("revenue")
-    out["asset_growth_yoy"] = growth("total_assets")
-    out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
-        days=REPORTING_LAG_DAYS
-    )
-    return out.dropna(subset=["known_date"])
-
-
 def build_sgr_panel() -> pd.DataFrame:
     """Sustainable growth rate = ROE * retention ratio, from quality fundamentals.
 
@@ -226,9 +213,16 @@ def build_value_panel_raw() -> pd.DataFrame:
     return out.dropna(subset=["known_date"])
 
 
-def run(start_date: str, end_date: str, min_cross_section: int) -> None:
+def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa: C901 -- research script, sequential model-comparison stages not worth splitting up
     logger.info("Building fundamentals panels (growth/value/quality/SGR)")
-    growth_fund = build_growth_and_sgr_panel()
+    # REBUILT 2026-08-27 (goal: composite-level regression, done properly - found growth_proxy
+    # was still the 4-input eps_growth_1y/asset_growth_yoy/revenue_growth_1y/SGR redesign that
+    # got REVERTED the same day it was written, per growth_pillar_current_state_verified_
+    # 14input_restored_20260826 in MEMORY.md - _score_growth live today is a 14-input blend, not
+    # that redesign. Reuses fama_macbeth_growth_factors.py's own build_growth_panel() (same
+    # source-of-truth precedent as quality_proxy reusing build_quality_panel() below) instead of
+    # re-deriving growth rates a second time here.
+    growth_fund = build_growth_panel(fetch_annual_fundamentals())
     sgr_fund = build_sgr_panel()
     value_fund = build_value_panel_raw()
     # REBUILT 2026-08-26 (goal: answer "does Quality's CURRENT formula still hold up combined
@@ -274,7 +268,21 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     ad_panel = ad_panel.set_axis(pd.PeriodIndex(ad_panel.index, freq="M")).reindex(months_period)
 
     growth_monthly = merge_asof_monthly(
-        months, growth_fund, cols=["eps_growth_1y", "revenue_growth_1y", "asset_growth_yoy"]
+        months,
+        growth_fund,
+        cols=[
+            "eps_growth_1y",
+            "revenue_growth_1y",
+            "eps_growth_3y",
+            "revenue_growth_3y",
+            "eps_growth_5y",
+            "revenue_growth_5y",
+            "ni_growth_yoy",
+            "oi_growth_yoy",
+            "fcf_growth_yoy",
+            "ocf_growth_yoy",
+            "asset_growth_yoy_flipped",
+        ],
     )
     sgr_monthly = merge_asof_monthly(months, sgr_fund, cols=["sustainable_growth_rate"])
     value_monthly = merge_asof_monthly(
@@ -309,11 +317,28 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         if g is None or s is None or v is None or q is None or g.empty or v.empty or q.empty:
             continue
 
+        # REBUILT 2026-08-27 to match _score_growth's ACTUAL live 14-input weights (see
+        # growth_pillar_current_state_verified_14input_restored_20260826 in MEMORY.md). Weights
+        # below are the live percentages renormalized over the 12 of 14 inputs this panel can
+        # build (135 = 33+24+19+14+5+5+8+6+6+6+4+5) - operating_margin_trend/net_margin_trend/
+        # roe_trend (3% each, 9 of 144 total) are NOT computed here (would need a separate
+        # point-in-time margin/ROE-delta panel this script doesn't build) and are deliberately
+        # OMITTED, not fabricated - same "renormalize over what's available, never invent a
+        # missing input" convention _weighted_avg() uses live. asset_growth_yoy_flipped is
+        # already sign-flipped by build_growth_panel(), matching live's -asset_growth_yoy.
         growth_proxy = (
-            0.25 * _zwinsor(g["eps_growth_1y"])
-            + 0.30 * _zwinsor(-g["asset_growth_yoy"])
-            + 0.20 * _zwinsor(g["revenue_growth_1y"])
-            + 0.20 * _zwinsor(s["sustainable_growth_rate"])
+            (33.0 / 135.0) * _zwinsor(g["eps_growth_1y"])
+            + (24.0 / 135.0) * _zwinsor(g["revenue_growth_1y"])
+            + (19.0 / 135.0) * _zwinsor(g["eps_growth_3y"])
+            + (14.0 / 135.0) * _zwinsor(g["revenue_growth_3y"])
+            + (5.0 / 135.0) * _zwinsor(g["eps_growth_5y"])
+            + (5.0 / 135.0) * _zwinsor(g["revenue_growth_5y"])
+            + (8.0 / 135.0) * _zwinsor(g["ni_growth_yoy"])
+            + (6.0 / 135.0) * _zwinsor(g["oi_growth_yoy"])
+            + (6.0 / 135.0) * _zwinsor(s["sustainable_growth_rate"])
+            + (6.0 / 135.0) * _zwinsor(g["fcf_growth_yoy"])
+            + (4.0 / 135.0) * _zwinsor(g["ocf_growth_yoy"])
+            + (5.0 / 135.0) * _zwinsor(g["asset_growth_yoy_flipped"])
         )
 
         price = px.iloc[i].reindex(v.index)
@@ -527,12 +552,223 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     mean, t = uni_size["size_proxy"]
     print(f"{'size_proxy':18s} {mean:10.5f} {t:8.2f}")
 
+    # ADDED 2026-08-27 (goal: the corrected growth_proxy multivariate run found quality_proxy
+    # SIGNIFICANTLY NEGATIVE, t=-2.83/-2.43 - a live 18-25%-weighted pillar with a negative
+    # marginal contribution to the composite would be a real, actionable finding, but every
+    # other significant result this project has acted on (Quality's own component weights,
+    # Size promotion, PE/PB/PS reversal) got a half-split robustness check before being trusted
+    # - this hadn't, until now.
+    split_idx = len(records) // 2
+    first_half, second_half = records[:split_idx], records[split_idx:]
+    for label, half in (
+        (f"FIRST HALF ({first_half[0][0]} to {first_half[-1][0]})", first_half),
+        (f"SECOND HALF ({second_half[0][0]} to {second_half[-1][0]})", second_half),
+    ):
+        print(f"\n=== Half-split robustness: multivariate 6-pillar, {label} ===")
+        print(f"{'pillar':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
+        half_multi = _fama_macbeth(half, PILLAR_COLS)
+        for name, (mean, t) in half_multi.items():
+            print(f"{name:18s} {mean:10.5f} {t:8.2f} {len(half):9d}")
+
+    # ADDED 2026-08-27 (goal: user asked where Size actually fits, worried the strong t-stats
+    # driving its promotion were repeated point-estimates on a growing sample rather than a real
+    # half-split like every other pillar decision got - checking that directly here, same split
+    # boundary as the 6-pillar check above).
+    for label, half in (
+        (f"FIRST HALF ({first_half[0][0]} to {first_half[-1][0]})", first_half),
+        (f"SECOND HALF ({second_half[0][0]} to {second_half[-1][0]})", second_half),
+    ):
+        print(f"\n=== Half-split robustness: multivariate 7-factor incl. SIZE, {label} ===")
+        print(f"{'pillar':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
+        half_multi7 = _fama_macbeth(half, SEVEN_COLS)
+        for name, (mean, t) in half_multi7.items():
+            print(f"{name:18s} {mean:10.5f} {t:8.2f} {len(half):9d}")
+
     live_weights = " ".join(f"{k}={v}" for k, v in BASE_PILLAR_WEIGHTS.items())
     print(
         f"\nCurrent live base_weights: {live_weights}"
         " (size_proxy has no top-level slot - it's a 20% sub-component inside value_proxy's live"
         " formula only, effective top-level weight ~4%)"
     )
+
+    # ADDED 2026-08-27 (goal: user asked for "the right ML approach" to the COMPOSITE itself,
+    # not just individual factors - does a flexible model combining the 6 pillar proxies
+    # actually beat the current fixed-%-weight linear composite at the real job, ranking
+    # stocks by forward return? Direct, honest, walk-forward comparison on the SAME
+    # symbol-months, not two different samples - reuses `records` (already z-scored/0-imputed
+    # per pillar, same tolerance as the live composite formula) built above.
+    print("\n=== ML vs LIVE-LINEAR composite: walk-forward OOS head-to-head ===")
+    panel_rows = []
+    for month, frame in records:
+        f = frame.copy()
+        f["month"] = month
+        panel_rows.append(f)
+    panel = pd.concat(panel_rows, ignore_index=True)
+    panel["year"] = pd.to_datetime(panel["month"]).dt.year
+    years = sorted(panel["year"].unique())
+    first_test_idx = max(1, int(len(years) * 0.6))
+    test_years = years[first_test_idx:]
+
+    # PILLAR_COLS -> BASE_PILLAR_WEIGHTS key mapping (stability_proxy matches the live
+    # Stability->Risk pillar rename - see MEMORY.md for that history).
+    live_weight_map = {
+        "growth_proxy": BASE_PILLAR_WEIGHTS["growth"],
+        "value_proxy": BASE_PILLAR_WEIGHTS["value"],
+        "quality_proxy": BASE_PILLAR_WEIGHTS["quality"],
+        "stability_proxy": BASE_PILLAR_WEIGHTS["risk"],
+        "momentum_proxy": BASE_PILLAR_WEIGHTS["momentum"],
+        "positioning_proxy": BASE_PILLAR_WEIGHTS["positioning"],
+    }
+
+    # EXTENDED (goal: user pushback - "how can linear win if we're doing ML the right way?" -
+    # the original comparison only tried ONE flexible-tree config against the fixed-% live
+    # weights, skipping the real missing middle ground: a DATA-DRIVEN but still LINEAR combiner
+    # (ridge/lasso). Without that point, you can't tell whether the tree lost because
+    # nonlinearity itself is unhelpful here, or because ANY data-driven reweighting overfits on
+    # this little independent history (4 OOS years). Adds ridge (alpha 1/10/100), lasso (same
+    # alphas - can zero out pillars entirely, informative about which carry real independent
+    # top-level signal), and a second, shallower/more-regularized tree (max_depth=2,
+    # l2_regularization=10.0) to separate "nonlinearity doesn't help" from "this one tree config
+    # overfit." Same walk-forward discipline, same train/test split, same panel - reuses
+    # everything already built above rather than re-deriving it.
+    ridge_alphas = [1.0, 10.0, 100.0]
+    # FIXED (goal: lasso leg was uninformative - alpha=1.0 is enormous relative to this panel's
+    # real OLS-scale coefficients (~0.0007-0.004, per this script's own Fama-MacBeth output
+    # above), so all 3 original alphas [1,10,100] killed every pillar and just predicted the
+    # mean. Rescaled to actually span "near-OLS" through "kills everything" at this panel's
+    # real coefficient magnitude.
+    lasso_alphas = [1e-5, 1e-4, 1e-3, 1e-2]
+    model_preds: dict[str, list[float]] = {
+        "ml_tree_orig(d4,l2=1)": [],
+        "ml_tree_shallow(d2,l2=10)": [],
+        **{f"ridge_a{a:g}": [] for a in ridge_alphas},
+        **{f"lasso_a{a:g}": [] for a in lasso_alphas},
+    }
+    lasso_coefs: dict[float, list[np.ndarray[Any, Any]]] = {a: [] for a in lasso_alphas}
+    live_pred, actual = [], []
+
+    # NESTED CV (goal: fix hindsight bias - naively picking alpha=1e-3 because it happened to
+    # score best on the OUTER OOS years is not a real predictive claim, it's cherry-picking from
+    # 4 choices after seeing the answer. Selects alpha from a WITHIN-TRAINING inner validation
+    # split (last ~20% of each fold's training years) BEFORE ever touching the real OOS test
+    # year - the honest version of "does a data-driven linear combiner beat live-linear".
+    nested_alpha_grid = sorted({1e-5, 1e-4, 3e-4, 5e-4, 7e-4, 1e-3, 2e-3, 5e-3, 1e-2})
+    nested_lasso_pred: list[float] = []
+    nested_lasso_selections: list[tuple[int, float, str]] = []
+
+    for test_year in test_years:
+        train = panel[panel["year"] < test_year]
+        test = panel[panel["year"] == test_year]
+        if train.empty or len(test) < min_cross_section:
+            continue
+        x_train, y_train = train[PILLAR_COLS], train["fwd_ret"]
+        x_test = test[PILLAR_COLS]
+
+        tree_orig = HistGradientBoostingRegressor(
+            max_iter=200, max_depth=4, learning_rate=0.05, l2_regularization=1.0, random_state=0
+        )
+        tree_orig.fit(x_train, y_train)
+        model_preds["ml_tree_orig(d4,l2=1)"].extend(tree_orig.predict(x_test).tolist())
+
+        tree_shallow = HistGradientBoostingRegressor(
+            max_iter=200, max_depth=2, learning_rate=0.05, l2_regularization=10.0, random_state=0
+        )
+        tree_shallow.fit(x_train, y_train)
+        model_preds["ml_tree_shallow(d2,l2=10)"].extend(tree_shallow.predict(x_test).tolist())
+
+        for a in ridge_alphas:
+            ridge = Ridge(alpha=a)
+            ridge.fit(x_train, y_train)
+            model_preds[f"ridge_a{a:g}"].extend(ridge.predict(x_test).tolist())
+
+        for a in lasso_alphas:
+            lasso = Lasso(alpha=a, max_iter=5000)
+            lasso.fit(x_train, y_train)
+            model_preds[f"lasso_a{a:g}"].extend(lasso.predict(x_test).tolist())
+            lasso_coefs[a].append(lasso.coef_.copy())
+
+        # NESTED CV alpha selection: split THIS fold's training years only (never the real test
+        # year) into inner-train (older) / inner-val (most recent ~20% of training years), pick
+        # whichever alpha in the grid scores best OOS-style on inner-val, then refit at that
+        # alpha on the FULL training set before predicting the real test year - same discipline
+        # as every other method in this loop, just with an honest alpha choice.
+        train_years_sorted = sorted(train["year"].unique())
+        n_val_years = max(1, round(len(train_years_sorted) * 0.2))
+        val_years = set(train_years_sorted[-n_val_years:])
+        inner_train = train[~train["year"].isin(val_years)]
+        inner_val = train[train["year"].isin(val_years)]
+
+        if len(train_years_sorted) < 3 or inner_train.empty or len(inner_val) < min_cross_section:
+            chosen_alpha = 1e-4  # not enough training history for a meaningful inner split
+            selection_note = "fallback_insufficient_train_years"
+        else:
+            best_alpha, best_score = None, -np.inf
+            for a in nested_alpha_grid:
+                inner_model = Lasso(alpha=a, max_iter=5000)
+                inner_model.fit(inner_train[PILLAR_COLS], inner_train["fwd_ret"])
+                val_pred = pd.Series(inner_model.predict(inner_val[PILLAR_COLS]))
+                score = val_pred.corr(pd.Series(inner_val["fwd_ret"].to_numpy()), method="spearman")
+                if pd.notna(score) and score > best_score:
+                    best_score, best_alpha = score, a
+            chosen_alpha = best_alpha if best_alpha is not None else 1e-4
+            selection_note = f"inner_val_spearman={best_score:.4f}"
+
+        nested_model = Lasso(alpha=chosen_alpha, max_iter=5000)
+        nested_model.fit(x_train, y_train)
+        nested_lasso_pred.extend(nested_model.predict(x_test).tolist())
+        nested_lasso_selections.append((test_year, chosen_alpha, selection_note))
+        logger.info(f"{test_year}: nested-CV lasso selected alpha={chosen_alpha:g} ({selection_note})")
+
+        live_linear = sum(test[c] * w for c, w in live_weight_map.items())
+        live_pred.extend(live_linear.tolist())
+        actual.extend(test["fwd_ret"].tolist())
+        logger.info(f"{test_year}: train_rows={len(train)} test_rows={len(test)} done")
+
+    if live_pred:
+        live_s = pd.Series(live_pred)
+        act_s = pd.Series(actual)
+        print(f"OOS symbol-months: {len(live_pred)}, test years: {test_years}")
+        print(f"{'method':30s} {'Spearman':>10s} {'Pearson':>10s}")
+        print(
+            f"{'live_linear_fixed_pct':30s} {live_s.corr(act_s, method='spearman'):10.4f} {live_s.corr(act_s, method='pearson'):10.4f}"
+        )
+        for name, preds in model_preds.items():
+            s = pd.Series(preds)
+            print(f"{name:30s} {s.corr(act_s, method='spearman'):10.4f} {s.corr(act_s, method='pearson'):10.4f}")
+        print(
+            "\n(All methods scored on the IDENTICAL OOS symbol-months/years - a fair head-to-head."
+            " Ridge/lasso alphas are NOT selected via a held-out validation fold - all 3 per model"
+            " are reported plainly; picking the best-looking one post-hoc from only 3 choices is a"
+            " mild form of hindsight bias, disclosed rather than hidden.)"
+        )
+        print("\n=== Lasso: which pillars got zeroed out (>50% of walk-forward folds)? ===")
+        for a in lasso_alphas:
+            coefs = np.array(lasso_coefs[a])
+            zero_frac = (coefs == 0).mean(axis=0)
+            zeroed = [PILLAR_COLS[i] for i in range(len(PILLAR_COLS)) if zero_frac[i] > 0.5]
+            kept = [PILLAR_COLS[i] for i in range(len(PILLAR_COLS)) if zero_frac[i] <= 0.5]
+            print(f"alpha={a:g}: zeroed={zeroed or 'none'}  kept={kept}")
+
+        print("\n=== NESTED CV lasso: alpha chosen from within-training validation only (no hindsight) ===")
+        for test_year, chosen_alpha, note in nested_lasso_selections:
+            print(f"{test_year}: selected alpha={chosen_alpha:g} ({note})")
+        if nested_lasso_pred:
+            nested_s = pd.Series(nested_lasso_pred)
+            print(
+                f"{'nested_cv_lasso':30s} {nested_s.corr(act_s, method='spearman'):10.4f} {nested_s.corr(act_s, method='pearson'):10.4f}"
+            )
+            print(
+                f"{'live_linear_fixed_pct':30s} {live_s.corr(act_s, method='spearman'):10.4f} {live_s.corr(act_s, method='pearson'):10.4f}"
+                "  (reference, repeated from above)"
+            )
+            print(
+                f"(For reference only, NOT the honest answer: naive post-hoc-selected lasso_a0.001"
+                f" scored {pd.Series(model_preds['lasso_a0.001']).corr(act_s, method='spearman'):.4f}"
+                " Spearman - picked by looking at all 4 outer-OOS results after the fact, which is"
+                " hindsight bias, not a real predictive claim.)"
+            )
+    else:
+        print("No usable walk-forward test years - min_cross_section too high?")
 
 
 def main() -> None:
