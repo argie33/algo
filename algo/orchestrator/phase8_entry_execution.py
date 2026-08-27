@@ -325,6 +325,20 @@ def _check_pdt_limit_breach(account_data: dict[str, Any]) -> tuple[bool, str | N
     submitting an entry that could become the trade that crosses the threshold (see
     pdt_day_trade_limit_reactive_only_not_proactively_enforced_20260824 in memory).
 
+    FIXED 2026-08-27 (goal: pre-live-money audit): the 2026-08-24 version gated this
+    entire check on `pattern_day_trader == True`, reasoning that the flag already
+    encoded Alpaca's equity-aware PDT determination. That reasoning had it backwards -
+    `pattern_day_trader` is a *trailing* flag Alpaca sets only once a 4th day trade in
+    the rolling window has already happened (and on an account under $25k equity, Alpaca
+    sets `trading_blocked=True` in that same moment - already caught by this file's
+    separate frozen-account check). `daytrade_count` is tracked independently and
+    continuously by Alpaca regardless of the flag's state, so the exact "one round-trip
+    from the 4th" scenario this check exists to catch - daytrade_count==3, flag still
+    False - is precisely the state the old gate excluded. It could never fire in the
+    scenario its own docstring and tests described. Now checks daytrade_count directly;
+    pattern_day_trader is still a required field (fail-fast if missing) but no longer
+    gates the comparison, only informs the message.
+
     Args:
         account_data: Alpaca account dict, must contain 'pattern_day_trader' (raises
             KeyError if missing - fail-fast, matching this file's other pre-checks).
@@ -337,18 +351,16 @@ def _check_pdt_limit_breach(account_data: dict[str, Any]) -> tuple[bool, str | N
             "[PHASE 8] Account data missing required 'pattern_day_trader' field. "
             "Cannot verify PDT status before submitting live entries."
         )
-    if not bool(account_data["pattern_day_trader"]):
-        return False, None
     daytrade_count = account_data.get("daytrade_count")
     if daytrade_count is None or int(daytrade_count) < 3:
         return False, None
     return True, (
-        f"[PHASE 8 PDT LIMIT] Account flagged pattern_day_trader=True with "
-        f"daytrade_count={daytrade_count} (>=3 of the rolling 5-business-day limit) - one "
-        "more same-day round-trip would trigger Alpaca's PDT restriction (90-day "
-        "day-trading lockout on accounts under $25k equity). Blocking new entries this "
-        "run; existing positions and their protective stops (Phase 6, already executed) "
-        "are unaffected."
+        f"[PHASE 8 PDT LIMIT] Account daytrade_count={daytrade_count} (>=3 of the "
+        f"rolling 5-business-day limit; pattern_day_trader currently "
+        f"{bool(account_data['pattern_day_trader'])}) - one more same-day round-trip "
+        "would trigger Alpaca's PDT restriction (90-day day-trading lockout on accounts "
+        "under $25k equity). Blocking new entries this run; existing positions and "
+        "their protective stops (Phase 6, already executed) are unaffected."
     )
 
 

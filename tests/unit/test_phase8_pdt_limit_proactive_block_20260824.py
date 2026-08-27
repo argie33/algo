@@ -10,6 +10,14 @@ _check_pdt_limit_breach() (algo/orchestrator/phase8_entry_execution.py) now proa
 blocks new entries once daytrade_count >= 3 (one more round-trip would be the 4th, crossing
 the limit) - see pdt_day_trade_limit_reactive_only_not_proactively_enforced_20260824 in
 memory for the full investigation.
+
+UPDATED 2026-08-27 (goal: pre-live-money audit): the original version additionally required
+pattern_day_trader == True before even looking at daytrade_count. That's backwards - Alpaca
+sets pattern_day_trader only *after* the 4th day trade has already happened, while
+daytrade_count climbs independently and continuously beforehand. Gating on the flag meant
+the check could never fire in the exact pre-breach scenario (daytrade_count==3, flag still
+False) it exists to catch. The check now looks at daytrade_count directly regardless of the
+flag's value - see the function's own updated docstring for the full explanation.
 """
 
 import pytest
@@ -17,8 +25,17 @@ import pytest
 from algo.orchestrator.phase8_entry_execution import _check_pdt_limit_breach
 
 
-def test_not_pattern_day_trader_never_blocks():
-    breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": 4})
+def test_not_yet_flagged_but_at_threshold_blocks():
+    """The scenario the check exists for: daytrade_count==3, Alpaca hasn't flagged the
+    account yet (it only does so once the 4th trade actually happens) - must still block."""
+    breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": 3})
+    assert breach is True
+    assert "PDT" in reason
+    assert "3" in reason
+
+
+def test_not_yet_flagged_below_threshold_does_not_block():
+    breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": 2})
     assert breach is False
     assert reason is None
 
@@ -41,11 +58,14 @@ def test_pattern_day_trader_above_threshold_blocks():
     assert breach is True
 
 
-def test_pattern_day_trader_missing_daytrade_count_does_not_block():
+def test_missing_daytrade_count_does_not_block():
     """Can't verify the count - not treated as a breach here (Phase 2's own missing-count
     warning already surfaces this; blocking on unknown-but-possibly-fine data would halt
     entries in cases where the account is nowhere near the limit)."""
     breach, reason = _check_pdt_limit_breach({"pattern_day_trader": True, "daytrade_count": None})
+    assert breach is False
+    assert reason is None
+    breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": None})
     assert breach is False
     assert reason is None
 
