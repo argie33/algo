@@ -129,3 +129,21 @@ class TestQualityScoreCompletenessFloor:
         assert metrics.get("quality_score") is not None
         assert 0.0 <= metrics["quality_score"] <= 100.0
         assert metrics["quality_score_unavailable_reason"] is None
+
+    def test_zero_components_available_reports_insufficient_completeness(self, monkeypatch):
+        # FIXED 2026-08-27 (goal: "get all the data for all the inputs" data-completeness
+        # sweep): the original `0 < available_quality_weight < min_quality_weight_pct` gate
+        # excluded exactly this case - zero components available - so it fell through to the
+        # `else` branch and got reason=None instead of "insufficient_completeness", the only
+        # one of the three outcomes (full score / partial-below-floor / nothing-at-all) with
+        # no explanation. Live-confirmed 20 universe symbols (e.g. IBN, YICC, APMC) all-NULL
+        # across every one of the 8 quality components.
+        loader = _make_loader(monkeypatch)
+        row = _quality_row()  # no stockholders_equity/revenue/operating_income/free_cash_flow
+        # Override even the always-present net_income/total_assets inputs so ROA can't compute.
+        row = tuple(None if i in (1, 2, 3) else v for i, v in enumerate(row))
+
+        metrics = loader._compute_quality_metrics("NODATACO", row, ev_metrics=None)
+
+        assert metrics.get("quality_score") is None
+        assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"

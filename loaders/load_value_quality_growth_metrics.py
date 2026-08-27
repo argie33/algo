@@ -4029,16 +4029,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # newly-scored composite component (see its own comment above) - migration 1238
             # added the column + reason companion. roce_pct's own metrics[...]/reason fields are
             # already set near its computation above (same pattern as roic_pct).
+            # FIXED 2026-08-27 (goal: "get all the data for all the inputs" data-completeness
+            # sweep): both reasons used to gate on `"X" in failed_metrics`, but neither
+            # compute block above appends to failed_metrics when its *inputs* are missing (only
+            # when the |ratio|>1000 bound fires) - unlike roa/roe/etc.'s own blocks, which have
+            # an explicit `else: failed_metrics.append(...)` for that case. Live-confirmed: 752
+            # fcf_margin / 243 asset_turnover universe rows had the value NULL with NO reason
+            # recorded at all (same "silently unexplained" signature already fixed for
+            # book_value_growth_unavailable_reason - see that memory). Gating on `X is None`
+            # directly instead - same pattern gross_profitability/operating_profitability/
+            # accruals_ratio just below already use correctly - covers both the missing-inputs
+            # and implausible-ratio cases without needing every compute block kept in sync with
+            # this list.
             metrics["fcf_margin"] = fcf_margin
             metrics["fcf_margin_unavailable_reason"] = (
                 ("implausible_ratio" if "fcf_margin" in implausible_ratio_metrics else "missing_sec_data")
-                if "fcf_margin" in failed_metrics
+                if fcf_margin is None
                 else None
             )
             metrics["asset_turnover"] = asset_turnover
             metrics["asset_turnover_unavailable_reason"] = (
                 ("implausible_ratio" if "asset_turnover" in implausible_ratio_metrics else "missing_sec_data")
-                if "asset_turnover" in failed_metrics
+                if asset_turnover is None
                 else None
             )
             metrics["altman_z_score"] = altman_z_score
@@ -4287,7 +4299,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Score can be partial; only mark unavailable if ALL metrics failed OR the
             # available weight didn't clear the completeness floor above (thin-sample
             # extrapolation, not honest partial data - see quality_components' own comment).
-            if weighted_score is None and 0 < available_quality_weight < min_quality_weight_pct:
+            # FIXED 2026-08-27 (goal: "get all the data for all the inputs" sweep): the `0 <`
+            # lower bound excluded the available_quality_weight == 0 case (every single
+            # component missing, e.g. IBN/YICC/APMC) from getting a reason at all - the most
+            # clear-cut "insufficient data" case of the three possible outcomes ended up the
+            # one with no explanation, while the partial (0 < weight < floor) case correctly
+            # got "insufficient_completeness". Live-confirmed 20 universe symbols hit this.
+            if weighted_score is None and available_quality_weight < min_quality_weight_pct:
                 metrics["quality_score_unavailable_reason"] = "insufficient_completeness"
             else:
                 metrics["quality_score_unavailable_reason"] = None
