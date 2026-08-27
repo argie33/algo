@@ -104,7 +104,6 @@ def handle(
                 "quality_score",
                 "value_score",
                 "growth_score",
-                "positioning_score",
                 "risk_score",
                 "symbol",
             ]
@@ -167,7 +166,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     cp.sector,
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
-                    sc.value_score, sc.growth_score, sc.positioning_score, sc.risk_score,
+                    sc.value_score, sc.growth_score, sc.risk_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -507,8 +506,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
         # Apply data unavailable flags to scores
         if d.get("_growth_data_unavailable"):
             d["growth_score"] = None
-        if d.get("_positioning_data_unavailable"):
-            d["positioning_score"] = None
+        # positioning_score column dropped from stock_scores by migration 1237 (2026-08-26,
+        # see MEMORY.md positioning_score_dropped_column_minimal_unblock_on_main_20260826) -
+        # no longer selected above, so always report null rather than a stale/absent key.
+        d["positioning_score"] = None
         if d.get("_risk_data_unavailable"):
             d["risk_score"] = None
         if d.get("_financial_data_unavailable"):
@@ -835,7 +836,7 @@ def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
             SELECT
                 score_date, composite_score, composite_rank, rs_percentile,
                 momentum_score, quality_score, growth_score, value_score,
-                positioning_score, risk_score, data_completeness
+                risk_score, data_completeness
             FROM stock_scores_history
             WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
             ORDER BY score_date ASC
@@ -906,7 +907,6 @@ def _get_stock_scores(  # noqa: C901
             "quality_score": "quality_score",
             "value_score": "value_score",
             "growth_score": "growth_score",
-            "positioning_score": "positioning_score",
             "risk_score": "risk_score",
             "symbol": "symbol",
         }
@@ -1098,7 +1098,7 @@ def _get_stock_scores(  # noqa: C901
                     cp.sector,
                     cp.industry,
                     fs.composite_score, fs.momentum_score, fs.quality_score,
-                    fs.value_score, fs.growth_score, fs.positioning_score, fs.risk_score,
+                    fs.value_score, fs.growth_score, fs.risk_score,
                     fs.rs_percentile, fs.data_completeness,
                     fs.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -1717,8 +1717,9 @@ def _get_stock_scores(  # noqa: C901
             # Dashboard will see explicit unavailability markers
             if d.get("_growth_data_unavailable"):
                 d["growth_score"] = None
-            if d.get("_positioning_data_unavailable"):
-                d["positioning_score"] = None
+            # positioning_score column dropped from stock_scores by migration 1237
+            # (2026-08-26); no longer selected above, always report null.
+            d["positioning_score"] = None
             if d.get("_risk_data_unavailable"):
                 d["risk_score"] = None
             if d.get("_financial_data_unavailable"):

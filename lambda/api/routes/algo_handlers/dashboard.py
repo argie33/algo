@@ -1950,7 +1950,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             )
             SELECT
                 fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
-                fs.quality_score, fs.value_score, fs.risk_score, fs.positioning_score,
+                fs.quality_score, fs.value_score, fs.risk_score,
                 fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
                 pl.close AS current_price,
                 ROUND(CASE
@@ -1990,6 +1990,9 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             score_dict = safe_json_serialize(safe_dict_convert(row))
             # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
             # NULL values are preserved and tracked in the audit query below
+            # positioning_score column dropped from stock_scores by migration 1237 (2026-08-26);
+            # no longer selected above, always report null.
+            score_dict["positioning_score"] = None
             top_scores.append(score_dict)
 
         # AUDIT: Add monitoring for COALESCE fallback usage in RS percentile
