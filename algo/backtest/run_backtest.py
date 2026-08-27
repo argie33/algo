@@ -6,23 +6,21 @@ Simulates the live algo strategy historically:
   - Entry trigger: BUY signal in buy_sell_daily (pivot breakout above swing high with SMA50 filter)
   - Ranking: signal_quality_score (contemporaneous, from buy_sell_daily) - this INTENTIONALLY
     NO LONGER matches live Phase 7's ranking as of 2026-08-27 (see below for why).
-  - Entry fill assumption: THE SIGNAL DAY'S OWN CLOSE (`_get_daily_buy_signals` returns
-    `entry_price = b.close`, the same day's closing price the breakout was detected on) - zero
-    entry lag, only the flat DEFAULT_SLIPPAGE_BPS haircut applied on top. This does NOT match
-    live Phase 8, which enters using whatever `technical_data_daily.close` is freshest when
-    Phase 8 actually runs - live-DB evidence (2026-08-27, real-money-readiness review, n=104
-    closed local trades) shows entries land anywhere from the SAME calendar day (50/116) to
-    1 day later (62/116) to 3 days later (4/116) relative to signal_date, and of the 36 trades
-    that could be matched back to their triggering buy_sell_daily.buylevel, entries averaged
+  - Entry fill assumption: FIXED 2026-08-27 (real-money-readiness review) - entries now fill at
+    the NEXT trading day's close after the signal fired, not the signal day's own close. Live-DB
+    evidence (n=104 closed local trades) showed real Phase 8 entries land anywhere from the SAME
+    calendar day (50/116) to 1 day later (62/116, the modal case) to 3 days later (4/116)
+    relative to signal_date - never simulated at all under the old same-day-close assumption.
+    This backtest now uses the single MODAL case (1 trading day of lag) as a materially more
+    realistic default than zero lag; it is still an approximation (a full lag-distribution model
+    would need real fill-timestamp data this local environment doesn't have) but a
+    directionally-correct one, since a working breakout keeps running while the real pipeline
+    catches up to it, so any positive lag pushes entries worse on average, not better. Of the 36
+    live trades matchable back to their triggering buy_sell_daily.buylevel, entries averaged
     +0.75% (median +0.55%) ABOVE that breakout trigger price, worse than the trigger level on
-    72% of them - understandable for a breakout system (a working breakout keeps running while
-    the pipeline catches up to it) but not modeled here at all. This means this backtest's
-    Sharpe/win-rate numbers are systematically optimistic beyond just the ranking-mechanism
-    caveat above - they assume a fill quality no real run of this pipeline has ever achieved.
-    Not fixed here (n=36 local-paper-mode sample is too thin to calibrate a real lag-cost model
-    from, and changing the simulation's entry-timing model is a bigger, separate change from a
-    docstring fix) - flagged so nobody mistakes the 1.42 Sharpe for what live execution timing
-    would actually produce even before the ranking-mechanism divergence above.
+    72% of them - the flat DEFAULT_SLIPPAGE_BPS haircut alone did not capture this; the lag
+    itself needed to be simulated, not just a bigger flat haircut. See `run_backtest()`'s own
+    docstring for the exact mechanism (`prev_signal_date`/`fill_prices`).
 
 Live Phase 7 ranking history: originally composite_score, Session 377 switched it to
 signal_quality_score (SQS) on a short-term-predictive-power hypothesis, a 2026-08-26 empirical
@@ -139,12 +137,19 @@ def _get_trading_dates(start: date, end: date) -> list[date]:
 
 
 def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict[str, Any]]:
-    """Get BUY signals for a date, sorted by signal_quality_score desc.
+    """Get BUY signals detected on signal_date, sorted by signal_quality_score desc.
 
     Ranks by signal_quality_score (contemporaneous - no look-ahead bias).
     Optionally also fetches composite_score from stock_scores for informational use,
     but does NOT filter or rank by it (stock_scores has no date dimension).
     min_composite is accepted for API compatibility but unused.
+
+    NOTE: the "entry_price" field returned here (signal_date's own close) is INFORMATIONAL
+    ONLY as of 2026-08-27 - run_backtest()'s main loop no longer uses it directly for sizing/
+    cost basis. It fetches signals one trading day BEHIND its current sim_date and re-resolves
+    the actual fill price via a fresh _get_prices_batch() call on sim_date itself, to model the
+    real one-day (modal) lag between signal detection and live Phase 8 execution. See the
+    module docstring's "Entry fill assumption" note.
     """
     try:
         with DatabaseContext("read") as cur:
@@ -299,6 +304,18 @@ def run_backtest(  # noqa: C901
     docstring): a stop-loss or profit-target exit is still priced at the theoretical
     `entry_price * (1 +/- pct/100)` level (now slippage-adjusted), not at a worse price on a day
     the close gapped through that level - no code fix possible without intraday price data.
+
+    ENTRY LAG MODELING (fixed 2026-08-27, real-money-readiness review - this previously entered
+    at the exact signal day's own close, zero lag): each sim_date's entry candidates are now
+    BUY signals from the PRECEDING trading day (`prev_sim_date`), filled at `sim_date`'s own
+    close (fetched fresh via `_get_prices_batch`, not `_get_daily_buy_signals`'s own `close`
+    field, which is now informational only). This models the modal real-world lag between a
+    signal firing and live Phase 8 actually executing it (see module docstring). Still a
+    simplification - real entries land anywhere from same-day to 3+ days out - but strictly
+    more realistic than assuming the fill happens the instant the breakout is detected. Exit
+    timing (SELL signal / stop / target / max-hold detection-and-action) is UNCHANGED same-day -
+    only entries were shown to have this lag pattern in the live evidence gathered so far; a
+    symmetric look at exit lag was not done and may be a worthwhile future check.
     """
     # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
     if initial_capital is None or initial_capital <= 0:
@@ -325,6 +342,11 @@ def run_backtest(  # noqa: C901
     positions: dict[str, dict[str, Any]] = {}  # symbol -> {entry_price, shares, entry_date, stop, target}
     completed_trades: list[dict[str, Any]] = []
     equity_curve = []
+
+    # ENTRY LAG MODELING (see run_backtest()'s own docstring): prev_sim_date tracks the
+    # PRECEDING trading day so entries can be sourced from that day's signals and filled at
+    # today's price - a 1-trading-day lag, not the signal day's own close.
+    prev_sim_date: date | None = None
 
     for sim_date in trading_dates:
         # Mark-to-market: update portfolio value at day open
@@ -402,9 +424,14 @@ def run_backtest(  # noqa: C901
         total_value = capital + invested_value
         equity_curve.append({"date": sim_date.isoformat(), "value": round(total_value, 2)})
 
-        # Check entries: new BUY signals for today
-        if len(positions) < max_positions and capital > 0:
-            buy_signals = _get_daily_buy_signals(sim_date, min_composite)
+        # Check entries: BUY signals from the PRECEDING trading day, filled at TODAY's price
+        # (1-trading-day entry lag - see run_backtest()'s own docstring "ENTRY LAG MODELING").
+        # No prev_sim_date on the very first simulated day - nothing to enter on, correctly
+        # skipped rather than fabricating a lag-free entry for day 1 only.
+        if len(positions) < max_positions and capital > 0 and prev_sim_date is not None:
+            buy_signals = _get_daily_buy_signals(prev_sim_date, min_composite)
+            candidate_symbols = [s["symbol"] for s in buy_signals if s["symbol"] not in positions]
+            fill_prices = _get_prices_batch(candidate_symbols, sim_date) if candidate_symbols else {}
 
             for sig in buy_signals:
                 symbol = sig["symbol"]
@@ -413,9 +440,18 @@ def run_backtest(  # noqa: C901
                 if len(positions) >= max_positions:
                     break
 
-                entry_price = sig["entry_price"]
+                # Yesterday's signal, filled at TODAY's price - NOT sig["entry_price"] (that
+                # field is yesterday's own close, informational only as of 2026-08-27's entry-
+                # lag fix, see _get_daily_buy_signals()'s docstring). A symbol missing from
+                # today's prices (e.g. delisted/halted overnight) is skipped, not fatal - that's
+                # a real, if rare, live possibility too, unlike a corrupt signal row.
+                entry_price = fill_prices.get(symbol)
                 if entry_price is None or entry_price <= 0:
-                    raise ValueError(f"CRITICAL: Invalid entry_price ({entry_price}) for backtest signal")
+                    logger.warning(
+                        f"[BACKTEST] Skipping entry for {symbol}: no valid price on {sim_date} "
+                        f"(signal was from {prev_sim_date})"
+                    )
+                    continue
                 # Buys pay the slippage haircut too (see DEFAULT_SLIPPAGE_BPS/docstring) - sized
                 # and costed against the actual fill price, not the pre-slippage signal price.
                 entry_price = entry_price * (1 + slippage_bps / 10_000)
@@ -451,6 +487,8 @@ def run_backtest(  # noqa: C901
                 sq = sig.get("signal_quality_score")
                 sq_str = f"{sq:.1f}" if sq is not None else "?"
                 logger.debug(f"[BACKTEST] ENTER {symbol}: ${entry_price:.2f} x {shares} shares signal_quality={sq_str}")
+
+        prev_sim_date = sim_date
 
     # Close any remaining open positions at last date's price
     if positions:
