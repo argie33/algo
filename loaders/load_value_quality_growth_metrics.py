@@ -5005,6 +5005,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_1y_unavailable_reason = EXCLUDED.eps_growth_1y_unavailable_reason,
                 eps_growth_3y_unavailable_reason = EXCLUDED.eps_growth_3y_unavailable_reason,
                 eps_growth_5y_unavailable_reason = EXCLUDED.eps_growth_5y_unavailable_reason,
+                book_value_growth_unavailable_reason = EXCLUDED.book_value_growth_unavailable_reason,
                 net_income_growth_yoy_unavailable_reason = EXCLUDED.net_income_growth_yoy_unavailable_reason,
                 operating_income_growth_yoy_unavailable_reason = EXCLUDED.operating_income_growth_yoy_unavailable_reason,
                 gross_margin_trend_unavailable_reason = EXCLUDED.gross_margin_trend_unavailable_reason,
