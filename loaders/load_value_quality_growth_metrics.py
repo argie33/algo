@@ -742,13 +742,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # revenue years on record - this LIMIT was the only thing hiding them. Raised to 30:
                 # the real DB-wide max is 26 rows for any single symbol, so 30 covers every filer with
                 # margin while staying a small, cheap per-symbol fetch.
+                # 8th column (stockholders_equity) ADDED 2026-08-27 (goal: recover
+                # book_value_growth - see _compute_book_value_growth's docstring for why this
+                # candidate was wrongly rejected, then confirmed real+robust on isolated
+                # re-test, t=-5.82/-2.05/-5.93 univariate, still -5.90/-2.04/-6.15 controlling
+                # for asset_growth_yoy). LEFT JOIN so a fiscal year with income-statement data
+                # but no matching balance-sheet row still contributes to every OTHER growth
+                # calc (revenue/EPS growth don't need stockholders_equity) - book_value_growth
+                # alone goes unavailable for that specific year via the NULL, same as any other
+                # per-field gap. Appended as the LAST column so every existing positional index
+                # read elsewhere (income_rows[i][0..6] in _compute_growth_metrics/
+                # _compute_margin_volatility) stays unchanged.
                 cur.execute(
                     """
-                    SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share,
-                           shares_outstanding_diluted, shares_outstanding_basic
-                    FROM annual_income_statement
-                    WHERE symbol = %s AND data_unavailable = FALSE
-                    ORDER BY fiscal_year DESC
+                    SELECT ais.fiscal_year, ais.revenue, ais.operating_income, ais.net_income,
+                           ais.earnings_per_share, ais.shares_outstanding_diluted,
+                           ais.shares_outstanding_basic, abs.stockholders_equity
+                    FROM annual_income_statement ais
+                    LEFT JOIN annual_balance_sheet abs
+                        ON ais.symbol = abs.symbol AND ais.fiscal_year = abs.fiscal_year
+                        AND abs.data_unavailable = FALSE
+                    WHERE ais.symbol = %s AND ais.data_unavailable = FALSE
+                    ORDER BY ais.fiscal_year DESC
                     LIMIT 30
                     """,
                     (symbol,),
@@ -3547,29 +3562,59 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # No separate SG&A field exists in this pipeline - operating_income (GAAP, already
             # nets out COGS+SG&A) minus interest_expense is the available proxy for FF's
             # (Rev-COGS-SGA-Interest) construction.
+            # operating_profitability_score/roic_score/accruals_score REMOVED 2026-08-26
+            # (Quality pillar exhaustive-input review, user-directed rebuild) - failed to clear
+            # this repo's own |t|>2 bar in the 2026-08-26 re-check (operating_profitability
+            # t=-0.55, accruals_ratio t=-1.85) or were replaced by a more robust alternative
+            # (roic_score -> roce_score, see below). gross_profitability_score and
+            # margin_volatility_score were also removed the same day (t=1.02/t=-1.28-1.51 in
+            # that same re-check) but have SINCE been re-added - see each field's own comment
+            # below for why. The raw values (operating_profitability, accruals_ratio, roic_pct)
+            # are still computed and persisted for display - only their scoring curves and
+            # composite weight are removed. See weighted_score below for the full final
+            # composite and the validation behind each surviving component.
             operating_profitability = (
                 (operating_income - (interest_expense or 0.0)) / stockholders_equity * 100.0
                 if operating_income is not None and stockholders_equity is not None and stockholders_equity > 0
                 else None
             )
-            # operating_profitability_score/gross_profitability_score/roic_score/accruals_score/
-            # margin_volatility_score REMOVED 2026-08-26 (Quality pillar exhaustive-input
-            # review, user-directed rebuild) - all five failed to clear this repo's own |t|>2
-            # bar in the 2026-08-26 re-check (gross_profitability t=1.02, operating_profitability
-            # t=-0.55, accruals_ratio t=-1.85, margin_volatility t=-1.28/-1.51) or were replaced
-            # by a more robust alternative (roic_score -> roce_score, see below). The raw values
-            # (operating_profitability, gross_profitability, accruals_ratio, margin_volatility,
-            # roic_pct) are all still computed and persisted for display - only their scoring
-            # curves and composite weight are removed. See weighted_score below for the full
-            # final composite and the validation behind each surviving component.
-            operating_profitability = (
-                (operating_income - (interest_expense or 0.0)) / stockholders_equity * 100.0
-                if operating_income is not None and stockholders_equity is not None and stockholders_equity > 0
-                else None
-            )
-            gross_profitability = (
-                (revenue - cost_of_revenue) / total_assets * 100.0
-                if revenue is not None and cost_of_revenue is not None and total_assets is not None and total_assets > 0
+            # RE-ADDED TO SCORING 2026-08-27 (goal: recover components wrongly killed by a
+            # joint-dropna sample-bias bug found this pass - see MEMORY.md for the audit trail).
+            # The 2026-08-26 removal above cited t=1.02 as the reason gross_profitability
+            # failed this repo's |t|>2 bar - but that number came from a JOINT dropna across 7
+            # unrelated candidate columns at once (algo/research/fama_macbeth_quality_factors.py's
+            # EXTENDED_CANDIDATE_COLS), shrinking the effective sample and skewing it toward
+            # large/complete-filer firms, the same bug that hid margin_volatility_3y's real
+            # signal. Isolated (own dropna scope) re-test: t=3.25 full-sample/3.93 first-half
+            # (pre-2020-06)/1.11 second-half - strong, sign-consistent, decaying (not flipping)
+            # in the recent era, same McLean-Pontiff decay class already accepted for
+            # asset_growth_yoy/rsi_14. Novy-Marx (2013, JFE) "gross profitability" - a firm
+            # that converts revenue to gross profit efficiently relative to its asset base is
+            # a genuine quality signal independent of the margin-based ratios already scored
+            # here. FIXED same pass: unlike every sibling ratio in this file, this computation
+            # had no implausible-ratio bound - live-caught max=132,599.68%/min=-32,817.74%
+            # (near-zero-total_assets artifacts, 4 of 2936 rows), same recurring bug class as
+            # fcf_margin/margin_volatility/asset_turnover - now guarded the same way.
+            gross_profitability = None
+            if (
+                revenue is not None
+                and cost_of_revenue is not None
+                and total_assets is not None
+                and total_assets > 0
+            ):
+                computed_gross_profitability = (revenue - cost_of_revenue) / total_assets * 100.0
+                if abs(computed_gross_profitability) > 1000:
+                    failed_metrics.append("gross_profitability")
+                    implausible_ratio_metrics.append("gross_profitability")
+                else:
+                    gross_profitability = float(computed_gross_profitability)
+            # Curve breakpoints from live distribution (p25=7.9/p50=20.2/p75=36.3/p90=56.9,
+            # 2936-symbol sample) - a domain-judgment starting point roughly tracking p25/p75/
+            # p90, not separately FM-fit to inflection points, same caveat already applied to
+            # fcf_margin/payout/asset_turnover's curves.
+            gross_profitability_score = (
+                _margin_curve(gross_profitability, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
+                if gross_profitability is not None
                 else None
             )
             accruals_ratio = (
@@ -3777,13 +3822,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # -1.51, weakest surviving-in-composite component before this rebuild, no replacement
             # candidate identified this pass).
             #
-            # 12-component composite (margin_volatility_score re-added, operating_margin_
-            # trend_score/net_margin_trend_score/roe_trend_score relocated from Growth, and
-            # asset_turnover_score added, all 2026-08-27, see their own comments above -
+            # 8-component composite as of 2026-08-27 (a busy day for this list - see git
+            # history/MEMORY.md for the full churn: margin_volatility_score/asset_turnover_score
+            # added, the 3 margin/ROE trend fields relocated in from Growth then removed again
+            # same day, interest_coverage_score/payout_score removed on confirmed-dead isolated
+            # re-test, gross_profitability_score re-added on a confirmed-real isolated re-test -
+            # see each component's own comment above for its individual evidence). Final list:
+            # roe(11)+roa(18)+roce(18)+fcf_margin(15)+debt_to_equity(18)+margin_volatility(7)+
+            # asset_turnover(7)+gross_profitability(7) = 101-point nominal total.
             # min_quality_weight_pct below still calibrated against the original 90-point
-            # nominal weight sum, now 113 (90+7+3+3+3+7); the 40.0 floor shifts from ~44% to
-            # ~35% of nominal total - still comfortably above any thin-sample case found so far,
-            # not re-derived this pass, revisit if a new thin-sample outlier surfaces).
+            # nominal weight sum's proportions; the 40.0 floor is ~40% of the new 101-point
+            # total - still comfortably above any thin-sample case found so far, not re-derived
+            # this pass, revisit if a new thin-sample outlier surfaces).
             # Weights set from BOTH full-151-month t-stat magnitude
             # AND a half-split (2014-2020 vs 2020-2026) time-stability check - a component whose
             # t-stat holds up identically across both eras (roce: 1.50/1.50) is weighted higher
@@ -3819,19 +3869,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Deliberately left OPEN where (or whether) a distress-flag use belongs - e.g. a
             # discrete gate on GOVERNANCE's trading-eligibility checks, separate from the
             # continuous quality_score - not decided today, revisit later.
+            # operating_margin_trend_score/net_margin_trend_score/roe_trend_score REMOVED from
+            # scoring 2026-08-27 (user directive, live-observed: all 3 showed "No data" on the
+            # StockDetail page for stocks being reviewed - real, not a display bug, coverage is
+            # 80-93% live but clusters into "insufficient_prior_year_data" gaps often enough to
+            # be visibly distracting at 3% weight each; roe_trend was also already flagged in an
+            # earlier growth-pillar memory as "weak, consistently NEGATIVE" - contradicts this
+            # pillar's own convention that improving margins/ROE should score higher). Isolated
+            # (non-joint-dropna) FM re-validation of these 3, completed same pass: all three
+            # genuinely null, not just masked by the original joint-dropna test -
+            # operating_margin_trend t=0.55/0.53/0.27, net_margin_trend t=0.08/0.59/-0.42,
+            # roe_trend t=-0.01/0.28/-0.26 (full/1st-half/2nd-half) - unlike gross_profitability/
+            # margin_volatility_3y below, isolating did NOT recover a signal here. Confirmed
+            # dead, not a pending re-check. Fields are still computed/persisted
+            # (quality_metrics.operating_margin_trend/net_margin_trend/roe_trend) for reference,
+            # just not scored. See _score_quality's docstring in loaders/load_stock_scores.py
+            # for the current component list.
+            #
+            # interest_coverage_score/payout_score REMOVED 2026-08-27 (isolated FM re-test,
+            # same pass that recovered gross_profitability/kept margin_volatility_3y): both
+            # confirmed dead on properly isolated methodology, not just joint-dropna casualties
+            # - interest_coverage t=0.63/-0.12/0.87, payout_ratio t=0.53/0.68/0.06
+            # (full/1st-half/2nd-half) - neither ever approached significance even with ~2x the
+            # joint-test's sample size. Legacy weights with no real evidentiary basis, unlike
+            # margin_volatility_3y/gross_profitability which recovered under isolation. Raw
+            # values still computed/persisted (quality_metrics.interest_coverage/payout_ratio)
+            # for reference, just not scored.
             quality_components = [
                 (roe_score, 11.0),
                 (roa_score, 18.0),
                 (roce_score, 18.0),
                 (fcf_margin_score, 15.0),
                 (debt_to_equity_score, 18.0),
-                (interest_coverage_score, 5.0),
-                (payout_score, 5.0),
                 (margin_volatility_score, 7.0),
-                (operating_margin_trend_score, 3.0),
-                (net_margin_trend_score, 3.0),
-                (roe_trend_score, 3.0),
                 (asset_turnover_score, 7.0),
+                (gross_profitability_score, 7.0),
             ]
             # COMPLETENESS FLOOR added 2026-08-26 (quality-completeness pass, live-verified):
             # renormalizing over 1-3 available components let a single extreme raw ratio
@@ -3861,7 +3933,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # added the 4 columns + reason companions.
             metrics["gross_profitability"] = gross_profitability
             metrics["gross_profitability_unavailable_reason"] = (
-                "missing_sec_data" if gross_profitability is None else None
+                ("implausible_ratio" if "gross_profitability" in implausible_ratio_metrics else "missing_sec_data")
+                if gross_profitability is None
+                else None
             )
             metrics["operating_profitability"] = operating_profitability
             metrics["operating_profitability_unavailable_reason"] = (
@@ -4264,9 +4338,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         Calculates CAGR for 1y, 3y, 5y periods using compound annual growth rate formula.
         income_rows: List of (fiscal_year, total_revenue, operating_income, net_income,
-        earnings_per_share[, shares_outstanding_diluted, shares_outstanding_basic]) sorted
-        DESC by fiscal_year (most recent first). The two shares columns are optional (older
-        5-tuple test fixtures still work) and feed the EPS_SPLIT_GUARD_SHARE_RATIO guard.
+        earnings_per_share[, shares_outstanding_diluted, shares_outstanding_basic[,
+        stockholders_equity]]) sorted DESC by fiscal_year (most recent first). The two shares
+        columns are optional (older 5-tuple test fixtures still work) and feed the
+        EPS_SPLIT_GUARD_SHARE_RATIO guard; stockholders_equity (added 2026-08-27) is also
+        optional (older 5/7-tuple test fixtures still work) and feeds book_value_growth's BVPS
+        computation only - every other field here is unaffected by its absence.
         """
         if not income_rows:
             return self._unavailable_marker("growth_metrics", symbol)
@@ -4279,6 +4356,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "eps_growth_1y": None,
             "eps_growth_3y": None,
             "eps_growth_5y": None,
+            "book_value_growth": None,
             "updated_at": get_loader_timestamp(),
             "data_unavailable": False,
             "data_source": "sec_audited",
@@ -4286,6 +4364,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         revenues: list[tuple[int, float]] = []
         eps_values: list[tuple[int, float]] = []
+        # book_value_growth ADDED 2026-08-27 (goal: recover a Growth candidate wrongly killed
+        # by a joint-dropna sample-bias bug found this session - see
+        # algo/research/growth_reinvestment_book_value_candidates.py:105-109 for the original
+        # formula this mirrors: bvps = stockholders_equity/shares_outstanding_diluted,
+        # book_value_growth = bvps/prior_bvps - 1. Isolated re-test found this the strongest,
+        # most time-consistent signal anywhere in this repo's Growth research (t=-5.82 full/
+        # -2.05 1st-half/-5.93 2nd-half univariate; still -5.90/-2.04/-6.15 controlling for
+        # asset_growth_yoy, which it statistically subsumes - asset_growth_yoy's own
+        # coefficient collapses to insignificance once this is in the regression). Reuses
+        # _compute_period_growth's existing offset=1 CAGR machinery (same sign-change/
+        # split-guard protection EPS already gets) rather than a bespoke computation - BVPS is
+        # just another (fiscal_year, value) series, no new math needed.
+        bvps_values: list[tuple[int, float]] = []
         shares_by_year: dict[int, float] = {}
         for row in income_rows:
             try:
@@ -4294,14 +4385,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps = float(row[4]) if row[4] is not None else None
                 # shares_outstanding_diluted/basic (row[5]/row[6]) are only present in the live
                 # production query - defensive len() check keeps older 5-tuple test fixtures
-                # working unchanged (see EPS_SPLIT_GUARD_SHARE_RATIO comment above).
+                # working unchanged (see EPS_SPLIT_GUARD_SHARE_RATIO guard above).
                 shares = None
                 if len(row) > 5 and row[5] is not None:
                     shares = float(row[5])
                 elif len(row) > 6 and row[6] is not None:
                     shares = float(row[6])
+                # stockholders_equity (row[7]) is only present in the live production query
+                # (LEFT JOIN annual_balance_sheet, added 2026-08-27 for book_value_growth) -
+                # same defensive len() check as shares above, older test fixtures still work.
+                stockholders_equity = None
+                if len(row) > 7 and row[7] is not None:
+                    stockholders_equity = float(row[7])
                 rev = self._nan_to_none(rev)
                 eps = self._nan_to_none(eps)
+                stockholders_equity = self._nan_to_none(stockholders_equity)
                 if fiscal_year is None:
                     continue
                 if rev is not None and rev > 0:
@@ -4310,6 +4408,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     eps_values.append((fiscal_year, eps))
                 if shares is not None and shares > 0 and fiscal_year not in shares_by_year:
                     shares_by_year[fiscal_year] = shares
+                # Book value per share can be legitimately negative (heavily-levered/buyback-
+                # heavy firms) - only require shares > 0 (a real, positive share count to
+                # divide by), same convention as _compute_period_growth's own sign-change
+                # guard handling negative-to-positive transitions correctly rather than
+                # excluding negative values outright.
+                if stockholders_equity is not None and shares is not None and shares > 0:
+                    bvps_values.append((fiscal_year, stockholders_equity / shares))
             except (ValueError, TypeError):
                 continue
 
@@ -4324,6 +4429,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             eps_values,
             1,
             "eps_growth_1y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            split_discontinuity_metrics,
+            shares_by_year,
+        )
+        # book_value_growth: same split-guard as EPS (shares_by_year) since BVPS is equally
+        # sensitive to a stock-split changing the per-share denominator across the two CAGR
+        # endpoints - see this method's own comment above for the full evidence trail.
+        self._compute_period_growth(
+            symbol,
+            bvps_values,
+            1,
+            "book_value_growth",
             metrics,
             failed_metrics,
             sign_change_metrics,
@@ -4359,7 +4478,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             shares_by_year,
         )
 
-        if not revenues and not eps_values:
+        if not revenues and not eps_values and not bvps_values:
             return self._unavailable_marker("growth_metrics", symbol)
 
         def _growth_reason(metric_key: str) -> str | None:
@@ -4378,9 +4497,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         metrics["eps_growth_1y_unavailable_reason"] = _growth_reason("eps_growth_1y")
         metrics["eps_growth_3y_unavailable_reason"] = _growth_reason("eps_growth_3y")
         metrics["eps_growth_5y_unavailable_reason"] = _growth_reason("eps_growth_5y")
+        metrics["book_value_growth_unavailable_reason"] = _growth_reason("book_value_growth")
 
         if failed_metrics:
-            if len(failed_metrics) == 6:
+            # 7 possible periods as of 2026-08-27 (book_value_growth added) - was 6.
+            if len(failed_metrics) == 7:
                 # FIXED 2026-08-21 (goal session - bulk EPS/revenue cross-check audit):
                 # this used to `return self._unavailable_marker("growth_metrics", symbol)`
                 # here - a completely fresh dict that hardcodes EVERY *_unavailable_reason
@@ -4758,6 +4879,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             """
             INSERT INTO growth_metrics
             (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y,
+             book_value_growth,
              net_income_growth_yoy, operating_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability,
@@ -4765,13 +4887,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
              eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason,
+             book_value_growth_unavailable_reason,
              net_income_growth_yoy_unavailable_reason, operating_income_growth_yoy_unavailable_reason, gross_margin_trend_unavailable_reason,
              operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason, roe_trend_unavailable_reason,
              sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
              ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
              consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
              earnings_surprise_avg_unavailable_reason, earnings_beat_rate_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -4779,6 +4902,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_1y = EXCLUDED.eps_growth_1y,
                 eps_growth_3y = EXCLUDED.eps_growth_3y,
                 eps_growth_5y = EXCLUDED.eps_growth_5y,
+                book_value_growth = EXCLUDED.book_value_growth,
                 net_income_growth_yoy = EXCLUDED.net_income_growth_yoy,
                 operating_income_growth_yoy = EXCLUDED.operating_income_growth_yoy,
                 gross_margin_trend = EXCLUDED.gross_margin_trend,
@@ -4830,6 +4954,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_1y"),
                 row.get("eps_growth_3y"),
                 row.get("eps_growth_5y"),
+                row.get("book_value_growth"),
                 row.get("net_income_growth_yoy"),
                 row.get("operating_income_growth_yoy"),
                 row.get("gross_margin_trend"),
@@ -4856,6 +4981,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_1y_unavailable_reason"),
                 row.get("eps_growth_3y_unavailable_reason"),
                 row.get("eps_growth_5y_unavailable_reason"),
+                row.get("book_value_growth_unavailable_reason"),
                 row.get("net_income_growth_yoy_unavailable_reason"),
                 row.get("operating_income_growth_yoy_unavailable_reason"),
                 row.get("gross_margin_trend_unavailable_reason"),

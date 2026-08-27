@@ -94,35 +94,25 @@ class TestValueScoreWeightBadges:
 
 
 class TestGrowthScoreWeightBadges:
-    def test_weights_match_code(self):
-        # RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction) -
-        # back to the pre-08-25 14-input set; see _score_growth's docstring. No class existed
-        # here for Growth before this, which is exactly how the 08-25 cut to 4 inputs (and a
-        # later same-day revert of the Quality trend fields - see that docstring) was able to
-        # drift from what the JSX schema claimed without any test catching it.
-        #
-        # om_trend/nm_trend/roe_trend REMOVED from this dict 2026-08-27 (goal: resolve the
-        # Growth-vs-Quality placement question, see growth_missing_metrics_swept_20260827) -
-        # relocated to Quality's composite (load_value_quality_growth_metrics.py), which this
-        # test class doesn't cover (Quality's sub-component shape is deliberately out of scope
-        # here per this file's own module docstring). Growth is now an 11-input set.
+    def test_book_value_growth_is_the_sole_scored_input(self):
+        """REBUILT 2026-08-27 (goal: correct a wrongly-preserved legacy 11-input formula with
+        no empirical basis - see _score_growth's docstring for the full evidence trail:
+        eps_growth_1y/revenue_growth_1y dominated-by/redundant-with book_value_growth once
+        properly isolated-FM-tested together, every other old input never cleared this repo's
+        own significance bar even in isolation). Growth collapsed to a single scored input
+        (book_value_growth, migration 1242) - the same single-input shape as Size
+        (TestSizeScoreRePromoted below), so this test follows that class's pattern rather than
+        the old multi-weight `_weight_for_score_var` regex (which has nothing to match against
+        a single-term function body with no `* 0.NN` weight constant)."""
         src = inspect.getsource(StockScoresLoader._score_growth)
-        score_var_to_jsx_key = {
-            "eps_1y": "eps_growth_1y_pct",
-            "rev_1y": "revenue_growth_1y_pct",
-            "eps_3y": "eps_growth_3y_cagr",
-            "rev_3y": "revenue_growth_3y_cagr",
-            "eps_5y": "eps_growth_5y_cagr",
-            "rev_5y": "revenue_growth_5y_cagr",
-            "ni_growth": "net_income_growth_yoy",
-            "oi_growth": "operating_income_growth_yoy",
-            "sgr": "sustainable_growth_rate",
-            "fcf_growth": "fcf_growth_yoy",
-            "ocf_growth": "ocf_growth_yoy",
-            "asset_growth": "asset_growth_yoy",
-        }
-        for score_var, jsx_key in score_var_to_jsx_key.items():
-            _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+        assert "book_value_growth" in src
+        # None of the old 11 inputs should still be scored (they remain computed/persisted
+        # upstream for reference - this checks the SCORING function specifically, not the
+        # loader that computes/stores them).
+        for dead_var in ("eps_1y", "rev_1y", "eps_3y", "rev_3y", "eps_5y", "rev_5y", "ni_growth", "oi_growth", "sgr"):
+            assert dead_var not in src, f"{dead_var} should no longer be scored in _score_growth - see docstring"
+        assert '"book_value_growth_pct"' in _JSX_SOURCE
+        assert 'label: "Book Value Growth' in _JSX_SOURCE
 
 
 class TestSizeScoreRePromoted:

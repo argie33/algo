@@ -31,6 +31,17 @@ Data Quality:
     (never silently blended into the "sec_audited" label) - see
     _fetch_live_dual_class_shares_outstanding's docstring and
     dual_class_primary_ticker_shares_outstanding_structural_gap_found_20260822 in memory.
+  - THIRD exception (2026-08-27): foreign private issuers get shares_outstanding from
+    yfinance, ONLY when every SEC-derived tier has already failed and
+    is_foreign_private_issuer=True - live-confirmed 945 universe symbols had NULL market_cap,
+    81% (768) tagged "foreign_private_issuer_shares_unavailable", 99% of those still actively
+    tradable (a live price in the last 5 trading days), not delisted - a permanent structural
+    gap (SEC 20-F filings commonly lack a usable US-GAAP shares-outstanding tag), not a data
+    staleness issue. Same underlying justification as the dual-class exception - yfinance
+    queries per-LISTING (the ADS ticker), so its sharesOutstanding is already on the correct
+    ADS/USD basis. Rows produced this way carry
+    `data_source="sec_audited_except_fpi_shares_yfinance"` - see
+    _fetch_live_fpi_shares_outstanding_yfinance's docstring.
 
 Run: python3 loaders/load_sec_valuations.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
@@ -837,13 +848,48 @@ class SecValuationsLoader(OptimalLoader):
                             f"sibling, SEC companyfacts has no per-class data): {shares_out:,.0f}"
                         )
 
+                # THIRD narrow, deliberate exception to this file's "SEC data only" rule - ADDED
+                # 2026-08-27 (goal: recover the market_cap data gap found live - 945 universe
+                # symbols with market_cap=NULL, 81% (768) tagged
+                # foreign_private_issuer_shares_unavailable, 99% of those still actively
+                # tradable with a live price in the last 5 trading days - not delisted, a
+                # permanent structural gap this fallback closes for most of them). Every
+                # SEC-sourced tier above is deliberately gated off for FPIs (home-market-vs-ADS
+                # unit-mismatch risk - see the tier comments above); this is the exact same
+                # "SEC's own API structurally cannot carry the data we need" situation as
+                # dual-class shares just above, not a new category of risk. yfinance queries
+                # per-LISTING (the ADS ticker itself), so its sharesOutstanding is already on
+                # the correct ADS/USD basis - same reasoning that already justifies using
+                # yfinance for the dual-class case and for this file's existing FPI live
+                # market_cap/PE sanity-check (_fetch_live_fpi_yfinance_check_values). Marked via
+                # a distinct data_source value below, same transparency convention as the
+                # dual-class exception - never silently blended into "sec_audited".
+                shares_out_from_fpi_yfinance = False
+                if not shares_out and is_foreign_private_issuer:
+                    fpi_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)
+                    if (
+                        fpi_shares
+                        and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                        < fpi_shares
+                        < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                    ):
+                        shares_out = fpi_shares
+                        shares_out_from_fpi_yfinance = True
+                        logger.debug(
+                            f"[{symbol}] Using yfinance shares_outstanding (foreign private "
+                            f"issuer, no usable SEC-tagged share count): {shares_out:,.0f}"
+                        )
+
                 # Fail if still no shares outstanding available.
                 # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit):
-                # every tier above that could resolve a foreign private issuer's shares
-                # outstanding is deliberately gated off (home-market-units risk - see the
-                # tier comments above), so for a real FPI this branch is the EXPECTED,
-                # structural outcome, not a data gap - the same fact
-                # load_short_interest_finra.py/load_institutional_holdings_13f.py already
+                # every SEC-sourced tier above that could resolve a foreign private issuer's
+                # shares outstanding is deliberately gated off (home-market-units risk - see
+                # the tier comments above) - UPDATED 2026-08-27: the yfinance FPI tier just
+                # above now recovers most of these live (768 of 945 previously-NULL
+                # market_cap symbols were tagged this reason), so reaching this branch now
+                # means yfinance ALSO had no usable value for this symbol (fetch failure,
+                # rate limit, or a genuinely untracked ticker), not just "is an FPI." Still the
+                # same fact load_short_interest_finra.py/load_institutional_holdings_13f.py already
                 # label "foreign_private_issuer_shares_unavailable" (root-caused to this
                 # exact method's 2026-08-19 FPI unit-mismatch fix per their own comments).
                 # This method itself still used the generic "shares_outstanding_unavailable"
@@ -1129,6 +1175,7 @@ class SecValuationsLoader(OptimalLoader):
                 dcf_eps_cagr_pct,
                 equity_risk_premium,
                 net_borrowing,
+                shares_out_from_fpi_yfinance,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1636,6 +1683,7 @@ class SecValuationsLoader(OptimalLoader):
         dcf_eps_cagr_pct: float | None = None,
         equity_risk_premium: float | None = None,
         net_borrowing: float | None = None,
+        shares_out_from_fpi_yfinance: bool = False,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1693,6 +1741,15 @@ class SecValuationsLoader(OptimalLoader):
         to FCF. PEG's own growth_rate (a few lines above) is untouched - it deliberately stays
         single-year. Defaults to None so existing callers/tests keep computing the DCF off the
         single-year delta exactly as before.
+
+        shares_out_from_fpi_yfinance: True only for the narrow 2026-08-27 foreign-private-
+        issuer exception (see _fetch_live_fpi_shares_outstanding_yfinance) - shares_out itself
+        came from yfinance, not SEC data, same "data_source must say so" reasoning as
+        shares_out_from_dual_class_yfinance above. Every other input here is still 100%
+        SEC-derived either way. Not paired with entity_shares_out_for_fcf like the dual-class
+        case - an FPI's ADS-basis share count already represents the whole entity (unlike a
+        dual-class sibling ticker, which is deliberately one class of several), so ocf/capex's
+        entity-wide SEC figures pair correctly with it as-is.
         """
         entity_shares_out = entity_shares_out_for_fcf if entity_shares_out_for_fcf else shares_out
         result: dict[str, Any] = {
@@ -1703,6 +1760,8 @@ class SecValuationsLoader(OptimalLoader):
             "data_source": (
                 "sec_audited_except_dual_class_shares_yfinance"
                 if shares_out_from_dual_class_yfinance
+                else "sec_audited_except_fpi_shares_yfinance"
+                if shares_out_from_fpi_yfinance
                 else "sec_audited"
             ),
             # Price-based metrics
@@ -2090,6 +2149,66 @@ class SecValuationsLoader(OptimalLoader):
                 except Exception:
                     pass
             logger.debug(f"[{symbol}] Live dual-class yfinance shares fetch failed (non-fatal): {e}")
+            return None
+
+        try:
+            get_circuit_breaker().report_success()
+        except Exception:
+            pass
+        if not isinstance(info, dict):
+            return None
+        shares = info.get("sharesOutstanding")
+        return float(shares) if isinstance(shares, (int, float)) and shares > 0 else None
+
+    # ADDED 2026-08-27 (goal: recover the market_cap data gap - 768 foreign private issuer
+    # symbols with market_cap=NULL, 99% still actively tradable). Third narrow exception to
+    # this file's "SEC data only" rule - see the call site's comment above for the full
+    # justification (SEC's 20-F/companyfacts data structurally lacks a usable US-GAAP shares
+    # tag for most FPIs, the same class of gap as dual-class shares just above).
+    def _fetch_live_fpi_shares_outstanding_yfinance(self, symbol: str) -> float | None:
+        """Live per-ticker shares_outstanding for a foreign private issuer, from yfinance.
+
+        ONLY called when is_foreign_private_issuer=True and every SEC-derived tier above has
+        already failed - never a substitute for a real SEC value when one exists. yfinance
+        queries per-LISTING (the ADS ticker), so its sharesOutstanding is already on the
+        correct ADS/USD basis, avoiding the home-market-units mismatch every SEC-sourced tier
+        above is gated off to avoid. Fails open (returns None) on any fetch error, same as
+        _fetch_live_dual_class_shares_outstanding/_fetch_live_fpi_yfinance_check_values above -
+        a fetch failure here just means this symbol stays data_unavailable, not a reason to
+        block the whole run.
+        """
+        try:
+            import socket
+
+            import yfinance as yf
+
+            from utils.external.yfinance_circuit_breaker import (
+                YFinanceStillBannedError,
+                get_circuit_breaker,
+            )
+            from utils.external.yfinance_symbol import to_yfinance_symbol
+
+            circuit_breaker = get_circuit_breaker()
+            try:
+                circuit_breaker.wait_or_raise()
+            except YFinanceStillBannedError as e:
+                logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping FPI shares fetch: {e}")
+                return None
+
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10.0)
+            try:
+                info = yf.Ticker(to_yfinance_symbol(symbol)).info
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+        except Exception as e:
+            error_str = str(e).lower()
+            if any(kw in error_str for kw in ("429", "rate", "too many", "invalid crumb", "unauthorized")):
+                try:
+                    get_circuit_breaker().report_rate_limit_error()
+                except Exception:
+                    pass
+            logger.debug(f"[{symbol}] Live FPI yfinance shares fetch failed (non-fatal): {e}")
             return None
 
         try:

@@ -68,10 +68,18 @@ class TestForeignPrivateIssuerSharesGate:
     def test_tsm_shaped_derived_shares_out_is_rejected_not_trusted(self) -> None:
         """The real TSM shape: real, plausible-looking net_income/eps that would derive a
         real-looking ~25.9B share count via the mathematical identity - but this filer is
-        flagged foreign, so that derivation must not run at all. No other fallback has
-        anything (company_info_sec's own dei extraction is separately guarded and correctly
-        empty for this filer too) - result must be an honest unavailable marker, not the
-        ~5x-inflated market cap."""
+        flagged foreign, so that derivation must not run at all. No other SEC-sourced
+        fallback has anything (company_info_sec's own dei extraction is separately guarded
+        and correctly empty for this filer too).
+
+        UPDATED 2026-08-27: a real yfinance shares_outstanding fallback now exists for this
+        exact case (_fetch_live_fpi_shares_outstanding_yfinance, third exception to this
+        file's "SEC data only" rule - see that method's docstring) - mocked here to also fail
+        (returns None), so this test still covers its original purpose: when EVERY tier,
+        including the yfinance fallback, comes up empty, the result must be an honest
+        unavailable marker, not the ~5x-inflated market cap the pre-fix derivation produced.
+        See test_fpi_yfinance_shares_fallback_recovers_market_cap below for the case where
+        the yfinance fallback succeeds."""
         income_rows = [
             (2024, 88_268_000_000.0, 35_301_100_000.0, 1.36, None, None, None, None, None, None, True),
         ]
@@ -82,8 +90,12 @@ class TestForeignPrivateIssuerSharesGate:
             (None,),  # shares_outstanding_dei fallback (already independently guarded, empty)
         ]
 
-        result = _run_fetch_incremental("TSM", income_rows, fetchone_results)
+        with patch.object(
+            SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance", return_value=None
+        ) as mock_fpi_shares_fetch:
+            result = _run_fetch_incremental("TSM", income_rows, fetchone_results)
 
+        mock_fpi_shares_fetch.assert_called_once_with("TSM")
         row = result[0]
         assert row.get("data_unavailable") is True
         assert row.get("market_cap") is None
@@ -98,6 +110,44 @@ class TestForeignPrivateIssuerSharesGate:
         # unresolved" gap (live-confirmed 763 of 799 universe symbols carrying the generic
         # reason were actually this exact FPI case).
         assert row.get("reason") == "foreign_private_issuer_shares_unavailable"
+
+    def test_fpi_yfinance_shares_fallback_recovers_market_cap(self) -> None:
+        """ADDED 2026-08-27: companion case to the TSM test above - when every SEC-sourced
+        tier fails but the yfinance fallback succeeds, market_cap/pe_ratio must actually be
+        computed (not left unavailable), and data_source must be marked
+        sec_audited_except_fpi_shares_yfinance so this narrow exception stays auditable."""
+        income_rows = [
+            (2024, 88_268_000_000.0, 35_301_100_000.0, 1.36, None, None, None, None, None, None, True),
+        ]
+        fetchone_results = [
+            (30_000_000_000.0,),  # cash_and_equivalents (unconditional, fetched before shares_out gate)
+            (970_500_000.0, None, None, None),  # debt_row (unconditional, same)
+            (None,),  # company_info_sec fallback (FPI-safe tier, not gated off)
+            (None,),  # shares_outstanding_dei cover-page fallback (FPI-safe tier, not gated off)
+            (413.41,),  # price_daily.close
+            (500_000_000_000.0,),  # stockholders_equity
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10)
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX
+            None,  # net borrowing check - no adjacent-year debt data
+            (None, None),  # yfinance_snapshot market_cap/pe_ratio (query still runs, then overridden by the FPI live-fetch mock below)
+        ]
+
+        with patch.object(
+            SecValuationsLoader,
+            "_fetch_live_fpi_shares_outstanding_yfinance",
+            return_value=5_186_474_013.0,
+        ) as mock_fpi_shares_fetch, patch.object(
+            SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)
+        ):
+            result = _run_fetch_incremental("TSM", income_rows, fetchone_results)
+
+        mock_fpi_shares_fetch.assert_called_once_with("TSM")
+        row = result[0]
+        assert not row.get("data_unavailable")
+        assert row.get("market_cap") == pytest.approx(413.41 * 5_186_474_013.0, rel=1e-9)
+        assert row.get("data_source") == "sec_audited_except_fpi_shares_yfinance"
 
     def test_domestic_filer_same_shape_still_computes_normally(self) -> None:
         """Companion case: a domestic filer (is_foreign_private_issuer=False) with the exact
