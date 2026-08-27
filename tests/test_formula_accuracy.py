@@ -200,26 +200,32 @@ class TestPBScoring:
             assert 0 <= score <= 100, f"PB={pb} produced score {score}"
 
 
-class TestDividendYieldScoring:
-    """Verify dividend yield scoring with 6% cap."""
+class TestNetPayoutYieldScoring:
+    """Verify net payout (shareholder) yield scoring with 10% cap.
 
-    def test_dividend_yield_max_6_percent(self) -> None:
-        """Dividend yield capped at 6% for scoring."""
-        # From code: div = min(metrics["dividend_yield"] * 100, 6)
-        for div_decimal in [0.02, 0.04, 0.06, 0.08, 0.10]:
-            div = min(div_decimal * 100, 6)
-            score = min(100, div * 16.7)
+    REPLACES the old TestDividendYieldScoring 2026-08-26 (goal: full Value pillar re-audit) -
+    dividend_yield itself was replaced by net_payout_yield (dividends + buybacks) in
+    load_stock_scores.py._score_value; the old dividend-only formula this class tested no
+    longer exists in live code. See that function's docstring "MISSING-INPUT CHECK" note.
+    """
+
+    def test_net_payout_yield_max_10_percent(self) -> None:
+        """Net payout yield capped at 10% for scoring."""
+        # From code: payout_pct = min(metrics["net_payout_yield"] * 100, 10)
+        for payout_decimal in [0.02, 0.05, 0.10, 0.15, 0.20]:
+            payout_pct = min(payout_decimal * 100, 10)
+            score = min(100, payout_pct * 10)
             assert 0 <= score <= 100
 
-    def test_dividend_yield_scoring_formula(self) -> None:
-        """6% dividend yield should score 100."""
-        div = 6  # 6%
-        score = min(100, div * 16.7)
+    def test_net_payout_yield_scoring_formula(self) -> None:
+        """10% net payout yield should score 100."""
+        payout_pct = 10  # 10%
+        score = min(100, payout_pct * 10)
         assert abs(score - 100) < 0.01
 
-        div = 3  # 3%
-        score = min(100, div * 16.7)
-        assert abs(score - 50.1) < 0.01
+        payout_pct = 5  # 5%
+        score = min(100, payout_pct * 10)
+        assert abs(score - 50) < 0.01
 
 
 class TestFCFYieldScoring:

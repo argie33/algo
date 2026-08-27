@@ -1077,35 +1077,35 @@ const VALUE_SCHEMA = [
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "28%",
+    weight: "30%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "26%",
+    weight: "27%",
   },
   {
     key: "peg_ratio",
     label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "10%",
-  },
-  {
-    key: "stock_dividend_yield",
-    label: "Dividend Yield",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "4%",
+    weight: "7%",
   },
   {
     key: "fcf_yield",
     label: "FCF Yield",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "13%",
+    weight: "9%",
+  },
+  {
+    key: "net_payout_yield",
+    label: "Net Payout Yield (Div + Buybacks)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    used: true,
+    weight: "8%",
   },
   {
     key: "stock_margin_of_safety",
@@ -1115,8 +1115,10 @@ const VALUE_SCHEMA = [
     weight: "7%",
   },
   // stock_forward_pe removed 2026-08-25 - see comment above.
-  // market_cap briefly moved to a Size pillar 2026-08-26, then removed from scoring
-  // entirely the same day (user directive) - not a scored input anywhere on this page now.
+  // market_cap moved to the Size pillar 2026-08-26 - see SIZE_SCHEMA below.
+  // amihud_illiquidity removed 2026-08-26 - see comment above.
+  // stock_dividend_yield replaced by net_payout_yield 2026-08-26 - see comment above. Still
+  // available via the API and shown elsewhere on the page (StockDetail.jsx), just not here.
 ];
 
 // SIZE (market cap, Fama-French SMB / Banz 1981) - top-level pillar again since 2026-08-27

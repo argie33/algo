@@ -314,29 +314,33 @@ class TestComputeAvgFcfFallback:
     def test_single_usable_year_no_longer_requires_a_second(self) -> None:
         loader = _make_loader()
         # Most recent 2 years unusable (capex not yet tagged), 3rd year usable.
-        cash_rows = [(100.0, None, None, None), (90.0, None, None, None), (80.0, 20.0, None, None)]
+        cash_rows = [
+            (100.0, None, None, None, None),
+            (90.0, None, None, None, None),
+            (80.0, 20.0, None, None, None),
+        ]
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 60.0
 
     def test_two_usable_years_still_averages(self) -> None:
         loader = _make_loader()
-        cash_rows = [(100.0, 40.0, None, None), (80.0, 20.0, None, None)]
+        cash_rows = [(100.0, 40.0, None, None, None), (80.0, 20.0, None, None, None)]
         # (60 + 60) / 2 = 60.0
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 60.0
 
     def test_no_usable_years_returns_none(self) -> None:
         loader = _make_loader()
-        cash_rows = [(None, None, None, None), (100.0, None, None, None)]
+        cash_rows = [(None, None, None, None, None), (100.0, None, None, None, None)]
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) is None
 
     def test_capex_exempt_treats_missing_capex_as_zero(self) -> None:
         loader = _make_loader()
-        cash_rows = [(100.0, None, None, None)]
+        cash_rows = [(100.0, None, None, None, None)]
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=True) == 100.0
 
     def test_stock_based_compensation_deducted_from_average(self) -> None:
         """FIXED 2026-08-25 (finance best practices audit): SBC must be deducted per year,
         same as capex - OCF already added it back as a non-cash expense."""
         loader = _make_loader()
-        cash_rows = [(100.0, 20.0, None, 10.0), (80.0, 10.0, None, None)]
+        cash_rows = [(100.0, 20.0, None, 10.0, None), (80.0, 10.0, None, None, None)]
         # Year 1: 100 - 20 - 10 = 70. Year 2: 80 - 10 - 0 (None SBC treated as 0) = 70.
         assert loader._compute_avg_fcf_fallback(cash_rows, is_capex_exempt=False) == 70.0

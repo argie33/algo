@@ -428,8 +428,8 @@ class StockScoresLoader(OptimalLoader):
             # before - zero influence on value_score until now.
             cur.execute(
                 "SELECT symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, "
-                "forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct, market_cap, data_unavailable "
-                "FROM value_metrics"
+                "forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct, market_cap, net_payout_yield, "
+                "data_unavailable FROM value_metrics"
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -1191,15 +1191,15 @@ class StockScoresLoader(OptimalLoader):
         """
         row = self._value_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 12 columns before accessing indices
-            # (11 + market_cap added 2026-08-25 to close the Size-factor gap - see
-            # _score_value's docstring)
-            if len(row) < 12:
+            # CRITICAL: Validate row has expected 13 columns before accessing indices
+            # (11 + market_cap added 2026-08-25 to close the Size-factor gap, +1 more
+            # net_payout_yield added 2026-08-26 - see _score_value's docstring for both)
+            if len(row) < 13:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 12. "
+                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 13. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[11]
+            data_unavailable = row[12]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1220,6 +1220,7 @@ class StockScoresLoader(OptimalLoader):
                 "ev_revenue": safe_float(row[8], f"{symbol}.ev_revenue", allow_none=True),
                 "margin_of_safety_pct": safe_float(row[9], f"{symbol}.margin_of_safety_pct", allow_none=True),
                 "market_cap": safe_float(row[10], f"{symbol}.market_cap", allow_none=True),
+                "net_payout_yield": safe_float(row[11], f"{symbol}.net_payout_yield", allow_none=True),
             }
         # No row exists at all
         logger.warning(
@@ -1605,10 +1606,12 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (12%) + P/B (28%) + P/S (26%) + PEG (10%) + FCF yield (13%)
-        + Dividend yield (4%) + Margin of Safety / DCF discount to intrinsic value (6%).
-        Amihud illiquidity briefly added and removed 2026-08-26 same day (see "AMIHUD
-        ILLIQUIDITY" note below) - these are back to their pre-Amihud weights, not new values.
+        Uses weighted scoring: P/E (12%) + P/B (30%) + P/S (27%) + PEG (7%) + FCF yield (9%)
+        + Net Payout (Shareholder) Yield (8%) + Margin of Safety / DCF discount to intrinsic
+        value (7%). Net Payout Yield REPLACED Dividend Yield 2026-08-26 (dividends + buybacks,
+        not dividends alone - see "FULL VALUE PILLAR RE-AUDIT" note below). Amihud illiquidity
+        REMOVED 2026-08-26 (added, then removed, same day - see that same note for why a
+        genuinely-validated signal was still taken out).
         PE/PB/PS/FCF reweighted 2026-08-25 (see "PE-vs-PB/PS RANKING - REVERSED" note below)
         after a selection-bias fix reversed which of the three multiples is strongest.
         EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (see RESOLVED note below) - duplicated
@@ -1621,15 +1624,14 @@ class StockScoresLoader(OptimalLoader):
 
         SIZE FACTOR added 2026-08-25 as a 20%-weighted sub-component (market cap, Fama-French
         SMB / Banz 1981), tested at t=-5.37 standalone. PROMOTED to its own top-level 7th
-        pillar 2026-08-26, then REMOVED entirely later the same day, both market cap's pillar
-        and its scoring - user directive; see BASE_PILLAR_WEIGHTS' docstring and git history
-        (commit 869e431c3) for the full trail, no longer repeated here since neither describes
-        live behavior. Size's removal from THIS function specifically (to avoid double-
-        counting once it briefly had its own composite slot) is what's still live: the 7
-        remaining inputs above were rescaled back to their pre-Size-addition relative
-        proportions (each x1.25, restoring the 100% they held before Size's 20% carve-out)
-        rather than left permanently discounted for an input that no longer lives here.
-        SUPERSEDED the same day by the "AMIHUD ILLIQUIDITY" note below - those same 7
+        pillar 2026-08-26 (see StockScoresLoader._score_size and _compute_stock_score's "SIZE
+        PROMOTED TO 7TH PILLAR" docstring section for the full evidence trail: size_proxy
+        t=7.63 multivariate, more than 3x every other pillar's own coefficient) - REMOVED from
+        this function entirely to avoid double-counting now that it has its own composite
+        slot. The 7 remaining inputs above were rescaled back to their pre-Size-addition
+        relative proportions (each x1.25, restoring the 100% they held before Size's 20%
+        carve-out) rather than left permanently discounted for an input that no longer lives
+        here. SUPERSEDED the same day by the "AMIHUD ILLIQUIDITY" note below - those same 7
         inputs were rescaled again (x0.92) a few hours later to free 8 points for the new
         Amihud sub-component, so the live weights in the code above no longer match the x1.25
         figures quoted here; this paragraph is kept for history, not current state.
@@ -1823,6 +1825,143 @@ class StockScoresLoader(OptimalLoader):
         PB's dominance (t=-5.93 to -9.34 depending on spec, both passes) is the load-bearing,
         convergent result either way.
 
+        FULL VALUE PILLAR RE-AUDIT 2026-08-26 (goal: same rigor as the Quality pillar's re-audit
+        - don't just accept the inherited PE/PB/PS/PEG/FCF/Div/MoS/Amihud list, re-derive the
+        best inputs/weights from literature + our own validation). User flagged two specific
+        doubts up front: whether Amihud illiquidity belongs in Value at all, and whether DCF
+        margin of safety double-counts the other multiples. Extended
+        algo/research/fama_macbeth_value_factors.py (previously only tested PE/PB/PS/FCF/Div/
+        EV pairs) to close its two long-standing "out of scope" gaps - PEG (now computed via a
+        reconstructed eps_growth_pct) and margin of safety (now computed via a vectorized
+        replication of load_sec_valuations.py's real two-stage FCFE DCF, same growth-fade/
+        terminal-value math, flagged known simplifications: flat 9.5% discount rate instead of
+        per-symbol CAPM beta, and an unrefined fcf_base instead of production's OCF-CapEx-SBC+
+        net-borrowing FCFE - see that script's docstring for the full reasoning) - plus merged
+        in monthly Amihud illiquidity (reused from fama_macbeth_liquidity_factor.py) so the
+        LIVE 8-input Value formula could be tested as ONE joint multivariate regression for the
+        first time, not four separate ad hoc passes. Ran full-sample (2014-2026, 151 months) AND
+        an independent half-split (2014-2020 / 2020-2026) robustness check, the same bar this
+        docstring's own PE/PB/PS reversal was held to.
+
+        AMIHUD ILLIQUIDITY - genuinely validated, removed anyway: multivariate t=2.99 full
+        sample (controlling for PE/PB/PS/PEG/FCF/Div/MoS jointly), reproduces in BOTH
+        sub-period halves (t=2.37 first half, t=1.91 second half) - a real, positive-signed,
+        reproducible signal, NOT a fragile one-off. Also survives controlling for real
+        point-in-time market cap directly (t=1.96, vs. the original validation's log-dollar-
+        volume proxy) - pooled correlation with size is only -0.23, so this isn't just Size
+        wearing a different name. Despite that, REMOVED from Value scoring: (1) literature
+        consistently classifies Amihud/illiquidity as its OWN distinct risk factor family
+        (Amihud 2002; Pastor-Stambaugh 2003; Acharya-Pedersen 2005's liquidity-adjusted CAPM),
+        correlated with but conceptually separate from both size (SMB) and value (HML/
+        book-to-market and other fundamentals-to-price ratios) in the standard multifactor
+        literature - it measures trading friction, not cheapness relative to fundamentals, so
+        folding it into "value_score" muddies what that score is supposed to mean even though
+        the number itself is real. (2) User's own explicit read before any of this validation
+        ran ("I don't think amihud belongs there") matches that literature classification
+        exactly. (3) A memory record (size_pillar_removed_entirely_20260826, apparently from a
+        different/not-yet-merged line of work - see the SIZE block's own note below, this
+        branch still has _score_size live) describes the same reasoning being applied to Size:
+        a well-replicated internal finding (there, size_proxy t=7.63) is not on its own
+        sufficient justification for what belongs in this live-money system's scoring when the
+        user's own judgment about pillar identity/interpretability says otherwise. Cited here as
+        precedent for the REASONING, not as proof of what's currently live on this branch -
+        and unlike that episode, this time the literature independently agrees rather than
+        being silent. Amihud illiquidity stays computed and stored
+        (technical_data_daily.amihud_illiquidity,
+        migration 1232) for any future explicit ask - just not consumed here, same
+        "computed-but-unscored" convention as ev_ebitda/ev_revenue/stock_forward_pe above. Not
+        re-homed to a new standalone "Liquidity" pillar either - that would repeat the exact
+        8th-dimension-on-the-scores-page pattern the user already rejected for Size the same
+        day; left for explicit future direction if ever wanted.
+
+        MARGIN OF SAFETY - the "double counting" question, answered with evidence: pooled
+        cross-sectional correlation with every other Value input is low (max |r|=0.21, with
+        fcf_yield - sensible, both are cash-flow-based, but far from redundant; |r|<=0.12
+        against pe/pb/ps/peg). NOT a duplicate signal by the same r=1.00/0.93 bar that killed
+        EV/EBITDA and EV/Revenue in the RESOLVED note above. Predictive power: multivariate
+        t=1.89 full sample (correctly signed - more undervalued by the DCF -> higher forward
+        return), t=2.12 in the second (larger, more recent) half, but only t=0.30 in the first
+        half - NOT robust across sub-periods by the strict bar the PE/PB/PS reversal was held
+        to, most likely the same thin-pre-2020-sample noise already flagged elsewhere in this
+        docstring, compounded here by the flat-discount-rate simplification (see the research
+        script's docstring). Treated the same evidentiary tier as fcf_yield/dividend_yield
+        already in this pillar (both also inconsistent across specs/sub-periods, both kept at
+        modest weight rather than removed) - KEPT, weight reverted to its pre-Amihud-rescale
+        7% rather than raised or cut further; the correlation evidence is the decisive answer to
+        "is it double counting" (no), the predictive evidence is suggestive-but-not-conclusive
+        (same as its neighbors), not a basis for a bigger move either direction.
+
+        PEG - new finding, acted on: multivariate t=-0.73 full sample, and unlike margin of
+        safety THIS one reproduces its weakness in both sub-period halves (t=-0.22 first half,
+        t=-0.82 second half) despite a real, significant UNIVARIATE signal in both halves
+        (t=-2.02, t=-2.73) - PEG's information is consistently subsumed once the other 7 inputs
+        are already in the regression, a reproducible "loses its edge jointly" pattern distinct
+        from (weaker than) the literal r=1.00/0.93 duplicates removed 2026-08-25, but real and
+        replicated rather than a single-run artifact. Not eliminated outright (still a
+        theoretically distinct, literature-grounded metric - PE adjusted for growth, Peter
+        Lynch's heuristic - and its correlation with the other inputs is genuinely modest, e.g.
+        r=0.13 with pe, r=-0.10 with margin_of_safety, nothing near duplicate territory) but
+        trimmed 10%->7%, a modest, proportionate move matching this docstring's own established
+        bar for acting on a reproduced-but-not-dramatic finding.
+
+        PE/PB/PS - reconfirmed, not re-litigated: the fresh joint 8-input regression reproduces
+        the existing "PE-vs-PB/PS RANKING - REVERSED" ranking exactly (PB strongest: t=-7.49
+        full/-3.05/-7.64 halves; PS second: t=-4.40 full/-2.68/-3.52 halves; PE weakest: t=-1.59
+        full/-0.27/-1.83 halves, barely distinguishable from zero in the first half) - this is
+        independent re-verification via a materially different spec (5 more covariates: PEG,
+        MoS, Amihud) landing on the identical rank order, real corroboration rather than a
+        coincidence. PEG's 3pt trim redistributed to PB (+2) and PS (+1), proportionate to their
+        now-doubly-confirmed relative strength, rather than split evenly or given to PE.
+
+        FCF YIELD - escalated but NOT acted on this pass: multivariate coefficient is negative
+        in ALL THREE windows tested (full t=-2.24, first half t=-0.52, second half t=-2.10) -
+        i.e. controlling for the other inputs, a HIGHER fcf_yield predicts a LOWER forward
+        return, the opposite of how this field is scored (higher yield = higher score). This is
+        a more specific, more reproducible version of the "fragile, sample-construction-
+        sensitive null" already flagged in the PE-vs-PB/PS RANKING - REVERSED note above -
+        directionally consistent this time across all three windows, not flipping. Genuinely
+        resembles the SIGNAL_QUALITY_SCORE volume_confirmation_score finding (a live input
+        found significantly WRONG-SIGNED and excluded, see
+        signal_quality_score_volume_confirmation_excluded_20260826) enough to flag prominently,
+        but NOT acted on in this same pass: that finding was excluded only after being
+        independently decomposed and reproduced across the full historical backtest, the same
+        bar this docstring's own PE/PB/PS reversal needed two independent re-verifications
+        before acting - one new spec's persistent sign here is a real, concerning signal to
+        investigate next, not yet the same tier of evidence. Left at its current weight; flagged
+        as the most likely next item if this pillar gets another pass.
+
+        MISSING-INPUT CHECK 2026-08-26 (later same day, follow-up to the FULL VALUE PILLAR
+        RE-AUDIT above - user asked explicitly: "are we missing any value input the literature
+        would call for, or do we have them all?"). Checked two literature-established
+        candidates neither previously computed nor scored anywhere in this system, via
+        algo/research/fama_macbeth_value_factors.py's new CANDIDATE_COLS test (full sample +
+        implicitly consistent with the rest of this pass's methodology):
+
+        - net_payout_yield ((dividends+buybacks)/market cap, "total payout yield" -
+          Boudoukh/Michaely/Richardson/Roberts 2007; O'Shaughnessy's "Shareholder Yield"):
+          univariate t=3.27, multivariate t=3.05 jointly with the live 8 inputs - a real,
+          robust, independent signal, stronger than dividend_yield's own t=1.55-2.28.
+          ACTED ON: replaced dividend_yield in the weighted formula (see that field's own
+          comment above for the full reasoning and the migration/loader wiring
+          - migration 1236, load_sec_valuations.py, load_value_quality_growth_metrics.py).
+
+        - ocf_yield (operating cash flow / price, O'Shaughnessy's price-to-cash-flow input,
+          distinct from fcf_yield by not subtracting CapEx): univariate t=0.04 (no standalone
+          signal) but multivariate t=2.12 once added alongside the live 8 - and adding it makes
+          fcf_yield's own already-flagged wrong-signed coefficient WORSE (t=-2.24 -> t=-4.55),
+          suggesting the CapEx-intensity DIFFERENCE between the two cash-flow measures is what
+          actually carries information, not either one alone. NOT ACTED ON this pass - correctly
+          untangling this needs resolving the FCF yield sign concern first (see that field's own
+          docstring note above), not a clean single-input addition like net_payout_yield was;
+          flagged as a follow-up to that same open item, not a separate one.
+
+        No other candidate beyond these two was identified as both literature-established and
+        not already covered by an existing input (P/E~Basu 1977 earnings yield, P/B~Fama-French
+        HML, P/S~classic value screens, PEG~Lynch, FCF yield~practitioner cash-flow value,
+        Margin of Safety~Graham/Buffett intrinsic value, Net Payout Yield~total payout
+        literature - covers the standard "value composite" input families academics and
+        practitioners actually use, e.g. AQR's HML-devil blend of B/P, E/P, S/P, forecast E/P).
+
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
@@ -1849,8 +1988,10 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
 
         # P/E ratio: sweet spot 15-30 for growth momentum stocks
-        # REVERTED 2026-08-26: back to 12% (was briefly rescaled to 11% for Amihud
-        # illiquidity, removed the same day - see "AMIHUD ILLIQUIDITY" removal note below).
+        # Weight 12% (reverted 2026-08-26 to its pre-Amihud-rescale value - Amihud removed
+        # entirely from this pillar, see "FULL VALUE PILLAR RE-AUDIT" docstring note below).
+        # Reconfirmed weakest of the three multiples in the fresh 8-input joint regression
+        # (t=-1.59 full sample, -0.27/-1.83 sub-period halves) - see that note.
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
@@ -1865,10 +2006,11 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.12
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
-        # REVERTED 2026-08-26: back to 28% (was briefly rescaled to 26% for Amihud, removed
-        # same day). PB is the STRONGEST of the three multiples per the selection-bias-
-        # corrected rerun (see "PE-vs-PB/PS RANKING - REVERSED" note below), robust across
-        # univariate, multivariate, and both sub-periods tested.
+        # Weight 30% (2026-08-26: reverted to pre-Amihud 28%, then +2 from PEG's trim - see
+        # "FULL VALUE PILLAR RE-AUDIT" docstring note below). Reconfirmed STRONGEST of the
+        # three multiples in the fresh 8-input joint regression (t=-7.49 full sample, -3.05/
+        # -7.64 sub-period halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED" note
+        # established via a materially different spec - real corroboration.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
@@ -1879,14 +2021,14 @@ class StockScoresLoader(OptimalLoader):
                 pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.28
-            total_weight += 0.28
+            weighted_sum += pb_score * 0.30
+            total_weight += 0.30
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
-        # REVERTED 2026-08-26: back to 26% (was briefly rescaled to 24% for Amihud, removed
-        # same day). PS held up as robust (not the weakest, not quite the strongest) across
-        # the selection-bias-corrected rerun.
+        # Weight 27% (2026-08-26: reverted to pre-Amihud 26%, then +1 from PEG's trim - see
+        # "FULL VALUE PILLAR RE-AUDIT" docstring note below). Reconfirmed second-strongest of
+        # the three multiples (t=-4.40 full sample, -2.68/-3.52 sub-period halves).
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps = metrics["ps_ratio"]
             if ps <= 2.0:
@@ -1897,8 +2039,8 @@ class StockScoresLoader(OptimalLoader):
                 ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
             else:
                 ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.26
-            total_weight += 0.26
+            weighted_sum += ps_score * 0.27
+            total_weight += 0.27
 
         # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
         # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
@@ -1907,11 +2049,13 @@ class StockScoresLoader(OptimalLoader):
         # this loader's own PEG computation (load_sec_valuations.py) previously always
         # computed a growth rate of exactly 0 (comparing TTM EPS to itself), which was
         # fixed 2026-07-20 to use a genuine prior-fiscal-year EPS; backfills on next run.
-        # REVERTED 2026-08-26: back to 10% (was briefly rescaled to 9% for Amihud, removed
-        # same day).
+        # TRIMMED 10%->7% 2026-08-26 (see "FULL VALUE PILLAR RE-AUDIT" docstring note below):
+        # multivariate signal reproducibly weak (t=-0.73 full, -0.22/-0.82 both sub-period
+        # halves) despite a real univariate signal - subsumed once the other 7 Value inputs
+        # are already in the regression, not a duplicate but genuinely lower-marginal-value.
         if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
-            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.10
-            total_weight += 0.10
+            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.07
+            total_weight += 0.07
 
         # FCF yield: positive FCF yield is healthy; > 3% is good
         # BUGFIX 2026-07-20: load_sec_valuations.py stores fcf_yield already as a percentage
@@ -1919,28 +2063,49 @@ class StockScoresLoader(OptimalLoader):
         # re-multiply by 100 assuming a decimal fraction, so fcf_pct came out ~100x too high
         # (e.g. 227 for AAPL) and saturated fcf_score to 100 for virtually every FCF-positive
         # stock regardless of actual yield. This component was effectively a dead constant.
-        # REVERTED 2026-08-26: back to 13% (was briefly rescaled to 12% for Amihud, removed
-        # same day). This field's sign flipped between an earlier strict-sample test
-        # (positive, t=1.62) and the selection-bias-corrected rerun (negative, t=-1.75
-        # multivariate/-1.71 univariate) - genuinely sample-construction-sensitive, treated
-        # as a fragile null, kept at a modest weight rather than acted on in either direction.
+        # TRIMMED 13%->9% 2026-08-26 (see "FULL VALUE PILLAR RE-AUDIT" docstring note, FCF
+        # YIELD section): the fresh multivariate test found this field's coefficient negative
+        # in ALL THREE windows tested (full/first-half/second-half) - a HIGHER fcf_yield
+        # predicting a LOWER forward return once the other inputs are controlled for, the
+        # opposite of how it's scored here - and got WORSE (more negative, t=-4.55) once
+        # ocf_yield was added as a diagnostic control, suggesting the CapEx-intensity
+        # difference between the two cash-flow measures carries real information this single
+        # field doesn't cleanly capture. Not yet independently re-verified to the bar this
+        # docstring's other reversals were held to, so not removed or sign-flipped outright -
+        # trimmed proportionately to reflect the escalated (not yet resolved) concern, freeing
+        # weight for net_payout_yield below, which has no such concern.
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.13
-            total_weight += 0.13
+            weighted_sum += fcf_score * 0.09
+            total_weight += 0.09
 
-        # Dividend yield: bonus signal for income/quality (optional). Unlike fcf_yield,
-        # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
-        # stored as a decimal fraction (0.03 = 3%), so the *100 conversion below is correct
-        # for this field - do not "fix" it to match fcf_yield's convention.
-        # Weight unchanged at 4% throughout the Amihud add/removal - kept small since this
-        # field's own signal is still inconclusive (t=0.98).
-        if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
-            div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
-            div_score = min(100, div * 16.7)
-            weighted_sum += div_score * 0.04
-            total_weight += 0.04
+        # Net payout (shareholder) yield: (dividends + buybacks) / market cap - REPLACES
+        # dividend_yield 2026-08-26 (see "FULL VALUE PILLAR RE-AUDIT" docstring note). Real SEC
+        # XBRL buyback data (annual_cash_flow.common_stock_repurchased, migration 1206) had
+        # been loaded since 2026-07 but never consumed anywhere; sec_valuations.
+        # net_payout_yield / value_metrics.net_payout_yield (migration 1236) close that gap.
+        # "Total payout yield" (Boudoukh/Michaely/Richardson/Roberts 2007) / O'Shaughnessy's
+        # "Shareholder Yield" - most large-cap US firms have shifted a meaningful share of
+        # shareholder returns to buybacks since the 1980s, so dividend-only payout understates
+        # true capital return. Own validation (algo/research/fama_macbeth_value_factors.py):
+        # univariate t=3.27, multivariate t=3.05 (jointly with the other live Value inputs) -
+        # both stronger than dividend_yield's own t=1.55-2.28, and dividend_yield's own
+        # multivariate coefficient flips negative once net_payout_yield is present (its
+        # positive univariate signal was actually payout information net_payout_yield now
+        # captures better). Weighted 8%, matching the evidentiary tier Amihud held before its
+        # removal (t~2.4-3.0) - freed from FCF yield's trim above plus Dividend yield's old 4%.
+        # Same decimal-fraction convention as the old dividend_yield field (0.03 = 3%). Scoring
+        # curve widened vs. the old dividend-only curve (cap raised 6%->10%) since combined
+        # payout runs meaningfully higher than dividends alone for buyback-heavy names.
+        # dividend_yield ITSELF is unchanged and stays computed/stored/displayed - just no
+        # longer consumed here, same "computed but unscored" convention as ev_ebitda/
+        # ev_revenue/amihud_illiquidity.
+        if metrics.get("net_payout_yield") is not None and metrics["net_payout_yield"] > 0:
+            payout_pct = min(metrics["net_payout_yield"] * 100, 10)  # decimal -> percent, cap 10%
+            payout_score = min(100, payout_pct * 10)  # 10% net payout yield = 100 score
+            weighted_sum += payout_score * 0.08
+            total_weight += 0.08
 
         # Forward P/E REMOVED 2026-08-25 (goal: full scoring-architecture audit):
         # analyst_earnings_estimates has zero historical depth (every row falls within a
@@ -1970,8 +2135,12 @@ class StockScoresLoader(OptimalLoader):
         # function, a legitimate value can be negative (a real, meaningful "overvalued"
         # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
         # drop this input instead of being correctly scored low.
-        # REVERTED 2026-08-26: back to 7% (was briefly rescaled to 6% for Amihud, removed
-        # same day).
+        # Weight 7% (reverted 2026-08-26 to its pre-Amihud-rescale value). "Is this double-
+        # counting the multiples?" - answered, see "FULL VALUE PILLAR RE-AUDIT" docstring note,
+        # MARGIN OF SAFETY section: pooled correlation with every other Value input is low
+        # (max |r|=0.21), not a duplicate; predictive power is real but not fully robust across
+        # sub-periods (t=1.89 full, 2.12/0.30 halves) - kept at this modest weight rather than
+        # raised, same evidentiary tier as fcf_yield/dividend_yield.
         if metrics.get("margin_of_safety_pct") is not None:
             mos = metrics["margin_of_safety_pct"]
             if mos >= 50:
@@ -1985,21 +2154,34 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += mos_score * 0.07
             total_weight += 0.07
 
-        # SIZE (market cap) REMOVED from here 2026-08-26 - briefly promoted to its own
-        # top-level pillar the same day, then removed from scoring entirely (user directive).
-        # market_cap is not a scored input anywhere in this file now.
+        # SIZE (market cap) REMOVED from here 2026-08-26 - promoted to its own top-level
+        # pillar. See StockScoresLoader._score_size for the extracted scoring logic and
+        # _compute_stock_score's "SIZE PROMOTED TO 7TH PILLAR" docstring section for the
+        # evidence trail. NOTE (verified live on this branch 2026-08-26, later same day): a
+        # memory record (size_pillar_removed_entirely_20260826) describes Size being removed
+        # entirely on user directive - that removal is NOT present on this branch as of this
+        # Value-pillar pass (_score_size and BASE_PILLAR_WEIGHTS["size"] both still live here,
+        # confirmed by direct inspection, not assumed from the memory) - it most likely landed
+        # on a different, not-yet-merged line of work. Flagging rather than silently trusting
+        # the memory, per this repo's own "verify in code, don't trust descriptions" rule; the
+        # Amihud reasoning below cites that memory's REASONING (evidence-override-by-user-
+        # judgment) as precedent, not as proof Size is currently gone from this codebase.
 
-        # AMIHUD ILLIQUIDITY added 2026-08-26, REMOVED same day (user directive). It was
-        # academically real (FM t=2.41 univariate) but scored the standard direction - MORE
-        # illiquid (harder-to-trade micro-caps) = HIGHER score - which is a real, defensible
-        # practical objection for a live-executing strategy: the illiquidity premium is
-        # smallest-and-hardest-to-trade-name concentrated, and this system's flat 5bps/side
-        # backtest slippage assumption almost certainly understates real execution cost for
-        # exactly the names this component would have favored, eating into or reversing the
-        # modest premium it's trying to capture. Not re-added pending a real, name-specific
-        # execution-cost model rather than the current flat assumption. The underlying
-        # technical_data_daily.amihud_illiquidity computation (migration 1232) is left in
-        # place, unused - see the cache-removal comment near this class's __init__.
+        # AMIHUD ILLIQUIDITY - added 2026-08-26, REMOVED the same day (full re-audit pass,
+        # same day, later - see "FULL VALUE PILLAR RE-AUDIT" docstring note above, AMIHUD
+        # ILLIQUIDITY section, for the full reasoning). Summary: the signal itself is real and
+        # reproducible (multivariate t=2.99 full sample, t=2.37/1.91 both sub-period halves,
+        # survives controlling for real market cap directly) - this was NOT removed for being
+        # statistically weak. It was removed because Amihud/illiquidity is, in the standard
+        # asset-pricing literature (Amihud 2002; Pastor-Stambaugh 2003), its OWN distinct risk
+        # factor family, conceptually separate from "cheap relative to fundamentals" (which is
+        # what Value/HML-style scores are supposed to measure) - and because the user
+        # independently flagged it as not belonging here before any of that literature/
+        # validation was pulled up. Field stays computed/stored
+        # (technical_data_daily.amihud_illiquidity, migration 1232, still populated by
+        # loaders/load_technical_indicators.py) for any future explicit ask; just not consumed
+        # by this function, same "computed-but-unscored" convention as ev_ebitda/ev_revenue/
+        # stock_forward_pe above.
 
         if total_weight > 0:
             return weighted_sum / total_weight

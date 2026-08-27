@@ -1066,7 +1066,8 @@ class SecValuationsLoader(OptimalLoader):
                 # the existing None-handling below) instead of a fabricated number.
                 cur.execute(
                     """
-                    SELECT operating_cash_flow, capex, dividends_paid, stock_based_compensation
+                    SELECT operating_cash_flow, capex, dividends_paid, stock_based_compensation,
+                           common_stock_repurchased
                     FROM annual_cash_flow
                     WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 3
@@ -1074,8 +1075,8 @@ class SecValuationsLoader(OptimalLoader):
                     (symbol,),
                 )
                 cash_rows = cur.fetchall()
-                ocf, capex, dividends_paid, stock_based_compensation = (
-                    cash_rows[0] if cash_rows else (None, None, None, None)
+                ocf, capex, dividends_paid, stock_based_compensation, common_stock_repurchased = (
+                    cash_rows[0] if cash_rows else (None, None, None, None, None)
                 )
                 # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
                 # Depository institutions never report capex at all (see
@@ -1176,6 +1177,7 @@ class SecValuationsLoader(OptimalLoader):
                 equity_risk_premium,
                 net_borrowing,
                 shares_out_from_fpi_yfinance,
+                float(common_stock_repurchased) if common_stock_repurchased is not None else None,
             )
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
@@ -1490,15 +1492,21 @@ class SecValuationsLoader(OptimalLoader):
         return newest_debt - prior_debt
 
     @staticmethod
-    def _compute_avg_fcf_fallback(cash_rows: list[tuple[Any, Any, Any, Any]], is_capex_exempt: bool) -> float | None:
+    def _compute_avg_fcf_fallback(
+        cash_rows: list[tuple[Any, Any, Any, Any, Any]], is_capex_exempt: bool
+    ) -> float | None:
         """Average FCF (OCF - CapEx - Stock-Based Comp) across up to 3 fetched fiscal years,
         skipping any year with unusable ocf/capex - used when the latest year alone can't
         produce a usable FCF (negative, or capex not yet tagged - see fetch_incremental's
         `cash_rows` query, most recent 3 fiscal years DESC).
 
-        cash_rows: (operating_cash_flow, capex, dividends_paid, stock_based_compensation)
-        tuples, most recent year first (dividends_paid unused here, kept for call-site
-        tuple-unpacking convenience).
+        cash_rows: (operating_cash_flow, capex, dividends_paid, stock_based_compensation,
+        common_stock_repurchased) tuples, most recent year first (dividends_paid/
+        common_stock_repurchased unused here, kept for call-site tuple-unpacking convenience -
+        common_stock_repurchased added 2026-08-26 for net_payout_yield, see
+        _compute_valuations - this widened every mock fixture across the sec_valuations test
+        family that constructs cash_rows directly; see that migration's own commit for the
+        full list of touched test files).
         is_capex_exempt: depository institutions / the insurance capex-exempt allowlist
         never report capex - treat it as 0 rather than unknowable for every year, not just
         the latest (see DEPOSITORY_INSTITUTION_SIC_CODES/INSURANCE_CAPEX_EXEMPT_SYMBOLS).
@@ -1533,7 +1541,7 @@ class SecValuationsLoader(OptimalLoader):
         unchanged; only the floor moved from >=2 to >=1.
         """
         yearly_fcfs = []
-        for row_ocf, row_capex, _row_dividends, row_sbc in cash_rows:
+        for row_ocf, row_capex, _row_dividends, row_sbc, _row_buyback in cash_rows:
             if row_ocf is None:
                 continue
             if row_capex is None:
@@ -1684,6 +1692,7 @@ class SecValuationsLoader(OptimalLoader):
         equity_risk_premium: float | None = None,
         net_borrowing: float | None = None,
         shares_out_from_fpi_yfinance: bool = False,
+        common_stock_repurchased: float | None = None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data.
 
@@ -1705,6 +1714,15 @@ class SecValuationsLoader(OptimalLoader):
         avg_fcf_fallback/dcf_eps_cagr_pct already use) when available. Defaults to None -> the
         existing OCF-CapEx-SBC proxy unchanged (implicitly assumes zero net borrowing, same as
         before this fix), so every existing caller/test is unaffected.
+
+        common_stock_repurchased: ADDED 2026-08-26 (goal: full Value pillar re-audit, real
+        stock buybacks (annual_cash_flow.common_stock_repurchased, migration 1206) had been
+        loaded since 2026-07 but never consumed here). Feeds net_payout_yield (see that
+        field's own computation below) - dividends + buybacks, same entity-wide-market-cap
+        pairing dividend_yield already uses (same dual-class rationale as
+        entity_shares_out_for_fcf below). Defaults to None -> net_payout_yield reduces to
+        dividend_yield's own dividends-only figure, so every existing caller/test is
+        unaffected.
 
         shares_out_from_dual_class_yfinance: True only for the narrow 2026-08-22 dual-class
         exception (see _fetch_live_dual_class_shares_outstanding) - shares_out itself came from
@@ -1784,6 +1802,7 @@ class SecValuationsLoader(OptimalLoader):
             "peg_ratio": None,
             "fcf_yield": None,
             "dividend_yield": None,
+            "net_payout_yield": None,
             "ev_ebitda": None,
             "ev_revenue": None,
             "forward_pe": None,
@@ -1918,6 +1937,31 @@ class SecValuationsLoader(OptimalLoader):
                 result["dividend_yield"] = round(div_yield, 4)
             else:
                 logger.debug(f"[{symbol}] Dividend yield out of bounds ({div_yield:.2%}), marking as NULL")
+
+        # Net Payout (Shareholder) Yield = (Dividends Paid + Buybacks) ÷ Market Cap - ADDED
+        # 2026-08-26 (goal: full Value pillar re-audit). Same decimal-fraction convention as
+        # dividend_yield above (0.03 = 3%), same entity-wide-market-cap dual-class pairing.
+        # "Total payout yield" (Boudoukh/Michaely/Richardson/Roberts 2007) / O'Shaughnessy's
+        # "Shareholder Yield" - captures buybacks alongside dividends, which dividend_yield
+        # alone misses (most large-cap US firms have shifted a meaningful share of shareholder
+        # returns to buybacks since the 1980s). Own Fama-MacBeth validation
+        # (algo/research/fama_macbeth_value_factors.py, 2026-08-26): univariate t=3.27,
+        # multivariate t=3.05 (jointly with the live Value inputs) - stronger than
+        # dividend_yield's own t=1.55-2.28, and dividend_yield's own multivariate coefficient
+        # flips negative once net_payout_yield is present (its positive univariate signal was
+        # actually payout information net_payout_yield now captures better). common_stock_
+        # repurchased defaults to None for backward-compat callers/tests - net_payout_yield
+        # then reduces to dividends-only (same number dividend_yield computes), never worse
+        # than not having this field at all.
+        buyback = 0.0 if common_stock_repurchased is None else abs(common_stock_repurchased)
+        dividends = 0.0 if dividends_paid is None or dividends_paid <= 0 else dividends_paid
+        total_payout = dividends + buyback
+        if total_payout > 0 and entity_market_cap and entity_market_cap > 0:
+            payout_yield = total_payout / entity_market_cap
+            if 0 < payout_yield <= 1.5:  # >150% total payout yield indicates a data error
+                result["net_payout_yield"] = round(payout_yield, 4)
+            else:
+                logger.debug(f"[{symbol}] Net payout yield out of bounds ({payout_yield:.2%}), marking as NULL")
 
         # Enterprise Value = Market Cap + Total Debt - Cash & Equivalents
         # FIXED 2026-08-25 (same dual-class entity-wide fix as fcf_yield above): total_debt/
@@ -2234,8 +2278,10 @@ class SecValuationsLoader(OptimalLoader):
     # never be a VALUE source here ("No fallback to yfinance (SEC data only)"), so this only
     # uses it as a validity check: a >10x disagreement nulls every field that depends on
     # shares_outstanding (market_cap, pb_ratio, ps_ratio, fcf_yield, dividend_yield,
-    # enterprise_value, ev_ebitda, ev_revenue, intrinsic_value_per_share,
-    # margin_of_safety_pct) rather than presenting a number now positively known to likely be
+    # net_payout_yield (ADDED 2026-08-26 - same entity_market_cap denominator as
+    # dividend_yield, same exposure to this bug), enterprise_value, ev_ebitda, ev_revenue,
+    # intrinsic_value_per_share, margin_of_safety_pct) rather than presenting a number now
+    # positively known to likely be
     # wrong - pe_ratio/peg_ratio are untouched since they don't depend on shares_outstanding
     # at all. 10x (not the shares-cross-check's 20x) because this is comparing two fully
     # independent extraction pipelines, not two paths that can share a root cause - a real,
@@ -2261,6 +2307,7 @@ class SecValuationsLoader(OptimalLoader):
             "ps_ratio",
             "fcf_yield",
             "dividend_yield",
+            "net_payout_yield",
             "enterprise_value",
             "ev_ebitda",
             "ev_revenue",
@@ -2348,6 +2395,7 @@ class SecValuationsLoader(OptimalLoader):
             "peg_ratio": None,
             "fcf_yield": None,
             "dividend_yield": None,
+            "net_payout_yield": None,
             "ev_ebitda": None,
             "ev_revenue": None,
             "intrinsic_value_per_share": None,
