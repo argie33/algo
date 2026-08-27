@@ -77,14 +77,23 @@ class TestValueScoreWeightBadges:
         # remaining 7 inputs here were rescaled x1.25 to restore the 100% they held before
         # Size's 20% carve-out (later rescaled again x0.92 the same day - see next note).
         # illiq_score (amihud_illiquidity) ADDED 2026-08-26, REMOVED same day (user directive)
-        # - see _score_value's "AMIHUD ILLIQUIDITY" docstring note. The 7 inputs below are
-        # back at their pre-Amihud weights.
+        # - see _score_value's "AMIHUD ILLIQUIDITY" docstring note.
+        # FULL VALUE PILLAR RE-AUDIT 2026-08-26/27 (recovered from an unmerged worktree branch
+        # 2026-08-27 - see quality_growth_isolated_retest_and_coverage_audit_20260827 /
+        # value_pillar_full_reaudit_amihud_removed_peg_trimmed_20260826 in memory): PEG trimmed
+        # 10%->7% (subsumed once jointly estimated with the other inputs, t=-0.73 full/-0.22/
+        # -0.82 both halves despite a real univariate signal). div_score (dividend_yield)
+        # REPLACED by payout_score (net_payout_yield = dividends + buybacks, univariate t=3.27,
+        # multivariate t=3.05 - beats dividend_yield outright, whose own coefficient flips
+        # negative once net_payout_yield is controlled for). mos_score (margin_of_safety_pct)
+        # added to this check - a pre-existing coverage gap, was scored but never verified here.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "fcf_score": "fcf_yield",
-            "div_score": "stock_dividend_yield",
+            "payout_score": "net_payout_yield",
+            "mos_score": "stock_margin_of_safety",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))

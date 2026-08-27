@@ -31,7 +31,7 @@ class _FakeCursor:
         self._fetchone_idx = 0
         # ocf=80M, capex=10M, no SBC -> fcf_base = 70M, same fixed shape every other e2e test
         # in this suite uses.
-        self._fetchall_results = [income_rows, [(80_000_000.0, 10_000_000.0, None, None)]]
+        self._fetchall_results = [income_rows, [(80_000_000.0, 10_000_000.0, None, None, None)]]
         self._fetchall_idx = 0
 
     def execute(self, query: str, *args: object, **kwargs: object) -> None:

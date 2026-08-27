@@ -72,7 +72,7 @@ class _FakeCursor:
         # so callers that don't care about the 3-year DCF average keep the same effective values.
         self._fetchall_results = [
             income_rows,
-            cash_rows if cash_rows is not None else [(80_000_000.0, 10_000_000.0, None, None)],
+            cash_rows if cash_rows is not None else [(80_000_000.0, 10_000_000.0, None, None, None)],
         ]
         self._fetchall_idx = 0
 

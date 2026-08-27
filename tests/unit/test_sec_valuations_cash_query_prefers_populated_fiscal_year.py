@@ -53,7 +53,7 @@ class _RecordingCursor:
                     20_000_000.0,  # income_tax_expense
                 )
             ],
-            [(80_000_000.0, 10_000_000.0, None, None)],  # cash_rows: ocf, capex, dividends_paid
+            [(80_000_000.0, 10_000_000.0, None, None, None)],  # cash_rows: ocf, capex, dividends_paid
         ]
         self._fetchall_idx = 0
 
@@ -91,7 +91,7 @@ class TestCashQueryPrefersPopulatedFiscalYear:
             (50.0,),  # price_daily.close
             (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
-            (80_000_000.0, 10_000_000.0, None, None),  # annual_cash_flow: ocf, capex, dividends_paid
+            (80_000_000.0, 10_000_000.0, None, None, None),  # annual_cash_flow: ocf, capex, dividends_paid
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
             (1.0,),  # beta (stability_metrics)

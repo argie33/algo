@@ -901,7 +901,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
             ]
 
-    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
+    def _build_value_metrics(  # noqa: C901 -- net_payout_yield's TIER 2 fallback (2026-08-26,
+        # full Value pillar re-audit) pushed this pre-existing, already-organic multi-tier
+        # function over the complexity threshold; a self-contained new fallback block, not
+        # entangled with the existing tiers, so left in place rather than force-extracted.
+        self,
+        symbol: str,
+        sec_val_row: Any,
+    ) -> dict[str, Any]:
         """Build value_metrics from SEC valuations (yfinance-free, Session 271).
 
         All metrics from SEC-audited data. Dividend yield added 2026-07-20 (migration
@@ -932,6 +939,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         peg = row_dict.get("peg_ratio")
         fcf_yield = row_dict.get("fcf_yield")
         dividend_yield = row_dict.get("dividend_yield")
+        net_payout_yield = row_dict.get("net_payout_yield")
         enterprise_value = row_dict.get("enterprise_value")
         ev_ebitda = row_dict.get("ev_ebitda")
         ev_revenue = row_dict.get("ev_revenue")
@@ -1006,6 +1014,43 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         )
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback failed: {e}")
+
+        # TIER 2 FALLBACK for net_payout_yield 2026-08-26 (goal: full Value pillar re-audit) -
+        # same rationale as the dividend TIER 3 fallback just above: sec_valuations.
+        # net_payout_yield can be NULL for a symbol whose latest fiscal year lacks a usable
+        # entity_market_cap even when a prior year's raw dividends_paid/common_stock_repurchased
+        # exist in annual_cash_flow. Aggregate (dividends + buybacks) / market_cap, same
+        # "no per-share intermediate needed, both cancel out" convention as the dividend
+        # fallback. No curated buyback-specific table exists (unlike dividend_data for
+        # dividends), so this is the only fallback tier for this field - proportionate to how
+        # new/thin this input is versus dividend_yield's much more mature multi-tier handling.
+        if net_payout_yield is None and market_cap is not None and market_cap > 0:
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT dividends_paid, common_stock_repurchased FROM annual_cash_flow
+                        WHERE symbol = %s
+                          AND (COALESCE(dividends_paid, 0) > 0 OR COALESCE(common_stock_repurchased, 0) != 0)
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    cf_payout_row = cur.fetchone()
+                    if cf_payout_row:
+                        cf_div, cf_buyback = cf_payout_row
+                        total_payout = (0.0 if cf_div is None else float(cf_div)) + (
+                            0.0 if cf_buyback is None else abs(float(cf_buyback))
+                        )
+                        if total_payout > 0:
+                            net_payout_yield = total_payout / float(market_cap)
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: Using annual_cash_flow "
+                                f"dividends+buybacks aggregate net payout yield: {net_payout_yield:.2%}"
+                            )
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout fallback failed: {e}")
 
         # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
         # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
@@ -1213,6 +1258,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "ps_ratio": ps,
             "peg_ratio": peg,
             "dividend_yield": dividend_yield,
+            "net_payout_yield": net_payout_yield,
             "fcf_yield": fcf_yield,
             "forward_pe": forward_pe,
             "enterprise_value": enterprise_value,
@@ -4567,18 +4613,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, market_cap, intrinsic_value_per_share, margin_of_safety_pct, value_score, data_unavailable, reason, data_source, updated_at,
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, net_payout_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, market_cap, intrinsic_value_per_share, margin_of_safety_pct, value_score, data_unavailable, reason, data_source, updated_at,
              pe_ratio_unavailable_reason, pb_ratio_unavailable_reason, ps_ratio_unavailable_reason, peg_ratio_unavailable_reason,
              dividend_yield_unavailable_reason, fcf_yield_unavailable_reason, forward_pe_unavailable_reason, ev_ebitda_unavailable_reason, ev_revenue_unavailable_reason,
              market_cap_unavailable_reason, held_percent_institutions_unavailable_reason,
              intrinsic_value_unavailable_reason, margin_of_safety_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
                 ps_ratio = EXCLUDED.ps_ratio,
                 peg_ratio = EXCLUDED.peg_ratio,
                 dividend_yield = EXCLUDED.dividend_yield,
+                net_payout_yield = EXCLUDED.net_payout_yield,
                 fcf_yield = EXCLUDED.fcf_yield,
                 forward_pe = EXCLUDED.forward_pe,
                 enterprise_value = EXCLUDED.enterprise_value,
@@ -4613,6 +4660,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row["ps_ratio"],
                 row["peg_ratio"],
                 row["dividend_yield"],
+                row.get("net_payout_yield"),
                 row["fcf_yield"],
                 row.get("forward_pe"),
                 row.get("enterprise_value"),
@@ -5090,6 +5138,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "ps_ratio": None,
                 "peg_ratio": None,
                 "dividend_yield": None,
+                "net_payout_yield": None,
                 "fcf_yield": None,
                 "pe_ratio_unavailable_reason": specific_reason,
                 "pb_ratio_unavailable_reason": specific_reason,
