@@ -842,95 +842,74 @@ const QUALITY_SCHEMA = [
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~10%",
+    weight: "~11%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~16%",
+    weight: "~17%",
   },
   {
     key: "return_on_capital_employed_pct",
     label: "ROCE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~16%",
+    weight: "~17%",
   },
   {
     key: "fcf_margin_pct",
     label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~13%",
+    weight: "~14%",
   },
   {
     key: "debt_to_equity",
     label: "Debt to Equity",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~16%",
-  },
-  {
-    key: "interest_coverage",
-    label: "Interest Coverage",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "~4%",
-  },
-  {
-    key: "payout_ratio",
-    label: "Payout Ratio",
-    fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "~4%",
+    weight: "~17%",
   },
   {
     key: "margin_volatility",
     label: "Margin Volatility (3Y)",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~6%",
+    weight: "~7%",
   },
   {
     key: "asset_turnover_pct",
     label: "Asset Turnover",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~6%",
+    weight: "~7%",
   },
   {
-    key: "operating_margin_trend",
-    label: "Op Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "~3%",
-  },
-  {
-    key: "net_margin_trend",
-    label: "Net Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-    used: true,
-    weight: "~3%",
-  },
-  {
-    key: "roe_trend",
-    label: "ROE Trend",
+    key: "gross_profitability_pct",
+    label: "Gross Profitability",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~3%",
+    weight: "~7%",
   },
+  // interest_coverage/payout_ratio REMOVED 2026-08-27: isolated FM re-test confirmed both
+  // genuinely dead (t<0.9 on ~2x the joint-test's sample size), not a joint-dropna casualty -
+  // see loaders/load_value_quality_growth_metrics.py's quality_components comment. Raw values
+  // still computed/persisted, just not shown here as scored inputs.
+  // operating_margin_trend/net_margin_trend/roe_trend REMOVED from scoring (and this display)
+  // 2026-08-27 - see loaders/load_value_quality_growth_metrics.py's quality_components comment
+  // for the full removal reasoning (live-observed "No data" on StockDetail, roe_trend flagged
+  // weak/backwards in an earlier pass). Still computed/persisted upstream, just not shown here.
   // altman_z_score REMOVED 2026-08-26 (same day it was added, user directive) - it's a
   // discrete distress-triage classifier in the literature, not meant to be averaged into a
-  // continuous magnitude-weighted composite like the 8 fields above. Raw value still computed/
+  // continuous magnitude-weighted composite like the fields above. Raw value still computed/
   // persisted in quality_metrics for reference, just not scored or shown here - see
   // load_value_quality_growth_metrics.py's quality_components comment for the full reasoning.
   // earnings_growth_yoy briefly restored here 2026-08-26, then MOVED to the Growth tab the
   // same day (user directive) - it's a growth-magnitude signal, not a quality one, so its
-  // real home is GROWTH_SCHEMA below, not here. eps_growth_stability/operating_margin_trend/
-  // net_margin_trend/roe_trend never lived in Quality in the long-standing pre-08-25
-  // baseline either - also scored in Growth instead.
+  // real home is GROWTH_SCHEMA below, not here. eps_growth_stability never lived in Quality in
+  // the long-standing pre-08-25 baseline either - also scored in Growth instead.
   // SECOND PASS 20260816: cut every unweighted "Tracked (Not Scored)" field from this
   // tab (earnings_surprise_avg, earnings_beat_rate, consecutive_positive_quarters,
   // free_cashflow, operating_cashflow, total_debt, total_cash, earnings_growth_4q_avg)
@@ -1156,112 +1135,27 @@ const SIZE_SCHEMA = [
   },
 ];
 
-// RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction): back
-// to the pre-08-25 14-input set. The 2026-08-25 cut to 4 inputs rested on this system's own
-// exploratory backtests (composite-level p=0.27/0.94/0.33, plus later Fama-MacBeth reruns
-// whose own docstrings flagged real caveats - no true SEC filing-date data, a flat
-// calendar-fiscal-year-end assumption, n=12 independent years for the cleanest check) -
-// not external validated research. See loaders/load_stock_scores.py's _score_growth
-// docstring for the full reasoning. asset_growth_yoy's SIGN FLIP is the one exception kept
-// from that redesign (Cooper/Gulen/Schill 2008, JoF + Fama-French CMA - externally
-// peer-reviewed, not this system's own backtest; independently replicated here too:
-// Spearman=-0.037, p=8.4e-6) - its weight reverts to the original 5% though, since the
-// 25-30% it briefly carried came from the same disputed process as everything else here.
+// REBUILT 2026-08-27 (goal: correct a wrongly-preserved legacy formula - see
+// loaders/load_stock_scores.py's _score_growth docstring for the full evidence trail). The
+// prior 11/14-input blend this schema mirrored (EPS 1Y 33%, Revenue 1Y 24%, etc.) had NO
+// stated empirical basis - a same-day 2026-08-26 revert away from an unvalidated redesign
+// that restored an EVEN OLDER, equally unvalidated legacy state. Proper isolated FM-testing
+// (own dropna scope per candidate, not the old joint-11 test that had shrunk to ~22% of the
+// live universe) found: eps_growth_1y/revenue_growth_1y (57% combined of the old weight) are
+// dominated by book_value_growth once tested together (their own marginal contribution
+// collapses to noise); every other old input (eps/revenue 3Y/5Y, NI/OI/FCF/OCF growth, SGR -
+// the remaining ~48%) never cleared this repo's own significance bar even in isolation.
+// book_value_growth (NEW - migration 1242) is the ONLY candidate that stays significant and
+// sign-consistent across every time window tested, dominating the other 3 survivors in a
+// joint regression - the same single-input architecture SIZE_SCHEMA below already uses.
 const GROWTH_SCHEMA = [
   {
-    key: "revenue_growth_1y_pct",
-    label: "Revenue Growth (1Y)",
+    key: "book_value_growth_pct",
+    label: "Book Value Growth (YoY, inverted - lower is better)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "24%",
+    weight: "sole input",
   },
-  {
-    key: "eps_growth_1y_pct",
-    label: "EPS Growth (1Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "33%",
-  },
-  {
-    key: "revenue_growth_3y_cagr",
-    label: "Revenue CAGR (3Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "14%",
-  },
-  {
-    key: "eps_growth_3y_cagr",
-    label: "EPS CAGR (3Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "19%",
-  },
-  {
-    key: "revenue_growth_5y_cagr",
-    label: "Revenue CAGR (5Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "5%",
-  },
-  {
-    key: "eps_growth_5y_cagr",
-    label: "EPS CAGR (5Y)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "5%",
-  },
-  {
-    key: "net_income_growth_yoy",
-    label: "Net Income Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "operating_income_growth_yoy",
-    label: "Op Income Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "6%",
-  },
-  // operating_margin_trend/net_margin_trend/roe_trend MOVED to QUALITY_SCHEMA 2026-08-27 (goal:
-  // resolve this pillar's own placement question - Piotroski 2000 JAR / QMJ 2019 both place
-  // improvement-in-profitability signals in Quality's domain, not Growth's - see
-  // load_stock_scores.py's _score_growth docstring for the full reasoning). Still scored,
-  // still 3% each, just relocated - not removed.
-  {
-    key: "sustainable_growth_rate",
-    label: "Sustainable Growth Rate",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "6%",
-  },
-  {
-    key: "fcf_growth_yoy",
-    label: "FCF Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "6%",
-  },
-  {
-    key: "ocf_growth_yoy",
-    label: "OCF Growth YoY",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "4%",
-  },
-  {
-    key: "asset_growth_yoy",
-    label: "Asset Growth YoY (inverted - lower is better)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "5%",
-  },
-  // earnings_growth_yoy briefly moved here 2026-08-26 from the Quality tab, then removed
-  // from scoring entirely the same day (user directive) - live coverage was too sparse
-  // ("No data" for most symbols in practice) to earn its keep as either pillar's input.
-  // quarterly_growth_momentum (unweighted reference) and earnings_growth_4q_avg
-  // (duplicate of the Quality tab's copy) cut 20260816 - neither feeds growth_score.
 ];
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see

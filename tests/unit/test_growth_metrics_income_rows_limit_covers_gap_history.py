@@ -50,7 +50,13 @@ def test_income_rows_query_fetches_more_than_ten_years(monkeypatch):
 
     loader.fetch_incremental("OGEN", None)
 
-    income_query = next(q for q in cursor.queries if "FROM annual_income_statement" in q and "abs.fiscal_year" not in q)
+    # UPDATED 2026-08-27: the income_rows query now LEFT JOINs annual_balance_sheet (for
+    # book_value_growth's stockholders_equity, see migration 1242) and so contains
+    # "abs.fiscal_year" too - that substring can no longer distinguish it from the OTHER
+    # abs-aliased query in this file (quality_row_db's single-row fetch). "LIMIT 30" is unique
+    # to this query (the other is "LIMIT 1") and stays the correct discriminator regardless of
+    # what else either query's SELECT/JOIN clauses gain over time.
+    income_query = next(q for q in cursor.queries if "FROM annual_income_statement" in q and "LIMIT 30" in q)
     limit_line = next(line for line in income_query.splitlines() if "LIMIT" in line)
     limit_value = int(limit_line.strip().split()[-1])
 
