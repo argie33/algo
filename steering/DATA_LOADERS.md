@@ -722,9 +722,16 @@ shows it's a near-total duplicate of data that already exists, is already scored
 displayed elsewhere -
 - `free_cash_flow` / `operating_cash_flow`: identical formula (`operating_cf - capex`), already
   computed by `load_value_quality_growth_metrics.py` into `quality_metrics.free_cash_flow` /
-  `.operating_cash_flow`, already factored into `_score_quality`/`_enhance_quality_score` (via
-  `fcf_to_net_income`), and already displayed (`lambda/api/routes/stocks.py`'s `fcf_data` CTE,
-  `scores.py`'s `quality_inputs.free_cashflow`).
+  `.operating_cash_flow`, and already displayed (`lambda/api/routes/stocks.py`'s `fcf_data` CTE,
+  `scores.py`'s `quality_inputs.free_cashflow`). CORRECTED 2026-08-26: this line previously said
+  `free_cash_flow` was "already factored into `_score_quality`/`_enhance_quality_score` (via
+  `fcf_to_net_income`)" - both halves of that were stale. `_enhance_quality_score` no longer
+  exists. `fcf_to_net_income` (free_cash_flow/net_income) is a DIFFERENT ratio from what's
+  actually scored - it was tested directly via Fama-MacBeth 2026-08-26 and found to carry no
+  independent signal (t=1.06 univariate, 0.92 multivariate), so it stays unscored. What IS
+  scored today is `fcf_margin` (free_cash_flow/revenue, 15% weight in `_score_quality`'s current
+  composite) - free_cash_flow itself is a real, live quality_score input, just via a different
+  ratio than this line originally claimed.
 - `cash_conversion_rate` (`operating_cf / net_income`): identical formula to
   `quality_metrics.ocf_to_net_income`, same already-scored, already-displayed status.
 - `working_capital` (`current_assets - current_liabilities`): the one field with no direct

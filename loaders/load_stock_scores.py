@@ -348,8 +348,15 @@ class StockScoresLoader(OptimalLoader):
             # it is a deliberate scope decision now, not a data-availability limitation.
             # eps_growth_stability added 2026-08-25: computed by
             # load_value_quality_growth_metrics.py (stddev of trailing 4-quarter EPS growth
-            # rates) and stored at 67.8% coverage, but never fetched here before - dead field,
-            # now read for _enhance_quality_score's earnings-consistency adjustment.
+            # rates) and stored at 67.8% coverage. CORRECTED 2026-08-26 (verified directly in
+            # _score_growth's actual weighted_sum below, not assumed from an older memory note):
+            # this field is fetched here but NOT currently in _score_growth's weighted formula -
+            # a 2026-08-26 Growth re-audit briefly gave it a 25% weight, but a same-day user-
+            # directed revert restored the pre-audit 14-input blend (see _score_growth's own
+            # "RESTORED 2026-08-26" docstring), which never included eps_growth_stability. It is
+            # NOT read for the since-removed `_enhance_quality_score` either - that reference was
+            # itself stale. Currently a genuinely dead fetch; flagged, not fixed, since removing
+            # a dead SELECT column is out of scope for whatever prompted this comment originally.
             cur.execute(
                 "SELECT symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, "
                 "eps_growth_1y, eps_growth_3y, eps_growth_5y, "
@@ -990,8 +997,13 @@ class StockScoresLoader(OptimalLoader):
         CRITICAL FIX 2026-07-23 (Session 359): Now fetches all Phase 3 expansion fields
         (gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
         free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
-        earnings_growth_yoy, revenue_growth_yoy, interest_coverage). These are required for Phase 8 quality scoring
-        enhancement via _enhance_quality_score().
+        earnings_growth_yoy, revenue_growth_yoy, interest_coverage). CORRECTED 2026-08-26:
+        `_enhance_quality_score()` this comment referenced no longer exists - it was replaced
+        entirely by `_score_quality`'s current weighted composite (see that method's own
+        docstring for the current formula). Of this list, payout_ratio and interest_coverage
+        are real weighted inputs in that composite today; roic_pct/fcf_to_net_income and the
+        rest were tested and excluded (no independent signal) or are fetched for reference/
+        display only - not all of them feed quality_score.
 
         MINIMUM DATA REQUIREMENT: Row must have exactly 25 columns. Missing columns causes immediate
         fail-fast ValueError to prevent silent data corruption.
@@ -2247,8 +2259,10 @@ class StockScoresLoader(OptimalLoader):
         ratio, cash per share) and Business Diversification (revenue concentration HHI) were
         removed from this factor - stability is meant to track price-volatility/risk-of-loss
         character, not balance-sheet fundamentals or business concentration. The debt/liquidity/
-        cash metrics now feed Quality instead (see _enhance_quality_score); revenue concentration
-        HHI was dropped from scoring entirely per user request.
+        cash metrics moved to Quality (at the time, via `_enhance_quality_score` - since removed
+        2026-08-26; debt-to-equity is now a real 18%-weighted `_score_quality` input directly,
+        not an enhancement bump - see that method's own docstring). Revenue concentration HHI
+        was dropped from scoring entirely per user request.
 
         REWEIGHTED 2026-08-25 (goal: Fama-MacBeth factor-weighting pass, see
         algo/research/fama_macbeth_price_factors.py): built a proper monthly cross-sectional
