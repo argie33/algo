@@ -506,10 +506,11 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
         # Apply data unavailable flags to scores
         if d.get("_growth_data_unavailable"):
             d["growth_score"] = None
-        # positioning_score column dropped from stock_scores by migration 1237 (2026-08-26,
-        # see MEMORY.md positioning_score_dropped_column_minimal_unblock_on_main_20260826) -
-        # no longer selected above, so always report null rather than a stale/absent key.
-        d["positioning_score"] = None
+        # positioning_score REMOVED from the API contract 2026-08-27: Positioning retired as a
+        # composite pillar (see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full
+        # evidence trail) - no longer a real key on this response at all, not a null placeholder.
+        # A/D rating/institutional ownership/short interest are still available, informationally,
+        # via positioning_inputs below.
         if d.get("_risk_data_unavailable"):
             d["risk_score"] = None
         if d.get("_financial_data_unavailable"):
@@ -1717,9 +1718,8 @@ def _get_stock_scores(  # noqa: C901
             # Dashboard will see explicit unavailability markers
             if d.get("_growth_data_unavailable"):
                 d["growth_score"] = None
-            # positioning_score column dropped from stock_scores by migration 1237
-            # (2026-08-26); no longer selected above, always report null.
-            d["positioning_score"] = None
+            # positioning_score REMOVED from the API contract 2026-08-27 (Positioning retired
+            # as a composite pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS).
             if d.get("_risk_data_unavailable"):
                 d["risk_score"] = None
             if d.get("_financial_data_unavailable"):

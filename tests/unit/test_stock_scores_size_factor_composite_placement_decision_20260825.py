@@ -50,7 +50,6 @@ class TestSizeFactorRemovedFromComposite:
             "_score_value",
             "_score_quality",
             "_score_growth",
-            "_score_positioning",
             "_score_risk",
             "_score_momentum",
         ):

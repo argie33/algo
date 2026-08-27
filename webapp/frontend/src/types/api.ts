@@ -104,7 +104,6 @@ export interface StockScore {
   value_score: number;
   quality_score: number;
   growth_score: number;
-  positioning_score: number;
   sentiment_score: number | null;
   risk_score: number;
   current_price: number;

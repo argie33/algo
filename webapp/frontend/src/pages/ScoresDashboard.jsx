@@ -11,7 +11,6 @@ import {
   Activity,
   DollarSign,
   TrendingUp,
-  Users,
   Shield,
   Layers,
 } from "lucide-react";
@@ -89,7 +88,6 @@ const SORT_FIELDS = [
   { value: "quality_score", label: "Quality" },
   { value: "value_score", label: "Value" },
   { value: "growth_score", label: "Growth" },
-  { value: "positioning_score", label: "Positioning" },
   { value: "risk_score", label: "Risk" },
 ];
 
@@ -121,13 +119,6 @@ const FACTORS = [
     scoreKey: "growth_score",
     icon: TrendingUp,
     tone: "var(--success)",
-  },
-  {
-    key: "positioning",
-    label: "Positioning",
-    scoreKey: "positioning_score",
-    icon: Users,
-    tone: "var(--purple)",
   },
   {
     key: "risk",
@@ -1220,7 +1211,6 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                   <th className="num">M</th>
                   <th className="num">V</th>
                   <th className="num">G</th>
-                  <th className="num">P</th>
                   <th className="num">S</th>
                 </tr>
               </thead>
@@ -1301,16 +1291,6 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                     >
                       <SafeMetricValue
                         value={s.growth_score}
-                        formatter="number"
-                        fallback="—"
-                      />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: subScoreColor(s.positioning_score) }}
-                    >
-                      <SafeMetricValue
-                        value={s.positioning_score}
                         formatter="number"
                         fallback="—"
                       />

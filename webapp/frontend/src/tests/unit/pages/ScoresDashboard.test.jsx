@@ -9,7 +9,7 @@
  * - Search input: placeholder "Search symbol..."
  * - Filter button (Clear), score/grade display
  * - Table-based layout (not MUI accordion)
- * - Factor labels: Quality, Momentum, Value, Growth, Positioning, Risk
+ * - Factor labels: Quality, Momentum, Value, Growth, Risk
  * - On error: shows alert-danger div
  * - Loading: shows "Loading scores..."
  */
@@ -45,7 +45,6 @@ const mockStocks = [
     momentum_score: 85.2,
     value_score: 78.3,
     growth_score: 82.1,
-    positioning_score: 84.5,
     risk_score: 79.2,
     price: 175.5,
     change_percent: 1.2,
@@ -59,7 +58,6 @@ const mockStocks = [
     momentum_score: 88.5,
     value_score: 85.1,
     growth_score: 89.5,
-    positioning_score: 86.7,
     risk_score: 82.4,
     price: 420.75,
     change_percent: 2.1,

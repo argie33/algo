@@ -6,14 +6,18 @@ Computes composite stock scores by aggregating:
 - Growth metrics (revenue growth, EPS growth)
 - Value metrics (P/E, P/B, P/S ratios, dividend yield)
 - Momentum/Relative Strength (1m/3m/6m/12m returns)
-- Positioning metrics (institutional ownership, short interest)
 - Stability metrics (volatility, beta)
+
+Positioning (A/D rating, institutional ownership, short interest) is NOT part of the
+composite - retired as a top-level pillar 2026-08-27 (see BASE_PILLAR_WEIGHTS). Its inputs
+are still computed/stored by load_positioning_metrics.py and displayed via the scores API's
+positioning_inputs field, informationally only.
 
 Each factor is normalized to 0-100 scale and weighted.
 Final composite score is weighted average of all factors.
 
 CRITICAL GOVERNANCE RULES:
-- Minimum 1/6 metrics required for any stock score - degraded-mode scoring is allowed (SPACs/
+- Minimum 1/5 metrics required for any stock score - degraded-mode scoring is allowed (SPACs/
   new listings, see Session 530 note on min_required_metrics below); trading gates separately
   filter on data_completeness >= 70% (min_completeness_score), which is the real entry-quality
   bar (no IPO exceptions there either)
@@ -61,12 +65,43 @@ logger = logging.getLogger(__name__)
 # all - not as a top-level pillar, not folded back into Value either. This reverts the
 # 2026-08-26 "promote Size to a 7th pillar" change (commit 869e431c3) entirely; weights below
 # are the pre-promotion values. See _score_size's removal note for what was deleted.
+#
+# POSITIONING RETIRED AS A COMPOSITE PILLAR 2026-08-27 (evidence-driven, see migration
+# 1240_retire_positioning_score_from_stock_scores.sql for the full trail). Its only
+# consistently-testable input, A/D rating (35% weight, previously kept on an explicit user
+# directive despite null return-prediction evidence), was re-tested against the FULL
+# available price history (2000-2026, 318 months, median 2,403 symbols - vs. the ~2015-on
+# window every prior test defaulted to) specifically to rule out "not enough data" hiding a
+# real signal: t=1.05, still not significant. institutional_ownership_pct and
+# short_interest_pct/short_interest_pct_change have never had real historical depth in this
+# database (institutional_holdings_13f: 1 row/symbol; short_interest_finra: ~2 real months of
+# settlement-date coverage) - untestable, not merely untested. The pillar-level composite
+# proxy is consistent with this: never significant in the top-level regression
+# (algo/research/fama_macbeth_composite_weights.py), and its sign FLIPS between half-splits
+# (t=+1.61 first half, t=-1.15 second half) - the signature of noise, not a real factor.
+#
+# Freed 12% moves to Growth (+6, 0.12->0.18) and Risk (+6, 0.18->0.24) - the two pillars that
+# are consistently positive and never sign-flip across every specification of that same
+# top-level regression (growth_proxy t=1.39 univariate/1.72 multivariate; risk_proxy
+# [formerly stability_proxy] t=2.48 multivariate, the single strongest non-Size coefficient in
+# the file, t=2.40/2.86 in both half-splits). Value and Momentum were left unchanged - both
+# weak/inconsistent in this same regression, but with no stronger competing evidence to move
+# them either direction (Value's own within-pillar FM work is separately robust; Momentum's
+# composite-level coefficient is noisy but not worse than its neighbors, and moving it would
+# just be encoding this run's specific noise). Quality's negative composite-level coefficient
+# was deliberately NOT acted on - flagged in a prior pass as not half-split robust, a known
+# collinearity artifact of this specific regression, not a finding about Quality itself (whose
+# own within-pillar FM validation is separately strong).
+#
+# A/D rating, institutional ownership, and short interest are NOT deleted from the system:
+# load_positioning_metrics.py keeps computing/storing them unchanged, and the scores API
+# still surfaces them via positioning_inputs for display - only the synthesized 0-100
+# "positioning_score" composite, which no longer has a coherent empirical basis, is dropped.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.25,
-    "growth": 0.12,
+    "growth": 0.18,
     "value": 0.21,
-    "positioning": 0.12,
-    "risk": 0.18,
+    "risk": 0.24,
     "momentum": 0.12,
 }
 
@@ -75,7 +110,7 @@ class StockScoresLoader(OptimalLoader):
     table_name = "stock_scores"
     primary_key = ("symbol",)
     watermark_field: str = "updated_at"
-    exclude_etfs_from_symbols = True  # Metric loaders (quality, growth, value, positioning, risk) exclude ETFs
+    exclude_etfs_from_symbols = True  # Metric loaders (quality, growth, value, risk) exclude ETFs
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run to validate upstream metrics are ready before computing scores.
@@ -94,10 +129,15 @@ class StockScoresLoader(OptimalLoader):
         Prevents silent score computation failure when metrics are missing due to loader timeouts.
 
         Two tiers:
-        - required: value/positioning/risk - must have real coverage thresholds met
+        - required: value/risk - must have real coverage thresholds met
         - optional_sec: quality/growth - depend on SEC annual financials; may be all-unavailable
           if the annual_income_statement upstream is empty. Fail only if table is completely empty
           (loader never ran). All-unavailable is acceptable; per-symbol scoring handles gracefully.
+
+        positioning_metrics REMOVED 2026-08-27: no longer a stock_scores upstream dependency
+        now that Positioning is retired as a composite pillar (see BASE_PILLAR_WEIGHTS). The
+        table itself is unaffected and still validated by its own loader - this loader just no
+        longer reads it.
         """
         from utils.db.error_handlers import handle_db_errors
 
@@ -111,7 +151,6 @@ class StockScoresLoader(OptimalLoader):
                 required_metric_tables = {
                     "value_metrics": 0.15,  # ADJUSTED: Realistic min - S&P 500 dividend payers ~4,700 stocks (2.7% of ~175k)
                     "growth_metrics": 0.10,  # ADJUSTED: Realistic min - SEC-filing dependent (many small-caps have no annual filings)
-                    "positioning_metrics": 0.15,  # ADJUSTED: Realistic min - Institutional data limited to liquid stocks
                     "stability_metrics": 0.15,  # ADJUSTED: Realistic min - Beta calculation requires sufficient price history
                 }
                 # SEC-filing-dependent metrics: acceptable to have 0% real data if upstream
@@ -177,7 +216,7 @@ class StockScoresLoader(OptimalLoader):
                             f"Required: {min_coverage:.0%} minimum (NO GRACE WINDOW). "
                             f"Sample unavailable symbols: {unavail_sample_str}. "
                             f"ACTION: Check upstream {table_name} loader for timeouts/failures or incomplete data. "
-                            f"Typical causes: SEC API limits (quality/growth), yfinance throttling (value/positioning), price history gaps (stability). "
+                            f"Typical causes: SEC API limits (quality/growth), yfinance throttling (value), price history gaps (stability). "
                             f"Do NOT attempt to score stocks without full metric coverage - incomplete metrics produce biased rankings."
                         )
 
@@ -274,13 +313,15 @@ class StockScoresLoader(OptimalLoader):
                 )
 
     def _prepare_batch_context(self) -> None:
-        """Load all 6 metric tables once instead of per-symbol (N+1 fix).
+        """Load all metric tables once instead of per-symbol (N+1 fix).
 
         Previously each of quality/growth/value/positioning/stability_metrics was queried with
         a separate `WHERE symbol = %s` per symbol (~5 x symbol_count round-trips per run), and
         the momentum query re-evaluated `(SELECT MAX(date) FROM price_daily)` as an inline
-        subquery up to 4 times per symbol against an 8.6M+ row table. Now: 6 bulk queries total,
+        subquery up to 4 times per symbol against an 8.6M+ row table. Now: bulk queries total,
         cached by symbol; momentum is read from momentum_metrics table (precomputed).
+        positioning_metrics dropped from this batch-preload 2026-08-27 (Positioning retired as
+        a composite pillar - see BASE_PILLAR_WEIGHTS).
 
         Per-symbol row layout in each cache dict matches the original per-symbol SELECT exactly
         (same column order, `data_unavailable` last), so _get_*_metrics indexing is unchanged.
@@ -394,23 +435,11 @@ class StockScoresLoader(OptimalLoader):
             # (loaders/load_technical_indicators.py, migration 1232) - only its consumption
             # here was removed, same convention as EV/EBITDA/EV/Revenue elsewhere in this file.
 
-            # shares_short_prior_month/short_interest_pct_change added: written by
-            # load_positioning_metrics.py (migration 1184, pct_change replacing the former
-            # short_interest_trend enum column in migration 1203) but never read here before -
-            # the existing short_interest weight only used the latest %-of-float snapshot, with
-            # no signal for which direction it's moving.
-            # BUG FOUND 2026-08-24 (real-money-readiness goal, log-driven sweep): a
-            # concurrent session's commit ("REMOVE: drop insider_ownership_pct entirely -
-            # not a positioning metric") dropped the column from positioning_metrics but
-            # missed this SELECT - live-confirmed this crashed EVERY stock_scores run since
-            # that commit landed (column "insider_ownership_pct" does not exist), the most
-            # critical loader in the pipeline (feeds every trading decision).
-            cur.execute(
-                "SELECT symbol, institutional_ownership_pct, short_interest_pct, "
-                "shares_short_prior_month, short_interest_pct_change, ad_rating, data_unavailable "
-                "FROM positioning_metrics"
-            )
-            self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+            # positioning_metrics preload REMOVED 2026-08-27: Positioning retired as a
+            # composite pillar (see BASE_PILLAR_WEIGHTS), so this loader no longer reads
+            # positioning_metrics at all - the table itself, and its own loader
+            # (load_positioning_metrics.py), are unaffected and keep populating it for the
+            # scores API's informational positioning_inputs display.
 
             # downside_volatility_252d/max_drawdown_1y added: written by load_risk_metrics_daily.py
             # (migration 1184/1175) but never read here before.
@@ -537,8 +566,7 @@ class StockScoresLoader(OptimalLoader):
         Do not return None or fake markers - callers must know immediately if scoring failed.
 
         Returns dict with keys: symbol, composite_score, quality_score, growth_score,
-        value_score, momentum_score, positioning_score, risk_score, rs_percentile,
-        data_completeness
+        value_score, momentum_score, risk_score, rs_percentile, data_completeness
 
         Raises:
             RuntimeError: If insufficient metrics available to compute valid score
@@ -548,7 +576,6 @@ class StockScoresLoader(OptimalLoader):
                 quality = self._get_quality_metrics(cur, symbol)
                 growth = self._get_growth_metrics(cur, symbol)
                 value = self._get_value_metrics(cur, symbol)
-                positioning = self._get_positioning_metrics(cur, symbol)
                 risk_metrics = self._get_stability_metrics(cur, symbol)
                 momentum = self._get_momentum_metrics(cur, symbol)
 
@@ -558,7 +585,6 @@ class StockScoresLoader(OptimalLoader):
             quality_score = self._score_quality(quality, symbol)
             growth_score = self._score_growth(growth, symbol)
             value_score = self._score_value(value, symbol)
-            positioning_score = self._score_positioning(positioning, symbol)
             risk_score = self._score_risk(risk_metrics, symbol)
             momentum_score = self._score_momentum(momentum, symbol)
 
@@ -576,13 +602,13 @@ class StockScoresLoader(OptimalLoader):
             # Count data completeness: only float scores count as "real data"
             # Markers (dicts with data_unavailable=True) are excluded from count
             # Session 260: Momentum loader now fixed and included in completeness calculation
-            # 6 pillars are evaluated: quality, growth, value, positioning, risk, momentum
-            # Minimum 70% completeness (4.2/6 metrics) required per GOVERNANCE.md
+            # 5 pillars are evaluated: quality, growth, value, risk, momentum (Positioning
+            # retired as a composite pillar 2026-08-27 - see BASE_PILLAR_WEIGHTS)
+            # Minimum 70% completeness (3.5/5 metrics) required per GOVERNANCE.md
             all_scores = {
                 "quality": quality_score,
                 "growth": growth_score,
                 "value": value_score,
-                "positioning": positioning_score,
                 "risk": risk_score,
                 "momentum": momentum_score,
             }
@@ -592,27 +618,26 @@ class StockScoresLoader(OptimalLoader):
                 name: get_marker_reason(score) for name, score in all_scores.items() if not is_real_score(score)
             }
 
-            # CRITICAL FIX 2026-07-19: Log when scores computed with <6 metrics for visibility.
+            # CRITICAL FIX 2026-07-19: Log when scores computed with <5 metrics for visibility.
             # Traders need to see completeness % in dashboards to filter based on GOVERNANCE entry gates.
-            if data_count < 6 and data_count >= 4:
+            if data_count < 5 and data_count >= 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
                     f"Missing: {', '.join(missing)}. Trading filter gate: completeness >= 70% per GOVERNANCE."
                 )
             elif data_count < 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
                     f"Minimum 4 metrics ensures diversity against single-metric bias."
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
-            # Calculate completeness on 6 pillars (quality, growth, value, positioning,
-            # risk, momentum)
-            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
+            # Calculate completeness on 5 pillars (quality, growth, value, risk, momentum)
+            data_completeness = min(99.99, round((data_count / 5.0) * 100, 2))
 
-            # CRITICAL FIX 2026-07-19: Compute score for all symbols with 4+/6 metrics, mark completeness for trading filters.
+            # CRITICAL FIX 2026-07-19: Compute score for all symbols with 4+/5 metrics, mark completeness for trading filters.
             # Previous: Rejected any score with <70% completeness, removing 1,635 valid candidates from universe.
             # New: Calculate scores for all candidates with sufficient diversity (4+ metrics), let trading logic
             # (entry gates) filter based on completeness %. This gives traders full visibility + control.
@@ -630,10 +655,10 @@ class StockScoresLoader(OptimalLoader):
             if data_count < min_required_metrics:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero metrics available. "
-                    f"Got {data_count}/6 metrics. Cannot compute score with no metric data."
+                    f"Got {data_count}/5 metrics. Cannot compute score with no metric data."
                 )
 
-            # GOVERNANCE COMPLIANCE: Compute scores with 4+/6 metrics (sufficient diversity).
+            # GOVERNANCE COMPLIANCE: Compute scores with 4+/5 metrics (sufficient diversity).
             # No weight redistribution fallbacks (normalized weights stay fixed).
             # Trading gates will filter based on completeness % >= 70% per GOVERNANCE.md line 62.
             # Reason: Rejecting a few-metric-short score wastes valid signals; incomplete data is honest data marked visible.
@@ -642,7 +667,6 @@ class StockScoresLoader(OptimalLoader):
                 "quality": is_real_score(quality_score),
                 "growth": is_real_score(growth_score),
                 "value": is_real_score(value_score),
-                "positioning": is_real_score(positioning_score),
                 "risk": is_real_score(risk_score),
                 "momentum": is_real_score(momentum_score),
             }
@@ -659,20 +683,20 @@ class StockScoresLoader(OptimalLoader):
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.error(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero real metrics available. "
-                    f"Available {real_metric_count}/6. "
+                    f"Available {real_metric_count}/5. "
                     f"Missing: {', '.join(missing_metrics)}. "
                     f"Cannot compute even degraded score without any real data."
                 )
                 raise ValueError(
-                    f"{symbol}: zero metrics ({real_metric_count}/6, impossible to score). "
+                    f"{symbol}: zero metrics ({real_metric_count}/5, impossible to score). "
                     f"Cannot compute score with zero available metrics."
                 )
 
             if real_metric_count < 2:
                 # Degraded mode: score with 1 metric only (for SPACs/new listings)
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/6 metrics available. "
-                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 6 * 100)}%)"
+                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/5 metrics available. "
+                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 5 * 100)}%)"
                 )
 
             # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
@@ -776,7 +800,6 @@ class StockScoresLoader(OptimalLoader):
             clamped_quality = clamp_score(quality_score)
             clamped_growth = clamp_score(growth_score)
             clamped_value = clamp_score(value_score)
-            clamped_positioning = clamp_score(positioning_score)
             clamped_risk = clamp_score(risk_score)
             clamped_momentum = clamp_score(momentum_score)
 
@@ -788,7 +811,6 @@ class StockScoresLoader(OptimalLoader):
                 ("quality", clamped_quality),
                 ("growth", clamped_growth),
                 ("value", clamped_value),
-                ("positioning", clamped_positioning),
                 ("risk", clamped_risk),
                 ("momentum", clamped_momentum),
             ]:
@@ -858,7 +880,6 @@ class StockScoresLoader(OptimalLoader):
                 "quality": extract_score_value(clamped_quality),
                 "growth": extract_score_value(clamped_growth),
                 "value": extract_score_value(clamped_value),
-                "positioning": extract_score_value(clamped_positioning),
                 "risk": extract_score_value(clamped_risk),
                 "momentum": extract_score_value(clamped_momentum),
             }
@@ -872,9 +893,6 @@ class StockScoresLoader(OptimalLoader):
                 "value": ["financial_statements", "sec_valuations", "dividend_data"]
                 if extract_score_value(clamped_value)
                 else [],
-                "positioning": ["institutional_holdings_13f", "short_interest_finra"]
-                if extract_score_value(clamped_positioning)
-                else [],
                 "risk": ["risk_metrics_daily", "technical_data_daily", "financial_statements"]
                 if extract_score_value(clamped_risk)
                 else [],
@@ -883,20 +901,15 @@ class StockScoresLoader(OptimalLoader):
                 else [],
             }
 
-            # MINIMAL UNBLOCK 2026-08-26 (concurrent-session DB/code mismatch): a concurrent
-            # session applied migration 1237_retire_positioning_score_from_stock_scores to the
-            # SHARED local dev DB, dropping stock_scores.positioning_score - but their actual
-            # code changes (weight reallocation, frontend, this file's own retirement) are
-            # uncommitted in a separate worktree (size-factor-promotion), not landed here.
-            # Since migrations hit the one shared DB regardless of worktree, this branch's
-            # writes were crashing with UndefinedColumn. Fix here is deliberately narrow: drop
-            # positioning_score from the dicts that map to real DB columns (this one, the two
-            # data_unavailable markers above, and snapshot_score_history()'s INSERT/SELECT/
-            # ON CONFLICT below) so writes succeed again. Did NOT touch _score_positioning,
-            # BASE_PILLAR_WEIGHTS["positioning"], data_completeness's /6 denominator, or the
-            # components/data_sources JSON blobs (those aren't literal SQL columns, safe to
-            # leave stale) - the real retirement (reweighting, frontend, tests) is that other
-            # session's deliberate, larger in-progress work, not something to improvise here.
+            # POSITIONING FULLY RETIRED 2026-08-27 (supersedes the 2026-08-26 "minimal unblock"
+            # patch that used to live here - see BASE_PILLAR_WEIGHTS for the full evidence
+            # trail). positioning_score no longer appears anywhere in this function: not in
+            # all_scores/score_availability/the composite loop/components/data_sources, and not
+            # in this result dict or snapshot_score_history()'s INSERT below. A/D rating,
+            # institutional ownership, and short interest are unaffected upstream -
+            # load_positioning_metrics.py keeps computing/storing them for the scores API's
+            # informational positioning_inputs display; this loader just no longer reads or
+            # scores them.
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -954,12 +967,11 @@ class StockScoresLoader(OptimalLoader):
     #   * _get_quality_metrics: 24 columns (roe through revenue_growth_yoy, includes Phase 3 expansion fields)
     #   * _get_growth_metrics: 12 columns (revenue_growth_1y through ocf_growth_yoy, data_unavailable last)
     #   * _get_value_metrics: 10 columns (pe_ratio through ev_revenue, data_unavailable last)
-    #   * _get_positioning_metrics: 6 columns (institutional_ownership through short_interest_pct_change, data_unavailable last)
     #   * _get_stability_metrics: 8 columns (volatility_252d through max_drawdown_1y, data_unavailable last)
     #   * _get_momentum_metrics: 5 columns (current through price_12m_ago)
     # - All _score_* functions return marker dicts if input metrics are missing/incomplete
     # - Momentum metrics: Require proper lookback periods (30d/60d/120d/252d), not degraded estimates
-    # - Stock minimum: 1/6 metrics (degraded-mode scoring allowed); trading gates separately
+    # - Stock minimum: 1/5 metrics (degraded-mode scoring allowed); trading gates separately
     #   filter on data_completeness >= 70% regardless of stock age (no IPO exceptions there)
     #
     # MARKER HANDLING by _compute_stock_score():
@@ -1186,59 +1198,6 @@ class StockScoresLoader(OptimalLoader):
             f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} - score completeness will be reduced"
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_found"}
-
-    def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
-        """Fetch positioning metrics for symbol.
-
-        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
-        Raises RuntimeError on database errors or data type mismatches.
-
-        VALIDATION RULES:
-        - Row length validation: Must have 6 columns (institutional_ownership,
-          short_interest_percent, shares_short_prior_month, short_interest_pct_change, ad_rating,
-          data_unavailable) - insider_ownership_pct removed 2026-08-24 (column dropped from
-          positioning_metrics entirely, "not a positioning metric")
-        - Schema mismatch (len(row) < 6) → raises ValueError immediately
-        - All numeric fields converted via safe_float() (detects data corruption)
-        - data_unavailable=True flag → returns marker dict even if row exists
-        - No row at all → returns marker dict with reason="no_positioning_metrics_found"
-
-        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Weird securities (ETFs,
-        preferreds, depositary shares) have rows marked data_unavailable=True with NULL values.
-        Previously returned NULLs instead of marker; now properly returns marker dict.
-
-        MINIMUM DATA REQUIREMENT: Row must have exactly 4 columns. Missing columns causes immediate
-        fail-fast ValueError. Not available for REITs/special securities (expected, handled gracefully).
-        """
-        row = self._positioning_cache.get(symbol)
-        if row:
-            # CRITICAL: Validate row has expected 6 columns before accessing indices
-            if len(row) < 6:
-                raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 6. "
-                    f"Schema mismatch detected - cannot safely access data. Failing fast."
-                )
-            data_unavailable = row[5]
-            # If marked unavailable, return marker even if row exists
-            if data_unavailable:
-                logger.debug(
-                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in positioning_metrics "
-                    f"(likely weird security: ETF, preferred, depositary share)"
-                )
-                return {"symbol": symbol, "data_unavailable": True, "reason": "positioning_data_marked_unavailable"}
-            # Row exists and data is available
-            return {
-                "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
-                "short_interest": safe_float(row[1], f"{symbol}.short_interest"),
-                "shares_short_prior_month": safe_float(row[2], f"{symbol}.shares_short_prior_month", allow_none=True),
-                "short_interest_pct_change": safe_float(row[3], f"{symbol}.short_interest_pct_change", allow_none=True),
-                "ad_rating": safe_float(row[4], f"{symbol}.ad_rating", allow_none=True),
-            }
-        # No row exists at all
-        logger.debug(
-            f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} - will reduce score completeness"
-        )
-        return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_found"}
 
     def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch stability metrics for symbol.
@@ -2089,157 +2048,16 @@ class StockScoresLoader(OptimalLoader):
     # 2026-08-26, removed entirely the same day) is in git history - see commit 869e431c3 for
     # the promotion this reverts.
 
-    def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
-        """Score positioning metrics on 0-100 scale. Returns marker dict if no real data.
-
-        Uses weighted scoring (weights normalized over whichever fields are present):
-        A/D rating (35%) + Institutional ownership (30%) + Short interest (25%)
-        + Short interest % change MoM (10%).
-        Higher A/D rating + institutional ownership and lower short interest signal positive positioning.
-
-        REWEIGHTED 2026-08-25 (goal: full scoring-architecture audit, user-directed): A/D
-        rating raised to the top weight per explicit user direction (kept in this pillar, not
-        moved to Momentum as this audit's own code-level analysis would have suggested - A/D
-        is a volume-confirmed price-trend indicator by construction, but the user considers it
-        this pillar's most important signal and that call stands). Institutional ownership cut
-        from 55% - checked institutional_holdings_13f (4,166 rows, exactly 1 per symbol, single
-        filing date) and institutional_ownership (0 rows): neither has any historical depth in
-        this database, so the 55% weight could never be empirically validated. Literature
-        (Gompers & Metrick 2001 and related "smart money" work) treats institutional ownership
-        mainly as a flow/change signal, not a level factor - a 55% weight on the raw level was
-        higher than that literature supports even before the data-availability problem.
-
-        OPEN QUESTION flagged 2026-08-25 (same day, later pass - goal: re-audit ALL stock_scores
-        inputs without bias toward what already shipped, explicitly including inputs the user
-        has already weighed in on). institutional_ownership_pct/short_interest_pct remain
-        untestable for the reason already documented above (checked short_interest_finra
-        directly this pass too: 16,151 rows/5,553 symbols but only 2 months of real settlement-
-        date coverage, June-July 2026 - not enough for any time-series test). ad_rating IS
-        testable though - it's a pure price/volume indicator (Chaikin Money Flow,
-        loaders/technical_indicators.py::compute_ad_rating), fully point-in-time-safe from
-        price_daily's OHLCV columns. Built algo/research/fama_macbeth_positioning_factors.py to
-        reconstruct it exactly and test it: t=-0.23 (133 months, median 3,662 symbols/month) -
-        no detectable forward-return signal at all for this pillar's largest weight (35%).
-        Surfaced, not overridden: this weight was an explicit user directive ("the user
-        considers it this pillar's most important signal and that call stands," per the note
-        above), not an empirical claim from the redesign, and a null return-prediction result
-        doesn't necessarily mean the indicator has no value to the user for other reasons (e.g.
-        as a volume-confirmation filter). Flagging per this pass's own instruction to surface
-        findings honestly even against prior decisions, not silently changing a stated
-        preference.
-
-        METHODOLOGY CHECK (2026-08-25, same pass, user-prompted): a linear monthly-rebalanced
-        Fama-MacBeth test is arguably the WRONG test for A/D rating in the first place - IBD
-        explicitly designs it as a screening GATE within CAN SLIM's "I" (Institutional
-        Sponsorship) criterion, evaluated AT A BREAKOUT, not as a standing universe-wide linear
-        rank (confirmed via IBD's own published methodology description, not assumed). Checked
-        two alternative framings rather than trusting the single linear result: (1) a decile
-        sort (nonparametric, no linearity assumption) - not clean either: deciles 0-3 average
-        ~1.0-1.1%/month, decile 4-7 fall toward ~0.1-0.9%, deciles 8-9 "recover" to 1.4-1.7% but
-        on only 16 and 4 of 133 months respectively (too data-sparse to trust - most months'
-        cross-section doesn't spread across all 10 buckets). No clean monotonic OR threshold
-        pattern emerges. (2) An event-conditional test closer to IBD's actual design: among
-        1,923,394 new-20-day-high events (a standard but crude breakout proxy - not this
-        system's own base-and-breakout detection, which needs buy_sell_daily's
-        base_type/breakout_quality/market_stage fields but that table only has 2.5 months of
-        history, June-August 2026, too young to backtest), ad_rating at the breakout vs.
-        forward-20-trading-day return: Spearman rho=-0.0229 (p=1.6e-220 - significant only
-        because n=1.9M, the exact pooled-panel over-significance problem flagged throughout
-        this file's other OPEN QUESTION notes), bottom-decile vs. rest mean returns
-        0.628%/0.740% - an economically trivial gap. Three different methodologies (linear,
-        nonparametric decile, event-conditional) now agree: no material forward-return signal
-        detected for ad_rating by any test tried. This is stronger evidence than the original
-        single linear result, though the breakout proxy's crudeness means a genuine test against
-        this system's own base-pattern detection is still the fairest one, once buy_sell_daily
-        accumulates enough history to backtest against.
-
-        RETURN TYPES (STRICT):
-        - metrics available with ≥1 positioning field → returns float (0-100)
-        - metrics marked data_unavailable=True → returns marker dict (never None)
-        - metrics is None or missing → returns marker dict (never None)
-        - all positioning fields None → returns marker dict with reason="no_positioning_scores_computed"
-
-        ERROR HANDLING:
-        - Type conversion errors → RuntimeError (via _safe_float)
-        - Missing positioning data → marker dict (expected for REITs and special securities)
-
-        Internal function: caller (_compute_stock_score) explicitly handles marker dicts
-        and uses them for positioning metric computation. Position weight redistribution
-        applies if positioning unavailable.
-
-        MINIMUM DATA REQUIREMENT: At least one of institutional_ownership/short_interest
-        metrics must be non-NULL. If all positioning metrics are None,
-        returns data_unavailable marker. Optional for REITs/special securities.
-
-        REMOVED 2026-08-24: insider_ownership scoring component - a concurrent session's
-        commit ("REMOVE: drop insider_ownership_pct entirely - not a positioning metric")
-        dropped the underlying column from positioning_metrics but missed this scoring
-        block, which crashed the loader referencing it via the now-nonexistent SELECT
-        column (see _get_positioning_metrics's own fix note). Removing this block needs no
-        manual weight redistribution - the remaining weights are already normalized via
-        weighted_sum / total_weight below, using only whatever fields are actually present.
-        """
-        if not metrics or metrics.get("data_unavailable"):
-            logger.warning(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
-            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol})")
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_data"}
-
-        weighted_sum = 0.0
-        total_weight = 0.0
-
-        # Institutional ownership: higher is better (target 50%+, cap at 95%)
-        if metrics.get("institutional_ownership") is not None:
-            io = min(metrics["institutional_ownership"], 95)
-            weighted_sum += io * 0.30
-            total_weight += 0.30
-
-        # Short interest: lower is better (target <5%)
-        if metrics.get("short_interest") is not None:
-            si = metrics["short_interest"]
-            if si < 5:
-                score = 100 - (si * 10)
-            elif si < 15:
-                score = 50 - ((si - 5) * 2)
-            else:
-                score = 30
-            weighted_sum += max(0, min(100, score)) * 0.25
-            total_weight += 0.25
-
-        # Short interest % change (month-over-month, written by load_positioning_metrics.py's
-        # _compute_short_interest_pct_change): shorts covering (negative change) is a positive
-        # signal independent of the absolute %-of-float level scored above; shorts building
-        # (positive change) is a negative signal even if the absolute level is still low.
-        #
-        # REPLACED 2026-08-17 (migration 1203): this used to read a pre-bucketed 3-value text
-        # enum ('increasing'/'decreasing'/'stable' at a +/-5% threshold) and look up one of 3
-        # fixed scores (10/55/100) - every symbol in a bucket scored identically regardless of
-        # whether its actual change was 5.1% or 51%, discarding real signal the loader had
-        # already computed. Scored with a logistic curve instead of a linear+clamp: strictly
-        # monotonic decreasing in pct_change for every real input (a bigger covering move
-        # always scores higher than a smaller one, no matter how large), naturally bounded to
-        # (0, 100) with no hard clamp/plateau, and centered at 0% change -> 50 (neutral).
-        pct_change = metrics.get("short_interest_pct_change")
-        if pct_change is not None:
-            pct_change_score = 100.0 / (1.0 + math.exp(pct_change / 12.0))
-            weighted_sum += pct_change_score * 0.10
-            total_weight += 0.10
-
-        # A/D (Accumulation/Distribution) rating: volume-confirmed price-trend signal from
-        # load_positioning_metrics.py (loaders/technical_indicators.py::compute_ad_rating) -
-        # already a 0-100 score (100=volume confirms uptrend, 60=bullish divergence, 30=bearish),
-        # no tiering needed. 93.5% populated (2026-08-04 live check), written and displayed on
-        # the scores page since it was added, but never weighted into positioning_score - same
-        # "displayed but never weighted" bug class as short_interest_trend above.
-        if metrics.get("ad_rating") is not None:
-            weighted_sum += metrics["ad_rating"] * 0.35
-            total_weight += 0.35
-
-        if total_weight > 0:
-            return weighted_sum / total_weight
-        logger.debug(
-            f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol}) - no scoreable fields"
-        )
-        return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_scores_computed"}
+    # _score_positioning REMOVED 2026-08-27 (Positioning retired as a composite pillar - see
+    # BASE_PILLAR_WEIGHTS for the full evidence trail: A/D rating null across every methodology
+    # tried, including a full-history 2000-2026 re-test; institutional_ownership/short_interest
+    # untestable for lack of real historical depth; the pillar-level composite proxy itself
+    # never significant and sign-flips across half-splits). The method used to live here -
+    # weighted A/D rating (35%) + institutional ownership (30%) + short interest (25%) + short
+    # interest % change (10%) - see git history (this file, pre-2026-08-27) for the full
+    # docstring and implementation if ever revisited. A/D rating/institutional ownership/short
+    # interest are still computed by load_positioning_metrics.py and displayed via the scores
+    # API's informational positioning_inputs field - only this synthesized composite is gone.
 
     def _score_risk(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score risk metrics on 0-100 scale using price volatility / risk-of-loss signals only.
@@ -2772,7 +2590,7 @@ class StockScoresLoader(OptimalLoader):
                         symbols_loaded,
                         symbol_count
                     FROM data_loader_status
-                    WHERE table_name IN ('value_metrics', 'positioning_metrics', 'stability_metrics', 'growth_metrics')
+                    WHERE table_name IN ('value_metrics', 'stability_metrics', 'growth_metrics')
                     ORDER BY table_name
                 """)
 

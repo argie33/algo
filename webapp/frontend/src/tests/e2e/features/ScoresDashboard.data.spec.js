@@ -30,7 +30,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
           growth_score: 82.3,
           momentum_score: 71.5,
           sentiment_score: 68.9,
-          positioning_score: 75.4,
           risk_score: 81.2,
           momentum_inputs: {
             momentum_6_1: 0.52,
@@ -97,7 +96,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
           growth_score: 78.9,
           momentum_score: 74.2,
           sentiment_score: 82.3,
-          positioning_score: 79.8,
           risk_score: 86.5,
           momentum_inputs: {
             momentum_6_1: 0.58,
@@ -371,7 +369,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
             growth_score: 80.0,
             momentum_score: 70.0,
             sentiment_score: 65.0,
-            positioning_score: 75.0,
             risk_score: 85.0,
             quality_inputs: {
               return_on_equity_pct: 0.25,

@@ -4,7 +4,6 @@ import {
   Activity,
   DollarSign,
   TrendingUp,
-  Users,
   Shield,
   Inbox,
 } from "lucide-react";
@@ -181,12 +180,6 @@ const FACTORS = [
     label: "Growth",
     scoreKey: "growth_score",
     icon: TrendingUp,
-  },
-  {
-    key: "positioning",
-    label: "Positioning",
-    scoreKey: "positioning_score",
-    icon: Users,
   },
   {
     key: "risk",
@@ -699,7 +692,7 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           inputsKey="growth_inputs"
         />
         <InputsCard
-          title="Positioning"
+          title="Positioning (informational)"
           stock={stock}
           schema={POSITIONING_SCHEMA}
           inputsKey="positioning_inputs"
@@ -1229,43 +1222,28 @@ const GROWTH_SCHEMA = [
   // (duplicate of the Quality tab's copy) cut 20260816 - neither feeds growth_score.
 ];
 
-// REWEIGHTED 2026-08-25 (goal: full scoring-architecture audit, user-directed): A/D rating
-// raised to the top weight per explicit user direction (kept in this pillar rather than
-// moved to Momentum, which this audit's own code-level analysis would otherwise have
-// suggested - A/D is a volume-confirmed price-trend indicator by construction, but the
-// user considers it this pillar's most important signal and that call stands).
-// Institutional ownership cut from 55% - institutional_holdings_13f (4,166 rows, exactly 1
-// per symbol) and institutional_ownership (0 rows) have no historical depth in this
-// database, so the 55% weight could never be validated, and literature (Gompers & Metrick
-// 2001 and related "smart money" work) treats institutional ownership mainly as a
-// flow/change signal, not a level factor.
-//
-// REMOVED 2026-08-24: insider_ownership_pct (20% weight) dropped entirely - static
-// governance/alignment metric, near-zero information content for this system's
-// weeks-scale swing trading, recurring source of real bugs. See
-// loaders/DEPRECATED_LOADERS.md. Weights below are re-normalized automatically by
-// _score_positioning's weighted_sum/total_weight (no rebalancing needed here).
+// POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see
+// loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full trail): A/D rating showed no
+// forward-return signal by any methodology tried, including a full 2000-2026 price-history
+// re-test (t=1.05); institutional ownership and short interest have never had real historical
+// depth in this database to test at all. None of the fields below feed composite_score or any
+// pillar score anymore - this tab is informational only (no weight badges), sourced directly
+// from positioning_metrics via the scores API's positioning_inputs field.
 const POSITIONING_SCHEMA = [
   {
     key: "ad_rating",
     label: "A/D Rating",
     fmt: (v) => num(v, 1),
-    used: true,
-    weight: "35%",
   },
   {
     key: "institutional_ownership_pct",
     label: "Institutional Own %",
     fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "30%",
   },
   {
     key: "short_interest_pct",
     label: "Short Interest %",
     fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "25%",
   },
   // short_percent_of_float removed 20260816: loaders/load_positioning_metrics.py computes
   // it as short_shares / shares_outstanding, the same FINRA short_shares numerator and
@@ -1275,12 +1253,9 @@ const POSITIONING_SCHEMA = [
     key: "short_interest_pct_change",
     label: "Short Interest % Chg (MoM)",
     fmt: (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${num(v, 1)}%`),
-    used: true,
-    weight: "10%",
   },
   // top_10_institutions_pct/institutional_holders_count/shares_short_prior_month/
-  // short_ratio cut 20260816 (second pass) - unweighted reference fields, don't feed
-  // positioning_score.
+  // short_ratio cut 20260816 (second pass) - unweighted reference fields.
 ];
 
 // CONSOLIDATED 2026-08-25 (goal: full scoring-architecture audit): this tab previously

@@ -16,17 +16,18 @@ a regex anchored on the score-variable name each function multiplies by its weig
 constant, e.g. `pe_score * 0.45`) rather than duplicated as a hardcoded literal, so this
 test keeps tracking future weight tuning automatically - only the JSX side needs updating
 when a weight changes, and this test is what catches it if someone forgets. Intentionally
-scoped to the flat, single-level weighted-average components (value/positioning/
-risk's top-level terms, momentum's dict-based 1m/3m/6m/12m weights and its
-rsi/macd terms) - Quality's base score and its +/-10 point "enhancement" adjustment are a
-different shape (equal-weighted average + bounded adjustment, not a flat weighted sum)
-and are deliberately out of scope.
+scoped to the flat, single-level weighted-average components (value/risk's top-level
+terms, momentum's dict-based 1m/3m/6m/12m weights and its rsi/macd terms) - Quality's base
+score and its +/-10 point "enhancement" adjustment are a different shape (equal-weighted
+average + bounded adjustment, not a flat weighted sum) and are deliberately out of scope.
+Positioning was retired as a scored composite pillar entirely 2026-08-27 - see
+TestPositioningScoreRemoved below.
 """
 
 import inspect
 import re
 
-from loaders.load_stock_scores import StockScoresLoader
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, StockScoresLoader
 
 with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
     _JSX_SOURCE = f.read()
@@ -137,13 +138,27 @@ class TestSizeScoreRemoved:
         assert "size_score" not in jsx_source
 
 
-class TestPositioningScoreWeightBadges:
-    def test_weights_match_code(self):
-        src = inspect.getsource(StockScoresLoader._score_positioning)
-        _assert_pct_matches("institutional_ownership_pct", _weight_for_score_var(src, "io"))
-        _assert_pct_matches("short_interest_pct", _weight_for_score_var(src, "max(0, min(100, score))"))
-        _assert_pct_matches("short_interest_pct_change", _weight_for_score_var(src, "pct_change_score"))
-        _assert_pct_matches("ad_rating", _weight_for_score_var(src, 'metrics["ad_rating"]'))
+class TestPositioningScoreRemoved:
+    def test_positioning_is_not_a_scored_pillar(self):
+        """Positioning was retired as a top-level composite pillar 2026-08-27 (evidence-driven
+        - A/D rating null across every methodology tried including a full 2000-2026 re-test;
+        institutional ownership/short interest untestable for lack of real historical depth;
+        the pillar-level composite proxy itself never significant and sign-flips across
+        half-splits). See loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full
+        trail. Guards against the JSX schema drifting back to advertising A/D rating/
+        institutional ownership/short interest as scored (weight-badged) inputs - they're
+        still displayed informationally via positioning_inputs, just not scored."""
+        assert not hasattr(StockScoresLoader, "_score_positioning")
+        assert "positioning" not in BASE_PILLAR_WEIGHTS
+        with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
+            jsx_source = f.read()
+        assert 'scoreKey: "positioning_score"' not in jsx_source
+        # positioning_inputs (informational display) is expected to remain - only the
+        # weight-badged POSITIONING_SCHEMA entries (ad_rating/institutional_ownership_pct/
+        # short_interest_pct/short_interest_pct_change) should have no `weight:` key left.
+        schema_match = re.search(r"const POSITIONING_SCHEMA = \[([\s\S]*?)\n\];", jsx_source)
+        assert schema_match, "expected POSITIONING_SCHEMA to still exist (informational display)"
+        assert "weight:" not in schema_match.group(1)
 
 
 class TestRiskScoreWeightBadges:

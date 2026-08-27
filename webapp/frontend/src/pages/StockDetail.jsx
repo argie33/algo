@@ -1152,7 +1152,6 @@ function ScoreBars({ scores }) {
     ["Value", scores.value_score],
     ["Growth", scores.growth_score],
     ["Risk", scores.risk_score],
-    ["Positioning", scores.positioning_score],
   ];
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
@@ -1223,15 +1222,18 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // toward the 100-point composite), bar max = weight * 100.
   // UPDATED 2026-08-26: Size (market cap) was briefly promoted to its own top-level 7th
   // pillar, then removed from scoring entirely the same day (user directive) - not a scored
-  // input anywhere now. Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly -
-  // guarded by tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this
-  // can't drift silently again.
+  // input anywhere now.
+  // UPDATED 2026-08-27: Positioning retired as a composite pillar entirely (evidence-driven -
+  // see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full trail). Its freed 12%
+  // moved to Growth (+6) and Risk (+6). Matches loaders/load_stock_scores.py's
+  // BASE_PILLAR_WEIGHTS exactly - guarded by
+  // tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't drift
+  // silently again.
   const FACTOR_WEIGHTS = [
     ["Quality", "quality_score", 0.25],
-    ["Growth", "growth_score", 0.12],
+    ["Growth", "growth_score", 0.18],
     ["Value", "value_score", 0.21],
-    ["Positioning", "positioning_score", 0.12],
-    ["Risk", "risk_score", 0.18],
+    ["Risk", "risk_score", 0.24],
     ["Momentum", "momentum_score", 0.12],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
