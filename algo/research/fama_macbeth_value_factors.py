@@ -69,8 +69,7 @@ def fetch_annual_value_fundamentals() -> pd.DataFrame:
         SELECT i.symbol, i.fiscal_year,
                COALESCE(i.diluted_eps, i.eps) AS eps,
                i.revenue, i.operating_income,
-               COALESCE(i.depreciation_expense, 0) AS depreciation_expense,
-               COALESCE(i.amortization_expense, 0) AS amortization_expense,
+               i.depreciation_expense, i.amortization_expense,
                i.shares_outstanding_diluted,
                b.stockholders_equity, b.long_term_debt, b.short_term_debt, b.cash_and_equivalents,
                c.free_cash_flow, c.dividends_paid
@@ -110,7 +109,16 @@ def fetch_annual_value_fundamentals() -> pd.DataFrame:
 
 def build_value_panel(fund: pd.DataFrame) -> pd.DataFrame:
     shares = fund["shares_diluted"]
-    ebitda = fund["operating_income"] + fund["depreciation_expense"] + fund["amortization_expense"]
+    # See fama_macbeth_quality_factors.py's build_quality_panel() comment on net_debt_to_ebitda
+    # (2026-08-27) - COALESCE(...,0)-in-SQL treatment for D&A silently scores ~50-70% of
+    # firm-years as zero D&A. ev_ebitda is currently dead (removed from VALUE_FACTOR_COLS, see
+    # this file's own comment near line 197) but fixed here too for correctness if ever revived.
+    da_reported = fund["depreciation_expense"].notna() & fund["amortization_expense"].notna()
+    ebitda = np.where(
+        da_reported,
+        fund["operating_income"] + fund["depreciation_expense"].fillna(0) + fund["amortization_expense"].fillna(0),
+        np.nan,
+    )
     net_debt = (
         fund["long_term_debt"].fillna(0) + fund["short_term_debt"].fillna(0) - fund["cash_and_equivalents"].fillna(0)
     )

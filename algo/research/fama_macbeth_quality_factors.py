@@ -120,8 +120,7 @@ def fetch_annual_quality_fundamentals() -> pd.DataFrame:
         SELECT i.symbol, i.fiscal_year,
                i.revenue, i.operating_income, i.net_income, i.interest_expense, i.cost_of_revenue,
                i.shares_outstanding_diluted, i.pretax_income, i.income_tax_expense,
-               COALESCE(i.depreciation_expense, 0) AS depreciation_expense,
-               COALESCE(i.amortization_expense, 0) AS amortization_expense,
+               i.depreciation_expense, i.amortization_expense,
                b.stockholders_equity, b.total_assets, b.long_term_debt, b.short_term_debt,
                b.current_assets, b.current_liabilities, b.total_liabilities, b.retained_earnings,
                b.cash_and_equivalents,
@@ -283,9 +282,18 @@ def build_quality_panel(fund: pd.DataFrame) -> pd.DataFrame:
     # reconstructed the same way fama_macbeth_value_factors.py's build_value_panel() already
     # does for its own ev_ebitda candidate (operating_income + D&A) - reused here instead of
     # re-deriving a third EBITDA definition in this file.
+    # ISOLATED RE-TEST 2026-08-27 found the prior COALESCE(...,0)-in-SQL treatment silently
+    # scored ~50-70% of firm-years (wherever D&A wasn't separately reported) as zero D&A,
+    # deflating EBITDA and distorting the ratio for those rows. Only ~15% of firm-years report
+    # BOTH fields - EBITDA is now built from real values only where both are present, NaN
+    # otherwise, rather than treated as zero. Isolated re-test with this fix confirmed the
+    # same null verdict as before (t=0.86/-0.58/1.56 vs the old bug's t=0.81/-1.47/2.35) -
+    # this candidate is still correctly rejected, just now on sound methodology + a thinner,
+    # honest sample (avg_n ~576 vs ~2254).
+    da_reported = fund["depreciation_expense"].notna() & fund["amortization_expense"].notna()
     ebitda = fund["operating_income"] + fund["depreciation_expense"].fillna(0) + fund["amortization_expense"].fillna(0)
     net_debt = total_debt - fund["cash_and_equivalents"].fillna(0)
-    out["net_debt_to_ebitda"] = np.where(ebitda > 0, net_debt / ebitda, np.nan)
+    out["net_debt_to_ebitda"] = np.where(da_reported & (ebitda > 0), net_debt / ebitda, np.nan)
     out["net_debt_to_fcf"] = np.where(fund["free_cash_flow"] > 0, net_debt / fund["free_cash_flow"], np.nan)
 
     fund_sorted = fund.sort_values(["symbol", "fiscal_year"]).copy()
