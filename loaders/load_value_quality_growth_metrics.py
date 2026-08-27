@@ -1164,6 +1164,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 dividend_yield_reason = "missing_sec_data"
 
+        # TIER 3 FALLBACK for net_payout_yield 2026-08-27 (goal: close the "get all the data for
+        # all the inputs" gap left by the 2026-08-26 Value pillar re-audit). TIER 2 above only
+        # ever assigns a value when a qualifying annual_cash_flow row exists (positive dividends
+        # or a nonzero buyback); a stock with NO dividend history - already confirmed just above
+        # via the richer dividend_data source (dividend_yield_reason ==
+        # "non_dividend_paying_stock") - and no annual_cash_flow evidence of a buyback either was
+        # left permanently NULL instead of the correct 0.0, unlike dividend_yield's own
+        # "confirmed non-payer" branch immediately above. Live-confirmed 2026-08-27: 1521
+        # universe symbols with a confirmed non-dividend-paying dividend_yield=0.0 still carried
+        # net_payout_yield=NULL, silently dropping them out of _score_value's weighted average
+        # (the `is not None` gate there) instead of correctly scoring them at the low end the way
+        # dividend_yield=0.0 used to. Same 2-year recency window as TIER 2's own buyback check,
+        # same `!= 0` (not `> 0`) convention - the field's sign isn't guaranteed consistent.
+        if net_payout_yield is None and dividend_yield_reason == "non_dividend_paying_stock":
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT 1 FROM annual_cash_flow
+                        WHERE symbol = %s
+                          AND COALESCE(common_stock_repurchased, 0) != 0
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                        LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    has_recent_buyback = cur.fetchone() is not None
+                if not has_recent_buyback:
+                    net_payout_yield = 0.0
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: net payout confirmed-non-payer fallback failed: {e}")
+
         # pe_ratio reason: was hardcoded "missing_sec_data" regardless of cause. load_sec_
         # valuations.py only computes pe_ratio when ttm_eps > 0 (a negative/zero-EPS company
         # has no meaningful P/E, same "not applicable" class as non_dividend_paying_stock).
