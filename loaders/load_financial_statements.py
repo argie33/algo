@@ -156,6 +156,12 @@ _INCOME_FIELD_MAPPING = {
     # recovers. Same target column as "cost_of_revenue" above.
     "cost_of_goods_and_services_sold": "cost_of_revenue",
     "gross_profit": "gross_profit",
+    # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist gap -
+    # see sec_statements.py's get_income_statement() comment for the live-verification note).
+    # Both concepts map to the same target column (broader standard tag listed later in that
+    # file's concepts list, so it wins on overwrite for filers reporting both).
+    "research_and_development_expense_excluding_acquired_in_process_cost": "research_development_expense",
+    "research_and_development_expense": "research_development_expense",
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "ProfitLoss" added to sec_statements.py's
@@ -651,6 +657,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "interest_expense",
                     "depreciation_expense",
                     "amortization_expense",
+                    "research_development_expense",
                     "shares_outstanding_basic",
                     "shares_outstanding_diluted",
                     "shares_outstanding_dei",
@@ -686,6 +693,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "interest_expense",
                     "depreciation_expense",
                     "amortization_expense",
+                    "research_development_expense",
                     "shares_outstanding_basic",
                     "shares_outstanding_diluted",
                     "shares_outstanding_dei",

@@ -765,6 +765,21 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # removed the same session (see get_cash_flow() below).
         "GrossProfit",
         "OperatingIncomeLoss",
+        # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist
+        # gap - see MEMORY.md growth_missing_metrics_swept_20260827, which had incorrectly
+        # marked these permanently blocked on "no research_development column exists anywhere").
+        # Live-verified via real SEC companyfacts JSON (AAPL/MSFT/NVDA, 51 annual entries each,
+        # values matching known public R&D figures) that this standard concept is present and
+        # populated all along - just never extracted. Narrower "ExcludingAcquiredInProcessCost"
+        # variant (some biotech/pharma filers separate out acquired in-process R&D write-offs)
+        # listed first so the broader standard tag wins on overwrite for filers reporting both,
+        # same last-listed-wins convention as every other concept in this list. Both map to the
+        # same "research_development_expense" target column (see load_financial_statements.py's
+        # _INCOME_FIELD_MAPPING). Naturally sparse/NULL for non-R&D sectors (banks, REITs,
+        # utilities) - expected and correct, same as capex is NULL for many financials today,
+        # not a bug to chase.
+        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+        "ResearchAndDevelopmentExpense",
         # FIXED 2026-08-17 (goal: "no SEC data" audit): PRI (Primerica) live-confirmed via real
         # companyfacts JSON to report ZERO NetIncomeLoss entries ever, using "ProfitLoss" (the
         # us-gaap concept for consolidated net income including noncontrolling interest) as its
