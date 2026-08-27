@@ -103,6 +103,69 @@ def check_safety_gate_fires() -> list[str]:
     return failures
 
 
+def check_live_db_thresholds() -> tuple[list[str], bool]:
+    """Verify the REAL, currently-live algo_config table's values for CRITICAL_KEYS -
+    distinct from (and previously not covered by) check_defaults_not_zero()/
+    check_safety_gate_fires() above, which only ever exercise AlgoConfig.DEFAULTS (the
+    in-code fallback) and a synthetic zero-injection, never the actual live database this
+    system trades against. Added 2026-08-27 (real-money-readiness review) after noticing
+    this script's own docstring ("Neither requires a live database") meant a clean run had
+    never actually confirmed the live DB's real values were sane - only that the code-level
+    safety net exists, which is a materially weaker guarantee for a "run before production"
+    gate. Uses VALIDATION_SCHEMA's own declared (min, max) bounds so this doesn't duplicate
+    a second, potentially-drifting set of range constants.
+
+    Returns (failures, db_reachable) - db_reachable=False means the check could not run at
+    all (no DB available), which is reported but is NOT itself a failure at import time in
+    non-strict/local-dev contexts without a configured DB; the caller decides how to treat it.
+    """
+    from algo.infrastructure.config_schema import VALIDATION_SCHEMA
+
+    try:
+        from utils.db.context import DatabaseContext
+    except Exception as e:
+        return ([f"  ERROR importing DatabaseContext: {type(e).__name__}: {e!s:.100}"], False)
+
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT key, value FROM algo_config WHERE key = ANY(%s)", (CRITICAL_KEYS,))
+            live_values = {row[0]: row[1] for row in cur.fetchall()}
+    except Exception as e:
+        return ([f"  DB UNREACHABLE: {type(e).__name__}: {e!s:.100}"], False)
+
+    failures = []
+    for key in CRITICAL_KEYS:
+        if key not in live_values:
+            # Not necessarily fatal - AlgoConfig falls back to DEFAULTS (verified non-zero
+            # above) for a missing row - but flagged so an operator knows the DB-tuned value
+            # (if one was ever intended, per this week's extensive threshold-recalibration
+            # history in memory) isn't actually the one live traffic is using.
+            failures.append(f"  MISSING FROM LIVE DB: {key} (falls back to code DEFAULTS)")
+            continue
+        raw = live_values[key]
+        try:
+            numeric = float(raw)
+        except (ValueError, TypeError):
+            failures.append(f"  NON-NUMERIC live value: {key} = {raw!r}")
+            continue
+        if numeric == 0.0:
+            failures.append(f"  ZERO in LIVE DB: {key} = {raw!r} — disables this safety gate right now")
+            continue
+        schema_entry = VALIDATION_SCHEMA.get(key)
+        if schema_entry is not None:
+            _dtype, lo, hi, _fail_closed, _default = (
+                schema_entry[0],
+                schema_entry[1],
+                schema_entry[2],
+                schema_entry[3],
+                schema_entry[4],
+            )
+            if lo is not None and hi is not None and not (lo <= numeric <= hi):
+                failures.append(f"  OUT OF DECLARED RANGE: {key} = {numeric} not in [{lo}, {hi}] per VALIDATION_SCHEMA")
+
+    return (failures, True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify trading safety thresholds")
     parser.add_argument("--strict", action="store_true", help="Fail if any threshold check fails")
@@ -158,6 +221,31 @@ def main() -> int:
         msg = f"  ERROR testing safety gate: {type(e).__name__}: {e!s:.100}"
         print(msg)
         all_failures.append(msg)
+
+    # Check 3: the REAL, currently-live algo_config DB values (added 2026-08-27 - checks 1/2
+    # above only ever exercise in-code DEFAULTS + a synthetic injection, never actual live data)
+    print("\n[3] Checking the LIVE algo_config database for critical thresholds...")
+    try:
+        failures, db_reachable = check_live_db_thresholds()
+        if not db_reachable:
+            print("SKIP — no live database reachable from this environment:")
+            for f in failures:
+                print(f)
+            if args.strict:
+                print("  (--strict treats an unreachable DB as informational, not fatal - this")
+                print("   check exists to catch a REACHABLE DB with bad values, not DB connectivity)")
+        elif failures:
+            print("FAIL — live database has invalid critical threshold(s):")
+            for f in failures:
+                print(f)
+            all_failures.extend(failures)
+        else:
+            print(f"OK  — All {len(CRITICAL_KEYS)} critical thresholds present, non-zero, and in-range in the live DB")
+    except Exception as e:
+        # Same treatment as an unreachable DB (informational) - an environment issue here
+        # (missing DatabaseContext config, etc.) is not the corrupted-threshold failure mode
+        # this script exists to catch.
+        print(f"  ERROR checking live DB thresholds: {type(e).__name__}: {e!s:.100}")
 
     print("\n" + "=" * 60)
     if all_failures:

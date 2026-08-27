@@ -102,6 +102,11 @@ All fail-fast patterns are enforced. See git log for remediation commits: `git l
 **NEVER accept scores with <50% data completeness.** Degraded data biases position sizing.
 
 **Pre-deployment:** Run `python scripts/verify_safety_thresholds.py --strict` before production.
+As of 2026-08-27 this also checks the LIVE `algo_config` table's real values for every critical
+key (Check 3) - not just AlgoConfig's in-code DEFAULTS and a synthetic zero-injection test
+(Checks 1/2, which never touched real DB data before this). Verified clean against the live
+local DB the same day: all 11 critical thresholds present, non-zero, and within
+`VALIDATION_SCHEMA`'s declared ranges.
 
 ---
 
