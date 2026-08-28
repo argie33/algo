@@ -4808,8 +4808,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              accruals_ratio_unavailable_reason, margin_volatility_unavailable_reason,
              altman_z_score_unavailable_reason,
              roce_pct, roce_pct_unavailable_reason, fcf_margin, fcf_margin_unavailable_reason,
-             asset_turnover, asset_turnover_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             asset_turnover, asset_turnover_unavailable_reason,
+             earnings_surprise_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
+             earnings_beat_rate_unavailable_reason, consecutive_positive_quarters_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -4903,6 +4905,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fcf_margin_unavailable_reason = EXCLUDED.fcf_margin_unavailable_reason,
                 asset_turnover = EXCLUDED.asset_turnover,
                 asset_turnover_unavailable_reason = EXCLUDED.asset_turnover_unavailable_reason,
+                -- FIXED 2026-08-28 (goal-mode data-loading audit): these 4 columns' VALUES
+                -- were always in this INSERT (earnings_surprise_avg/eps_growth_stability/
+                -- earnings_beat_rate/consecutive_positive_quarters above), but their
+                -- *_unavailable_reason counterparts were never part of this statement at all -
+                -- same "ON CONFLICT DO UPDATE SET clause never included the reason column" bug
+                -- already fixed once for growth_metrics.book_value_growth_unavailable_reason
+                -- (see test_growth_metrics_book_value_growth_unavailable_reason_wired_20260827.py).
+                -- Live-confirmed 1546-3728 rows per field had a real value/reason computed
+                -- upstream (_unavailable_marker/_compute_quality_metrics both set it correctly)
+                -- that silently never reached the database - permanently frozen at whatever the
+                -- column held before, indistinguishable from every legitimate NULL-with-no-
+                -- reason case this whole system exists to eliminate.
+                earnings_surprise_avg_unavailable_reason = EXCLUDED.earnings_surprise_avg_unavailable_reason,
+                eps_growth_stability_unavailable_reason = EXCLUDED.eps_growth_stability_unavailable_reason,
+                earnings_beat_rate_unavailable_reason = EXCLUDED.earnings_beat_rate_unavailable_reason,
+                consecutive_positive_quarters_unavailable_reason = EXCLUDED.consecutive_positive_quarters_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -5006,6 +5024,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("fcf_margin_unavailable_reason"),
                 row.get("asset_turnover"),
                 row.get("asset_turnover_unavailable_reason"),
+                row.get("earnings_surprise_avg_unavailable_reason"),
+                row.get("eps_growth_stability_unavailable_reason"),
+                row.get("earnings_beat_rate_unavailable_reason"),
+                row.get("consecutive_positive_quarters_unavailable_reason"),
             ),
         )
 
