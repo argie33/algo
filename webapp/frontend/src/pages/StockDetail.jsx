@@ -1231,13 +1231,16 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // full history. Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly - guarded
   // by tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't
   // drift silently again.
+  // Kept in sync with loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS - updated 20260828
+  // (Size cut 0.20->0.08, Growth/Value raised to 0.20/0.23 - see that file's own docstring for
+  // the full evidence trail).
   const FACTOR_WEIGHTS = [
     ["Quality", "quality_score", 0.2],
-    ["Growth", "growth_score", 0.14],
-    ["Value", "value_score", 0.17],
+    ["Growth", "growth_score", 0.2],
+    ["Value", "value_score", 0.23],
     ["Risk", "risk_score", 0.19],
     ["Momentum", "momentum_score", 0.1],
-    ["Size", "size_score", 0.2],
+    ["Size", "size_score", 0.08],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

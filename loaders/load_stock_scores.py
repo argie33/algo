@@ -98,17 +98,43 @@ logger = logging.getLogger(__name__)
 # collinearity artifact of this specific regression, not a finding about Quality itself (whose
 # own within-pillar FM validation is separately strong).
 #
+# SIZE CUT 0.20->0.08, GROWTH/VALUE RAISED 20260828 (goal-mode data-coverage session). The
+# 0.20 weight above was justified by algo/research/fama_macbeth_composite_weights.py's
+# imputed-sample regression (missing pillar proxies 0-filled to grow the cross-section from
+# ~1,100 to ~6,500 symbols/month) finding size_proxy t=7.38-7.39, "more than 3x every other
+# pillar's own coefficient" per the 2026-08-27 promotion rationale above. That script was
+# rebuilt this session to add a parallel STRICT COMPLETE-CASE regime (no imputation, real
+# symbol-months only) specifically because missingness in quality/value/growth is not random -
+# it concentrates in thin-SEC-filer micro-caps, the same population size_proxy (price x shares,
+# essentially never missing) would be expected to correlate with. Result: size_proxy collapses
+# to t=1.80-1.81 (not significant) in the complete-case regime - only growth_proxy (t=5.50
+# imputed / 2.76-2.78 complete-case) and value_proxy (t=2.12-2.13 / 2.74) are significant AND
+# same-signed in BOTH regimes, the bar this session established for treating a composite-level
+# finding as real rather than an imputation artifact (see
+# composite_weights_rebuilt_size_evidence_collapses_complete_case_20260827 /
+# growth_score_saturation_bug_fixed_761_symbols_20260827 in memory for the full evidence and
+# the coverage-bug-fixing work that preceded this decision). Quality/Risk (same-sign but not
+# robust in both regimes) and Momentum (sign-flips, near-zero either way) were left unchanged -
+# same "don't act without both regimes agreeing" discipline already applied to Quality's
+# negative coefficient above, not a new standard invented for this pass. Freed 0.12 split evenly
+# between growth (0.14->0.20) and value (0.17->0.23), proportional to their near-identical
+# complete-case t-stats (2.76 vs 2.74) - not eliminating Size outright (some economic basis for
+# a size premium remains in the literature even where this data doesn't robustly show it, same
+# "modest weight for inconclusive evidence" treatment already given to Value's own fcf_yield/
+# margin_of_safety), just no longer treating it as one of the two strongest pillars in the
+# composite when the corrected methodology says it isn't.
+#
 # A/D rating, institutional ownership, and short interest are NOT deleted from the system:
 # load_positioning_metrics.py keeps computing/storing them unchanged, and the scores API
 # still surfaces them via positioning_inputs for display - only the synthesized 0-100
 # "positioning_score" composite, which no longer has a coherent empirical basis, is dropped.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
-    "growth": 0.14,
-    "value": 0.17,
+    "growth": 0.20,
+    "value": 0.23,
     "risk": 0.19,
     "momentum": 0.10,
-    "size": 0.20,
+    "size": 0.08,
 }
 
 

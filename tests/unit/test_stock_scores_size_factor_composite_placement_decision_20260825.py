@@ -26,6 +26,16 @@ TIMELINE:
 
 This test now pins the CURRENT state: Size IS a top-level pillar again, `_score_size` exists
 and reads `market_cap` off the Value pillar's upstream value_metrics row.
+
+- 2026-08-28: weight CUT 0.20 -> 0.08 (still a top-level pillar, not removed again) - the
+  composite-weights regression this promotion cited (size_proxy t=7.63/t=7.38-7.39 depending on
+  the run) was found to rely on 0-imputing missing pillar data for symbols with thin SEC
+  fundamentals coverage, a population that correlates with market cap (size_proxy is essentially
+  never missing while quality/growth/value often are for the same small-cap names). A rebuilt
+  version of that script adding a strict complete-case (no-imputation) regime found size_proxy
+  collapses to t=1.80-1.81 (not significant) there - only growth_proxy and value_proxy stayed
+  significant in BOTH regimes. Freed 0.12 moved to growth (0.14->0.20) and value (0.17->0.23).
+  See loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS docstring for the full evidence trail.
 """
 
 import inspect
@@ -36,9 +46,11 @@ from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, StockScoresLoader
 class TestSizeFactorRePromotedToComposite:
     def test_base_weights_has_size_key(self) -> None:
         """BASE_PILLAR_WEIGHTS must have a top-level 'size' key - the 2026-08-27 re-promotion
-        decision - until this gets deliberately revisited again."""
+        decision - until this gets deliberately revisited again. Weight cut to 0.08 on
+        2026-08-28 (still a top-level key, see module docstring) after complete-case testing
+        found the original 0.20 was based on an imputation artifact."""
         assert "size" in BASE_PILLAR_WEIGHTS
-        assert BASE_PILLAR_WEIGHTS["size"] == 0.20
+        assert BASE_PILLAR_WEIGHTS["size"] == 0.08
 
     def test_base_weights_sum_to_one_with_size(self) -> None:
         assert abs(sum(BASE_PILLAR_WEIGHTS.values()) - 1.0) < 1e-9

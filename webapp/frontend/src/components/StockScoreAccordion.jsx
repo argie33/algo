@@ -771,9 +771,19 @@ export { QUALITY_SCHEMA, RISK_SCHEMA };
 // above was wrong, traced to a local-DB schema bug (stockholders_equity/cash_and_equivalents
 // columns renamed out from under the loader) that crashed fetch_incremental() before these
 // fields could ever be computed; once fixed, live-verified real non-NULL values. Wired into
-// _score_growth in load_stock_scores.py. quarterly_growth_momentum remains used:false - unlike
-// the other 5, it has no computation logic anywhere (this loader never fetches quarterly data),
-// so it's genuinely, permanently dead.
+// _score_growth in load_stock_scores.py.
+// CORRECTED 2026-08-27: the line above used to claim quarterly_growth_momentum "has no
+// computation logic anywhere... genuinely, permanently dead" - false, live-verified against
+// loaders/load_value_quality_growth_metrics.py's _compute_quarterly_metrics() (computed from
+// quarterly_income_statement, 79.5% coverage). Isolated FM-tested along with 3 siblings
+// (consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability) via
+// algo/research/growth_quarterly_earnings_quality_candidates.py: quarterly_growth_momentum and
+// consecutive_positive_quarters are clean nulls (t=-1.41/0.96 full sample, weak both halves) -
+// correctly excluded. earnings_growth_4q_avg (t=4.47) and eps_growth_stability (t=-5.00) are
+// strong full-sample but fail this project's own era-robustness bar (first half t=1.42/-1.38,
+// well under |t|>2, despite a much stronger second half t=4.45/-5.18 - same sign both halves,
+// not a flip, but not independently significant early on either) - NOT shipped, flagged as a
+// "strengthening" pattern worth revisiting as more recent-era data accumulates, not a dead end.
 //
 // used: true  -> this field is a genuine input to the score formula
 // weight: display string for the "Used in Score" badge
