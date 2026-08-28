@@ -4704,9 +4704,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, net_payout_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, market_cap, intrinsic_value_per_share, margin_of_safety_pct, value_score, data_unavailable, reason, data_source, updated_at,
              pe_ratio_unavailable_reason, pb_ratio_unavailable_reason, ps_ratio_unavailable_reason, peg_ratio_unavailable_reason,
              dividend_yield_unavailable_reason, fcf_yield_unavailable_reason, forward_pe_unavailable_reason, ev_ebitda_unavailable_reason, ev_revenue_unavailable_reason,
-             market_cap_unavailable_reason, held_percent_institutions_unavailable_reason,
+             market_cap_unavailable_reason, held_percent_institutions, held_percent_institutions_unavailable_reason,
              intrinsic_value_unavailable_reason, margin_of_safety_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -4733,6 +4733,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 ev_ebitda_unavailable_reason = EXCLUDED.ev_ebitda_unavailable_reason,
                 ev_revenue_unavailable_reason = EXCLUDED.ev_revenue_unavailable_reason,
                 market_cap_unavailable_reason = EXCLUDED.market_cap_unavailable_reason,
+                held_percent_institutions = EXCLUDED.held_percent_institutions,
                 held_percent_institutions_unavailable_reason = EXCLUDED.held_percent_institutions_unavailable_reason,
                 intrinsic_value_unavailable_reason = EXCLUDED.intrinsic_value_unavailable_reason,
                 margin_of_safety_unavailable_reason = EXCLUDED.margin_of_safety_unavailable_reason,
@@ -4772,6 +4773,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("ev_ebitda_unavailable_reason"),
                 row.get("ev_revenue_unavailable_reason"),
                 row.get("market_cap_unavailable_reason"),
+                # FIXED 2026-08-28 (goal-mode data-loading audit): held_percent_institutions
+                # (the VALUE, not just its reason) was entirely absent from this INSERT's
+                # column list/VALUES/ON CONFLICT SET - live-confirmed 0/5103 universe coverage
+                # despite _build_value_metrics correctly fetching real values from
+                # positioning_metrics (e.g. CSIQ 79.27%, ON/CENX/BRKR 100%) for the great
+                # majority of symbols. Only the reason column was ever written, so every row
+                # showed NULL value + (usually) NULL reason too, since a real value has no
+                # reason to report - the worst-case version of the "ON CONFLICT DO UPDATE SET
+                # clause never included a column" bug class this session found 3 other
+                # instances of (book_value_growth, quality_score, and 4 quality_metrics
+                # earnings/quarterly fields).
+                row.get("held_percent_institutions"),
                 row.get("held_percent_institutions_unavailable_reason"),
                 row.get("intrinsic_value_unavailable_reason"),
                 row.get("margin_of_safety_unavailable_reason"),
