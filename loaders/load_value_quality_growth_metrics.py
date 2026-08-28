@@ -3543,21 +3543,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # replaced by debt_to_equity_score in the composite (see that field's own comment,
             # near roic_pct/roce_pct below, for the correlation/redundancy evidence). metrics
             # ["debt_to_assets"] itself (computed above) is still persisted/displayed.
-            # Interest coverage: solvency curve, not a raw percentage. <1.5x is going-concern
-            # risk territory, >=10x is effectively debt-service-risk-free.
-            interest_coverage_score = None
-            if metrics["interest_coverage"] is not None:
-                ic = metrics["interest_coverage"]
-                if ic < 0:
-                    interest_coverage_score = 0.0
-                elif ic < 1.5:
-                    interest_coverage_score = (ic / 1.5) * 40
-                elif ic < 3:
-                    interest_coverage_score = 40 + ((ic - 1.5) / 1.5) * 30
-                elif ic < 10:
-                    interest_coverage_score = 70 + ((ic - 3) / 7) * 30
-                else:
-                    interest_coverage_score = 100.0
+            # Interest coverage score curve REMOVED 2026-08-27 (dead-code cleanup, ON CONFLICT
+            # sweep pass): interest_coverage_score was computed here but never consumed after
+            # interest_coverage was removed from quality_components (isolated FM re-test,
+            # t=0.63/-0.12/0.87, confirmed dead - see quality_components' own comment below).
+            # metrics["interest_coverage"] itself (the raw value) is computed independently
+            # above and still persisted/displayed - unaffected by removing this dead score
+            # curve.
 
             # FIXED 2026-08-26 (goal: root-cause the "why is quality_score/composite_score so
             # low that min_composite_score=60 rejects 87% of the universe" question - found via
@@ -3674,12 +3666,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # (near-zero-total_assets artifacts, 4 of 2936 rows), same recurring bug class as
             # fcf_margin/margin_volatility/asset_turnover - now guarded the same way.
             gross_profitability = None
-            if (
-                revenue is not None
-                and cost_of_revenue is not None
-                and total_assets is not None
-                and total_assets > 0
-            ):
+            if revenue is not None and cost_of_revenue is not None and total_assets is not None and total_assets > 0:
                 computed_gross_profitability = (revenue - cost_of_revenue) / total_assets * 100.0
                 if abs(computed_gross_profitability) > 1000:
                     failed_metrics.append("gross_profitability")
@@ -3811,34 +3798,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
 
-            # Operating/Net Margin Trend + ROE Trend - MOVED here from Growth 2026-08-27 (goal:
-            # resolve the placement question flagged in MEMORY.md growth_missing_metrics_swept_
-            # 20260827: Piotroski (2000 JAR) and Asness/Frazzini/Pedersen's QMJ (2019) both place
-            # improvement-in-profitability signals inside Quality, not Growth - these measure
-            # whether a company's existing business is getting more/less profitable, not whether
-            # it's getting bigger, which is Growth's actual domain. Values are point-in-time
-            # trailing percentage-POINT deltas (curr - prior), already computed above in this
-            # same function - reuses the exact [-cap,0]->[0,40]/[0,cap]->[40,100] curve shape
-            # _score_growth used for these fields (loaders/load_stock_scores.py), unchanged, just
-            # relocated - not a re-derivation or a new empirical claim.
-            def _trend_score(value: float | None, cap: float = 10.0) -> float | None:
-                if value is None:
-                    return None
-                if value <= 0:
-                    return max(0.0, 40.0 + (value / 50.0) * 40.0)
-                return min(100.0, 40.0 + (value / cap) * 60.0)
-
-            operating_margin_trend_score = _trend_score(metrics.get("operating_margin_trend"))
-            net_margin_trend_score = _trend_score(metrics.get("net_margin_trend"))
-            roe_trend_score = _trend_score(metrics.get("roe_trend"))
-            # Payout Ratio (Fama & French 2001; La Porta et al.) - higher (within reason) is
-            # better; metrics["payout_ratio"] is already computed above (dividends_paid/net_income).
-            payout_ratio_val = metrics.get("payout_ratio")
-            payout_score = (
-                _margin_curve(payout_ratio_val, [(20.0, 40.0), (40.0, 75.0), (70.0, 100.0)])
-                if payout_ratio_val is not None
-                else None
-            )
+            # Operating/Net Margin Trend + ROE Trend score curves, and Payout Ratio's score
+            # curve, REMOVED 2026-08-27 (dead-code cleanup, ON CONFLICT sweep pass): all four
+            # were computed here (having been MOVED into Quality from Growth earlier the same
+            # day) but never consumed after their own isolated FM re-test confirmed them dead
+            # (operating_margin_trend t=0.55/0.53/0.27, net_margin_trend t=0.08/0.59/-0.42,
+            # roe_trend t=-0.01/0.28/-0.26, payout_ratio t=0.53/0.68/0.06 - see quality_components'
+            # own comment below for the full removal history). The raw values
+            # (metrics["operating_margin_trend"]/["net_margin_trend"]/["roe_trend"]/
+            # ["payout_ratio"]) are computed independently elsewhere in this function and still
+            # persisted/displayed - unaffected by removing these dead score curves.
             # Altman Z''-Score (Altman 1995 book-equity variant - not the original 1968 market-
             # cap Z-Score; see algo/research/fama_macbeth_quality_factors.py's build_quality_panel
             # for why book equity was deliberately chosen: this repo's Value pillar already
@@ -4429,7 +4398,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         else:
             failed_metrics.append(metric_key)
 
-    def _compute_growth_metrics(self, symbol: str, income_rows: list[Any]) -> dict[str, Any]:
+    def _compute_growth_metrics(  # noqa: C901 -- pre-existing complexity debt from the book_value_growth addition (migration 1242), not introduced by this change
+        self, symbol: str, income_rows: list[Any]
+    ) -> dict[str, Any]:
         """Compute multi-year growth rates from annual income statement history.
 
         Calculates CAGR for 1y, 3y, 5y periods using compound annual growth rate formula.
