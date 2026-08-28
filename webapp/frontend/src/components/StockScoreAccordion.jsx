@@ -1152,22 +1152,66 @@ const SIZE_SCHEMA = [
 // prior 11/14-input blend this schema mirrored (EPS 1Y 33%, Revenue 1Y 24%, etc.) had NO
 // stated empirical basis - a same-day 2026-08-26 revert away from an unvalidated redesign
 // that restored an EVEN OLDER, equally unvalidated legacy state. Proper isolated FM-testing
-// (own dropna scope per candidate, not the old joint-11 test that had shrunk to ~22% of the
-// live universe) found: eps_growth_1y/revenue_growth_1y (57% combined of the old weight) are
-// dominated by book_value_growth once tested together (their own marginal contribution
-// collapses to noise); every other old input (eps/revenue 3Y/5Y, NI/OI/FCF/OCF growth, SGR -
-// the remaining ~48%) never cleared this repo's own significance bar even in isolation.
-// book_value_growth (NEW - migration 1242) is the ONLY candidate that stays significant and
-// sign-consistent across every time window tested, dominating the other 3 survivors in a
-// joint regression - the same single-input architecture SIZE_SCHEMA below already uses.
+// REBUILT 2026-08-28 (user-directed - see loaders/load_stock_scores.py's _score_growth
+// docstring for the full evidence trail): the single-input architecture below this comment's
+// history describes (11-input legacy blend -> book_value_growth alone -> revenue_growth_1y
+// alone) was replaced with a 5-input EQUAL-weighted blend after growth_multi_input_blend_test_
+// 20260828.py showed the single-input approach was fragile on THREE axes at once - coverage
+// (89.4% vs the blend's 95.4%), predictive power (t=0.56, non-significant, vs the blend's
+// t=2.78), and era-to-era stability (~3x more IC swing than the blend) - not just a "which
+// single field wins" horse race. All 5 use the same sign-flip convention (lower growth scores
+// higher - Cooper/Gulen/Schill 2008 reversal). The other 10 growth-related fields below remain
+// informational-only (still computed/persisted, shown for full visibility per the same
+// "wants full visibility into every computed input" directive as POSITIONING_SCHEMA below) -
+// eps/revenue 3Y/5Y CAGR are time-window duplicates of the scored 1Y versions, and
+// NI/OI growth, trend fields, and quarterly momentum never cleared this repo's own
+// significance bar in isolation.
 const GROWTH_SCHEMA = [
+  {
+    key: "revenue_growth_1y_pct",
+    label: "Revenue Growth (1Y, inverted - lower is better)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "20%",
+  },
+  {
+    key: "eps_growth_1y_pct",
+    label: "EPS Growth (1Y, inverted - lower is better)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "20%",
+  },
+  {
+    key: "ocf_growth_yoy",
+    label: "OCF Growth (YoY, inverted - lower is better)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "20%",
+  },
   {
     key: "book_value_growth_pct",
     label: "Book Value Growth (YoY, inverted - lower is better)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "sole input",
+    weight: "20%",
   },
+  {
+    key: "sustainable_growth_rate",
+    label: "Sustainable Growth Rate (inverted - lower is better)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "20%",
+  },
+  { key: "revenue_growth_3y_cagr", label: "Revenue Growth (3Y CAGR)", fmt: (v) => pct(v, 2) },
+  { key: "eps_growth_3y_cagr", label: "EPS Growth (3Y CAGR)", fmt: (v) => pct(v, 2) },
+  { key: "revenue_growth_5y_cagr", label: "Revenue Growth (5Y CAGR)", fmt: (v) => pct(v, 2) },
+  { key: "eps_growth_5y_cagr", label: "EPS Growth (5Y CAGR)", fmt: (v) => pct(v, 2) },
+  { key: "net_income_growth_yoy", label: "Net Income Growth (YoY)", fmt: (v) => pct(v, 2) },
+  { key: "operating_income_growth_yoy", label: "Operating Income Growth (YoY)", fmt: (v) => pct(v, 2) },
+  { key: "quarterly_growth_momentum", label: "QoQ Growth Momentum", fmt: (v) => num(v, 2) },
+  { key: "earnings_growth_4q_avg", label: "Earnings Growth (4Q Avg)", fmt: (v) => pct(v, 2) },
+  { key: "fcf_growth_yoy", label: "FCF Growth (YoY)", fmt: (v) => pct(v, 2) },
+  { key: "asset_growth_yoy", label: "Asset Growth (YoY)", fmt: (v) => pct(v, 2) },
 ];
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see

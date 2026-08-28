@@ -1511,76 +1511,94 @@ class StockScoresLoader(OptimalLoader):
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
-        REBUILT 2026-08-27 (goal: correct a wrongly-preserved legacy formula, found during a
-        full data-hole/methodology audit that first caught a joint-dropna sample-bias bug in
-        Quality's own candidate testing). Supersedes every prior version of this docstring -
-        the 11/14-input blends they describe (EPS 1Y 33%, Revenue 1Y 24%, etc.) were legacy
-        percentages with NO stated empirical basis (a same-day 2026-08-26 revert away from an
-        unvalidated backtest-driven redesign, restoring an EVEN OLDER, equally unvalidated
-        state - "reverted to the last known state" is not the same claim as "evidence-backed").
+        REBUILT 2026-08-28 (user-directed: rejected the single-input "winner take all"
+        architecture this pillar had been rebuilt into 3 times in 2 days - an 11-input
+        legacy blend with no stated empirical basis -> book_value_growth alone (isolated-FM
+        "strongest single candidate") -> revenue_growth_1y alone (book_value_growth's own
+        72.9% coverage was silently starving ~27% of the universe of any Growth score) - on
+        the grounds that a methodology which crowns a different "one true metric" every
+        rerun isn't trustworthy, independent of whichever field's isolated t-stat happens to
+        win that day. This is a genuine methodology change, not just another candidate swap:
+        diversification is now treated as a first-class goal alongside raw predictive power.
 
-        This pass properly isolated-FM-tested every live and candidate Growth field for the
-        first time (algo/research/fama_macbeth_growth_factors.py's own joint dropna across all
-        11 candidates at once had shrunk its effective sample to ~22% of the live universe,
-        the same bug class already found corrupting Quality's margin_volatility_3y/
-        gross_profitability conclusions) and found:
-        - eps_growth_1y (formerly 33%, the largest weight in this pillar): isolated univariate
-          t=-2.38/-0.63/-2.53 (full/1st-half-pre-2020-06/2nd-half) - NEGATIVELY signed, opposite
-          the "higher=better" curve this pillar scored it with. Confirmed NOT a momentum/size
-          collinearity artifact (survives controlling for mom_12_1 and log market-cap,
-          t=-1.94/-1.61/-1.19) - a real growth-extrapolation/glamour-reversal effect
-          (Lakonishok/Shleifer/Vishny 1994 JoF). But in a joint test against the other 3
-          surviving candidates below, its own marginal contribution collapses to noise
-          (|t|<1 every window) - dominated by book_value_growth, not independent information.
-        - revenue_growth_1y (formerly 24%): isolated univariate t=-2.11/-1.86/-1.28, similar
-          story, similarly dominated once book_value_growth is in the mix (t=-1.68/-3.32/0.19
-          jointly - flips flat in the 2nd half, fails this repo's own era-consistency bar).
-        - book_value_growth (NEW - see migration 1242, formula: bvps = stockholders_equity /
-          shares_outstanding, YoY % change): isolated univariate t=-5.82/-2.05/-5.93 - the
-          strongest, most time-consistent result found ANYWHERE in this repo's Growth
-          research. In a joint regression against eps_growth_1y/revenue_growth_1y/
-          asset_growth_yoy_flipped TOGETHER, it is the ONLY one that stays significant and
-          sign-consistent in all 3 windows (t=-3.97/-2.43/-3.17) - it dominates/subsumes the
-          other three, which is why they're not separately scored below despite each having
-          shown some standalone signal. Same underlying economic story as the (much weaker)
-          asset_growth_yoy this pillar already scored inverted - Cooper/Gulen/Schill (2008,
-          JoF) balance-sheet-expansion-predicts-reversal, just captured more cleanly on a
-          per-share, equity-financing-aware basis than raw total-asset growth.
-        - Every other candidate tested (eps_growth_3y/5y, revenue_growth_3y/5y,
-          net_income_growth_yoy, operating_income_growth_yoy, fcf_growth_yoy, ocf_growth_yoy,
-          sustainable_growth_rate - the remaining ~48% of the old formula's nominal weight):
-          none cleared |t|>2 in the full sample on isolated re-test. No defensible evidence for
-          scoring any of them at their old weights (or at all); still computed/persisted
-          upstream for reference and future research, not scored here.
+        Empirically validated via algo/research/growth_multi_input_blend_test_20260828.py
+        (103-month Fama-MacBeth panel, 2018-01 to 2026-07, live local DB) before shipping -
+        the EQUAL-weighted 5-input blend below beat the single-input architecture on every
+        axis tested:
+        - COVERAGE: single-input revenue_growth_1y scored only 89.4% of the universe; this
+          5-input blend (renormalized over whatever's available - same "average whatever
+          you have" principle as Quality's own floor-renormalization, just without a floor
+          since even 1/5 inputs is a real signal here) scores 95.4% - 54.6% of symbol-months
+          have all 5 inputs, only 4.7% have none.
+        - PREDICTIVE POWER: the just-prior live single-input formula tested WEAK and
+          NON-SIGNIFICANT on this full-history panel (multivariate t=0.56 full-sample, never
+          clears |t|>2 in either half) - a different result than whichever narrower isolated
+          test justified it originally, a pattern that's now recurred across 3 separate
+          single-input picks in a row. The 5-input equal-weighted blend clears t=2.78
+          full-sample, t=3.72 in the 2nd half (era1 2018-2021 is weak for every variant
+          tested - a regime effect, not something specific to one variant).
+        - STABILITY: the single input's IC swings ~3x more between the two half-split eras
+          than the blend's (0.0238 vs 0.0077 absolute swing) - diversification measurably
+          reduces the era-to-era instability that motivated this rebuild in the first place.
+        - SECTOR FIX (bonus finding, not the original goal): the prior live single-input
+          score was actually ANTI-predictive within Real Estate specifically (IC=-0.0208,
+          t=-1.88); the blend fixes this to a neutral/slightly-positive IC. This came from
+          diversifying the INPUT set, not from sector-relative ranking - a separate
+          cross-sector review this same session found ranking Value's P/E/P/B/P/S within
+          sector actually performs WORSE than universe-wide, so that approach was
+          deliberately not applied here either.
 
-        Net result: this pillar collapses from an 11-input legacy blend to a SINGLE scored
-        component (book_value_growth, 100% weight) - the same single-input architecture this
-        system already uses successfully for the Size pillar (_score_size), not a novel
-        design. Scored INVERTED (lower book-value growth = higher score), same treatment
-        asset_growth_yoy already got and for the identical literature reason.
+        Also tested: WEIGHTED (each of the 5 weighted by its own isolated |t-stat|, computed
+        once before any FULL/ERA split) scores even higher (t=4.47) but was REJECTED for
+        this pillar - it leans hard on book_value_growth (|t|=5.32 vs 1.33-2.26 for the
+        other 4), which quietly recreates the exact single-dominant-factor fragility this
+        whole rebuild exists to move away from. EQUAL-weighted is the shipped choice.
 
-        Margin/ROE trend fields (operating_margin_trend/net_margin_trend/roe_trend) remain in
-        Quality (relocated there 2026-08-27, then removed from scoring entirely the same day
-        on their own isolated re-test - see load_value_quality_growth_metrics.py's
+        5 components, chosen for genuinely distinct growth angles (not time-window
+        duplicates of the same signal - eps/revenue_growth_3y/5y stay unscored, still
+        computed/persisted, per this repo's own prior redundancy finding):
+        - revenue_growth_1y (top-line)
+        - eps_growth_1y (bottom-line, per-share)
+        - ocf_growth_yoy (cash-generation - OCF over net-income growth: less
+          accrual-sensitive, same preference this repo's accruals_ratio research already
+          established)
+        - book_value_growth (balance-sheet-driven, formula: bvps = stockholders_equity /
+          shares_outstanding, YoY % change - migration 1242)
+        - sustainable_growth_rate (ROE x retention ratio - quality-adjusted growth, a
+          genuinely distinct construction from the other 4's raw YoY growth rates)
+
+        All 5 use the SAME sign-flip convention this pillar has used since 2026-08-25
+        (Cooper/Gulen/Schill 2008 growth-reversal - lower growth rate scores higher),
+        empirically confirmed for all 5 (not just the previously-scored book_value_growth/
+        revenue_growth_1y) in growth_multi_input_blend_test_20260828.py. Caps (revenue_1y
+        30, eps_1y 50, ocf 40, book_value 30, sgr 25) are the same domain-judgment values
+        this repo has used for each field historically (see e3701f5b8 and prior), not
+        re-fit as part of this change.
+
+        Margin/ROE trend fields (operating_margin_trend/net_margin_trend/roe_trend) remain
+        in Quality (relocated there 2026-08-27, then removed from scoring entirely the same
+        day on their own isolated re-test - see load_value_quality_growth_metrics.py's
         quality_components comment) - not a Growth input either way.
 
         RETURN TYPES (STRICT):
-        - book_value_growth available → returns float (0-100)
+        - >=1 of the 5 components available → returns float (0-100), simple average of
+          whichever component curve-scores are non-None (equal weight, per the EQUAL
+          variant's win above - NOT the WEIGHTED variant, which was rejected)
         - metrics marked data_unavailable=True → returns marker dict (never None)
         - metrics is None or missing → returns marker dict (never None)
-        - book_value_growth is None → returns marker dict with reason="book_value_growth_unavailable"
+        - all 5 components None → returns marker dict with reason="no_growth_inputs_available"
 
         ERROR HANDLING:
         - Type conversion errors → RuntimeError (via _safe_float)
-        - Negative growth rates → valid scores (negative growth maps to 0-40 scale, then
-          inverted per the sign-flip above)
+        - Negative growth rates → valid scores (negative growth maps to 0-40 scale per
+          component, then inverted per the sign-flip above, same as every prior version)
 
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for growth metric computation.
 
-        MINIMUM DATA REQUIREMENT: book_value_growth must be non-NULL. Dependent on upstream
-        annual_income_statement + annual_balance_sheet availability (2 consecutive fiscal
-        years of stockholders_equity + shares_outstanding).
+        MINIMUM DATA REQUIREMENT: at least 1 of revenue_growth_1y/eps_growth_1y/
+        ocf_growth_yoy/book_value_growth/sustainable_growth_rate must be non-NULL. Dependent
+        on upstream annual_income_statement/annual_balance_sheet availability (SEC filings).
         """
         if not metrics or metrics.get("data_unavailable"):
             reason = metrics.get("reason") if metrics else "metrics_is_none"
@@ -1615,27 +1633,41 @@ class StockScoresLoader(OptimalLoader):
             # Positive growth: map [0, cap] → [40, 100]
             return min(100.0, 40 + (val / cap) * 60)
 
-        # book_value_growth, SIGN-FLIPPED (see docstring): higher book-value-per-share growth
-        # predicts LOWER forward returns (balance-sheet-expansion-predicts-reversal), so negate
-        # before scoring - same treatment asset_growth_yoy already got, for the same reason,
-        # just on cleaner/stronger evidence. Cap of 30% is a domain-judgment starting point
-        # (matching asset_growth_yoy's own cap for a structurally similar quantity), not
-        # separately FM-fit to an inflection point - same caveat already applied to several
-        # other curves in this file (asset_turnover, gross_profitability, fcf_margin) -
-        # revisit once live data volume lets a real percentile-based fit replace it.
-        book_value_growth_score = _score_single_growth(
-            -metrics["book_value_growth"] if metrics.get("book_value_growth") is not None else None, 30
+        # All 5 SIGN-FLIPPED (see docstring): higher growth predicts LOWER forward returns
+        # (balance-sheet/earnings-expansion-predicts-reversal), so negate before scoring -
+        # same treatment book_value_growth/asset_growth_yoy already got, now confirmed to
+        # hold for all 5 candidates, not just those two. Renormalized over whichever
+        # components are non-None (equal weight) - a company missing 1-4 of the 5 still gets
+        # a real score from the rest, instead of the whole pillar going "No data" on one
+        # field's gap the way the single-input architecture did.
+        growth_inputs = (
+            ("revenue_growth_1y", 30),
+            ("eps_growth_1y", 50),
+            ("ocf_growth_yoy", 40),
+            ("book_value_growth", 30),
+            ("sustainable_growth_rate", 25),
         )
-        if book_value_growth_score is not None:
-            logger.debug(f"[STOCK_SCORES] {symbol} growth_score computed: {book_value_growth_score:.2f}")
-            return book_value_growth_score
+        component_scores = []
+        for field_name, cap in growth_inputs:
+            raw_val = metrics.get(field_name)
+            scored = _score_single_growth(-raw_val, cap) if raw_val is not None else None
+            if scored is not None:
+                component_scores.append(scored)
+
+        if component_scores:
+            growth_score = sum(component_scores) / len(component_scores)
+            logger.debug(
+                f"[STOCK_SCORES] {symbol} growth_score computed: {growth_score:.2f} "
+                f"({len(component_scores)}/{len(growth_inputs)} components available)"
+            )
+            return growth_score
 
         logger.warning(
-            f"[STOCK_SCORES] {symbol} growth_score computation FAILED: book_value_growth is None. "
-            f"ROOT CAUSE: growth_metrics row exists but book_value_growth could not be computed "
-            f"(needs 2 consecutive fiscal years of stockholders_equity + shares_outstanding)."
+            f"[STOCK_SCORES] {symbol} growth_score computation FAILED: all 5 growth inputs are None. "
+            f"ROOT CAUSE: growth_metrics row exists but revenue_growth_1y/eps_growth_1y/ocf_growth_yoy/"
+            f"book_value_growth/sustainable_growth_rate could not be computed."
         )
-        return {"symbol": symbol, "data_unavailable": True, "reason": "book_value_growth_unavailable"}
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_inputs_available"}
 
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.

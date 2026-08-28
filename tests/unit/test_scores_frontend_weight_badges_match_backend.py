@@ -103,25 +103,51 @@ class TestValueScoreWeightBadges:
 
 
 class TestGrowthScoreWeightBadges:
-    def test_book_value_growth_is_the_sole_scored_input(self):
-        """REBUILT 2026-08-27 (goal: correct a wrongly-preserved legacy 11-input formula with
-        no empirical basis - see _score_growth's docstring for the full evidence trail:
-        eps_growth_1y/revenue_growth_1y dominated-by/redundant-with book_value_growth once
-        properly isolated-FM-tested together, every other old input never cleared this repo's
-        own significance bar even in isolation). Growth collapsed to a single scored input
-        (book_value_growth, migration 1242) - the same single-input shape as Size
-        (TestSizeScoreRePromoted below), so this test follows that class's pattern rather than
-        the old multi-weight `_weight_for_score_var` regex (which has nothing to match against
-        a single-term function body with no `* 0.NN` weight constant)."""
+    def test_five_input_equal_weighted_blend_is_scored(self):
+        """REBUILT 2026-08-28 (user-directed: rejected the single-input "winner take all"
+        architecture entirely - see _score_growth's docstring for the full evidence trail,
+        including growth_multi_input_blend_test_20260828.py's coverage/predictive-power/
+        stability comparison). Growth is now an EQUAL-weighted (20% each) blend of 5 fields,
+        renormalized over whichever are available per symbol - not a flat `score_var * 0.NN`
+        weighted sum (so `_weight_for_score_var`'s regex has nothing to match), and not the
+        single-input shape TestSizeScoreRePromoted below still correctly uses for Size.
+        """
         src = inspect.getsource(StockScoresLoader._score_growth)
-        assert "book_value_growth" in src
-        # None of the old 11 inputs should still be scored (they remain computed/persisted
-        # upstream for reference - this checks the SCORING function specifically, not the
-        # loader that computes/stores them).
-        for dead_var in ("eps_1y", "rev_1y", "eps_3y", "rev_3y", "eps_5y", "rev_5y", "ni_growth", "oi_growth", "sgr"):
-            assert dead_var not in src, f"{dead_var} should no longer be scored in _score_growth - see docstring"
-        assert '"book_value_growth_pct"' in _JSX_SOURCE
-        assert 'label: "Book Value Growth' in _JSX_SOURCE
+        # Check the CODE body only, not the docstring - the docstring's own prose
+        # necessarily mentions the rejected candidates by name to explain why they're
+        # excluded, which would otherwise false-positive the dead_field check below.
+        code_src = src.split('"""', 2)[2]
+        scored_fields = (
+            "revenue_growth_1y",
+            "eps_growth_1y",
+            "ocf_growth_yoy",
+            "book_value_growth",
+            "sustainable_growth_rate",
+        )
+        for field in scored_fields:
+            assert field in code_src, f"expected {field} to be one of Growth's 5 scored inputs"
+        # The previously-rejected candidates (dominated/redundant, or never cleared this
+        # repo's own significance bar - see docstring) must stay unscored here; they remain
+        # computed/persisted upstream for reference, not scored in this function.
+        for dead_field in (
+            "revenue_growth_3y",
+            "revenue_growth_5y",
+            "eps_growth_3y",
+            "eps_growth_5y",
+            "net_income_growth_yoy",
+            "operating_income_growth_yoy",
+        ):
+            assert dead_field not in code_src, f"{dead_field} should not be scored in _score_growth - see docstring"
+
+        jsx_keys = (
+            "revenue_growth_1y_pct",
+            "eps_growth_1y_pct",
+            "ocf_growth_yoy",
+            "book_value_growth_pct",
+            "sustainable_growth_rate",
+        )
+        for key in jsx_keys:
+            assert _jsx_weight_for_key(key) == "20%", f"expected a 20% weight badge for {key}"
 
 
 class TestSizeScoreRePromoted:
