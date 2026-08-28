@@ -89,3 +89,20 @@ class TestInsertValueMetricsWritesHeldPercentInstitutionsValue:
 
         assert params[columns.index("held_percent_institutions")] is None
         assert params[columns.index("held_percent_institutions_unavailable_reason")] == "no_resolved_13f_holdings"
+
+
+class TestUnavailableMarkerIncludesHeldPercentInstitutions:
+    """_unavailable_marker's value_metrics branch had the same two bugs: the value key was
+    absent entirely, and the reason was hardcoded to None instead of specific_reason - unlike
+    every sibling field in that dict."""
+
+    def test_value_key_present_and_none(self) -> None:
+        loader = ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+        marker = loader._unavailable_marker("value_metrics", "TESTSYM", reason="missing_sec_data")
+        assert "held_percent_institutions" in marker
+        assert marker["held_percent_institutions"] is None
+
+    def test_reason_uses_specific_reason_not_hardcoded_none(self) -> None:
+        loader = ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+        marker = loader._unavailable_marker("value_metrics", "TESTSYM", reason="missing_sec_data")
+        assert marker["held_percent_institutions_unavailable_reason"] == "missing_sec_data"

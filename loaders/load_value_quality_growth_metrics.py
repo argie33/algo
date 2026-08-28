@@ -5284,7 +5284,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "ev_revenue_unavailable_reason": specific_reason,
                 "market_cap": None,
                 "market_cap_unavailable_reason": specific_reason,
-                "held_percent_institutions_unavailable_reason": None,
+                # FIXED 2026-08-28 (goal-mode data-loading audit, same sweep that found
+                # held_percent_institutions missing from _insert_value_metrics's INSERT
+                # statement entirely - see that fix's own comment for the coverage-loss half
+                # of this bug). Here in the fallback marker: the VALUE key was absent (now
+                # added) and the reason was hardcoded to None instead of specific_reason, like
+                # every sibling field in this dict - this whole-row fallback only fires when
+                # _build_value_metrics never even runs for the symbol this loader pass (no SEC
+                # valuation data at all), so _fetch_positioning_metrics also never ran and a
+                # fresh institutional-ownership value genuinely wasn't fetched either -
+                # consistent with every other field here using the same whole-row reason.
+                "held_percent_institutions": None,
+                "held_percent_institutions_unavailable_reason": specific_reason,
                 "intrinsic_value_unavailable_reason": specific_reason,
                 "margin_of_safety_unavailable_reason": specific_reason,
                 "data_unavailable": True,
