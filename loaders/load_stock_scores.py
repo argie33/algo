@@ -1577,9 +1577,17 @@ class StockScoresLoader(OptimalLoader):
                 return None
             if val <= 0:
                 # Negative growth: map [-50, 0] → [0, 40]
-                return max(0, 40 + (val / 50) * 40)
+                # FIXED 2026-08-27 (goal-mode data-coverage audit): max(0, ...)/min(100, ...)
+                # with int literals return the literal Python int when the float argument
+                # saturates past the boundary (e.g. min(100, 105.3) -> int 100, not 100.0).
+                # is_real_score() downstream does isinstance(result, float), so any saturated
+                # score silently failed that check and got discarded as "unknown_reason" -
+                # affected 761/5194 symbols (every one with book_value_growth <= -30% or
+                # >= +50%, both common), NOT a data gap. Use float literals so the boundary
+                # case still returns a real float.
+                return max(0.0, 40 + (val / 50) * 40)
             # Positive growth: map [0, cap] → [40, 100]
-            return min(100, 40 + (val / cap) * 60)
+            return min(100.0, 40 + (val / cap) * 60)
 
         # book_value_growth, SIGN-FLIPPED (see docstring): higher book-value-per-share growth
         # predicts LOWER forward returns (balance-sheet-expansion-predicts-reversal), so negate
