@@ -5327,6 +5327,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_1y": None,
                 "eps_growth_3y": None,
                 "eps_growth_5y": None,
+                # book_value_growth ADDED 2026-08-28 (goal-mode data-loading audit): this
+                # fallback branch predates book_value_growth (added 2026-08-27, migration
+                # 1242) and was never updated for it - the ~65 symbols with zero usable
+                # income_rows (no revenues, EPS, or BVPS at all) hit this early-return path
+                # and got book_value_growth/book_value_growth_unavailable_reason silently
+                # omitted from the dict entirely (both stayed NULL, no reason), the exact
+                # same "NULL with no reason code, indistinguishable from a bug" gap this
+                # function's own docstring and the _SHARED_TREND_FIELDS fix below already
+                # exist to prevent. Live-confirmed via stock_scores join: growth_score is
+                # NULL for these symbols iff book_value_growth is NULL (100% correlated,
+                # single-input growth pillar architecture - see _score_growth), so this
+                # directly explains part of the pillar's coverage gap with an unexplained
+                # reason instead of an explained one.
+                "book_value_growth": None,
                 # Reason codes for all metrics (Session 401 fix: were NULL before)
                 "revenue_growth_1y_unavailable_reason": specific_reason,
                 "revenue_growth_3y_unavailable_reason": specific_reason,
@@ -5334,6 +5348,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_1y_unavailable_reason": specific_reason,
                 "eps_growth_3y_unavailable_reason": specific_reason,
                 "eps_growth_5y_unavailable_reason": specific_reason,
+                "book_value_growth_unavailable_reason": specific_reason,
                 # Same _SHARED_TREND_FIELDS gap as the quality_metrics branch above (these
                 # columns are mirrored from quality_metrics on the success path - see
                 # _SHARED_TREND_FIELDS mirroring in fetch_incremental - but this fallback path
