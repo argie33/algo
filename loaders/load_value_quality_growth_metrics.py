@@ -4639,6 +4639,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 metrics["reason"] = (
                     f"Insufficient historical data: {', '.join(sorted(set(failed_metrics)))} could not be computed"
                 )
+                # FIXED 2026-08-28 (goal-mode data-loading audit, same sweep that found the
+                # book_value_growth and quality_score _unavailable_marker gaps): _SHARED_TREND_
+                # FIELDS only get copied into this dict from quality_dict by fetch_incremental's
+                # own caller-side loop (~line 874), and that loop is gated on
+                # `not growth_dict.get("data_unavailable")` - once this branch sets
+                # data_unavailable=True (a few lines up), the copy never runs, so these 16
+                # fields' value AND reason both stay permanently unset. Every OTHER
+                # data_unavailable=True path in this file (early-return, stale_fiscal_data,
+                # fetch exceptions) goes through _unavailable_marker(), which already sets a
+                # real reason for all 16 - this branch is the one path that sets
+                # data_unavailable=True directly without going through it. Live-confirmed 118
+                # symbols (CXII, AARD, TMS, AEON, etc.) with all 16 fields NULL/NULL despite this
+                # branch's own metrics["reason"] already explaining the row. Not "selectively
+                # patching" a blanked row (2026-08-10's stated reason for the data_unavailable
+                # gate above) - the VALUES stay None either way, this only adds the same missing
+                # reason code every other blanked-row path already gets.
+                for field in _SHARED_TREND_FIELDS:
+                    metrics.setdefault(field, None)
+                    metrics[f"{field}_unavailable_reason"] = metrics["reason"]
             else:
                 # PARTIAL failure (1-5 of 6 periods, e.g. eps_growth_5y needs 6 fiscal years
                 # of history that many symbols don't have yet): the periods that DID compute
