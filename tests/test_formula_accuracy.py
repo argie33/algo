@@ -5,7 +5,7 @@ Finance-grade testing for all critical calculations.
 
 import math
 
-from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, StockScoresLoader
 
 
 class TestVolatilityCalculation:
@@ -293,57 +293,81 @@ class TestStockScoreWeights:
         assert abs(total - 1.0) < 0.001
 
     def test_value_component_weights(self) -> None:
-        """Value metric sub-component weights."""
+        """Value metric sub-component weights.
+
+        FIXED 20260828 (same drift class test_base_weights_sum_to_100 already documents):
+        this hardcoded dict was pe/pb/ps/fcf/dividend = 0.45/0.20/0.15/0.12/0.08 - stale since
+        at least the 2026-08-25/26 Value rebuild (dividend_yield replaced by net_payout_yield,
+        PEG and margin_of_safety added, PE/PB/PS reweighted). Now the literal weights from
+        loaders/load_stock_scores.py's _score_value (grep `weighted_sum +=` in that method for
+        the live literals if this ever needs re-verifying).
+        """
         weights = {
-            "pe_ratio": 0.45,
-            "pb_ratio": 0.20,
-            "ps_ratio": 0.15,
-            "fcf_yield": 0.12,
-            "dividend_yield": 0.08,
+            "pe_ratio": 0.12,
+            "pb_ratio": 0.30,
+            "ps_ratio": 0.27,
+            "peg_ratio": 0.07,
+            "fcf_yield": 0.09,
+            "net_payout_yield": 0.08,
+            "margin_of_safety": 0.07,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
-    def test_positioning_component_weights(self) -> None:
-        """Positioning metric sub-component weights."""
-        weights = {
-            "institutional": 0.55,
-            "insider": 0.20,
-            "short_interest": 0.25,
-        }
-        assert abs(sum(weights.values()) - 1.0) < 0.001
+    def test_positioning_not_scored(self) -> None:
+        """Positioning was fully retired as a composite pillar 2026-08-27 (evidence-driven -
+        see BASE_PILLAR_WEIGHTS's docstring) - replaces a stale test_positioning_component_weights
+        that asserted a hardcoded weight dict (institutional/insider/short_interest) summed to
+        1.0 regardless of whether `_score_positioning` still existed. It doesn't - A/D rating,
+        institutional ownership, and short interest are still computed/stored for display
+        (positioning_inputs) but no longer combined into a scored pillar.
+        """
+        assert not hasattr(StockScoresLoader, "_score_positioning")
+        assert "positioning" not in BASE_PILLAR_WEIGHTS
 
-    def test_stability_component_weights(self) -> None:
-        """Stability metric sub-component weights."""
+    def test_risk_component_weights(self) -> None:
+        """Risk (renamed from Stability) metric sub-component weights.
+
+        FIXED 20260828: was a stale "Stability" dict (volatility_252/60/30 + beta +
+        debt_to_assets) that named fields _score_risk doesn't use at all. Live literals from
+        _score_risk's `weighted_sum +=` lines.
+        """
         weights = {
-            "volatility_252": 0.40,
-            "volatility_60": 0.20,
-            "volatility_30": 0.15,
-            "beta": 0.15,
-            "debt_to_assets": 0.10,
+            "volatility_60d": 0.45,
+            "beta": 0.20,
+            "downside_volatility_60d": 0.15,
+            "max_drawdown": 0.20,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
     def test_growth_component_weights(self) -> None:
-        """Growth metric sub-component weights."""
-        weights = {
-            "eps_growth_1y": 0.33,
-            "revenue_growth_1y": 0.24,
-            "eps_growth_3y": 0.19,
-            "revenue_growth_3y": 0.14,
-            "eps_growth_5y": 0.05,
-            "revenue_growth_5y": 0.05,
-        }
+        """Growth metric sub-component weights.
+
+        FIXED 20260828: was a stale 6-input blend (eps/revenue growth at 1y/3y/5y) pre-dating
+        the 2026-08-27 rebuild. _score_growth's docstring: isolated Fama-MacBeth testing found
+        book_value_growth dominates/subsumes every other candidate, so Growth collapsed to a
+        SINGLE scored component - same single-input architecture as Size (_score_size). Not a
+        placeholder to be filled back in without new evidence (see that docstring for why the
+        other 10+ candidates were tested and rejected, not just left out).
+        """
+        weights = {"book_value_growth": 1.0}
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
     def test_momentum_component_weights(self) -> None:
-        """Momentum metric sub-component weights."""
+        """Momentum metric sub-component weights.
+
+        FIXED 20260828: was a stale 6-window dict including momentum_1m/momentum_6m/
+        momentum_12m, none of which _score_momentum scores standalone any more (momentum_1m is
+        an input to the derived 12-1 construction, not a scored field itself; momentum_6m/12m
+        were replaced by that same 12-1 construction 2026-08-25 - see _score_momentum's
+        docstring for the collinearity finding that drove it). Live literals from
+        _score_momentum's `weighted_sum +=` lines.
+        """
         weights = {
-            "momentum_1m": 0.22,
-            "momentum_3m": 0.22,
-            "momentum_6m": 0.19,
-            "momentum_12m": 0.12,
-            "rsi_14": 0.15,
-            "macd": 0.10,
+            "momentum_3m": 0.20,
+            "momentum_12_1": 0.35,
+            "rsi_14": 0.21,
+            "macd_sign": 0.16,
+            "sma_50_200_avg": 0.08,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 

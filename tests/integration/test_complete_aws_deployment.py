@@ -74,22 +74,19 @@ class TestCompleteAWSDeployment:
         loader = StockScoresLoader()
         assert hasattr(loader, "_score_growth"), "StockScoresLoader must have _score_growth method"
 
-        # Check the method contains the proper weights in code comments/implementation
-        # RESTORED 2026-08-26 (user directive, goal: undo the 2026-08-25 4-input reduction):
-        # back to the pre-08-25 14-input weighting - the 08-25 cut rested on this system's
-        # own exploratory backtests (composite p=0.27/0.94/0.33, and a same-day Fama-MacBeth
-        # rerun whose own docstring flagged real caveats: no true SEC filing-date data, a
-        # flat calendar-fiscal-year-end assumption, n=12 independent years for its cleanest
-        # check) rather than external validated research. See _score_growth's docstring.
-        # asset_growth_yoy's sign flip is the one piece kept (Cooper/Gulen/Schill 2008, JoF +
-        # Fama-French CMA - externally peer-reviewed, independently replicated here too), but
-        # its weight reverts to the original 5% along with everything else.
+        # Check the method contains the proper weighting logic
+        # SUPERSEDED 2026-08-27 (this file wasn't updated when it happened - caught by the
+        # test suite going stale-red 2026-08-28): the 2026-08-26 "RESTORED ... 14-input
+        # weighting" state this test used to assert was itself superseded the very next day
+        # by an evidence-driven rebuild (isolated Fama-MacBeth testing across eras) that
+        # collapsed Growth to a SINGLE scored component, book_value_growth, sign-flipped and
+        # weighted 100% - see _score_growth's docstring for the full candidate-by-candidate
+        # t-stat rejection list (every other input, including EPS/revenue growth at all
+        # horizons, was dominated by book_value_growth once it entered the mix). Same
+        # single-input architecture this system already uses for the Size pillar.
         source = inspect.getsource(loader._score_growth)
-        assert "0.33" in source, "EPS 1Y should have 33% weight"
-        assert "0.24" in source, "Revenue 1Y should have 24% weight"
-        assert "0.19" in source, "EPS 3Y should have 19% weight"
-        assert "0.14" in source, "Revenue 3Y should have 14% weight"
-        assert "0.05" in source, "Asset Growth YoY (sign-flipped), EPS 5Y, and Revenue 5Y should each have 5% weight"
+        assert "book_value_growth" in source, "Growth must score book_value_growth"
+        assert "weighted_sum" not in source, "Growth is a single-component score, not a weighted blend"
 
     def test_growth_metrics_marked_enrichment(self):
         """Verify growth_metrics is enrichment-only (not critical for core trading)."""
