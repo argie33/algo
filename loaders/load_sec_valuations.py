@@ -1958,7 +1958,16 @@ class SecValuationsLoader(OptimalLoader):
         total_payout = dividends + buyback
         if total_payout > 0 and entity_market_cap and entity_market_cap > 0:
             payout_yield = total_payout / entity_market_cap
-            if 0 < payout_yield <= 1.5:  # >150% total payout yield indicates a data error
+            # BOUND TIGHTENED 150%->50% same day, later pass: live-confirmed DDT still passed
+            # this gate at a real, non-broken market cap ($412M, real ~15.6M shares) with a
+            # 143.82% payout yield - not the shares-outstanding-scale bug the equivalent
+            # load_value_quality_growth_metrics.py fallback bound was tightened for, more
+            # likely a raw common_stock_repurchased extraction issue (e.g. a multi-year figure
+            # picked up as one year's), but the same "no real company legitimately buys back +
+            # dividends more than half its market cap in a year" bound catches it regardless of
+            # root cause - kept consistent with that fallback's now-50% bound rather than
+            # leaving this (more-trusted) path more permissive for no principled reason.
+            if 0 < payout_yield <= 0.5:
                 result["net_payout_yield"] = round(payout_yield, 4)
             else:
                 logger.debug(f"[{symbol}] Net payout yield out of bounds ({payout_yield:.2%}), marking as NULL")
