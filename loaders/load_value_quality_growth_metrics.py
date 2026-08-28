@@ -5278,6 +5278,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "ebitda_unavailable_reason": specific_reason,
                 "earnings_growth_yoy": None,
                 "revenue_growth_yoy": None,
+                # FIXED 2026-08-28 (goal-mode data-loading audit, same sweep that found the
+                # book_value_growth gap in the growth_metrics branch above): these 12 fields
+                # (accruals_ratio, altman_z_score, asset_turnover, estimate_momentum_60d/90d,
+                # estimate_revision_direction, fcf_margin, gross_profitability,
+                # operating_profitability, revision_activity_30d, revision_trend_score,
+                # roce_pct) were added to quality_metrics across several later migrations
+                # (altman_z_score: [[quality_pillar_altman_z_added_and_reweighted_20260826]])
+                # but this fallback dict was never updated for any of them - live-confirmed 16
+                # symbols hitting this branch (missing_sec_data/stale_fiscal_data) had all 8 of
+                # the ones that are actually scored NULL with no reason. Same failure shape as
+                # the _SHARED_TREND_FIELDS gap already fixed below.
+                "accruals_ratio": None,
+                "altman_z_score": None,
+                "asset_turnover": None,
+                "estimate_momentum_60d": None,
+                "estimate_momentum_90d": None,
+                "estimate_revision_direction": None,
+                "fcf_margin": None,
+                "gross_profitability": None,
+                "operating_profitability": None,
+                "revision_activity_30d": None,
+                "revision_trend_score": None,
+                "roce_pct": None,
+                "accruals_ratio_unavailable_reason": specific_reason,
+                "altman_z_score_unavailable_reason": specific_reason,
+                "asset_turnover_unavailable_reason": specific_reason,
+                "estimate_momentum_60d_unavailable_reason": specific_reason,
+                "estimate_momentum_90d_unavailable_reason": specific_reason,
+                "estimate_revision_direction_unavailable_reason": specific_reason,
+                "fcf_margin_unavailable_reason": specific_reason,
+                "gross_profitability_unavailable_reason": specific_reason,
+                "operating_profitability_unavailable_reason": specific_reason,
+                "revision_activity_30d_unavailable_reason": specific_reason,
+                "revision_trend_score_unavailable_reason": specific_reason,
+                "roce_pct_unavailable_reason": specific_reason,
                 # Reason codes for all metrics (Session 401 fix: were NULL before)
                 "roe_unavailable_reason": specific_reason,
                 "roa_unavailable_reason": specific_reason,
@@ -5288,7 +5323,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "quick_ratio_unavailable_reason": specific_reason,
                 "interest_coverage_unavailable_reason": specific_reason,
                 "debt_to_assets_unavailable_reason": specific_reason,
-                "quality_score_unavailable_reason": None,
+                # FIXED 2026-08-28: this was hardcoded to None regardless of specific_reason -
+                # every sibling *_unavailable_reason in this dict correctly used specific_reason,
+                # this one alone didn't, so all 16 symbols hitting this branch got quality_score
+                # NULL with no reason at all (live-confirmed VAI/MYSZ/BOXL/MVIS/etc - each has a
+                # real top-level `reason` like "missing_sec_data" or "stale_fiscal_data: ...",
+                # just never propagated to this specific per-field column).
+                "quality_score_unavailable_reason": specific_reason,
                 # Phase 3 reason codes
                 "gross_margin_unavailable_reason": specific_reason,
                 "ebitda_margin_unavailable_reason": specific_reason,
