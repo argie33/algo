@@ -105,7 +105,6 @@ def handle(
                 "value_score",
                 "growth_score",
                 "risk_score",
-                "size_score",
                 "symbol",
             ]
             if sort_by not in allowed_sorts:
@@ -168,7 +167,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.risk_score,
-                    sc.size_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -327,6 +325,14 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     gm.eps_growth_5y_unavailable_reason,
                     gm.book_value_growth AS book_value_growth_val,
                     gm.book_value_growth_unavailable_reason,
+                    gm.forward_eps_growth_current_fy,
+                    gm.forward_eps_growth_current_fy_unavailable_reason,
+                    gm.forward_eps_growth_next_fy,
+                    gm.forward_eps_growth_next_fy_unavailable_reason,
+                    gm.forward_revenue_growth_next_fy,
+                    gm.forward_revenue_growth_next_fy_unavailable_reason,
+                    gm.eps_estimate_revision_90d_pct,
+                    gm.eps_estimate_revision_90d_pct_unavailable_reason,
                     sm.beta AS beta_val,
                     sm.beta_unavailable_reason,
                     sm.volatility_252d AS volatility_12m_val,
@@ -524,8 +530,9 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             d["quality_score"] = None
         if d.get("_value_data_unavailable"):
             d["value_score"] = None
-            # Size (market_cap) is sourced from the same value_metrics row as Value.
-            d["size_score"] = None
+        # size_score REMOVED from the API contract 2026-08-28 (Size retired as a composite
+        # pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS). market_cap itself
+        # is still available via the Value pillar's inputs.
 
         # Build factor input objects
         def _build_factor_inputs(data: dict[str, Any]) -> None:
@@ -747,6 +754,22 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "ocf_growth_yoy_unavailable_reason": data.get("ocf_growth_yoy_unavailable_reason"),
                 "asset_growth_yoy": data.get("asset_growth_yoy"),
                 "asset_growth_yoy_unavailable_reason": data.get("asset_growth_yoy_unavailable_reason"),
+                "forward_eps_growth_current_fy": data.get("forward_eps_growth_current_fy"),
+                "forward_eps_growth_current_fy_unavailable_reason": data.get(
+                    "forward_eps_growth_current_fy_unavailable_reason"
+                ),
+                "forward_eps_growth_next_fy": data.get("forward_eps_growth_next_fy"),
+                "forward_eps_growth_next_fy_unavailable_reason": data.get(
+                    "forward_eps_growth_next_fy_unavailable_reason"
+                ),
+                "forward_revenue_growth_next_fy": data.get("forward_revenue_growth_next_fy"),
+                "forward_revenue_growth_next_fy_unavailable_reason": data.get(
+                    "forward_revenue_growth_next_fy_unavailable_reason"
+                ),
+                "eps_estimate_revision_90d_pct": data.get("eps_estimate_revision_90d_pct"),
+                "eps_estimate_revision_90d_pct_unavailable_reason": data.get(
+                    "eps_estimate_revision_90d_pct_unavailable_reason"
+                ),
             }
 
             # Positioning Inputs
@@ -851,7 +874,7 @@ def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
             SELECT
                 score_date, composite_score, composite_rank, rs_percentile,
                 momentum_score, quality_score, growth_score, value_score,
-                risk_score, size_score, data_completeness
+                risk_score, data_completeness
             FROM stock_scores_history
             WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
             ORDER BY score_date ASC
@@ -923,7 +946,6 @@ def _get_stock_scores(  # noqa: C901
             "value_score": "value_score",
             "growth_score": "growth_score",
             "risk_score": "risk_score",
-            "size_score": "size_score",
             "symbol": "symbol",
         }
         sort_col = allowed_sorts.get(sort_by, "composite_score")
@@ -1115,7 +1137,6 @@ def _get_stock_scores(  # noqa: C901
                     cp.industry,
                     fs.composite_score, fs.momentum_score, fs.quality_score,
                     fs.value_score, fs.growth_score, fs.risk_score,
-                    fs.size_score,
                     fs.rs_percentile, fs.data_completeness,
                     fs.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -1274,6 +1295,14 @@ def _get_stock_scores(  # noqa: C901
                     gm.eps_growth_5y_unavailable_reason,
                     gm.book_value_growth AS book_value_growth_val,
                     gm.book_value_growth_unavailable_reason,
+                    gm.forward_eps_growth_current_fy,
+                    gm.forward_eps_growth_current_fy_unavailable_reason,
+                    gm.forward_eps_growth_next_fy,
+                    gm.forward_eps_growth_next_fy_unavailable_reason,
+                    gm.forward_revenue_growth_next_fy,
+                    gm.forward_revenue_growth_next_fy_unavailable_reason,
+                    gm.eps_estimate_revision_90d_pct,
+                    gm.eps_estimate_revision_90d_pct_unavailable_reason,
                     sm.beta AS beta_val,
                     sm.beta_unavailable_reason,
                     sm.volatility_252d AS volatility_12m_val,
@@ -1671,6 +1700,20 @@ def _get_stock_scores(  # noqa: C901
                 "asset_growth_yoy_unavailable_reason": d.get("asset_growth_yoy_unavailable_reason"),
                 "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),
                 "earnings_growth_4q_avg_unavailable_reason": d.get("earnings_growth_4q_avg_unavailable_reason"),
+                "forward_eps_growth_current_fy": d.get("forward_eps_growth_current_fy"),
+                "forward_eps_growth_current_fy_unavailable_reason": d.get(
+                    "forward_eps_growth_current_fy_unavailable_reason"
+                ),
+                "forward_eps_growth_next_fy": d.get("forward_eps_growth_next_fy"),
+                "forward_eps_growth_next_fy_unavailable_reason": d.get("forward_eps_growth_next_fy_unavailable_reason"),
+                "forward_revenue_growth_next_fy": d.get("forward_revenue_growth_next_fy"),
+                "forward_revenue_growth_next_fy_unavailable_reason": d.get(
+                    "forward_revenue_growth_next_fy_unavailable_reason"
+                ),
+                "eps_estimate_revision_90d_pct": d.get("eps_estimate_revision_90d_pct"),
+                "eps_estimate_revision_90d_pct_unavailable_reason": d.get(
+                    "eps_estimate_revision_90d_pct_unavailable_reason"
+                ),
             }
 
             # Positioning Inputs: Ownership and short interest
@@ -1752,8 +1795,9 @@ def _get_stock_scores(  # noqa: C901
                 d["quality_score"] = None
             if d.get("_value_data_unavailable"):
                 d["value_score"] = None
-                # Size (market_cap) is sourced from the same value_metrics row as Value.
-                d["size_score"] = None
+            # size_score REMOVED from the API contract 2026-08-28 (Size retired as a composite
+            # pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS). market_cap
+            # itself is still available via the Value pillar's inputs.
 
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)

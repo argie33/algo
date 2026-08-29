@@ -708,7 +708,7 @@ class StockScoresLoader(OptimalLoader):
                 }
             ]
 
-    def _compute_stock_score(self, symbol: str) -> dict[str, Any]:  # noqa: C901
+    def _compute_stock_score(self, symbol: str) -> dict[str, Any]:
         """Compute composite stock score from REAL metrics only (no fake defaults).
 
         CRITICAL: Fails fast if stock has insufficient real data (>=50% completeness required).

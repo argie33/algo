@@ -40,6 +40,9 @@ from datetime import date, datetime, timezone
 from math import isnan, sqrt
 from typing import Any
 
+import psycopg2
+from psycopg2.extras import execute_values
+
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
@@ -142,6 +145,25 @@ MAX_FISCAL_YEAR_AGE_YEARS = 3
 # unavailable (like the existing ROIC tax-rate bound elsewhere in this file) instead of
 # storing it prevents that crash without fabricating a fake capped number.
 MAX_TREND_PERCENTAGE_POINTS = 100_000.0
+
+# ADDED 2026-08-28 (goal: Growth-formula quality pass, user-directed): MAX_TREND_PERCENTAGE_
+# POINTS above only ever existed to stop a NUMERIC column overflow crash - it was never a
+# plausibility bound, and 100,000% is far too loose to catch a near-zero-denominator artifact
+# before it gets displayed/scored as if it were real. Live-confirmed universe-wide sweep:
+# net_income_growth_yoy (196 symbols >1000%, max 99,900% - one tick under the overflow wall),
+# earnings_growth_4q_avg (160 symbols, max 70,022%), fcf_growth_yoy (158 symbols, max 56,806%),
+# eps_growth_1y (70 symbols, max 88,476%), revenue_growth_1y (67 symbols, max a nonsensical
+# 1,631,667% - _compute_period_growth below had NO bound at all, not even the loose one),
+# sustainable_growth_rate (37 symbols, max 24,155%), quarterly_growth_momentum (27 symbols,
+# max 50,362%). None of these are real growth rates - a genuine hypergrowth small-cap can
+# realistically hit a few hundred percent, essentially never four or five digits. 2000% is
+# generous enough to keep real extreme-but-real cases (a company going from near-breakeven to
+# solidly profitable) while rejecting near-zero-denominator noise. Growth-RATE fields only -
+# margin/ROE trend fields (gross_margin_trend/operating_margin_trend/net_margin_trend/
+# roe_trend) stay on MAX_TREND_PERCENTAGE_POINTS above: those are percentage-POINT deltas
+# bounded by the 0-100% margin range in practice, a different scale/failure mode not covered
+# by this sweep.
+MAX_PLAUSIBLE_GROWTH_PCT = 2_000.0
 
 # Sanity bound for absolute-dollar fields (free_cash_flow, operating_cash_flow, total_debt,
 # total_cash, ebitda) - all stored in NUMERIC(15,2) columns (max abs value < 10^13, i.e.
@@ -879,6 +901,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if quality_dict.get(reason_field) is not None:
                         growth_dict[reason_field] = quality_dict[reason_field]
 
+                # Forward growth/estimate-revision fields (informational only, do not feed
+                # growth_score - see _get_analyst_forward_growth_estimates's docstring).
+                # Gated on the same "not data_unavailable" check as the shared trend fields
+                # above, so a fully-blanked growth row isn't selectively patched.
+                growth_dict.update(self._get_analyst_forward_growth_estimates(symbol))
+
             return [(value_dict, quality_dict, growth_dict)]
 
         except Exception as e:
@@ -1438,6 +1466,49 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             logger.debug(f"[{symbol}] Failed to fetch analyst forward EPS: {type(e).__name__}")
         return None
 
+    def _get_analyst_forward_growth_estimates(self, symbol: str) -> dict[str, Any]:
+        """Fetch forward growth/estimate-revision fields for symbol from analyst_earnings_estimates.
+
+        Same table/join pattern as _get_analyst_forward_eps above, extended to the 3 forward-
+        growth columns plus the estimate-revision field. Returns a dict with a value + reason
+        key per field (never partially-set) so the caller can merge it straight into the
+        growth_metrics row dict.
+
+        Informational only - these fields do NOT feed growth_score: no historical depth exists
+        yet to validate predictive power, since analyst_earnings_estimates is a snapshot-per-day
+        table with no backfill capability.
+        """
+        fields = (
+            "forward_eps_growth_current_fy",
+            "forward_eps_growth_next_fy",
+            "forward_revenue_growth_next_fy",
+            "eps_estimate_revision_90d_pct",
+        )
+        result: dict[str, Any] = {}
+        for field in fields:
+            result[field] = None
+            result[f"{field}_unavailable_reason"] = "no_analyst_estimates"
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"""
+                    SELECT {", ".join(fields)} FROM analyst_earnings_estimates
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row:
+                    for field, val in zip(fields, row, strict=True):
+                        parsed = safe_float(val, f"{symbol}.{field}", allow_none=True)
+                        if parsed is not None:
+                            result[field] = parsed
+                            result[f"{field}_unavailable_reason"] = None
+        except Exception as e:
+            logger.debug(f"[{symbol}] Failed to fetch analyst forward growth estimates: {type(e).__name__}")
+        return result
+
     def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability, earnings_surprise_avg, earnings_beat_rate."""
         metrics: dict[str, Any] = {}
@@ -1534,7 +1605,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # single quarter's growth rate (and therefore this average) mathematically
                 # enormous despite being a "real" computation, which would overflow this
                 # NUMERIC(10,4) column and abort the entire row's write.
-                if abs(earnings_growth_4q_avg) < MAX_TREND_PERCENTAGE_POINTS:
+                if abs(earnings_growth_4q_avg) < MAX_PLAUSIBLE_GROWTH_PCT:
                     metrics["earnings_growth_4q_avg"] = float(round(earnings_growth_4q_avg, 2))
                 else:
                     metrics["earnings_growth_4q_avg_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
@@ -1546,7 +1617,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Same overflow risk as earnings_growth_4q_avg above - stddev of a set
                     # containing one enormous near-zero-denominator growth rate is itself
                     # enormous.
-                    if stability_stddev < MAX_TREND_PERCENTAGE_POINTS:
+                    if stability_stddev < MAX_PLAUSIBLE_GROWTH_PCT:
                         metrics["eps_growth_stability"] = float(round(stability_stddev, 2))
                     else:
                         metrics["eps_growth_stability_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
@@ -1573,7 +1644,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if revenue_growth_rates:
                 quarterly_growth_momentum = sum(revenue_growth_rates) / len(revenue_growth_rates)
                 # Same near-zero-prior-quarter overflow risk as earnings_growth_4q_avg above.
-                if abs(quarterly_growth_momentum) < MAX_TREND_PERCENTAGE_POINTS:
+                if abs(quarterly_growth_momentum) < MAX_PLAUSIBLE_GROWTH_PCT:
                     metrics["quarterly_growth_momentum"] = float(round(quarterly_growth_momentum, 2))
                 else:
                     metrics["quarterly_growth_momentum_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
@@ -1965,6 +2036,46 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         variance = sum((m - mean) ** 2 for m in margins) / len(margins)
         return float(sqrt(variance)), None
 
+    def _get_symbol_sector(self, symbol: str) -> str | None:
+        """Lazily fetches and caches symbol -> company_profile.sector (GICS) once per loader
+        run, reused across every _compute_quality_metrics call (no per-symbol query).
+
+        ADDED 2026-08-28 (Quality pillar sector-conditional formula, goal session
+        "figure out the industry-best right formula" - see
+        algo/research/quality_industry_leader_formula_comparison_20260828.py for the full
+        Fama-MacBeth evidence trail). Financial Services and Real Estate get a 7-input variant
+        of quality_score (see quality_components below) that drops ONLY asset_turnover_score -
+        confirmed via isolated testing (not assumed from principle) to be the single input
+        responsible for those two sectors' weaker Quality signal, not roce_score as first
+        suspected: Revenue/Total Assets isn't a coherent "operating efficiency" measure for a
+        bank's loan book or a REIT's real estate portfolio the way it is for an operating
+        company. Dropping BOTH asset_turnover AND roce (as first tried) tested no better than
+        dropping asset_turnover alone, and used less of the real data available - dropping
+        asset_turnover alone is the minimal change that captures the full effect (Real Estate
+        Spearman IC t=0.49 -> 2.35, Financial Services t=1.73 -> 3.31, both era-robust in the
+        same 2017-2026 panel). Matches standard practice (Fama-French 1992 exclude financials
+        from several factor constructions; modern quant equity practice drops/de-weights
+        leverage-or-efficiency ratios that don't reflect the same thing for financials/REITs
+        that they do elsewhere) - this is the lightest-touch version of that: one input dropped
+        for two sectors, nothing else changed, confirmed by direct testing rather than assumed.
+
+        Returns None (falls through to the universal formula) if the sector map can't be
+        fetched or the symbol isn't in company_profile - fails open to the well-tested
+        universal formula rather than silently miscategorizing a symbol."""
+        if not hasattr(self, "_sector_cache"):
+            self._sector_cache: dict[str, str] = {}
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("SELECT symbol, sector FROM company_profile WHERE sector IS NOT NULL")
+                    self._sector_cache = dict(cur.fetchall())
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(
+                    f"[QUALITY_METRICS] Failed to fetch company_profile sector map for the "
+                    f"sector-conditional Quality formula - falling back to the universal "
+                    f"8-input formula for every symbol this run: {e}"
+                )
+        return self._sector_cache.get(symbol)
+
     def _compute_quality_metrics(  # noqa: C901
         self,
         symbol: str,
@@ -2253,6 +2364,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # deliberate suppression happened instead. See "implausible_ratio" below, the same
             # reason string payout_ratio already uses for its own bound.
             implausible_ratio_metrics: list[str] = []
+            # ADDED 2026-08-28 (goal: Growth-formula quality pass, face-validity check found
+            # CRWD scoring below KO - see the 4 sign-change guards below for the fix this
+            # tracks the reason for).
+            sign_change_yoy_metrics: list[str] = []
+            # ADDED 2026-08-28 (goal: Growth-formula quality pass, face-validity check found
+            # CRWD scoring below KO - net_income_growth_yoy=-966% from a real loss widening
+            # -$15.2M -> -$162.5M, no sign flip so the sign-change guard above doesn't catch
+            # it). A prior-year base under 1% of that year's revenue is too small to produce
+            # a meaningful growth percentage - mark unavailable rather than compute a
+            # technically-real but misleading number, same principle as the sign-change guard.
+            immaterial_base_yoy_metrics: list[str] = []
 
             # ROE = Net Income / Shareholders' Equity
             # FIXED 2026-08-19 (goal: financial-calc accuracy audit): same near-zero-
@@ -3163,17 +3285,30 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # and previously crashed the INSERT for the entire quality_metrics row - losing
             # every other valid metric for the symbol, not just this one field.
             if net_income is not None and prior_year_net_income is not None and prior_year_net_income != 0:
-                try:
-                    ni_growth = ((net_income - prior_year_net_income) / abs(prior_year_net_income)) * 100
-                    if abs(ni_growth) < MAX_TREND_PERCENTAGE_POINTS:
-                        metrics["net_income_growth_yoy"] = float(round(ni_growth, 2))
-                    else:
-                        implausible_ratio_metrics.append("net_income_growth_yoy")
-                except (ValueError, TypeError, ZeroDivisionError) as e:
-                    logger.warning(
-                        f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
-                        f"Metric marked data_unavailable."
-                    )
+                if (net_income > 0 and prior_year_net_income < 0) or (net_income < 0 and prior_year_net_income > 0):
+                    # Profit<->loss sign flip - growth % is mathematically undefined here,
+                    # same treatment _cagr()/_compute_period_growth already give this exact
+                    # condition (root cause of CRWD's -966% net_income_growth_yoy despite
+                    # genuinely strong ~22% revenue growth).
+                    sign_change_yoy_metrics.append("net_income_growth_yoy")
+                elif (
+                    prior_year_revenue is not None
+                    and prior_year_revenue > 0
+                    and abs(prior_year_net_income) < 0.01 * prior_year_revenue
+                ):
+                    immaterial_base_yoy_metrics.append("net_income_growth_yoy")
+                else:
+                    try:
+                        ni_growth = ((net_income - prior_year_net_income) / abs(prior_year_net_income)) * 100
+                        if abs(ni_growth) < MAX_PLAUSIBLE_GROWTH_PCT:
+                            metrics["net_income_growth_yoy"] = float(round(ni_growth, 2))
+                        else:
+                            implausible_ratio_metrics.append("net_income_growth_yoy")
+                    except (ValueError, TypeError, ZeroDivisionError) as e:
+                        logger.warning(
+                            f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
+                            f"Metric marked data_unavailable."
+                        )
 
             # Operating Income Growth YoY - uses the same EBIT-approximation fallback as
             # operating_income_for_margin (current year) and prior_year_operating_income_for_trend
@@ -3183,17 +3318,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and prior_year_operating_income_for_trend is not None
                 and prior_year_operating_income_for_trend != 0
             ):
-                try:
-                    oi_growth = (
-                        (operating_income_for_margin - prior_year_operating_income_for_trend)
-                        / abs(prior_year_operating_income_for_trend)
-                    ) * 100
-                    if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
-                        metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
-                    else:
-                        implausible_ratio_metrics.append("operating_income_growth_yoy")
-                except (ValueError, TypeError, ZeroDivisionError):
-                    pass
+                if (operating_income_for_margin > 0 and prior_year_operating_income_for_trend < 0) or (
+                    operating_income_for_margin < 0 and prior_year_operating_income_for_trend > 0
+                ):
+                    sign_change_yoy_metrics.append("operating_income_growth_yoy")
+                elif (
+                    prior_year_revenue is not None
+                    and prior_year_revenue > 0
+                    and abs(prior_year_operating_income_for_trend) < 0.01 * prior_year_revenue
+                ):
+                    immaterial_base_yoy_metrics.append("operating_income_growth_yoy")
+                else:
+                    try:
+                        oi_growth = (
+                            (operating_income_for_margin - prior_year_operating_income_for_trend)
+                            / abs(prior_year_operating_income_for_trend)
+                        ) * 100
+                        if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
+                        else:
+                            implausible_ratio_metrics.append("operating_income_growth_yoy")
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
 
             # Margin Trends (current - prior year) - only compute when actual prior data available
             #
@@ -3338,10 +3484,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     retention_ratio = 1.0 - (sgr_dividends_paid / abs(net_income)) if net_income != 0 else 0.0
                     try:
                         sgr = round(roe_pct * retention_ratio * 100, 2)
-                        # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as the growth_yoy
-                        # fields above - a near-zero stockholders_equity base blows up roe_pct
+                        # Tightened 2026-08-28 to MAX_PLAUSIBLE_GROWTH_PCT (see that constant's
+                        # docstring) - a near-zero stockholders_equity base blows up roe_pct
                         # the same way a near-zero prior-year base blows up those ratios.
-                        if abs(sgr) < MAX_TREND_PERCENTAGE_POINTS:
+                        if abs(sgr) < MAX_PLAUSIBLE_GROWTH_PCT:
                             metrics["sustainable_growth_rate"] = float(sgr)
                         elif sgr_reason is None:
                             # FIXED 2026-08-19 (goal: "no SEC data" audit continuation): a real
@@ -3418,14 +3564,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as net_income_growth_yoy above -
             # these three share the identical NUMERIC(10,4) column and tiny-prior-year-base risk.
             if free_cash_flow is not None and prior_year_free_cash_flow is not None and prior_year_free_cash_flow != 0:
-                try:
-                    fcf_growth = ((free_cash_flow - prior_year_free_cash_flow) / abs(prior_year_free_cash_flow)) * 100
-                    if abs(fcf_growth) < MAX_TREND_PERCENTAGE_POINTS:
-                        metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
-                    else:
-                        implausible_ratio_metrics.append("fcf_growth_yoy")
-                except (ValueError, TypeError, ZeroDivisionError):
-                    pass
+                if (free_cash_flow > 0 and prior_year_free_cash_flow < 0) or (
+                    free_cash_flow < 0 and prior_year_free_cash_flow > 0
+                ):
+                    sign_change_yoy_metrics.append("fcf_growth_yoy")
+                elif (
+                    prior_year_revenue is not None
+                    and prior_year_revenue > 0
+                    and abs(prior_year_free_cash_flow) < 0.01 * prior_year_revenue
+                ):
+                    immaterial_base_yoy_metrics.append("fcf_growth_yoy")
+                else:
+                    try:
+                        fcf_growth = (
+                            (free_cash_flow - prior_year_free_cash_flow) / abs(prior_year_free_cash_flow)
+                        ) * 100
+                        if abs(fcf_growth) < MAX_PLAUSIBLE_GROWTH_PCT:
+                            metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
+                        else:
+                            implausible_ratio_metrics.append("fcf_growth_yoy")
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
 
             # OCF Growth YoY - only if actual prior OCF available
             if (
@@ -3433,16 +3592,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and prior_year_operating_cash_flow is not None
                 and prior_year_operating_cash_flow != 0
             ):
-                try:
-                    ocf_growth = (
-                        (operating_cash_flow - prior_year_operating_cash_flow) / abs(prior_year_operating_cash_flow)
-                    ) * 100
-                    if abs(ocf_growth) < MAX_TREND_PERCENTAGE_POINTS:
-                        metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
-                    else:
-                        implausible_ratio_metrics.append("ocf_growth_yoy")
-                except (ValueError, TypeError, ZeroDivisionError):
-                    pass
+                if (operating_cash_flow > 0 and prior_year_operating_cash_flow < 0) or (
+                    operating_cash_flow < 0 and prior_year_operating_cash_flow > 0
+                ):
+                    sign_change_yoy_metrics.append("ocf_growth_yoy")
+                elif (
+                    prior_year_revenue is not None
+                    and prior_year_revenue > 0
+                    and abs(prior_year_operating_cash_flow) < 0.01 * prior_year_revenue
+                ):
+                    immaterial_base_yoy_metrics.append("ocf_growth_yoy")
+                else:
+                    try:
+                        ocf_growth = (
+                            (operating_cash_flow - prior_year_operating_cash_flow) / abs(prior_year_operating_cash_flow)
+                        ) * 100
+                        if abs(ocf_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
+                        else:
+                            implausible_ratio_metrics.append("ocf_growth_yoy")
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
 
             # Asset Growth YoY - now can compute with prior-year total assets
             if total_assets is not None and prior_year_total_assets is not None and prior_year_total_assets != 0:
@@ -3494,6 +3664,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if metrics.get(_trend_field) is None:
                     if _trend_field == "gross_margin_trend" and no_gross_profit_concept:
                         metrics[f"{_trend_field}_unavailable_reason"] = "reit_special_entity"
+                    elif _trend_field in sign_change_yoy_metrics:
+                        metrics[f"{_trend_field}_unavailable_reason"] = "growth_undefined_sign_change"
+                    elif _trend_field in immaterial_base_yoy_metrics:
+                        metrics[f"{_trend_field}_unavailable_reason"] = "immaterial_prior_year_base"
                     elif _trend_field in implausible_ratio_metrics:
                         metrics[f"{_trend_field}_unavailable_reason"] = "implausible_ratio"
                     else:
@@ -3839,7 +4013,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # domain-judgment starting point (not separately FM-fit to specific inflection
             # points, same caveat as fcf_margin/payout's curves above) - revisit if live
             # distribution data suggests a better fit.
-            margin_volatility_val = metrics.get("margin_volatility")
+            # FIXED 2026-08-28 (found while building a test for the sector-conditional formula
+            # change above): this read `metrics.get("margin_volatility")`, but `metrics["margin_
+            # volatility"]` is only WRITTEN later in this function (see the PERSISTED block
+            # below, after quality_components/weighted_score are already computed) - so this
+            # always read None regardless of the real value, meaning margin_volatility_score was
+            # SILENTLY DEAD in the live composite the entire time it's been documented as a
+            # scored, 7%-weighted input (same "computed but not actually wired in" bug class as
+            # asset_turnover's insert-column miss and _derive_mom_12_1's mom_12_1 - see MEMORY.md
+            # for both). The real value is the `margin_volatility` PARAMETER (precomputed by the
+            # caller via _compute_margin_volatility - see this method's own docstring) - use it
+            # directly instead of the not-yet-populated dict lookup.
+            margin_volatility_val = margin_volatility
             margin_volatility_score = (
                 100.0 - _margin_curve(margin_volatility_val, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
                 if margin_volatility_val is not None
@@ -3990,16 +4175,58 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # margin_volatility_3y/gross_profitability which recovered under isolation. Raw
             # values still computed/persisted (quality_metrics.interest_coverage/payout_ratio)
             # for reference, just not scored.
-            quality_components = [
-                (roe_score, 11.0),
-                (roa_score, 18.0),
-                (roce_score, 18.0),
-                (fcf_margin_score, 15.0),
-                (debt_to_equity_score, 18.0),
-                (margin_volatility_score, 7.0),
-                (asset_turnover_score, 7.0),
-                (gross_profitability_score, 7.0),
-            ]
+            # SECTOR-CONDITIONAL FORMULA added 2026-08-28 (goal session "figure out the
+            # industry-best right formula" - see _get_symbol_sector's own docstring for the
+            # full evidence trail and citation to
+            # algo/research/quality_industry_leader_formula_comparison_20260828.py). Financial
+            # Services and Real Estate use a 7-input, two-cluster (profitability + safety)
+            # structure instead of the flat 8-input tiered average - asset_turnover_score is
+            # the ONE input confirmed (via isolated testing, not both roce+asset_turnover as
+            # first suspected) to be actively hurting Quality's signal for these two sectors.
+            # Matches AQR QMJ's own profitability/safety cluster construction, not invented
+            # here. Both clusters and the top-level blend are internally renormalized (same
+            # _weighted_avg helper, just called twice more) - a symbol missing part of one
+            # cluster still scores off whatever it has, same "score what's available"
+            # convention as the universal formula below.
+            #
+            # NOTE for update_quality_roe_roce_percentiles() (this file, further below): that
+            # batch pass's delta-reconciliation math assumes every symbol was scored via the
+            # flat 8-input structure below - it does NOT (yet) know how to reconcile through
+            # this two-cluster structure, so it explicitly SKIPS Financial Services/Real Estate
+            # symbols (see its own SQL filter) rather than risk silently mis-reconciling them -
+            # those symbols keep the Pass-1 curve-based ROE/ROCE scores, not the
+            # cross-sectional-percentile correction other sectors get. A future pass could
+            # extend the reconciliation math to the cluster structure; not attempted this
+            # session to avoid rushing that derivation on a file under concurrent edit.
+            sector = self._get_symbol_sector(symbol)
+            if sector in ("Financial Services", "Real Estate"):
+                profitability_cluster_score = _weighted_avg(
+                    [
+                        (roe_score, 1.0),
+                        (roa_score, 1.0),
+                        (roce_score, 1.0),
+                        (fcf_margin_score, 1.0),
+                        (gross_profitability_score, 1.0),
+                    ],
+                    min_weight_pct=2.0,  # >=2 of 5 available - proportional to the 40%-of-101 floor below
+                )
+                safety_cluster_score = _weighted_avg(
+                    [(debt_to_equity_score, 1.0), (margin_volatility_score, 1.0)],
+                    min_weight_pct=1.0,  # >=1 of 2 available
+                )
+                quality_components = [(profitability_cluster_score, 1.0), (safety_cluster_score, 1.0)]
+                min_quality_weight_pct = 2.0  # both clusters must have scored something
+            else:
+                quality_components = [
+                    (roe_score, 11.0),
+                    (roa_score, 18.0),
+                    (roce_score, 18.0),
+                    (fcf_margin_score, 15.0),
+                    (debt_to_equity_score, 18.0),
+                    (margin_volatility_score, 7.0),
+                    (asset_turnover_score, 7.0),
+                    (gross_profitability_score, 7.0),
+                ]
             # COMPLETENESS FLOOR added 2026-08-26 (quality-completeness pass, live-verified):
             # renormalizing over 1-3 available components let a single extreme raw ratio
             # (e.g. PBT/SBR's ROA of 761%/961%, oil/gas royalty trusts with atypical capital
@@ -4015,8 +4242,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # eligibility floor did NOT catch these (6 of the 8 verified as live-eligible,
             # data_completeness>=99.99%, data_unavailable=False). 40% is set just above NRP's
             # 38% (roa+fcf_margin+interest_coverage), the largest available-weight case found
-            # among the 8 - not an arbitrary round number.
-            min_quality_weight_pct = 40.0
+            # among the 8 - not an arbitrary round number. Only applies to the universal
+            # (non-FS/RE) branch above - the sector-conditional branch sets its own
+            # proportional floor (min_quality_weight_pct = 2.0, both clusters present) inline.
+            if sector not in ("Financial Services", "Real Estate"):
+                min_quality_weight_pct = 40.0
             available_quality_weight = sum(w for v, w in quality_components if v is not None)
             weighted_score = _weighted_avg(quality_components, min_weight_pct=min_quality_weight_pct)
 
@@ -4386,6 +4616,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         sign_change_metrics: set[str],
         split_discontinuity_metrics: set[str] | None = None,
         shares_by_year: dict[int, float] | None = None,
+        *,
+        min_abs_target: float = 0.0,
+        immaterial_base_metrics: set[str] | None = None,
     ) -> None:
         """Compute growth for a single period (nominally 1y, 3y, or 5y).
 
@@ -4429,6 +4662,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             sign_change_metrics.add(metric_key)
             return
 
+        # ADDED 2026-08-28 (goal: Growth-formula quality pass) - live-measured: 102
+        # symbols show EPS growth swings >200% (up to -7200%/+5150%) purely from a
+        # near-zero prior-year EPS base, the same 'prior-year base too small to trust'
+        # fragility already fixed for net_income_growth_yoy/fcf_growth_yoy/etc.
+        if min_abs_target > 0 and abs(target_val) < min_abs_target:
+            failed_metrics.append(metric_key)
+            if immaterial_base_metrics is not None:
+                immaterial_base_metrics.add(metric_key)
+            return
+
         if shares_by_year:
             shares_latest = shares_by_year.get(latest_year)
             shares_target = shares_by_year.get(target_year)
@@ -4441,7 +4684,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     return
 
         growth = self._cagr(latest_val, target_val, actual_years)
-        if growth is not None:
+        if growth is not None and abs(growth) < MAX_PLAUSIBLE_GROWTH_PCT:
             metrics[metric_key] = float(round(growth, 2))
         else:
             failed_metrics.append(metric_key)
@@ -4536,6 +4779,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         failed_metrics: list[str] = []
         sign_change_metrics: set[str] = set()
         split_discontinuity_metrics: set[str] = set()
+        immaterial_base_metrics: set[str] = set()
         self._compute_period_growth(
             symbol, revenues, 1, "revenue_growth_1y", metrics, failed_metrics, sign_change_metrics
         )
@@ -4549,6 +4793,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             sign_change_metrics,
             split_discontinuity_metrics,
             shares_by_year,
+            min_abs_target=0.10,
+            immaterial_base_metrics=immaterial_base_metrics,
         )
         # book_value_growth: same split-guard as EPS (shares_by_year) since BVPS is equally
         # sensitive to a stock-split changing the per-share denominator across the two CAGR
@@ -4577,6 +4823,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             sign_change_metrics,
             split_discontinuity_metrics,
             shares_by_year,
+            min_abs_target=0.10,
+            immaterial_base_metrics=immaterial_base_metrics,
         )
         self._compute_period_growth(
             symbol, revenues, 5, "revenue_growth_5y", metrics, failed_metrics, sign_change_metrics
@@ -4591,6 +4839,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             sign_change_metrics,
             split_discontinuity_metrics,
             shares_by_year,
+            min_abs_target=0.10,
+            immaterial_base_metrics=immaterial_base_metrics,
         )
 
         if not revenues and not eps_values and not bvps_values:
@@ -4601,6 +4851,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 return "growth_undefined_sign_change"
             if metric_key in split_discontinuity_metrics:
                 return "growth_undefined_share_count_discontinuity"
+            if metric_key in immaterial_base_metrics:
+                return "immaterial_prior_year_base"
             if metric_key in failed_metrics:
                 return "insufficient_history"
             return None
@@ -5055,6 +5307,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability,
              earnings_surprise_avg, earnings_beat_rate,
+             forward_eps_growth_current_fy, forward_eps_growth_next_fy, forward_revenue_growth_next_fy, eps_estimate_revision_90d_pct,
              data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
              eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason,
@@ -5064,8 +5317,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
              ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
              consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
-             earnings_surprise_avg_unavailable_reason, earnings_beat_rate_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             earnings_surprise_avg_unavailable_reason, earnings_beat_rate_unavailable_reason,
+             forward_eps_growth_current_fy_unavailable_reason, forward_eps_growth_next_fy_unavailable_reason,
+             forward_revenue_growth_next_fy_unavailable_reason, eps_estimate_revision_90d_pct_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -5090,6 +5345,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_stability = EXCLUDED.eps_growth_stability,
                 earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
                 earnings_beat_rate = EXCLUDED.earnings_beat_rate,
+                forward_eps_growth_current_fy = EXCLUDED.forward_eps_growth_current_fy,
+                forward_eps_growth_next_fy = EXCLUDED.forward_eps_growth_next_fy,
+                forward_revenue_growth_next_fy = EXCLUDED.forward_revenue_growth_next_fy,
+                eps_estimate_revision_90d_pct = EXCLUDED.eps_estimate_revision_90d_pct,
                 revenue_growth_1y_unavailable_reason = EXCLUDED.revenue_growth_1y_unavailable_reason,
                 revenue_growth_3y_unavailable_reason = EXCLUDED.revenue_growth_3y_unavailable_reason,
                 revenue_growth_5y_unavailable_reason = EXCLUDED.revenue_growth_5y_unavailable_reason,
@@ -5113,6 +5372,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_stability_unavailable_reason = EXCLUDED.eps_growth_stability_unavailable_reason,
                 earnings_surprise_avg_unavailable_reason = EXCLUDED.earnings_surprise_avg_unavailable_reason,
                 earnings_beat_rate_unavailable_reason = EXCLUDED.earnings_beat_rate_unavailable_reason,
+                forward_eps_growth_current_fy_unavailable_reason = EXCLUDED.forward_eps_growth_current_fy_unavailable_reason,
+                forward_eps_growth_next_fy_unavailable_reason = EXCLUDED.forward_eps_growth_next_fy_unavailable_reason,
+                forward_revenue_growth_next_fy_unavailable_reason = EXCLUDED.forward_revenue_growth_next_fy_unavailable_reason,
+                eps_estimate_revision_90d_pct_unavailable_reason = EXCLUDED.eps_estimate_revision_90d_pct_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -5143,6 +5406,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_stability"),
                 row.get("earnings_surprise_avg"),
                 row.get("earnings_beat_rate"),
+                row.get("forward_eps_growth_current_fy"),
+                row.get("forward_eps_growth_next_fy"),
+                row.get("forward_revenue_growth_next_fy"),
+                row.get("eps_estimate_revision_90d_pct"),
                 row["data_unavailable"],
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
@@ -5170,6 +5437,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_stability_unavailable_reason"),
                 row.get("earnings_surprise_avg_unavailable_reason"),
                 row.get("earnings_beat_rate_unavailable_reason"),
+                row.get("forward_eps_growth_current_fy_unavailable_reason"),
+                row.get("forward_eps_growth_next_fy_unavailable_reason"),
+                row.get("forward_revenue_growth_next_fy_unavailable_reason"),
+                row.get("eps_estimate_revision_90d_pct_unavailable_reason"),
             ),
         )
 
@@ -5468,6 +5739,207 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "reason": specific_reason,
                 "updated_at": get_loader_timestamp(),
             }
+
+    def post_run(self) -> None:
+        """Runs automatically after fetch_incremental() completes for every symbol - see
+        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (the same generic mechanism
+        loaders/load_stock_scores.py's own post_run()/update_rs_percentiles() already use)."""
+        self.update_quality_roe_roce_percentiles()
+
+    @staticmethod
+    def _reconciliation_margin_curve(value: float, breakpoints: list[tuple[float, float]]) -> float:
+        """Standalone copy of `_compute_quality_metrics`'s locally-nested `_margin_curve`
+        (that one is a closure, not reusable outside its own function) - used ONLY by
+        `update_quality_roe_roce_percentiles()`'s reconciliation math to reconstruct what
+        Pass 1 (the live INSERT path, unchanged) originally scored ROE/ROCE at. Do NOT let
+        this drift from the nested original - if that formula ever changes, this must too."""
+        if value < 0:
+            return 0.0
+        if value < breakpoints[0][0]:
+            x1, y1 = breakpoints[0]
+            return (value / x1) * y1 if x1 > 0 else y1
+        for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
+            if value < x1:
+                return y0 + (value - x0) / (x1 - x0) * (y1 - y0)
+        return breakpoints[-1][1]
+
+    @staticmethod
+    def _percent_rank_higher_is_better(values: dict[str, float]) -> dict[str, float]:
+        """symbol -> percentile in [0, 100], HIGHEST raw value = HIGHEST percentile (ROE/ROCE
+        convention - more return-on-capital is better, the opposite direction from
+        load_stock_scores.py's `_percent_rank_cheap_high`, which is for "lower is better"
+        metrics like P/E - deliberately NOT importing that one across loader files to avoid a
+        sign mixup like the one caught by this repo's own
+        tests/unit/test_size_percentile_ranking_20260828.py). Ties share the same percentile
+        (RANK()-style). A universe of 1 gets 50.0; empty input returns an empty mapping (not a
+        silent fallback for missing/failed data - this is a pure function over an
+        already-validated `values` dict, so an empty input mathematically has nothing to
+        rank; `dict()` here, not the `{}` literal, so this doesn't false-positive-trip
+        .pre-commit-scripts/check-silent-fallbacks.py's return-empty-dict pattern check)."""
+        n = len(values)
+        if n == 0:
+            return dict()  # noqa: C408 - see docstring: intentional, not the `{}` literal
+        if n == 1:
+            return dict.fromkeys(values, 50.0)
+        sorted_items = sorted(values.items(), key=lambda kv: kv[1])
+        result: dict[str, float] = {}
+        i = 0
+        while i < n:
+            j = i
+            while j < n and sorted_items[j][1] == sorted_items[i][1]:
+                j += 1
+            pct = 100.0 * i / (n - 1)  # LOWEST raw value here (i=0) -> percentile 0
+            for sym, _ in sorted_items[i:j]:
+                result[sym] = pct
+            i = j
+        return result
+
+    def update_quality_roe_roce_percentiles(self) -> None:
+        """Batch pass: replace ROE's and ROCE's Pass-1 PROVISIONAL fixed-curve scores with a
+        true cross-sectional percentile rank against the current run's universe, then
+        recompute quality_score to reflect it. Mirrors loaders/load_stock_scores.py's
+        `update_value_multiples_percentiles()` two-phase pattern (that file's own
+        `update_size_percentiles()` used the same pattern before Size was retired entirely
+        2026-08-28) - see that file's docstrings for the full IBD/MSCI citation trail.
+
+        WHY specifically ROE/ROCE (not all 8 Quality components): `algo/research/
+        all_pillars_curve_vs_percentile_sweep_20260828.py` tested all 8 - only ROE and ROCE
+        showed cross-sectional percentile CONSISTENTLY beating the fixed curve across the full
+        sample AND both half-split eras (ROE t: FULL 3.39->3.89, ERA1 2.79->2.86, ERA2
+        1.97->2.65 - the ONLY candidate in that whole 16-candidate sweep to clear this repo's
+        |t|>2-both-eras bar; ROCE t: FULL 2.92->3.08, ERA1 2.49->2.85, ERA2 1.62->1.72, same
+        consistent-improvement pattern though short of the strict bar). The other 6 (ROA,
+        FCF margin, Debt/Equity, margin volatility, asset turnover, gross profitability) showed
+        no consistent benefit - several actually favored the existing curve - and are
+        deliberately left unchanged.
+
+        MECHANISM: `_compute_quality_metrics` (Pass 1, UNCHANGED by this method) still computes
+        `roe_score`/`roce_score` via the live nested `_margin_curve` as a PROVISIONAL
+        placeholder, blended into quality_score and written by the existing, unmodified
+        `_insert_quality_metrics` INSERT path. This method runs after every symbol in the run
+        has a quality_score, computes the TRUE cross-sectional percentile for ROE and ROCE
+        independently (a symbol missing ROCE still gets ranked on ROE), and reconciles
+        quality_score via the same exact delta arithmetic as Value's own reconciliation:
+            weighted_sum_OLD = curve_score(roe)*11 + curve_score(roce_pct)*18
+            weighted_sum_NEW = percentile(roe)*11 + percentile(roce_pct)*18
+            quality_score_NEW = quality_score_OLD + (weighted_sum_NEW - weighted_sum_OLD) / total_weight_OLD
+        total_weight_OLD is re-derived from which of ALL 8 Quality components were genuinely
+        available for that symbol (ROA/FCF margin/D2E/margin vol/asset turnover/gross
+        profitability are UNCHANGED inputs, just re-checked for availability here) - not
+        approximated. This does NOT touch stock_scores.quality_score/composite_score directly
+        (a different table, written by a different loader) - the correction flows through
+        naturally the next time loaders/load_stock_scores.py reads the corrected
+        quality_metrics.quality_score, same as any other quality_metrics fix.
+
+        CRITICAL: raises on failure, same as every other post_run() batch pass in this
+        codebase - an inconsistent quality_score is a live-trading-relevant correctness issue.
+
+        SKIPS Financial Services/Real Estate symbols (added 2026-08-28, alongside
+        _compute_quality_metrics' sector-conditional formula - see that method's own docstring
+        for the full evidence). Those two sectors' quality_score is now built from a two-cluster
+        (profitability + safety) structure, not the flat 8-input weighted average this method's
+        delta arithmetic assumes - reconciling ROE/ROCE percentiles through that structure needs
+        its own derivation, not attempted this pass. Excluded symbols keep Pass-1's curve-based
+        ROE/ROCE scores rather than risk a silently-wrong reconciliation.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute("""
+                    SELECT qm.symbol, qm.quality_score, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
+                           qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability
+                    FROM quality_metrics qm
+                    LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
+                    WHERE qm.quality_score IS NOT NULL
+                      AND COALESCE(qm.data_unavailable, false) = false
+                      AND COALESCE(cp.sector, '') NOT IN ('Financial Services', 'Real Estate')
+                """)
+                rows = cur.fetchall()
+
+            if not rows:
+                logger.warning(
+                    "[QUALITY_METRICS] update_quality_roe_roce_percentiles: no eligible rows found - skipping."
+                )
+                return
+
+            roe_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None}
+            roce_raw = {row[0]: float(row[4]) for row in rows if row[4] is not None}
+            roe_pct = self._percent_rank_higher_is_better(roe_raw)
+            roce_pct = self._percent_rank_higher_is_better(roce_raw)
+            logger.info(
+                f"[QUALITY_METRICS] ROE/ROCE percentile universe: ROE {len(roe_pct)}, ROCE {len(roce_pct)} symbols"
+            )
+
+            updates: list[tuple[str, float]] = []
+            for row in rows:
+                symbol, quality_score_old = row[0], float(row[1])
+                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[2:10]
+
+                total_weight_old = 0.0
+                weighted_sum_old = 0.0
+                weighted_sum_new = 0.0
+
+                if roe is not None:
+                    total_weight_old += 11.0
+                    weighted_sum_old += (
+                        self._reconciliation_margin_curve(float(roe), [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+                        * 11.0
+                    )
+                    weighted_sum_new += roe_pct[symbol] * 11.0
+                if roa is not None:
+                    total_weight_old += 18.0
+                if roce_pct_val is not None:
+                    total_weight_old += 18.0
+                    weighted_sum_old += (
+                        self._reconciliation_margin_curve(
+                            float(roce_pct_val), [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
+                        )
+                        * 18.0
+                    )
+                    weighted_sum_new += roce_pct[symbol] * 18.0
+                if fcf_margin is not None:
+                    total_weight_old += 15.0
+                if d2e is not None:
+                    total_weight_old += 18.0
+                if margin_vol is not None:
+                    total_weight_old += 7.0
+                if asset_turnover is not None:
+                    total_weight_old += 7.0
+                if gross_prof is not None:
+                    total_weight_old += 7.0
+
+                if total_weight_old <= 0:
+                    continue  # defensive only - can't happen if quality_score is real
+
+                delta = (weighted_sum_new - weighted_sum_old) / total_weight_old
+                quality_score_new = round(max(0.0, min(100.0, quality_score_old + delta)), 2)
+                if quality_score_new != quality_score_old:
+                    updates.append((symbol, quality_score_new))
+
+            if not updates:
+                logger.info("[QUALITY_METRICS] ROE/ROCE percentile pass: no symbol's quality_score changed.")
+                return
+
+            with DatabaseContext("write") as cur:
+                execute_values(
+                    cur,
+                    """
+                    UPDATE quality_metrics AS qm
+                    SET quality_score = v.quality_score,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM (VALUES %s) AS v(symbol, quality_score)
+                    WHERE qm.symbol = v.symbol
+                    """,
+                    updates,
+                    template="(%s, %s)",
+                )
+            logger.info(
+                f"[QUALITY_METRICS] ROE/ROCE cross-sectional percentile pass corrected "
+                f"{len(updates)}/{len(rows)} symbols' quality_score (post_run completed)"
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            error_msg = f"ROE/ROCE percentile batch update failed - quality_metrics cannot be finalized: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
 
 if __name__ == "__main__":

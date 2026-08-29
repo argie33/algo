@@ -121,8 +121,10 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
     t.add_column("Val", justify="right", no_wrap=True, width=4)
     t.add_column("Grow", justify="right", no_wrap=True, width=5)
-    t.add_column("Risk", justify="right", no_wrap=True, width=5)
-    t.add_column("Pos", justify="right", no_wrap=True, width=4)
+    # LABEL RENAMED 2026-08-28 (matches webapp/frontend's StockScoreAccordion.jsx rename,
+    # same user directive): "Risk" -> "Safety" - risk_score is higher-is-better, "Risk" read
+    # backwards. Column key unchanged (still risk_score below).
+    t.add_column("Safe", justify="right", no_wrap=True, width=5)
     t.add_column("Sector", style="dim", no_wrap=True, width=16)
 
     for rank, sc in enumerate(top_scores[:limit], 1):
@@ -134,7 +136,9 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         val = safe_get_field(sc, "value_score")
         grwth = safe_get_field(sc, "growth_score")
         risk = safe_get_field(sc, "risk_score")
-        pos = safe_get_field(sc, "positioning_score")
+        # POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27, SIZE RETIRED 2026-08-28 (see
+        # loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS) - neither key exists on the API
+        # response anymore; this panel shows the current 5 pillars only.
         sector = safe_get_field(sc, "sector", "--")
         comp_v: float | None = safe_float(comp)
         completeness = safe_float(safe_get_field(sc, "data_completeness"), field_name="completeness", allow_none=True)
@@ -170,7 +174,6 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
                 _score_cell(val),
                 _score_cell(grwth),
                 _score_cell(risk),
-                _score_cell(pos),
                 Text(str(sector), style="dim"),
             ]
         )
@@ -180,9 +183,9 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
 
 
 def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
-    """Build 6 tables showing top 15 for each factor score, arranged in 2 rows x 3 columns.
+    """Build 5 tables showing top 15 for each factor score, arranged 2/2/1 across 3 columns.
 
-    Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Risk, Positioning).
+    Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Safety).
     """
     if not isinstance(top_scores, list) or not top_scores:
         layout = Layout()
@@ -190,13 +193,16 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
         return layout
 
     # Define factors with their field names and colors
+    # POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27, SIZE RETIRED 2026-08-28 (see
+    # loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS) - composite is 5 pillars now.
+    # "Risk" -> "Safety" 2026-08-28 (matches StockScoreAccordion.jsx rename) - risk_score is
+    # higher-is-better, "Risk" read backwards. Field key unchanged (still risk_score).
     factors = [
         ("Momentum", "momentum_score"),
         ("Quality", "quality_score"),
         ("Value", "value_score"),
         ("Growth", "growth_score"),
-        ("Risk", "risk_score"),
-        ("Positioning", "positioning_score"),
+        ("Safety", "risk_score"),
     ]
 
     # Build tables for each factor
@@ -240,7 +246,9 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
             )
         )
 
-    # Arrange in 2 rows x 3 columns layout
+    # Arrange 5 panels across 3 columns: col1/col2 stacked 2-high (Momentum/Growth,
+    # Quality/Safety), col3 single (Value) - SIZE REMOVED 2026-08-28 dropped the 6th panel
+    # that used to fill col3's second slot.
     layout = Layout()
     layout.split_row(
         Layout(name="col1", ratio=1),
@@ -255,10 +263,7 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
         Layout(factor_panels[1], name="q", ratio=1),
         Layout(factor_panels[4], name="s", ratio=1),
     )
-    layout["col3"].split_column(
-        Layout(factor_panels[2], name="v", ratio=1),
-        Layout(factor_panels[5], name="p", ratio=1),
-    )
+    layout["col3"].update(factor_panels[2])
 
     return layout
 

@@ -460,7 +460,7 @@ export const getFactorFieldLabel = (fieldName) => {
     gross_margin_trend: "Gross Margin Trend",
     operating_margin_trend: "Operating Margin Trend",
     net_margin_trend: "Net Margin Trend",
-    quarterly_growth_momentum: "Quarterly Growth Momentum",
+    quarterly_growth_momentum: "QoQ Growth Momentum",
 
     // Quality
     return_on_equity_pct: "Return on Equity (ROE)",

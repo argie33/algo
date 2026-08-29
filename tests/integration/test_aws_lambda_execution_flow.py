@@ -79,10 +79,8 @@ class TestAWSLambdaOrchestrationFlow:
                 "quality_score": 79.0,
                 "value_score": 68.0,
                 "momentum_score": 71.0,
-                "volatility_score": 65.0,
-                "positioning_score": 72.0,
                 "risk_score": 70.0,
-                "data_count": 6,  # All 6 metrics available
+                "data_count": 5,  # All 5 pillars available (Positioning retired 2026-08-27, Size retired 2026-08-28)
             }
         ]
 
