@@ -1707,10 +1707,11 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     # ($367.0M) / equity($18.567M) = 1976.75% ROE instead of the real ~94%.
                     # For instant facts, prefer the entry whose end date is latest (closest
                     # to the true fiscal year end) before falling back to filed-date as a
-                    # tiebreak; duration facts (has "start") are unaffected - their span-day
-                    # filter above already narrows the field to genuine annual totals, where
-                    # "most recently filed" legitimately means "most likely restated/
-                    # corrected".
+                    # tiebreak; annual duration facts are unaffected - their span-day filter
+                    # above already narrows the field to genuine annual totals, where "most
+                    # recently filed" legitimately means "most likely restated/corrected".
+                    # Quarterly duration facts get their own span tiebreak below - see the
+                    # 2026-08-29 comment at that branch.
                     is_instant = not start_date
                     if is_instant:
                         should_replace = row_end is None or end_date > row_end
@@ -1741,6 +1742,39 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                                 should_replace = entry_has_frame
                             else:
                                 should_replace = row_filed is None or entry_filed > row_filed
+                    elif period == "quarterly":
+                        # FIXED 2026-08-29 (goal: composite-score validation against real
+                        # data): a Q2/Q3 10-Q's XBRL discloses BOTH the discrete "three
+                        # months ended" fact AND the cumulative "six/nine months ended"
+                        # fact for the same line item, and SEC tags fp='Q2'/'Q3' on the
+                        # FILING's own period for both - identical (fiscal_year, fp) key,
+                        # same filed date (same filing) - so the old filed-date-only
+                        # tiebreak picked whichever happened to iterate first, which
+                        # empirically was the CUMULATIVE fact. Live-confirmed via META's
+                        # real companyfacts JSON: fy=2026/fp=Q2 has both a 2026-04-01to
+                        # 2026-06-30 discrete fact (val=$60.801B, frame="CY2026Q2") and a
+                        # 2026-01-01to2026-06-30 cumulative fact (val=$117.111B,
+                        # frame=None) - quarterly_income_statement stored the $117.111B
+                        # H1-cumulative figure as META's "Q2 2026 revenue", corrupting
+                        # every downstream growth_metrics YoY/TTM calc (revenue_growth_1y
+                        # came out -71.98% against margins that were actually improving).
+                        # Same pattern independently confirmed for AAPL and MSFT - this is
+                        # a systemic bug affecting essentially every calendar-Q2/Q3 filer,
+                        # not a META-specific data issue. A genuine single quarter always
+                        # spans ~89-92 days; a same-fiscal-year cumulative echo spans
+                        # ~180-190 (H1) or ~270-280 (9mo) days - always clearly
+                        # distinguishable via duration alone, so prefer the entry with the
+                        # SHORTER start-to-end span over the filed-date tiebreak.
+                        entry_span = (
+                            (datetime.date.fromisoformat(entry["end"]) - datetime.date.fromisoformat(start_date)).days
+                            if entry.get("end")
+                            else None
+                        )
+                        row_span = row.get(f"_span_{col}")
+                        if entry_span is not None and row_span is not None and entry_span != row_span:
+                            should_replace = entry_span < row_span
+                        else:
+                            should_replace = row_filed is None or entry_filed > row_filed
                     else:
                         should_replace = row_filed is None or entry_filed > row_filed
                 if should_replace:
@@ -1758,6 +1792,13 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     row[f"_end_{col}"] = end_date
                     row[f"_rank_{col}"] = entry_rank
                     row[f"_frame_{col}"] = bool(entry.get("frame"))
+                    if period == "quarterly" and start_date and end_date:
+                        try:
+                            row[f"_span_{col}"] = (
+                                datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)
+                            ).days
+                        except ValueError:
+                            row[f"_span_{col}"] = None
 
     # Drop helper fields, return sorted (require fiscal_year for ordering)
     # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
@@ -1775,6 +1816,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 and not k.startswith("_end_")
                 and not k.startswith("_rank_")
                 and not k.startswith("_frame_")
+                and not k.startswith("_span_")
                 and k not in ("period_end", "filed", "form")
             }
         )

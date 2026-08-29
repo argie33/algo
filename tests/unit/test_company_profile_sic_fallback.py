@@ -60,6 +60,7 @@ class TestFetchIncrementalUsesFallback:
             "2026-07-27",  # updated_at
             False,  # data_unavailable
             None,  # reason
+            "operating",  # entity_type
         )
 
     def test_unmapped_code_in_precedented_division_resolves_via_fallback(self):
@@ -96,6 +97,66 @@ class TestFetchIncrementalUsesFallback:
         # instead of being cleanly marked unavailable. See the two sibling tests below for
         # the other two "unavailable" record paths in this same method.
         assert "updated_at" in result[0]
+
+
+class TestOperatingEntityWithBlankSicFallsBackToFinancialServices:
+    """Regression test (2026-08-29, goal session: data-completeness pass over the
+    analyst-coverage audit's top-market-cap outliers). Blank sic_code is ambiguous
+    between real closed-end funds (never file a 10-K/20-F, entity_type='other') and
+    real operating/lending companies SEC's submissions.json simply never populated a
+    SIC for - live-verified universe-wide: every symbol with entity_type='operating'
+    AND sic_code NULL is a Business Development Company or bank holding company
+    (BBDC, MAIN, HTGC, FSK, CBC, 25 more - live SEC submissions.json fetch even shows
+    Bank OZK itself returns sic="" from SEC's own API). Before this fix all 30 were
+    dropped to sector="Other"/data_unavailable=True despite having complete SEC
+    filings and, in several cases, an already-live stock_scores composite score.
+    """
+
+    def _mock_row(self, entity_type):
+        return (
+            "MAIN",  # symbol
+            "Main Street Capital Corporation",  # entity_name
+            None,  # sic_code - SEC's own submissions.json returns "" for this bucket
+            None,  # sic_description
+            None,  # shares_outstanding
+            None,  # created_at
+            "2026-08-29",  # updated_at
+            False,  # data_unavailable
+            None,  # reason
+            entity_type,
+        )
+
+    def test_operating_entity_with_blank_sic_gets_financial_services(self):
+        loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = self._mock_row("operating")
+
+        with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            result = loader.fetch_incremental("MAIN", None)
+
+        assert result is not None
+        assert result[0]["data_unavailable"] is False
+        assert result[0]["reason"] is None
+        assert result[0]["sector"] == "Financial Services"
+        assert result[0]["symbol"] == "MAIN"
+
+    def test_non_operating_entity_with_blank_sic_still_fails_closed(self):
+        """A real CEF (entity_type='other') must NOT get the Financial Services
+        fallback - it genuinely has no determinable sector."""
+        loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = self._mock_row("other")
+
+        with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            result = loader.fetch_incremental("MAIN", None)
+
+        assert result is not None
+        assert result[0]["data_unavailable"] is True
+        assert result[0]["reason"] == "no_sic_code_available"
 
 
 class TestNewlyMappedDivisions:
@@ -191,6 +252,7 @@ class TestUnavailableRecordsCarryWatermarkField:
             "2026-07-27",  # updated_at
             False,  # data_unavailable
             None,  # reason
+            "other",  # entity_type - NOT "operating", so this must still fail closed
         )
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:

@@ -4163,15 +4163,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # quality-investing checklist item (investing.com's own <1.5 threshold
             # recommendation notwithstanding).
             #
-            # Altman Z''-Score REMOVED ENTIRELY 2026-08-28 (user directive) - already removed
-            # from scoring 2026-08-26 (methodological objection: it's a discrete distress-triage
-            # classifier, not a continuously-scaled magnitude input, see git history for the full
-            # reasoning) but the raw value was still being computed and persisted to
-            # quality_metrics.altman_z_score for reference. That's gone now too - computation
-            # (working_capital/altman_z_score), the metrics["altman_z_score"] assignment, its
-            # INSERT/UPDATE columns, and the quality_metrics.altman_z_score/
-            # altman_z_score_unavailable_reason columns themselves (migration 1244) are all
-            # removed. Frontend display was already removed 2026-08-26 (StockScoreAccordion.jsx).
+            # Altman Z''-Score REMOVED from scoring 2026-08-26 (same day as the 8-component
+            # version below shipped, user directive) - not on new negative evidence, but on a
+            # methodological objection: the Z''-Score's academic and practitioner literature
+            # frames it as a DISCRETE distress-triage classifier ("quick check of economic
+            # health; if the score indicates a problem, do more detailed analysis"), not a
+            # continuously-scaled input meant to be averaged into a magnitude-weighted composite
+            # alongside ROA/ROE/margin ratios - that use conflates "is this company in the grey
+            # zone" with "how much better is a Z of 6 than a Z of 3", which the model was never
+            # designed to answer. This independently reinforces what the data already flagged as
+            # this component's own weakest point: its naive full-sample t=3.49 looked like the
+            # strongest signal of anything ever tested here, but comes from only 41 months
+            # (retained_earnings coverage, vs. 151 for everything else) and decays hard within
+            # even that short window on a half-split check (t=4.40 first half -> 1.39 second
+            # half) - both the methodology and the evidence pointed the same direction. Removed
+            # from scoring first (this comment), then removed entirely - computation,
+            # persistence (quality_metrics.altman_z_score column), API, and frontend display -
+            # per a later user directive that the raw value wasn't worth keeping just for
+            # reference (goal session 2026-08-29; see migration
+            # 1251_drop_orphaned_altman_z_score_columns.sql).
+            # Deliberately left OPEN where (or whether) a distress-flag use belongs - e.g. a
+            # discrete gate on GOVERNANCE's trading-eligibility checks, separate from the
+            # continuous quality_score - not decided today, revisit later.
             # operating_margin_trend_score/net_margin_trend_score/roe_trend_score REMOVED from
             # scoring 2026-08-27 (user directive, live-observed: all 3 showed "No data" on the
             # StockDetail page for stocks being reviewed - real, not a display bug, coverage is
@@ -4323,6 +4336,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if asset_turnover is None
                 else None
             )
+
             # An unprofitable company still has a real, computed quality score (0,
             # after clamping) - that's honest data, not missing data. Do not mark
             # data_unavailable just because every component came out <= 0.
@@ -5633,7 +5647,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # but this fallback dict was never updated for any of them - live-confirmed 16
                 # symbols hitting this branch (missing_sec_data/stale_fiscal_data) had all 8 of
                 # the ones that are actually scored NULL with no reason. Same failure shape as
-                # the _SHARED_TREND_FIELDS gap already fixed below.
+                # the _SHARED_TREND_FIELDS gap already fixed below. (altman_z_score was also
+                # once in this list - removed entirely 2026-08-29, see the comment above
+                # quality_components' Altman Z''-Score removal-from-scoring note.)
                 "accruals_ratio": None,
                 "asset_turnover": None,
                 "estimate_momentum_60d": None,

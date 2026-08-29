@@ -1605,9 +1605,11 @@ class StockScoresLoader(OptimalLoader):
         problem, do more detailed analysis"), not a continuously-scaled input meant to be
         averaged into a magnitude-weighted composite - independently reinforcing what the data
         already flagged as this component's weakest point (its t=3.49 came from only 41 months
-        and decayed hard within that short window, t=4.40->1.39 half-split). Raw altman_z_score
-        still computed/persisted for reference, unscored; where a distress-flag use belongs (if
-        anywhere) is deliberately left open for later, not decided today.
+        and decayed hard within that short window, t=4.40->1.39 half-split). Removed from
+        scoring first, then removed entirely (computation, persistence, API, frontend) on a
+        2026-08-29 user directive that the raw value wasn't worth keeping for reference alone;
+        where a distress-flag use belongs (if anywhere) is deliberately left open for later, not
+        decided today.
 
         This REPLACES the previous "_enhance_quality_score" ±10-point bump layer entirely -
         every signal that layer used to bump on is now either a real weighted input in the

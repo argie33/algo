@@ -359,7 +359,8 @@ class CompanyProfileLoader(OptimalLoader):
                     created_at,
                     updated_at,
                     data_unavailable,
-                    reason
+                    reason,
+                    entity_type
                 FROM company_info_sec
                 WHERE symbol = %s
                 LIMIT 1
@@ -411,6 +412,7 @@ class CompanyProfileLoader(OptimalLoader):
             updated_at,
             data_unavailable,
             reason,
+            entity_type,
         ) = row
 
         # Map SIC code to GICS sector (4-digit lookup, fail-fast if unmapped)
@@ -418,6 +420,52 @@ class CompanyProfileLoader(OptimalLoader):
         # Per GOVERNANCE.md line 77-79: "Add explicit data quality gate, then ALLOW the data_unavailable marker"
         # Unmapped SIC codes indicate incomplete data; must be marked unavailable for operator visibility.
         if not sic_code:
+            # ADDED 2026-08-29 (goal session: data-completeness pass over the
+            # analyst-coverage audit's top-market-cap "no_analyst_estimates" outliers):
+            # blank sic_code is genuinely ambiguous between two very different
+            # populations - real closed-end funds (BBN, BCX, GDV, ... - file N-CSR/N-2,
+            # never a 10-K/20-F, company_info_sec.entity_type='other') and real
+            # operating/lending companies SEC's submissions.json just never populated a
+            # SIC for (Business Development Companies almost exclusively, plus at least
+            # one bank holding co - BBDC, MAIN, HTGC, FSK, CBC and 26 more, all
+            # entity_type='operating' with has_annual_report_filing=TRUE, live-confirmed
+            # via direct SEC submissions.json fetch: Bank OZK itself returns
+            # `sic: ""` from SEC's own API - see load_company_info_sec.py's own comment
+            # on this exact ambiguity, which already computes entity_type precisely to
+            # distinguish the two). Before this fix, ALL 30 of these real, actively-
+            # traded, revenue-generating companies were being dropped to sector="Other"/
+            # data_unavailable=True - excluded from sector-relative scoring/ranking
+            # despite having complete SEC filings and, in several cases, a live
+            # stock_scores composite score already. Every symbol in this exact
+            # (entity_type='operating', sic_code NULL) bucket found in a live universe-
+            # wide scan is a lending/investment-vehicle company (BDC or bank holding
+            # co) - Financial Services is the correct GICS sector for all of them, not
+            # a guess for an unknown business type.
+            if entity_type == "operating":
+                logger.info(
+                    f"[{symbol}] No SIC code in company_info_sec, but entity_type='operating' "
+                    "(real 10-K/20-F filer, not a fund) - classifying as Financial Services "
+                    "(this bucket is exclusively BDCs/bank holding companies, live-verified)."
+                )
+                return [
+                    {
+                        "ticker": symbol,
+                        "symbol": sym,
+                        "short_name": entity_name or "Unknown",
+                        "long_name": entity_name or "Unknown",
+                        "display_name": entity_name or "Unknown",
+                        "sector": "Financial Services",
+                        "industry": sic_description or "Unknown",
+                        "exchange": None,
+                        "website": None,
+                        "employees": None,
+                        "currency_code": "USD",
+                        "created_at": created_at,
+                        "updated_at": updated_at or None,
+                        "data_unavailable": False,
+                        "reason": None,
+                    }
+                ]
             logger.warning(
                 f"[{symbol}] No SIC code in company_info_sec. Cannot determine GICS sector. Marking data_unavailable."
             )

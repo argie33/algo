@@ -12,24 +12,22 @@ distinct bugs in the quality_metrics branch:
    FTW, BBAR, SMXT) had quality_score NULL with no reason at all despite each having a real
    top-level `reason` (missing_sec_data or stale_fiscal_data: ...) on the very same row.
 
-2. 12 fields added to quality_metrics across later migrations (accruals_ratio, altman_z_score,
+2. 11 fields added to quality_metrics across later migrations (accruals_ratio,
    asset_turnover, estimate_momentum_60d/90d, estimate_revision_direction, fcf_margin,
    gross_profitability, operating_profitability, revision_activity_30d, revision_trend_score,
-   roce_pct - altman_z_score added 2026-08-26, see
-   quality_pillar_altman_z_added_and_reweighted_20260826 in memory) were never added to this
-   fallback dict, the same "new field added to the success path, fallback never updated" bug
-   class as book_value_growth. Of these, the 8 that _insert_quality_metrics actually persists
-   (accruals_ratio, altman_z_score, asset_turnover, fcf_margin, gross_profitability,
-   operating_profitability, roce_pct, and their reason columns) matched the same 16-symbol
-   population as quality_score above (all scored via the same "hit the fallback branch" path).
-   The other 4 (estimate_momentum_60d/90d, estimate_revision_direction, revision_activity_30d,
-   revision_trend_score) are not part of _insert_quality_metrics's column list at all - they
-   come from a different loader - so they're included here for dict completeness/documentation
-   but this loader never persists them either way.
+   roce_pct) were never added to this fallback dict, the same "new field added to the success
+   path, fallback never updated" bug class as book_value_growth. Of these, the 7 that
+   _insert_quality_metrics actually persists (accruals_ratio, asset_turnover, fcf_margin,
+   gross_profitability, operating_profitability, roce_pct, and their reason columns) matched
+   the same 16-symbol population as quality_score above (all scored via the same "hit the
+   fallback branch" path). The other 4 (estimate_momentum_60d/90d, estimate_revision_direction,
+   revision_activity_30d, revision_trend_score) are not part of _insert_quality_metrics's column
+   list at all - they come from a different loader - so they're included here for dict
+   completeness/documentation but this loader never persists them either way.
 
-altman_z_score itself was subsequently REMOVED ENTIRELY 2026-08-28 (user directive, migration
-1244) - the field lists below no longer include it. See
-loaders/load_value_quality_growth_metrics.py for the removal.
+   (altman_z_score was originally in this list too - removed entirely 2026-08-29, computation/
+   persistence/API/frontend, see loaders/load_value_quality_growth_metrics.py's Altman Z''-Score
+   comment for the full history - so it's no longer asserted here.)
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader

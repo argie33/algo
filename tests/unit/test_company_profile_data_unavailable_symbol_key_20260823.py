@@ -52,6 +52,7 @@ class TestDataUnavailablePathsSetSymbolKey:
             "2026-08-23",  # updated_at
             False,  # data_unavailable
             None,  # reason
+            "other",  # entity_type - NOT "operating", so this must still fail closed
         )
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
@@ -89,6 +90,7 @@ class TestDataUnavailablePathsSetSymbolKey:
             "2026-08-23",  # updated_at
             False,  # data_unavailable
             None,  # reason
+            "operating",  # entity_type - irrelevant to this branch (sic_code is present)
         )
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:

@@ -84,6 +84,35 @@ move was live-checked at up to 22.4% (2023->2024) - genuinely more volatile than
 band, so it stays excluded pending its own dedicated review; CLP still 404s on Frankfurter
 entirely (BCH/Bank of Chile stays unconverted for a structural source-availability reason,
 not a volatility judgment).
+
+FIXED 2026-08-29 (goal session: "full data for scores" completeness pass, root-causing
+`currency_conversion_bug_remediation_20260819` markers): INR added. Live-confirmed via IBN
+(ICICI Bank Ltd, one of India's largest banks) - annual_income_statement had 3 straight
+fiscal years of real revenue/net_income sitting as raw, unconverted INR (pre-guard rows,
+same "stale raw local-currency value" shape as the CNY/GDS case above), plus the current
+fiscal year blocked entirely by the blanket guard. Frankfurter serves INR (year-end rate
+live-fetched for 2018-2025); year-over-year moves were 0.6%-5% in 6 of 8 years, with a
+single 11.1% outlier (2021->2022, the year the Fed's rate-hike cycle broadly hit EM
+currencies) - comparable to ZAR's 8.6% high-water mark and well inside JPY's ~35%/KRW's
+~25% precedent ceiling. Converting IBN's raw revenue with each year's own year-end rate
+produces a smooth $16.3B (FY2023) -> $18.8B (FY2024) -> $22.8B (FY2025) growth curve
+consistent with ICICI Bank's known real, growing total income - no magnitude red flag.
+
+Same pass live-checked BRL as a candidate (found via BAK/Braskem carrying the identical
+raw-unconverted-value shape) and confirmed it does NOT clear the bar: year-over-year
+moves included two years of ~28%-29% (2019->2020 COVID shock, 2023->2024), well past
+MXN's already-declined 22.4% - stays excluded, same volatility judgment as MXN/CLP, not
+a bug. KZT (the currency behind KSPI/Kaspi.kz's gap) was also checked and, like CLP/COP/
+TWD, is not served by Frankfurter at all (`GET /2024-12-31?from=USD&to=KZT` 404s) - a
+structural source-availability gap, not a volatility judgment.
+
+FOLLOW-UP (2026-08-29, same session): confirmed KSPI's gap is fully explained by the
+above, not a separate ifrs-full extraction bug as first suspected - live SEC companyfacts
+JSON (CIK 0001985487) shows KSPI DOES tag both `ifrs-full:Revenue` and `ifrs-full:ProfitLoss`
+every fiscal year, exclusively under unit="KZT", no USD-tagged alternative anywhere. The
+guard is working exactly as designed (same as BSAC/CLP); this cannot be fixed without a
+different historical-FX data source for KZT, which this module deliberately doesn't add
+without live verification (see the top of this docstring).
 """
 
 import json
@@ -101,7 +130,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR"})
+MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR"})
 
 
 class FxRateCache:
