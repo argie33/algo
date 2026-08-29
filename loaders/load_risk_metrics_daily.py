@@ -98,10 +98,23 @@ class RiskMetricsLoader(OptimalLoader):
                 today = sorted_dates[-1]
 
                 momentum: dict[str, float | None] = {}
+                # FIX 2026-08-28 (goal: repo-wide data-coverage audit, same "NULL with no
+                # reason recorded" bug class already fixed for growth_metrics/quality_metrics/
+                # value_metrics - see growth_metrics_66_symbol_unknown_reason_fixed_20260828 in
+                # memory): every branch below that nulls a single period used to do so silently -
+                # this table has only one row-level reason/reason_type pair (unlike
+                # stability_metrics's per-field *_unavailable_reason columns), which stayed None
+                # on this success path even when a period was nulled. Live-confirmed root cause
+                # for AKTS (2,197 days of price history, momentum_12m NULL, reason NULL): its
+                # 12mo-ago close was $0.0372 vs today's $25.78 (~69,200% raw return) - an
+                # unadjusted reverse split hitting the overflow guard below, not a data gap.
+                # 240/272 universe-wide momentum_12m NULLs hit this exact silent-reason gap.
+                period_null_reasons: dict[str, str] = {}
                 for period_name, days_back in [("1m", 21), ("3m", 63), ("6m", 126), ("12m", 252)]:
                     target_idx = len(sorted_dates) - days_back - 1
                     if target_idx < 0:
                         momentum[f"momentum_{period_name}"] = None
+                        period_null_reasons[f"momentum_{period_name}"] = "insufficient_price_history"
                         continue
 
                     price_old = prices[sorted_dates[target_idx]]
@@ -109,6 +122,7 @@ class RiskMetricsLoader(OptimalLoader):
 
                     if price_old is None or price_old == 0:
                         momentum[f"momentum_{period_name}"] = None
+                        period_null_reasons[f"momentum_{period_name}"] = "zero_or_missing_anchor_price"
                         continue
 
                     ret_pct = ((price_new - price_old) / price_old) * 100
@@ -127,11 +141,20 @@ class RiskMetricsLoader(OptimalLoader):
                             "reverse-split security). Marking this period unavailable."
                         )
                         momentum[f"momentum_{period_name}"] = None
+                        period_null_reasons[f"momentum_{period_name}"] = (
+                            f"extreme_return_overflow(ret_pct={ret_pct:.2f})"
+                        )
                         continue
                     momentum[f"momentum_{period_name}"] = round(ret_pct, 4)
 
                 if all(v is None for v in momentum.values()):
                     raise RuntimeError("No momentum timeframe could be computed from available price history")
+
+                partial_null_reason = (
+                    "; ".join(f"{k}:{v}" for k, v in period_null_reasons.items())[:150]
+                    if period_null_reasons
+                    else None
+                )
 
                 # Fetch latest technical indicators from technical_data_daily (already computed by load_technical_indicators.py)
                 technical = self._fetch_technical_indicators(symbol, today)
@@ -152,7 +175,8 @@ class RiskMetricsLoader(OptimalLoader):
                     "roc_120d": technical.get("roc_120d"),
                     "roc_252d": technical.get("roc_252d"),
                     "data_unavailable": False,
-                    "reason": None,
+                    "reason": partial_null_reason,
+                    "reason_type": "partial_momentum_nulls" if partial_null_reason else None,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
 
