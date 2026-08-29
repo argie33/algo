@@ -279,3 +279,59 @@ def test_marks_unavailable_instead_of_fabricating_todays_date_when_no_date_found
     assert len(records) == 1
     assert records[0]["data_unavailable"] is True
     assert records[0]["reason"] == "filing_date_unavailable"
+
+
+def test_find_latest_annual_filing_prefers_original_10k_over_later_10ka() -> None:
+    """BUG FOUND 2026-08-29 (goal session, sec_segment_info "no_segment_dimension_contexts"
+    gap audit): a 10-K/A is very commonly filed solely to add/correct Part III information
+    (director/officer compensation, incorporated by reference from the proxy) and carries a
+    near-empty XBRL instance with none of the primary financial statements. A plain
+    most-recent-first scan over 10-K/10-K/A together always picked the later 10-K/A over
+    the substantive original 10-K it amends. Live-confirmed against LAC and PDSB: both
+    10-K/A instances were a few KB with zero Revenues/segment facts, while their original
+    10-Ks (same reportDate, filed weeks earlier) were multi-MB instances with real segment
+    data. Must now prefer the base (non-amendment) form when both exist for the same
+    filing history, regardless of submissions order."""
+    loader = _make_loader()
+    submissions = {
+        "filings": {
+            "recent": {
+                # SEC orders 'recent' most-recent-first; the 10-K/A (filed later,
+                # amending the 10-K below) appears before the original 10-K.
+                "form": ["10-K/A", "10-K"],
+                "accessionNumber": ["0001193125-26-193861", "0001193125-26-115081"],
+                "reportDate": ["2025-12-31", "2025-12-31"],
+                "filingDate": ["2026-04-30", "2026-03-19"],
+            }
+        }
+    }
+
+    result = loader._find_latest_annual_filing(submissions)
+
+    assert result is not None
+    assert result["form"] == "10-K"
+    assert result["accession_formatted"] == "0001193125-26-115081"
+
+
+def test_find_latest_annual_filing_falls_back_to_amendment_when_no_base_form_exists() -> None:
+    """A filer whose only annual filing on record is itself an amendment (e.g. the
+    original 10-K predates SEC's electronic filing history, or was withdrawn) must still
+    be found - only prefer the base form over an amendment when a base form actually
+    exists, never skip amendments outright."""
+    loader = _make_loader()
+    submissions = {
+        "filings": {
+            "recent": {
+                "form": ["10-K/A"],
+                "accessionNumber": ["0001193125-26-193861"],
+                "reportDate": ["2025-12-31"],
+                "filingDate": ["2026-04-30"],
+            }
+        }
+    }
+
+    result = loader._find_latest_annual_filing(submissions)
+
+    assert result is not None
+    assert result["form"] == "10-K/A"
+    assert result["accession_formatted"] == "0001193125-26-193861"

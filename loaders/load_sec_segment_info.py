@@ -292,6 +292,9 @@ class SecSegmentInfoLoader(SecLoaderBase):
     # and the raw-XML dimension parser (tier 2, us-gaap axis local names) are us-gaap-specific;
     # real IFRS segment-taxonomy support is a separate, larger fix.
     _ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
+    # BASE (non-amendment) subset - see _find_latest_annual_filing's amendment-preference
+    # fix below for why these are tried first.
+    _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
 
     def _find_latest_annual_filing(self, submissions: dict[str, Any]) -> dict[str, Any] | None:
         """Find the most recent annual-report filing (10-K, or 20-F/40-F for foreign
@@ -299,6 +302,26 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         SEC filings format is columnar: {'accessionNumber': [...], 'form': [...], ...}
         where each list value at index i is one filing's data.
+
+        FIXED 2026-08-29 (goal session, sec_segment_info "no_segment_dimension_contexts"
+        gap audit): a plain most-recent-first scan over the combined base+amendment form
+        set means a later 10-K/A always wins over the original 10-K it amends, even though
+        a 10-K/A is very commonly filed solely to add/correct Part III information
+        (director/officer compensation, incorporated by reference from the proxy) and
+        carries a near-empty XBRL instance with none of the primary financial statements.
+        Live-confirmed against two real filers: LAC's 10-K/A (accession
+        0001193125-26-193861, filed 2026-04-30) is a 9,690-byte instance with zero
+        Revenues/segment facts of any kind, while its original 10-K (accession
+        0001193125-26-115081, filed 2026-03-19, same reportDate) is a real 2.8MB instance
+        with proper segment-axis-dimensioned contexts; PDSB shows the identical pattern
+        (34,884-byte 10-K/A vs. 1.05MB original 10-K). Both were landing on the misleading
+        "no_segment_dimension_contexts_in_xbrl_xml" reason (implying the filer doesn't do
+        ASC 280 segment reporting at all) purely because the amendment was fetched instead
+        of the substantive original - the original correctly reports the more accurate
+        "no_segment_revenue_in_xbrl_xml" (segments are identified, revenue just isn't
+        tagged - plausible for a pre-revenue exploration-stage/clinical-stage filer like
+        LAC/PDSB). Now tries base (non-amendment) forms first, only falling back to an
+        amendment when no base-form annual filing exists at all in the filing history.
 
         Returns:
             Dict with 'form' (the matched form, e.g. "10-K"/"20-F"/"40-F"),
@@ -333,15 +356,21 @@ class SecSegmentInfoLoader(SecLoaderBase):
         if not isinstance(filing_dates, list):
             return None
 
+        fallback_amendment: dict[str, Any] | None = None
         for i, form in enumerate(forms):
-            if form in self._ANNUAL_FILING_FORMS and i < len(accessions):
-                return {
-                    "form": form,
-                    "accession_formatted": accessions[i],
-                    "report_date": self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
-                    "filing_date": self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
-                }
-        return None
+            if form not in self._ANNUAL_FILING_FORMS or i >= len(accessions):
+                continue
+            candidate = {
+                "form": form,
+                "accession_formatted": accessions[i],
+                "report_date": self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
+                "filing_date": self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
+            }
+            if form in self._BASE_ANNUAL_FILING_FORMS:
+                return candidate
+            if fallback_amendment is None:
+                fallback_amendment = candidate
+        return fallback_amendment
 
     @staticmethod
     def _parse_sec_date(date_str: str | None) -> date | None:
