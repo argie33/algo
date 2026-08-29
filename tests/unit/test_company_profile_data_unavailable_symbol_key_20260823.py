@@ -66,13 +66,24 @@ class TestDataUnavailablePathsSetSymbolKey:
         assert result[0]["symbol"] == "RCBC"
 
     def test_sic_code_unmapped_sets_symbol_key(self):
+        # UPDATED 2026-08-29: this test originally used BNC's real SIC code 700
+        # ("Agricultural Services") as its unmapped-code fixture - see the goal session's
+        # own [[company_info_sec_cik_not_found_small_banks_checked_20260829]]-adjacent
+        # fix, `loaders/load_company_profile.py`'s SIC_TO_GICS now maps 700 -> "Consumer
+        # Defensive", so BNC is no longer a real example of this path. Swapped to 9995
+        # ("Non-classifiable establishments" - SIC's own generic catch-all for shell/
+        # blank-check entities, with zero real-industry meaning to map), the same
+        # permanently-unmapped code test_company_profile_sic_fallback.py's own
+        # test_never_invents_a_sector_for_a_division_with_zero_precedent already asserts
+        # stays unmapped - this test only cares about the symbol-key bug, not the
+        # specific code, so any genuinely-unmapped code preserves its intent.
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
         mock_cur.fetchone.return_value = (
             "BNC",  # symbol
             "CEA Industries Inc.",  # entity_name
-            700,  # sic_code - a real but unmapped-even-via-major-group code
-            "Agricultural Services",  # sic_description
+            9995,  # sic_code - non-classifiable establishment, permanently unmapped
+            "Non-classifiable Establishments",  # sic_description
             None,  # shares_outstanding
             None,  # created_at
             "2026-08-23",  # updated_at
@@ -87,6 +98,6 @@ class TestDataUnavailablePathsSetSymbolKey:
 
         assert result is not None
         assert result[0]["data_unavailable"] is True
-        assert result[0]["reason"] == "sic_code_unmapped:700"
+        assert result[0]["reason"] == "sic_code_unmapped:9995"
         assert result[0]["ticker"] == "BNC"
         assert result[0]["symbol"] == "BNC"

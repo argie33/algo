@@ -145,6 +145,20 @@ class TestNewlyMappedDivisions:
         assert SIC_MAJOR_GROUP_FALLBACK.get(87) is not None
 
 
+class TestSecondRoundNewlyMappedCodes:
+    """Regression test (2026-08-29, "full data" audit continuation): live DB audit found
+    sic_code_unmapped:700/:7200 covering 16 active-universe symbols (AVO/BNC/BV/RYM/PFAI on
+    700; HRB/SCI/CSV/RGS/WW/EVI/MRM/DLPN/UNF/XWEL/YELP on 7200) - the earlier 2026-08-19 batch's
+    sample didn't happen to surface these two codes even though the fix class is identical.
+    """
+
+    def test_agricultural_services_maps_to_consumer_defensive(self):
+        assert SIC_TO_GICS[700] == "Consumer Defensive"
+
+    def test_personal_services_maps_to_consumer_cyclical(self):
+        assert SIC_TO_GICS[7200] == "Consumer Cyclical"
+
+
 class TestUnavailableRecordsCarryWatermarkField:
     """Every data_unavailable early-return in fetch_incremental must include this loader's
     watermark_field ("updated_at") - see WATERMARK FIX regression comment above."""
