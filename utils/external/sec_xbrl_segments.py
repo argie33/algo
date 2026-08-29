@@ -56,7 +56,25 @@ logger = logging.getLogger(__name__)
 # for filers whose only reportable segments are geographic.
 _BUSINESS_SEGMENT_AXIS = "StatementBusinessSegmentsAxis"
 _GEOGRAPHIC_SEGMENT_AXIS = "StatementGeographicalAxis"
-_SEGMENT_AXIS_LOCAL_NAMES = (_BUSINESS_SEGMENT_AXIS, _GEOGRAPHIC_SEGMENT_AXIS)
+# ifrs-full's equivalent of StatementBusinessSegmentsAxis, used by foreign
+# private issuers filing 20-F under IFRS 8 rather than 10-K under ASC 280.
+# Confirmed live against BP's FY2025 20-F (CIK 313807): real segment revenue
+# (RevenueAndOperatingIncome) is tagged per member of this axis - Gas & Low
+# Carbon Energy $38.501B, Oil Production & Operations $1.651B, Customers &
+# Products $148.740B, summing to $188.892B vs BP's own plain consolidated
+# RevenueAndOperatingIncome total of $189.335B (0.23% residual, comfortably
+# inside the existing cross-tab reconciliation tolerance) - these are BP's
+# real reported segments, not a coincidence. Before this fix, EVERY IFRS/20-F
+# filer with real machine-readable segment data (also confirmed live: Shell,
+# Sony, Toyota, Rio Tinto, BHP, Sanofi, Novartis, Novo Nordisk, AstraZeneca,
+# GSK, TotalEnergies, SAP, Diageo, AB InBev - 15+ symbols) fell through to
+# "no_segment_dimension_contexts_in_xbrl_xml" purely because this axis wasn't
+# in the recognized set, not because the data doesn't exist. (Separately
+# confirmed some single-segment IFRS filers, e.g. ARGX, genuinely tag no
+# SegmentsAxis contexts at all - that class is still correctly reported
+# unavailable, this fix only recovers filers that DO tag it.)
+_IFRS_SEGMENTS_AXIS = "SegmentsAxis"
+_SEGMENT_AXIS_LOCAL_NAMES = (_BUSINESS_SEGMENT_AXIS, _IFRS_SEGMENTS_AXIS, _GEOGRAPHIC_SEGMENT_AXIS)
 
 # Standard (non-filer-specific) us-gaap companion axis some filers pair with a
 # segment axis purely to mark "this is a real reportable-operating-segment
@@ -69,7 +87,15 @@ _SEGMENT_AXIS_LOCAL_NAMES = (_BUSINESS_SEGMENT_AXIS, _GEOGRAPHIC_SEGMENT_AXIS)
 # axis paired with the segment axis - see _index_segment_contexts), so a
 # context carrying exactly this companion dimension alongside the segment axis
 # still counts as "single dimension" for that purpose.
+#
+# SegmentConsolidationItemsAxis is ifrs-full's equivalent - confirmed live
+# against BP's FY2025 20-F: every real segment-revenue context pairs
+# SegmentsAxis=<segment> with SegmentConsolidationItemsAxis=OperatingSegmentsMember
+# (same member name as the us-gaap convention), never a plain single-dimension
+# SegmentsAxis context.
 _CONSOLIDATION_ITEMS_AXIS = "ConsolidationItemsAxis"
+_IFRS_SEGMENT_CONSOLIDATION_ITEMS_AXIS = "SegmentConsolidationItemsAxis"
+_CONSOLIDATION_ITEMS_AXIS_NAMES = (_CONSOLIDATION_ITEMS_AXIS, _IFRS_SEGMENT_CONSOLIDATION_ITEMS_AXIS)
 _OPERATING_SEGMENTS_MEMBER = "OperatingSegmentsMember"
 
 # Combined parent+subsidiary co-registrant filings (e.g. NextEra Energy/Florida
@@ -141,6 +167,15 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # unallocated-corporate residual, same shape as NEE's). Tried last -
     # sector-specific, like the two revenue concepts above it.
     "PremiumsEarnedNet",
+    # RevenueAndOperatingIncome/RevenueFromSaleOfGoods: ifrs-full segment-level
+    # revenue concepts for IFRS/20-F filers (verified live: BP's FY2025 20-F tags
+    # the former - see _IFRS_SEGMENTS_AXIS above; Sanofi's FY2025 20-F tags the
+    # latter, its single BiopharmaSegmentMember context matching its own plain
+    # consolidated RevenueFromSaleOfGoods total, $43.626B, exactly). Tried last -
+    # taxonomy-family fallbacks, only reached when none of the us-gaap concepts
+    # above matched anything.
+    "RevenueAndOperatingIncome",
+    "RevenueFromSaleOfGoods",
 )
 
 # Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment
@@ -397,12 +432,12 @@ class XBRLSegmentParser:
             # eliminations line" marker before judging dimension count - it
             # doesn't narrow the fact to a sub-breakdown of the segment.
             is_boilerplate_paired = any(
-                m[0] == _CONSOLIDATION_ITEMS_AXIS and m[1] == _OPERATING_SEGMENTS_MEMBER for m in explicit_members
+                m[0] in _CONSOLIDATION_ITEMS_AXIS_NAMES and m[1] == _OPERATING_SEGMENTS_MEMBER for m in explicit_members
             )
             non_boilerplate = [
                 m
                 for m in explicit_members
-                if not (m[0] == _CONSOLIDATION_ITEMS_AXIS and m[1] == _OPERATING_SEGMENTS_MEMBER)
+                if not (m[0] in _CONSOLIDATION_ITEMS_AXIS_NAMES and m[1] == _OPERATING_SEGMENTS_MEMBER)
             ]
             # Also drop a co-registrant LegalEntityAxis dimension whose member is
             # IDENTICAL to a segment-axis member already present in this same
@@ -566,9 +601,10 @@ class XBRLSegmentParser:
                     continue
 
                 other_dims = {k: v for k, v in dims.items() if k != axis_to_use}
-                consol_member = other_dims.get(_CONSOLIDATION_ITEMS_AXIS)
-                if consol_member == _OPERATING_SEGMENTS_MEMBER:
-                    other_dims.pop(_CONSOLIDATION_ITEMS_AXIS)
+                consol_axis = next((a for a in _CONSOLIDATION_ITEMS_AXIS_NAMES if a in other_dims), None)
+                consol_member = other_dims.get(consol_axis, "") if consol_axis else ""
+                if consol_axis and consol_member == _OPERATING_SEGMENTS_MEMBER:
+                    other_dims.pop(consol_axis)
                 elif consol_member in _NON_ADDITIVE_CONSOLIDATION_MEMBERS:
                     continue
                 if not other_dims:
@@ -859,10 +895,16 @@ class XBRLSegmentParser:
                 "reason": "no_segment_dimension_contexts_in_xbrl_xml",
             }
 
-        # Prefer business-line segments (ASC 280's primary "operating segments");
-        # fall back to geographic only when the filer doesn't tag business segments.
+        # Prefer business-line segments (ASC 280's primary "operating segments" /
+        # IFRS 8's SegmentsAxis equivalent); fall back to geographic only when the
+        # filer doesn't tag either business-line axis.
         available_axes = {info[0] for info in context_segment.values()}
-        axis_to_use = _BUSINESS_SEGMENT_AXIS if _BUSINESS_SEGMENT_AXIS in available_axes else _GEOGRAPHIC_SEGMENT_AXIS
+        if _BUSINESS_SEGMENT_AXIS in available_axes:
+            axis_to_use = _BUSINESS_SEGMENT_AXIS
+        elif _IFRS_SEGMENTS_AXIS in available_axes:
+            axis_to_use = _IFRS_SEGMENTS_AXIS
+        else:
+            axis_to_use = _GEOGRAPHIC_SEGMENT_AXIS
 
         candidate_facts: list[tuple[str, str, int, float, bool]] = []
         # (member, end_date, duration_days, revenue, is_boilerplate_paired)
@@ -928,7 +970,9 @@ class XBRLSegmentParser:
                     return XBRLSegmentParser._single_segment_result(
                         name=name,
                         segment_id=member_key or "single_reportable_segment",
-                        segment_type="operating" if axis_to_use == _BUSINESS_SEGMENT_AXIS else "geographic",
+                        segment_type="operating"
+                        if axis_to_use in (_BUSINESS_SEGMENT_AXIS, _IFRS_SEGMENTS_AXIS)
+                        else "geographic",
                         revenue=revenue,
                         operating_income=operating_income,
                         assets=assets,
@@ -1051,7 +1095,9 @@ class XBRLSegmentParser:
             "largest_segment_revenue_pct": round(largest_pct, 2),
             "revenue_concentration_hhi": round(hhi, 3),
             "segments": segment_list,
-            "segment_type": "operating" if axis_to_use == _BUSINESS_SEGMENT_AXIS else "geographic",
+            "segment_type": "operating"
+            if axis_to_use in (_BUSINESS_SEGMENT_AXIS, _IFRS_SEGMENTS_AXIS)
+            else "geographic",
             "data_available": True,
             "reason": None,
         }

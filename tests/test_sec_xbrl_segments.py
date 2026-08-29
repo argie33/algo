@@ -545,6 +545,96 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "GlobalWealthAndInvestmentManagementSegmentMember": 24_883_000_000.0,
         }
 
+    def test_ifrs_segments_axis_recognized_for_20f_filers(self) -> None:
+        """Real filer shape (verified live against BP's FY2025 20-F instance, CIK
+        313807): IFRS/20-F filers tag segment revenue under ifrs-full:SegmentsAxis
+        paired with SegmentConsolidationItemsAxis=OperatingSegmentsMember - the IFRS
+        taxonomy's equivalent of us-gaap's StatementBusinessSegmentsAxis /
+        ConsolidationItemsAxis=OperatingSegmentsMember pairing. Pre-fix, neither axis
+        was recognized, so every IFRS 20-F filer with real segment data (BP, Shell,
+        Sony, Toyota, Rio Tinto, BHP, Sanofi, Novartis, and more - 15+ symbols
+        confirmed live) fell through to no_segment_dimension_contexts_in_xbrl_xml
+        despite having real, correctly-dimensioned segment facts. Values match BP's
+        real reported FY2025 segment revenue exactly: Gas & Low Carbon Energy
+        $38.501B, Oil Production & Operations $1.651B, Customers & Products
+        $148.740B."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [
+                    ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("SegmentsAxis", "GasLowCarbonEnergyMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [
+                    ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("SegmentsAxis", "OilProductionOperationsMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [
+                    ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("SegmentsAxis", "CustomersProductsMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <ifrs-full:RevenueAndOperatingIncome contextRef="c1">38501000000</ifrs-full:RevenueAndOperatingIncome>
+        <ifrs-full:RevenueAndOperatingIncome contextRef="c2">1651000000</ifrs-full:RevenueAndOperatingIncome>
+        <ifrs-full:RevenueAndOperatingIncome contextRef="c3">148740000000</ifrs-full:RevenueAndOperatingIncome>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_type"] == "operating"
+        assert result["segment_count"] == 3
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "GasLowCarbonEnergyMember": 38_501_000_000.0,
+            "OilProductionOperationsMember": 1_651_000_000.0,
+            "CustomersProductsMember": 148_740_000_000.0,
+        }
+
+    def test_ifrs_single_segments_axis_context_without_consolidation_pairing(self) -> None:
+        """Real filer shape (verified live against Sanofi's FY2025 20-F instance):
+        a plain single-dimension SegmentsAxis context (no SegmentConsolidationItemsAxis
+        companion) must also be recognized directly - not every IFRS filer
+        necessarily pairs the two axes. Sanofi reports exactly one operating segment
+        (BiopharmaSegmentMember) - its single SegmentsAxis-only context's
+        RevenueFromSaleOfGoods value ($43.626B) matches its own plain consolidated
+        total exactly, confirming this is real single-segment reporting, not a
+        parsing artifact."""
+        contexts = _context("c1", "SegmentsAxis", "BiopharmaSegmentMember", "2025-01-01", "2025-12-31")
+        facts = """
+        <ifrs-full:RevenueFromSaleOfGoods contextRef="c1">43626000000</ifrs-full:RevenueFromSaleOfGoods>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 1
+        assert result["segments"][0]["revenue"] == 43_626_000_000.0
+
     def test_legal_entity_axis_stripped_when_matching_segment_member(self) -> None:
         """Real filer shape (verified live against NextEra Energy's FY2025 10-K
         instance): combined parent+subsidiary co-registrant filings tag the
