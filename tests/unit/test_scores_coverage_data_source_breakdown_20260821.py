@@ -266,3 +266,18 @@ def test_dual_class_yfinance_fallback_source_has_real_label_not_raw_fallthrough(
         scores_mod._prettify_source("sec_audited_except_dual_class_shares_yfinance")
         == "SEC (audited, dual-class shares via Yahoo Finance)"
     )
+
+
+def test_fpi_shares_yfinance_fallback_source_has_real_label_not_raw_fallthrough():
+    """FIX 2026-08-29 (goal session: coverage-categorization sweep continuation): same bug
+    class as test_dual_class_yfinance_fallback_source_has_real_label_not_raw_fallthrough
+    above, for its sibling load_sec_valuations.py data_source value
+    "sec_audited_except_fpi_shares_yfinance" (foreign private issuers, whose
+    shares_outstanding comes from a live yfinance fetch since SEC's own domestic-only shares
+    tag isn't usable for FPIs). Was falling through to the generic fallback ("Sec Audited
+    Except Fpi Shares Yfinance" - "Fpi" not even acronym-expanded since "fpi" also wasn't in
+    _SOURCE_ACRONYMS) - 539 live rows on a real /api/algo/scores/coverage pull."""
+    assert (
+        scores_mod._prettify_source("sec_audited_except_fpi_shares_yfinance")
+        == "SEC (audited, foreign-issuer shares via Yahoo Finance)"
+    )

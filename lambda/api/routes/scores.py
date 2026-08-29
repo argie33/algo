@@ -2454,6 +2454,16 @@ _SOURCE_LABELS: dict[str, str] = {
     "sec_audited": "SEC (audited financials)",
     "sec_audited_except_dual_class_shares_yfinance": "SEC (audited, dual-class shares via Yahoo Finance)",
     "sec_audited_except_forward_pe_yfinance": "SEC (audited, forward P/E via Yahoo Finance)",
+    # ADDED 2026-08-29 (goal session: coverage-categorization sweep continuation): load_sec_
+    # valuations.py's data_source for foreign private issuers, whose shares_outstanding comes
+    # from a live yfinance fetch instead of SEC XBRL (SEC's own domestic-only shares tag isn't
+    # usable for FPIs - see fpi_shares_excluded_domestic_only in
+    # [[scores_coverage_other_bucket_96pct_fixed_20260829]]). Was falling through to the
+    # generic snake_case-to-Title-Case fallback ("SEC Audited Except Fpi Shares Yahoo
+    # Finance" - "Fpi" not expanded since "fpi" wasn't in _SOURCE_ACRONYMS either) instead of
+    # a real label, unlike every sibling sec_audited_except_* entry above/below it (539 live
+    # rows).
+    "sec_audited_except_fpi_shares_yfinance": "SEC (audited, foreign-issuer shares via Yahoo Finance)",
     "sec_edgar_submissions": "SEC EDGAR submissions",
     "sec_edgar_filings": "SEC EDGAR filings",
     "sec_13f": "SEC Form 13F",
@@ -2492,6 +2502,11 @@ _SOURCE_ACRONYMS = {
     "naaim",
     "cusip",
     "ad",
+    # ADDED 2026-08-29 (goal session: coverage-categorization sweep continuation): future-
+    # proofs the generic fallback path for any not-yet-mapped raw source string containing
+    # "fpi" (foreign private issuer) - see the sec_audited_except_fpi_shares_yfinance
+    # _SOURCE_LABELS entry added the same session for the one already-known case.
+    "fpi",
 }
 
 
