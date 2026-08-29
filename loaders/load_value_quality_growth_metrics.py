@@ -901,11 +901,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if quality_dict.get(reason_field) is not None:
                         growth_dict[reason_field] = quality_dict[reason_field]
 
-                # Forward growth/estimate-revision fields (informational only, do not feed
-                # growth_score - see _get_analyst_forward_growth_estimates's docstring).
-                # Gated on the same "not data_unavailable" check as the shared trend fields
-                # above, so a fully-blanked growth row isn't selectively patched.
-                growth_dict.update(self._get_analyst_forward_growth_estimates(symbol))
+            # Forward growth/estimate-revision fields (informational only, do not feed
+            # growth_score - see _get_analyst_forward_growth_estimates's docstring). FIXED
+            # 2026-08-29 (goal session, "full data" audit): previously gated inside the same
+            # "not data_unavailable" block as the _SHARED_TREND_FIELDS mirror above, on the
+            # assumption a fully-blanked growth row shouldn't be selectively patched - but
+            # unlike _SHARED_TREND_FIELDS (mirrored from quality_metrics, a SIBLING
+            # SEC-derived computation, where that assumption holds), these 4 fields come from
+            # analyst_earnings_estimates, a completely independent yfinance-based source with
+            # no dependency on SEC financial history. Live-confirmed 208/209 universe symbols
+            # with these fields NULL-and-unexplained had growth_dict.data_unavailable=True for
+            # an unrelated SEC-data reason (e.g. AADX: "insufficient_history") while genuinely
+            # having real analyst forward-growth data on record (AADX's own real
+            # forward_eps_growth_next_fy=1.3922 sat unused because this whole call was
+            # skipped). _get_analyst_forward_growth_estimates() always returns a fully-
+            # populated dict (real value or explicit "no_analyst_estimates" reason per field,
+            # never a bare key omission), so it's safe to run unconditionally - it can only
+            # add information, never leave a previously-explained field unexplained.
+            growth_dict.update(self._get_analyst_forward_growth_estimates(symbol))
 
             return [(value_dict, quality_dict, growth_dict)]
 
@@ -5718,6 +5731,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # directly explains part of the pillar's coverage gap with an unexplained
                 # reason instead of an explained one.
                 "book_value_growth": None,
+                # forward_eps_growth_current_fy/next_fy, forward_revenue_growth_next_fy,
+                # eps_estimate_revision_90d_pct: ADDED 2026-08-29 (goal session, "full data"
+                # audit) - same bug shape as book_value_growth above and quality_metrics's 12
+                # fields below (this fallback dict predates the field, never updated for it).
+                # Defense-in-depth only: fetch_incremental's success path now always calls
+                # _get_analyst_forward_growth_estimates() unconditionally (see that call site's
+                # own comment) which supersedes this default whenever reached: this fallback
+                # only matters for a path that returns via this marker without going through
+                # that merge at all (e.g. the genuine-exception catch-all).
+                "forward_eps_growth_current_fy": None,
+                "forward_eps_growth_next_fy": None,
+                "forward_revenue_growth_next_fy": None,
+                "eps_estimate_revision_90d_pct": None,
                 # Reason codes for all metrics (Session 401 fix: were NULL before)
                 "revenue_growth_1y_unavailable_reason": specific_reason,
                 "revenue_growth_3y_unavailable_reason": specific_reason,
@@ -5726,6 +5752,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_3y_unavailable_reason": specific_reason,
                 "eps_growth_5y_unavailable_reason": specific_reason,
                 "book_value_growth_unavailable_reason": specific_reason,
+                "forward_eps_growth_current_fy_unavailable_reason": specific_reason,
+                "forward_eps_growth_next_fy_unavailable_reason": specific_reason,
+                "forward_revenue_growth_next_fy_unavailable_reason": specific_reason,
+                "eps_estimate_revision_90d_pct_unavailable_reason": specific_reason,
                 # Same _SHARED_TREND_FIELDS gap as the quality_metrics branch above (these
                 # columns are mirrored from quality_metrics on the success path - see
                 # _SHARED_TREND_FIELDS mirroring in fetch_incremental - but this fallback path
