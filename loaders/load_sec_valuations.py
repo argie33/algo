@@ -869,9 +869,7 @@ class SecValuationsLoader(OptimalLoader):
                     fpi_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)
                     if (
                         fpi_shares
-                        and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
-                        < fpi_shares
-                        < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                        and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING < fpi_shares < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
                     ):
                         shares_out = fpi_shares
                         shares_out_from_fpi_yfinance = True

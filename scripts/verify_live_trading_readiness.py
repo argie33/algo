@@ -30,7 +30,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import requests  # noqa: E402
+import requests
 
 
 def check_live_intent_env_vars() -> list[str]:

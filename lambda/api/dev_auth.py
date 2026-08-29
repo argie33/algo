@@ -89,7 +89,9 @@ def get_dev_claims(token: str | None) -> dict[str, Any] | None:
         "iat": now,  # Issued at timestamp
     }
 
-    logger.info(f"[DEV_AUTH] Generated dev claims for token: {token[:10]}..., groups: {groups}, expires at {expiration}")
+    logger.info(
+        f"[DEV_AUTH] Generated dev claims for token: {token[:10]}..., groups: {groups}, expires at {expiration}"
+    )
     return claims
 
 

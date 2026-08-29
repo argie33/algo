@@ -131,15 +131,19 @@ class TestForeignPrivateIssuerSharesGate:
             (20.0,),  # current VIX (economic_data VIXCLS)
             (20.0,),  # long-run avg VIX
             None,  # net borrowing check - no adjacent-year debt data
-            (None, None),  # yfinance_snapshot market_cap/pe_ratio (query still runs, then overridden by the FPI live-fetch mock below)
+            (
+                None,
+                None,
+            ),  # yfinance_snapshot market_cap/pe_ratio (query still runs, then overridden by the FPI live-fetch mock below)
         ]
 
-        with patch.object(
-            SecValuationsLoader,
-            "_fetch_live_fpi_shares_outstanding_yfinance",
-            return_value=5_186_474_013.0,
-        ) as mock_fpi_shares_fetch, patch.object(
-            SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)
+        with (
+            patch.object(
+                SecValuationsLoader,
+                "_fetch_live_fpi_shares_outstanding_yfinance",
+                return_value=5_186_474_013.0,
+            ) as mock_fpi_shares_fetch,
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
         ):
             result = _run_fetch_incremental("TSM", income_rows, fetchone_results)
 
