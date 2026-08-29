@@ -774,22 +774,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable"
                     )
 
-                # ADDED 2026-08-26 (Altman Z''-Score, Quality pillar): retained_earnings lives
-                # only in annual_balance_sheet (migration 1234), not in quality_row_db's SELECT
-                # above - fetched separately, same same-fiscal-year-only pattern as
-                # dividends_paid's fallback query below (never mixes fiscal years).
-                retained_earnings_val = None
-                if quality_row_db:
-                    cur.execute(
-                        "SELECT retained_earnings FROM annual_balance_sheet WHERE symbol = %s AND fiscal_year = %s",
-                        (symbol, quality_row_db[8]),
-                    )
-                    re_row = cur.fetchone()
-                    if re_row:
-                        retained_earnings_val = self._nan_to_none(
-                            safe_float(re_row[0], f"{symbol}.retained_earnings", allow_none=True)
-                        )
-
             # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
             value_dict = self._build_value_metrics(symbol, sec_val_row)
             # ADDED 2026-08-26 (Quality literature audit, QMJ Safety-leg proxy): trailing-3yr
@@ -797,13 +781,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # it needs the multi-year income_rows history already fetched above for growth
             # metrics - _compute_quality_metrics only ever sees a single fiscal year's row.
             margin_volatility, margin_volatility_unavailable_reason = self._compute_margin_volatility(income_rows)
-            quality_dict = self._compute_quality_metrics(
-                symbol, quality_row_db, ev_metrics, margin_volatility, retained_earnings_val
-            )
+            quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics, margin_volatility)
             if margin_volatility is None and isinstance(quality_dict, dict):
                 quality_dict["margin_volatility_unavailable_reason"] = margin_volatility_unavailable_reason
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
+            # ADDED 2026-08-28 (goal: Growth-pillar-audit session, migration 1245/1246) - forward
+            # EPS/revenue growth estimates + estimate-revision trend, joined from
+            # analyst_earnings_estimates (same source/pattern as value_metrics.forward_pe).
+            # Merged unconditionally (even when growth_dict is a data_unavailable marker) since
+            # this is an independent data source from the SEC-filing-driven fields above - a
+            # thin-SEC-history symbol (e.g. a recent IPO) can still have real analyst coverage.
+            if isinstance(growth_dict, dict):
+                growth_dict.update(self._get_analyst_forward_growth_estimates(symbol))
 
             # GOVERNANCE: quality and growth are each derived from a DIFFERENT fiscal-year
             # source - quality_row_db's fiscal_year is driven by annual_balance_sheet (the
@@ -1172,6 +1162,52 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if all(m is None for m in core_metrics):
             return self._unavailable_marker("value_metrics", symbol)
 
+        # TIER 4 FALLBACK for dividend_yield 2026-08-28 (goal: "get this data" - dividend yield
+        # showing "SEC data not available" for confirmed real payers). Root cause: dividend_data.
+        # dividend_yield_pct is 0/91569 populated universe-wide (live-confirmed) - no writer for
+        # this repo has ever set it, so TIER 2 above (which filters on it being non-NULL) can
+        # never match anything, for any symbol. TIER 3's annual_cash_flow.dividends_paid is also
+        # unpopulated for many real payers (live-confirmed on SPG/RS/CNK, all real, well-known
+        # dividend stocks with 5 straight quarters of real dividend_per_share on file and zero
+        # rows written to annual_cash_flow's dividends_paid). dividend_data.dividend_per_share
+        # itself IS populated (86859 rows) and unused by any fallback tier. Sum trailing ~370
+        # days of per-share payments (covers a full year of quarterly cadence with slack for
+        # reporting lag) and divide by current_price - the standard trailing dividend yield
+        # calculation. Live-confirmed this recovers 47 of the universe's 66 remaining
+        # "missing_sec_data" dividend_yield rows, incl. SPG/RS/CNK. Same 0-100% plausibility
+        # bound as TIER 3 (share-count/market-cap scale errors aren't a risk here since this
+        # tier never divides by market_cap, but a bad per-share figure or stock split artifact
+        # could still produce nonsense).
+        if dividend_yield is None and current_price is not None and current_price > 0:
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT SUM(dividend_per_share) FROM dividend_data
+                        WHERE symbol = %s AND data_unavailable = FALSE
+                          AND dividend_per_share IS NOT NULL
+                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '370 days'
+                        """,
+                        (symbol,),
+                    )
+                    ttm_row = cur.fetchone()
+                    ttm_dividends = ttm_row[0] if ttm_row else None
+                    if ttm_dividends is not None and ttm_dividends > 0:
+                        candidate = float(ttm_dividends) / float(current_price)
+                        if 0 < candidate <= 1.0:
+                            dividend_yield = candidate
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: Using dividend_data.dividend_per_share "
+                                f"TTM/current_price yield: {dividend_yield:.2%}"
+                            )
+                        else:
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback yield "
+                                f"out of bounds ({candidate:.2%}), leaving NULL"
+                            )
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback failed: {e}")
+
         # Determine dividend yield reason: non-payer vs missing data
         # If dividend_yield is None, check if stock is a known dividend payer
         dividend_yield_reason = None
@@ -1438,6 +1474,50 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             logger.debug(f"[{symbol}] Failed to fetch analyst forward EPS: {type(e).__name__}")
         return None
 
+    def _get_analyst_forward_growth_estimates(self, symbol: str) -> dict[str, Any]:
+        """Fetch forward growth/estimate-revision fields for symbol from analyst_earnings_estimates.
+
+        ADDED 2026-08-28 (goal: Growth-pillar-audit session, migration 1245/1246) - same table/
+        join pattern as _get_analyst_forward_eps above, extended to the 3 new forward-growth
+        columns plus the estimate-revision field. Returns a dict with a value + reason key per
+        field (never partially-set) so the caller can merge it straight into growth_dict.
+
+        Informational only - these fields do NOT feed growth_score (see _score_growth's
+        docstring in load_stock_scores.py): no historical depth exists yet to validate
+        predictive power, since analyst_earnings_estimates is a snapshot-per-day table with no
+        backfill capability.
+        """
+        fields = (
+            "forward_eps_growth_current_fy",
+            "forward_eps_growth_next_fy",
+            "forward_revenue_growth_next_fy",
+            "eps_estimate_revision_90d_pct",
+        )
+        result: dict[str, Any] = {}
+        for field in fields:
+            result[field] = None
+            result[f"{field}_unavailable_reason"] = "no_analyst_estimates"
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"""
+                    SELECT {", ".join(fields)} FROM analyst_earnings_estimates
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row:
+                    for field, val in zip(fields, row, strict=True):
+                        parsed = safe_float(val, f"{symbol}.{field}", allow_none=True)
+                        if parsed is not None:
+                            result[field] = parsed
+                            result[f"{field}_unavailable_reason"] = None
+        except Exception as e:
+            logger.debug(f"[{symbol}] Failed to fetch analyst forward growth estimates: {type(e).__name__}")
+        return result
+
     def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability, earnings_surprise_avg, earnings_beat_rate."""
         metrics: dict[str, Any] = {}
@@ -1493,6 +1573,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             quarters.reverse()
             quarterly_data = [
                 {
+                    "fiscal_year": q[0],
+                    "fiscal_quarter": q[1],
                     "net_income": self._nan_to_none(safe_float(q[2], f"{symbol}.q_net_income", allow_none=True)),
                     "revenue": self._nan_to_none(safe_float(q[3], f"{symbol}.q_revenue", allow_none=True)),
                     "eps": self._nan_to_none(safe_float(q[4], f"{symbol}.q_eps", allow_none=True)),
@@ -1519,13 +1601,32 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # net-loss quarter show as unexplained "No data" instead of "0".
             metrics["consecutive_positive_quarters"] = int(consecutive_positive)
 
+            # FIXED 2026-08-28 (goal: growth-formula best-practices review, user-flagged):
+            # both earnings_growth_4q_avg and quarterly_growth_momentum used to average
+            # SEQUENTIAL quarter-over-quarter change (Q4 vs Q3, Q3 vs Q2, Q2 vs Q1) - this
+            # contaminates any seasonal business (retail Q4 holiday spike, agriculture,
+            # travel) with swings that have nothing to do with underlying growth. Industry
+            # practice (IBD CAN SLIM's "C" current-quarterly-earnings criterion, Zacks growth
+            # scoring) compares each quarter to the SAME quarter a year ago instead, which
+            # captures recency the same way without the seasonal noise. Matched by
+            # (fiscal_year, fiscal_quarter) rather than a fixed index offset so a gap in the
+            # filing history doesn't silently misalign the comparison.
+            by_period = {(q["fiscal_year"], q["fiscal_quarter"]): q for q in quarterly_data}
+
             eps_growth_rates = []
-            for i in range(1, len(last_4q)):
-                curr_eps = last_4q[i]["eps"]
-                prev_eps = last_4q[i - 1]["eps"]
+            revenue_yoy_growth_rates = []
+            any_yoy_period_matched = False
+            for q in last_4q:
+                prior = by_period.get((q["fiscal_year"] - 1, q["fiscal_quarter"]))
+                if prior is None:
+                    continue
+                any_yoy_period_matched = True
+                curr_eps, prev_eps = q["eps"], prior["eps"]
                 if curr_eps is not None and prev_eps is not None and prev_eps != 0:
-                    growth = ((curr_eps - prev_eps) / abs(prev_eps)) * 100
-                    eps_growth_rates.append(growth)
+                    eps_growth_rates.append(((curr_eps - prev_eps) / abs(prev_eps)) * 100)
+                curr_rev, prev_rev = q["revenue"], prior["revenue"]
+                if curr_rev is not None and prev_rev is not None and prev_rev != 0:
+                    revenue_yoy_growth_rates.append(((curr_rev - prev_rev) / abs(prev_rev)) * 100)
 
             if eps_growth_rates:
                 earnings_growth_4q_avg = sum(eps_growth_rates) / len(eps_growth_rates)
@@ -1554,22 +1655,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Only one quarter-over-quarter EPS comparison available - not enough to
                     # compute a variance/stddev, but this is a real, explainable gap.
                     metrics["eps_growth_stability_unavailable_reason"] = "insufficient_eps_growth_datapoints"
-            else:
-                # >=4 quarters existed (the insufficient_quarterly_history branch above was not
-                # hit) but none had both a current and prior EPS value to diff - e.g. missing
-                # EPS in the source rows. Previously this left earnings_growth_4q_avg/
-                # eps_growth_stability unset with no reason, indistinguishable from a bug.
+            elif any_yoy_period_matched:
+                # A same-quarter-prior-year period was found for at least one of the last 4
+                # quarters, but eps was None (or the prior value was 0) on every matched pair -
+                # e.g. missing EPS in the source rows, not a history-depth gap.
                 metrics["earnings_growth_4q_avg_unavailable_reason"] = "insufficient_eps_data"
                 metrics["eps_growth_stability_unavailable_reason"] = "insufficient_eps_data"
+            else:
+                # >=4 quarters existed (the insufficient_quarterly_history branch above was not
+                # hit) but none of the last 4 quarters had a same-quarter-prior-year match at
+                # all - fewer than 8 quarters of history, or a gap in the filing history.
+                metrics["earnings_growth_4q_avg_unavailable_reason"] = "insufficient_year_over_year_quarterly_history"
+                metrics["eps_growth_stability_unavailable_reason"] = "insufficient_year_over_year_quarterly_history"
 
-            revenue_growth_rates = []
-            for i in range(1, len(last_4q)):
-                curr_rev = last_4q[i]["revenue"]
-                prev_rev = last_4q[i - 1]["revenue"]
-                if curr_rev is not None and prev_rev is not None and prev_rev != 0:
-                    growth = ((curr_rev - prev_rev) / abs(prev_rev)) * 100
-                    revenue_growth_rates.append(growth)
-
+            revenue_growth_rates = revenue_yoy_growth_rates
             if revenue_growth_rates:
                 quarterly_growth_momentum = sum(revenue_growth_rates) / len(revenue_growth_rates)
                 # Same near-zero-prior-quarter overflow risk as earnings_growth_4q_avg above.
@@ -1577,8 +1676,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     metrics["quarterly_growth_momentum"] = float(round(quarterly_growth_momentum, 2))
                 else:
                     metrics["quarterly_growth_momentum_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
-            else:
+            elif any_yoy_period_matched:
                 metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_revenue_data"
+            else:
+                metrics["quarterly_growth_momentum_unavailable_reason"] = (
+                    "insufficient_year_over_year_quarterly_history"
+                )
 
             # Phase 3A: Earnings surprise and beat rate
             # Use last quarter EPS vs current analyst forward EPS as proxy for surprise
@@ -1971,15 +2074,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         quality_row: Any,
         ev_metrics: Any = None,
         margin_volatility: float | None = None,
-        retained_earnings: float | None = None,
     ) -> dict[str, Any]:
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
         ev_metrics: tuple of (total_debt, total_cash, ebitda) from sec_valuations
         margin_volatility: trailing-3yr net_margin stdev, precomputed by the caller (see
         _compute_margin_volatility) from multi-year income_rows this function doesn't have.
-        retained_earnings: fetched separately by the caller (migration 1234; not in quality_row's
-        SELECT) for the Altman Z''-Score's Retained Earnings/Total Assets term.
         """
         if not quality_row:
             return self._unavailable_marker("quality_metrics", symbol)
@@ -3856,39 +3956,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # (metrics["operating_margin_trend"]/["net_margin_trend"]/["roe_trend"]/
             # ["payout_ratio"]) are computed independently elsewhere in this function and still
             # persisted/displayed - unaffected by removing these dead score curves.
-            # Altman Z''-Score (Altman 1995 book-equity variant - not the original 1968 market-
-            # cap Z-Score; see algo/research/fama_macbeth_quality_factors.py's build_quality_panel
-            # for why book equity was deliberately chosen: this repo's Value pillar already
-            # scores market-cap-derived ratios, and a prior attempt to score raw market cap
-            # directly as its own "Size" pillar was implemented then fully reverted the same day
-            # on user directive - see MEMORY.md size_pillar_removed_entirely_20260826). ADDED
-            # 2026-08-26 (goal: quality-input completeness pass) - retained_earnings only became
-            # available via migration 1234 + its backfill. Fama-MacBeth validated: t=3.49 on the
-            # full backfilled sample (41 months, 2023-03 to 2026-07 - limited to that window
-            # because retained_earnings coverage doesn't reach further back; median cross-
-            # section 3006) - the single strongest component in this whole composite, stronger
-            # than debt_to_assets' own t=2.11-2.18.
-            working_capital = (
-                current_assets - current_liabilities
-                if current_assets is not None and current_liabilities is not None
-                else None
-            )
-            altman_z_score = (
-                6.56 * (working_capital / total_assets)
-                + 3.26 * (retained_earnings / total_assets)
-                + 6.72 * (operating_income / total_assets)
-                + 1.05 * (stockholders_equity / total_liabilities)
-                if working_capital is not None
-                and retained_earnings is not None
-                and operating_income is not None
-                and total_assets is not None
-                and total_assets > 0
-                and stockholders_equity is not None
-                and total_liabilities is not None
-                and total_liabilities > 0
-                else None
-            )
-
             def _weighted_avg(
                 components: list[tuple[float | None, float]], min_weight_pct: float = 0.0
             ) -> float | None:
@@ -3942,28 +4009,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # quality-investing checklist item (investing.com's own <1.5 threshold
             # recommendation notwithstanding).
             #
-            # Altman Z''-Score REMOVED from scoring 2026-08-26 (same day as the 8-component
-            # version below shipped, user directive) - not on new negative evidence, but on a
-            # methodological objection: the Z''-Score's academic and practitioner literature
-            # frames it as a DISCRETE distress-triage classifier ("quick check of economic
-            # health; if the score indicates a problem, do more detailed analysis"), not a
-            # continuously-scaled input meant to be averaged into a magnitude-weighted composite
-            # alongside ROA/ROE/margin ratios - that use conflates "is this company in the grey
-            # zone" with "how much better is a Z of 6 than a Z of 3", which the model was never
-            # designed to answer. This independently reinforces what the data already flagged as
-            # this component's own weakest point: its naive full-sample t=3.49 looked like the
-            # strongest signal of anything ever tested here, but comes from only 41 months
-            # (retained_earnings coverage, vs. 151 for everything else) and decays hard within
-            # even that short window on a half-split check (t=4.40 first half -> 1.39 second
-            # half) - both the methodology and the evidence pointed the same direction. Raw
-            # Raw altman_z_score still computed and persisted (quality_metrics table, frontend
-            # removed - see StockScoreAccordion.jsx) for reference, just unscored - same
-            # treatment as debt_to_assets/current_ratio/margin_volatility above. Its 0-100
-            # scoring curve (altman_z_score_curve) is deleted, not just unused - it had no other
-            # purpose than feeding this composite.
-            # Deliberately left OPEN where (or whether) a distress-flag use belongs - e.g. a
-            # discrete gate on GOVERNANCE's trading-eligibility checks, separate from the
-            # continuous quality_score - not decided today, revisit later.
+            # Altman Z''-Score REMOVED ENTIRELY 2026-08-28 (user directive) - already removed
+            # from scoring 2026-08-26 (methodological objection: it's a discrete distress-triage
+            # classifier, not a continuously-scaled magnitude input, see git history for the full
+            # reasoning) but the raw value was still being computed and persisted to
+            # quality_metrics.altman_z_score for reference. That's gone now too - computation
+            # (working_capital/altman_z_score), the metrics["altman_z_score"] assignment, its
+            # INSERT/UPDATE columns, and the quality_metrics.altman_z_score/
+            # altman_z_score_unavailable_reason columns themselves (migration 1244) are all
+            # removed. Frontend display was already removed 2026-08-26 (StockScoreAccordion.jsx).
             # operating_margin_trend_score/net_margin_trend_score/roe_trend_score REMOVED from
             # scoring 2026-08-27 (user directive, live-observed: all 3 showed "No data" on the
             # StockDetail page for stocks being reviewed - real, not a display bug, coverage is
@@ -4070,14 +4124,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if asset_turnover is None
                 else None
             )
-            metrics["altman_z_score"] = altman_z_score
-            if altman_z_score is not None:
-                metrics["altman_z_score_unavailable_reason"] = None
-            elif retained_earnings is None:
-                metrics["altman_z_score_unavailable_reason"] = "missing_retained_earnings"
-            else:
-                metrics["altman_z_score_unavailable_reason"] = "missing_sec_data"
-
             # An unprofitable company still has a real, computed quality score (0,
             # after clamping) - that's honest data, not missing data. Do not mark
             # data_unavailable just because every component came out <= 0.
@@ -4804,7 +4850,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              earnings_surprise_avg, eps_growth_stability, earnings_beat_rate, consecutive_positive_quarters,
              earnings_growth_4q_avg,
-             gross_profitability, operating_profitability, accruals_ratio, margin_volatility, altman_z_score,
+             gross_profitability, operating_profitability, accruals_ratio, margin_volatility,
              roe_unavailable_reason, roa_unavailable_reason, operating_margin_unavailable_reason, net_margin_unavailable_reason,
              debt_to_equity_unavailable_reason, current_ratio_unavailable_reason, quick_ratio_unavailable_reason,
              interest_coverage_unavailable_reason, debt_to_assets_unavailable_reason, quality_score_unavailable_reason,
@@ -4819,12 +4865,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              earnings_growth_4q_avg_unavailable_reason,
              gross_profitability_unavailable_reason, operating_profitability_unavailable_reason,
              accruals_ratio_unavailable_reason, margin_volatility_unavailable_reason,
-             altman_z_score_unavailable_reason,
              roce_pct, roce_pct_unavailable_reason, fcf_margin, fcf_margin_unavailable_reason,
              asset_turnover, asset_turnover_unavailable_reason,
              earnings_surprise_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
              earnings_beat_rate_unavailable_reason, consecutive_positive_quarters_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -4858,7 +4903,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 operating_profitability = EXCLUDED.operating_profitability,
                 accruals_ratio = EXCLUDED.accruals_ratio,
                 margin_volatility = EXCLUDED.margin_volatility,
-                altman_z_score = EXCLUDED.altman_z_score,
                 gross_margin = EXCLUDED.gross_margin,
                 roic_pct = EXCLUDED.roic_pct,
                 fcf_to_net_income = EXCLUDED.fcf_to_net_income,
@@ -4911,7 +4955,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 operating_profitability_unavailable_reason = EXCLUDED.operating_profitability_unavailable_reason,
                 accruals_ratio_unavailable_reason = EXCLUDED.accruals_ratio_unavailable_reason,
                 margin_volatility_unavailable_reason = EXCLUDED.margin_volatility_unavailable_reason,
-                altman_z_score_unavailable_reason = EXCLUDED.altman_z_score_unavailable_reason,
                 roce_pct = EXCLUDED.roce_pct,
                 roce_pct_unavailable_reason = EXCLUDED.roce_pct_unavailable_reason,
                 fcf_margin = EXCLUDED.fcf_margin,
@@ -4989,7 +5032,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("operating_profitability"),
                 row.get("accruals_ratio"),
                 row.get("margin_volatility"),
-                row.get("altman_z_score"),
                 row.get("roe_unavailable_reason"),
                 row.get("roa_unavailable_reason"),
                 row.get("operating_margin_unavailable_reason"),
@@ -5030,7 +5072,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("operating_profitability_unavailable_reason"),
                 row.get("accruals_ratio_unavailable_reason"),
                 row.get("margin_volatility_unavailable_reason"),
-                row.get("altman_z_score_unavailable_reason"),
                 row.get("roce_pct"),
                 row.get("roce_pct_unavailable_reason"),
                 row.get("fcf_margin"),
@@ -5055,6 +5096,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability,
              earnings_surprise_avg, earnings_beat_rate,
+             forward_eps_growth_current_fy, forward_eps_growth_next_fy, forward_revenue_growth_next_fy, eps_estimate_revision_90d_pct,
              data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
              eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason,
@@ -5064,8 +5106,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
              ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
              consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
-             earnings_surprise_avg_unavailable_reason, earnings_beat_rate_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             earnings_surprise_avg_unavailable_reason, earnings_beat_rate_unavailable_reason,
+             forward_eps_growth_current_fy_unavailable_reason, forward_eps_growth_next_fy_unavailable_reason,
+             forward_revenue_growth_next_fy_unavailable_reason, eps_estimate_revision_90d_pct_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -5090,6 +5134,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_stability = EXCLUDED.eps_growth_stability,
                 earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
                 earnings_beat_rate = EXCLUDED.earnings_beat_rate,
+                forward_eps_growth_current_fy = EXCLUDED.forward_eps_growth_current_fy,
+                forward_eps_growth_next_fy = EXCLUDED.forward_eps_growth_next_fy,
+                forward_revenue_growth_next_fy = EXCLUDED.forward_revenue_growth_next_fy,
+                eps_estimate_revision_90d_pct = EXCLUDED.eps_estimate_revision_90d_pct,
                 revenue_growth_1y_unavailable_reason = EXCLUDED.revenue_growth_1y_unavailable_reason,
                 revenue_growth_3y_unavailable_reason = EXCLUDED.revenue_growth_3y_unavailable_reason,
                 revenue_growth_5y_unavailable_reason = EXCLUDED.revenue_growth_5y_unavailable_reason,
@@ -5113,6 +5161,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_stability_unavailable_reason = EXCLUDED.eps_growth_stability_unavailable_reason,
                 earnings_surprise_avg_unavailable_reason = EXCLUDED.earnings_surprise_avg_unavailable_reason,
                 earnings_beat_rate_unavailable_reason = EXCLUDED.earnings_beat_rate_unavailable_reason,
+                forward_eps_growth_current_fy_unavailable_reason = EXCLUDED.forward_eps_growth_current_fy_unavailable_reason,
+                forward_eps_growth_next_fy_unavailable_reason = EXCLUDED.forward_eps_growth_next_fy_unavailable_reason,
+                forward_revenue_growth_next_fy_unavailable_reason = EXCLUDED.forward_revenue_growth_next_fy_unavailable_reason,
+                eps_estimate_revision_90d_pct_unavailable_reason = EXCLUDED.eps_estimate_revision_90d_pct_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -5143,6 +5195,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_stability"),
                 row.get("earnings_surprise_avg"),
                 row.get("earnings_beat_rate"),
+                row.get("forward_eps_growth_current_fy"),
+                row.get("forward_eps_growth_next_fy"),
+                row.get("forward_revenue_growth_next_fy"),
+                row.get("eps_estimate_revision_90d_pct"),
                 row["data_unavailable"],
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
@@ -5170,6 +5226,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_stability_unavailable_reason"),
                 row.get("earnings_surprise_avg_unavailable_reason"),
                 row.get("earnings_beat_rate_unavailable_reason"),
+                row.get("forward_eps_growth_current_fy_unavailable_reason"),
+                row.get("forward_eps_growth_next_fy_unavailable_reason"),
+                row.get("forward_revenue_growth_next_fy_unavailable_reason"),
+                row.get("eps_estimate_revision_90d_pct_unavailable_reason"),
             ),
         )
 
@@ -5344,18 +5404,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "earnings_growth_yoy": None,
                 "revenue_growth_yoy": None,
                 # FIXED 2026-08-28 (goal-mode data-loading audit, same sweep that found the
-                # book_value_growth gap in the growth_metrics branch above): these 12 fields
-                # (accruals_ratio, altman_z_score, asset_turnover, estimate_momentum_60d/90d,
+                # book_value_growth gap in the growth_metrics branch above): these 11 fields
+                # (accruals_ratio, asset_turnover, estimate_momentum_60d/90d,
                 # estimate_revision_direction, fcf_margin, gross_profitability,
                 # operating_profitability, revision_activity_30d, revision_trend_score,
                 # roce_pct) were added to quality_metrics across several later migrations
-                # (altman_z_score: [[quality_pillar_altman_z_added_and_reweighted_20260826]])
                 # but this fallback dict was never updated for any of them - live-confirmed 16
                 # symbols hitting this branch (missing_sec_data/stale_fiscal_data) had all 8 of
                 # the ones that are actually scored NULL with no reason. Same failure shape as
                 # the _SHARED_TREND_FIELDS gap already fixed below.
                 "accruals_ratio": None,
-                "altman_z_score": None,
                 "asset_turnover": None,
                 "estimate_momentum_60d": None,
                 "estimate_momentum_90d": None,
@@ -5367,7 +5425,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "revision_trend_score": None,
                 "roce_pct": None,
                 "accruals_ratio_unavailable_reason": specific_reason,
-                "altman_z_score_unavailable_reason": specific_reason,
                 "asset_turnover_unavailable_reason": specific_reason,
                 "estimate_momentum_60d_unavailable_reason": specific_reason,
                 "estimate_momentum_90d_unavailable_reason": specific_reason,

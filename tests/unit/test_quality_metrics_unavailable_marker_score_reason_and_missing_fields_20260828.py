@@ -26,6 +26,10 @@ distinct bugs in the quality_metrics branch:
    revision_trend_score) are not part of _insert_quality_metrics's column list at all - they
    come from a different loader - so they're included here for dict completeness/documentation
    but this loader never persists them either way.
+
+altman_z_score itself was subsequently REMOVED ENTIRELY 2026-08-28 (user directive, migration
+1244) - the field lists below no longer include it. See
+loaders/load_value_quality_growth_metrics.py for the removal.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -58,7 +62,6 @@ class TestUnavailableMarkerIncludesNewerQualityFields:
         marker = _loader()._unavailable_marker("quality_metrics", "TESTSYM")
         for field in [
             "accruals_ratio",
-            "altman_z_score",
             "asset_turnover",
             "fcf_margin",
             "gross_profitability",
@@ -72,7 +75,6 @@ class TestUnavailableMarkerIncludesNewerQualityFields:
         marker = _loader()._unavailable_marker("quality_metrics", "TESTSYM", reason="missing_sec_data")
         for field in [
             "accruals_ratio",
-            "altman_z_score",
             "asset_turnover",
             "fcf_margin",
             "gross_profitability",

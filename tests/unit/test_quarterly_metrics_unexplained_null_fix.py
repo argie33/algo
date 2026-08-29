@@ -92,13 +92,19 @@ def _quarters_all_net_losses():
 
 
 def _quarters_missing_eps_and_revenue():
-    # >=4 quarters exist, but eps/revenue are None on every row - the growth-rate
-    # lists end up empty even though this isn't the "<4 quarters" branch.
+    # 8 quarters (2 full years) so every one of the last 4 quarters has a same-quarter-
+    # prior-year match (loader now compares YoY, not sequential QoQ - see the 2026-08-28
+    # fix in loaders/load_value_quality_growth_metrics.py). eps/revenue are None on every
+    # row, so the growth-rate lists end up empty despite the periods matching.
     return [
         (2026, 2, 1_000_000.0, None, None),
         (2026, 1, 1_000_000.0, None, None),
         (2025, 4, 1_000_000.0, None, None),
         (2025, 3, 1_000_000.0, None, None),
+        (2025, 2, 1_000_000.0, None, None),
+        (2025, 1, 1_000_000.0, None, None),
+        (2024, 4, 1_000_000.0, None, None),
+        (2024, 3, 1_000_000.0, None, None),
     ]
 
 
@@ -170,13 +176,18 @@ class TestEmptyGrowthRateListsGetReasons:
         assert metrics.get("quarterly_growth_momentum_unavailable_reason") == "insufficient_revenue_data"
 
     def test_single_eps_growth_rate_gets_stability_reason_not_silent_none(self, monkeypatch):
-        # Exactly 2 usable EPS values -> 1 growth rate: earnings_growth_4q_avg computes,
-        # but stddev (needs >=2 rates) cannot - that gap must be explained too.
+        # Only one of the last 4 quarters has a same-quarter-prior-year match with both eps
+        # values populated -> 1 usable YoY growth rate: earnings_growth_4q_avg computes, but
+        # stddev (needs >=2 rates) cannot - that gap must be explained too.
         quarters = [
-            (2026, 2, 1_000_000.0, 100_000_000.0, 0.50),
-            (2026, 1, 1_000_000.0, 95_000_000.0, 0.40),
+            (2026, 2, 1_000_000.0, None, 0.50),  # prior-year match (2025, 2) has eps -> usable
+            (2026, 1, 1_000_000.0, None, 0.40),  # prior-year match (2025, 1) has no eps -> skipped
             (2025, 4, 1_000_000.0, None, None),
             (2025, 3, 1_000_000.0, None, None),
+            (2025, 2, 1_000_000.0, None, 0.30),
+            (2025, 1, 1_000_000.0, None, None),
+            (2024, 4, 1_000_000.0, None, None),
+            (2024, 3, 1_000_000.0, None, None),
         ]
         loader = _make_loader(monkeypatch, quarters)
 

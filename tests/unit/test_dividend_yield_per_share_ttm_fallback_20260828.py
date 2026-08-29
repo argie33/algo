@@ -1,0 +1,109 @@
+"""Regression test for the 2026-08-28 dividend_yield per-share TTM fallback (TIER 4).
+
+dividend_data.dividend_yield_pct is 0/91569 populated universe-wide (live-confirmed) - no
+writer in this repo has ever set it, so the existing TIER 2 fallback (which requires
+dividend_yield_pct IS NOT NULL) can never match anything, for any symbol. annual_cash_flow's
+dividends_paid (TIER 3) is also unpopulated for many real payers (live-confirmed on SPG, RS,
+CNK - all real, well-known dividend stocks with real dividend_per_share on file and nothing in
+annual_cash_flow). dividend_data.dividend_per_share itself IS populated and was unused by any
+fallback tier before this fix. TIER 4 sums trailing ~370 days of per-share payments and divides
+by current_price - the standard trailing dividend yield calculation.
+"""
+
+from unittest.mock import patch
+
+from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+
+
+def _make_loader():
+    return ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+
+
+class _FakeSecValRow:
+    """Minimal stand-in for a psycopg2 DictRow: supports sec_val_row[2] (data_unavailable flag,
+    positional) and dict(sec_val_row) (mapping protocol) simultaneously."""
+
+    def __init__(self, mapping):
+        self._mapping = mapping
+
+    def __getitem__(self, key):
+        if key == 2:
+            return False
+        return self._mapping[key]
+
+    def keys(self):
+        return self._mapping.keys()
+
+
+class _RoutingCursor:
+    """Returns a real trailing-dividends sum for the new TIER 4 query, "no data" for
+    everything else (dividend_data TIER 2, annual_cash_flow TIER 3, forward_pe, etc.)."""
+
+    def __init__(self, ttm_dividends):
+        self._ttm_dividends = ttm_dividends
+        self.last_query = None
+
+    def execute(self, query, params=None):
+        self.last_query = query
+
+    def fetchone(self):
+        if self.last_query and "SUM(dividend_per_share)" in self.last_query:
+            return (self._ttm_dividends,)
+        return None
+
+    def fetchall(self):
+        return []
+
+
+class TestDividendYieldPerShareTtmFallback:
+    def test_computes_trailing_yield_from_dividend_per_share_when_other_tiers_empty(self):
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(ttm_dividends=8.20)
+            metrics = loader._build_value_metrics(
+                "SPG",
+                _FakeSecValRow({"pe_ratio": 27.0, "dividend_yield": None, "market_cap": None, "current_price": 164.0}),
+            )
+
+        assert metrics["dividend_yield"] == 8.20 / 164.0
+        assert metrics["dividend_yield_unavailable_reason"] is None
+
+    def test_no_fallback_without_current_price(self):
+        # Without current_price the trailing-yield formula has no denominator - must fall
+        # through to the existing non-payer/missing-data classification, not crash.
+        loader = _make_loader()
+
+        class _NoDataCursor:
+            def execute(self, query, params=None):
+                pass
+
+            def fetchone(self):
+                return None
+
+            def fetchall(self):
+                return []
+
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _NoDataCursor()
+            metrics = loader._build_value_metrics(
+                "ENVA",
+                _FakeSecValRow({"pe_ratio": 15.0, "dividend_yield": None, "market_cap": None, "current_price": None}),
+            )
+
+        assert metrics["dividend_yield"] == 0.0
+        assert metrics["dividend_yield_unavailable_reason"] == "non_dividend_paying_stock"
+
+    def test_out_of_bounds_yield_left_null(self):
+        # A nonsensical trailing sum (e.g. stock-split artifact) must not produce a >100% yield.
+        # dividend_yield falls through to the existing has_dividend_history classification
+        # (which, under this test's routing cursor, finds no matching row either).
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(ttm_dividends=500.0)
+            metrics = loader._build_value_metrics(
+                "SPG",
+                _FakeSecValRow({"pe_ratio": 27.0, "dividend_yield": None, "market_cap": None, "current_price": 164.0}),
+            )
+
+        assert metrics["dividend_yield"] == 0.0
+        assert metrics["dividend_yield_unavailable_reason"] == "non_dividend_paying_stock"

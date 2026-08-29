@@ -229,8 +229,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     qm.accruals_ratio_unavailable_reason,
                     qm.margin_volatility,
                     qm.margin_volatility_unavailable_reason,
-                    qm.altman_z_score,
-                    qm.altman_z_score_unavailable_reason,
                     COALESCE(gm_calc.calculated_gross_margin, qm.gross_margin) AS gross_margin_pct,
                     qm.gross_margin_unavailable_reason,
                     qm.ebitda_margin AS ebitda_margin_pct,
@@ -327,6 +325,14 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     gm.eps_growth_5y_unavailable_reason,
                     gm.book_value_growth AS book_value_growth_val,
                     gm.book_value_growth_unavailable_reason,
+                    gm.forward_eps_growth_current_fy,
+                    gm.forward_eps_growth_current_fy_unavailable_reason,
+                    gm.forward_eps_growth_next_fy,
+                    gm.forward_eps_growth_next_fy_unavailable_reason,
+                    gm.forward_revenue_growth_next_fy,
+                    gm.forward_revenue_growth_next_fy_unavailable_reason,
+                    gm.eps_estimate_revision_90d_pct,
+                    gm.eps_estimate_revision_90d_pct_unavailable_reason,
                     sm.beta AS beta_val,
                     sm.beta_unavailable_reason,
                     sm.volatility_252d AS volatility_12m_val,
@@ -554,8 +560,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "accruals_ratio_pct_unavailable_reason": data.get("accruals_ratio_unavailable_reason"),
                 "margin_volatility": data.get("margin_volatility"),
                 "margin_volatility_unavailable_reason": data.get("margin_volatility_unavailable_reason"),
-                "altman_z_score": data.get("altman_z_score"),
-                "altman_z_score_unavailable_reason": data.get("altman_z_score_unavailable_reason"),
                 "gross_margin_pct": data.get("gross_margin_pct"),
                 "gross_margin_pct_unavailable_reason": data.get("gross_margin_unavailable_reason"),
                 "operating_margin_pct": data.get("operating_margin_val"),
@@ -747,6 +751,22 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "ocf_growth_yoy_unavailable_reason": data.get("ocf_growth_yoy_unavailable_reason"),
                 "asset_growth_yoy": data.get("asset_growth_yoy"),
                 "asset_growth_yoy_unavailable_reason": data.get("asset_growth_yoy_unavailable_reason"),
+                "forward_eps_growth_current_fy": data.get("forward_eps_growth_current_fy"),
+                "forward_eps_growth_current_fy_unavailable_reason": data.get(
+                    "forward_eps_growth_current_fy_unavailable_reason"
+                ),
+                "forward_eps_growth_next_fy": data.get("forward_eps_growth_next_fy"),
+                "forward_eps_growth_next_fy_unavailable_reason": data.get(
+                    "forward_eps_growth_next_fy_unavailable_reason"
+                ),
+                "forward_revenue_growth_next_fy": data.get("forward_revenue_growth_next_fy"),
+                "forward_revenue_growth_next_fy_unavailable_reason": data.get(
+                    "forward_revenue_growth_next_fy_unavailable_reason"
+                ),
+                "eps_estimate_revision_90d_pct": data.get("eps_estimate_revision_90d_pct"),
+                "eps_estimate_revision_90d_pct_unavailable_reason": data.get(
+                    "eps_estimate_revision_90d_pct_unavailable_reason"
+                ),
             }
 
             # Positioning Inputs
@@ -1176,8 +1196,6 @@ def _get_stock_scores(  # noqa: C901
                     qm.accruals_ratio_unavailable_reason,
                     qm.margin_volatility,
                     qm.margin_volatility_unavailable_reason,
-                    qm.altman_z_score,
-                    qm.altman_z_score_unavailable_reason,
                     COALESCE(gm_calc.calculated_gross_margin, qm.gross_margin) AS gross_margin_pct,
                     qm.gross_margin_unavailable_reason,
                     qm.ebitda_margin AS ebitda_margin_pct,
@@ -1274,6 +1292,14 @@ def _get_stock_scores(  # noqa: C901
                     gm.eps_growth_5y_unavailable_reason,
                     gm.book_value_growth AS book_value_growth_val,
                     gm.book_value_growth_unavailable_reason,
+                    gm.forward_eps_growth_current_fy,
+                    gm.forward_eps_growth_current_fy_unavailable_reason,
+                    gm.forward_eps_growth_next_fy,
+                    gm.forward_eps_growth_next_fy_unavailable_reason,
+                    gm.forward_revenue_growth_next_fy,
+                    gm.forward_revenue_growth_next_fy_unavailable_reason,
+                    gm.eps_estimate_revision_90d_pct,
+                    gm.eps_estimate_revision_90d_pct_unavailable_reason,
                     sm.beta AS beta_val,
                     sm.beta_unavailable_reason,
                     sm.volatility_252d AS volatility_12m_val,
@@ -1489,8 +1515,6 @@ def _get_stock_scores(  # noqa: C901
                 "accruals_ratio_pct_unavailable_reason": d.get("accruals_ratio_unavailable_reason"),
                 "margin_volatility": d.get("margin_volatility"),
                 "margin_volatility_unavailable_reason": d.get("margin_volatility_unavailable_reason"),
-                "altman_z_score": d.get("altman_z_score"),
-                "altman_z_score_unavailable_reason": d.get("altman_z_score_unavailable_reason"),
                 "gross_margin_pct": d.get("gross_margin_pct"),
                 "gross_margin_pct_unavailable_reason": d.get("gross_margin_unavailable_reason"),
                 "operating_margin_pct": d.get("operating_margin_val"),
@@ -1671,6 +1695,20 @@ def _get_stock_scores(  # noqa: C901
                 "asset_growth_yoy_unavailable_reason": d.get("asset_growth_yoy_unavailable_reason"),
                 "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),
                 "earnings_growth_4q_avg_unavailable_reason": d.get("earnings_growth_4q_avg_unavailable_reason"),
+                "forward_eps_growth_current_fy": d.get("forward_eps_growth_current_fy"),
+                "forward_eps_growth_current_fy_unavailable_reason": d.get(
+                    "forward_eps_growth_current_fy_unavailable_reason"
+                ),
+                "forward_eps_growth_next_fy": d.get("forward_eps_growth_next_fy"),
+                "forward_eps_growth_next_fy_unavailable_reason": d.get("forward_eps_growth_next_fy_unavailable_reason"),
+                "forward_revenue_growth_next_fy": d.get("forward_revenue_growth_next_fy"),
+                "forward_revenue_growth_next_fy_unavailable_reason": d.get(
+                    "forward_revenue_growth_next_fy_unavailable_reason"
+                ),
+                "eps_estimate_revision_90d_pct": d.get("eps_estimate_revision_90d_pct"),
+                "eps_estimate_revision_90d_pct_unavailable_reason": d.get(
+                    "eps_estimate_revision_90d_pct_unavailable_reason"
+                ),
             }
 
             # Positioning Inputs: Ownership and short interest

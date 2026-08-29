@@ -307,6 +307,97 @@ def fetch_forward_eps(symbol: str) -> float | None:
     return val
 
 
+def fetch_forward_growth_estimates(symbol: str) -> dict[str, float | None] | None:
+    """Fetch forward growth + estimate-revision signals from yfinance's analyst-estimate
+    surface - added 2026-08-28 (goal: Growth-pillar-audit session, user directive to capture
+    real forward-looking data yfinance already exposes but this repo wasn't pulling).
+
+    Three real, distinct signals, all live-verified against AAPL 2026-08-28:
+    - forward_eps_growth_current_fy / forward_eps_growth_next_fy: Ticker.earnings_estimate's
+      own pre-computed 'growth' column (periods '0y'/'+1y') - consensus EPS growth vs the
+      prior fiscal year, i.e. genuinely forward-looking (not the realized-growth fields
+      growth_metrics already has). Same DataFrame fetch_forward_eps() already fetches - no
+      extra API call for these two.
+    - forward_revenue_growth_next_fy: Ticker.revenue_estimate's 'growth' column (period
+      '+1y') - a NEW yfinance endpoint this repo has never called before this fix.
+    - eps_estimate_revision_90d_pct: Ticker.eps_trend (period '0y', 'current' vs
+      '90daysAgo' columns) - how much the consensus current-FY EPS estimate has moved over
+      the trailing 90 days. Distinct from growth: a stock can have positive forward growth
+      while analysts are simultaneously revising the number DOWN, which is itself a real,
+      separately-informative signal (Givoly & Lakonishok 1979 estimate-revision literature).
+
+    Returns:
+        Dict with all 4 keys (each individually None if that specific period/column wasn't
+        available - partial coverage is normal, not an error), or None if the symbol has no
+        analyst coverage at all (mirrors fetch_forward_eps's no-coverage contract).
+
+    Raises:
+        RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
+    """
+    result: dict[str, float | None] = {
+        "forward_eps_growth_current_fy": None,
+        "forward_eps_growth_next_fy": None,
+        "forward_revenue_growth_next_fy": None,
+        "eps_estimate_revision_90d_pct": None,
+    }
+    any_coverage = False
+
+    try:
+        eps_df = _fetch_with_circuit_breaker(symbol, "earnings_estimate")
+    except RuntimeError as e:
+        if not _is_no_fundamentals_404(str(e)):
+            raise
+        eps_df = None
+    if eps_df is not None and not eps_df.empty and "growth" in eps_df.columns:
+        for period, key in (("0y", "forward_eps_growth_current_fy"), ("+1y", "forward_eps_growth_next_fy")):
+            if period in eps_df.index:
+                val = _safe_float_cell(eps_df.loc[period, "growth"])
+                if val is not None:
+                    result[key] = val
+                    any_coverage = True
+
+    try:
+        rev_df = _fetch_with_circuit_breaker(symbol, "revenue_estimate")
+    except RuntimeError as e:
+        if not _is_no_fundamentals_404(str(e)):
+            raise
+        rev_df = None
+    if rev_df is not None and not rev_df.empty and "growth" in rev_df.columns and "+1y" in rev_df.index:
+        val = _safe_float_cell(rev_df.loc["+1y", "growth"])
+        if val is not None:
+            result["forward_revenue_growth_next_fy"] = val
+            any_coverage = True
+
+    try:
+        trend_df = _fetch_with_circuit_breaker(symbol, "eps_trend")
+    except RuntimeError as e:
+        if not _is_no_fundamentals_404(str(e)):
+            raise
+        trend_df = None
+    if (
+        trend_df is not None
+        and not trend_df.empty
+        and "0y" in trend_df.index
+        and {"current", "90daysAgo"}.issubset(trend_df.columns)
+    ):
+        current = _safe_float_cell(trend_df.loc["0y", "current"])
+        prior = _safe_float_cell(trend_df.loc["0y", "90daysAgo"])
+        if current is not None and prior is not None and prior != 0:
+            result["eps_estimate_revision_90d_pct"] = (current - prior) / abs(prior) * 100.0
+            any_coverage = True
+
+    return result if any_coverage else None
+
+
+def _safe_float_cell(val: Any) -> float | None:
+    """Coerce one yfinance DataFrame cell to float, treating NaN/unparseable as missing."""
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return None
+    return None if f != f else f  # NaN check without importing pandas here
+
+
 def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict[str, Any]] | None:
     """Fetch recent-past and upcoming earnings dates for one symbol from yfinance.
 

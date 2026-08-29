@@ -1040,7 +1040,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
       q.operating_margin_pct != null ? fmtPct(q.operating_margin_pct, 1) : "—",
     ],
     [
-      "Net Margin",
+      "Profit Margin",
       q.profit_margin_pct != null ? fmtPct(q.profit_margin_pct, 1) : "—",
     ],
     [

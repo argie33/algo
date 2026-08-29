@@ -66,6 +66,8 @@ const formatReasonDisplay = (reason) => {
   const reasonMap = {
     missing_sec_data: "SEC data not available",
     insufficient_history: "Insufficient history",
+    insufficient_year_over_year_quarterly_history:
+      "Needs 2 years of quarterly filings (year-over-year comparison)",
     no_analyst_estimates: "Analyst estimates unavailable",
     analyst_estimates_not_in_sec_filings: "Analyst data not in SEC",
     ebitda_not_extracted: "EBITDA not extracted",
@@ -119,6 +121,8 @@ const reasonTooltips = {
   non_dividend_paying_stock: "This company does not pay dividends",
   insufficient_history:
     "Requires historical data for calculation (typically 2+ years)",
+  insufficient_year_over_year_quarterly_history:
+    "This metric compares each of the last 4 quarters to the same quarter a year ago (to avoid seasonal noise), which needs 8 quarters of filing history - fewer quarters, or a gap in the filing history, leaves no matched pair to compare",
   no_analyst_estimates:
     "External analyst estimates not loaded from data providers",
   unprofitable_stock: "Metric is undefined when company has negative earnings",
@@ -911,11 +915,11 @@ const QUALITY_SCHEMA = [
   // 2026-08-27 - see loaders/load_value_quality_growth_metrics.py's quality_components comment
   // for the full removal reasoning (live-observed "No data" on StockDetail, roe_trend flagged
   // weak/backwards in an earlier pass). Still computed/persisted upstream, just not shown here.
-  // altman_z_score REMOVED 2026-08-26 (same day it was added, user directive) - it's a
-  // discrete distress-triage classifier in the literature, not meant to be averaged into a
-  // continuous magnitude-weighted composite like the fields above. Raw value still computed/
-  // persisted in quality_metrics for reference, just not scored or shown here - see
-  // load_value_quality_growth_metrics.py's quality_components comment for the full reasoning.
+  // altman_z_score REMOVED from scoring/display 2026-08-26 (same day it was added, user
+  // directive) - it's a discrete distress-triage classifier in the literature, not meant to be
+  // averaged into a continuous magnitude-weighted composite like the fields above. REMOVED
+  // ENTIRELY 2026-08-28 (user directive): the raw value is no longer computed or persisted
+  // either - see load_value_quality_growth_metrics.py and migration 1244.
   // earnings_growth_yoy briefly restored here 2026-08-26, then MOVED to the Growth tab the
   // same day (user directive) - it's a growth-magnitude signal, not a quality one, so its
   // real home is GROWTH_SCHEMA below, not here. eps_growth_stability never lived in Quality in
@@ -1160,12 +1164,23 @@ const SIZE_SCHEMA = [
 // (89.4% vs the blend's 95.4%), predictive power (t=0.56, non-significant, vs the blend's
 // t=2.78), and era-to-era stability (~3x more IC swing than the blend) - not just a "which
 // single field wins" horse race. All 5 use the same sign-flip convention (lower growth scores
-// higher - Cooper/Gulen/Schill 2008 reversal). The other 10 growth-related fields below remain
-// informational-only (still computed/persisted, shown for full visibility per the same
-// "wants full visibility into every computed input" directive as POSITIONING_SCHEMA below) -
-// eps/revenue 3Y/5Y CAGR are time-window duplicates of the scored 1Y versions, and
-// NI/OI growth, trend fields, and quarterly momentum never cleared this repo's own
-// significance bar in isolation.
+// higher - Cooper/Gulen/Schill 2008 reversal).
+//
+// The other 10 growth-related fields (eps/revenue 3Y/5Y CAGR - time-window duplicates of the
+// scored 1Y versions; net_income_growth_yoy/operating_income_growth_yoy - never cleared this
+// repo's significance bar; quarterly_growth_momentum/earnings_growth_4q_avg - re-tested
+// 2026-08-28 with corrected YoY math, still a clean null / era-sign-flip respectively, see
+// loaders/load_stock_scores.py's _score_growth docstring "RECENCY-WEIGHTING TESTED AND
+// REJECTED" note; fcf_growth_yoy - OCF growth already covers cash-generation at lower noise;
+// asset_growth_yoy - sign contradicts the literature, never resolved) were shown here as
+// informational-only through 2026-08-28, then REMOVED FROM DISPLAY THAT SAME DAY (user
+// directive: "if we don't need them [for scoring/composite] then we don't need to display
+// them" - a deliberate reversal of the "keep all visible" call made earlier the same session).
+// All 10 stay computed/persisted in growth_metrics and reachable via the API's growth_inputs
+// field - only this page's display was trimmed. Positioning (POSITIONING_SCHEMA below) is NOT
+// covered by this same logic - it's informational-only BY DESIGN (retired as a scored pillar
+// entirely, not "extra unscored fields alongside a still-live pillar"), not comparable to
+// Growth's situation.
 const GROWTH_SCHEMA = [
   {
     key: "revenue_growth_1y_pct",
@@ -1202,16 +1217,35 @@ const GROWTH_SCHEMA = [
     used: true,
     weight: "20%",
   },
-  { key: "revenue_growth_3y_cagr", label: "Revenue Growth (3Y CAGR)", fmt: (v) => pct(v, 2) },
-  { key: "eps_growth_3y_cagr", label: "EPS Growth (3Y CAGR)", fmt: (v) => pct(v, 2) },
-  { key: "revenue_growth_5y_cagr", label: "Revenue Growth (5Y CAGR)", fmt: (v) => pct(v, 2) },
-  { key: "eps_growth_5y_cagr", label: "EPS Growth (5Y CAGR)", fmt: (v) => pct(v, 2) },
-  { key: "net_income_growth_yoy", label: "Net Income Growth (YoY)", fmt: (v) => pct(v, 2) },
-  { key: "operating_income_growth_yoy", label: "Operating Income Growth (YoY)", fmt: (v) => pct(v, 2) },
-  { key: "quarterly_growth_momentum", label: "QoQ Growth Momentum", fmt: (v) => num(v, 2) },
-  { key: "earnings_growth_4q_avg", label: "Earnings Growth (4Q Avg)", fmt: (v) => pct(v, 2) },
-  { key: "fcf_growth_yoy", label: "FCF Growth (YoY)", fmt: (v) => pct(v, 2) },
-  { key: "asset_growth_yoy", label: "Asset Growth (YoY)", fmt: (v) => pct(v, 2) },
+  // ADDED 2026-08-28 (goal: Growth-pillar-audit session, user directive) - real forward-
+  // looking data from yfinance's earnings_estimate/revenue_estimate/eps_trend endpoints
+  // (migrations 1245/1246), not previously captured at all. Deliberately NOT scored (no
+  // `used`/`weight` key, so no badge on this page - matches this pillar's existing
+  // "unscored = no badge" convention): analyst_earnings_estimates is a snapshot-per-day
+  // table with no backfill capability, so there's no historical depth yet to test whether
+  // these predict anything - see loaders/load_stock_scores.py's _score_growth docstring.
+  // Real data starting today, not a placeholder - these fields will show "No data" for
+  // most stocks until the daily loader accumulates coverage.
+  {
+    key: "forward_eps_growth_current_fy",
+    label: "Forward EPS Growth (Current FY, analyst consensus)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+  },
+  {
+    key: "forward_eps_growth_next_fy",
+    label: "Forward EPS Growth (Next FY, analyst consensus)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+  },
+  {
+    key: "forward_revenue_growth_next_fy",
+    label: "Forward Revenue Growth (Next FY, analyst consensus)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+  },
+  {
+    key: "eps_estimate_revision_90d_pct",
+    label: "EPS Estimate Revision (90D)",
+    fmt: (v) => pct(v, 2),
+  },
 ];
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see

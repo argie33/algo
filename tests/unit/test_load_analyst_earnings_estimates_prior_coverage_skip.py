@@ -81,14 +81,50 @@ class TestFetchIncrementalPriorCoverageSkip:
 
     def test_real_fetch_returns_the_estimate_row(self):
         loader = AnalystEarningsEstimatesLoader.__new__(AnalystEarningsEstimatesLoader)
-        with patch(
-            "loaders.load_analyst_earnings_estimates.fetch_forward_eps",
-            return_value=12.8,
+        with (
+            patch(
+                "loaders.load_analyst_earnings_estimates.fetch_forward_eps",
+                return_value=12.8,
+            ),
+            patch(
+                "loaders.load_analyst_earnings_estimates.fetch_forward_growth_estimates",
+                return_value={
+                    "forward_eps_growth_current_fy": 0.18,
+                    "forward_eps_growth_next_fy": 0.08,
+                    "forward_revenue_growth_next_fy": 0.10,
+                    "eps_estimate_revision_90d_pct": -1.5,
+                },
+            ),
         ):
             result = loader.fetch_incremental("NVDA", since=date(2026, 8, 11))
         assert len(result) == 1
         assert result[0]["forward_eps"] == 12.8
         assert result[0]["data_unavailable"] is False
+        assert result[0]["forward_eps_growth_current_fy"] == 0.18
+        assert result[0]["forward_eps_growth_next_fy"] == 0.08
+        assert result[0]["forward_revenue_growth_next_fy"] == 0.10
+        assert result[0]["eps_estimate_revision_90d_pct"] == -1.5
+
+    def test_growth_estimates_fetch_failure_does_not_break_the_row(self):
+        """fetch_forward_growth_estimates returning None (no coverage on any of its 3
+        endpoints) must not prevent the row from being written - forward_eps is the only
+        required field, the growth/revision fields are best-effort."""
+        loader = AnalystEarningsEstimatesLoader.__new__(AnalystEarningsEstimatesLoader)
+        with (
+            patch(
+                "loaders.load_analyst_earnings_estimates.fetch_forward_eps",
+                return_value=12.8,
+            ),
+            patch(
+                "loaders.load_analyst_earnings_estimates.fetch_forward_growth_estimates",
+                return_value=None,
+            ),
+        ):
+            result = loader.fetch_incremental("NVDA", since=date(2026, 8, 11))
+        assert len(result) == 1
+        assert result[0]["forward_eps"] == 12.8
+        assert result[0]["forward_eps_growth_current_fy"] is None
+        assert result[0]["eps_estimate_revision_90d_pct"] is None
 
     def test_table_and_key_config_matches_live_schema(self):
         assert AnalystEarningsEstimatesLoader.table_name == "analyst_earnings_estimates"

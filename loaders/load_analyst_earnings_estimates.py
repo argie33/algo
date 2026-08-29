@@ -23,7 +23,7 @@ from datetime import date, datetime
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
-from utils.external.yfinance_analyst_ratings import fetch_forward_eps
+from utils.external.yfinance_analyst_ratings import fetch_forward_eps, fetch_forward_growth_estimates
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
@@ -125,11 +125,26 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
                 (symbol,),
             )
 
+        # ADDED 2026-08-28 (goal: Growth-pillar-audit session, user directive to capture real
+        # forward-looking data yfinance already exposes but this repo wasn't pulling) - forward
+        # EPS/revenue growth estimates + estimate-revision trend, see
+        # fetch_forward_growth_estimates's docstring for what each field means. A known,
+        # accepted inefficiency: this re-fetches Ticker.earnings_estimate (already fetched
+        # above by fetch_forward_eps) rather than sharing that DataFrame - one extra API call
+        # per symbol, not worth the coupling/test churn to eliminate given this loader's
+        # existing forward_eps path is well-tested as-is. Best-effort: None on any individual
+        # field just means that specific period/column wasn't available, not a fetch failure.
+        growth_estimates = fetch_forward_growth_estimates(symbol) or {}
+
         return [
             {
                 "symbol": symbol,
                 "date": today,
                 "forward_eps": forward_eps,
+                "forward_eps_growth_current_fy": growth_estimates.get("forward_eps_growth_current_fy"),
+                "forward_eps_growth_next_fy": growth_estimates.get("forward_eps_growth_next_fy"),
+                "forward_revenue_growth_next_fy": growth_estimates.get("forward_revenue_growth_next_fy"),
+                "eps_estimate_revision_90d_pct": growth_estimates.get("eps_estimate_revision_90d_pct"),
                 "data_unavailable": False,
                 "reason": None,
             }

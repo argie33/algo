@@ -131,15 +131,40 @@ class TestAbsoluteDollarValueGarbageBound:
 
 
 class TestQuarterlyGrowthMomentumGarbageBound:
-    def _quarters(self, revenues, net_incomes=None, epss=None):
+    def _quarters(
+        self,
+        revenues,
+        net_incomes=None,
+        epss=None,
+        prior_revenues=None,
+        prior_net_incomes=None,
+        prior_epss=None,
+    ):
+        """Builds 8 quarters (2 fiscal years) so each of the last 4 quarters has a
+        same-quarter-prior-year match (loader compares YoY, not sequential QoQ - see the
+        2026-08-28 fix in loaders/load_value_quality_growth_metrics.py). `revenues`/
+        `net_incomes`/`epss` are the 4 most-recent (2025) quarters; `prior_*` are their
+        2024 year-ago counterparts (default: same values, i.e. 0% YoY growth) unless a
+        test overrides one to exercise a specific comparison.
+        """
         net_incomes = net_incomes or [1_000_000.0] * len(revenues)
         epss = epss or [0.5] * len(revenues)
-        return [(2025, 4 - i, net_incomes[i], revenues[i], epss[i]) for i in range(len(revenues))]
+        prior_revenues = prior_revenues or list(revenues)
+        prior_net_incomes = prior_net_incomes or list(net_incomes)
+        prior_epss = prior_epss or list(epss)
+        current = [(2025, 4 - i, net_incomes[i], revenues[i], epss[i]) for i in range(len(revenues))]
+        prior = [
+            (2024, 4 - i, prior_net_incomes[i], prior_revenues[i], prior_epss[i]) for i in range(len(prior_revenues))
+        ]
+        return current + prior
 
     def test_near_zero_prior_quarter_revenue_marked_unavailable(self, monkeypatch):
-        # A near-zero (but nonzero) prior-quarter revenue makes the QoQ growth rate - and
-        # therefore the 3-quarter average - mathematically enormous.
-        rows = self._quarters([100_000_000.0, 0.01, 100_000_000.0, 100_000_000.0])
+        # A near-zero (but nonzero) same-quarter-prior-year revenue makes the YoY growth
+        # rate - and therefore the 4-quarter average - mathematically enormous.
+        rows = self._quarters(
+            [100_000_000.0, 100_000_000.0, 100_000_000.0, 100_000_000.0],
+            prior_revenues=[100_000_000.0, 0.01, 100_000_000.0, 100_000_000.0],
+        )
         loader = _make_loader(monkeypatch, quarterly_rows=rows)
 
         metrics = loader._compute_quarterly_metrics("DUO")
@@ -150,7 +175,8 @@ class TestQuarterlyGrowthMomentumGarbageBound:
     def test_near_zero_prior_quarter_eps_marked_unavailable(self, monkeypatch):
         rows = self._quarters(
             [100_000_000.0, 100_000_000.0, 100_000_000.0, 100_000_000.0],
-            epss=[0.5, 0.0001, 0.5, 0.5],
+            epss=[0.5, 0.5, 0.5, 0.5],
+            prior_epss=[0.5, 0.0001, 0.5, 0.5],
         )
         loader = _make_loader(monkeypatch, quarterly_rows=rows)
 
@@ -160,7 +186,10 @@ class TestQuarterlyGrowthMomentumGarbageBound:
         assert metrics.get("earnings_growth_4q_avg_unavailable_reason") == "garbage_metric_value_abs_gt_100000"
 
     def test_normal_quarterly_growth_still_computes(self, monkeypatch):
-        rows = self._quarters([100_000_000.0, 105_000_000.0, 110_000_000.0, 115_000_000.0])
+        rows = self._quarters(
+            [100_000_000.0, 105_000_000.0, 110_000_000.0, 115_000_000.0],
+            prior_revenues=[95_000_000.0, 100_000_000.0, 105_000_000.0, 110_000_000.0],
+        )
         loader = _make_loader(monkeypatch, quarterly_rows=rows)
 
         metrics = loader._compute_quarterly_metrics("NORMALCO2")

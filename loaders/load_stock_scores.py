@@ -1580,6 +1580,26 @@ class StockScoresLoader(OptimalLoader):
         day on their own isolated re-test - see load_value_quality_growth_metrics.py's
         quality_components comment) - not a Growth input either way.
 
+        RECENCY-WEIGHTING TESTED AND REJECTED 2026-08-28 (goal: user question - "do industry
+        leaders overweight recent periods for growth scoring, should we?"). Fixed a real bug
+        first: earnings_growth_4q_avg/quarterly_growth_momentum (_compute_quarterly_metrics()
+        in load_value_quality_growth_metrics.py) were comparing each quarter to the
+        immediately PRIOR quarter, not the same quarter a year ago - seasonally contaminated,
+        unlike how industry leaders (IBD CAN SLIM "C", Zacks) do recency (same-quarter YoY).
+        Fixed to YoY, then re-tested via algo/research/growth_quarterly_yoy_recency_test_
+        20260828.py (134-month FM panel): even after the fix, quarterly_growth_momentum_yoy
+        stays a clean null (t=1.13/-0.07/1.69) and earnings_growth_4q_avg_yoy sign-FLIPS
+        across eras (t=-2.75 full, +1.22 ERA1, -4.59 ERA2) - not era-robust, same failure
+        mode that motivated this pillar's own equal-weight rebuild. An explicit
+        RECENCY-WEIGHTED blend (the 5 fields below + these 2 quarterly candidates at 2x
+        weight, updating 4x/year vs the annual fields' 1x/year) was tested head-to-head
+        against the live EQUAL blend on the identical panel: EQUAL wins decisively
+        (t=3.30/-0.32/4.81 vs recency-weighted's t=0.74/0.21/0.85) - overweighting the
+        higher-frequency quarterly signal actively hurts predictive power in this data, the
+        opposite of the intuition that "more recent = more informative." Neither quarterly
+        candidate was added to scoring; the 5-input equal-weighted blend below is unchanged.
+        Both quarterly fields stay informational-only in GROWTH_SCHEMA (StockScoreAccordion.jsx).
+
         RETURN TYPES (STRICT):
         - >=1 of the 5 components available → returns float (0-100), simple average of
           whichever component curve-scores are non-None (equal weight, per the EQUAL
