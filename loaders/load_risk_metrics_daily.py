@@ -151,9 +151,7 @@ class RiskMetricsLoader(OptimalLoader):
                     raise RuntimeError("No momentum timeframe could be computed from available price history")
 
                 partial_null_reason = (
-                    "; ".join(f"{k}:{v}" for k, v in period_null_reasons.items())[:150]
-                    if period_null_reasons
-                    else None
+                    "; ".join(f"{k}:{v}" for k, v in period_null_reasons.items())[:150] if period_null_reasons else None
                 )
 
                 # Fetch latest technical indicators from technical_data_daily (already computed by load_technical_indicators.py)
