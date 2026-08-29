@@ -1017,6 +1017,36 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # comment for why that coercion is bank-specific only).
         "PaymentsToAcquireRealEstateAndRealEstateJointVentures",
         "PaymentsToAcquireRealEstateHeldForInvestment",
+        # FIXED 2026-08-29 (goal: "full data" audit continuation, oil & gas E&P sector):
+        # exploration & production filers (SIC 1311 "Crude Petroleum & Natural Gas" and
+        # related codes) tag capex under sector-specific concept families instead of any
+        # PP&E-family concept above - none of the 43 SIC-1311 symbols checked with
+        # unexplained-NULL capex report under "PaymentsToAcquirePropertyPlantAndEquipment"
+        # at all for recent fiscal years. Live-confirmed via real companyfacts JSON across
+        # 7 filers: APA (Apache/APA Corp) $2.740B FY2025, AR (Antero Resources) $685.5M
+        # FY2025, CHRD (Chord Energy) $1.348B FY2025, CRGY (Crescent Energy) $951.0M
+        # FY2025, AMPY (Amplify Energy) $84.3M FY2025 all tag
+        # "PaymentsToExploreAndDevelopOilAndGasProperties" - the standard cash-flow-
+        # statement E&D capex line for this sector. CRGY separately also tags
+        # "PaymentsToAcquireOilAndGasProperty" $818.9M FY2025 for its acquisition-specific
+        # spend (a genuinely distinct investing-activity line, not a duplicate of the E&D
+        # figure - _aggregate_concepts has no summing mechanism, so whichever of the two is
+        # listed last here wins and CRGY's true total capex is understated by the other
+        # line's amount; still a strict improvement over NULL). EGY (small-cap, no current
+        # E&D tag) reports only "PaymentsToAcquireOilAndGasProperty" $103.0M FY2024.
+        # DVN (Devon Energy) reports NEITHER "Payments"-prefixed concept for any fiscal
+        # year since 2019 (last used generic PP&E) - its only current capex-equivalent
+        # figure is "CostsIncurredOilAndGasPropertyAcquisitionExplorationAndDevelopment
+        # Activities" $4.000B FY2025, the standard ASC 932 full-cost/successful-efforts
+        # supplemental "costs incurred" disclosure (an accrual-basis total industry
+        # analysts commonly use as an E&P capex proxy when no cash-flow-statement tag
+        # exists, but not a strict cash-paid figure - may include non-cash items like
+        # asset-retirement-obligation accretion). Listed first (least-preferred position,
+        # same "last-listed wins" convention as this file's other fallback groups) so the
+        # more precise Payments-based concepts below win whenever a filer reports both.
+        "CostsIncurredOilAndGasPropertyAcquisitionExplorationAndDevelopmentActivities",
+        "PaymentsToAcquireOilAndGasProperty",
+        "PaymentsToExploreAndDevelopOilAndGasProperties",
         # FIXED 2026-08-18 (missing factor inputs audit): ACGL/FRT/VSH-class filers report
         # dividends under this concept instead of any "PaymentsOf*Dividend*" tag below - see
         # load_financial_statements.py's _CASHFLOW_FIELD_MAPPING comment for the live
