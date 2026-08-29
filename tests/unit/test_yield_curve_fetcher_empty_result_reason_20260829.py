@@ -12,9 +12,13 @@ generic "yield_curve_fetcher_returned_unavailable_without_reason" placeholder - 
 has real rows for every one of them (a same-day loader-ordering race against economic_data at
 the time those rows were written, not a permanent gap).
 
-Fixed: fetch() now attaches a specific reason ("No T10Y2Y economic_data rows found for
-{start}:{end}") whenever the underlying query returns zero rows, so the generic placeholder is
-never needed for this path.
+Fixed: fetch() now attaches a specific, aggregatable reason
+("no_t10y2y_data_for_range:{start}_{end}") whenever the underlying query returns zero rows, so
+the generic placeholder is never needed for this path. Uses this codebase's "prefix:suffix"
+dynamic-reason convention (matching e.g. sic_code_unmapped:700) rather than a free-form sentence,
+so lambda/api/routes/scores.py's _categorize_reason() and scripts/audit_unavailable_reasons.py
+(both of which group on reason.split(":")[0]) aggregate every date range under one base string
+instead of treating each distinct range as its own uncategorized reason.
 """
 
 from datetime import date
@@ -34,7 +38,8 @@ class TestYieldCurveFetcherEmptyResultGetsSpecificReason:
             result = fetcher.fetch(date(2026, 8, 5), date(2026, 8, 5))
 
         assert result["data_unavailable"] is True
-        assert result["reason"] == "No T10Y2Y economic_data rows found for 2026-08-05:2026-08-05"
+        assert result["reason"] == "no_t10y2y_data_for_range:2026-08-05_2026-08-05"
+        assert result["reason"].split(":")[0] == "no_t10y2y_data_for_range"
 
     def test_non_empty_result_passes_through_unchanged(self) -> None:
         fetcher = YieldCurveFetcher()

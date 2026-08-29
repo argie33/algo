@@ -427,11 +427,18 @@ class YieldCurveFetcher:
             # of them (a same-day loader-ordering race against economic_data, not a permanent
             # gap - see the sibling backfill in the goal session's own notes). Attach a specific
             # reason here instead of returning the bare dict, so the fallback placeholder is
-            # never needed for this path again.
+            # never needed for this path again. Uses this codebase's "prefix:suffix" dynamic-
+            # reason convention (e.g. sic_code_unmapped:700) - lambda/api/routes/scores.py's
+            # _categorize_reason() and scripts/audit_unavailable_reasons.py both group on
+            # reason.split(":")[0], so a fixed prefix with the date range as a trailing suffix
+            # aggregates cleanly (falls into the existing "Other (errors / excluded)" bucket,
+            # same as this table's sibling optional-enrichment reasons no_historical_data/
+            # no_data_returned already do - no new categorization rule needed) instead of
+            # every distinct date range producing its own uncategorized one-off string.
             if not result:
                 return {
                     "data_unavailable": True,
-                    "reason": f"No T10Y2Y economic_data rows found for {start}:{end}",
+                    "reason": f"no_t10y2y_data_for_range:{start.isoformat()}_{end.isoformat()}",
                 }
 
             return result
