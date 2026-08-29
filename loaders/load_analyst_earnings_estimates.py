@@ -125,9 +125,7 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
                 (symbol,),
             )
 
-        # ADDED 2026-08-28 (goal: Growth-pillar-audit session, user directive to capture real
-        # forward-looking data yfinance already exposes but this repo wasn't pulling) - forward
-        # EPS/revenue growth estimates + estimate-revision trend, see
+        # Forward EPS/revenue growth estimates + estimate-revision trend, see
         # fetch_forward_growth_estimates's docstring for what each field means. A known,
         # accepted inefficiency: this re-fetches Ticker.earnings_estimate (already fetched
         # above by fetch_forward_eps) rather than sharing that DataFrame - one extra API call

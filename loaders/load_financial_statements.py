@@ -565,6 +565,13 @@ _CASHFLOW_FIELD_MAPPING = {
     # live MET/RGA/BHF/PFG/TRV/WRB evidence.
     "payments_to_acquire_real_estate_and_real_estate_joint_ventures": "capex",
     "payments_to_acquire_real_estate_held_for_investment": "capex",
+    # FIXED 2026-08-29 (goal: "full data" audit continuation): oil & gas E&P sector capex
+    # concepts - see sec_statements.py's get_cash_flow() comment for the live APA/AR/CHRD/
+    # CRGY/AMPY/EGY/DVN evidence. Same "capex" target column as the PP&E-family concepts
+    # above.
+    "costs_incurred_oil_and_gas_property_acquisition_exploration_and_development_activities": "capex",
+    "payments_to_acquire_oil_and_gas_property": "capex",
+    "payments_to_explore_and_develop_oil_and_gas_properties": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but

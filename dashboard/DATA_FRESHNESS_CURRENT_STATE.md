@@ -324,7 +324,7 @@ The following metrics are recorded in the database and available via the API, bu
 1. Look at **Failure Patterns** for struggling loaders
    - Degrading trend? → Escalate
    - Monday-only failures? → Scheduler issue
-   
+
 2. Check **Data Quality Issues**
    - NULLs too high? → Data trust problem
    - Duplicates? → Data integrity issue
@@ -336,7 +336,7 @@ The following metrics are recorded in the database and available via the API, bu
 ### Troubleshooting Specific Table
 1. Find table in **Freshness Table**
    - Duration/Throughput columns show performance
-   
+
 2. Check **Loader Errors** for specific error message
 
 3. Look at **Repeated Failures** section
@@ -354,12 +354,12 @@ The following metrics are recorded in the database and available via the API, bu
 
 The freshness panel is working well when it enables operators to:
 
-✅ See what data is available without reading logs  
-✅ Understand why a loader failed (specific reason, not just "STALE")  
-✅ Know if the system is trading at full capacity or degraded  
-✅ Spot performance trends (slower loading, recurring failures)  
-✅ Distinguish transient failures from systemic issues  
-✅ Understand impact of missing data on trading logic  
+✅ See what data is available without reading logs
+✅ Understand why a loader failed (specific reason, not just "STALE")
+✅ Know if the system is trading at full capacity or degraded
+✅ Spot performance trends (slower loading, recurring failures)
+✅ Distinguish transient failures from systemic issues
+✅ Understand impact of missing data on trading logic
 
 ---
 

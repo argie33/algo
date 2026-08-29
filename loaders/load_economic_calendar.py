@@ -101,9 +101,13 @@ def fetch_fred_release_dates(api_key: str, release_id: int, start_date: date) ->
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as e:
-        raise RuntimeError(f"[ECONOMIC_CALENDAR] FRED release/dates request failed for release_id={release_id}: {e}") from e
+        raise RuntimeError(
+            f"[ECONOMIC_CALENDAR] FRED release/dates request failed for release_id={release_id}: {e}"
+        ) from e
     except ValueError as e:
-        raise RuntimeError(f"[ECONOMIC_CALENDAR] FRED release/dates returned invalid JSON for release_id={release_id}: {e}") from e
+        raise RuntimeError(
+            f"[ECONOMIC_CALENDAR] FRED release/dates returned invalid JSON for release_id={release_id}: {e}"
+        ) from e
 
     release_dates = data.get("release_dates")
     if release_dates is None:

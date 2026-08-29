@@ -118,7 +118,7 @@ def _zwinsor_by_group(values: pd.Series, groups: pd.Series) -> pd.Series:
 
 def _spearman_ic_series(
     records: list[tuple[pd.Timestamp, pd.DataFrame]], col: str
-) -> tuple["np.ndarray[Any, Any]", list[int]]:
+) -> tuple[np.ndarray[Any, np.dtype[np.float64]], list[int]]:
     ics, ns = [], []
     for _month, frame in records:
         if len(frame) < MIN_SECTOR_SLICE:
@@ -130,7 +130,7 @@ def _spearman_ic_series(
     return np.array(ics), ns
 
 
-def _ic_mean_t(ics: "np.ndarray[Any, Any]") -> tuple[float, float, int]:
+def _ic_mean_t(ics: np.ndarray[Any, np.dtype[np.float64]]) -> tuple[float, float, int]:
     if len(ics) < 2:
         return (float("nan"), float("nan"), len(ics))
     se = ics.std(ddof=1) / np.sqrt(len(ics))

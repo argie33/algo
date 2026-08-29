@@ -5,7 +5,7 @@ Finance-grade testing for all critical calculations.
 
 import math
 
-from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, StockScoresLoader
+from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, GROWTH_SCORE_FIELDS, StockScoresLoader
 
 
 class TestVolatilityCalculation:
@@ -200,32 +200,32 @@ class TestPBScoring:
             assert 0 <= score <= 100, f"PB={pb} produced score {score}"
 
 
-class TestNetPayoutYieldScoring:
-    """Verify net payout (shareholder) yield scoring with 10% cap.
+class TestDividendYieldScoring:
+    """Verify dividend yield scoring with 6% cap.
 
-    REPLACES the old TestDividendYieldScoring 2026-08-26 (goal: full Value pillar re-audit) -
-    dividend_yield itself was replaced by net_payout_yield (dividends + buybacks) in
-    load_stock_scores.py._score_value; the old dividend-only formula this class tested no
-    longer exists in live code. See that function's docstring "MISSING-INPUT CHECK" note.
+    REPLACES TestNetPayoutYieldScoring 2026-08-28 (explicit user directive: "we want the
+    dividend yield instead of that payout shit") - load_stock_scores.py._score_value reverted
+    from net_payout_yield (dividends + buybacks) back to plain dividend_yield at the same 8%
+    weight slot. See that function's docstring for the full history.
     """
 
-    def test_net_payout_yield_max_10_percent(self) -> None:
-        """Net payout yield capped at 10% for scoring."""
-        # From code: payout_pct = min(metrics["net_payout_yield"] * 100, 10)
-        for payout_decimal in [0.02, 0.05, 0.10, 0.15, 0.20]:
-            payout_pct = min(payout_decimal * 100, 10)
-            score = min(100, payout_pct * 10)
+    def test_dividend_yield_max_6_percent(self) -> None:
+        """Dividend yield capped at 6% for scoring."""
+        # From code: div = min(metrics["dividend_yield"] * 100, 6)
+        for div_decimal in [0.01, 0.03, 0.06, 0.08, 0.10]:
+            div = min(div_decimal * 100, 6)
+            score = min(100, div * 16.7)
             assert 0 <= score <= 100
 
-    def test_net_payout_yield_scoring_formula(self) -> None:
-        """10% net payout yield should score 100."""
-        payout_pct = 10  # 10%
-        score = min(100, payout_pct * 10)
+    def test_dividend_yield_scoring_formula(self) -> None:
+        """6% dividend yield should score 100."""
+        div = 6  # 6%
+        score = min(100, div * 16.7)
         assert abs(score - 100) < 0.01
 
-        payout_pct = 5  # 5%
-        score = min(100, payout_pct * 10)
-        assert abs(score - 50) < 0.01
+        div = 3  # 3%
+        score = min(100, div * 16.7)
+        assert abs(score - 50.1) < 0.01
 
 
 class TestFCFYieldScoring:
@@ -301,15 +301,61 @@ class TestStockScoreWeights:
         PEG and margin_of_safety added, PE/PB/PS reweighted). Now the literal weights from
         loaders/load_stock_scores.py's _score_value (grep `weighted_sum +=` in that method for
         the live literals if this ever needs re-verifying).
+
+        dividend_yield reverted 20260828 (user directive) back from net_payout_yield - same 8%
+        weight slot, key renamed here to match.
+
+        UPDATED 20260828 (later same day, goal: "aligned with industry standards and best
+        practices"): fcf_yield REMOVED (independently re-verified robustly wrong-signed,
+        t=-2.43/-0.91/-2.17 full/half/half, see load_stock_scores.py's "FCF YIELD - RESOLVED
+        2026-08-28" docstring note). forward_pe ADDED (MSCI Value index core descriptor; user
+        directive, unbacktestable today - only ~22 trading days of history exist and no vendor
+        source provides historical consensus estimates - see that file's "FORWARD P/E - ADDED
+        2026-08-28" note). Freed weight from fcf_yield: PB +3 (33%), PS +2 (29%),
+        margin_of_safety +4 (11%).
+
+        UPDATED AGAIN 20260828 (same day, user pushback: "why do you need to remove PEG? why
+        not just leave it but keep it lower %"): PEG was initially removed entirely alongside
+        fcf_yield in the pass above, on the same "weakest local evidence" reasoning - correctly
+        challenged, since PEG's evidence tier (real univariate signal, not a duplicate of
+        anything else) is nothing like fcf_yield's (robustly wrong-signed) or ev_ebitda/
+        ev_revenue's (near-literal duplicates) removal-worthy tiers. PEG restored at a trimmed
+        7%->3% weight instead (same "real but not fully robust" tier as dividend_yield/
+        margin_of_safety); forward_pe correspondingly trimmed 7%->4% (deliberately smaller than
+        PEG's 3%-plus-real-evidence, since forward_pe has zero local evidence at all).
+
+        margin_of_safety REMOVED FROM SCORING 20260828 (later same day, goal: "is margin of
+        safety typically a metric used in the value factor score... or is it typically used
+        some other way"): every standard systematic Value-factor methodology (MSCI Enhanced
+        Value, Russell Style, S&P Style Indices, Fama-French HML, AQR) is built from accounting
+        yield ratios computed directly from financials, not DCF intrinsic-value estimates -
+        margin of safety (Graham/Klarman) is industry-standard practice as a per-stock deep-
+        value screening tool, not a systematic cross-sectional ranking input, and this repo's
+        own sub-period t-stats for it are unstable (0.30 to 2.12) unlike PE/PB/PS's robustness
+        in every sub-period tested. See load_stock_scores.py's "MARGIN OF SAFETY - REMOVED FROM
+        SCORING 2026-08-28" docstring note. Freed 11%: PB +6 (39%), PS +5 (34%). Still fully
+        computed/stored/displayed, primary metric on the Deep Value Picks page instead.
+
+        peg_ratio REMOVED FROM SCORING 20260828 (same day, later pass, goal: "is this value
+        score right per industry best practice... lets figure out the right best for the value
+        and lets go"): PEG is a growth-ADJUSTED earnings multiple (PE / growth rate) - by
+        design a Value/Growth hybrid. No mainstream systematic Value methodology (MSCI Enhanced
+        Value/World Value, Russell, S&P Style, Barra, Fama-French/AQR) includes one -
+        institutional practice deliberately keeps Value and Growth as separate, independently-
+        measurable factors. This repo's own 15-pair pillar-interaction sweep
+        (algo/research/cross_pillar_interaction_sweep_20260828.py) confirms Growth x Value
+        specifically isn't era-robust either (only Value x Risk is). See load_stock_scores.py's
+        "PEG - REMOVED FROM SCORING 2026-08-28" docstring note. Freed 3% went to Dividend Yield
+        (8% -> 11%) - the only other input at PEG's same "real but modest" evidentiary tier.
+
+        FINAL/CURRENT weights (2026-08-28): six inputs, no PEG, no margin_of_safety.
         """
         weights = {
             "pe_ratio": 0.12,
-            "pb_ratio": 0.30,
-            "ps_ratio": 0.27,
-            "peg_ratio": 0.07,
-            "fcf_yield": 0.09,
-            "net_payout_yield": 0.08,
-            "margin_of_safety": 0.07,
+            "pb_ratio": 0.39,
+            "ps_ratio": 0.34,
+            "forward_pe": 0.04,
+            "dividend_yield": 0.11,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
@@ -330,11 +376,16 @@ class TestStockScoreWeights:
         FIXED 20260828: was a stale "Stability" dict (volatility_252/60/30 + beta +
         debt_to_assets) that named fields _score_risk doesn't use at all. Live literals from
         _score_risk's `weighted_sum +=` lines.
+
+        UPDATED 20260828 (later same day): downside_volatility_60d REMOVED ENTIRELY - still
+        correlated r=0.93 with volatility_60d even after the earlier 6-window consolidation,
+        and this file's own Fama-MacBeth panel already found it carries no independent signal
+        once volatility_60d is controlled for (t=+1.39, wrong-signed). Freed 15% moved to
+        volatility_60d (45%->60%).
         """
         weights = {
-            "volatility_60d": 0.45,
+            "volatility_60d": 0.60,
             "beta": 0.20,
-            "downside_volatility_60d": 0.15,
             "max_drawdown": 0.20,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
@@ -342,14 +393,16 @@ class TestStockScoreWeights:
     def test_growth_component_weights(self) -> None:
         """Growth metric sub-component weights.
 
-        FIXED 20260828: was a stale 6-input blend (eps/revenue growth at 1y/3y/5y) pre-dating
-        the 2026-08-27 rebuild. _score_growth's docstring: isolated Fama-MacBeth testing found
-        book_value_growth dominates/subsumes every other candidate, so Growth collapsed to a
-        SINGLE scored component - same single-input architecture as Size (_score_size). Not a
-        placeholder to be filled back in without new evidence (see that docstring for why the
-        other 10+ candidates were tested and rejected, not just left out).
+        RESTORED TO MULTI-INPUT 20260828 (user directive, /goal session: "get the rest of the
+        growth inputs back in there the ones that are in the react" + explicit pushback that
+        revenue_growth_1y's inversion "shouldn't be inverted"). Supersedes the prior single-
+        input history this test used to guard (6-input blend -> book_value_growth alone ->
+        revenue_growth_1y alone) - see _score_growth's own docstring for that evidence-vs-
+        override trail. Equal-weighted across every GROWTH_SCORE_FIELDS candidate (partial-
+        availability renormalized in the actual scoring code - this static weights dict just
+        documents the equal-share intent, same convention Risk/Momentum's dicts below use).
         """
-        weights = {"book_value_growth": 1.0}
+        weights = dict.fromkeys(GROWTH_SCORE_FIELDS, 1.0 / len(GROWTH_SCORE_FIELDS))
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
     def test_momentum_component_weights(self) -> None:

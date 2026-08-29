@@ -414,6 +414,33 @@ class YieldCurveFetcher:
                     "reason": f"Invalid response type {type(result).__name__}, expected dict",
                 }
 
+            # FIXED 2026-08-29 (goal: "full data" audit continuation): _fetch_yield_curve_data
+            # returns {} (its own documented, non-error "no rows for this range" outcome, see
+            # its docstring) rather than raising - that empty dict used to pass straight
+            # through here with no reason attached. load_market_status_daily.py's caller then
+            # only had `not yield_data` (empty dict is falsy) to detect the failure, and its
+            # own reason lookup (`yield_data.get("reason")`) found nothing, so every genuinely-
+            # empty-range case fell into the generic
+            # "yield_curve_fetcher_returned_unavailable_without_reason" placeholder - live-
+            # confirmed 5 real market_health_daily dates (2026-08-05/06/07/14/28) stuck with
+            # that placeholder even though economic_data.T10Y2Y now has real rows for every one
+            # of them (a same-day loader-ordering race against economic_data, not a permanent
+            # gap - see the sibling backfill in the goal session's own notes). Attach a specific
+            # reason here instead of returning the bare dict, so the fallback placeholder is
+            # never needed for this path again. Uses this codebase's "prefix:suffix" dynamic-
+            # reason convention (e.g. sic_code_unmapped:700) - lambda/api/routes/scores.py's
+            # _categorize_reason() and scripts/audit_unavailable_reasons.py both group on
+            # reason.split(":")[0], so a fixed prefix with the date range as a trailing suffix
+            # aggregates cleanly (falls into the existing "Other (errors / excluded)" bucket,
+            # same as this table's sibling optional-enrichment reasons no_historical_data/
+            # no_data_returned already do - no new categorization rule needed) instead of
+            # every distinct date range producing its own uncategorized one-off string.
+            if not result:
+                return {
+                    "data_unavailable": True,
+                    "reason": f"no_t10y2y_data_for_range:{start.isoformat()}_{end.isoformat()}",
+                }
+
             return result
         except Exception as e:
             return {"data_unavailable": True, "reason": f"Fetch error: {str(e)[:150]}"}

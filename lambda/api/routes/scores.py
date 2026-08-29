@@ -105,7 +105,6 @@ def handle(
                 "value_score",
                 "growth_score",
                 "risk_score",
-                "size_score",
                 "symbol",
             ]
             if sort_by not in allowed_sorts:
@@ -168,7 +167,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.risk_score,
-                    sc.size_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -530,8 +528,9 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             d["quality_score"] = None
         if d.get("_value_data_unavailable"):
             d["value_score"] = None
-            # Size (market_cap) is sourced from the same value_metrics row as Value.
-            d["size_score"] = None
+        # size_score REMOVED from the API contract 2026-08-28 (Size retired as a composite
+        # pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS). market_cap itself
+        # is still available via the Value pillar's inputs.
 
         # Build factor input objects
         def _build_factor_inputs(data: dict[str, Any]) -> None:
@@ -871,7 +870,7 @@ def _get_score_history(cur: cursor, symbol: str, days: int) -> Any:
             SELECT
                 score_date, composite_score, composite_rank, rs_percentile,
                 momentum_score, quality_score, growth_score, value_score,
-                risk_score, size_score, data_completeness
+                risk_score, data_completeness
             FROM stock_scores_history
             WHERE symbol = %s AND score_date >= CURRENT_DATE - %s::int
             ORDER BY score_date ASC
@@ -943,7 +942,6 @@ def _get_stock_scores(  # noqa: C901
             "value_score": "value_score",
             "growth_score": "growth_score",
             "risk_score": "risk_score",
-            "size_score": "size_score",
             "symbol": "symbol",
         }
         sort_col = allowed_sorts.get(sort_by, "composite_score")
@@ -1135,7 +1133,6 @@ def _get_stock_scores(  # noqa: C901
                     cp.industry,
                     fs.composite_score, fs.momentum_score, fs.quality_score,
                     fs.value_score, fs.growth_score, fs.risk_score,
-                    fs.size_score,
                     fs.rs_percentile, fs.data_completeness,
                     fs.updated_at AS last_updated,
                     pl.close AS current_price,
@@ -1790,8 +1787,9 @@ def _get_stock_scores(  # noqa: C901
                 d["quality_score"] = None
             if d.get("_value_data_unavailable"):
                 d["value_score"] = None
-                # Size (market_cap) is sourced from the same value_metrics row as Value.
-                d["size_score"] = None
+            # size_score REMOVED from the API contract 2026-08-28 (Size retired as a composite
+            # pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS). market_cap
+            # itself is still available via the Value pillar's inputs.
 
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)
@@ -2056,6 +2054,17 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # private issuers filing 20-F/6-K instead of 10-K/10-Q - was already fixed
             # 2026-08-19 by widening _EARNINGS_BEARING_FORMS; what remains is real absence).
             "no_sec_filings_found",
+            # ADDED 2026-08-29 (goal session: coverage-categorization sweep):
+            # load_company_info_sec.py's shares_outstanding_unavailable_reason - the
+            # symbol's CIK/annual-report lookup never turned up any SEC 10-K/10-K-equivalent
+            # filing at all, so shares_outstanding was never extractable. Was unmapped
+            # (150 live rows).
+            "no_annual_report_filing",
+            # ADDED 2026-08-29 (same sweep): load_company_info_sec.py's third
+            # shares_outstanding_unavailable_reason bucket - a real annual filing exists but
+            # shares_outstanding wasn't tagged in its XBRL AND the raw-filing-text fallback
+            # extraction also came up empty. Was unmapped (48 live rows).
+            "shares_outstanding_not_in_xbrl_or_filing_text",
             # ADDED 2026-08-22 (goal session: "Top Causes of Missing Data" Other-bucket
             # sweep): load_positioning_metrics.py's per-field marker for "no FINRA
             # short-interest row on file for this symbol at all" (as opposed to
@@ -2147,6 +2156,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "spy_price_data_insufficient",
             "insufficient_common_dates",
             "insufficient_returns",
+            # ADDED 2026-08-29 (goal session: coverage-categorization sweep, live audit of
+            # the "Other (errors / excluded)" bucket via lambda/api/routes/scores.py's own
+            # _get_scores_coverage output): load_value_quality_growth_metrics.py's
+            # quality_score_unavailable_reason - available_quality_weight cleared 0 but
+            # missed the min_quality_weight_pct completeness floor (thin-sample
+            # extrapolation, not honest data) - same "not enough underlying data to trust a
+            # computed value" class as the other reasons in this bucket, just phrased around
+            # "completeness" instead of "history". Was unmapped (179 live rows).
+            "insufficient_completeness",
         },
     ),
     (
@@ -2250,6 +2268,31 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "negative_earnings_growth",
             "negative_invested_capital",
             "growth_undefined_sign_change",
+            # ADDED 2026-08-29 (goal session: coverage-categorization sweep): _growth_reason()
+            # in load_value_quality_growth_metrics.py's two siblings to
+            # growth_undefined_sign_change directly above, from the exact same function - a
+            # growth rate that's mathematically undefined (not merely unmeasured) because a
+            # stock split/reverse-split changed the share count between the two comparison
+            # points (growth_undefined_share_count_discontinuity, 2,044 live rows) or because
+            # the prior-year base value was too close to zero for a percentage to be
+            # meaningful (immaterial_prior_year_base, 1,275 live rows). Both were unmapped and
+            # falling through to "Other (errors / excluded)" - together with the sign-change
+            # case already here, these three cover every _growth_reason() branch.
+            "growth_undefined_share_count_discontinuity",
+            "immaterial_prior_year_base",
+            # ADDED 2026-08-29 (same sweep): roce_pct's own negative-denominator undefined
+            # case (load_value_quality_growth_metrics.py) - capital_employed <= 0, same
+            # "the ratio is mathematically undefined for this company's balance sheet" class
+            # as negative_invested_capital/negative_book_value directly above, just for ROCE
+            # instead of ROIC/P-B. Was unmapped (183 live rows).
+            "negative_capital_employed",
+            # ADDED 2026-08-29 (same sweep): load_company_info_sec.py's shares_outstanding_
+            # unavailable_reason for foreign private issuers - domestic shares_outstanding is
+            # structurally inapplicable/excluded for FPIs by design, same permanent-exemption
+            # class as foreign_private_issuer_shares_unavailable below (a different loader's
+            # string for the same underlying FPI fact). Was unmapped (1,035 live rows - the
+            # single largest unmapped reason found this sweep).
+            "fpi_shares_excluded_domestic_only",
             # ADDED 2026-08-19 (goal session continuation): foreign private issuers are
             # exempt from mandatory 10-Q quarterly SEC reporting - a permanent regulatory
             # fact, not a data gap that more loader coverage could ever close. See
@@ -2333,6 +2376,17 @@ def _categorize_reason(reason: str) -> str:
         return "Missing SEC/XBRL data"
     if reason.startswith("yfinance returned no data"):
         return "Other (errors / excluded)"
+    # ADDED 2026-08-29 (goal session: coverage-categorization sweep): growth_metrics's
+    # whole-row reason when all 7 growth periods failed (load_value_quality_growth_metrics.py,
+    # f"Insufficient historical data: {...fields...} could not be computed") - a full
+    # sentence, not a snake_case code, so `base` (split on the first ":") comes out as
+    # "Insufficient historical data" and never matches any set literal below. Live-confirmed
+    # this exact sentence (2,240 rows, always the same 7-field list since it only fires when
+    # every period fails) was the single largest contributor to "Other (errors / excluded)" -
+    # same "not enough history" fact as the insufficient_history/insufficient_* reasons in
+    # "Insufficient history" below, just phrased as a sentence instead of a code.
+    if reason.startswith("Insufficient historical data:"):
+        return "Insufficient history"
     # ADDED 2026-08-20: loaders/helpers/sec_base.py builds this reason dynamically as
     # f"no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity" (6 period x
     # statement_type combinations) for REITs/SPAC-shells/other entities SEC EDGAR
@@ -2392,6 +2446,16 @@ _SOURCE_LABELS: dict[str, str] = {
     "sec_audited": "SEC (audited financials)",
     "sec_audited_except_dual_class_shares_yfinance": "SEC (audited, dual-class shares via Yahoo Finance)",
     "sec_audited_except_forward_pe_yfinance": "SEC (audited, forward P/E via Yahoo Finance)",
+    # ADDED 2026-08-29 (goal session: coverage-categorization sweep continuation): load_sec_
+    # valuations.py's data_source for foreign private issuers, whose shares_outstanding comes
+    # from a live yfinance fetch instead of SEC XBRL (SEC's own domestic-only shares tag isn't
+    # usable for FPIs - see fpi_shares_excluded_domestic_only in
+    # [[scores_coverage_other_bucket_96pct_fixed_20260829]]). Was falling through to the
+    # generic snake_case-to-Title-Case fallback ("SEC Audited Except Fpi Shares Yahoo
+    # Finance" - "Fpi" not expanded since "fpi" wasn't in _SOURCE_ACRONYMS either) instead of
+    # a real label, unlike every sibling sec_audited_except_* entry above/below it (539 live
+    # rows).
+    "sec_audited_except_fpi_shares_yfinance": "SEC (audited, foreign-issuer shares via Yahoo Finance)",
     "sec_edgar_submissions": "SEC EDGAR submissions",
     "sec_edgar_filings": "SEC EDGAR filings",
     "sec_13f": "SEC Form 13F",
@@ -2430,6 +2494,11 @@ _SOURCE_ACRONYMS = {
     "naaim",
     "cusip",
     "ad",
+    # ADDED 2026-08-29 (goal session: coverage-categorization sweep continuation): future-
+    # proofs the generic fallback path for any not-yet-mapped raw source string containing
+    # "fpi" (foreign private issuer) - see the sec_audited_except_fpi_shares_yfinance
+    # _SOURCE_LABELS entry added the same session for the one already-known case.
+    "fpi",
 }
 
 

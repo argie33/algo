@@ -7,12 +7,13 @@ Computes composite stock scores by aggregating:
 - Value metrics (P/E, P/B, P/S ratios, dividend yield)
 - Momentum/Relative Strength (1m/3m/6m/12m returns)
 - Stability metrics (volatility, beta)
-- Size (market cap - re-promoted to a top-level pillar 2026-08-27, see BASE_PILLAR_WEIGHTS)
 
-Positioning (A/D rating, institutional ownership, short interest) is NOT part of the
-composite - retired as a top-level pillar 2026-08-27 (see BASE_PILLAR_WEIGHTS). Its inputs
-are still computed/stored by load_positioning_metrics.py and displayed via the scores API's
-positioning_inputs field, informationally only.
+Positioning (A/D rating, institutional ownership, short interest) and Size (market cap) are
+NOT part of the composite - both retired as top-level pillars (Positioning 2026-08-27, Size
+2026-08-28, see BASE_PILLAR_WEIGHTS). Positioning's inputs are still computed/stored by
+load_positioning_metrics.py and displayed via the scores API's positioning_inputs field,
+informationally only. Size's input (market_cap) remains stored on value_metrics and surfaced
+via the Value pillar's data - no synthesized size_score is computed anymore.
 
 Each factor is normalized to 0-100 scale and weighted.
 Final composite score is weighted average of all factors.
@@ -45,6 +46,7 @@ from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
 
 import psycopg2  # noqa: E402
+from psycopg2.extras import execute_values  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
@@ -128,14 +130,119 @@ logger = logging.getLogger(__name__)
 # load_positioning_metrics.py keeps computing/storing them unchanged, and the scores API
 # still surfaces them via positioning_inputs for display - only the synthesized 0-100
 # "positioning_score" composite, which no longer has a coherent empirical basis, is dropped.
+#
+# SIZE RETIRED AS A COMPOSITE PILLAR 2026-08-28 (user directive: "just get rid of size",
+# same evidence-driven retirement pattern as Positioning above, not a UX-only objection this
+# time). Direct trigger:
+# [[size_weight_collapse_reconfirmed_after_coverage_fixes_20260828]] - re-ran
+# algo/research/fama_macbeth_composite_weights.py fresh after completing the data-coverage
+# audit across all 6 pillars the user required before revisiting this (growth saturation bug,
+# growth_metrics 66-symbol fix, dividend_yield fallback, momentum_metrics reason-tracking).
+# Size's complete-case t-stat did NOT move (1.81 -> 1.80) - directly confirming the SIZE CUT
+# comment's own MNAR hypothesis above: size_proxy (price x shares) is essentially never
+# missing, quality/value/growth are frequently missing together for the same thin-SEC-filer
+# population, so size_proxy's strong imputed-regime coefficient (t=7.38-7.39) was substantially
+# proxying for "has real fundamentals data" rather than a clean size premium - fixing the
+# specific coverage bugs did not change this, because the missingness is correlated across
+# pillars for the same symbols, not caused by any single pillar's computation bug. Freed 0.08
+# split evenly between growth (0.20->0.24) and value (0.23->0.27), the two pillars ROBUST
+# (significant AND same-signed) in BOTH the imputed and complete-case regimes per that same
+# re-run - identical redistribution logic to the SIZE CUT pass above, just finishing what that
+# pass called "not eliminating Size outright" once the pending coverage-audit precondition
+# was met and didn't change the answer. _score_size/_size_curve_score/update_size_percentiles
+# removed entirely (composite is 5 pillars again: quality/growth/value/risk/momentum).
+# market_cap itself is NOT deleted - value_metrics.market_cap keeps being computed/stored
+# unchanged, just no longer synthesized into its own 0-100 size_score. Migration
+# drops size_score from stock_scores/stock_scores_history (see migrations/ dir for the
+# positioning-retirement migration this one is modeled on).
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
-    "growth": 0.20,
-    "value": 0.23,
+    "growth": 0.24,
+    "value": 0.27,
     "risk": 0.19,
     "momentum": 0.10,
-    "size": 0.08,
 }
+
+# GROWTH_SCORE_FIELDS: the multi-input equal-weighted blend _score_growth scores (RESTORED
+# 2026-08-28, user directive - see _score_growth's docstring for the full history/evidence
+# trail). Order matches GROWTH_SCHEMA in StockScoreAccordion.jsx - every field the frontend's
+# Growth tab displays is scored here, not just whichever one field last "won" an isolated
+# Fama-MacBeth test. Kept at module level (not a local inside _score_growth) so
+# tests/unit/test_scores_frontend_weight_badges_match_backend.py can import it directly instead
+# of re-deriving the field list via source-regex, same convention as BASE_PILLAR_WEIGHTS.
+#
+# ocf_growth_yoy/asset_growth_yoy REMOVED 2026-08-28 (user directive, /goal session: "remove
+# these two from growth score and from react"). Raw values remain computed/persisted in
+# growth_metrics (load_value_quality_growth_metrics.py) and available via the API for reference
+# - only the scoring input and the frontend GROWTH_SCHEMA row were removed, same
+# still-computed/no-longer-scored treatment this file already uses elsewhere (e.g. margin/ROE
+# trend fields, altman_z_score).
+#
+# book_value_growth REMOVED 2026-08-28 (user directive, /goal session: live-observed
+# persistent "No data" on StockDetail for the stock under review). Same still-computed/
+# no-longer-scored treatment as above - raw value remains in growth_metrics (migration 1242)
+# for reference, just no longer scored or shown in GROWTH_SCHEMA.
+#
+# operating_income_growth_yoy REMOVED 2026-08-28 (user directive, /goal session: "remove this
+# Operating Income Growth (YoY) ... from growth from the score and the react"). Same still-
+# computed/no-longer-scored treatment as above - raw value remains in growth_metrics
+# (load_value_quality_growth_metrics.py) for reference, just no longer scored or shown in
+# GROWTH_SCHEMA.
+GROWTH_SCORE_FIELDS: tuple[str, ...] = (
+    "revenue_growth_1y",
+    "eps_growth_1y",
+    "revenue_growth_3y",
+    "eps_growth_3y",
+    "revenue_growth_5y",
+    "eps_growth_5y",
+    "net_income_growth_yoy",
+    "sustainable_growth_rate",
+    "quarterly_growth_momentum",
+    "earnings_growth_4q_avg",
+    "fcf_growth_yoy",
+)
+
+# VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
+# value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
+# via algo/research/cross_pillar_interaction_sweep_20260828.py (complete-case regime, current
+# live formulas) - value_proxy x stability_proxy(risk) was the ONE pair to clear this repo's
+# era-robustness bar (t=-4.09 full / -2.17 / -3.61, both halves same sign; every other of the 15
+# pairs failed at least one half). Double-sort confirms cleanly: mean monthly fwd_ret spread
+# between cheap and expensive stocks is +1.64pp among the riskiest tercile (0.216% vs 1.851%) and
+# essentially FLAT (-0.02 to -0.05pp) among mid/safe terciles - Value's entire predictive edge in
+# this sample is concentrated in higher-risk names, consistent with the standard rational-pricing
+# explanation for the value premium (cheapness partly compensates for real distress risk).
+# Implemented as a linear transfer between Value's and Risk's own weights, conditioned on that
+# SYMBOL's own risk_score (0-100, higher=safer): more weight to Value when risk_score is low
+# (risky), less when high (safe), with Risk's weight moving the opposite direction by the same
+# amount - so quality+growth+value+risk+momentum always sums to the same 1.00 total
+# regardless of any symbol's risk_score, and a stock with risk_score=50 (the midpoint) gets
+# exactly the base 23%/19% split. Magnitude (VALUE_RISK_INTERACTION_MAX_SHIFT) is a deliberately
+# moderate half of Value's base weight, not fit to the exact regression coefficient - this repo's
+# standing practice (see e.g. Growth/Quality curve caps) is to implement a real, evidenced
+# direction conservatively rather than the literal point estimate, which risks overfitting a
+# single sweep. Only applied when risk_score is itself a real (non-marker) score - a symbol
+# missing Risk data gets the unmodified base weights, same "skip what's unavailable" principle as
+# everywhere else in this file.
+VALUE_RISK_INTERACTION_MAX_SHIFT = BASE_PILLAR_WEIGHTS["value"] * 0.5
+
+
+def _value_risk_adjusted_weights(risk_score: float | None) -> dict[str, float]:
+    """Return BASE_PILLAR_WEIGHTS with Value's and Risk's weights adjusted for the
+    value_proxy x stability_proxy interaction (see VALUE_RISK_INTERACTION_MAX_SHIFT docstring
+    above). Falls back to unmodified base weights when risk_score isn't a real float (Risk
+    pillar unavailable for this symbol) - no interaction without a real risk_score to condition on.
+    """
+    if risk_score is None:
+        return BASE_PILLAR_WEIGHTS
+    # risk_score in [0, 100], higher = safer. Center at 50 so a risk_score of exactly 50 (neither
+    # notably risky nor safe) reproduces the unmodified base weights exactly.
+    risk_centered = max(-1.0, min(1.0, (50.0 - risk_score) / 50.0))  # +1 at risk_score=0 (riskiest)
+    shift = VALUE_RISK_INTERACTION_MAX_SHIFT * risk_centered
+    weights = dict(BASE_PILLAR_WEIGHTS)
+    weights["value"] = BASE_PILLAR_WEIGHTS["value"] + shift
+    weights["risk"] = BASE_PILLAR_WEIGHTS["risk"] - shift
+    return weights
 
 
 class StockScoresLoader(OptimalLoader):
@@ -415,28 +522,31 @@ class StockScoresLoader(OptimalLoader):
             # out from under it, crashing every fetch_incremental() call before it could compute
             # these fields at all) - once the schema was fixed, live-verified these 5 populate
             # with real, differentiated values (not NULL), disproving the prior "structurally
-            # always NULL" premise. quarterly_growth_momentum is NOT included here - it's now
-            # computed (by load_enhanced_quality_growth_metrics.py, wired in as of 548dc99f5) and
-            # populated with real values, but was never wired into this score formula; excluding
-            # it is a deliberate scope decision now, not a data-availability limitation.
+            # always NULL" premise.
             # eps_growth_stability added 2026-08-25: computed by
             # load_value_quality_growth_metrics.py (stddev of trailing 4-quarter EPS growth
-            # rates) and stored at 67.8% coverage. CORRECTED 2026-08-26 (verified directly in
-            # _score_growth's actual weighted_sum below, not assumed from an older memory note):
-            # this field is fetched here but NOT currently in _score_growth's weighted formula -
-            # a 2026-08-26 Growth re-audit briefly gave it a 25% weight, but a same-day user-
-            # directed revert restored the pre-audit 14-input blend (see _score_growth's own
-            # "RESTORED 2026-08-26" docstring), which never included eps_growth_stability. It is
-            # NOT read for the since-removed `_enhance_quality_score` either - that reference was
-            # itself stale. Currently a genuinely dead fetch; flagged, not fixed, since removing
-            # a dead SELECT column is out of scope for whatever prompted this comment originally.
+            # rates) and stored at 67.8% coverage. Still a genuinely dead fetch - it's a
+            # dispersion metric (lower=more consistent), not a growth-rate on the same
+            # higher-is-better scale as GROWTH_SCORE_FIELDS, so it isn't a candidate for the
+            # 2026-08-28 multi-input restore below; fetched for reference/display only.
+            # quarterly_growth_momentum/earnings_growth_4q_avg added 2026-08-28 (goal: restore
+            # multi-input Growth blend - see GROWTH_SCORE_FIELDS/_score_growth): both computed
+            # by _compute_quarterly_metrics in load_value_quality_growth_metrics.py (the loader
+            # that runs in the local dev pipeline) and mirrored into BOTH growth_metrics and
+            # quality_metrics by that same loader's _insert_growth_metrics/_insert_quality_metrics
+            # (verified directly in that file's INSERT column lists, not assumed from an older
+            # docstring here) - previously fetched here (quarterly_growth_momentum only) and
+            # left completely unscored on a deliberate-but-since-overridden scope decision.
+            # Read off growth_metrics's own copy here rather than merging in quality_metrics's -
+            # both hold the same value, and every other GROWTH_SCORE_FIELDS candidate is already
+            # a growth_metrics column, so this keeps _score_growth reading one dict, one table.
             cur.execute(
                 "SELECT symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, "
                 "eps_growth_1y, eps_growth_3y, eps_growth_5y, book_value_growth, "
                 "net_income_growth_yoy, operating_income_growth_yoy, sustainable_growth_rate, "
                 "fcf_growth_yoy, ocf_growth_yoy, "
                 "gross_margin_trend, operating_margin_trend, net_margin_trend, roe_trend, asset_growth_yoy, "
-                "eps_growth_stability, "
+                "eps_growth_stability, quarterly_growth_momentum, earnings_growth_4q_avg, "
                 "data_unavailable FROM growth_metrics"
             )
             self._growth_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -452,9 +562,16 @@ class StockScoresLoader(OptimalLoader):
             # see _score_value's docstring "SIZE FACTOR" section): already stored on
             # value_metrics (no schema change needed, 77.4% coverage), just never read here
             # before - zero influence on value_score until now.
+            # pe_ratio_unavailable_reason/forward_pe_unavailable_reason added 2026-08-28
+            # (goal: "is this value score right per industry best practice" - the E/P vs P/E
+            # gap): live-confirmed 2283/2519 pe_ratio NULLs and 848/1560 forward_pe
+            # "no_analyst_estimates" rows are actually unprofitable/negative-forecast-earnings
+            # companies (real values, just not ratio-able), not missing data - see
+            # _score_value's PE/Forward P/E blocks for how these are now used.
             cur.execute(
                 "SELECT symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, "
                 "forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct, market_cap, net_payout_yield, "
+                "pe_ratio_unavailable_reason, forward_pe_unavailable_reason, "
                 "data_unavailable FROM value_metrics"
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -591,14 +708,14 @@ class StockScoresLoader(OptimalLoader):
                 }
             ]
 
-    def _compute_stock_score(self, symbol: str) -> dict[str, Any]:  # noqa: C901
+    def _compute_stock_score(self, symbol: str) -> dict[str, Any]:
         """Compute composite stock score from REAL metrics only (no fake defaults).
 
         CRITICAL: Fails fast if stock has insufficient real data (>=50% completeness required).
         Do not return None or fake markers - callers must know immediately if scoring failed.
 
         Returns dict with keys: symbol, composite_score, quality_score, growth_score,
-        value_score, momentum_score, risk_score, size_score, rs_percentile, data_completeness
+        value_score, momentum_score, risk_score, rs_percentile, data_completeness
 
         Raises:
             RuntimeError: If insufficient metrics available to compute valid score
@@ -619,8 +736,6 @@ class StockScoresLoader(OptimalLoader):
             value_score = self._score_value(value, symbol)
             risk_score = self._score_risk(risk_metrics, symbol)
             momentum_score = self._score_momentum(momentum, symbol)
-            # Size shares Value's upstream value_metrics row (market_cap) - no separate fetch.
-            size_score = self._score_size(value, symbol)
 
             # Extract numeric scores for computation, track unavailability reasons
             def is_real_score(result: float | dict[str, Any] | None) -> bool:
@@ -636,17 +751,16 @@ class StockScoresLoader(OptimalLoader):
             # Count data completeness: only float scores count as "real data"
             # Markers (dicts with data_unavailable=True) are excluded from count
             # Session 260: Momentum loader now fixed and included in completeness calculation
-            # 6 pillars are evaluated: quality, growth, value, risk, momentum, size (Positioning
-            # retired as a composite pillar 2026-08-27; Size re-promoted 2026-08-27 - see
-            # BASE_PILLAR_WEIGHTS)
-            # Minimum 70% completeness (4.2/6 metrics) required per GOVERNANCE.md
+            # 5 pillars are evaluated: quality, growth, value, risk, momentum (Positioning
+            # retired as a composite pillar 2026-08-27; Size retired as a composite pillar
+            # 2026-08-28 - see BASE_PILLAR_WEIGHTS)
+            # Minimum 70% completeness (3.5/5 metrics) required per GOVERNANCE.md
             all_scores = {
                 "quality": quality_score,
                 "growth": growth_score,
                 "value": value_score,
                 "risk": risk_score,
                 "momentum": momentum_score,
-                "size": size_score,
             }
             real_scores = [s for s in all_scores.values() if is_real_score(s)]
             data_count = len(real_scores)
@@ -654,24 +768,24 @@ class StockScoresLoader(OptimalLoader):
                 name: get_marker_reason(score) for name, score in all_scores.items() if not is_real_score(score)
             }
 
-            # CRITICAL FIX 2026-07-19: Log when scores computed with <6 metrics for visibility.
+            # CRITICAL FIX 2026-07-19: Log when scores computed with <5 metrics for visibility.
             # Traders need to see completeness % in dashboards to filter based on GOVERNANCE entry gates.
-            if data_count < 6 and data_count >= 5:
+            if data_count < 5 and data_count >= 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
                     f"Missing: {', '.join(missing)}. Trading filter gate: completeness >= 70% per GOVERNANCE."
                 )
-            elif data_count < 5:
+            elif data_count < 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
-                    f"Minimum 5 metrics ensures diversity against single-metric bias."
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
+                    f"Minimum 4 metrics ensures diversity against single-metric bias."
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
-            # Calculate completeness on 6 pillars (quality, growth, value, risk, momentum, size)
-            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
+            # Calculate completeness on 5 pillars (quality, growth, value, risk, momentum)
+            data_completeness = min(99.99, round((data_count / 5.0) * 100, 2))
 
             # CRITICAL FIX 2026-07-19: Compute score for all symbols with 5+/6 metrics, mark completeness for trading filters.
             # Previous: Rejected any score with <70% completeness, removing 1,635 valid candidates from universe.
@@ -691,10 +805,10 @@ class StockScoresLoader(OptimalLoader):
             if data_count < min_required_metrics:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero metrics available. "
-                    f"Got {data_count}/6 metrics. Cannot compute score with no metric data."
+                    f"Got {data_count}/5 metrics. Cannot compute score with no metric data."
                 )
 
-            # GOVERNANCE COMPLIANCE: Compute scores with 5+/6 metrics (sufficient diversity).
+            # GOVERNANCE COMPLIANCE: Compute scores with 4+/5 metrics (sufficient diversity).
             # No weight redistribution fallbacks (normalized weights stay fixed).
             # Trading gates will filter based on completeness % >= 70% per GOVERNANCE.md line 62.
             # Reason: Rejecting a few-metric-short score wastes valid signals; incomplete data is honest data marked visible.
@@ -705,7 +819,6 @@ class StockScoresLoader(OptimalLoader):
                 "value": is_real_score(value_score),
                 "risk": is_real_score(risk_score),
                 "momentum": is_real_score(momentum_score),
-                "size": is_real_score(size_score),
             }
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
@@ -720,27 +833,27 @@ class StockScoresLoader(OptimalLoader):
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.error(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero real metrics available. "
-                    f"Available {real_metric_count}/6. "
+                    f"Available {real_metric_count}/5. "
                     f"Missing: {', '.join(missing_metrics)}. "
                     f"Cannot compute even degraded score without any real data."
                 )
                 raise ValueError(
-                    f"{symbol}: zero metrics ({real_metric_count}/6, impossible to score). "
+                    f"{symbol}: zero metrics ({real_metric_count}/5, impossible to score). "
                     f"Cannot compute score with zero available metrics."
                 )
 
             if real_metric_count < 2:
                 # Degraded mode: score with 1 metric only (for SPACs/new listings)
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/6 metrics available. "
-                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 6 * 100)}%)"
+                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/5 metrics available. "
+                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 5 * 100)}%)"
                 )
 
             # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
             # Unavailable metrics contribute 0 to composite (their weight is skipped, lost).
             # This means composite score is 0-100 scale, where:
-            # - 100 = all 6 metrics perfect
-            # - 50 with all 6 = truly 50/100
+            # - 100 = all 5 metrics perfect
+            # - 50 with all 5 = truly 50/100
             # - 50 with only some pillars available = an incomplete picture (only the available
             #   pillars' weight contributed; missing pillars' weight is simply not counted)
             # Dashboard displays completeness % so traders see data quality.
@@ -813,19 +926,10 @@ class StockScoresLoader(OptimalLoader):
             # clear case for moving either direction beyond what their own within-pillar
             # audits already did).
             #
-            # SIZE FACTOR (market cap) - promoted to a 7th top-level pillar 2026-08-26 (Fama-
-            # French SMB/Banz 1981, tested at size_proxy t=7.63 multivariate - the strongest
-            # coefficient of any pillar in this file's re-audit), REMOVED entirely the same day
-            # (user directive - a UX/product objection to seeing it on the scores page, not a
-            # dispute of the evidence), then RE-PROMOTED 2026-08-27 (user directive, on new
-            # era-robust half-split evidence - t=4.62/5.68 across 2017-2021/2022-2026, its
-            # first genuine robustness test rather than repeated point-estimates on a growing
-            # sample). See _score_size's own docstring for the full history and evidence trail
-            # - not repeated here. BASE_PILLAR_WEIGHTS above is a 6-pillar dict again (size back
-            # at 20%, the other 5 scaled by x0.8 same as the original 2026-08-26 promotion).
-            base_weights = BASE_PILLAR_WEIGHTS
-            normalized_weights = base_weights
-
+            # SIZE FACTOR (market cap) - retired entirely 2026-08-28 (user directive: "just
+            # get rid of size"). See BASE_PILLAR_WEIGHTS' own comment for the full history and
+            # evidence trail - not repeated here. BASE_PILLAR_WEIGHTS above is a 5-pillar dict
+            # again (quality/growth/value/risk/momentum).
             # Clamp scores to 0-100, keep markers for missing data
             def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
                 if isinstance(score, float):
@@ -838,7 +942,12 @@ class StockScoresLoader(OptimalLoader):
             clamped_value = clamp_score(value_score)
             clamped_risk = clamp_score(risk_score)
             clamped_momentum = clamp_score(momentum_score)
-            clamped_size = clamp_score(size_score)
+
+            # VALUE x RISK INTERACTION: see VALUE_RISK_INTERACTION_MAX_SHIFT's module-level
+            # docstring for the evidence. Conditions Value's/Risk's own weights on THIS symbol's
+            # real risk_score (falls back to unmodified base weights if Risk is unavailable, same
+            # as clamped_risk being None below).
+            normalized_weights = _value_risk_adjusted_weights(clamped_risk if isinstance(clamped_risk, float) else None)
 
             # Composite: only use metrics that are actually available
             # Do NOT redistribute weights (GOVERNANCE rule: no weight redistribution)
@@ -850,7 +959,6 @@ class StockScoresLoader(OptimalLoader):
                 ("value", clamped_value),
                 ("risk", clamped_risk),
                 ("momentum", clamped_momentum),
-                ("size", clamped_size),
             ]:
                 # Only use base weight if metric is available
                 # CRITICAL: Require explicit availability flag for each metric (fail-fast if missing)
@@ -920,7 +1028,6 @@ class StockScoresLoader(OptimalLoader):
                 "value": extract_score_value(clamped_value),
                 "risk": extract_score_value(clamped_risk),
                 "momentum": extract_score_value(clamped_momentum),
-                "size": extract_score_value(clamped_size),
             }
 
             # Build data sources attribution for transparency
@@ -938,24 +1045,19 @@ class StockScoresLoader(OptimalLoader):
                 "momentum": ["technical_data_daily", "market_status_daily", "insider_transaction_velocity"]
                 if extract_score_value(clamped_momentum)
                 else [],
-                "size": ["sec_valuations"] if extract_score_value(clamped_size) else [],
             }
 
-            # POSITIONING FULLY RETIRED 2026-08-27 (supersedes the 2026-08-26 "minimal unblock"
-            # patch that used to live here - see BASE_PILLAR_WEIGHTS for the full evidence
-            # trail). positioning_score no longer appears anywhere in this function: not in
+            # POSITIONING FULLY RETIRED 2026-08-27, SIZE FULLY RETIRED 2026-08-28 (see
+            # BASE_PILLAR_WEIGHTS for the full evidence trail on both). Neither positioning_score
+            # nor size_score appears anywhere in this function anymore: not in
             # all_scores/score_availability/the composite loop/components/data_sources, and not
-            # in this result dict or snapshot_score_history()'s INSERT below. A/D rating,
-            # institutional ownership, and short interest are unaffected upstream -
+            # in this result dict or snapshot_score_history()'s INSERT below. Positioning's A/D
+            # rating, institutional ownership, and short interest are unaffected upstream -
             # load_positioning_metrics.py keeps computing/storing them for the scores API's
             # informational positioning_inputs display; this loader just no longer reads or
-            # scores them.
-            #
-            # SIZE RE-PROMOTED 2026-08-27 (see _score_size's docstring and BASE_PILLAR_WEIGHTS'
-            # comment for the full history/evidence trail) - size_score now appears alongside
-            # the other 5 pillars in all_scores/score_availability/the composite loop/
-            # components/data_sources, this result dict, and snapshot_score_history()'s INSERT
-            # below (same columns the original 2026-08-26 promotion added).
+            # scores them. Size's market_cap likewise keeps being computed/stored on
+            # value_metrics unaffected - this loader just no longer synthesizes a size_score
+            # from it.
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -964,7 +1066,6 @@ class StockScoresLoader(OptimalLoader):
                 "value_score": extract_score_value(clamped_value),
                 "momentum_score": extract_score_value(clamped_momentum),
                 "risk_score": extract_score_value(clamped_risk),
-                "size_score": extract_score_value(clamped_size),
                 # Placeholder only: update_rs_percentiles() (post_run(), batch rank pass)
                 # overwrites this with the real PERCENT_RANK() value for every symbol once the
                 # whole run succeeds. NULL here (not 0.0) so that if post_run() is skipped -
@@ -1013,7 +1114,7 @@ class StockScoresLoader(OptimalLoader):
     # - All _get_* functions validate row length before accessing indices (6 bound checks)
     #   * _get_quality_metrics: 24 columns (roe through revenue_growth_yoy, includes Phase 3 expansion fields)
     #   * _get_growth_metrics: 12 columns (revenue_growth_1y through ocf_growth_yoy, data_unavailable last)
-    #   * _get_value_metrics: 10 columns (pe_ratio through ev_revenue, data_unavailable last)
+    #   * _get_value_metrics: 15 columns (pe_ratio through forward_pe_unavailable_reason, data_unavailable last)
     #   * _get_stability_metrics: 8 columns (volatility_252d through max_drawdown_1y, data_unavailable last)
     #   * _get_momentum_metrics: 5 columns (current through price_12m_ago)
     # - All _score_* functions return marker dicts if input metrics are missing/incomplete
@@ -1126,14 +1227,14 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 19 columns (revenue_growth_1y/3y/5y, eps_growth_1y/
+        - Row length validation: Must have 21 columns (revenue_growth_1y/3y/5y, eps_growth_1y/
           3y/5y, book_value_growth, net_income_growth_yoy, operating_income_growth_yoy,
           sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy, gross/operating/net_margin_
-          trend, roe_trend, asset_growth_yoy, eps_growth_stability, data_unavailable) - this
-          docstring's "7 columns" claim was already stale before book_value_growth was added
-          (the SELECT/cache have carried 18 for a while); corrected 2026-08-27 while wiring the
-          19th.
-        - Schema mismatch (len(row) < 19) → raises ValueError immediately
+          trend, roe_trend, asset_growth_yoy, eps_growth_stability, quarterly_growth_momentum,
+          earnings_growth_4q_avg, data_unavailable) - corrected 2026-08-28 while wiring the
+          20th/21st (quarterly_growth_momentum/earnings_growth_4q_avg, see
+          GROWTH_SCORE_FIELDS/_score_growth).
+        - Schema mismatch (len(row) < 21) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_growth_metrics_found"
@@ -1142,19 +1243,19 @@ class StockScoresLoader(OptimalLoader):
         marked data_unavailable=True with NULL values. Previously returned NULLs instead of
         marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 7 columns. Missing columns causes immediate
-        fail-fast ValueError. Dependent on upstream annual_income_statement availability.
+        MINIMUM DATA REQUIREMENT: Row must have exactly 21 columns. Missing columns causes
+        immediate fail-fast ValueError. Dependent on upstream annual_income_statement availability.
         """
         row = self._growth_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 19 columns before accessing indices
-            # (18 + book_value_growth, added 2026-08-27 - see migration 1242)
-            if len(row) < 19:
+            # CRITICAL: Validate row has expected 21 columns before accessing indices
+            # (19 + quarterly_growth_momentum + earnings_growth_4q_avg, added 2026-08-28)
+            if len(row) < 21:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 19. "
+                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 21. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[18]
+            data_unavailable = row[20]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1184,6 +1285,10 @@ class StockScoresLoader(OptimalLoader):
                 "roe_trend": safe_float(row[15], f"{symbol}.roe_trend", allow_none=True),
                 "asset_growth_yoy": safe_float(row[16], f"{symbol}.asset_growth_yoy", allow_none=True),
                 "eps_growth_stability": safe_float(row[17], f"{symbol}.eps_growth_stability", allow_none=True),
+                "quarterly_growth_momentum": safe_float(
+                    row[18], f"{symbol}.quarterly_growth_momentum", allow_none=True
+                ),
+                "earnings_growth_4q_avg": safe_float(row[19], f"{symbol}.earnings_growth_4q_avg", allow_none=True),
             }
         # No row exists at all
         logger.warning(
@@ -1198,12 +1303,14 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 12 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
+        - Row length validation: Must have 15 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
           dividend_yield, fcf_yield, forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct,
-          market_cap, data_unavailable) - stale "7 columns" claim here predates several later
-          additions (forward_pe/ev_ebitda/ev_revenue, margin_of_safety_pct, market_cap); fixed
-          2026-08-25 rather than left drifted further.
-        - Schema mismatch (len(row) < 12) → raises ValueError immediately
+          market_cap, net_payout_yield, pe_ratio_unavailable_reason,
+          forward_pe_unavailable_reason, data_unavailable) - the two *_unavailable_reason
+          columns were added 2026-08-28 to distinguish "genuinely missing data" from
+          "unprofitable company / negative earnings forecast" for P/E and Forward P/E (see
+          _score_value's "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" docstring note).
+        - Schema mismatch (len(row) < 15) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_value_metrics_found"
@@ -1217,15 +1324,16 @@ class StockScoresLoader(OptimalLoader):
         """
         row = self._value_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 13 columns before accessing indices
+            # CRITICAL: Validate row has expected 15 columns before accessing indices
             # (11 + market_cap added 2026-08-25 to close the Size-factor gap, +1 more
-            # net_payout_yield added 2026-08-26 - see _score_value's docstring for both)
-            if len(row) < 13:
+            # net_payout_yield added 2026-08-26, +2 more pe_ratio_unavailable_reason/
+            # forward_pe_unavailable_reason added 2026-08-28 - see _score_value's docstring)
+            if len(row) < 15:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 13. "
+                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 15. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[12]
+            data_unavailable = row[14]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1247,6 +1355,8 @@ class StockScoresLoader(OptimalLoader):
                 "margin_of_safety_pct": safe_float(row[9], f"{symbol}.margin_of_safety_pct", allow_none=True),
                 "market_cap": safe_float(row[10], f"{symbol}.market_cap", allow_none=True),
                 "net_payout_yield": safe_float(row[11], f"{symbol}.net_payout_yield", allow_none=True),
+                "pe_ratio_unavailable_reason": row[12],
+                "forward_pe_unavailable_reason": row[13],
             }
         # No row exists at all
         logger.warning(
@@ -1338,10 +1448,40 @@ class StockScoresLoader(OptimalLoader):
         - momentum_1m, momentum_3m, momentum_6m, momentum_12m (already calculated)
         - data_unavailable flag (True if loader failed)
 
-        Also merges in the latest RSI(14)/MACD from technical_data_daily (via
+        Also merges in the latest RSI(14)/MACD/SMA-positioning from technical_data_daily (via
         self._technical_cache). These are a separate, independently-available source, so a
-        symbol missing from momentum_metrics can still contribute an RSI/MACD-only momentum
-        score, and vice versa.
+        symbol without usable price-return momentum can still contribute an RSI/MACD/SMA-only
+        momentum score, and vice versa.
+
+        UNIFIED 2026-08-28 (goal: momentum/risk factor logic review): this method used to treat
+        "no momentum_metrics row at all for this symbol" and "momentum_metrics row present but
+        data_unavailable=True" as two DIFFERENT cases with opposite outcomes - the former (added
+        Session 416, 2026-07-25, "CRITICAL: Remove 7 silent fallback violations") returned a hard
+        data_unavailable marker even when RSI/MACD were available, citing GOVERNANCE.md's
+        no-secondary-fallback rule ("RSI/MACD are oscillators... not price-return momentum...
+        substituting creates false signal diversification"); the latter (added 2026-07-20, never
+        revisited by the Session 416 audit) kept scoring RSI/MACD/SMA as a partial momentum score
+        in the exact same real-world situation. Two branches, same underlying condition (no
+        price-return momentum for this symbol), opposite treatment - purely because of which of
+        two upstream code paths happened to produce it, not because of any real signal-quality
+        difference. That reasoning doesn't actually hold under GOVERNANCE's own rule: RSI/MACD/
+        SMA are not substituting FOR price-return momentum here - they carry their own dedicated,
+        independent weight slots in _score_momentum (21%/16%/8% = 45% combined) that are already
+        scored alongside price-return momentum whenever ALL of it is present, so their
+        contribution when price-return momentum alone is missing isn't a proxy fallback, it's the
+        same self-normalizing "score what's independently available, drop what's missing" pattern
+        every other pillar in this file already uses (see _score_risk's own docstring for the
+        same principle stated explicitly). GOVERNANCE's actual no-fallback example ("short-term
+        momentum when long-term unavailable") describes swapping one proxy for a structurally
+        similar metric within the SAME family, which this isn't.
+        Verified empirically before unifying (live local DB, exclude_etfs=True universe matching
+        what this loader actually processes): 5,102/5,102 real-stock-universe symbols already
+        have a momentum_metrics row (0 hit the old "row absent" branch at all - it was live dead
+        code for the current universe); 30/5,102 are row-present-but-data_unavailable (the only
+        branch that ever actually fired). So today's live scores are unaffected by this change -
+        it closes a latent inconsistency (a landmine if the momentum_metrics/stock_scores
+        universes ever drift apart) rather than changing any symbol's current score. Both cases
+        now go through one shared path below.
 
         Returns dict with momentum values (which may be None for individual timeframes if
         upstream loader failed to calculate them).
@@ -1372,55 +1512,45 @@ class StockScoresLoader(OptimalLoader):
                 momentum_3m = safe_float(row[1], f"{symbol}.momentum_3m", allow_none=True)
                 momentum_6m = safe_float(row[2], f"{symbol}.momentum_6m", allow_none=True)
                 momentum_12m = safe_float(row[3], f"{symbol}.momentum_12m", allow_none=True)
-                data_unavailable = row[4]
+                price_momentum_unavailable = bool(row[4])
+                no_row_reason = "momentum_metrics_loader_failed"
+            else:
+                # No momentum_metrics row at all for this symbol. Treated identically to
+                # row-present-but-data_unavailable=True below (see UNIFIED 2026-08-28 docstring
+                # note above) - both mean "no price-return momentum for this symbol", and RSI/
+                # MACD/SMA are independently scored either way, not substituted in as a proxy.
+                momentum_1m = momentum_3m = momentum_6m = momentum_12m = None
+                price_momentum_unavailable = True
+                no_row_reason = "no_momentum_data_available"
 
-                # If momentum_metrics marked this symbol as unavailable, price-return momentum
-                # is unusable, but RSI/MACD came from an independent source and may still score.
-                if data_unavailable:
-                    if rsi_14 is None and macd is None:
-                        return {"data_unavailable": True, "reason": "momentum_metrics_loader_failed"}
-                    return {
-                        "momentum_1m": None,
-                        "momentum_3m": None,
-                        "momentum_6m": None,
-                        "momentum_12m": None,
-                        "rsi_14": rsi_14,
-                        "macd": macd,
-                        "price_vs_sma_50": price_vs_sma_50,
-                        "price_vs_sma_200": price_vs_sma_200,
-                    }
-
+            if price_momentum_unavailable:
+                if rsi_14 is None and macd is None and price_vs_sma_50 is None and price_vs_sma_200 is None:
+                    logger.warning(
+                        f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - "
+                        f"neither price-return momentum nor RSI/MACD/SMA positioning is usable."
+                    )
+                    return {"symbol": symbol, "data_unavailable": True, "reason": no_row_reason}
                 return {
-                    "momentum_1m": momentum_1m,
-                    "momentum_3m": momentum_3m,
-                    "momentum_6m": momentum_6m,
-                    "momentum_12m": momentum_12m,
+                    "momentum_1m": None,
+                    "momentum_3m": None,
+                    "momentum_6m": None,
+                    "momentum_12m": None,
                     "rsi_14": rsi_14,
                     "macd": macd,
                     "price_vs_sma_50": price_vs_sma_50,
                     "price_vs_sma_200": price_vs_sma_200,
                 }
 
-            # Symbol not in momentum_metrics cache; RSI/MACD alone cannot substitute for price momentum
-            # CRITICAL FIX (Session 416): Do not mix incompatible metric classes as substitutes.
-            # Per GOVERNANCE.md line 56-58: "No secondary fallbacks. Never use short-term momentum when long-term unavailable (different signal)"
-            # RSI/MACD are oscillators (technical indicators), not price-return momentum (fundamental signal).
-            # Substituting one for the other creates false signal diversification - both are now technical.
-            # This biases the composite score away from fundamental factors and toward technical analysis.
-            # Solution: Return data_unavailable marker instead of partial/mixed metrics.
-            if rsi_14 is not None or macd is not None:
-                logger.warning(
-                    f"[LOAD_STOCK_SCORES] {symbol}: momentum_metrics missing (price momentum unavailable). "
-                    f"RSI/MACD available but cannot substitute for price-return momentum (different signal class). "
-                    f"Marking momentum data unavailable to prevent metric class mixing."
-                )
-                return {"data_unavailable": True, "reason": "price_momentum_metrics_missing"}
-
-            logger.warning(
-                f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated"
-            )
-            logger.warning(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
+            return {
+                "momentum_1m": momentum_1m,
+                "momentum_3m": momentum_3m,
+                "momentum_6m": momentum_6m,
+                "momentum_12m": momentum_12m,
+                "rsi_14": rsi_14,
+                "macd": macd,
+                "price_vs_sma_50": price_vs_sma_50,
+                "price_vs_sma_200": price_vs_sma_200,
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
@@ -1509,116 +1639,71 @@ class StockScoresLoader(OptimalLoader):
         return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
 
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
-        """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
+        """Score growth metrics on 0-100 scale via a multi-input blend. Returns marker dict if
+        no real data.
 
-        REBUILT 2026-08-28 (user-directed: rejected the single-input "winner take all"
-        architecture this pillar had been rebuilt into 3 times in 2 days - an 11-input
-        legacy blend with no stated empirical basis -> book_value_growth alone (isolated-FM
-        "strongest single candidate") -> revenue_growth_1y alone (book_value_growth's own
-        72.9% coverage was silently starving ~27% of the universe of any Growth score) - on
-        the grounds that a methodology which crowns a different "one true metric" every
-        rerun isn't trustworthy, independent of whichever field's isolated t-stat happens to
-        win that day. This is a genuine methodology change, not just another candidate swap:
-        diversification is now treated as a first-class goal alongside raw predictive power.
+        RESTORED TO MULTI-INPUT 2026-08-28 (user directive, /goal session: "get the rest of the
+        growth inputs back in there the ones that are in the react" + explicit pushback that
+        revenue_growth_1y's sign-flip "shouldn't be inverted"). This pillar had been rebuilt 3
+        times in 48h into an increasingly narrow single-input, sign-flipped design (the original
+        11-input blend -> book_value_growth alone -> revenue_growth_1y alone, each justified by
+        isolated Fama-MacBeth "winner take all" testing - see git history for that evidence
+        trail, not repeated here since it no longer describes the live formula). A same-day
+        re-test of a genuine multi-input blend (algo/research/growth_multi_input_blend_test_20260828.py)
+        found neither the single-input nor an equal-weighted 5-candidate blend era-robust once
+        controlled for the other 5 pillars (see
+        growth_multi_input_blend_tested_not_robust_reit_signal_backwards_20260828 in memory) -
+        so this restore is NOT an evidence-driven reversal, it's an explicit user override of
+        that evidence, the same footing as this file's Dividend-Yield-over-Net-Payout-Yield
+        precedent (_score_value's docstring: "REVERTED back to Dividend Yield 2026-08-28 on
+        explicit user directive").
 
-        Empirically validated via algo/research/growth_multi_input_blend_test_20260828.py
-        (103-month Fama-MacBeth panel, 2018-01 to 2026-07, live local DB) before shipping -
-        the EQUAL-weighted 5-input blend below beat the single-input architecture on every
-        axis tested:
-        - COVERAGE: single-input revenue_growth_1y scored only 89.4% of the universe; this
-          5-input blend (renormalized over whatever's available - same "average whatever
-          you have" principle as Quality's own floor-renormalization, just without a floor
-          since even 1/5 inputs is a real signal here) scores 95.4% - 54.6% of symbol-months
-          have all 5 inputs, only 4.7% have none.
-        - PREDICTIVE POWER: the just-prior live single-input formula tested WEAK and
-          NON-SIGNIFICANT on this full-history panel (multivariate t=0.56 full-sample, never
-          clears |t|>2 in either half) - a different result than whichever narrower isolated
-          test justified it originally, a pattern that's now recurred across 3 separate
-          single-input picks in a row. The 5-input equal-weighted blend clears t=2.78
-          full-sample, t=3.72 in the 2nd half (era1 2018-2021 is weak for every variant
-          tested - a regime effect, not something specific to one variant).
-        - STABILITY: the single input's IC swings ~3x more between the two half-split eras
-          than the blend's (0.0238 vs 0.0077 absolute swing) - diversification measurably
-          reduces the era-to-era instability that motivated this rebuild in the first place.
-        - SECTOR FIX (bonus finding, not the original goal): the prior live single-input
-          score was actually ANTI-predictive within Real Estate specifically (IC=-0.0208,
-          t=-1.88); the blend fixes this to a neutral/slightly-positive IC. This came from
-          diversifying the INPUT set, not from sector-relative ranking - a separate
-          cross-sector review this same session found ranking Value's P/E/P/B/P/S within
-          sector actually performs WORSE than universe-wide, so that approach was
-          deliberately not applied here either.
+        Scores every growth field the frontend's Growth tab displays (GROWTH_SCHEMA in
+        StockScoreAccordion.jsx / GROWTH_SCORE_FIELDS above) - the single-input design was
+        starving large swings of the universe of any Growth score purely on whichever ONE field
+        happened to be missing for a given symbol (e.g. book_value_growth's 72.9% coverage
+        starving ~27% of the universe), and displaying a dozen "computed but unscored" fields
+        next to a "sole input" weight badge made the tab actively misleading (looked
+        multi-factor, wasn't). Equal-weighted average of whichever of the GROWTH_SCORE_FIELDS
+        candidates are non-null for this symbol (partial-availability renormalization - the
+        same "score what's available, drop what's missing, don't hand the drop-outs' weight to
+        a different candidate" pattern _score_quality/_score_stability already use elsewhere in
+        this file) - NOT sign-flipped, plain "higher growth = higher score" per the user's
+        explicit direction, overriding this file's own prior growth-reversal research (Cooper/
+        Gulen/Schill 2008) for every candidate below, not just revenue_growth_1y.
 
-        Also tested: WEIGHTED (each of the 5 weighted by its own isolated |t-stat|, computed
-        once before any FULL/ERA split) scores even higher (t=4.47) but was REJECTED for
-        this pillar - it leans hard on book_value_growth (|t|=5.32 vs 1.33-2.26 for the
-        other 4), which quietly recreates the exact single-dominant-factor fragility this
-        whole rebuild exists to move away from. EQUAL-weighted is the shipped choice.
+        quarterly_growth_momentum/earnings_growth_4q_avg are both computed by
+        _compute_quarterly_metrics in load_value_quality_growth_metrics.py (the loader that
+        runs in the local dev pipeline, not the AWS-only enhanced loader an earlier version of
+        this docstring wrongly attributed them to) and mirrored onto BOTH growth_metrics and
+        quality_metrics - _get_growth_metrics reads growth_metrics's own copy of each, so
+        `metrics` already carries both by the time this method sees it, same as every other
+        candidate.
 
-        5 components, chosen for genuinely distinct growth angles (not time-window
-        duplicates of the same signal - eps/revenue_growth_3y/5y stay unscored, still
-        computed/persisted, per this repo's own prior redundancy finding):
-        - revenue_growth_1y (top-line)
-        - eps_growth_1y (bottom-line, per-share)
-        - ocf_growth_yoy (cash-generation - OCF over net-income growth: less
-          accrual-sensitive, same preference this repo's accruals_ratio research already
-          established)
-        - book_value_growth (balance-sheet-driven, formula: bvps = stockholders_equity /
-          shares_outstanding, YoY % change - migration 1242)
-        - sustainable_growth_rate (ROE x retention ratio - quality-adjusted growth, a
-          genuinely distinct construction from the other 4's raw YoY growth rates)
-
-        All 5 use the SAME sign-flip convention this pillar has used since 2026-08-25
-        (Cooper/Gulen/Schill 2008 growth-reversal - lower growth rate scores higher),
-        empirically confirmed for all 5 (not just the previously-scored book_value_growth/
-        revenue_growth_1y) in growth_multi_input_blend_test_20260828.py. Caps (revenue_1y
-        30, eps_1y 50, ocf 40, book_value 30, sgr 25) are the same domain-judgment values
-        this repo has used for each field historically (see e3701f5b8 and prior), not
-        re-fit as part of this change.
-
-        Margin/ROE trend fields (operating_margin_trend/net_margin_trend/roe_trend) remain
-        in Quality (relocated there 2026-08-27, then removed from scoring entirely the same
-        day on their own isolated re-test - see load_value_quality_growth_metrics.py's
-        quality_components comment) - not a Growth input either way.
-
-        RECENCY-WEIGHTING TESTED AND REJECTED 2026-08-28 (goal: user question - "do industry
-        leaders overweight recent periods for growth scoring, should we?"). Fixed a real bug
-        first: earnings_growth_4q_avg/quarterly_growth_momentum (_compute_quarterly_metrics()
-        in load_value_quality_growth_metrics.py) were comparing each quarter to the
-        immediately PRIOR quarter, not the same quarter a year ago - seasonally contaminated,
-        unlike how industry leaders (IBD CAN SLIM "C", Zacks) do recency (same-quarter YoY).
-        Fixed to YoY, then re-tested via algo/research/growth_quarterly_yoy_recency_test_
-        20260828.py (134-month FM panel): even after the fix, quarterly_growth_momentum_yoy
-        stays a clean null (t=1.13/-0.07/1.69) and earnings_growth_4q_avg_yoy sign-FLIPS
-        across eras (t=-2.75 full, +1.22 ERA1, -4.59 ERA2) - not era-robust, same failure
-        mode that motivated this pillar's own equal-weight rebuild. An explicit
-        RECENCY-WEIGHTED blend (the 5 fields below + these 2 quarterly candidates at 2x
-        weight, updating 4x/year vs the annual fields' 1x/year) was tested head-to-head
-        against the live EQUAL blend on the identical panel: EQUAL wins decisively
-        (t=3.30/-0.32/4.81 vs recency-weighted's t=0.74/0.21/0.85) - overweighting the
-        higher-frequency quarterly signal actively hurts predictive power in this data, the
-        opposite of the intuition that "more recent = more informative." Neither quarterly
-        candidate was added to scoring; the 5-input equal-weighted blend below is unchanged.
-        Both quarterly fields stay informational-only in GROWTH_SCHEMA (StockScoreAccordion.jsx).
+        Margin/ROE trend fields (operating_margin_trend/net_margin_trend/roe_trend) remain in
+        Quality (relocated there 2026-08-27, then removed from scoring entirely the same day
+        on their own isolated re-test - see load_value_quality_growth_metrics.py's
+        quality_components comment) - not a Growth input either way, and NOT in
+        GROWTH_SCORE_FIELDS. eps_growth_stability is a dispersion metric (lower=more
+        consistent), not a higher-is-better growth rate on the same scale as the rest - also
+        excluded from the blend, fetched for reference/display only.
 
         RETURN TYPES (STRICT):
-        - >=1 of the 5 components available → returns float (0-100), simple average of
-          whichever component curve-scores are non-None (equal weight, per the EQUAL
-          variant's win above - NOT the WEIGHTED variant, which was rejected)
+        - >=1 of GROWTH_SCORE_FIELDS available → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
         - metrics is None or missing → returns marker dict (never None)
-        - all 5 components None → returns marker dict with reason="no_growth_inputs_available"
+        - every GROWTH_SCORE_FIELDS candidate is None → returns marker dict with
+          reason="no_growth_inputs_available"
 
         ERROR HANDLING:
-        - Type conversion errors → RuntimeError (via _safe_float)
-        - Negative growth rates → valid scores (negative growth maps to 0-40 scale per
-          component, then inverted per the sign-flip above, same as every prior version)
+        - Type conversion errors → RuntimeError (via _safe_float, in _get_growth_metrics)
+        - Negative growth rates → valid scores (negative growth maps to 0-40 scale, positive to
+          40-100, both continuous through 0 - see _score_single_growth)
 
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for growth metric computation.
 
-        MINIMUM DATA REQUIREMENT: at least 1 of revenue_growth_1y/eps_growth_1y/
-        ocf_growth_yoy/book_value_growth/sustainable_growth_rate must be non-NULL. Dependent
-        on upstream annual_income_statement/annual_balance_sheet availability (SEC filings).
+        MINIMUM DATA REQUIREMENT: at least one of GROWTH_SCORE_FIELDS must be non-NULL.
         """
         if not metrics or metrics.get("data_unavailable"):
             reason = metrics.get("reason") if metrics else "metrics_is_none"
@@ -1653,51 +1738,97 @@ class StockScoresLoader(OptimalLoader):
             # Positive growth: map [0, cap] → [40, 100]
             return min(100.0, 40 + (val / cap) * 60)
 
-        # All 5 SIGN-FLIPPED (see docstring): higher growth predicts LOWER forward returns
-        # (balance-sheet/earnings-expansion-predicts-reversal), so negate before scoring -
-        # same treatment book_value_growth/asset_growth_yoy already got, now confirmed to
-        # hold for all 5 candidates, not just those two. Renormalized over whichever
-        # components are non-None (equal weight) - a company missing 1-4 of the 5 still gets
-        # a real score from the rest, instead of the whole pillar going "No data" on one
-        # field's gap the way the single-input architecture did.
-        growth_inputs = (
-            ("revenue_growth_1y", 30),
-            ("eps_growth_1y", 50),
-            ("ocf_growth_yoy", 40),
-            ("book_value_growth", 30),
-            ("sustainable_growth_rate", 25),
-        )
-        component_scores = []
-        for field_name, cap in growth_inputs:
-            raw_val = metrics.get(field_name)
-            scored = _score_single_growth(-raw_val, cap) if raw_val is not None else None
-            if scored is not None:
-                component_scores.append(scored)
+        # Equal-weighted blend, NOT sign-flipped (see docstring - explicit user override of
+        # this file's own growth-reversal research). Cap of 30% reused across every candidate:
+        # all GROWTH_SCORE_FIELDS share the same _cagr()/YoY-%-derived percentage-point scale
+        # this file has always used that cap for (domain judgment, not separately fit per
+        # field - same caveat already applied elsewhere in this file, e.g. asset_turnover,
+        # gross_profitability, fcf_margin).
+        component_scores = [
+            score
+            for field in GROWTH_SCORE_FIELDS
+            if (score := _score_single_growth(metrics.get(field), 30)) is not None
+        ]
 
         if component_scores:
             growth_score = sum(component_scores) / len(component_scores)
             logger.debug(
                 f"[STOCK_SCORES] {symbol} growth_score computed: {growth_score:.2f} "
-                f"({len(component_scores)}/{len(growth_inputs)} components available)"
+                f"({len(component_scores)}/{len(GROWTH_SCORE_FIELDS)} inputs available)"
             )
             return growth_score
 
         logger.warning(
-            f"[STOCK_SCORES] {symbol} growth_score computation FAILED: all 5 growth inputs are None. "
-            f"ROOT CAUSE: growth_metrics row exists but revenue_growth_1y/eps_growth_1y/ocf_growth_yoy/"
-            f"book_value_growth/sustainable_growth_rate could not be computed."
+            f"[STOCK_SCORES] {symbol} growth_score computation FAILED: all {len(GROWTH_SCORE_FIELDS)} "
+            f"growth candidates are None. ROOT CAUSE: growth_metrics row exists but no growth "
+            f"field could be computed for this symbol."
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_inputs_available"}
 
-    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (12%) + P/B (30%) + P/S (27%) + PEG (7%) + FCF yield (9%)
-        + Net Payout (Shareholder) Yield (8%) + Margin of Safety / DCF discount to intrinsic
-        value (7%). Net Payout Yield REPLACED Dividend Yield 2026-08-26 (dividends + buybacks,
-        not dividends alone - see "FULL VALUE PILLAR RE-AUDIT" note below). Amihud illiquidity
-        REMOVED 2026-08-26 (added, then removed, same day - see that same note for why a
-        genuinely-validated signal was still taken out).
+        ARCHITECTURE CHANGE 2026-08-28 (goal: "what does IBD/the best and brightest do" - see
+        VALUE_RISK_INTERACTION_MAX_SHIFT's neighbor, update_value_multiples_percentiles()'s own
+        docstring, for the full evidence trail and citations). P/E, P/B, and P/S are no longer
+        genuinely scored by THIS function's fixed piecewise curves (`_pe_curve_score`/
+        `_pb_curve_score`/`_ps_curve_score`) - those now only provide a PROVISIONAL Pass-1
+        placeholder. The real score is a cross-sectional PERCENTILE RANK against the current
+        run's universe, computed in `update_value_multiples_percentiles()` (post_run(), a batch
+        pass that overwrites value_score/composite_score after every symbol has been scored) -
+        the same two-phase provisional-then-corrected pattern this file's `update_rs_percentiles()`
+        already established for Momentum's rs_percentile. Directly tested against 3 alternatives
+        (live fixed curve / cross-sectional z-score / 5yr-own-history time-series / a hybrid of
+        the last two, matching MSCI's own published methodology) via
+        algo/research/value_absolute_curve_vs_relative_ranking_20260828.py: cross-sectional
+        percentile beat the fixed curve in EVERY era and spec tested (full-sample multivariate
+        t=0.98 -> 2.02, ERA1 -0.75 -> 0.12, ERA2 2.48 -> 3.06; univariate 2.06 -> 3.29, 0.57 ->
+        1.38, 2.55 -> 3.48) - a consistent, monotonic improvement, not a single lucky window.
+        Time-series/hybrid did NOT help on this data (flat-to-negative, t=-0.44 to -0.10) despite
+        MSCI's own published finding that combining both helps in their broader dataset - not
+        implemented here since it doesn't hold on THIS repo's actual history. PEG/FCF/dividend/
+        margin_of_safety are UNCHANGED by this - only PE/PB/PS's construction method changed,
+        not their weights at the time (12/30/27) or the other 4 inputs. PB/PS's own weights
+        (now 33/29) and the PEG trim / Forward P/E addition below are LATER, separate changes -
+        see "PEG - TRIMMED FURTHER, NOT REMOVED" and "FCF YIELD - RESOLVED 2026-08-28" notes.
+
+        Uses weighted scoring (2026-08-28, FINAL/CURRENT): P/E (12%) + P/B (39%) + P/S (34%)
+        + Forward P/E (4%) + Dividend Yield (11%) - six inputs, no PEG, no Margin of Safety.
+        This is the end state of a same-day, goal-driven ("is this value score right per
+        industry best practice") full re-audit against how real systematic Value factors are
+        actually built (MSCI Enhanced Value/World Value, Russell, S&P Style, Barra,
+        Fama-French/AQR) - see the dated notes below for each removal's full reasoning:
+          - FCF yield REMOVED (robustly wrong-signed, independently re-verified three separate
+            times - see "FCF YIELD - RESOLVED 2026-08-28" below).
+          - PEG REMOVED ENTIRELY (later than FCF - a first pass only trimmed it 7%->3%, see
+            "PEG - TRIMMED FURTHER, NOT REMOVED"; REMOVED FOR GOOD this same day, later pass,
+            once the question shifted from "is it statistically weak" to "does a growth-blended
+            ratio belong in a Value factor at all" - no mainstream methodology includes one,
+            and this repo's own 15-pair pillar-interaction sweep found Growth x Value isn't
+            era-robust either (only Value x Risk is) - see "PEG - REMOVED FROM SCORING
+            2026-08-28" below. Its 3% went to Dividend Yield, 8%->11%.
+          - Margin of Safety / DCF discount to intrinsic value REMOVED (an intrinsic-value/
+            deep-value screening tool by industry convention, not a systematic Value-factor
+            input - see "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" below). Its 11%
+            went to P/B (+6) and P/S (+5).
+          - P/E and Forward P/E: NOT removed, but FIXED - both were silently excluding
+            unprofitable/negative-forecast companies (2283/2519 P/E NULLs, 848/1560 Forward P/E
+            "no estimates" rows are actually this case, not missing data) instead of correctly
+            scoring them low, the same selection-bias bug class this file's own PE-vs-PB/PS
+            ranking dispute was already caught on once before - see "UNPROFITABLE-COMPANY
+            FLOOR ADDED 2026-08-28" / "UNPROFITABLE-FORECAST FLOOR ADDED 2026-08-28" below.
+        Pre-2026-08-28 weights (12/30/27/PEG 7/FCF 9/Div 8/MoS 7), and every later-superseded
+        same-day state (PEG-fully-removed/ForwardPE-7%; 12/33/29/.../MoS 11%; 12/39/34/PEG
+        3/FwdPE 4/Div 8/MoS 11), are ALL STALE if seen anywhere - this docstring's weighted
+        scoring line above is the only current one.
+        Net Payout Yield (dividends + buybacks) REPLACED Dividend Yield 2026-08-26 on stronger
+        multivariate evidence (t=3.05 vs. dividend_yield's own t=1.55-2.28 - see "FULL VALUE
+        PILLAR RE-AUDIT" note below), then REVERTED back to Dividend Yield 2026-08-28 on
+        explicit user directive ("we want the dividend yield instead of that payout shit") -
+        an evidence-override-by-user-judgment case, same precedent as this file's Amihud/Size
+        history. net_payout_yield stays fetched/computed (value_metrics.net_payout_yield) but
+        is no longer scored here. Amihud illiquidity REMOVED 2026-08-26 (added, then removed,
+        same day - see that same note for why a genuinely-validated signal was still taken out).
         PE/PB/PS/FCF reweighted 2026-08-25 (see "PE-vs-PB/PS RANKING - REVERSED" note below)
         after a selection-bias fix reversed which of the three multiples is strongest.
         EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (see RESOLVED note below) - duplicated
@@ -1955,8 +2086,10 @@ class StockScoresLoader(OptimalLoader):
         being silent. Amihud illiquidity stays computed and stored
         (technical_data_daily.amihud_illiquidity,
         migration 1232) for any future explicit ask - just not consumed here, same
-        "computed-but-unscored" convention as ev_ebitda/ev_revenue/stock_forward_pe above. Not
-        re-homed to a new standalone "Liquidity" pillar either - that would repeat the exact
+        "computed-but-unscored" convention as ev_ebitda/ev_revenue above (forward_pe was in this
+        same unscored bucket when this note was written - see "FORWARD P/E - ADDED 2026-08-28"
+        docstring note above, it no longer is). Not re-homed to a new standalone "Liquidity"
+        pillar either - that would repeat the exact
         8th-dimension-on-the-scores-page pattern the user already rejected for Size the same
         day; left for explicit future direction if ever wanted.
 
@@ -2041,6 +2174,103 @@ class StockScoresLoader(OptimalLoader):
           docstring note above), not a clean single-input addition like net_payout_yield was;
           flagged as a follow-up to that same open item, not a separate one.
 
+        FCF YIELD - RESOLVED 2026-08-28 (goal: "make sure we're using the right inputs the right
+        way... aligned with industry standards and best practices"). The escalated-but-not-acted-
+        on flag above needed a second independent re-verification before this file's own
+        established bar (PE/PB/PS reversal, EV/EBITDA/EV/Revenue classification) would justify
+        acting - re-ran algo/research/fama_macbeth_value_factors.py fresh (same script, fresh
+        process, current live DB state) and independently split full/2014-2020/2020-2026:
+        multivariate t=-2.43 full, -0.91 first half, -2.17 second half - reproduces the prior
+        run's finding almost exactly (t=-2.24/-0.52/-2.10) and meets the bar: consistently
+        negative-signed in every window, no flips, weaker only in the same thin-early-sample
+        window every other reversal in this pillar is also weaker in. ACTED ON: fcf_yield REMOVED
+        from scoring (see its own removal comment above). ocf_yield NOT added as a replacement
+        despite the MISSING-INPUT CHECK note above finding it significant jointly (t=2.12-1.99) -
+        its OWN univariate signal is null (t=0.04-0.08), meaning that jointly-significant number
+        only holds while fcf_yield is ALSO in the regression (it's really measuring the CapEx-
+        intensity spread between the two, not ocf_yield's own standalone information) - scoring
+        ocf_yield alone once fcf_yield is gone would not reproduce that number and has no
+        standalone basis. The CapEx-intensity-spread signal itself is real but stays an open
+        research item, same conclusion the MISSING-INPUT CHECK note already reached, just no
+        longer tangled with a live mis-signed field. Freed 9%: PB +3 (33%), PS +2 (29%), Margin
+        of Safety +4 (11%) - the strongest existing multiples and the most distinct existing
+        diversifier, not split proportionally, same reasoning precedent as EV/EBITDA/EV/Revenue's
+        2026-08-25 freed weight.
+
+        PEG - TRIMMED FURTHER, NOT REMOVED, 2026-08-28 (same goal as above). First pass this same
+        day fully REMOVED PEG, reasoning it was both this pillar's weakest input by local
+        evidence (t=-0.73 multivariate, subsumed once the other 7 are present) and absent from
+        every mainstream institutional Value definition checked (Fama-French HML: book-to-market
+        only; MSCI Value: book/price + forward earnings/price + dividend yield; S&P Style:
+        book/earnings/sales-to-price; AQR value composites: book/earnings/forecast-earnings/
+        sales/cash-flow-to-price - none use a growth-adjusted P/E). CORRECTED same day on user
+        pushback ("why do you need to remove PEG? why not just leave it but keep it lower %") -
+        the pushback is right: PEG's evidence tier is "weak but real, not a duplicate" (real
+        univariate t=-2.02/-2.73 both sub-periods; r=0.13 with pe_ratio, r=-0.10 with
+        margin_of_safety_pct - nowhere near the r=0.93/1.00 duplicate bar that justified removing
+        ev_ebitda/ev_revenue, or the robustly-wrong-signed bar that justified removing
+        fcf_yield). That's the SAME tier dividend_yield and margin_of_safety already sit at in
+        this pillar (both kept at modest weight on similarly mixed evidence) - "absent from the
+        big index providers' descriptor lists" doesn't distinguish PEG from margin_of_safety
+        either (also absent from all four), which stayed on its own merits. Trimmed 7%->3%
+        instead - real signal, modest weight, consistent treatment. The freed 4% went to Forward
+        P/E below, not the full former 7% slot.
+
+        FORWARD P/E - ADDED 2026-08-28 (user directive: "we want to use the forward PE... get
+        this value score aligned with industry standards"). MSCI's Value index methodology uses
+        12-month forward Earnings/Price as one of its three core descriptors (alongside book/
+        price and dividend yield) - trailing P/E, which this pillar already scores, is exactly
+        the input mainstream indices swap OUT in favor of this one. Explicitly a judgment-call
+        inclusion, not an evidence-based one: analyst_earnings_estimates
+        (load_analyst_earnings_estimates.py) has only ~22 trading days of real history as of this
+        change (loader started ~2026-08-03) and there is no vendor source, free or otherwise,
+        that exposes historical consensus estimates - yfinance's Ticker.earnings_estimate is a
+        live-only snapshot, so this field is fundamentally unbacktestable today, not just
+        untested, and will only become testable by letting daily collection accumulate over
+        months. Same "user judgment overrides missing/thin local evidence" precedent already
+        established for dividend_yield-vs-net_payout_yield and Amihud/Size. Implementation: joins
+        the cross-sectional percentile-rank mechanism in `update_value_multiples_percentiles()`
+        alongside P/E/P/B/P/S (see that method's docstring) rather than staying on a
+        never-validated fixed curve - the same IBD/MSCI-style relative-ranking treatment already
+        proven to beat fixed curves for the other three multiples in this exact system
+        (algo/research/value_absolute_curve_vs_relative_ranking_20260828.py), extended here on
+        the same logic. `_pe_curve_score` reused as-is for the Pass-1 provisional value (same
+        conceptual ratio one year further out - no principled basis to invent different
+        thresholds for data that's never been tested). Weight 4% - deliberately kept SMALLER
+        than PEG's 3%-plus-real-evidence combination would otherwise suggest: forward P/E has
+        real institutional standing but zero local evidence (unbacktestable, not just untested),
+        so it shouldn't outweigh a field that has at least a real, if weak, statistical signal
+        just because it inherited part of that field's old slot.
+
+        EV/EBITDA AND EV/REVENUE - PILLAR CLASSIFICATION (not a re-add) 2026-08-28 (goal: "are
+        EV/EBITDA and EV/Revenue really metrics that measure value as a factor? or do they
+        really belong somewhere else?"). The RESOLVED note above answers "are they redundant
+        WITHIN Value" (yes, r=0.93/1.00 vs PE/PS) but not "do they conceptually belong to Value
+        at all" - built algo/research/ev_multiples_pillar_classification_20260828.py to answer
+        that directly. Both are structurally PE/PS with one adjustment: EV = market_cap +
+        total_debt - total_cash swapped in for market_cap (see load_sec_valuations.py's EV
+        calc), so the real question is whether that net-debt wedge secretly belongs to a
+        DIFFERENT existing pillar. Live cross-sectional check (n=2,203, sec_valuations join
+        stock_scores): net_debt_ratio = (total_debt-total_cash)/market_cap is ~uncorrelated with
+        risk_score (Spearman -0.001) - leverage risk is NOT hiding in Value under a value-multiple
+        label, this system's Risk/Safety pillar doesn't already carry it. It IS meaningfully
+        correlated with quality_score (-0.469), and the same holds isolating just the part of
+        EV/Revenue that isn't PS (residual vs quality_score -0.454) - consistent with
+        _score_quality already scoring debt_to_equity directly (see that method). CONCLUSION:
+        EV/EBITDA and EV/Revenue ARE Value multiples by every standard classification (Damodaran
+        relative valuation, AQR value composites - no literature treats them as Quality/Growth/
+        Momentum/Risk/Size measures); the "belongs somewhere else" hypothesis doesn't hold for
+        Risk specifically. But the incremental content they'd add beyond Value's own PE/PS is a
+        leverage signal that already has a home in Quality's debt_to_equity, not a novel signal -
+        so this REINFORCES the existing removed-from-scoring, still-computed-and-displayed
+        treatment (same conclusion, sturdier reason: not just "duplicate of PE/PS" but "whatever
+        isn't PE/PS is already Quality's job"), not a basis to move them to a different pillar or
+        re-add them to Value. Side note, not reconciled: cross-sectionally PE/EV_EBITDA Spearman
+        came back 0.69 here, well below the 0.93 the point-in-time panel found - PS/EV_Revenue
+        reproduced closely (0.92 vs 1.00) - flagged as a live-snapshot-vs-panel discrepancy worth
+        knowing about if EV/EBITDA's redundancy claim is ever leaned on again, not investigated
+        further since it doesn't change this note's conclusion either way.
+
         No other candidate beyond these two was identified as both literature-established and
         not already covered by an existing input (P/E~Basu 1977 earnings yield, P/B~Fama-French
         HML, P/S~classic value screens, PEG~Lynch, FCF yield~practitioner cash-flow value,
@@ -2078,126 +2308,169 @@ class StockScoresLoader(OptimalLoader):
         # entirely from this pillar, see "FULL VALUE PILLAR RE-AUDIT" docstring note below).
         # Reconfirmed weakest of the three multiples in the fresh 8-input joint regression
         # (t=-1.59 full sample, -0.27/-1.83 sub-period halves) - see that note.
+        # PE/PB/PS scoring: LIVE CROSS-SECTIONAL PERCENTILE, not a fixed absolute curve. This
+        # per-symbol pass only knows THIS symbol's raw ratio, not the current run's universe
+        # distribution, so it uses `_pe_curve_score`/`_pb_curve_score`/`_ps_curve_score` (the
+        # OLD fixed-threshold formulas, preserved verbatim - see their own docstrings) as a
+        # PROVISIONAL value here; `update_value_multiples_percentiles()` (post_run(), batch
+        # pass, see its own docstring for the full evidence trail and the correction formula)
+        # OVERWRITES value_score/composite_score with the true cross-sectional-percentile-based
+        # multiples score once every symbol in this run has been scored. This two-phase
+        # provisional-then-corrected pattern mirrors `update_rs_percentiles()`'s own established
+        # precedent in this same file (Momentum's rs_percentile) - the only difference is that
+        # here the correction feeds back into value_score/composite_score itself rather than a
+        # separate auxiliary column, since PE/PB/PS are scored inputs, not just a display field.
+        # UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28 (goal: "is this value score right per
+        # industry best practice" - the P/E-vs-E/P gap). Institutional Value factors use
+        # earnings YIELD (E/P), which stays well-defined and correctly negative for a
+        # loss-making company; this file uses P/E (ratio form), which is mathematically
+        # undefined for negative earnings and was previously just SKIPPED for those symbols -
+        # renormalizing them onto P/B/P/S/etc. as if this component simply didn't exist,
+        # rather than correctly scoring them low. Live-confirmed real scale: 2283 of 2519
+        # universe pe_ratio NULLs (value_value_quality_growth_metrics.py's own audit) are
+        # unprofitable companies with a real, present EPS <= 0, not missing data - the
+        # `pe_ratio_unavailable_reason == "unprofitable_stock"` case below. Fix doesn't require
+        # a new stored earnings-yield field: any negative earnings yield is, by definition,
+        # worse than any non-negative one, so flooring at 0 (this pillar's existing "worst in
+        # curve/percentile" value, same floor `_pb_curve_score`/`_ps_curve_score`/the
+        # percentile mechanism already use) is exactly what a true E/P ranking would produce,
+        # up to the ordering AMONG unprofitable names (which would need the actual EPS
+        # magnitude to differentiate - not attempted here, same "no full-precision fix without
+        # new data" tradeoff already accepted for the "computed-but-unscored" fields
+        # elsewhere). `update_value_multiples_percentiles()`'s post_run() pass applies the
+        # identical floor at the cross-sectional percentile stage - see that method's docstring.
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
-            pe = metrics["pe_ratio"]
-            if pe <= 10:
-                pe_score = 40 + pe * 2  # very cheap / possibly value trap
-            elif pe <= 20:
-                pe_score = 60 + (pe - 10) * 4  # good range
-            elif pe <= 35:
-                pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
-            else:
-                pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
+            pe_score = self._pe_curve_score(metrics["pe_ratio"])
             weighted_sum += pe_score * 0.12
+            total_weight += 0.12
+        elif metrics.get("pe_ratio_unavailable_reason") == "unprofitable_stock":
+            weighted_sum += 0.0 * 0.12
             total_weight += 0.12
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
-        # Weight 30% (2026-08-26: reverted to pre-Amihud 28%, then +2 from PEG's trim - see
-        # "FULL VALUE PILLAR RE-AUDIT" docstring note below). Reconfirmed STRONGEST of the
-        # three multiples in the fresh 8-input joint regression (t=-7.49 full sample, -3.05/
-        # -7.64 sub-period halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED" note
-        # established via a materially different spec - real corroboration.
+        # Weight 39% (2026-08-28: +6 from Margin of Safety's removal from scoring below - see
+        # "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring note - given to PB as
+        # the strongest, most robust multiple of the three, same reasoning precedent as
+        # EV/EBITDA/EV/Revenue's and FCF yield's freed weight both going preferentially to PB
+        # in the 2026-08-25/2026-08-28 notes). Reconfirmed STRONGEST of the three multiples in
+        # the fresh 8-input joint regression (t=-7.49 full sample, -3.05/-7.64 sub-period
+        # halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED" note established via
+        # a materially different spec - real corroboration.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
-            pb = metrics["pb_ratio"]
-            if pb <= 1.0:
-                pb_score = 100
-            elif pb <= 3.0:
-                pb_score = 100 - ((pb - 1.0) / 2.0) * 30  # 100?70 in [1,3]
-            elif pb <= 7.0:
-                pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
-            else:
-                pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.30
-            total_weight += 0.30
+            pb_score = self._pb_curve_score(metrics["pb_ratio"])
+            weighted_sum += pb_score * 0.39
+            total_weight += 0.39
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
-        # Weight 27% (2026-08-26: reverted to pre-Amihud 26%, then +1 from PEG's trim - see
-        # "FULL VALUE PILLAR RE-AUDIT" docstring note below). Reconfirmed second-strongest of
-        # the three multiples (t=-4.40 full sample, -2.68/-3.52 sub-period halves).
+        # Weight 34% (2026-08-28: +5 from Margin of Safety's removal from scoring below, same
+        # reasoning as PB's bump above - PS is the second-strongest, most robust multiple).
+        # Reconfirmed second-strongest of the three multiples (t=-4.40 full sample, -2.68/
+        # -3.52 sub-period halves).
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
-            ps = metrics["ps_ratio"]
-            if ps <= 2.0:
-                ps_score = 100
-            elif ps <= 6.0:
-                ps_score = 100 - ((ps - 2.0) / 4.0) * 30  # 100?70 in [2,6]
-            elif ps <= 15.0:
-                ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
-            else:
-                ps_score = max(0, 30 - (ps - 15.0) * 1.5)
-            weighted_sum += ps_score * 0.27
-            total_weight += 0.27
+            ps_score = self._ps_curve_score(metrics["ps_ratio"])
+            weighted_sum += ps_score * 0.34
+            total_weight += 0.34
 
-        # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
-        # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
-        # in. Distinct signal from P/E (which says nothing about growth) and P/S (no
-        # earnings context at all). Was fetched and displayed but carried zero weight -
-        # this loader's own PEG computation (load_sec_valuations.py) previously always
-        # computed a growth rate of exactly 0 (comparing TTM EPS to itself), which was
-        # fixed 2026-07-20 to use a genuine prior-fiscal-year EPS; backfills on next run.
-        # TRIMMED 10%->7% 2026-08-26 (see "FULL VALUE PILLAR RE-AUDIT" docstring note below):
-        # multivariate signal reproducibly weak (t=-0.73 full, -0.22/-0.82 both sub-period
-        # halves) despite a real univariate signal - subsumed once the other 7 Value inputs
-        # are already in the regression, not a duplicate but genuinely lower-marginal-value.
-        if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
-            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.07
-            total_weight += 0.07
+        # PEG - REMOVED FROM SCORING 2026-08-28 (goal: "is this value score right per industry
+        # best practice"). Prior passes (see "PEG - TRIMMED FURTHER, NOT REMOVED" docstring
+        # note below) kept PEG at a small weight because its evidence tier (real univariate
+        # signal, not a duplicate of anything else) didn't meet the wrong-signed/duplicate bar
+        # that justified removing fcf_yield/ev_ebitda/ev_revenue - that reasoning answered
+        # "does it work statistically", not "does it belong in a Value factor by definition".
+        # PEG is explicitly a growth-ADJUSTED earnings multiple (PE divided by a growth rate) -
+        # institutional multi-factor models deliberately keep Value and Growth as SEPARATE,
+        # independently-measurable factors (that's the entire point of a multi-factor model -
+        # a portfolio can tilt on one without the other), and no mainstream systematic Value
+        # methodology (MSCI Enhanced Value, MSCI World Value, Russell, S&P Style, Barra,
+        # Fama-French/AQR) includes a growth-blended ratio in its Value descriptor list - PEG is
+        # a Peter Lynch individual-stock heuristic, not a factor-model input. This is the same
+        # "does this belong here" axis margin_of_safety was removed on (see that docstring note
+        # above), not a new statistical finding. peg_ratio stays fully computed/stored/displayed
+        # (value_metrics.peg_ratio) - same "computed-but-unscored" convention as ev_ebitda/
+        # ev_revenue/fcf_yield/margin_of_safety. Freed 3% went to Dividend Yield (8%->11%, see
+        # its own weight comment below) - the only other input with the same "real but modest"
+        # evidentiary tier PEG was previously grouped with, so it absorbs PEG's freed slot
+        # rather than PE/PB/PS (whose relative weights reflect a separate, already-settled
+        # robustness ranking - see their own weight comments above).
 
-        # FCF yield: positive FCF yield is healthy; > 3% is good
-        # BUGFIX 2026-07-20: load_sec_valuations.py stores fcf_yield already as a percentage
-        # (e.g. 2.27 = 2.27%, confirmed live: AAPL=2.27, MSFT=4.69, T=25.83) - this used to
-        # re-multiply by 100 assuming a decimal fraction, so fcf_pct came out ~100x too high
-        # (e.g. 227 for AAPL) and saturated fcf_score to 100 for virtually every FCF-positive
-        # stock regardless of actual yield. This component was effectively a dead constant.
-        # TRIMMED 13%->9% 2026-08-26 (see "FULL VALUE PILLAR RE-AUDIT" docstring note, FCF
-        # YIELD section): the fresh multivariate test found this field's coefficient negative
-        # in ALL THREE windows tested (full/first-half/second-half) - a HIGHER fcf_yield
-        # predicting a LOWER forward return once the other inputs are controlled for, the
-        # opposite of how it's scored here - and got WORSE (more negative, t=-4.55) once
-        # ocf_yield was added as a diagnostic control, suggesting the CapEx-intensity
-        # difference between the two cash-flow measures carries real information this single
-        # field doesn't cleanly capture. Not yet independently re-verified to the bar this
-        # docstring's other reversals were held to, so not removed or sign-flipped outright -
-        # trimmed proportionately to reflect the escalated (not yet resolved) concern, freeing
-        # weight for net_payout_yield below, which has no such concern.
-        if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
-            fcf_pct = metrics["fcf_yield"]  # already a percentage
-            fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.09
-            total_weight += 0.09
+        # Forward P/E: MSCI's Value index methodology uses 12-month FORWARD Earnings/Price as
+        # one of its three core descriptors (alongside Book/Price and Dividend Yield) - trailing
+        # P/E above is the input every mainstream index actually swaps out in favor of this one.
+        # ADDED 2026-08-28 (user directive, "get forward PE in here the right way... aligned
+        # with industry standards") explicitly as a judgment call, not an evidence-based one:
+        # analyst_earnings_estimates (load_analyst_earnings_estimates.py) only has ~22 trading
+        # days of real history as of this change (started ~2026-08-03) and there is no vendor
+        # source anywhere that exposes historical consensus estimates - yfinance's
+        # Ticker.earnings_estimate is a live-only snapshot, so this field is fundamentally
+        # unbacktestable today, not just untested. This is the same "user judgment overrides
+        # backtest evidence" precedent already established for dividend_yield-vs-net_payout_yield
+        # and the Amihud/Size episodes - institutional pedigree substitutes for local evidence
+        # until enough daily snapshots accumulate (months, not something that can be sped up) to
+        # actually test it. Reuses `_pe_curve_score`'s existing curve (same conceptual ratio, one
+        # year further out - no principled reason to invent different thresholds sight-unseen)
+        # as the Pass-1 provisional value, AND joins the cross-sectional percentile-rank
+        # reconciliation in `update_value_multiples_percentiles()` alongside PE/PB/PS (see that
+        # method's own docstring) - the same IBD/MSCI-style relative-ranking treatment already
+        # validated for the other three multiples, extended here on the same logic rather than
+        # left on a never-validated fixed curve. Weight 4% - deliberately SMALLER than PEG's 3%
+        # is large relative to zero, but smaller than PEG's own 3%+institutional-pedigree combo
+        # would otherwise suggest: forward P/E has real institutional standing but literally
+        # zero local evidence (can't be tested at all yet), whereas PEG has at least a real, if
+        # weak, univariate signal - a zero-evidence field shouldn't outweigh a some-evidence one
+        # just because it took over what used to be a bigger slot.
+        # UNPROFITABLE-FORECAST FLOOR ADDED 2026-08-28 (same fix and reasoning as P/E's own
+        # "UNPROFITABLE-COMPANY FLOOR" note above). A real analyst forward-EPS estimate
+        # projecting a LOSS next year (common for biotech/EV/early-growth names - live-confirmed
+        # MRNA/RBLX/RIVN/RKLB/WBD/BNTX) leaves forward_pe undefined, and was previously just
+        # skipped here rather than scored low - 848 of 1,560 universe "no_analyst_estimates"
+        # forward_pe rows (54%) are actually this case
+        # (`forward_pe_unavailable_reason == "negative_forward_eps"`), not genuine no-coverage.
+        # Floored at 0, same as P/E's floor - any negative forward earnings yield is worse than
+        # any non-negative one by definition.
+        if metrics.get("forward_pe") is not None and metrics["forward_pe"] > 0:
+            fwd_pe_score = self._pe_curve_score(metrics["forward_pe"])
+            weighted_sum += fwd_pe_score * 0.04
+            total_weight += 0.04
+        elif metrics.get("forward_pe_unavailable_reason") == "negative_forward_eps":
+            weighted_sum += 0.0 * 0.04
+            total_weight += 0.04
 
-        # Net payout (shareholder) yield: (dividends + buybacks) / market cap - REPLACES
-        # dividend_yield 2026-08-26 (see "FULL VALUE PILLAR RE-AUDIT" docstring note). Real SEC
-        # XBRL buyback data (annual_cash_flow.common_stock_repurchased, migration 1206) had
-        # been loaded since 2026-07 but never consumed anywhere; sec_valuations.
-        # net_payout_yield / value_metrics.net_payout_yield (migration 1236) close that gap.
-        # "Total payout yield" (Boudoukh/Michaely/Richardson/Roberts 2007) / O'Shaughnessy's
-        # "Shareholder Yield" - most large-cap US firms have shifted a meaningful share of
-        # shareholder returns to buybacks since the 1980s, so dividend-only payout understates
-        # true capital return. Own validation (algo/research/fama_macbeth_value_factors.py):
-        # univariate t=3.27, multivariate t=3.05 (jointly with the other live Value inputs) -
-        # both stronger than dividend_yield's own t=1.55-2.28, and dividend_yield's own
-        # multivariate coefficient flips negative once net_payout_yield is present (its
-        # positive univariate signal was actually payout information net_payout_yield now
-        # captures better). Weighted 8%, matching the evidentiary tier Amihud held before its
-        # removal (t~2.4-3.0) - freed from FCF yield's trim above plus Dividend yield's old 4%.
-        # Same decimal-fraction convention as the old dividend_yield field (0.03 = 3%). Scoring
-        # curve widened vs. the old dividend-only curve (cap raised 6%->10%) since combined
-        # payout runs meaningfully higher than dividends alone for buyback-heavy names.
-        # dividend_yield ITSELF is unchanged and stays computed/stored/displayed - just no
-        # longer consumed here, same "computed but unscored" convention as ev_ebitda/
-        # ev_revenue/amihud_illiquidity.
-        if metrics.get("net_payout_yield") is not None and metrics["net_payout_yield"] > 0:
-            payout_pct = min(metrics["net_payout_yield"] * 100, 10)  # decimal -> percent, cap 10%
-            payout_score = min(100, payout_pct * 10)  # 10% net payout yield = 100 score
-            weighted_sum += payout_score * 0.08
-            total_weight += 0.08
+        # FCF yield REMOVED 2026-08-28 (see "FCF YIELD - RESOLVED 2026-08-28" docstring note
+        # below): independently re-verified and confirmed robustly wrong-signed - higher
+        # fcf_yield predicts LOWER forward returns in every window tested, gets worse under
+        # scrutiny, meets the same two-independent-verification bar this file's other reversals
+        # were held to. Its 9% weight went to PB (+3), PS (+2), and Margin of Safety (+4) above/
+        # below - the most robust existing multiple and the most distinct existing diversifier,
+        # not a clean ocf_yield replacement (see that docstring note for why ocf_yield itself
+        # isn't a safe drop-in). fcf_yield stays fetched/computed/displayed
+        # (sec_valuations.fcf_yield) - just no longer consumed here, same "computed but
+        # unscored" convention as ev_ebitda/ev_revenue elsewhere in this file.
 
-        # Forward P/E REMOVED 2026-08-25 (goal: full scoring-architecture audit):
-        # analyst_earnings_estimates has zero historical depth (every row falls within a
-        # single 3-week window as of this audit), so this input could never be validated, and
-        # it shares trailing P/E's weaker theoretical standing (see PE's block above) plus
-        # analyst-forecast optimism bias on top. Not worth any weight over PB/PS/PEG.
+        # Dividend yield: bonus signal for income/quality. REVERTED 2026-08-28 from
+        # net_payout_yield (dividends + buybacks) back to plain dividend_yield on explicit
+        # user directive - see this function's docstring for the full history (net_payout_yield
+        # had the stronger statistical case, t=3.05 multivariate vs. dividend_yield's t=1.55-
+        # 2.28, but the user overrode that on judgment; same precedent as Amihud/Size
+        # elsewhere in this file). sec_valuations.dividend_yield (migration 1146) is stored as
+        # a decimal fraction (0.03 = 3%).
+        # net_payout_yield ITSELF is unchanged and stays computed/stored - just no longer
+        # consumed here, same "computed but unscored" convention as ev_ebitda/ev_revenue.
+        # Weight 11% (2026-08-28, later same day: +3 from PEG's removal above - see "PEG -
+        # REMOVED FROM SCORING 2026-08-28" docstring note - the only other input at PEG's same
+        # "real but modest" evidentiary tier).
+        if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
+            div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
+            div_score = min(100, div * 16.7)
+            weighted_sum += div_score * 0.11
+            total_weight += 0.11
+
+        # Forward P/E REMOVED 2026-08-25, RE-ADDED 2026-08-28 - see "FORWARD P/E - ADDED
+        # 2026-08-28" docstring note above and the scored block earlier in this function for
+        # the current state. This note is kept only for history: analyst_earnings_estimates'
+        # thin history (~3 weeks as of the original 2026-08-25 removal, ~22 trading days as of
+        # the 2026-08-28 re-add) was and still is real - the re-add is a judgment call on
+        # institutional pedigree, not a claim the data-depth concern was resolved.
 
         # EV/EBITDA and EV/Revenue REMOVED 2026-08-25 (goal: re-audit ALL stock_scores inputs
         # for the "counted twice" bug class already fixed elsewhere - Momentum's ROC-vs-
@@ -2215,43 +2488,44 @@ class StockScoresLoader(OptimalLoader):
         # the full evidence and why PE/PS were deliberately left untouched (separate,
         # unreconciled dispute about their relative predictive ranking).
 
-        # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
-        # migration 1208) - positive means the stock trades below its DCF intrinsic value
-        # (undervalued), negative means above (overvalued). Unlike every other field in this
-        # function, a legitimate value can be negative (a real, meaningful "overvalued"
-        # signal) - gate on `is not None`, not `> 0`, or every overvalued stock would silently
-        # drop this input instead of being correctly scored low.
-        # Weight 7% (reverted 2026-08-26 to its pre-Amihud-rescale value). "Is this double-
-        # counting the multiples?" - answered, see "FULL VALUE PILLAR RE-AUDIT" docstring note,
-        # MARGIN OF SAFETY section: pooled correlation with every other Value input is low
-        # (max |r|=0.21), not a duplicate; predictive power is real but not fully robust across
-        # sub-periods (t=1.89 full, 2.12/0.30 halves) - kept at this modest weight rather than
-        # raised, same evidentiary tier as fcf_yield/dividend_yield.
-        if metrics.get("margin_of_safety_pct") is not None:
-            mos = metrics["margin_of_safety_pct"]
-            if mos >= 50:
-                mos_score = 100
-            elif mos >= 0:
-                mos_score = 60 + mos * 0.8  # 0% -> 60, 50% -> 100
-            elif mos >= -50:
-                mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
-            else:
-                mos_score = 0
-            weighted_sum += mos_score * 0.07
-            total_weight += 0.07
+        # MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28 (goal: "is margin of safety
+        # typically a metric used in the value factor score... or is it typically used some
+        # other way"). Prior passes (see "FULL VALUE PILLAR RE-AUDIT" docstring note above,
+        # MARGIN OF SAFETY section) had already established it's not a *duplicate* signal
+        # (pooled correlation with every other Value input is low, max |r|=0.21) - but that
+        # answered "does it double-count", not "does it belong in this formula at all".
+        # Re-examined against how the industry actually constructs a systematic Value factor:
+        # every standard methodology this repo can point to (MSCI Enhanced Value's P/B,
+        # P/Forward-E, EV/CFO; Russell's P/B-led Combined Style; S&P Style Indices' B/P, E/P,
+        # S/P; Fama-French HML/AQR's book-to-market-led composites) is built from accounting
+        # *yield* ratios computed directly from financials/market price - objective, requires
+        # no forecast, comparable across thousands of names in one cross-section. DCF-based
+        # "margin of safety" (Graham -> Klarman) is a different tool by design: it requires
+        # per-company growth and discount-rate assumptions, and in practice is used as a
+        # per-stock decision/screening rule by fundamental deep-value investors, not folded
+        # into a systematic cross-sectional ranking factor - exactly because uniform
+        # assumptions (this repo's own flat 9.5% discount rate, 15%/yr growth cap, both
+        # already flagged as known biases above) inject name-specific noise into what's
+        # supposed to be a comparable rank. This repo's own numbers are consistent with that:
+        # PE/PB/PS are robust in EVERY sub-period tested (see notes above); MoS's t-stat
+        # swings 0.30 -> 2.12 across the same two halves - real but not the kind of stable
+        # signal a systematic factor score should be built on. margin_of_safety_pct and
+        # intrinsic_value_per_share stay fully computed/stored (load_sec_valuations.py,
+        # migration 1208) and are the Deep Value page's (DeepValueStocks.jsx) primary metrics
+        # - their natural home, matching how the industry/practitioner literature actually
+        # uses margin of safety. Same "computed-but-unscored" convention as ev_ebitda/
+        # ev_revenue/amihud_illiquidity above; freed 11pts went to PB (+6) and PS (+5), see
+        # their weight comments above.
 
         # SIZE (market cap) REMOVED from here 2026-08-26 - promoted to its own top-level
-        # pillar. See StockScoresLoader._score_size for the extracted scoring logic and
-        # _compute_stock_score's "SIZE PROMOTED TO 7TH PILLAR" docstring section for the
-        # evidence trail. NOTE (verified live on this branch 2026-08-26, later same day): a
-        # memory record (size_pillar_removed_entirely_20260826) describes Size being removed
-        # entirely on user directive - that removal is NOT present on this branch as of this
-        # Value-pillar pass (_score_size and BASE_PILLAR_WEIGHTS["size"] both still live here,
-        # confirmed by direct inspection, not assumed from the memory) - it most likely landed
-        # on a different, not-yet-merged line of work. Flagging rather than silently trusting
-        # the memory, per this repo's own "verify in code, don't trust descriptions" rule; the
-        # Amihud reasoning below cites that memory's REASONING (evidence-override-by-user-
-        # judgment) as precedent, not as proof Size is currently gone from this codebase.
+        # pillar, then RETIRED ENTIRELY 2026-08-28 (see BASE_PILLAR_WEIGHTS' own comment for
+        # the full evidence trail - _score_size/_size_curve_score/update_size_percentiles no
+        # longer exist in this file as of that date). market_cap is not scored anywhere in the
+        # composite anymore, in Value or otherwise - it remains stored on value_metrics for
+        # reference/display only. (Historical note, no longer current: an earlier same-day
+        # memory record from 2026-08-26 described Size being removed entirely on user
+        # directive before this file's own Value-pillar pass had caught up to that; both are
+        # superseded by the 2026-08-28 retirement above.)
 
         # AMIHUD ILLIQUIDITY - added 2026-08-26, REMOVED the same day (full re-audit pass,
         # same day, later - see "FULL VALUE PILLAR RE-AUDIT" docstring note above, AMIHUD
@@ -2266,8 +2540,8 @@ class StockScoresLoader(OptimalLoader):
         # validation was pulled up. Field stays computed/stored
         # (technical_data_daily.amihud_illiquidity, migration 1232, still populated by
         # loaders/load_technical_indicators.py) for any future explicit ask; just not consumed
-        # by this function, same "computed-but-unscored" convention as ev_ebitda/ev_revenue/
-        # stock_forward_pe above.
+        # by this function, same "computed-but-unscored" convention as ev_ebitda/ev_revenue
+        # above (forward_pe is no longer in this bucket - see the Forward P/E block above).
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -2277,69 +2551,13 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_scores_computed"}
 
-    def _score_size(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
-        """Score the Size pillar (market cap, Fama-French SMB / Banz 1981) on a 0-100 scale.
-
-        Single-input pillar: reads `market_cap` off the same `value_metrics` row already
-        fetched for _score_value (no separate DB query - shares the upstream table).
-
-        RE-PROMOTED 2026-08-27 (user directive, reversing the 2026-08-26 removal). Full prior
-        history: added as a 20%-weighted Value sub-component 2026-08-25 (size_proxy t=-5.37);
-        promoted to a top-level 7th pillar 2026-08-26 (t=7.62/7.63 multivariate, 4 independent
-        confirmations - see commit 869e431c3); removed entirely the same day on a UX/product
-        objection ("not sure why market cap still lingering on our scores page we dont want it
-        included there" - not a dispute of the evidence). Re-promoted here after the evidence
-        cleared a bar it had never actually been tested against: an era-robust half-split (not
-        just repeated point-estimates on a growing sample) - first half (2017-2021) t=4.62,
-        second half (2022-2026) t=5.68, genuinely stable and strengthening in the more recent
-        era (see MEMORY.md
-        composite_weights_growth_proxy_stale_fixed_and_size_half_split_verified_20260827). User
-        explicitly directed re-promotion on this new evidence ("if size is a good one per what
-        we know then we should do what is best").
-
-        The "will this just produce an all-microcap portfolio" concern is structurally
-        addressed two ways, independent of the scoring curve: (1) the curve below is bucketed,
-        not a naive linear reward for going smaller - it flatlines at 100 for the entire
-        micro-cap bucket (<$300M) rather than continuing to reward ever-smaller names, and
-        floors at 10 for mega-caps rather than zeroing them out; (2) Size is only 1 of 6
-        pillars in the composite, so a low-quality/low-value micro-cap still gets dragged down
-        by the other 5; (3) `algo/risk/liquidity_checks.py`'s `LiquidityChecks.run_all()`
-        enforces a genuinely independent tradability floor at actual trade-entry time
-        (Phase 7) regardless of what any score says (min_adv_shares=50,000,
-        min_adv_dollars=$500,000/day, plus an IPO-age check - fails closed on missing data).
-
-        Scored on log10(market_cap) rather than raw dollars - market cap spans 5+ orders of
-        magnitude (micro-cap ~$50M to mega-cap >$3T), so a linear scale on the raw dollar
-        figure would compress the entire distinction between small and mid caps into a
-        rounding error next to the mega-cap tail. Bucket boundaries follow standard
-        market-cap tier conventions (micro <$300M, small $300M-2B, mid $2B-10B, large
-        $10B-200B, mega >$200B) rather than a data-fitted curve, since the FM test validates
-        the DIRECTION and rough magnitude of the size effect, not a precise functional form.
-
-        RETURN TYPES (STRICT, matches every other _score_* method):
-        - metrics available with a positive market_cap -> returns float (0-100)
-        - metrics marked data_unavailable=True, missing, or market_cap not usable -> marker dict
-        """
-        if not metrics or metrics.get("data_unavailable"):
-            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for size_score({symbol})")
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_data"}
-
-        if metrics.get("market_cap") is not None and metrics["market_cap"] > 0:
-            log_mc = math.log10(metrics["market_cap"])
-            if log_mc <= 8.48:  # <= ~$300M (micro-cap)
-                size_score = 100.0
-            elif log_mc <= 9.30:  # <= ~$2B (small-cap)
-                size_score = 100 - (log_mc - 8.48) / (9.30 - 8.48) * 20  # 100 -> 80
-            elif log_mc <= 10.0:  # <= ~$10B (mid-cap)
-                size_score = 80 - (log_mc - 9.30) / (10.0 - 9.30) * 20  # 80 -> 60
-            elif log_mc <= 11.3:  # <= ~$200B (large-cap)
-                size_score = 60 - (log_mc - 10.0) / (11.3 - 10.0) * 30  # 60 -> 30
-            else:  # mega-cap
-                size_score = max(10.0, 30 - (log_mc - 11.3) * 15)
-            return size_score
-
-        logger.debug(f"[STOCK_SCORES] No market_cap found to score size_score({symbol})")
-        return {"symbol": symbol, "data_unavailable": True, "reason": "no_market_cap_data"}
+    # _score_size/_size_curve_score REMOVED 2026-08-28 (Size retired as a composite pillar -
+    # see BASE_PILLAR_WEIGHTS for the full evidence trail: size_proxy's strong imputed-regime
+    # coefficient reconfirmed as substantially an MNAR data-coverage artifact even after fixing
+    # the specific coverage bugs the user required first; direct user directive "just get rid
+    # of size"). market_cap itself is NOT deleted - value_metrics.market_cap keeps being
+    # computed/stored unchanged by load_value_quality_growth_metrics.py, just no longer scored
+    # into its own 0-100 size_score here.
 
     # _score_positioning REMOVED 2026-08-27 (Positioning retired as a composite pillar - see
     # BASE_PILLAR_WEIGHTS for the full evidence trail: A/D rating null across every methodology
@@ -2359,10 +2577,10 @@ class StockScoresLoader(OptimalLoader):
         (volatility/beta/downside-vol/max-drawdown), name only - the underlying
         stability_metrics input table and _get_stability_metrics accessor are unchanged.
 
-        Uses weighted scoring: Volatility 60d (45%) + Beta (20%) + Downside Volatility 60d
-        (15%, purer "risk of loss" signal) + Max Drawdown 1y (20%). Lower volatility and beta
-        closer to 1.0 indicate stable, market-correlated stocks. Weights are relative, not
-        required to sum to 100 - each present
+        Uses weighted scoring: Volatility 60d (60%, absorbed downside_volatility_60d's freed
+        15% 2026-08-28 - see REMOVED note below) + Beta (20%) + Max Drawdown 1y (20%). Lower
+        volatility and beta closer to 1.0 indicate stable, market-correlated stocks. Weights
+        are relative, not required to sum to 100 - each present
         sub-component contributes weighted_sum/total_weight (self-normalizing over whatever
         metrics are actually available for a symbol, per GOVERNANCE's no-redistribution rule at
         the top-level factor split; this renormalization is local to stability's own sub-scores).
@@ -2494,47 +2712,56 @@ class StockScoresLoader(OptimalLoader):
         # reasonable middle-ground proxy, correlating 0.83-0.89 with both the 252d and 30d
         # windows it replaces) and redistributed the freed weight to beta and max_drawdown.
 
+        # downside_volatility_60d REMOVED ENTIRELY 2026-08-28 (goal: repo-wide factor-scores
+        # audit against industry best practice + real data). Two independent lines of evidence,
+        # not one: (1) this file's own 2026-08-25 Fama-MacBeth panel already found
+        # downside_volatility_60d "carries NO independent signal and comes out wrong-signed"
+        # (coef=+0.0013, t=+1.39) once volatility_60d is in the regression alongside it - a
+        # finding this pillar recorded but never fully acted on beyond moving 10pts of weight
+        # to volatility_60d, leaving downside_vol_60d at 15%. (2) Live-reverified same day: the
+        # two are correlated at Spearman r=0.93 (n=5,111, current stability_metrics) - ABOVE the
+        # ~0.85-0.93 band this file already treats as actionable redundancy elsewhere (EV/EBITDA
+        # r=0.93 removed outright as a PE duplicate; growth's fcf/ocf r=0.91 flagged the same
+        # way) and higher than either of the two pairs this pillar's Momentum sibling only
+        # AVERAGED rather than removed (RSI/MACD r=0.70, SMA-50/200 r=0.87) - unlike those two
+        # pairs, where FM evidence showed BOTH components carrying real (if correlated) signal,
+        # downside_vol_60d specifically carries NONE once vol_60d is controlled for, so full
+        # removal (the EV/EBITDA treatment) fits the evidence better than averaging (the
+        # RSI/MACD treatment) would. Freed 15% moves entirely to volatility_60d (45%->60%) -
+        # the single strongest, most robust signal in this file's entire multi-pillar FM audit
+        # (t=-6.07 multivariate), not split with beta/max_drawdown since neither showed any
+        # comparable evidence gap prompting a reweight.
+
         # 60-day volatility: single representative symmetric-volatility window.
         if metrics.get("volatility_60d") is not None:
-            vol60 = max(0, metrics["volatility_60d"])
-            if vol60 <= 0.15:
-                v60_score = 100
-            elif vol60 <= 0.30:
-                v60_score = 100 - ((vol60 - 0.15) / 0.15) * 50
-            elif vol60 <= 0.60:
-                v60_score = 50 - ((vol60 - 0.30) / 0.30) * 40
-            else:
-                v60_score = max(0, 10 - (vol60 - 0.60) * 20)
-            weighted_sum += v60_score * 0.45
-            total_weight += 0.45
+            v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
+            weighted_sum += v60_score * 0.60
+            total_weight += 0.60
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading.
         # Deliberately not the literature's low-beta preference (Frazzini & Pedersen 2014
         # "Betting Against Beta") - this codebase consistently targets market-correlated
         # moves for swing-trading fit rather than minimum systematic risk, a repeated,
         # deliberate design choice, not an oversight.
+        #
+        # FIX 2026-08-28/29 (goal: composite-score review): beta used to be clipped to a floor
+        # of 0 (`max(0, beta)`) before computing distance from 1.0 - the same defensive pattern
+        # this function correctly applies to volatility/downside-vol/drawdown just above/below
+        # (those are magnitudes, negative values are impossible data errors) but copied onto
+        # beta without re-checking the semantics: beta is a signed regression coefficient, not a
+        # magnitude, and real (if uncommon) inverse-correlated names legitimately have negative
+        # beta. Clipping collapsed every negative beta to the SAME score regardless of how
+        # negative - live-DB-confirmed: 548/5,009 symbols (~11% of the universe) have beta < 0,
+        # ranging from -0.05 to -9.97, and ALL 548 scored an identical beta_score=50 before this
+        # fix. Removing the clip lets |beta-1.0| grow past 2.0 for these names, which the
+        # existing `min(diff, 2.0)` saturation already correctly floors to beta_score=0 - no
+        # separate guard needed.
         if metrics.get("beta") is not None:
-            beta = max(0, metrics["beta"])
+            beta = metrics["beta"]
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))
             weighted_sum += beta_score * 0.20
             total_weight += 0.20
-
-        # Downside deviation (60d): single representative window of the "only penalizes
-        # downside price moves" flavor - a purer "risk of loss" signal than symmetric
-        # volatility, which penalizes upside moves equally.
-        if metrics.get("downside_volatility_60d") is not None:
-            dvol60 = max(0, metrics["downside_volatility_60d"])
-            if dvol60 <= 0.15:
-                dvol60_score = 100
-            elif dvol60 <= 0.30:
-                dvol60_score = 100 - ((dvol60 - 0.15) / 0.15) * 50
-            elif dvol60 <= 0.60:
-                dvol60_score = 50 - ((dvol60 - 0.30) / 0.30) * 40
-            else:
-                dvol60_score = max(0, 10 - (dvol60 - 0.60) * 20)
-            weighted_sum += dvol60_score * 0.15
-            total_weight += 0.15
 
         # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
         # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
@@ -2542,14 +2769,7 @@ class StockScoresLoader(OptimalLoader):
         # drawdown). <=10% drawdown is mild, >50% is severe.
         if metrics.get("max_drawdown_1y") is not None:
             drawdown_pct = abs(min(0.0, metrics["max_drawdown_1y"]))
-            if drawdown_pct <= 10:
-                dd_score = 100 - drawdown_pct * 2  # 100->80
-            elif drawdown_pct <= 25:
-                dd_score = 80 - (drawdown_pct - 10) * 2  # 80->50
-            elif drawdown_pct <= 50:
-                dd_score = 50 - (drawdown_pct - 25) * 1.2  # 50->20
-            else:
-                dd_score = max(0, 20 - (drawdown_pct - 50) * 0.4)
+            dd_score = self._max_drawdown_curve_score(drawdown_pct)
             weighted_sum += dd_score * 0.20
             total_weight += 0.20
 
@@ -2561,11 +2781,30 @@ class StockScoresLoader(OptimalLoader):
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month momentum (35%) + RSI(14)
-        (21%) + MACD sign (16%) + SMA positioning (8%). Normalizes by total weight of
+        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month momentum (35%) + RSI(14)/
+        MACD-sign technical-trend confirmation (37% combined, averaged - see CONSOLIDATED
+        2026-08-28 note below) + SMA positioning (8%). Normalizes by total weight of
         available components so partial data doesn't deflate the score. Raw momentum_6m/
         momentum_12m REPLACED 2026-08-25 by a derived 12-1 construction - see RESOLVED note
         below.
+
+        CONSOLIDATED 2026-08-28 (goal: momentum/risk factor-interaction review, closing a gap
+        this file's own 2026-08-25 audit flagged and never finished - see "OPEN QUESTION
+        flagged 2026-08-25" below: that FM panel found rsi_14/macd_sign correlated r=0.70, and
+        their multivariate coefficients literally flip sign against each other under joint
+        estimation (macd_sign t=-0.37 alone vs t=+2.95 jointly) - the textbook symptom of two
+        inputs carrying substantially the same information, not two independent ones. That
+        audit's own conclusion was "the right fix here is a consolidation pass ... before any
+        reweighting", but only the momentum-window half of that pass (6m/12m -> 12-1, see
+        RESOLVED note below) was ever actually done - RSI/MACD were left as two independently-
+        weighted 21%/16% terms despite being named in the same finding. Live-reverified before
+        acting, not trusted from a 3-day-old docstring number alone: current DB, rsi_14 vs
+        (macd>0) Pearson r=0.58 (n=10,796, latest technical_data_daily row per symbol) - same
+        conclusion, real and current, not a stale claim. Fixed the same way this pillar's own
+        price_vs_sma_50/200 (r=0.87, same OPEN QUESTION) and Risk's six volatility windows
+        (r=0.52-0.92) were already fixed: average the two 0-100 sub-scores into one slot
+        instead of weighting each independently. Combined weight unchanged (21%+16%=37%) - a
+        redundancy fix, not a new claim about RSI vs. MACD's relative signal strength.
 
         REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): momentum_1m and the
         ROC composite both removed. ROC composite was pure redundancy - roc_20d/60d/120d/252d
@@ -2722,13 +2961,15 @@ class StockScoresLoader(OptimalLoader):
                         weighted_sum += mom_12_1_score * 0.35
                         total_weight += 0.35
 
+        # RSI(14) + MACD sign, CONSOLIDATED (see CONSOLIDATED 2026-08-28 docstring note):
+        # averaged into one "technical trend confirmation" slot, combined weight 0.37
+        # (21%+16%, unchanged), same self-normalizing "average what's available, don't
+        # double-weight correlated inputs" treatment this pillar already gives SMA-50/200
+        # below and Risk gives its volatility windows.
+        #
         # RSI(14): momentum-following curve (not mean-reversion) - higher RSI is more
         # bullish, with only a slight pullback at extreme overbought (>85) for reversal risk.
-        if metrics.get("rsi_14") is not None:
-            rsi_score = self._rsi_to_score(metrics["rsi_14"])
-            weighted_sum += rsi_score * 0.21
-            total_weight += 0.21
-
+        #
         # MACD: sign only, not magnitude. MACD's raw value scales with the stock's price
         # level (a MACD of 2 means something different for a $10 stock vs a $500 stock), so
         # magnitude isn't comparable across symbols - use it purely as a bull/bear trend
@@ -2746,11 +2987,15 @@ class StockScoresLoader(OptimalLoader):
         # stock_scores run - not a rare backward-compat path, pure log noise masking real
         # warnings, with zero effect on the actual score (this WAS already the only value
         # ever used). Reverted to using "macd" directly.
+        tech_trend_scores = []
+        if metrics.get("rsi_14") is not None:
+            tech_trend_scores.append(self._rsi_to_score(metrics["rsi_14"]))
         macd = metrics.get("macd")
         if macd is not None:
-            macd_score = 70.0 if macd > 0 else 30.0 if macd < 0 else 50.0
-            weighted_sum += macd_score * 0.16
-            total_weight += 0.16
+            tech_trend_scores.append(70.0 if macd > 0 else 30.0 if macd < 0 else 50.0)
+        if tech_trend_scores:
+            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.37
+            total_weight += 0.37
 
         # ROC (Rate of Change) composite REMOVED 2026-08-25 (goal: full scoring-architecture
         # audit): roc_20d/60d/120d/252d are literally the same computation as
@@ -2764,8 +3009,15 @@ class StockScoresLoader(OptimalLoader):
         for sma_field in ["price_vs_sma_50", "price_vs_sma_200"]:
             sma_val = metrics.get(sma_field)
             if sma_val is not None:
-                # Price above SMA = bullish: +5% above = 75, +10% above = 100, -5% below = 25
-                sma_score = 50 + (sma_val / 0.2) * 50  # ±10% range maps to 0-100
+                # Price above SMA = bullish: +10% above = 75, +20% above = 100, -10% below = 25.
+                # FIXED 2026-08-28 (goal: momentum/risk factor review): comment previously
+                # claimed +5%=75/+10%=100/-10% range (a ±10% saturation), but the formula
+                # itself has always used /0.2, i.e. ±20% saturation - the comment and the code
+                # disagreed with each other. Corrected the comment to describe what the code
+                # actually does; no evidence on file favors either threshold over the other, so
+                # the formula itself is left unchanged (this repo's standing convention is not
+                # to change a scoring curve without empirical backing).
+                sma_score = 50 + (sma_val / 0.2) * 50  # ±20% range maps to 0-100
                 sma_scores.append(min(100, max(0, sma_score)))
         if sma_scores:
             weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.08
@@ -2824,17 +3076,71 @@ class StockScoresLoader(OptimalLoader):
         return max(60.0, 100 - (rsi - 85) * 3)
 
     @staticmethod
-    def _peg_to_score(peg: float) -> float:
-        """Map PEG ratio to a 0-100 score. <=1 is the classic "undervalued relative to
-        growth" zone (Peter Lynch heuristic); >4 signals growth already richly priced in.
-        """
-        if peg <= 1.0:
+    def _pe_curve_score(pe: float) -> float:
+        """PROVISIONAL fixed-threshold P/E score (see _score_value's PE block comment) - used
+        as this symbol's Pass-1 placeholder AND, unchanged, to reconstruct Pass 1's original
+        contribution in update_value_multiples_percentiles()'s reconciliation math. Do not
+        change this formula without also checking that reconciliation still holds (it diffs
+        against whatever this function returns)."""
+        if pe <= 10:
+            return 40 + pe * 2  # very cheap / possibly value trap
+        if pe <= 20:
+            return 60 + (pe - 10) * 4  # good range
+        if pe <= 35:
+            return 100 - (pe - 20) * 2  # growth premium zone -> 70 at pe=35
+        return max(0.0, 70 - (pe - 35) * 1.4)  # expensive -> 0 at pe~85
+
+    @staticmethod
+    def _pb_curve_score(pb: float) -> float:
+        """PROVISIONAL fixed-threshold P/B score - see `_pe_curve_score`'s docstring for why
+        this must stay unchanged independent of the live scoring path."""
+        if pb <= 1.0:
             return 100.0
-        if peg <= 2.0:
-            return 100 - (peg - 1.0) * 40  # 100->60 in [1,2]
-        if peg <= 4.0:
-            return 60 - (peg - 2.0) * 20  # 60->20 in [2,4]
-        return max(0.0, 20 - (peg - 4.0) * 5)
+        if pb <= 3.0:
+            return 100 - ((pb - 1.0) / 2.0) * 30  # 100->70 in [1,3]
+        if pb <= 7.0:
+            return 70 - ((pb - 3.0) / 4.0) * 40  # 70->30 in [3,7]
+        return max(0.0, 30 - (pb - 7.0) * 3)
+
+    @staticmethod
+    def _ps_curve_score(ps: float) -> float:
+        """PROVISIONAL fixed-threshold P/S score - see `_pe_curve_score`'s docstring for why
+        this must stay unchanged independent of the live scoring path."""
+        if ps <= 2.0:
+            return 100.0
+        if ps <= 6.0:
+            return 100 - ((ps - 2.0) / 4.0) * 30  # 100->70 in [2,6]
+        if ps <= 15.0:
+            return 70 - ((ps - 6.0) / 9.0) * 40  # 70->30 in [6,15]
+        return max(0.0, 30 - (ps - 15.0) * 1.5)
+
+    @staticmethod
+    def _vol_curve_score(vol: float) -> float:
+        """Fixed-threshold volatility score for volatility_60d (downside_volatility_60d REMOVED
+        from scoring 2026-08-28 - see _score_risk's docstring - this curve no longer scores it,
+        though the same threshold family as `_pe_curve_score`/`_pb_curve_score`/
+        `_ps_curve_score` still applies). `vol` must already be non-negative (callers clamp via
+        max(0, ...))."""
+        if vol <= 0.15:
+            return 100.0
+        if vol <= 0.30:
+            return 100 - ((vol - 0.15) / 0.15) * 50
+        if vol <= 0.60:
+            return 50 - ((vol - 0.30) / 0.30) * 40
+        return max(0.0, 10 - (vol - 0.60) * 20)
+
+    @staticmethod
+    def _max_drawdown_curve_score(drawdown_pct: float) -> float:
+        """Fixed-threshold max-drawdown score. `drawdown_pct` is a non-negative magnitude
+        (e.g. 34.63 for a 34.63% peak-to-trough decline) - callers pass
+        `abs(min(0.0, max_drawdown_1y))`."""
+        if drawdown_pct <= 10:
+            return 100 - drawdown_pct * 2  # 100->80
+        if drawdown_pct <= 25:
+            return 80 - (drawdown_pct - 10) * 2  # 80->50
+        if drawdown_pct <= 50:
+            return 50 - (drawdown_pct - 25) * 1.2  # 50->20
+        return max(0.0, 20 - (drawdown_pct - 50) * 0.4)
 
     def _value_metrics_coverage_excluding_fpi(self, cur: Any) -> tuple[int, int] | None:
         """Return (covered, total) for value_metrics over the active, non-FPI universe.
@@ -2984,6 +3290,12 @@ class StockScoresLoader(OptimalLoader):
         # tables), THEN run the audit - a coverage problem should still fail the run for
         # visibility, but must not collaterally block an unrelated, Phase-7-critical step.
         self.update_rs_percentiles()
+        # Must run before snapshot_score_history() so the history snapshot captures the
+        # CORRECTED value_score/composite_score, not Pass 1's provisional fixed-curve values -
+        # see update_value_multiples_percentiles()'s own docstring for the full evidence trail.
+        self.update_value_multiples_percentiles()
+        # update_size_percentiles() REMOVED 2026-08-28 (Size retired as a composite pillar -
+        # see BASE_PILLAR_WEIGHTS for the full evidence trail).
         self.snapshot_score_history()
         self.audit_upstream_coverage()
 
@@ -3045,6 +3357,266 @@ class StockScoresLoader(OptimalLoader):
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
+    @staticmethod
+    def _percent_rank_cheap_high(values: dict[str, float]) -> dict[str, float]:
+        """symbol -> percentile in [0, 100], where the LOWEST raw value gets the HIGHEST
+        percentile (100) - matches this pillar's "cheap is good" convention for P/E, P/B, P/S.
+        Ties share the same percentile (RANK()-style, not average-rank - matches PostgreSQL's
+        own PERCENT_RANK() tie behavior, the same window function `update_rs_percentiles()`
+        already uses for rs_percentile). A universe of 1 symbol gets 50.0 (no peer to rank
+        against); empty input returns {}.
+        """
+        n = len(values)
+        if n == 0:
+            return {}
+        if n == 1:
+            return dict.fromkeys(values, 50.0)
+        sorted_items = sorted(values.items(), key=lambda kv: kv[1])
+        result: dict[str, float] = {}
+        i = 0
+        while i < n:
+            j = i
+            while j < n and sorted_items[j][1] == sorted_items[i][1]:
+                j += 1
+            pct = 100.0 * (n - 1 - i) / (n - 1)
+            for sym, _ in sorted_items[i:j]:
+                result[sym] = pct
+            i = j
+        return result
+
+    def update_value_multiples_percentiles(self) -> None:
+        """Batch pass: replace P/E, P/B, P/S, and Forward P/E's Pass-1 PROVISIONAL fixed-curve
+        scores with a true cross-sectional percentile rank against the current run's universe,
+        then recompute value_score and composite_score to reflect it.
+
+        EXTENDED TO FORWARD P/E 2026-08-28 (see _score_value's "FORWARD P/E - ADDED 2026-08-28"
+        docstring note): when Forward P/E was added to Value, it joined this percentile mechanism
+        on the same logic that already applies to the other three multiples below, rather than
+        being left on a fixed curve nothing has validated for this specific field. FCF yield,
+        PEG, and Margin of Safety were all LATER removed from Value scoring entirely (same day,
+        later passes - see _score_value's docstring "FCF YIELD - RESOLVED", "PEG - REMOVED FROM
+        SCORING", and "MARGIN OF SAFETY - REMOVED FROM SCORING" notes) - none of the three
+        appear in total_weight_old below anymore. PEG was never part of the percentile-rank
+        mechanism even while it was still scored (not a multiple needing a peer-relative
+        construction the way P/E/P/B/P/S/forward_pe do), so removing it only meant dropping it
+        out of total_weight_old, same treatment FCF yield already got.
+
+        UNPROFITABLE/NEGATIVE-FORECAST FLOOR ADDED 2026-08-28 (same-day, later pass - see
+        _score_value's "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" / "UNPROFITABLE-FORECAST
+        FLOOR ADDED 2026-08-28" docstring notes): P/E and Forward P/E previously EXCLUDED
+        unprofitable/negative-forecast symbols from both the percentile universe and
+        total_weight_old, same selection-bias bug class this method's own WHY section already
+        flags for the PE-vs-PB/PS ranking dispute. Now: such symbols are identified via
+        `pe_ratio_unavailable_reason == "unprofitable_stock"` /
+        `forward_pe_unavailable_reason == "negative_forward_eps"`, floored at percentile 0.0
+        (the worst - any negative earnings yield is worse than any non-negative one by
+        definition), and DO count in total_weight_old at the normal 0.12/0.04 weight - matching
+        _score_value's Pass-1 treatment exactly so the delta-reconciliation math stays internally
+        consistent (both OLD and NEW are 0.0 for these symbols' PE/Forward-P/E term, so this
+        correction pass contributes no further delta for them on that specific term - the
+        definitive floor score was already assigned in Pass 1).
+
+        WHY (goal 2026-08-28, "what does IBD/the best and brightest do - rethink this and do it
+        that way"): every credible external methodology checked this session scores value/
+        quality inputs via CROSS-SECTIONAL RANKING against a peer universe, never a fixed
+        absolute threshold -
+          - IBD: "All stocks are arranged in order of ... percentage change and assigned a
+            percentile rank from 99 (highest) to 1 (lowest)" for EVERY SmartSelect rating
+            (EPS Rank, RS Rating, SMR Rating) - https://ibdstock.com/ibd-stock-ratings-explained/
+          - MSCI: "z-score: zi = (xi - mu) / sigma ... across the universe" for value/quality
+            factors - https://www.msci.com/research-and-insights/blog-post/the-theory-of-value-relativity
+        This file's OWN Momentum pillar already does this correctly (`update_rs_percentiles()`,
+        below - a proven precedent this method mirrors) - Value's P/E/P/B/P/S never got the
+        same treatment, still using hand-set thresholds (`_pe_curve_score`/`_pb_curve_score`/
+        `_ps_curve_score`, e.g. "P/E<=10 -> one formula, <=20 -> another") that don't adapt to
+        the market's actual valuation regime at any point in time - a well-documented weakness
+        of absolute thresholds vs. relative ranking in exactly this context.
+
+        VALIDATED, not just asserted (algo/research/value_absolute_curve_vs_relative_ranking_20260828.py,
+        same complete-case Fama-MacBeth methodology as every other change this session):
+        cross-sectional percentile beat the live fixed curve in EVERY era and spec tested -
+        multivariate t: FULL 0.98->2.02, ERA1 -0.75->0.12, ERA2 2.48->3.06; univariate t: FULL
+        2.06->3.29, ERA1 0.57->1.38, ERA2 2.55->3.48. A 5-year-own-history TIME-SERIES leg (the
+        other half of MSCI's own recommended hybrid) was ALSO tested and did NOT help on this
+        repo's actual data (t=-0.44 to -0.10, flat/negative) - not implemented, since the
+        evidence for it specifically doesn't hold here even though the citation is real.
+
+        MECHANISM: Pass 1 (`_score_value`, per-symbol, no access to the universe distribution)
+        still uses `_pe_curve_score`/`_pb_curve_score`/`_ps_curve_score` (the last one reused for
+        Forward P/E too, same curve, see that field's own docstring note) as a PROVISIONAL
+        placeholder so value_score/composite_score are never NULL mid-run. This method runs
+        after every symbol in this run has a value_score, computes the true cross-sectional
+        percentile per ratio (independently - a symbol missing P/B still gets ranked on P/E and
+        P/S), and RECONCILES value_score/composite_score via delta arithmetic:
+            weighted_sum_multiples_OLD = curve-based scores * their live weights (12/39/34/4)
+            weighted_sum_multiples_NEW = percentile-based scores * the SAME weights
+            value_score_NEW = value_score_OLD + (weighted_sum_multiples_NEW - weighted_sum_multiples_OLD) / total_weight_OLD
+            composite_score_NEW = composite_score_OLD + value_weight * (value_score_NEW - value_score_OLD)
+        total_weight_OLD (the sum of weights of every Value sub-component genuinely available for
+        that symbol - PE/PB/PS/forward_pe/dividend, NOT just the 4 percentile-ranked multiples;
+        PEG and margin_of_safety are no longer Value inputs at all, see above) and
+        value_weight (this symbol's own risk-conditioned Value weight, `_value_risk_adjusted_weights` -
+        see that function's own docstring) are re-derived exactly, not approximated - this is
+        arithmetically identical to recomputing both scores from scratch with the new multiples,
+        just without re-running the full per-symbol pipeline a second time. dividend and every
+        other pillar are completely unaffected.
+
+        CRITICAL: raises on failure, same as `update_rs_percentiles()` - an inconsistent value_
+        score/composite_score is a live-trading-relevant correctness issue, not just Phase 7
+        display noise.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute("""
+                    SELECT ss.symbol, ss.value_score, ss.composite_score, ss.risk_score,
+                           vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
+                           vm.dividend_yield,
+                           vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason
+                    FROM stock_scores ss
+                    JOIN value_metrics vm ON vm.symbol = ss.symbol
+                    WHERE ss.value_score IS NOT NULL
+                      AND COALESCE(vm.data_unavailable, false) = false
+                """)
+                rows = cur.fetchall()
+
+            if not rows:
+                logger.warning(
+                    "[STOCK_SCORES] update_value_multiples_percentiles: no eligible rows found "
+                    "(value_score IS NOT NULL joined to value_metrics) - skipping, nothing to correct."
+                )
+                return
+
+            pe_raw: dict[str, float] = {}
+            pb_raw: dict[str, float] = {}
+            ps_raw: dict[str, float] = {}
+            fwd_pe_raw: dict[str, float] = {}
+            # unprofitable_symbols/negative_fwd_symbols: floored at percentile 0.0 directly
+            # below (not run through _percent_rank_cheap_high) - see _score_value's
+            # "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" docstring note for why a floor
+            # (not exclusion) is the theoretically correct treatment here.
+            unprofitable_symbols: set[str] = set()
+            negative_fwd_symbols: set[str] = set()
+            for row in rows:
+                symbol, pe, pb, ps, fwd_pe = row[0], row[4], row[5], row[6], row[7]
+                pe_reason, fwd_pe_reason = row[9], row[10]
+                if pe is not None and float(pe) > 0:
+                    pe_raw[symbol] = float(pe)
+                elif pe_reason == "unprofitable_stock":
+                    unprofitable_symbols.add(symbol)
+                if pb is not None and float(pb) > 0:
+                    pb_raw[symbol] = float(pb)
+                if ps is not None and float(ps) > 0:
+                    ps_raw[symbol] = float(ps)
+                if fwd_pe is not None and float(fwd_pe) > 0:
+                    fwd_pe_raw[symbol] = float(fwd_pe)
+                elif fwd_pe_reason == "negative_forward_eps":
+                    negative_fwd_symbols.add(symbol)
+
+            pe_pct = self._percent_rank_cheap_high(pe_raw)
+            pb_pct = self._percent_rank_cheap_high(pb_raw)
+            ps_pct = self._percent_rank_cheap_high(ps_raw)
+            fwd_pe_pct = self._percent_rank_cheap_high(fwd_pe_raw)
+            for symbol in unprofitable_symbols:
+                pe_pct[symbol] = 0.0
+            for symbol in negative_fwd_symbols:
+                fwd_pe_pct[symbol] = 0.0
+            logger.info(
+                f"[STOCK_SCORES] Value multiples percentile universe: "
+                f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
+                f"P/B {len(pb_pct)}, P/S {len(ps_pct)}, "
+                f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
+            )
+
+            updates: list[tuple[str, float, float]] = []
+            for row in rows:
+                symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
+                pe, pb, ps, fwd_pe, dividend_yield = row[4], row[5], row[6], row[7], row[8]
+                pe_reason, fwd_pe_reason = row[9], row[10]
+                value_score_old = float(value_score_old)
+                composite_score_old = float(composite_score_old)
+
+                total_weight_old = 0.0
+                weighted_sum_multiples_old = 0.0
+                weighted_sum_multiples_new = 0.0
+
+                if pe is not None and float(pe) > 0:
+                    total_weight_old += 0.12
+                    weighted_sum_multiples_old += self._pe_curve_score(float(pe)) * 0.12
+                    weighted_sum_multiples_new += pe_pct[symbol] * 0.12
+                elif pe_reason == "unprofitable_stock":
+                    total_weight_old += 0.12
+                    weighted_sum_multiples_old += 0.0
+                    weighted_sum_multiples_new += 0.0
+                if pb is not None and float(pb) > 0:
+                    total_weight_old += 0.39
+                    weighted_sum_multiples_old += self._pb_curve_score(float(pb)) * 0.39
+                    weighted_sum_multiples_new += pb_pct[symbol] * 0.39
+                if ps is not None and float(ps) > 0:
+                    total_weight_old += 0.34
+                    weighted_sum_multiples_old += self._ps_curve_score(float(ps)) * 0.34
+                    weighted_sum_multiples_new += ps_pct[symbol] * 0.34
+                if fwd_pe is not None and float(fwd_pe) > 0:
+                    total_weight_old += 0.04
+                    weighted_sum_multiples_old += self._pe_curve_score(float(fwd_pe)) * 0.04
+                    weighted_sum_multiples_new += fwd_pe_pct[symbol] * 0.04
+                elif fwd_pe_reason == "negative_forward_eps":
+                    total_weight_old += 0.04
+                    weighted_sum_multiples_old += 0.0
+                    weighted_sum_multiples_new += 0.0
+                if dividend_yield is not None and float(dividend_yield) > 0:
+                    total_weight_old += 0.11
+
+                if total_weight_old <= 0:
+                    # Defensive only - can't happen if value_score is a real float (it required
+                    # total_weight > 0 to compute in the first place), but never divide by zero.
+                    continue
+
+                delta = (weighted_sum_multiples_new - weighted_sum_multiples_old) / total_weight_old
+                value_score_new = round(max(0.0, min(100.0, value_score_old + delta)), 2)
+
+                risk_score_float = float(risk_score) if risk_score is not None else None
+                value_weight = _value_risk_adjusted_weights(risk_score_float)["value"]
+                composite_score_new = round(
+                    max(0.0, min(100.0, composite_score_old + value_weight * (value_score_new - value_score_old))), 2
+                )
+
+                if value_score_new != value_score_old or composite_score_new != composite_score_old:
+                    updates.append((symbol, value_score_new, composite_score_new))
+
+            if not updates:
+                logger.info(
+                    "[STOCK_SCORES] Value multiples percentile pass: no symbol's value_score/"
+                    "composite_score changed (unexpected but not an error - would only happen "
+                    "if the fixed curve and the percentile rank agreed for every single symbol)."
+                )
+                return
+
+            with DatabaseContext("write") as cur:
+                execute_values(
+                    cur,
+                    """
+                    UPDATE stock_scores AS ss
+                    SET value_score = v.value_score,
+                        composite_score = v.composite_score,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM (VALUES %s) AS v(symbol, value_score, composite_score)
+                    WHERE ss.symbol = v.symbol
+                    """,
+                    updates,
+                    template="(%s, %s, %s)",
+                )
+            logger.info(
+                f"[STOCK_SCORES] Value multiples cross-sectional percentile pass corrected "
+                f"{len(updates)}/{len(rows)} symbols' value_score/composite_score (post_run completed)"
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            error_msg = f"Value multiples percentile batch update failed - stock scores cannot be finalized: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+
+    # update_size_percentiles() REMOVED 2026-08-28 (Size retired as a composite pillar - see
+    # BASE_PILLAR_WEIGHTS for the full evidence trail).
+
     def snapshot_score_history(self) -> None:
         """Batch pass: snapshot today's stock_scores into stock_scores_history.
 
@@ -3068,7 +3640,7 @@ class StockScoresLoader(OptimalLoader):
                     INSERT INTO stock_scores_history (
                         symbol, score_date, composite_score, composite_rank,
                         momentum_score, quality_score, growth_score, value_score,
-                        risk_score, size_score, rs_percentile,
+                        risk_score, rs_percentile,
                         data_completeness, updated_at
                     )
                     SELECT
@@ -3077,7 +3649,7 @@ class StockScoresLoader(OptimalLoader):
                         composite_score,
                         RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS composite_rank,
                         momentum_score, quality_score, growth_score, value_score,
-                        risk_score, size_score, rs_percentile,
+                        risk_score, rs_percentile,
                         data_completeness, CURRENT_TIMESTAMP
                     FROM stock_scores
                     WHERE data_unavailable IS NOT TRUE AND composite_score IS NOT NULL
@@ -3089,7 +3661,6 @@ class StockScoresLoader(OptimalLoader):
                         growth_score = EXCLUDED.growth_score,
                         value_score = EXCLUDED.value_score,
                         risk_score = EXCLUDED.risk_score,
-                        size_score = EXCLUDED.size_score,
                         rs_percentile = EXCLUDED.rs_percentile,
                         data_completeness = EXCLUDED.data_completeness,
                         updated_at = CURRENT_TIMESTAMP

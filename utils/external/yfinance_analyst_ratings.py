@@ -273,11 +273,13 @@ def fetch_analyst_sentiment(symbol: str) -> dict[str, Any] | None:
 def fetch_forward_eps(symbol: str) -> float | None:
     """Fetch the next-fiscal-year consensus EPS estimate for one symbol from yfinance.
 
-    Uses Ticker.earnings_estimate (period '+1y' row, 'avg' column) - a real DataFrame of
-    consensus analyst EPS estimates by period (0q/+1q/0y/+1y), NOT the deprecated `.info`/
-    quoteSummary surface (see this module's docstring). Feeds value_metrics.forward_pe =
-    current_price / forward_eps, since SEC filings never carry forward-looking estimates
-    (analyst_estimates_not_in_sec_filings - see load_value_quality_growth_metrics.py).
+    Primary source: Ticker.earnings_estimate (period '+1y' row, 'avg' column) - a real
+    DataFrame of consensus analyst EPS estimates by period (0q/+1q/0y/+1y). Falls back to
+    Ticker.info's 'forwardEps' when that's empty - see _fetch_info_forward_eps_fallback for
+    why that's safe despite the deprecated-`.info` guidance in this module's docstring.
+    Feeds value_metrics.forward_pe = current_price / forward_eps, since SEC filings never
+    carry forward-looking estimates (analyst_estimates_not_in_sec_filings - see
+    load_value_quality_growth_metrics.py).
 
     Returns:
         Consensus next-FY EPS estimate, or None if the symbol has no analyst coverage
@@ -286,6 +288,13 @@ def fetch_forward_eps(symbol: str) -> float | None:
     Raises:
         RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
     """
+    val = _fetch_earnings_trend_forward_eps(symbol)
+    if val is not None:
+        return val
+    return _fetch_info_forward_eps_fallback(symbol)
+
+
+def _fetch_earnings_trend_forward_eps(symbol: str) -> float | None:
     try:
         df = _fetch_with_circuit_breaker(symbol, "earnings_estimate")
     except RuntimeError as e:
@@ -307,24 +316,62 @@ def fetch_forward_eps(symbol: str) -> float | None:
     return val
 
 
+def _fetch_info_forward_eps_fallback(symbol: str) -> float | None:
+    """Fall back to Ticker.info's 'forwardEps' when the earningsTrend module is empty.
+
+    FIXED (goal session, "Forward P/E - analyst estimates unavailable" audit): the
+    earningsTrend module (used above) is empty on Yahoo's side for a real, non-trivial
+    slice of well-covered symbols - live-confirmed on dual-class/tracking-stock/foreign-ADR
+    names (BN, FOX, L, HEI-A, BF-A, LLYVA, and more; ~950 live `no_analyst_estimates`
+    value_metrics rows, including several $10B+ market caps) - even though Yahoo's
+    defaultKeyStatistics module (`Ticker.info`) carries a real `forwardEps` for the exact
+    same symbol. This module's docstring documents `.info`/quoteSummary as deprecated
+    codebase-wide (steering/DATA_LOADERS.md, Session 275/2026-07-21) for being a heavy
+    ~40-field-per-symbol-per-day snapshot source that's "Invalid Crumb" 401-prone - that
+    concern doesn't apply the same way here: this is a single-field fallback used only when
+    the primary earningsTrend call already came back empty, routed through the exact same
+    shared circuit breaker as every other call in this module, which already classifies
+    "invalid crumb"/"unauthorized" as rate-limit-class errors (see _RATE_LIMIT_KEYWORDS) -
+    so a crumb failure here degrades to the existing backoff/ban cycle rather than an
+    unguarded exception, same as the primary path.
+    """
+    try:
+        info = _fetch_with_circuit_breaker(symbol, "info")
+    except RuntimeError as e:
+        if _is_no_fundamentals_404(str(e)):
+            return None
+        raise
+    if not isinstance(info, dict):
+        return None
+    raw_val = info.get("forwardEps")
+    if raw_val is None:
+        return None
+    try:
+        val = float(raw_val)
+    except (TypeError, ValueError):
+        return None
+    if val != val:  # NaN check w/o pandas import
+        return None
+    return val
+
+
 def fetch_forward_growth_estimates(symbol: str) -> dict[str, float | None] | None:
     """Fetch forward growth + estimate-revision signals from yfinance's analyst-estimate
-    surface - added 2026-08-28 (goal: Growth-pillar-audit session, user directive to capture
-    real forward-looking data yfinance already exposes but this repo wasn't pulling).
+    surface.
 
-    Three real, distinct signals, all live-verified against AAPL 2026-08-28:
+    Three real, distinct signals:
     - forward_eps_growth_current_fy / forward_eps_growth_next_fy: Ticker.earnings_estimate's
       own pre-computed 'growth' column (periods '0y'/'+1y') - consensus EPS growth vs the
       prior fiscal year, i.e. genuinely forward-looking (not the realized-growth fields
       growth_metrics already has). Same DataFrame fetch_forward_eps() already fetches - no
       extra API call for these two.
     - forward_revenue_growth_next_fy: Ticker.revenue_estimate's 'growth' column (period
-      '+1y') - a NEW yfinance endpoint this repo has never called before this fix.
+      '+1y') - a separate yfinance endpoint from the ones already called in this module.
     - eps_estimate_revision_90d_pct: Ticker.eps_trend (period '0y', 'current' vs
       '90daysAgo' columns) - how much the consensus current-FY EPS estimate has moved over
       the trailing 90 days. Distinct from growth: a stock can have positive forward growth
-      while analysts are simultaneously revising the number DOWN, which is itself a real,
-      separately-informative signal (Givoly & Lakonishok 1979 estimate-revision literature).
+      while analysts are simultaneously revising the number down, which is itself a real,
+      separately-informative signal.
 
     Returns:
         Dict with all 4 keys (each individually None if that specific period/column wasn't

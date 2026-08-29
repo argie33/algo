@@ -11,6 +11,18 @@ import api from "../services/api";
 import { formatNumber, formatPercentageChange } from "../utils/formatters";
 import ErrorBoundary from "../components/ErrorBoundary";
 
+// Mirrors the reason set intrinsic_value_unavailable_reason can actually take (see
+// loaders/load_value_quality_growth_metrics.py's intrinsic_value_reason_from_fcf_yield and
+// load_sec_valuations.py) - kept scoped to this page rather than importing
+// StockScoreAccordion's full reasonMap, since only these apply to a DCF result.
+const intrinsicValueReasonLabels = {
+  negative_free_cash_flow: "Company burned cash (negative FCF)",
+  missing_cash_flow_data: "Cash flow data unavailable",
+  implausible_dcf_result: "Value excluded as implausible",
+  shares_outstanding_unavailable: "Shares outstanding unavailable",
+  missing_sec_data: "SEC filing data unavailable",
+};
+
 const DeepValueStocksContent = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -73,6 +85,12 @@ const DeepValueStocksContent = () => {
         // itself were both removed - not comparable across symbols and inconsistent with
         // the backend's guarded calculation).
         margin_of_safety_pct: num(s.margin_of_safety_pct),
+        // intrinsic_value_per_share RE-ADDED 2026-08-28 (goal session): moved here from
+        // StockScoreAccordion.jsx's Value factor score tab, where a raw per-share $ figure
+        // doesn't fit a comparable-across-symbols score breakdown. Shown display-only
+        // alongside margin_of_safety_pct above, not used in generational_score.
+        intrinsic_value_per_share: num(s.intrinsic_value_per_share),
+        intrinsic_value_unavailable_reason: s.intrinsic_value_unavailable_reason ?? null,
         revenue_growth_3y_pct: num(s.revenue_growth_3y_pct),
         eps_growth_3y_pct: num(s.eps_growth_3y_pct),
         revenue_growth_yoy_pct: num(s.revenue_growth_yoy_pct),
@@ -387,6 +405,18 @@ const DeepValueStocksContent = () => {
                     "Margin of Safety (DCF)",
                     fmtPct(stock.margin_of_safety_pct),
                     stock.margin_of_safety_pct >= 0 ? "#22c55e" : "#ef4444",
+                  ],
+                  [
+                    // Raw per-share $ DCF result - MOVED HERE 2026-08-28 from
+                    // StockScoreAccordion.jsx's Value factor tab, where a non-comparable-
+                    // across-symbols dollar figure didn't fit a per-symbol score breakdown.
+                    // When null, shows the reason (e.g. negative FCF) instead of "—".
+                    "Intrinsic Value (DCF), $/share",
+                    stock.intrinsic_value_per_share != null
+                      ? `$${stock.intrinsic_value_per_share.toFixed(2)}`
+                      : intrinsicValueReasonLabels[
+                          stock.intrinsic_value_unavailable_reason
+                        ] || "—",
                   ],
                 ]}
               />

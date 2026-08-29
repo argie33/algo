@@ -73,7 +73,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
           },
           positioning_inputs: {
             institutional_ownership_pct: 0.59,
-            insider_ownership_pct: 0.008,
             short_interest_pct: 0.023,
             short_ratio: 1.2,
           },
@@ -139,7 +138,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
           },
           positioning_inputs: {
             institutional_ownership_pct: 0.73,
-            insider_ownership_pct: 0.002,
             short_interest_pct: 0.012,
             short_ratio: 0.8,
           },

@@ -116,7 +116,7 @@ def _renormalized_blend(z: pd.DataFrame, weights: dict[str, float]) -> pd.Series
     return out
 
 
-def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa: C901 -- research/reporting script's linear sequence of print sections
+def run(start_date: str, end_date: str, min_cross_section: int) -> None:
     logger.info("Fetching sector map (company_profile)")
     sector_map = fetch_sector_map()
 
@@ -381,14 +381,14 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
             print(f"{variant:16s} {era_label:6s} {mean:10.5f} {t:8.2f}")
         print()
 
-    def _ic_mean_t(ics: "np.ndarray[Any, Any]") -> tuple[float, float, int]:
+    def _ic_mean_t(ics: np.ndarray[Any, Any]) -> tuple[float, float, int]:
         if len(ics) < 2:
             return (float("nan"), float("nan"), len(ics))
         se = ics.std(ddof=1) / np.sqrt(len(ics))
         t = ics.mean() / se if se > 0 else float("nan")
         return (ics.mean(), t, len(ics))
 
-    def _spearman_ic_series(recs: list[tuple[pd.Timestamp, pd.DataFrame]], col: str) -> "np.ndarray[Any, Any]":
+    def _spearman_ic_series(recs: list[tuple[pd.Timestamp, pd.DataFrame]], col: str) -> np.ndarray[Any, Any]:
         ics = []
         for _m, f in recs:
             if len(f) < MIN_SECTOR_SLICE:

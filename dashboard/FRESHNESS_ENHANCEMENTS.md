@@ -42,12 +42,12 @@ Detects gaps in expected data:
 - **Missing symbol list** (top 5 missing, prioritized by market cap)
 - **Coverage status** classification (complete ≥95%, partial 80-95%, sparse <80%)
 
-**Why it matters**: 
-- All 3000 symbols loaded ✓ but top-10 holdings in that 0.2%? 
+**Why it matters**:
+- All 3000 symbols loaded ✓ but top-10 holdings in that 0.2%?
 - Risk calc proceeds on incomplete universe
 - Portfolio exposure misjudged
 
-**Display**: 
+**Display**:
 ```
 ├─ Coverage: 2995/3000 symbols (99.8%)
 ├─ Missing: NFLX, ROKU, DASH, LYFT, COIN
@@ -234,7 +234,7 @@ OPERATOR SEES:
     └─ Coverage: 2995/3000 symbols
     └─ Quality: 99.2% clean
     └─ Duration: 32 sec (normal)
-  
+
   market_health_daily: ⚠ STALE [26h ago]
     └─ Issue: Rate limit (100/100 calls used)
     └─ Reset: 2026-07-28 09:00 EST (18.5h remaining)
@@ -242,7 +242,7 @@ OPERATOR SEES:
     └─ Action: Safe to wait for reset
     └─ Blocks: Phase 2 until fixed
 
-OPERATOR DECISION: "Price data complete & trustworthy. 
+OPERATOR DECISION: "Price data complete & trustworthy.
 Market health temporarily rate-limited (expected).
 Proceed with Phase 1, delay Phase 2 until 9am. ETA clear."
 ```

@@ -789,7 +789,7 @@ DASHBOARD_ENDPOINTS = {
             required_fields=[],
             optional_fields=["top", "total", "universe_total", "avg_composite", "grades", "data_freshness"],
             field_types={"top": list, "total": int, "universe_total": int, "avg_composite": float, "grades": dict},
-            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, risk_score, sector, industry, current_price, change_percent, rs_percentile), plus universe_total/avg_composite/grades summary metrics over the full filtered universe",
+            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, risk_score, sector, industry, current_price, change_percent, rs_percentile), plus universe_total/avg_composite/grades summary metrics over the full filtered universe. positioning_score REMOVED 2026-08-27 and size_score REMOVED 2026-08-28 (both retired as composite pillars - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS); raw positioning inputs (A/D rating, institutional ownership, short interest) are still available informationally via the single-stock detail endpoint's positioning_inputs, not this list endpoint. market_cap remains available via the Value pillar's inputs.",
         ),
         "freshness_max_age_seconds": 14400,
         "strict_fields": [],

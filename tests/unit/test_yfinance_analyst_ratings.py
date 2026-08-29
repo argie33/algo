@@ -149,10 +149,9 @@ def _mock_ticker_with_estimates(earnings_df=None, revenue_df=None, eps_trend_df=
 
 
 class TestFetchForwardGrowthEstimates:
-    """Regression tests for fetch_forward_growth_estimates() - added 2026-08-28 (goal:
-    Growth-pillar-audit session, user directive to capture real forward-looking data
-    yfinance already exposes on Ticker.earnings_estimate/revenue_estimate/eps_trend that
-    this repo wasn't pulling before)."""
+    """Regression tests for fetch_forward_growth_estimates() - covers Ticker.earnings_estimate/
+    revenue_estimate/eps_trend, forward-looking analyst estimate signals this repo wasn't
+    pulling before."""
 
     def test_all_three_endpoints_populated(self, _patch_circuit_breaker):
         earnings_df = pd.DataFrame(

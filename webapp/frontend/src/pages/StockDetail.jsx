@@ -1108,6 +1108,19 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
         : "—",
     ],
     ["Short Ratio (DTC)", num(p.short_ratio, 2)],
+    [
+      // A/D Rating: not scored into composite_score any more (Positioning retired as a
+      // pillar 2026-08-27), but load_positioning_metrics.py still computes and stores it
+      // every run (0-100, Chaikin Money Flow-based volume/price confirmation) and the API
+      // already returns it via positioning_inputs.ad_rating - this tile was the missing
+      // last mile, never wired up on the frontend even before the pillar retirement.
+      "A/D Rating",
+      p.ad_rating != null ? num(p.ad_rating, 1) : "—",
+    ],
+    [
+      "Institutional Holders",
+      p.institutional_holders_count != null ? p.institutional_holders_count : "—",
+    ],
   ];
 
   return (
@@ -1151,8 +1164,7 @@ function ScoreBars({ scores }) {
     ["Momentum", scores.momentum_score],
     ["Value", scores.value_score],
     ["Growth", scores.growth_score],
-    ["Risk", scores.risk_score],
-    ["Size", scores.size_score],
+    ["Safety", scores.risk_score],
   ];
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
@@ -1225,22 +1237,33 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full trail). Its freed 12%
   // moved to Growth (+6) and Risk (+6).
   // UPDATED 2026-08-27 (later same day): Size (market cap) was briefly promoted to a
-  // top-level 7th pillar on 2026-08-26, removed the same day on a UX/product objection, then
-  // RE-PROMOTED here on new era-robust half-split evidence (t=4.62/5.68 across
-  // 2017-2021/2022-2026) - see loaders/load_stock_scores.py's _score_size docstring for the
-  // full history. Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly - guarded
-  // by tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't
-  // drift silently again.
+  // top-level 7th pillar on 2026-08-26, removed the same day on a UX/product objection,
+  // RE-PROMOTED on new era-robust half-split evidence, then RETIRED ENTIRELY 2026-08-28 (user
+  // directive "just get rid of size", triggered by its imputed-regime evidence not surviving a
+  // strict complete-case retest even after fixing the data-coverage bugs that retest required
+  // first) - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full history.
+  // Matches loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly - guarded by
+  // tests/unit/test_stockdetail_factor_weights_match_backend_20260826.py, so this can't drift
+  // silently again.
   // Kept in sync with loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS - updated 20260828
-  // (Size cut 0.20->0.08, Growth/Value raised to 0.20/0.23 - see that file's own docstring for
-  // the full evidence trail).
+  // (Size retired entirely, its freed 0.08 split evenly between Growth (0.20->0.24) and Value
+  // (0.23->0.27), the two pillars ROBUST in both regimes per that same re-run - see that
+  // file's own docstring for the full evidence trail).
+  // Value/Safety(risk) weights shown here are the BASE/MIDPOINT values (a risk_score of
+  // exactly 50). ADDED 2026-08-28 (goal: cross-pillar interaction sweep found value_proxy x
+  // stability_proxy is the one era-robust interaction of 15 tested - see
+  // value_stability_interaction_found_robust_20260828 in memory): loaders/load_stock_scores.py
+  // now shifts weight between Value and Safety per-symbol based on that symbol's own
+  // risk_score (more Value weight for riskier names, less for safer ones, always summing back
+  // to 0.27+0.19=0.46 combined) - this radar chart shows the nominal average, not each
+  // symbol's exact live split, same "avg" convention already used for Momentum's RSI/MACD and
+  // SMA-50/200 slots.
   const FACTOR_WEIGHTS = [
     ["Quality", "quality_score", 0.2],
-    ["Growth", "growth_score", 0.2],
-    ["Value", "value_score", 0.23],
-    ["Risk", "risk_score", 0.19],
+    ["Growth", "growth_score", 0.24],
+    ["Value", "value_score", 0.27],
+    ["Safety", "risk_score", 0.19],
     ["Momentum", "momentum_score", 0.1],
-    ["Size", "size_score", 0.08],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

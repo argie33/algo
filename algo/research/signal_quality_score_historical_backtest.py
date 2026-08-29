@@ -36,6 +36,7 @@ Usage:
 
 import argparse
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 
 import numpy as np
@@ -58,31 +59,55 @@ MIN_ROBUST_MONTHS = 6
 _UNIVERSE_EXCLUDE = {"SPY", "QQQ", "IWM", "DIA", "VTI"}  # index ETFs - production trades equities only
 
 
+_MIN_UNIVERSE_ROWS = 300  # matches run()'s own "if len(df) < 300: continue" functional floor
+
+
 def select_universe(size: int, min_history_start: str) -> list[str]:
+    """FIXED (goal-mode A/D rating research, 2026-08-28), two compounding issues in the
+    original version:
+
+    1. Required `MAX(date) >= '2026-08-01'` (still trading today) plus a liquidity join
+       scoped to a 2026-06-only window - both silently dropped every delisted/acquired/
+       bankrupt symbol. Textbook survivorship bias in a return-prediction backtest (the
+       whole point of testing forward returns is undermined if every company that
+       performed badly enough to disappear is excluded from the sample). Checked directly:
+       for THIS script's specific >2400-row/cutoff-aligned cohort, this filter happened to
+       exclude zero symbols (verified live, not assumed) - but it's still the wrong query
+       to have, since it would silently start excluding delisted symbols the moment a
+       shorter/differently-dated run picked any up, and the reasoning it encodes is wrong
+       regardless of whether this exact cohort was affected.
+    2. HAVING COUNT(*) > 2400 (~9.5yr) AND MIN(date) <= cutoff (must start near the
+       beginning of the window) - an arbitrary bar with no basis in what this script
+       actually needs; run()'s own `if len(df) < 300: continue` is the real functional
+       minimum (enough for the longest rolling indicator, SMA200, plus buffer). Also
+       excluded any symbol that IPO'd partway through the window, which is real, valid,
+       usable history, not a data gap. Live-confirmed: >2400-row/cutoff-aligned universe
+       was 2,747 symbols; relaxing to the script's actual >=300-row floor with no
+       start-date alignment requirement is 8,459 - the true ceiling for this window, not
+       an arbitrary subset of it.
+
+    Dollar-volume ordering is computed over each symbol's own qualifying window (not a
+    fixed recent window a delisted symbol wouldn't have data for). This is a
+    backtesting-only universe - the live algo's own tradeable-symbol filtering (must be
+    currently listed/liquid) is separate and correctly unaffected by this change."""
     with DatabaseContext("read") as cur:
         cur.execute(
             """
-            WITH long_history AS (
-                SELECT symbol FROM price_daily
-                WHERE COALESCE(data_unavailable,false)=false AND date >= %(min_start)s
-                GROUP BY symbol
-                HAVING COUNT(*) > 2400 AND MAX(date) >= '2026-08-01' AND MIN(date) <= %(cutoff)s
-            ),
-            recent_liquidity AS (
+            SELECT symbol
+            FROM (
                 SELECT symbol, AVG(close*volume) AS avg_dollar_vol
                 FROM price_daily
-                WHERE date >= '2026-06-01' AND COALESCE(data_unavailable,false)=false
+                WHERE COALESCE(data_unavailable,false)=false AND date >= %(min_start)s
                 GROUP BY symbol
-            )
-            SELECT lh.symbol
-            FROM long_history lh JOIN recent_liquidity rl ON rl.symbol = lh.symbol
-            WHERE lh.symbol != ALL(%(exclude)s)
-            ORDER BY rl.avg_dollar_vol DESC
+                HAVING COUNT(*) >= %(min_rows)s
+            ) long_history
+            WHERE symbol != ALL(%(exclude)s)
+            ORDER BY avg_dollar_vol DESC
             LIMIT %(size)s
             """,
             {
                 "min_start": min_history_start,
-                "cutoff": (pd.Timestamp(min_history_start) + pd.Timedelta(days=180)).date(),
+                "min_rows": _MIN_UNIVERSE_ROWS,
                 "exclude": list(_UNIVERSE_EXCLUDE),
                 "size": size,
             },
@@ -202,6 +227,27 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     high_52w = high.rolling(252, min_periods=1).max()
     df["percent_from_52w_high"] = np.where(high_52w > 0, (close - high_52w) / high_52w * 100, np.nan)
 
+    # ad_rating - NOT a signal_quality_score input (compute_signal_quality_components() has no
+    # such parameter), added here to test it as a CANDIDATE replacement for volume_confirmation
+    # (which is misnamed - RSI/MACD, no real volume - and already proven harmful, see
+    # BUY_COMPOSITE_EXCLUDED_COMPONENTS in loaders/signal_quality_scorer.py). Exact same Chaikin
+    # Money Flow formula as loaders/technical_indicators.py::compute_ad_rating and
+    # algo/research/fama_macbeth_positioning_factors.py::compute_ad_rating_series (that version
+    # is vectorized across a multi-symbol panel; this is the same math, single-symbol, reusing
+    # the OHLCV this backtest already fetched - no new data source).
+    hl_diff = (high - low).replace(0, np.nan)
+    mfm = ((close - low) - (high - close)) / hl_diff
+    mfv = mfm.fillna(0) * df["volume"]
+    roll_mfv = mfv.rolling(20).sum()
+    roll_vol = df["volume"].rolling(20).sum()
+    cmf = (roll_mfv / roll_vol).clip(-1.0, 1.0)
+    ad_base = 50.0 + 50.0 * cmf
+    price_return_20d = (close - close.shift(19)) / close.shift(19)
+    ad_nudge = pd.Series(0.0, index=df.index)
+    ad_nudge[(price_return_20d > 0) & (cmf < 0)] = -10.0
+    ad_nudge[(price_return_20d < 0) & (cmf > 0)] = 10.0
+    df["ad_rating"] = (ad_base + ad_nudge).clip(0.0, 100.0)
+
     return df
 
 
@@ -278,6 +324,8 @@ def generate_historical_buy_signals(symbol: str, df: pd.DataFrame) -> list[dict[
                 "trend_template_score": components["trend_template_score"],
                 "distance_from_high_score": components["distance_from_high_score"],
                 "market_stage_score": components["market_stage_score"],
+                # Candidate, not yet a real SQS component - see compute_indicators() comment.
+                "ad_rating": ind.get("ad_rating"),
             }
         )
     return buys
@@ -321,8 +369,19 @@ def fama_macbeth_monthly(df: pd.DataFrame, score_col: str, horizon: int) -> dict
     Generic over score_col so each signal_quality_score COMPONENT can be tested
     individually, not just the composite - a composite null result doesn't prove every
     component is uninformative; it could mean real signal in one component is being
-    diluted/offset by noise in others once summed together."""
+    diluted/offset by noise in others once summed together.
+
+    Bounds forward return to (-95%, +500%) - same convention as algo/research/
+    fama_macbeth_positioning_factors.py. Added alongside select_universe()'s survivorship-
+    bias fix (delisted symbols now included): a genuine decline toward zero is real signal
+    and must stay in the sample, but the most extreme tail (a symbol's final trading
+    days before delisting, where entry-price-near-zero division or a stale/bad final
+    print can produce a nonsensical -99.9% or +2000% print) is exactly the kind of
+    leverage point that could swing a single-symbol-month's correlation on its own -
+    the same class of risk detect_and_adjust_splits()/_scrub_reverting_spikes() already
+    guard against for prices, applied here to the derived return."""
     sub = df[["month", score_col, f"fwd_ret_{horizon}"]].dropna()
+    sub = sub[(sub[f"fwd_ret_{horizon}"] > -0.95) & (sub[f"fwd_ret_{horizon}"] < 5.0)]
     monthly_corrs = []
     for _month, g in sub.groupby("month"):
         if len(g) < 10 or g[score_col].std() == 0:
@@ -340,26 +399,58 @@ def fama_macbeth_monthly(df: pd.DataFrame, score_col: str, horizon: int) -> dict
     return {"n_months": n_months, "mean_corr": mean_corr, "t_stat": t_stat}
 
 
+def _process_symbol(
+    symbol: str, start_date: str, end_date: str
+) -> tuple[str, pd.DataFrame | None, list[dict[str, object]]]:
+    """One symbol's full fetch/indicator/signal pipeline - independent of every other
+    symbol, so safe to run concurrently. DatabaseContext is documented thread-safe
+    (utils/db/context.py: 'Thread-safe database context') and every DB call here opens
+    its own connection/cursor, same isolation pattern algo/orchestrator/
+    phase7_signal_generation.py's _fetch_institutional_ownership_for_scoring already uses
+    for concurrent-safe per-symbol reads. This reads price_daily (local Postgres) only -
+    no external/rate-limited API calls, so the LOADER_PARALLELISM=1 rule (which exists
+    specifically for yfinance-class external APIs) does not apply here."""
+    df = fetch_price_history(symbol, start_date, end_date)
+    if len(df) < 300:
+        return symbol, None, []
+    df = compute_indicators(df)
+    price_slice = df[["date", "close"]].reset_index(drop=True)
+    if symbol == "SPY":
+        return symbol, price_slice, []  # benchmark only, not a tradeable BUY candidate
+    buys = generate_historical_buy_signals(symbol, df)
+    return symbol, price_slice, buys
+
+
 def run(start_date: str, end_date: str, universe_size: int, horizons: list[int]) -> None:
     symbols = select_universe(universe_size, start_date)
     if "SPY" not in symbols:
         symbols = [*symbols, "SPY"]
     print(f"Universe: {len(symbols)} symbols, {start_date} to {end_date}")
 
+    # PARALLELIZED (goal: full-universe A/D rating test, sequential was too slow to cover
+    # 8000+ symbols in a reasonable time - see this file's git history/session notes).
+    # max_workers=16 stays under the dev DB pool's maxconn=20 default (utils/db/
+    # connection.py; raisable via DB_POOL_MAX_CONNECTIONS) with some headroom for other
+    # concurrent local processes (dashboard, dev_server) - 24 CPU cores available locally,
+    # so not CPU-bound at this width either.
     price_by_symbol: dict[str, pd.DataFrame] = {}
-    all_buys = []
-    for i, symbol in enumerate(symbols):
-        df = fetch_price_history(symbol, start_date, end_date)
-        if len(df) < 300:
-            continue
-        df = compute_indicators(df)
-        price_by_symbol[symbol] = df[["date", "close"]].reset_index(drop=True)
-        if symbol == "SPY":
-            continue  # SPY itself isn't a tradeable BUY candidate here, only the benchmark
-        buys = generate_historical_buy_signals(symbol, df)
-        all_buys.extend(buys)
-        if (i + 1) % 25 == 0:
-            print(f"  ...processed {i + 1}/{len(symbols)} symbols, {len(all_buys)} BUY signals so far")
+    all_buys: list[dict[str, object]] = []
+    processed = 0
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        futures = {pool.submit(_process_symbol, sym, start_date, end_date): sym for sym in symbols}
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                sym, price_slice, buys = future.result()
+            except Exception as e:
+                logger.warning(f"[BACKTEST] {symbol}: symbol processing failed, skipping - {e}")
+                continue
+            if price_slice is not None:
+                price_by_symbol[sym] = price_slice
+            all_buys.extend(buys)
+            processed += 1
+            if processed % 100 == 0:
+                print(f"  ...processed {processed}/{len(symbols)} symbols, {len(all_buys)} BUY signals so far")
 
     if not all_buys:
         print("No historical BUY signals reconstructed - nothing to validate.")
@@ -393,6 +484,16 @@ def run(start_date: str, end_date: str, universe_size: int, horizons: list[int])
             print(
                 f"    {label:28s} n_months={fm['n_months']:<4d} mean_corr={fm['mean_corr']:+.4f}  t={fm['t_stat']:+.2f}"
             )
+        # CANDIDATE - not part of signal_quality_score yet. Same real Chaikin Money Flow the
+        # retired Positioning pillar used, tested here as a possible REPLACEMENT for
+        # volume_confirmation_score (misnamed - RSI/MACD, no real volume - already excluded from
+        # the composite for being harmful). Reported separately so it's never mistaken for an
+        # already-shipped, already-scored component.
+        ad_fm = fama_macbeth_monthly(buys_df, "ad_rating", h)
+        print(
+            f"    {'ad_rating (CANDIDATE)':28s} n_months={ad_fm['n_months']:<4d} "
+            f"mean_corr={ad_fm['mean_corr']:+.4f}  t={ad_fm['t_stat']:+.2f}"
+        )
 
         sub = buys_df[["signal_quality_score", f"fwd_ret_{h}"]].dropna()
         if len(sub) >= 10:

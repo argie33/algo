@@ -287,6 +287,26 @@ SIC_TO_GICS = {
     100: "Consumer Defensive",  # Agricultural production - crops
     200: "Consumer Defensive",  # Agricultural production - livestock
     900: "Consumer Defensive",  # Fishing, hunting & trapping
+    # ADDED 2026-08-29 (goal: "full data" audit continuation): live DB audit found
+    # sic_code_unmapped:700/:7200 covering 16 active-universe symbols - same "zero
+    # existing precedent in that major group" gap class as the 2026-08-19 batch above,
+    # just two codes the earlier audit's sample didn't happen to surface.
+    700: "Consumer Defensive",  # Agricultural services (soil prep, crop/livestock
+    # services, veterinary, landscaping) - same division-0 major group as the
+    # crops/livestock/fishing codes directly above; live symbols confirmed: AVO
+    # (Mission Produce), BNC/BV/RYM, PFAI.
+    7200: "Consumer Cyclical",  # Services-personal services (live symbols confirmed:
+    # HRB/H&R Block tax prep, SCI/CSV funeral homes, RGS/Regis hair salons,
+    # WW/WeightWatchers) - matches this file's existing convention for adjacent
+    # consumer-facing services codes in the 70-79 range (7011 hotels, 7500/7510
+    # automotive, 7600 repair, 7900/7948/7990/7997 amusement - all already Consumer
+    # Cyclical above). A genuinely coarse approximation for this specific code - SEC's
+    # own SIC assignment doesn't track later pivots, so a few symbols under 7200 (e.g.
+    # YELP, a review platform; DLPN, an entertainment/PR firm) read more like
+    # Communication Services by modern GICS than personal-services - same class of
+    # imprecision this file already accepts for other broad codes (e.g. 8700
+    # "Engineering, accounting, research, management services" uniformly Industrials
+    # above), not unique to this addition.
 }
 
 

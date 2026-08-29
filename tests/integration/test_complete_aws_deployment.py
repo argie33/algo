@@ -67,26 +67,34 @@ class TestCompleteAWSDeployment:
     def test_growth_score_calculation_logic(self):
         """Verify growth score calculation uses proper weighting formula."""
         import inspect
+        import re
 
-        from loaders.load_stock_scores import StockScoresLoader
+        from loaders.load_stock_scores import GROWTH_SCORE_FIELDS, StockScoresLoader
 
         # Verify _score_growth method exists and has proper weighting logic
         loader = StockScoresLoader()
         assert hasattr(loader, "_score_growth"), "StockScoresLoader must have _score_growth method"
 
-        # Check the method contains the proper weighting logic
-        # SUPERSEDED 2026-08-27 (this file wasn't updated when it happened - caught by the
-        # test suite going stale-red 2026-08-28): the 2026-08-26 "RESTORED ... 14-input
-        # weighting" state this test used to assert was itself superseded the very next day
-        # by an evidence-driven rebuild (isolated Fama-MacBeth testing across eras) that
-        # collapsed Growth to a SINGLE scored component, book_value_growth, sign-flipped and
-        # weighted 100% - see _score_growth's docstring for the full candidate-by-candidate
-        # t-stat rejection list (every other input, including EPS/revenue growth at all
-        # horizons, was dominated by book_value_growth once it entered the mix). Same
-        # single-input architecture this system already uses for the Size pillar.
+        # RESTORED TO MULTI-INPUT 2026-08-28 (user directive, /goal session: "get the rest of
+        # the growth inputs back in there the ones that are in the react" + explicit pushback
+        # that revenue_growth_1y's inversion "shouldn't be inverted"). Supersedes the prior
+        # single-input-shrinking history this test used to guard (11-input blend ->
+        # book_value_growth alone -> revenue_growth_1y alone) - see _score_growth's own
+        # docstring for that evidence-vs-override trail. _score_growth now iterates the shared
+        # GROWTH_SCORE_FIELDS constant (checked directly below) rather than naming each field
+        # as its own literal in its source, and scores every field un-inverted (no sign-flip).
+        assert "revenue_growth_1y" in GROWTH_SCORE_FIELDS, "Growth must score revenue_growth_1y"
+        # book_value_growth REMOVED 2026-08-28 (separate, later same-day user directive - see
+        # GROWTH_SCORE_FIELDS's own docstring in loaders/load_stock_scores.py: live-observed
+        # persistent "No data" on StockDetail for the stock under review). This assertion is
+        # intentionally gone, not stale - re-adding it would reassert a field the user had
+        # removed after this test was originally written.
+        assert "book_value_growth" not in GROWTH_SCORE_FIELDS, "book_value_growth was deliberately removed 2026-08-28"
         source = inspect.getsource(loader._score_growth)
-        assert "book_value_growth" in source, "Growth must score book_value_growth"
-        assert "weighted_sum" not in source, "Growth is a single-component score, not a weighted blend"
+        assert "GROWTH_SCORE_FIELDS" in source, "expected _score_growth to iterate the shared GROWTH_SCORE_FIELDS list"
+        assert not re.search(r"-metrics\.get\(|-metrics\[", source), (
+            "no growth candidate should be sign-flipped - user directive was growth should not be inverted"
+        )
 
     def test_growth_metrics_marked_enrichment(self):
         """Verify growth_metrics is enrichment-only (not critical for core trading)."""

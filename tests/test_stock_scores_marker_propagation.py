@@ -57,13 +57,16 @@ class TestMarkerPropagation(unittest.TestCase):
                 "reason": "no_growth_metrics_data",
             },
             "value": 72.5,  # Float score
-            "positioning": None,  # None (no score)
             "risk": {  # Marker: data unavailable
                 "symbol": "AAPL",
                 "data_unavailable": True,
                 "reason": "insufficient_price_history",
             },
             "momentum": 68.0,  # Float score
+            # Synthetic 6th field (not a real pillar name - just exercises the plain-None
+            # skip path, distinct from the marker-dict path above) since Positioning's/Size's
+            # retirement as composite pillars left no real 6th field to illustrate this with.
+            "unscored_extra": None,
         }
 
         # Simulate the composite score calculation logic (from fixed code)
@@ -73,7 +76,7 @@ class TestMarkerPropagation(unittest.TestCase):
             "quality": 0.25,
             "growth": 0.20,
             "value": 0.20,
-            "positioning": 0.15,
+            "unscored_extra": 0.15,
             "risk": 0.10,
             "momentum": 0.10,
         }
@@ -119,12 +122,10 @@ class TestMarkerPropagation(unittest.TestCase):
             "growth_score": None,  # Marker degraded to None in API
             "value_score": 72.5,
             "momentum_score": 68.0,
-            "positioning_score": None,
             "risk_score": None,
-            "data_completeness": 0.50,  # 3 out of 6 metrics available
+            "data_completeness": 0.60,  # 3 out of 5 metrics available
             "unavailable_metrics": {
                 "growth": "no_growth_metrics_data",
-                "positioning": "no_positioning_metrics_data",
                 "risk": "insufficient_price_history",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -138,7 +139,7 @@ class TestMarkerPropagation(unittest.TestCase):
             self.assertEqual(unavailable.get("risk"), "insufficient_price_history")
 
         # ✅ data_completeness reflects actual available data
-        self.assertEqual(response["data_completeness"], 0.50)
+        self.assertEqual(response["data_completeness"], 0.60)
 
         # ✅ Response includes all fields needed for transparent reporting
         self.assertIn("unavailable_metrics", response)
