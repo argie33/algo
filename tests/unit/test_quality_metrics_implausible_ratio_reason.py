@@ -57,6 +57,7 @@ def _quality_row(
     pretax_income=None,
     interest_expense=None,
     free_cash_flow=None,
+    operating_cash_flow=None,
 ):
     # Same 33-column shape as test_quality_metrics_ratio_garbage_value_bound.py's fixture.
     return (
@@ -73,7 +74,7 @@ def _quality_row(
         interest_expense,  # 10 interest_expense
         None,  # 11 shares_outstanding
         cost_of_revenue,  # 12
-        None,  # 13 operating_cash_flow
+        operating_cash_flow,  # 13
         free_cash_flow,  # 14 free_cash_flow
         None,  # 15 dividends_paid
         None,  # 16 earnings_per_share
@@ -185,6 +186,21 @@ class TestImplausibleRatioReasonNotConflatedWithMissingSecData:
 
         assert metrics["operating_profitability"] is None
         assert metrics["operating_profitability_unavailable_reason"] == "implausible_ratio"
+
+    def test_accruals_ratio_bound_reports_implausible_ratio(self, monkeypatch):
+        # ADDED 2026-08-30 (goal: full-data audit, live sanity-check pass): accruals_ratio
+        # ((net_income - operating_cash_flow) / total_assets * 100) had no bound at all - live-
+        # caught min=-6,910.69%/max=50,558.09% already on file, same near-zero-total_assets
+        # failure mode as gross_profitability above (same denominator).
+        loader = _make_loader(monkeypatch)
+        # fixture's total_assets is fixed at 700_000_000.0, net_income at 50_000_000.0 - a large
+        # negative operating_cash_flow makes (net_income - ocf) / total_assets blow past 1000%.
+        row = _quality_row(operating_cash_flow=-8_000_000_000.0)
+
+        metrics = loader._compute_quality_metrics("HUGEACCRUAL", row, ev_metrics=None)
+
+        assert metrics["accruals_ratio"] is None
+        assert metrics["accruals_ratio_unavailable_reason"] == "implausible_ratio"
 
     def test_genuine_missing_data_still_reports_missing_sec_data(self, monkeypatch):
         # Control: no revenue/operating_income at all (not a bound suppression) must keep

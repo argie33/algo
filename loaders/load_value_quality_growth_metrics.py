@@ -4019,14 +4019,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if gross_profitability is not None
                 else None
             )
-            accruals_ratio = (
-                (net_income - operating_cash_flow) / total_assets * 100.0
-                if net_income is not None
+            # FIXED 2026-08-30 (goal: full-data audit, live sanity-check pass): had no bound at
+            # all, unlike gross_profitability right above (same total_assets-denominator shape,
+            # same |ratio|>1000 guard) - a near-zero total_assets base blows this up the same way
+            # already fixed for gross_profitability/operating_profitability/fcf_margin. Live-caught
+            # min=-6,910.69%/max=50,558.09% already on file, several orders of magnitude past any
+            # real accruals percentage.
+            accruals_ratio = None
+            if (
+                net_income is not None
                 and operating_cash_flow is not None
                 and total_assets is not None
                 and total_assets > 0
-                else None
-            )
+            ):
+                computed_accruals_ratio = (net_income - operating_cash_flow) / total_assets * 100.0
+                if abs(computed_accruals_ratio) > 1000:
+                    failed_metrics.append("accruals_ratio")
+                    implausible_ratio_metrics.append("accruals_ratio")
+                else:
+                    accruals_ratio = float(computed_accruals_ratio)
             # ROCE score: same curve shape as the old roic_score (both are "return on capital
             # deployed" measures, similar scale) - see the roce_pct computation's own comment
             # (near roic_pct above) for why ROCE replaces ROIC in the composite.
@@ -4397,7 +4408,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["accruals_ratio"] = accruals_ratio
-            metrics["accruals_ratio_unavailable_reason"] = "missing_sec_data" if accruals_ratio is None else None
+            metrics["accruals_ratio_unavailable_reason"] = (
+                ("implausible_ratio" if "accruals_ratio" in implausible_ratio_metrics else "missing_sec_data")
+                if accruals_ratio is None
+                else None
+            )
             metrics["margin_volatility"] = margin_volatility
             metrics["margin_volatility_unavailable_reason"] = (
                 "insufficient_history" if margin_volatility is None else None
