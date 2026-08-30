@@ -3934,9 +3934,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # are still computed and persisted for display - only their scoring curves and
             # composite weight are removed. See weighted_score below for the full final
             # composite and the validation behind each surviving component.
+            # FIXED 2026-08-30 (goal: full-data audit): required raw operating_income, unlike
+            # operating_margin/operating_margin_trend which already fall back to the EBIT
+            # approximation (operating_income_for_margin = operating_income, else pretax_income
+            # + interest_expense) for 40-F-style filers that tag pretax_income/interest_expense
+            # every year but never tag OperatingIncomeLoss at all - same root cause documented
+            # above operating_income_for_margin's own definition. 866/1473 (59%)
+            # missing_sec_data symbols live-confirmed with pretax_income present the same
+            # fiscal year operating_income is null.
             operating_profitability = (
-                (operating_income - (interest_expense or 0.0)) / stockholders_equity * 100.0
-                if operating_income is not None and stockholders_equity is not None and stockholders_equity > 0
+                (operating_income_for_margin - (interest_expense or 0.0)) / stockholders_equity * 100.0
+                if operating_income_for_margin is not None
+                and stockholders_equity is not None
+                and stockholders_equity > 0
                 else None
             )
             # RE-ADDED TO SCORING 2026-08-27 (goal: recover components wrongly killed by a
