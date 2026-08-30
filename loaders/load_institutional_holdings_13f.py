@@ -412,6 +412,59 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 return None
         return ticker
 
+    def _get_crosswalk_resolvable_tickers(self) -> set[str]:
+        """Active-universe tickers with a real entry in sec_13f_cusip_crosswalk - either
+        an exact ticker match, OR resolvable via the same fuzzy fallback chain
+        _crosswalk_to_tickers()/_get_known_tracked_cusips() use (see
+        _resolve_crosswalk_ticker's own docstring for that rule set).
+
+        FIXED 2026-08-29 (goal: "full data" audit continuation,
+        [[institutional_holdings_13f_crosswalk_resolved_but_reason_unclear_investigated_20260829]]
+        follow-up): used by _calculate_and_cache_ownership() to distinguish a symbol whose
+        CUSIP genuinely can't be resolved at all (real "no_resolved_13f_holdings" gap, a
+        loader/crosswalk limitation) from one whose CUSIP IS resolvable but simply had zero
+        institutional shares reported for it in the CURRENT quarter's bulk dataset (a real,
+        current fact - "zero institutional ownership this period" - not a data gap).
+
+        Deliberately does NOT require _resolve_crosswalk_ticker's name-plausibility check
+        for an EXACT ticker-string match (only for its fuzzy-rescue paths, same as that
+        function already does elsewhere). Live-confirmed why: HIFS (Hingham Institution
+        for Savings, a real 33-symbol sample member from the investigation this fix closes)
+        has an exact `ticker='HIFS'` row in the crosswalk, but its own
+        `company_info_sec.entity_name` is NULL (a separate, already-documented gap - small
+        banks without full SEC registration data, see
+        [[bank_holding_companies_no_sec_cik_fdic_exempt_20260822]]) - the plausibility check
+        can never pass against a NULL local name, so requiring it here would have made this
+        whole fix a no-op for exactly the population it was built to help (live-confirmed:
+        0/332 currently-affected symbols overlapped with a plausibility-gated resolvable
+        set, vs. real matches once gated only on ticker identity). This is safe because an
+        EXACT ticker-string match carries none of the collision risk the plausibility check
+        exists to catch (that risk is specific to _resolve_crosswalk_ticker's FUZZY rescue
+        paths - dot-suffix, currency-suffix, name-index - where a real ambiguity can exist;
+        a literal string-identical ticker is definitionally unambiguous), and this function's
+        only consequence of being wrong is a reason-label choice, never an attributed share
+        count (unlike _crosswalk_to_tickers()'s ownership_pct computation, which is why that
+        path keeps the full plausibility gate).
+        """
+        symbols = set(get_active_symbols(exclude_etfs=True))
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT cusip, ticker, resolved_name FROM sec_13f_cusip_crosswalk WHERE ticker IS NOT NULL")
+            rows = cur.fetchall()
+        resolved: set[str] = {ticker for _cusip, ticker, _resolved_name in rows if ticker in symbols}
+
+        # Fuzzy-rescue cases (dot-suffix, currency-suffix, name-index) genuinely need the
+        # full plausibility-gated resolution chain - only compute the (more expensive)
+        # local-names/name-index machinery for rows an exact match didn't already cover.
+        unmatched_rows = [(cusip, ticker, name) for cusip, ticker, name in rows if ticker not in resolved]
+        if unmatched_rows:
+            local_names = self._fetch_local_entity_names(symbols)
+            name_index = EntityNameIndex(local_names)
+            for _cusip, ticker, resolved_name in unmatched_rows:
+                symbol = self._resolve_crosswalk_ticker(ticker, resolved_name, symbols, local_names, name_index)
+                if symbol:
+                    resolved.add(symbol)
+        return resolved
+
     def _get_known_tracked_cusips(self) -> set[str]:
         """CUSIPs already resolved (in a prior run) to a ticker in our own active universe.
 
@@ -777,13 +830,47 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 except Exception as e:
                     logger.debug(f"[13F] {ticker}: error - {e}")
 
+            # FIXED 2026-08-29 (goal: "full data" audit continuation) - see
+            # _get_crosswalk_resolvable_tickers's own docstring for the full rationale:
+            # a symbol absent from holdings_by_ticker is either (a) genuinely unresolvable
+            # (no known CUSIP->ticker mapping at all - a real loader/crosswalk gap) or (b)
+            # resolvable, just zero institutional shares reported for it in the CURRENT
+            # quarter's bulk dataset (a real, current fact, not a gap - holdings_by_cusip
+            # aggregates ALL rows unconditionally, see _fetch_and_parse_13f_bulk, so
+            # "resolvable but absent" is a genuine zero, not a tracked_cusips scoping
+            # artifact). Previously both cases shared the ambiguous "no_resolved_13f_holdings"
+            # marker (data_unavailable=True), misdiagnosing case (b) as a fixable gap.
             active_symbols = set(get_active_symbols(exclude_etfs=True))
-            for symbol in active_symbols - resolved_tickers:
-                records.append(self._unavailable_record(symbol, now_et, "no_resolved_13f_holdings"))
+            unresolved = active_symbols - resolved_tickers
+            # Skip the (real DB query) resolvable-tickers lookup entirely when there's
+            # nothing to check it against - also means this new code path is a no-op for
+            # any caller/test that already has everything resolved.
+            zero_holdings_tickers = self._get_crosswalk_resolvable_tickers() & unresolved if unresolved else set()
+            for symbol in unresolved:
+                if symbol in zero_holdings_tickers:
+                    records.append(
+                        {
+                            "symbol": symbol,
+                            "filing_date": filing_date,
+                            "institutional_ownership_pct": 0.0,
+                            "number_of_institutional_holders": 0,
+                            "top_10_institutions_pct": None,
+                            "data_unavailable": False,
+                            "reason": None,
+                            "sec_filing_url": None,
+                            "most_recent_filing_date": filing_date,
+                            "data_source": "sec_form13f_bulk",
+                            "updated_at": now_et,
+                        }
+                    )
+                else:
+                    records.append(self._unavailable_record(symbol, now_et, "no_resolved_13f_holdings"))
 
         logger.info(
             f"[13F] Calculated ownership % for {len(resolved_tickers)} tickers; "
-            f"wrote fresh data_unavailable markers for {len(records) - len(resolved_tickers)} others"
+            f"{len(zero_holdings_tickers)} resolvable with zero current holdings; "
+            f"wrote fresh data_unavailable markers for "
+            f"{len(records) - len(resolved_tickers) - len(zero_holdings_tickers)} others"
         )
         return records
 
