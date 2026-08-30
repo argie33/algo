@@ -335,12 +335,18 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
     TestValueMultiplesReconciliationMath above) - none of them called the real method against a
     real (or mocked) DB cursor, so a SELECT-column-count-vs-row-index mismatch had no test that
     could catch it. This test closes that gap: it mocks DatabaseContext with a cursor whose
-    fetchall() returns rows shaped EXACTLY like the method's real SELECT (11 columns: symbol,
-    value_score, composite_score, risk_score, pe_ratio, pb_ratio, ps_ratio, forward_pe,
-    dividend_yield, pe_ratio_unavailable_reason, forward_pe_unavailable_reason) and calls
+    fetchall() returns rows shaped EXACTLY like the method's real SELECT and calls
     `update_value_multiples_percentiles()` for real - if the SELECT and the row[N] literals
     ever drift apart again, this raises IndexError immediately instead of only surfacing in a
     live loader run against the real DB.
+
+    UPDATED 2026-08-30 (goal: full-data audit): the SELECT grew a 12th column (`ss.components`,
+    unpacked as `components_old = row[11]`) after this test was written, and the fixture rows
+    below were never updated to match - reproducing the exact same "fixture shape lags a real
+    SELECT change" gap this test was written to close in the first place, just one field later.
+    Rows now carry all 12 columns: symbol, value_score, composite_score, risk_score, pe_ratio,
+    pb_ratio, ps_ratio, forward_pe, dividend_yield, pe_ratio_unavailable_reason,
+    forward_pe_unavailable_reason, components.
     """
 
     @staticmethod
@@ -354,9 +360,22 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
         # Forward P/E symbol - exercises every branch of the real row-unpacking code with the
         # REAL 11-column shape the live SELECT actually returns.
         rows = [
-            ("AAPL", 60.0, 55.0, 40.0, 15.0, 2.0, 4.0, 18.0, 0.005, None, None),
-            ("UNPROFIT", 50.0, 50.0, 50.0, None, 2.0, 3.0, None, None, "unprofitable_stock", "no_analyst_estimates"),
-            ("NEGFWD", 45.0, 45.0, 50.0, 12.0, 1.5, 2.5, None, 0.01, None, "negative_forward_eps"),
+            ("AAPL", 60.0, 55.0, 40.0, 15.0, 2.0, 4.0, 18.0, 0.005, None, None, {"quality": 70.0}),
+            (
+                "UNPROFIT",
+                50.0,
+                50.0,
+                50.0,
+                None,
+                2.0,
+                3.0,
+                None,
+                None,
+                "unprofitable_stock",
+                "no_analyst_estimates",
+                None,
+            ),
+            ("NEGFWD", 45.0, 45.0, 50.0, 12.0, 1.5, 2.5, None, 0.01, None, "negative_forward_eps", "{}"),
         ]
         cur = self._make_mock_cursor(rows)
         mock_db_context = MagicMock()
