@@ -2107,10 +2107,7 @@ class SecValuationsLoader(OptimalLoader):
         full pipeline run, same coordination requirement as those callers).
         """
         try:
-            import socket
-
-            import yfinance as yf
-
+            from utils.external.yfinance_analyst_ratings import _get_module_worker
             from utils.external.yfinance_circuit_breaker import (
                 YFinanceStillBannedError,
                 get_circuit_breaker,
@@ -2124,12 +2121,15 @@ class SecValuationsLoader(OptimalLoader):
                 logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping FPI sanity-check fetch: {e}")
                 return None, None
 
-            old_timeout = socket.getdefaulttimeout()
-            socket.setdefaulttimeout(10.0)
-            try:
-                info = yf.Ticker(to_yfinance_symbol(symbol)).info
-            finally:
-                socket.setdefaulttimeout(old_timeout)
+            # FIXED 2026-08-29: fetches via the shared _YfinanceAttrProcessWorker (see
+            # utils/external/yfinance_analyst_ratings.py) rather than an in-process
+            # yf.Ticker(...).info call wrapped in socket.setdefaulttimeout() - that timeout
+            # has no effect on a curl_cffi hang (yfinance 0.2.40+ requires curl_cffi, not
+            # built on Python's socket module) - same root cause fixed at 4 other call
+            # sites this session. A TimeoutError from the worker is caught by the generic
+            # except below like any other fetch failure - this function already fails
+            # open on any error, so no special-casing needed.
+            info = _get_module_worker().fetch(to_yfinance_symbol(symbol), "info", timeout_seconds=10.0)
         except Exception as e:
             error_str = str(e).lower()
             if any(kw in error_str for kw in ("429", "rate", "too many", "invalid crumb", "unauthorized")):
@@ -2169,10 +2169,7 @@ class SecValuationsLoader(OptimalLoader):
         just means this symbol stays data_unavailable, not a reason to block the whole run.
         """
         try:
-            import socket
-
-            import yfinance as yf
-
+            from utils.external.yfinance_analyst_ratings import _get_module_worker
             from utils.external.yfinance_circuit_breaker import (
                 YFinanceStillBannedError,
                 get_circuit_breaker,
@@ -2186,12 +2183,9 @@ class SecValuationsLoader(OptimalLoader):
                 logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping dual-class shares fetch: {e}")
                 return None
 
-            old_timeout = socket.getdefaulttimeout()
-            socket.setdefaulttimeout(10.0)
-            try:
-                info = yf.Ticker(to_yfinance_symbol(symbol)).info
-            finally:
-                socket.setdefaulttimeout(old_timeout)
+            # FIXED 2026-08-29: see _fetch_live_fpi_yfinance_check_values's identical fix
+            # above for why the process-isolated worker replaces socket.setdefaulttimeout().
+            info = _get_module_worker().fetch(to_yfinance_symbol(symbol), "info", timeout_seconds=10.0)
         except Exception as e:
             error_str = str(e).lower()
             if any(kw in error_str for kw in ("429", "rate", "too many", "invalid crumb", "unauthorized")):
@@ -2229,10 +2223,7 @@ class SecValuationsLoader(OptimalLoader):
         block the whole run.
         """
         try:
-            import socket
-
-            import yfinance as yf
-
+            from utils.external.yfinance_analyst_ratings import _get_module_worker
             from utils.external.yfinance_circuit_breaker import (
                 YFinanceStillBannedError,
                 get_circuit_breaker,
@@ -2246,12 +2237,9 @@ class SecValuationsLoader(OptimalLoader):
                 logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping FPI shares fetch: {e}")
                 return None
 
-            old_timeout = socket.getdefaulttimeout()
-            socket.setdefaulttimeout(10.0)
-            try:
-                info = yf.Ticker(to_yfinance_symbol(symbol)).info
-            finally:
-                socket.setdefaulttimeout(old_timeout)
+            # FIXED 2026-08-29: see _fetch_live_fpi_yfinance_check_values's identical fix
+            # above for why the process-isolated worker replaces socket.setdefaulttimeout().
+            info = _get_module_worker().fetch(to_yfinance_symbol(symbol), "info", timeout_seconds=10.0)
         except Exception as e:
             error_str = str(e).lower()
             if any(kw in error_str for kw in ("429", "rate", "too many", "invalid crumb", "unauthorized")):
