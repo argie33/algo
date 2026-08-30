@@ -176,6 +176,30 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # above matched anything.
     "RevenueAndOperatingIncome",
     "RevenueFromSaleOfGoods",
+    # FIXED 2026-08-29 (goal: "full data" audit continuation, IFRS segment-revenue
+    # follow-up to the SegmentsAxis fix in 821c120ef): that fix made the parser correctly
+    # find SegmentsAxis-dimensioned contexts for many more IFRS/20-F filers, but 5 of the
+    # majors checked (SHEL/RIO/DEO/UL/TTE) still landed on "no_segment_revenue_in_xbrl_xml"
+    # because none of the concepts above matched their segment-note tagging. Pulled each
+    # filer's actual filed XBRL segment-note report (FilingSummary.xml -> R-file, not
+    # companyfacts) to find the real concept: SHEL's "Segment information" R93.htm, RIO's
+    # "Financial performance by segment" R100.htm ("Segmental revenue"), DEO's "Segmental
+    # information" R56.htm ("Sales"), and UL's "Segment information" R68.htm ("Turnover")
+    # all tag "ifrs-full:Revenue" - the taxonomy's plain top-line concept, not one of the
+    # more specific fallbacks already covered. Verified plausible consolidated-level values
+    # via companyfacts for all 4: SHEL $266.886B FY2025, RIO $57.638B FY2025, DEO $27.964B
+    # FY2025 (USD; also reports in GBP), UL EUR50.503B FY2025 - all match each company's
+    # real, publicly known revenue scale. TTE's "Business segment information" R51.htm
+    # tags "ifrs-full:RevenueFromContractsWithCustomers" instead (note plural "Contracts",
+    # a genuinely distinct IFRS concept from us-gaap's already-covered singular
+    # "RevenueFromContractWithCustomerExcludingAssessedTax" above, not a duplicate/typo) -
+    # $201.196B FY2025, matches TotalEnergies' real revenue scale. Both listed last
+    # (lowest priority, per this list's "first match wins" convention - opposite of
+    # sec_statements.py's "last-listed wins") since "Revenue" in particular is IFRS's most
+    # generic top-line concept and should only be reached once every more specific
+    # us-gaap/IFRS concept above has already been tried and failed to match.
+    "RevenueFromContractsWithCustomers",
+    "Revenue",
 )
 
 # Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment

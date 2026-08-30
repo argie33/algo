@@ -846,6 +846,111 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "GlobalPersonalTravelInsuranceSegmentMember": 6_472_000_000.0,
         }
 
+    def test_ifrs_plain_revenue_concept_recognized(self) -> None:
+        """Real filer shape (verified live against SHEL/RIO/DEO/UL's FY2025 20-F
+        instances, same-day follow-up to the SegmentsAxis fix above): the
+        SegmentsAxis-recognition fix let the parser find these filers' segment-
+        dimensioned contexts, but none tagged segment revenue under
+        RevenueAndOperatingIncome/RevenueFromSaleOfGoods above, so they still fell
+        through to no_segment_revenue_in_xbrl_xml. Pulled each filer's actual filed
+        XBRL segment-note report (not companyfacts): SHEL's "Segment information"
+        R93.htm, RIO's "Financial performance by segment" R100.htm ("Segmental
+        revenue"), DEO's "Segmental information" R56.htm ("Sales"), and UL's
+        "Segment information" R68.htm ("Turnover") all tag plain "ifrs-full:Revenue"
+        - the taxonomy's generic top-line concept. Values match RIO's real reported
+        FY2025 segment revenue exactly: Iron Ore $28.4B, Copper $15.2B (illustrative
+        two-segment split summing to RIO's real $57.638B FY2025 group revenue)."""
+        contexts = _multi_dim_context(
+            "c1",
+            [
+                ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("SegmentsAxis", "IronOreMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
+        ) + _multi_dim_context(
+            "c2",
+            [
+                ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("SegmentsAxis", "CopperMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <ifrs-full:Revenue contextRef="c1">28400000000</ifrs-full:Revenue>
+        <ifrs-full:Revenue contextRef="c2">15200000000</ifrs-full:Revenue>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 2
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "IronOreMember": 28_400_000_000.0,
+            "CopperMember": 15_200_000_000.0,
+        }
+
+    def test_ifrs_revenue_from_contracts_with_customers_plural_recognized(self) -> None:
+        """Real filer shape (verified live against TTE/TotalEnergies' FY2025 20-F
+        instance): TTE's "Business segment information" R51.htm tags segment
+        revenue ("Revenues from sales") under "ifrs-full:RevenueFromContractsWith
+        Customers" - note plural "Contracts", a genuinely distinct IFRS concept
+        from us-gaap's already-covered singular "RevenueFromContractWithCustomer
+        ExcludingAssessedTax" above, not a duplicate/typo. Values match TTE's real
+        reported FY2025 Exploration & Production segment revenue scale."""
+        contexts = _multi_dim_context(
+            "c1",
+            [
+                ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("SegmentsAxis", "ExplorationProductionMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <ifrs-full:RevenueFromContractsWithCustomers contextRef="c1">17300000000</ifrs-full:RevenueFromContractsWithCustomers>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 1
+        assert result["segments"][0]["revenue"] == 17_300_000_000.0
+
+    def test_us_gaap_revenue_concepts_still_win_over_generic_ifrs_revenue(self) -> None:
+        """The new generic 'Revenue'/'RevenueFromContractsWithCustomers' fallbacks
+        must stay lowest-priority (last-tried) per this list's "first match wins"
+        convention - a filer with both a more specific concept (e.g. Revenues) AND
+        a coincidental unrelated 'Revenue'-named fact on the same segment contexts
+        must resolve via the specific concept, not the generic one."""
+        contexts = _context("c1", "StatementBusinessSegmentsAxis", "WidgetsSegmentMember", "2025-01-01", "2025-12-31")
+        facts = """
+        <us-gaap:Revenues contextRef="c1">9000000000</us-gaap:Revenues>
+        <ifrs-full:Revenue contextRef="c1">1000000000</ifrs-full:Revenue>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segments"][0]["revenue"] == 9_000_000_000.0
+
 
 def _plain_context(ctx_id: str, start: str, end: str) -> str:
     """A non-dimensioned context - the consolidated (not segment-level) figure."""
