@@ -238,6 +238,21 @@ _AXIS_SPECIFIC_EXTRA_REVENUE_CONCEPTS: dict[str, tuple[str, ...]] = {
     _FILER_SPECIFIC_INCOME_SEGMENT_AXIS: ("GrossProfit",),
 }
 
+# Santander (FY2025 20-F) tags the SAME GrossProfit-as-segment-income pattern as BBVA, but
+# cross-tabbed under the STANDARD SegmentsAxis (paired with SegmentConsolidationItemsAxis/
+# SegmentItemsAxis) rather than a single-dimension filer-specific axis - so the axis-name-
+# based trust above can't reach it (it only fires in the primary single-dimension scan).
+# _extract_cross_tab_segment_revenue is a SEPARATE, already-safe mechanism: every candidate
+# it finds is reconciled against the filer's own plain consolidated total for the SAME
+# concept before being trusted (see its docstring) - that reconciliation, not axis-name
+# scoping, is what makes trying a generic concept like GrossProfit safe here. Confirmed
+# live: Santander's plain consolidated GrossProfit (EUR58.670B FY2025) matches its own
+# reported "Total income" line exactly, so this concept reconciles cleanly once tried.
+# Deliberately NOT added to _REVENUE_CONCEPT_LOCAL_NAMES itself - that list is also used
+# unreconciled by the primary scan and by _extract_single_segment_revenue, where the same
+# false-match risk that keeps it out of the axis-agnostic list still applies.
+_CROSS_TAB_ONLY_EXTRA_REVENUE_CONCEPTS = ("GrossProfit",)
+
 # Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment
 # line rather than a real component of a segment's own reportable revenue - used by
 # the cross-tab reconciliation fallback (see _extract_cross_tab_segment_revenue) to
@@ -666,7 +681,7 @@ class XBRLSegmentParser:
         # (segment_member, other_axes_combo, end_date, duration_days, revenue)
         candidates: list[tuple[str, frozenset[str], str, int, float]] = []
         matched_concept: str | None = None
-        for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+        for concept in _REVENUE_CONCEPT_LOCAL_NAMES + _CROSS_TAB_ONLY_EXTRA_REVENUE_CONCEPTS:
             for elem in root.iter():
                 if _local_name(elem.tag) != concept:
                     continue
@@ -734,7 +749,7 @@ class XBRLSegmentParser:
         # portfolio (unlike AIG's ~0.3% residual, where investment income is
         # proportionally small). Falls back to the full preference-order scan
         # if the matched concept itself has no plain fact.
-        concept_search_order = list(_REVENUE_CONCEPT_LOCAL_NAMES)
+        concept_search_order = list(_REVENUE_CONCEPT_LOCAL_NAMES + _CROSS_TAB_ONLY_EXTRA_REVENUE_CONCEPTS)
         if matched_concept is not None:
             concept_search_order = [matched_concept] + [c for c in concept_search_order if c != matched_concept]
 

@@ -1277,6 +1277,95 @@ class TestFilerSpecificIncomeSegmentAxis:
         assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
 
 
+class TestCrossTabGrossProfitFallback:
+    """GrossProfit is also tried by the cross-tab fallback (_extract_cross_tab_segment_revenue),
+    a SEPARATE mechanism from TestFilerSpecificIncomeSegmentAxis above - safe here because
+    every cross-tab candidate is reconciled against the filer's own plain consolidated total
+    before being trusted, regardless of axis name. Real-world validation against Santander's
+    FY2025 20-F: Santander cross-tabs a `GrossProfit`-labeled concept under the standard
+    SegmentsAxis, but paired with SegmentItemsAxis=UnderlyingProfitItemsMember - that combination
+    turns out to be a segment PROFIT reconciliation table (real total ~EUR62.4B), not the
+    EUR58.4B "Total income" (revenue-equivalent) table - reconciliation against the real plain
+    consolidated GrossProfit (EUR58.67B) correctly FAILS (off by ~6.3%, outside the 3% tolerance)
+    and Santander correctly stays data_unavailable. These tests use synthetic data to verify
+    both directions of that same reconciliation discipline.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2023-03-23/ifrs-full"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_cross_tab_gross_profit_used_when_it_reconciles(self) -> None:
+        contexts = (
+            _context("u1", "SegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1",
+                [("SegmentsAxis", "AlphaMember"), ("SegmentItemsAxis", "SomeBreakdownMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("SegmentsAxis", "BetaMember"), ("SegmentItemsAxis", "SomeBreakdownMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("anchor1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <ifrs-full:GrossProfit contextRef="c1">60000000</ifrs-full:GrossProfit>
+        <ifrs-full:GrossProfit contextRef="c2">40000000</ifrs-full:GrossProfit>
+        <ifrs-full:GrossProfit contextRef="anchor1">100000000</ifrs-full:GrossProfit>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 60_000_000.0, "BetaMember": 40_000_000.0}
+
+    def test_cross_tab_gross_profit_rejected_when_it_does_not_reconcile(self) -> None:
+        """Mirrors the real Santander case: a cross-tabbed GrossProfit-labeled figure
+        that represents something OTHER than segment revenue (e.g. a profit measure)
+        fails reconciliation against the real consolidated GrossProfit and must be
+        rejected, not silently reported as segment revenue."""
+        contexts = (
+            _context("u1", "SegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1",
+                [("SegmentsAxis", "AlphaMember"), ("SegmentItemsAxis", "UnderlyingProfitItemsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("SegmentsAxis", "BetaMember"), ("SegmentItemsAxis", "UnderlyingProfitItemsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("anchor1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <ifrs-full:GrossProfit contextRef="c1">37000000</ifrs-full:GrossProfit>
+        <ifrs-full:GrossProfit contextRef="c2">25000000</ifrs-full:GrossProfit>
+        <ifrs-full:GrossProfit contextRef="anchor1">58000000</ifrs-full:GrossProfit>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+
 class TestMultiAxisFallbackWhenFirstPriorityAxisHasNoRevenue:
     """Real gap found live against Bank of Montreal's FY2025 40-F: BOTH
     StatementBusinessSegmentsAxis AND SegmentsAxis are present in the same filing,
