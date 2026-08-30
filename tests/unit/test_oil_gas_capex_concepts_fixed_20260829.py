@@ -17,10 +17,11 @@ accrual-basis proxy used as a last resort, listed first/least-preferred so the m
 """
 
 import inspect
+from typing import Any
 
 from loaders.load_financial_statements import _CASHFLOW_FIELD_MAPPING
 from utils.external import sec_statements
-from utils.external.sec_statements import _to_snake
+from utils.external.sec_statements import _to_snake, get_cash_flow
 
 
 class TestOilGasCapexConceptsFixed:
@@ -48,3 +49,64 @@ class TestOilGasCapexConceptsFixed:
         assert "PaymentsToExploreAndDevelopOilAndGasProperties" in source
         assert "PaymentsToAcquireOilAndGasProperty" in source
         assert "CostsIncurredOilAndGasPropertyAcquisitionExplorationAndDevelopmentActivities" in source
+
+
+class _FakeClient:
+    def __init__(self, facts: dict[str, Any]) -> None:
+        self._facts = facts
+
+    def symbol_to_cik(self, symbol: str) -> str:
+        return "0000000000"
+
+    def get_company_facts(self, cik: str) -> dict[str, Any]:
+        return {"facts": self._facts}
+
+
+def _entry(year: int, val: float, filed: str, form: str = "20-F") -> dict[str, Any]:
+    return {"end": f"{year}-12-31", "val": val, "filed": filed, "fp": "FY", "fy": year, "form": form}
+
+
+class TestOilGasMajorsIfrsCapexAliases:
+    """Regression test for the same-day follow-up: TTE (TotalEnergies) and SHEL (Shell plc),
+    both real oil & gas majors filing 20-F under IFRS, never matched either existing IFRS
+    PP&E-purchase alias - their capex stayed NULL despite real, current, plausible-scale
+    data being on file under filer-specific IFRS extension concepts."""
+
+    def test_tte_additions_ppe_pre_2024_variant_maps_to_capex(self) -> None:
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipment": {
+                    "units": {"USD": [_entry(2023, 16_478_000_000.0, "2024-03-01")]}
+                },
+            },
+        }
+        rows = get_cash_flow(_FakeClient(facts), "TTE", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2023]["payments_to_acquire_property_plant_and_equipment"] == 16_478_000_000.0
+
+    def test_tte_additions_ppe_including_rou_2024_onward_variant_maps_to_capex(self) -> None:
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipmentIncludingRightofuseAssets": {
+                    "units": {"USD": [_entry(2025, 15_756_000_000.0, "2026-03-01")]}
+                },
+            },
+        }
+        rows = get_cash_flow(_FakeClient(facts), "TTE", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["payments_to_acquire_property_plant_and_equipment"] == 15_756_000_000.0
+
+    def test_shel_ppe_construction_expenditures_maps_to_capex(self) -> None:
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "PropertyPlantAndEquipmentExpendituresRecognisedForConstructions": {
+                    "units": {"USD": [_entry(2025, 21_815_000_000.0, "2026-03-01")]}
+                },
+            },
+        }
+        rows = get_cash_flow(_FakeClient(facts), "SHEL", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["payments_to_acquire_property_plant_and_equipment"] == 21_815_000_000.0

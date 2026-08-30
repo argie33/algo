@@ -16,7 +16,25 @@ because total_assets DID extract fine that year.
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from loaders.load_financial_statements import ConsolidatedFinancialStatementsLoader, get_balance_sheet_config
+from loaders.load_financial_statements import (
+    ConsolidatedFinancialStatementsLoader,
+    get_balance_sheet_config,
+    get_cash_flow_config,
+)
+
+
+def _make_cashflow_loader() -> ConsolidatedFinancialStatementsLoader:
+    loader = ConsolidatedFinancialStatementsLoader.__new__(ConsolidatedFinancialStatementsLoader)
+    config = get_cash_flow_config("annual")
+    loader.table_name = config["table_name"]
+    loader.period = "annual"
+    loader.statement_type = "cashflow"
+    loader.is_symbol_based = True
+    loader._schema_cols = config["schema_cols"]
+    loader._field_mapping = config["field_mapping"]
+    loader._sec_client = MagicMock()
+    loader._sec_client.symbol_to_cik.return_value = "0001234567"
+    return loader
 
 
 def _make_balance_loader() -> ConsolidatedFinancialStatementsLoader:
@@ -117,7 +135,7 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
         assert {r["fiscal_year"] for r in rows} == {2025}
 
     def test_income_statement_uses_net_income_as_core_field(self):
-        """Different statement_type -> different core field (_CORE_FIELD_BY_STATEMENT_TYPE)."""
+        """Different statement_type -> different core field(s) (_CORE_FIELD_BY_STATEMENT_TYPE)."""
         from loaders.load_financial_statements import get_income_statement_config
 
         loader = ConsolidatedFinancialStatementsLoader.__new__(ConsolidatedFinancialStatementsLoader)
@@ -155,3 +173,43 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
             loader.fetch_incremental("XYZ", since=date(2024, 12, 31))
 
         assert any("net_income IS NULL" in q for q in captured_queries)
+
+    def test_retries_fiscal_year_with_operating_cash_flow_populated_but_capex_null(self):
+        """2026-08-29 fix: cashflow's core-field retry now also fires on `capex` alone,
+        not just `operating_cash_flow` - see _CORE_FIELD_BY_STATEMENT_TYPE's comment.
+        Live-confirmed for SIC-1311 oil & gas E&P symbols (APA etc.): FY2025 had real
+        operating_cash_flow on file (so it never qualified as a core-field retry
+        candidate) but NULL capex, which a later concept-mapping fix could now resolve -
+        without this, that fiscal year could never be retried again once the watermark
+        advanced past it."""
+        loader = _make_cashflow_loader()
+        loader._sec_client.get_cash_flow.return_value = [
+            {"symbol": "APA", "fiscal_year": 2026, "operating_cash_flow": 1_000_000_000, "capex": None},
+            {"symbol": "APA", "fiscal_year": 2025, "operating_cash_flow": 4_545_000_000, "capex": 2_740_000_000},
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[2025]),
+        ):
+            rows = loader.fetch_incremental("APA", since=date(2025, 12, 31))
+
+        # Without the fix, since_year=2025 would silently drop the FY2025 row forever,
+        # even though capex is now extractable and right there in the freshly refetched
+        # data - operating_cash_flow being non-NULL meant it never triggered a retry.
+        assert {r["fiscal_year"] for r in rows} == {2026, 2025}
+
+    def test_does_not_retry_cashflow_years_with_both_fields_already_populated(self):
+        loader = _make_cashflow_loader()
+        loader._sec_client.get_cash_flow.return_value = [
+            {"symbol": "XOM", "fiscal_year": 2025, "operating_cash_flow": 55_000_000_000, "capex": 24_000_000_000},
+            {"symbol": "XOM", "fiscal_year": 2020, "operating_cash_flow": 20_000_000_000, "capex": 20_000_000_000},
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[]),
+        ):
+            rows = loader.fetch_incremental("XOM", since=date(2024, 12, 31))
+
+        assert {r["fiscal_year"] for r in rows} == {2025}

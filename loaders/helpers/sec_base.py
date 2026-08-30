@@ -298,12 +298,32 @@ class SecEdgarStatementLoader(SecLoaderBase):
         "cashflow": "get_cash_flow",
     }
 
-    # Column name is validated against a fixed literal set (not user/DB-supplied) before
-    # ever reaching an f-string SQL fragment - see the retry-set query above.
-    _CORE_FIELD_BY_STATEMENT_TYPE = {
-        "income": "net_income",
-        "balance": "stockholders_equity",
-        "cashflow": "operating_cash_flow",
+    # Column names are validated against a fixed literal set (not user/DB-supplied) before
+    # ever reaching an f-string SQL fragment - see the retry-set query below.
+    #
+    # FIX 2026-08-29 (goal: "full data" audit continuation, oil & gas capex follow-up):
+    # was a single field per statement type, so the 2026-08-18 AVAV retry-gap fix (see
+    # fetch_incremental's comment below) only ever re-included a fiscal year whose ONE core
+    # field was NULL - a gap in any OTHER mapped field (e.g. cashflow's `capex`) never
+    # qualified, so a fiscal year already at data_unavailable=FALSE with a populated
+    # operating_cash_flow but NULL capex could never be retried again, no matter how many
+    # later concept-mapping fixes landed. Live-confirmed for the SIC-1311 E&P symbols
+    # targeted by [[oil_gas_capex_xbrl_concepts_fixed_20260829]]: a scoped `--symbols`
+    # backfill for APA/FANG/RRC/etc. logged a clean "Fetched 7 annual cashflow row(s)" and
+    # a "PASS" completion, yet `annual_cash_flow.capex`/`updated_at` stayed untouched - the
+    # new oil & gas concepts DID resolve a real, non-NULL FY2025 capex value on this run's
+    # raw SEC fetch (confirmed via a direct `get_cash_flow()` call outside the loader), but
+    # `fetch_incremental`'s watermark filter dropped FY2025 anyway because
+    # `unavailable_years` only ever checked `operating_cash_flow IS NULL`, already false for
+    # every affected symbol. `capex` added as a second retry-trigger field for cashflow - a
+    # real, widely-scored value (feeds free_cash_flow/fcf_yield/intrinsic_value_per_share),
+    # not cosmetic, so it deserves the same "keep retrying until a real value lands"
+    # treatment as the statement's primary field. income/balance left as single-field
+    # tuples (unchanged behavior) - no equivalent secondary-field gap found for them yet.
+    _CORE_FIELD_BY_STATEMENT_TYPE: dict[str, tuple[str, ...]] = {
+        "income": ("net_income",),
+        "balance": ("stockholders_equity",),
+        "cashflow": ("operating_cash_flow", "capex"),
     }
 
     def __init__(
@@ -703,8 +723,11 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # `rows` here is always the symbol's FULL refetched history already
                 # sitting in memory (see comment above) - retrying costs zero extra SEC
                 # API calls, only an extra DB write for symbols that actually qualify.
-                core_field = self._CORE_FIELD_BY_STATEMENT_TYPE.get(self.statement_type)
-                if core_field:
+                # NOTE 2026-08-29: _CORE_FIELD_BY_STATEMENT_TYPE holds a tuple of fields per
+                # statement type (was a single field - see its own comment for why cashflow
+                # now carries 2). Issue one retry-candidate query per field so a fiscal year
+                # missing ANY of them (not just the first-listed one) gets retried.
+                for core_field in self._CORE_FIELD_BY_STATEMENT_TYPE.get(self.statement_type, ()):
                     cur.execute(
                         f"SELECT fiscal_year FROM {self.table_name} "
                         f"WHERE symbol = %s AND data_unavailable = FALSE AND {core_field} IS NULL",

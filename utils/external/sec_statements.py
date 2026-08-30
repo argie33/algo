@@ -265,6 +265,36 @@ _CASHFLOW_IFRS_ALIASES = [
         "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # FIXED 2026-08-29 (goal: "full data" audit continuation, oil & gas E&P follow-up): the
+    # two IFRS PP&E-purchase concepts above have never matched TTE (TotalEnergies, 20-F) or
+    # SHEL (Shell plc, 20-F) - both real, current oil & gas majors with real capex, not a
+    # structural "no capex" sector gap. Live-confirmed via real companyfacts JSON: TTE tags
+    # "AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipment" through
+    # FY2023 ($16.478B FY2023, $13.699B FY2022, $11.647B FY2021) then switches to the
+    # "...IncludingRightofuseAssets" variant from FY2024 onward ($13.471B FY2024, $15.756B
+    # FY2025) - both a PP&E roll-forward "additions" disclosure, not a primary cash-flow-
+    # statement line, but the closest real capex proxy TTE reports (same aggregation
+    # semantics as this file's existing "costs incurred" oil & gas fallback below). SHEL
+    # tags "PropertyPlantAndEquipmentExpendituresRecognisedForConstructions" ($21.815B
+    # FY2025, $27.852B FY2024) - plausible against Shell's publicly reported ~$20-24B/yr
+    # capex guidance despite the "Recognised for Constructions" name (a filer-specific
+    # extension label, not evidence of a narrower construction-only scope - no other SHEL
+    # concept comes close to this magnitude). SHEL's "ContractualCommitmentsForAcquisition
+    # OfPropertyPlantAndEquipment" was also checked and rejected: real data but stale
+    # (nothing filed since FY2019) and semantically a forward commitment, not actual spend
+    # - not added.
+    (
+        "AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipment",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
+    (
+        "AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipmentIncludingRightofuseAssets",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
+    (
+        "PropertyPlantAndEquipmentExpendituresRecognisedForConstructions",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
     # FIXED 2026-08-03: no IFRS dividend concept was mapped at all, so every dividend-paying
     # IFRS filer (live-confirmed: WPM/Wheaton Precious Metals, real ifrs-full:DividendsPaid
     # data present back to FY2015, $296M for FY2025) got payout_ratio/dividend_yield
@@ -1047,6 +1077,18 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "CostsIncurredOilAndGasPropertyAcquisitionExplorationAndDevelopmentActivities",
         "PaymentsToAcquireOilAndGasProperty",
         "PaymentsToExploreAndDevelopOilAndGasProperties",
+        # FIXED 2026-08-29 (same audit, follow-up after the sec_base.py capex retry-gap fix
+        # let already-stored SIC-1311 rows actually be re-checked): MGY (Magnolia Oil & Gas)
+        # and GTE (Gran Tierra Energy) tag neither concept above at all for recent fiscal
+        # years - live-confirmed via real companyfacts JSON: MGY reports
+        # "PaymentsToAcquireOilAndGasPropertyAndEquipment" $469.5M FY2025 (its
+        # "PaymentsToExploreAndDevelopOilAndGasProperties" tag exists but is stale, last
+        # used FY2018), GTE the same concept $275.9M FY2025 (tags neither of the other two
+        # oil & gas concepts at all). A distinct XBRL element from "...OilAndGasProperty"
+        # above (note the "AndEquipment" suffix) - not a duplicate/typo, both are real,
+        # separately-defined us-gaap concepts. Listed last (highest priority) since it was
+        # the only concept with real current data for both filers checked.
+        "PaymentsToAcquireOilAndGasPropertyAndEquipment",
         # RESTORED 2026-08-29 (worktree growth-multi-input-blend reconciliation): main's commit
         # 3152939f7 (SIC 700/7200 mapping fix) accidentally dropped these 3 lines - a
         # concurrent-editing collision, not an intentional removal (its own commit message never

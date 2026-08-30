@@ -572,6 +572,10 @@ _CASHFLOW_FIELD_MAPPING = {
     "costs_incurred_oil_and_gas_property_acquisition_exploration_and_development_activities": "capex",
     "payments_to_acquire_oil_and_gas_property": "capex",
     "payments_to_explore_and_develop_oil_and_gas_properties": "capex",
+    # FIXED 2026-08-29 (same audit, MGY/GTE follow-up): see sec_statements.py's get_cash_flow()
+    # comment for the live evidence - a distinct concept from payments_to_acquire_oil_and_gas_
+    # property above, not a duplicate.
+    "payments_to_acquire_oil_and_gas_property_and_equipment": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but
