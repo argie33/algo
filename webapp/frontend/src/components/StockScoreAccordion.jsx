@@ -1363,35 +1363,13 @@ const GROWTH_SCHEMA = [
     used: true,
     weight: "9%",
   },
-  // ADDED 2026-08-29 (backend: migration 1247 + commit 395ff9bd9) - real forward-looking data
-  // from yfinance's earnings_estimate/revenue_estimate/eps_trend endpoints, already computed/
-  // persisted in growth_metrics and served via the API's growth_inputs field, but never wired
-  // into this display. Deliberately NOT scored (no `used`/`weight` key, so no badge on this
-  // page - matches this pillar's existing "unscored = no badge" convention):
-  // analyst_earnings_estimates is a snapshot-per-day table with no backfill capability, so
-  // there's no historical depth yet to test whether these predict anything - see
-  // loaders/load_stock_scores.py's _score_growth docstring. These fields show "No data" for
-  // symbols without analyst coverage, real data for the rest.
-  {
-    key: "forward_eps_growth_current_fy",
-    label: "Forward EPS Growth (Current FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-  },
-  {
-    key: "forward_eps_growth_next_fy",
-    label: "Forward EPS Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-  },
-  {
-    key: "forward_revenue_growth_next_fy",
-    label: "Forward Revenue Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-  },
-  {
-    key: "eps_estimate_revision_90d_pct",
-    label: "EPS Estimate Revision (90D)",
-    fmt: (v) => pct(v, 2),
-  },
+  // forward_eps_growth_current_fy/forward_eps_growth_next_fy/forward_revenue_growth_next_fy/
+  // eps_estimate_revision_90d_pct (backend: migration 1247 + commit 395ff9bd9) REMOVED FROM
+  // THIS TAB 2026-08-30 - none are scored (analyst_earnings_estimates has no backfill/
+  // historical depth to test them - see loaders/load_stock_scores.py's _score_growth
+  // docstring), matching the "only show what's in the scoring formula" rule already applied
+  // to QUALITY_SCHEMA/RISK_SCHEMA/VALUE_SCHEMA/MOMENTUM_SCHEMA above. Raw values stay
+  // computed/persisted in growth_metrics and served via the API's growth_inputs field.
 ];
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see
