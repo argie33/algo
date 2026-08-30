@@ -109,3 +109,81 @@ class TestSharesOutstandingStaleEntryRejected:
         result = loader.fetch_incremental("AI", None)
 
         assert result[0]["shares_outstanding"] == 140_513_000
+
+
+class TestFilingTextFallbackStaleEntryRejected:
+    """FIXED 2026-08-30 (goal: full-data audit): same staleness bug class as above, but in
+    _fetch_shares_outstanding_from_filing_text (the last-resort inline-XBRL filing-text
+    parser, used when the companyfacts JSON has nothing usable) - that function never had a
+    staleness check at all, unlike _latest_shares_value's identical 730-day cutoff above.
+
+    Live-confirmed via AKTX (Akari Therapeutics): its most recent 10-K predates its later
+    conversion to a 20-F foreign-private-issuer filer by years, and this fallback trusted its
+    stale cover-page share count (155,758,529,533 - 6.4x NVDA, the real largest share count on
+    file) with no age check, corrupting company_info_sec.shares_outstanding for every
+    downstream consumer (including load_institutional_holdings_13f.py, which reads this column
+    with no plausibility ceiling of its own)."""
+
+    def _loader(self) -> CompanyInfoSECLoader:
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        return loader
+
+    def test_stale_10k_filing_text_rejected(self) -> None:
+        loader = self._loader()
+        loader.sec_client.get_filing_plaintext.return_value = (
+            '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" scale="0">155758529533</ix:nonFraction>'
+        )
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["10-K"],
+                    "accessionNumber": ["0000000000-18-000001"],
+                    "filingDate": ["2018-03-01"],  # far past the 730-day cutoff
+                }
+            }
+        }
+
+        result = loader._fetch_shares_outstanding_from_filing_text("AKTX", "0000000000", submissions)
+
+        assert result is None
+
+    def test_recent_10k_filing_text_still_accepted(self) -> None:
+        loader = self._loader()
+        loader.sec_client.get_filing_plaintext.return_value = (
+            '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" scale="0">79697889</ix:nonFraction>'
+        )
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["10-K"],
+                    "accessionNumber": ["0000000000-26-000001"],
+                    "filingDate": ["2026-06-15"],  # well within the 730-day cutoff
+                }
+            }
+        }
+
+        result = loader._fetch_shares_outstanding_from_filing_text("PLNT", "0000000000", submissions)
+
+        assert result == 79_697_889
+
+    def test_missing_filing_date_treated_as_stale(self) -> None:
+        """A malformed/short filingDate array must not be trusted just because it's
+        absent - fail closed (None), same as the primary-path fix above."""
+        loader = self._loader()
+        loader.sec_client.get_filing_plaintext.return_value = (
+            '<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" scale="0">79697889</ix:nonFraction>'
+        )
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["10-K"],
+                    "accessionNumber": ["0000000000-26-000001"],
+                    # filingDate deliberately omitted
+                }
+            }
+        }
+
+        result = loader._fetch_shares_outstanding_from_filing_text("ZZZZ", "0000000000", submissions)
+
+        assert result is None

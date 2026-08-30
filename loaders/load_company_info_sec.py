@@ -303,6 +303,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # anything below this floor rather than trust it blindly.
     _MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
 
+    # Shared with _latest_shares_value's identical cutoff below (FIXED 2026-08-20, AEM/AI
+    # stale-fact case) - a share-count fact more than 2 years old may reflect a capital
+    # structure (dilution, reverse split, FPI conversion) that no longer holds today.
+    _STALENESS_CUTOFF_DAYS = 730
+
     # Matches inline-XBRL <ix:nonFraction ... name="dei:EntityCommonStockSharesOutstanding"
     # ...>VALUE</ix:nonFraction> tags regardless of attribute order (real filings, e.g. PLNT's,
     # put name= after unitRef=/contextRef=) - the lookahead asserts the target name= attribute
@@ -411,7 +416,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # short interest. A stale entry now correctly falls through to the us-gaap fallback
         # (or ultimately shares_outstanding=None) instead of being trusted just because it
         # was the newest entry within its own narrow concept's history.
-        staleness_cutoff = (date.today() - timedelta(days=730)).isoformat()
+        staleness_cutoff = (date.today() - timedelta(days=CompanyInfoSECLoader._STALENESS_CUTOFF_DAYS)).isoformat()
         for candidate in sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True):
             end_date = candidate.get("end")
             if not end_date or end_date < staleness_cutoff:
@@ -495,6 +500,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
         recent = (submissions.get("filings") or {}).get("recent") or {}
         forms = recent.get("form") or []
         accessions = recent.get("accessionNumber") or []
+        dates = recent.get("filingDate") or []
         # Domestic 10-K/10-K-A only, NOT 20-F/20-F-A. Live-caught: BP and TV (Grupo
         # Televisa) both 20-F filers, produced market caps of $729B and $310B respectively
         # (real values: ~$90B and ~$2B) when their cover-page share count was trusted here -
@@ -504,8 +510,29 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # report the cover-page count in local/home-market share units with no ADS-ratio
         # conversion available anywhere in the filing text this regex can see.
         annual_forms = {"10-K", "10-K/A"}
+        # FIXED 2026-08-30 (goal: full-data audit): unlike _latest_shares_value's identical
+        # 730-day cutoff (2026-08-20, AEM/AI case), this fallback never checked how old the
+        # 10-K it parses actually is - live-confirmed via AKTX (Akari Therapeutics): its most
+        # recent 10-K predates its later conversion to a 20-F foreign-private-issuer filer by
+        # years, and its cover-page share count (155,758,529,533 - 6.4x NVDA, the real largest
+        # share count on file) is a stale, pre-reverse-split/pre-dilution-event figure. Nothing
+        # downstream (load_sec_valuations.py's MAX_PLAUSIBLE_SHARES_OUTSTANDING ceiling gates
+        # most but not all consumers - e.g. load_institutional_holdings_13f.py reads this
+        # column with no ceiling at all) can catch this once it's written, so reject a stale
+        # source filing here rather than downstream. `dates` is parallel to `forms`/
+        # `accessionNumber` (same shape load_current_reports_8k.py already relies on) - missing
+        # or malformed entries are treated as stale (skip) rather than trusted.
+        staleness_cutoff = (date.today() - timedelta(days=self._STALENESS_CUTOFF_DAYS)).isoformat()
         accession = next(
-            (accessions[i] for i, f in enumerate(forms) if f in annual_forms and i < len(accessions)),
+            (
+                accessions[i]
+                for i, f in enumerate(forms)
+                if f in annual_forms
+                and i < len(accessions)
+                and i < len(dates)
+                and dates[i]
+                and dates[i] >= staleness_cutoff
+            ),
             None,
         )
         if not accession:

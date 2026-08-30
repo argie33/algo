@@ -35,6 +35,7 @@ def _submissions_with_10k(accession: str = "0001067983-26-000018", tickers: list
             "recent": {
                 "form": ["10-K"],
                 "accessionNumber": [accession],
+                "filingDate": ["2026-06-15"],
             }
         }
     }
