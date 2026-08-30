@@ -42,6 +42,7 @@ from typing import Any  # noqa: E402
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.external.sec_custom_xbrl_concepts import CUSTOM_CAPEX_CONCEPTS, fetch_custom_capex  # noqa: E402
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
 from utils.loaders.enum_validator import validate_period, validate_statement_type  # noqa: E402
 
@@ -428,6 +429,11 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "allocated_share_based_compensation_expense",
         "payments_for_repurchase_of_equity",
+        # FIXED 2026-08-29 (shipping-sector custom-XBRL-concept capex fallback): must
+        # never win over a real value the normal concept-list extraction already found -
+        # this key only exists for symbols where that extraction structurally can't work
+        # at all (see _CASHFLOW_FIELD_MAPPING's comment on this same key).
+        "custom_extension_vessel_capex",
         # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): see sec_statements.py's
         # get_cash_flow() comment on "NetCashProvidedByUsedInOperatingActivities
         # ContinuingOperations" (ASH/Ashland live-confirmed: zero entries under the plain
@@ -576,6 +582,15 @@ _CASHFLOW_FIELD_MAPPING = {
     # comment for the live evidence - a distinct concept from payments_to_acquire_oil_and_gas_
     # property above, not a duplicate.
     "payments_to_acquire_oil_and_gas_property_and_equipment": "capex",
+    # FIXED 2026-08-29 (same audit, shipping-sector follow-up): identity key
+    # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
+    # symbols in utils/external/sec_custom_xbrl_concepts.py's CUSTOM_CAPEX_CONCEPTS - see
+    # that module's docstring for why (real capex tagged under a filer-specific custom
+    # XBRL extension taxonomy, structurally invisible to the companyfacts API this file's
+    # normal concept-list extraction depends on). fallback_only (see
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the
+    # normal SEC extraction already found.
+    "custom_extension_vessel_capex": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but
@@ -1640,7 +1655,22 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         self._explicit_null_rejections: list[tuple[dict[str, Any], str]] = []
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        return super().fetch_incremental(symbol, since)
+        rows = super().fetch_incremental(symbol, since)
+        # FIXED 2026-08-29 (goal: "full data" audit continuation, shipping-sector capex
+        # follow-up): CUSTOM_CAPEX_CONCEPTS-registered symbols have their real capex
+        # tagged under a filer-specific custom XBRL extension concept that SEC's
+        # companyfacts API (what `super().fetch_incremental()`'s normal concept-list
+        # extraction uses) structurally never returns - see
+        # utils/external/sec_custom_xbrl_concepts.py's module docstring for the live
+        # evidence this is an API limitation, not an unchecked concept name. Cheap no-op
+        # for every other symbol (dict lookup miss, zero extra network calls).
+        if self.statement_type == "cashflow" and symbol in CUSTOM_CAPEX_CONCEPTS:
+            custom_capex_by_year = fetch_custom_capex(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_capex_by_year:
+                    row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
+        return rows
 
     def _record_explicit_null_rejection(self, row: dict[str, Any], field: str) -> None:
         """Record that `field` was deliberately nulled on this row so post_run() can force
