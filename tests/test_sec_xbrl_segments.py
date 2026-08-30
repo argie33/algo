@@ -1219,6 +1219,83 @@ class TestCrossTabSegmentRevenueFallback:
         assert revenues == {"AlphaMember": 70_000_000.0, "BetaMember": 10_000_000.0}
 
 
+class TestMultiAxisFallbackWhenFirstPriorityAxisHasNoRevenue:
+    """Real gap found live against Bank of Montreal's FY2025 40-F: BOTH
+    StatementBusinessSegmentsAxis AND SegmentsAxis are present in the same filing,
+    but StatementBusinessSegmentsAxis (higher priority) is used ONLY for a
+    Goodwill-by-segment footnote covering 2 of BMO's 5 real segments - the REAL,
+    complete revenue breakdown (Canadian P&C $12.262B, US Banking $11.483B, Wealth
+    Management $5.302B, Capital Markets $7.447B, Corporate Services -$220M FY2025)
+    is tagged under the co-existing SegmentsAxis instead. The prior single-axis-
+    then-give-up logic picked StatementBusinessSegmentsAxis, found zero revenue
+    facts there, and reported data_unavailable without ever looking at SegmentsAxis
+    - even though real, complete segment revenue was sitting right there under a
+    different recognized axis in the same instance.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2023-03-23/ifrs-full"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_falls_through_to_second_axis_when_first_has_no_revenue(self) -> None:
+        contexts = (
+            # StatementBusinessSegmentsAxis: real axis, but only used for an
+            # unrelated Goodwill footnote covering a partial subset of segments.
+            _context("goodwill1", "StatementBusinessSegmentsAxis", "WealthManagementMember", "2025-01-01", "2025-12-31")
+            + _context("goodwill2", "StatementBusinessSegmentsAxis", "CapitalMarketsMember", "2025-01-01", "2025-12-31")
+            # SegmentsAxis: the REAL, complete revenue breakdown.
+            + _context("r1", "SegmentsAxis", "CanadianBankingMember", "2025-01-01", "2025-12-31")
+            + _context("r2", "SegmentsAxis", "UnitedStatesBankingMember", "2025-01-01", "2025-12-31")
+            + _context("r3", "SegmentsAxis", "WealthManagementMember", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:Goodwill contextRef="goodwill1">500000000</us-gaap:Goodwill>
+        <us-gaap:Goodwill contextRef="goodwill2">300000000</us-gaap:Goodwill>
+        <us-gaap:Revenue contextRef="r1">60000000</us-gaap:Revenue>
+        <us-gaap:Revenue contextRef="r2">40000000</us-gaap:Revenue>
+        <us-gaap:Revenue contextRef="r3">20000000</us-gaap:Revenue>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        assert result["segment_count"] == 3
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "CanadianBankingMember": 60_000_000.0,
+            "UnitedStatesBankingMember": 40_000_000.0,
+            "WealthManagementMember": 20_000_000.0,
+        }
+
+    def test_first_priority_axis_still_wins_when_it_has_real_revenue(self) -> None:
+        """The overwhelmingly common case (a filer's real revenue IS under its
+        first-priority axis) must resolve exactly as before - this fix only
+        changes behavior when the first axis has zero revenue candidates."""
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31"
+        ) + _context("c2", "SegmentsAxis", "ShouldNotBeUsedMember", "2025-01-01", "2025-12-31")
+        facts = """
+        <us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">999000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 100_000_000.0}
+
+
 class TestComponentSumSegmentRevenueFallback:
     """Real gap found live against BOK Financial's, Ameris Bancorp's, and Arbor
     Realty Trust's FY2025 10-K instances - three genuinely different sub-industries

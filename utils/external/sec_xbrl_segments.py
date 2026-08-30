@@ -1088,42 +1088,58 @@ class XBRLSegmentParser:
         # Prefer business-line segments (ASC 280's primary "operating segments" /
         # IFRS 8's SegmentsAxis equivalent); fall back to geographic only when the
         # filer doesn't tag either business-line axis.
+        # FIXED 2026-08-29 (goal: "full data" audit, FPI-bank segment sweep follow-up):
+        # a filer can tag MORE THAN ONE recognized segment axis in the same instance for
+        # UNRELATED purposes - confirmed live against Bank of Montreal's FY2025 40-F:
+        # `StatementBusinessSegmentsAxis` is present, but ONLY on a Goodwill-by-segment
+        # footnote covering 2 of BMO's 5 real segments (WealthManagement, CapitalMarkets);
+        # the REAL, complete 5-segment (+CorporateServices) revenue breakdown - real values
+        # confirmed against BMO's own reported figures, e.g. Canadian P&C $12.262B, US
+        # Banking $11.483B FY2025 - is tagged under the co-existing `SegmentsAxis` instead.
+        # The prior single-axis-then-give-up logic picked `StatementBusinessSegmentsAxis`
+        # (higher priority, and genuinely present) and never looked at `SegmentsAxis` at
+        # all once that pick came up empty for revenue, reporting data_unavailable despite
+        # the real data sitting right there under a different axis in the same filing. Now
+        # tries every recognized axis actually present, in the same priority order, and
+        # keeps whichever one is the first to actually yield a revenue candidate - a filer
+        # with real data under its first-priority axis (the overwhelmingly common case,
+        # unaffected by this change) still resolves exactly as before.
         available_axes = {info[0] for info in context_segment.values()}
-        if _BUSINESS_SEGMENT_AXIS in available_axes:
-            axis_to_use = _BUSINESS_SEGMENT_AXIS
-        elif _IFRS_SEGMENTS_AXIS in available_axes:
-            axis_to_use = _IFRS_SEGMENTS_AXIS
-        else:
-            axis_to_use = _GEOGRAPHIC_SEGMENT_AXIS
+        axis_priority = [axis for axis in _SEGMENT_AXIS_LOCAL_NAMES if axis in available_axes]
+        axis_to_use = axis_priority[0]
 
         candidate_facts: list[tuple[str, str, int, float, bool]] = []
         # (member, end_date, duration_days, revenue, is_boilerplate_paired)
         matched_concept = None
-        for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
-            candidate_facts = []
-            for elem in root.iter():
-                if _local_name(elem.tag) != concept:
-                    continue
-                info = context_segment.get(elem.get("contextRef", ""))
-                if not info or info[0] != axis_to_use:
-                    continue
-                _axis, member, end_str, start_str, is_boilerplate_paired = info
-                value = elem.text
-                if value is None:
-                    continue
-                try:
-                    revenue = float(value.strip())
-                except ValueError:
-                    continue
-                duration_days = 0
-                if start_str and end_str:
+        for axis_candidate in axis_priority:
+            for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+                candidate_facts = []
+                for elem in root.iter():
+                    if _local_name(elem.tag) != concept:
+                        continue
+                    info = context_segment.get(elem.get("contextRef", ""))
+                    if not info or info[0] != axis_candidate:
+                        continue
+                    _axis, member, end_str, start_str, is_boilerplate_paired = info
+                    value = elem.text
+                    if value is None:
+                        continue
                     try:
-                        duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                        revenue = float(value.strip())
                     except ValueError:
-                        duration_days = 0
-                candidate_facts.append((member, end_str, duration_days, revenue, is_boilerplate_paired))
+                        continue
+                    duration_days = 0
+                    if start_str and end_str:
+                        try:
+                            duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                        except ValueError:
+                            duration_days = 0
+                    candidate_facts.append((member, end_str, duration_days, revenue, is_boilerplate_paired))
+                if candidate_facts:
+                    matched_concept = concept
+                    break
             if candidate_facts:
-                matched_concept = concept
+                axis_to_use = axis_candidate
                 break
 
         if not candidate_facts:
