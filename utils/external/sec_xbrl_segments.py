@@ -74,7 +74,25 @@ _GEOGRAPHIC_SEGMENT_AXIS = "StatementGeographicalAxis"
 # SegmentsAxis contexts at all - that class is still correctly reported
 # unavailable, this fix only recovers filers that DO tag it.)
 _IFRS_SEGMENTS_AXIS = "SegmentsAxis"
-_SEGMENT_AXIS_LOCAL_NAMES = (_BUSINESS_SEGMENT_AXIS, _IFRS_SEGMENTS_AXIS, _GEOGRAPHIC_SEGMENT_AXIS)
+
+# BBVA's own filer-specific extension axis (not a shared ifrs-full/us-gaap concept) -
+# confirmed live against BBVA's FY2025 20-F (CIK 842180): BBVA tags NONE of the three
+# axes above anywhere in its instance document at all, but its real per-segment income
+# ("Note 6 Main margins and profit by operating segments") is tagged under this axis
+# with single-letter ISO country-style members (ES/MX/TR - Spain/Mexico/Turkey, BBVA's
+# real reportable segments), paired with a `GrossProfit`-labeled concept (see
+# `_AXIS_SPECIFIC_EXTRA_REVENUE_CONCEPTS` below for why that concept is trusted ONLY
+# under this specific axis, not added to the general `_REVENUE_CONCEPT_LOCAL_NAMES`
+# list). Lowest priority (after geographic) since it's a narrow, single-filer-family
+# extension, not a general-purpose taxonomy axis like the three above.
+_FILER_SPECIFIC_INCOME_SEGMENT_AXIS = "IncomeByOperatingSegmentAxis"
+
+_SEGMENT_AXIS_LOCAL_NAMES = (
+    _BUSINESS_SEGMENT_AXIS,
+    _IFRS_SEGMENTS_AXIS,
+    _GEOGRAPHIC_SEGMENT_AXIS,
+    _FILER_SPECIFIC_INCOME_SEGMENT_AXIS,
+)
 
 # Standard (non-filer-specific) us-gaap companion axis some filers pair with a
 # segment axis purely to mark "this is a real reportable-operating-segment
@@ -201,6 +219,24 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     "RevenueFromContractsWithCustomers",
     "Revenue",
 )
+
+# `ifrs-full:GrossProfit` is deliberately NOT in _REVENUE_CONCEPT_LOCAL_NAMES above, even
+# though it's confirmed live (BBVA's FY2025 20-F: Spain EUR10.027B, Mexico EUR15.198B,
+# Turkey EUR5.213B, matching BBVA's own reported "Gross profit" segment table exactly;
+# Santander's FY2025 20-F: plain consolidated GrossProfit EUR58.670B matches its own
+# "Total income" line exactly) to be how these Spanish IFRS banks tag their bank-specific
+# "total income" segment measure. Unlike every other concept in the main list,
+# `GrossProfit` is a genuinely common, generic concept for retail/manufacturing/industrial
+# filers meaning Revenue minus COGS - a real, much SMALLER number than total revenue for
+# any normal company. Adding it to the general list (searched, unreconciled, under any of
+# the three standard axes) would risk silently corrupting segment revenue/HHI for some
+# OTHER filer that tags genuine COGS-based gross profit under a segment axis. It's only
+# trusted here, scoped to the one axis whose NAME itself asserts "this is per-operating-
+# segment income data" (see `_FILER_SPECIFIC_INCOME_SEGMENT_AXIS`) - see
+# `_AXIS_SPECIFIC_EXTRA_REVENUE_CONCEPTS` below for how this scoping is actually enforced.
+_AXIS_SPECIFIC_EXTRA_REVENUE_CONCEPTS: dict[str, tuple[str, ...]] = {
+    _FILER_SPECIFIC_INCOME_SEGMENT_AXIS: ("GrossProfit",),
+}
 
 # Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment
 # line rather than a real component of a segment's own reportable revenue - used by
@@ -1112,7 +1148,10 @@ class XBRLSegmentParser:
         # (member, end_date, duration_days, revenue, is_boilerplate_paired)
         matched_concept = None
         for axis_candidate in axis_priority:
-            for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+            concepts_to_try = _REVENUE_CONCEPT_LOCAL_NAMES + _AXIS_SPECIFIC_EXTRA_REVENUE_CONCEPTS.get(
+                axis_candidate, ()
+            )
+            for concept in concepts_to_try:
                 candidate_facts = []
                 for elem in root.iter():
                     if _local_name(elem.tag) != concept:

@@ -1219,6 +1219,64 @@ class TestCrossTabSegmentRevenueFallback:
         assert revenues == {"AlphaMember": 70_000_000.0, "BetaMember": 10_000_000.0}
 
 
+class TestFilerSpecificIncomeSegmentAxis:
+    """Real gap found live against BBVA's FY2025 20-F: BBVA tags NONE of the three
+    standard segment axes anywhere in its instance document, but its real per-segment
+    income ("Note 6 Main margins and profit by operating segments") is tagged under
+    its own filer-specific `IncomeByOperatingSegmentAxis` extension, with a
+    `GrossProfit`-labeled concept as its segment revenue equivalent - confirmed live:
+    Spain EUR10.027B, Mexico EUR15.198B, Turkey EUR5.213B FY2025, exactly matching
+    BBVA's own reported segment table. `GrossProfit` is deliberately NOT trusted under
+    the three standard axes (too generic/risky - see `_AXIS_SPECIFIC_EXTRA_REVENUE_CONCEPTS`
+    docstring) - only under this specific, unambiguously-named axis.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2023-03-23/ifrs-full"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_gross_profit_trusted_under_filer_specific_income_segment_axis(self) -> None:
+        contexts = _context("c1", "IncomeByOperatingSegmentAxis", "ES", "2025-01-01", "2025-12-31") + _context(
+            "c2", "IncomeByOperatingSegmentAxis", "MX", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <ifrs-full:GrossProfit contextRef="c1">10027000000</ifrs-full:GrossProfit>
+        <ifrs-full:GrossProfit contextRef="c2">15198000000</ifrs-full:GrossProfit>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 2
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"ES": 10_027_000_000.0, "MX": 15_198_000_000.0}
+
+    def test_gross_profit_not_trusted_under_a_standard_axis(self) -> None:
+        """The same risky concept must NOT be picked up under a standard axis - only
+        the narrow, unambiguously-named filer-specific axis grants it trust. A filer
+        tagging genuine COGS-based GrossProfit under StatementBusinessSegmentsAxis
+        (a real, plausible scenario for a retailer/manufacturer) must NOT have it
+        mistaken for segment revenue."""
+        contexts = _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+        facts = """
+        <us-gaap:GrossProfit contextRef="c1">5000000</us-gaap:GrossProfit>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+
 class TestMultiAxisFallbackWhenFirstPriorityAxisHasNoRevenue:
     """Real gap found live against Bank of Montreal's FY2025 40-F: BOTH
     StatementBusinessSegmentsAxis AND SegmentsAxis are present in the same filing,
