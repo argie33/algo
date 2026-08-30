@@ -60,6 +60,17 @@ logger = logging.getLogger(__name__)
 # _analyst_score() already filters on (LOWER(action) IN ('up','upgrade') / ('down','downgrade')).
 _VALID_ACTIONS = {"up", "down", "main", "init", "reit"}
 
+# ADDED 2026-08-30 (goal: full-data audit, live sanity-check pass): fetch_forward_growth_estimates's
+# eps_estimate_revision_90d_pct is the ONE field in that function computed via a local division
+# ((current - prior) / abs(prior) * 100.0) rather than reading yfinance's own pre-computed
+# 'growth' column - a near-zero prior-90-day EPS estimate (common for turnaround/recovery names)
+# blows this up into a meaningless number, live-caught at -123,900.00% already on file. Same
+# NUMERIC(10,4) growth_metrics.eps_estimate_revision_90d_pct column (max magnitude 999,999.9999)
+# and same root cause already fixed in loaders/load_enhanced_quality_growth_metrics.py's
+# MAX_TREND_PERCENTAGE_POINTS (100,000) for its own near-zero-denominator growth fields on this
+# exact column type - reusing the same value here for consistency, not re-derived independently.
+_MAX_PLAUSIBLE_ESTIMATE_REVISION_PCT = 100_000.0
+
 
 def _yf_attr_worker_loop(request_queue: Any, response_queue: Any) -> None:
     """Entry point for a persistent yfinance-attribute-fetch worker process.
@@ -573,8 +584,10 @@ def fetch_forward_growth_estimates(symbol: str) -> dict[str, float | None] | Non
         current = _safe_float_cell(trend_df.loc["0y", "current"])
         prior = _safe_float_cell(trend_df.loc["0y", "90daysAgo"])
         if current is not None and prior is not None and prior != 0:
-            result["eps_estimate_revision_90d_pct"] = (current - prior) / abs(prior) * 100.0
-            any_coverage = True
+            revision_pct = (current - prior) / abs(prior) * 100.0
+            if abs(revision_pct) < _MAX_PLAUSIBLE_ESTIMATE_REVISION_PCT:
+                result["eps_estimate_revision_90d_pct"] = revision_pct
+                any_coverage = True
 
     return result if any_coverage else None
 

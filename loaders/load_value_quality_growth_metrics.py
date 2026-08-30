@@ -1730,8 +1730,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             if last_eps is not None and forward_eps is not None and last_eps != 0:
                 # Earnings surprise: (last reported - forward estimate) / |forward estimate| * 100
-                surprise = ((last_eps - forward_eps) / abs(forward_eps)) * 100
-                metrics["earnings_surprise_avg"] = float(round(surprise, 2))
+                # FIXED 2026-08-30 (goal: full-data audit, live sanity-check pass): had no bound
+                # at all, unlike quarterly_growth_momentum right above (same MAX_PLAUSIBLE_GROWTH_PCT
+                # guard) and this same field's OTHER, independent implementation in
+                # load_enhanced_quality_growth_metrics.py (guarded at MAX_TREND_PERCENTAGE_POINTS).
+                # A near-zero forward_eps estimate (common for turnaround/recovery names) divides
+                # this into a meaningless number - live-caught min=-433,067.03%/max=936,616.42%
+                # already on file, several orders of magnitude past any real "surprise" percentage.
+                if forward_eps != 0:
+                    surprise = ((last_eps - forward_eps) / abs(forward_eps)) * 100
+                    if abs(surprise) < MAX_PLAUSIBLE_GROWTH_PCT:
+                        metrics["earnings_surprise_avg"] = float(round(surprise, 2))
+                    else:
+                        metrics["earnings_surprise_avg_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
 
                 # Earnings beat rate: % of recent quarters with positive EPS growth (proxy for beats)
                 if len(eps_growth_rates) > 0:

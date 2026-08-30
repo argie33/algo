@@ -219,3 +219,26 @@ class TestFetchForwardGrowthEstimates:
         with patch(_WORKER_PATCH_TARGET, return_value=worker):
             result = fetch_forward_growth_estimates("AAPL")
         assert result is None  # the only populated field is guarded off, so no_coverage
+
+    def test_near_zero_prior_estimate_implausible_revision_is_suppressed(self, _patch_circuit_breaker):
+        # ADDED 2026-08-30 (goal: full-data audit, live sanity-check pass): unlike the exact-zero
+        # case above, a genuinely near-zero (but nonzero) prior estimate still passes the
+        # `prior != 0` guard and blows up into a meaningless percentage - live-caught
+        # -123,900.00% already on file. This is the ONE field in fetch_forward_growth_estimates
+        # computed via a local division rather than reading yfinance's own pre-computed 'growth'
+        # column, so it's uniquely exposed to this near-zero-denominator failure mode.
+        eps_trend_df = pd.DataFrame({"current": [5.0], "90daysAgo": [0.001]}, index=["0y"])
+        worker = _mock_worker_for(earnings_estimate=None, revenue_estimate=None, eps_trend=eps_trend_df)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
+            result = fetch_forward_growth_estimates("AAPL")
+        assert result is None  # the only populated field is guarded off, so no_coverage
+
+    def test_plausible_revision_is_not_suppressed(self, _patch_circuit_breaker):
+        # Control: a real, well-within-bound revision must still come through - the guard added
+        # above must not reject legitimate values.
+        eps_trend_df = pd.DataFrame({"current": [9.0], "90daysAgo": [8.0]}, index=["0y"])
+        worker = _mock_worker_for(earnings_estimate=None, revenue_estimate=None, eps_trend=eps_trend_df)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
+            result = fetch_forward_growth_estimates("AAPL")
+        assert result is not None
+        assert result["eps_estimate_revision_90d_pct"] == pytest.approx(12.5, abs=1e-3)
