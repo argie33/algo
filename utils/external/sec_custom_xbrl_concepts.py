@@ -54,6 +54,45 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # against accession 0001140361-26-007868 (FY2025 20-F): cmre:PaymentsToAcquireVessels
     # $68,971,000 FY2025 / $8,222,000 FY2024 / $7,632,000 FY2023.
     "CMRE": [("cmre", "PaymentsToAcquireVessels")],
+    # VAALCO Energy (CIK 0000894627, oil & gas E&P) - verified live 2026-08-29 against
+    # accession 0000894627-26-000013 (FY2025 10-K): egy:PaymentToAcquirePropertyAndEquipmentExpendituresIncludingExplorationExpense
+    # $252,856,000 FY2025 / $102,996,000 FY2024 / $97,223,000 FY2023 - the filer's own
+    # concept name states it's already the comprehensive total ("...IncludingExplorationExpense"),
+    # so used alone, NOT summed with the filing's two smaller, ambiguous sibling concepts
+    # (egy:AcquisitionOfCrudeOilAndNaturalGasProperties, egy:NonCashPaymentsToExploreOilAndGasProperties -
+    # both carry negative values in the raw filing for at least one year, inconsistent
+    # with a plain cash-capex-outflow sign convention, and "NonCash" in the second name
+    # suggests it may already be a component backed OUT of a broader total rather than
+    # an additive one - summing either risks double-counting or including a non-cash
+    # adjustment; the conservative single-concept choice avoids that risk).
+    "EGY": [("egy", "PaymentToAcquirePropertyAndEquipmentExpendituresIncludingExplorationExpense")],
+    # ALEnnA Resources (CIK 0001845123, conventional + renewable natural gas E&P) -
+    # verified live 2026-08-29 against accession 0001213900-26-036606 (FY2025 10-K). Both
+    # concepts real, positive in every year, and economically distinct (conventional vs.
+    # renewable natural gas property spend), not a duplicate:
+    # anna:PaymentToAdditionsToConventionalNaturalGasProperties $6,769,337 FY2025 /
+    # $13,344,911 FY2024, anna:PaymentsToAdditionsToRenewableNaturalGasProperties
+    # $235,724 FY2025 / $9,721,376 FY2024 - summed total capex $7,005,061 FY2025 /
+    # $23,066,287 FY2024.
+    "ANNA": [
+        ("anna", "PaymentToAdditionsToConventionalNaturalGasProperties"),
+        ("anna", "PaymentsToAdditionsToRenewableNaturalGasProperties"),
+    ],
+    # Epsilon Energy (CIK 0001726126, oil & gas E&P) - verified live 2026-08-29 against
+    # accession 0001104659-26-035794 (FY2025 10-K). Both concepts real, positive in every
+    # year, and economically distinct (proved vs. unproved property acquisitions), not a
+    # duplicate: epsn:PaymentsToAcquireProvedOilAndGasProperty $7,929,773 FY2025 /
+    # $31,695,651 FY2024, epsn:PaymentsToAcquireUnprovedOilAndGasProperty $6,999,905
+    # FY2025 / $4,507,280 FY2024 - summed total capex $14,929,678 FY2025 / $36,202,931
+    # FY2024. Deliberately excludes the filing's third sibling concept
+    # (epsn:PaymentsToAcquireLandBuildingsAndOtherPropertyPlantAndEquipment) - small
+    # magnitude and NEGATIVE in FY2025 (-$270,488), inconsistent with a plain
+    # cash-capex-outflow sign convention, so not safely summable without further
+    # investigation this session didn't do.
+    "EPSN": [
+        ("epsn", "PaymentsToAcquireProvedOilAndGasProperty"),
+        ("epsn", "PaymentsToAcquireUnprovedOilAndGasProperty"),
+    ],
 }
 
 
@@ -134,24 +173,51 @@ def extract_custom_capex_from_xbrl_xml(xml_content: str, symbol: str) -> dict[in
     return values_by_year
 
 
+_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
+# BASE (non-amendment) forms only - tried first. See fetch_custom_capex's docstring.
+_BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
+
+
 def fetch_custom_capex(symbol: str, sec_client: Any) -> dict[int, float]:
     """Fetch and parse `symbol`'s latest annual filing for its known custom capex
     concept(s). Returns {} if symbol isn't in CUSTOM_CAPEX_CONCEPTS, the filing can't be
     found, or the XML can't be parsed - callers should treat that as "no fallback data",
     not raise.
+
+    LIVE-REPRODUCED 2026-08-29 while validating this exact function: a naive
+    "most-recent annual-form filing" scan picked EGY's 10-K/A (a Part-III-only amendment,
+    5.3KB, zero financial-statement facts) over its real, substantive 10-K filed earlier
+    the same season - the amendment sorts first in SEC's `recent` filing list. Same bug
+    class as `loaders/load_sec_segment_info.py`'s `_find_latest_annual_filing()` (fixed
+    there 2026-08-29 for the identical LAC/PDSB pattern - see that method's own
+    docstring) and `sec_segment_info` picked a Part-III-only 10-K/A over the real 10-K
+    for a different filer entirely (commit da2833e2a). Now prefers a BASE (non-amendment)
+    annual form first, only falling back to an amendment if no base-form filing exists at
+    all in the filing history - same two-tier strategy as that fix, reimplemented here
+    (not imported from that loader) to keep this module dependency-free of the loader
+    layer.
     """
     if symbol not in CUSTOM_CAPEX_CONCEPTS:
+        # Not an error - no candidates registered for this symbol, nothing to fetch.
         return {}
     try:
         cik = sec_client.symbol_to_cik(symbol)
         submissions = sec_client.get_submissions(cik)
         recent = submissions["filings"]["recent"]
-        annual_forms = {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}
+        fallback_amendment: tuple[str, str] | None = None
         for i in range(len(recent["form"])):
-            if recent["form"][i] not in annual_forms:
+            form = recent["form"][i]
+            if form not in _ANNUAL_FILING_FORMS:
                 continue
             accession = recent["accessionNumber"][i]
-            xml_content = sec_client.get_filing_xml(cik, accession, recent["form"][i])
+            if form in _BASE_ANNUAL_FILING_FORMS:
+                xml_content = sec_client.get_filing_xml(cik, accession, form)
+                return extract_custom_capex_from_xbrl_xml(xml_content, symbol)
+            if fallback_amendment is None:
+                fallback_amendment = (accession, form)
+        if fallback_amendment is not None:
+            accession, form = fallback_amendment
+            xml_content = sec_client.get_filing_xml(cik, accession, form)
             return extract_custom_capex_from_xbrl_xml(xml_content, symbol)
     except Exception:
         # Not an error for THIS optional fallback - a fetch/parse failure here just means
@@ -160,5 +226,5 @@ def fetch_custom_capex(symbol: str, sec_client: Any) -> dict[int, float]:
         # as before this module existed). Same soft-fail contract as this codebase's
         # other optional-fallback sources (e.g. sec_base.py's _try_yfinance_fallback).
         return {}
-    # No candidates - the filing history had no 10-K/20-F/40-F at all to check.
+    # Not an error - no candidates at all: the filing history had no 10-K/20-F/40-F to check.
     return {}

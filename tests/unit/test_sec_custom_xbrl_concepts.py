@@ -122,13 +122,110 @@ class TestFetchCustomCapex:
         sec_client.symbol_to_cik.side_effect = RuntimeError("network error")
         assert fetch_custom_capex("DHT", sec_client) == {}
 
+    def test_prefers_base_10k_over_a_10ka_amendment_that_sorts_first(self):
+        """Live-reproduced 2026-08-29: EGY's most-recent-first filing list has a
+        Part-III-only 10-K/A (near-empty XBRL instance) sorted before its real,
+        substantive 10-K - a naive "first matching annual form" scan picks the
+        amendment and finds nothing. Same bug class already fixed once in this repo for
+        load_sec_segment_info.py's _find_latest_annual_filing (LAC/PDSB, 2026-08-29)."""
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0000894627"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["10-K/A", "10-K", "10-K"],
+                    "accessionNumber": ["0000894627-26-000017", "0000894627-26-000013", "0000894627-25-000009"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _EGY_XML
+
+        result = fetch_custom_capex("EGY", sec_client)
+
+        assert result[2025] == 252_856_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0000894627", "0000894627-26-000013", "10-K")
+
+    def test_falls_back_to_amendment_when_no_base_form_filing_exists(self):
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0000894627"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["10-K/A"],
+                    "accessionNumber": ["0000894627-26-000017"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _EGY_XML
+
+        result = fetch_custom_capex("EGY", sec_client)
+
+        assert result[2025] == 252_856_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0000894627", "0000894627-26-000017", "10-K/A")
+
 
 def test_custom_capex_concepts_registry_is_well_formed():
     """Every registered symbol must map to at least one (prefix, local_name) tuple - a
     guard against an accidental empty-list entry that would silently resolve to no data."""
     assert "DHT" in CUSTOM_CAPEX_CONCEPTS
     assert "CMRE" in CUSTOM_CAPEX_CONCEPTS
+    assert "EGY" in CUSTOM_CAPEX_CONCEPTS
+    assert "ANNA" in CUSTOM_CAPEX_CONCEPTS
+    assert "EPSN" in CUSTOM_CAPEX_CONCEPTS
     for symbol, concepts in CUSTOM_CAPEX_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
             assert prefix and local_name
+
+
+_EGY_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:egy="http://vaalco.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000894627</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <egy:PaymentToAcquirePropertyAndEquipmentExpendituresIncludingExplorationExpense contextRef="c-1" unitRef="usd" decimals="-3">252856000</egy:PaymentToAcquirePropertyAndEquipmentExpendituresIncludingExplorationExpense>
+  <egy:AcquisitionOfCrudeOilAndNaturalGasProperties contextRef="c-1" unitRef="usd" decimals="-3">-3034000</egy:AcquisitionOfCrudeOilAndNaturalGasProperties>
+</xbrl>
+"""
+
+_ANNA_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:anna="http://aleanna.com/20251231">
+  <context id="cref_2136440082">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001845123</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <anna:PaymentToAdditionsToConventionalNaturalGasProperties contextRef="cref_2136440082" unitRef="usd" decimals="0">6769337</anna:PaymentToAdditionsToConventionalNaturalGasProperties>
+  <anna:PaymentsToAdditionsToRenewableNaturalGasProperties contextRef="cref_2136440082" unitRef="usd" decimals="0">235724</anna:PaymentsToAdditionsToRenewableNaturalGasProperties>
+</xbrl>
+"""
+
+_EPSN_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:epsn="http://epsilonenergy.com/20251231">
+  <context id="Duration_1_1_2025">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001726126</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <epsn:PaymentsToAcquireProvedOilAndGasProperty contextRef="Duration_1_1_2025" unitRef="usd" decimals="0">7929773</epsn:PaymentsToAcquireProvedOilAndGasProperty>
+  <epsn:PaymentsToAcquireUnprovedOilAndGasProperty contextRef="Duration_1_1_2025" unitRef="usd" decimals="0">6999905</epsn:PaymentsToAcquireUnprovedOilAndGasProperty>
+  <epsn:PaymentsToAcquireLandBuildingsAndOtherPropertyPlantAndEquipment contextRef="Duration_1_1_2025" unitRef="usd" decimals="0">-270488</epsn:PaymentsToAcquireLandBuildingsAndOtherPropertyPlantAndEquipment>
+</xbrl>
+"""
+
+
+class TestExtractCustomCapexAdditionalFilers:
+    def test_egy_uses_only_the_comprehensive_concept_not_the_ambiguous_sibling(self):
+        result = extract_custom_capex_from_xbrl_xml(_EGY_XML, "EGY")
+        assert result[2025] == 252_856_000.0
+
+    def test_anna_sums_conventional_and_renewable(self):
+        result = extract_custom_capex_from_xbrl_xml(_ANNA_XML, "ANNA")
+        assert result[2025] == 7_005_061.0
+
+    def test_epsn_sums_proved_and_unproved_only(self):
+        result = extract_custom_capex_from_xbrl_xml(_EPSN_XML, "EPSN")
+        # Must NOT include the ambiguous/negative LandBuildings concept (-270,488).
+        assert result[2025] == 14_929_678.0
