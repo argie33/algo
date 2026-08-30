@@ -1002,19 +1002,10 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ["Forward P/E", num(v.stock_forward_pe ?? v.forward_pe, 2)],
     ["P/S (TTM)", num(v.stock_ps ?? v.price_to_sales_ttm, 2)],
     ["P/B", num(v.stock_pb ?? v.price_to_book, 2)],
-    ["EV / EBITDA", num(v.stock_ev_ebitda ?? v.ev_to_ebitda, 2)],
-    ["EV / Revenue", num(v.stock_ev_revenue ?? v.ev_to_revenue, 2)],
-    ["PEG", num(v.peg_ratio, 2)],
-    [
-      // "Margin of Safety (DCF)" not "Intrinsic Value (DCF)": this renders a %, and
-      // labeling a % as "Intrinsic Value" reads as a dollar figure - see
-      // StockScoreAccordion.jsx's 2026-08-19 rename comment for the live example that
-      // surfaced this confusion ("Intrinsic Value (DCF)  -186.3%").
-      "Margin of Safety (DCF)",
-      v.stock_margin_of_safety != null
-        ? fmtPct(Number(v.stock_margin_of_safety), 1)
-        : "—",
-    ],
+    // EV/EBITDA, EV/Revenue, PEG, and Margin of Safety (DCF) removed from this tab
+    // 2026-08-30 - none are scored (see StockScoreAccordion.jsx's VALUE_SCHEMA "FULLY
+    // REMOVED FROM DISPLAY 2026-08-28" comment for the full per-field evidence); Margin
+    // of Safety / Intrinsic Value's natural home is DeepValueStocks.jsx.
     [
       "Dividend Yield",
       v.stock_dividend_yield != null
@@ -1024,10 +1015,6 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
           : "—",
     ],
     [
-      "Payout Ratio",
-      q.payout_ratio != null ? fmtPct(Number(q.payout_ratio) * 100, 1) : "—",
-    ],
-    [
       "ROE",
       q.return_on_equity_pct != null ? fmtPct(q.return_on_equity_pct, 1) : "—",
     ],
@@ -1035,14 +1022,11 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
       "ROA",
       q.return_on_assets_pct != null ? fmtPct(q.return_on_assets_pct, 1) : "—",
     ],
-    [
-      "Op Margin",
-      q.operating_margin_pct != null ? fmtPct(q.operating_margin_pct, 1) : "—",
-    ],
-    [
-      "Net Margin",
-      q.profit_margin_pct != null ? fmtPct(q.profit_margin_pct, 1) : "—",
-    ],
+    // Op Margin, Net Margin, OCF/Net Income, Interest Coverage, and Volatility (12m)
+    // removed from this tab 2026-08-30 - none are scored (see StockScoreAccordion.jsx's
+    // QUALITY_SCHEMA/RISK_SCHEMA comments: Op/Net Margin and OCF-NI/Interest Coverage are
+    // explicitly named in the tested-and-rejected quality candidate list, and
+    // volatility_12m is a confirmed reject in favor of volatility_60d).
     [
       "Operating Cash Flow",
       q.operating_cashflow != null ? fmtBig(Number(q.operating_cashflow)) : "—",
@@ -1051,22 +1035,8 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
       "Free Cash Flow",
       q.free_cashflow != null ? fmtBig(Number(q.free_cashflow)) : "—",
     ],
-    [
-      "OCF / Net Income",
-      q.operating_cf_to_net_income != null
-        ? num(q.operating_cf_to_net_income, 2)
-        : "—",
-    ],
-    [
-      "Interest Coverage",
-      q.interest_coverage != null ? num(q.interest_coverage, 2) : "—",
-    ],
     ["Debt / Equity", num(q.debt_to_equity, 2)],
     ["Beta (12m)", num(s.beta, 2)],
-    [
-      "Volatility (12m)",
-      s.volatility_12m != null ? fmtPct(s.volatility_12m, 1) : "—",
-    ],
     [
       "Max DD (52w)",
       s.max_drawdown_52w != null ? fmtPct(s.max_drawdown_52w, 1) : "—",
