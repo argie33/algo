@@ -44,6 +44,9 @@ case PutCallRatioFetcher was written for.
 """
 
 import logging
+import multiprocessing
+import queue
+import threading
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -58,12 +61,160 @@ logger = logging.getLogger(__name__)
 _VALID_ACTIONS = {"up", "down", "main", "init", "reit"}
 
 
+def _yf_attr_worker_loop(request_queue: Any, response_queue: Any) -> None:
+    """Entry point for a persistent yfinance-attribute-fetch worker process.
+
+    Module-level (not a closure/lambda) because multiprocessing's "spawn" start method
+    (the default on Windows, used here deliberately - see _YfinanceAttrProcessWorker's
+    docstring) pickles a reference to the target function by import path, which only
+    works for something importable at module scope.
+
+    Mirrors loaders/load_enhanced_quality_growth_metrics.py's `_yfinance_worker_loop` -
+    same proven, live-verified design (persistent subprocess, force-killable regardless
+    of GIL state) - duplicated here rather than imported to avoid a new utils->loaders
+    dependency (loaders may import from utils, not the reverse) and to avoid touching
+    that already-shipped code for an unrelated caller.
+    """
+    import yfinance as yf
+
+    while True:
+        item = request_queue.get()
+        if item is None:
+            return
+        request_id, symbol, attr = item
+        try:
+            ticker = yf.Ticker(symbol)
+            result = getattr(ticker, attr)
+            response_queue.put((request_id, True, result))
+        except Exception as e:
+            response_queue.put((request_id, False, e))
+
+
+class _YfinanceAttrProcessWorker:
+    """Persistent subprocess for yf.Ticker attribute fetches, immune to hangs that defeat
+    both `socket.setdefaulttimeout()` and `Thread.join(timeout=N)`.
+
+    FIXED 2026-08-29 (goal: "full data" audit, loading-issues sweep): replaces the
+    previous `socket.setdefaulttimeout(timeout_sec)` + in-process `getattr(yf.Ticker(...),
+    attr)` call, which live evidence shows cannot actually bound a curl_cffi hang -
+    curl_cffi is not built on Python's socket module, so `socket.setdefaulttimeout()` has
+    no effect on it (same root cause already documented in
+    loaders/load_enhanced_quality_growth_metrics.py's YfinanceProcessWorker and
+    utils/data/source_router.py's `_download_via_process`, both fixed earlier this
+    session). Live-confirmed here specifically via `data_loader_status_history`: multiple
+    `[REAPED] Stuck in RUNNING ... 300+ minutes` incidents across earnings_calendar,
+    analyst_upgrade_downgrade, analyst_sentiment_analysis, and analyst_earnings_estimates
+    on the SAME dates (2026-08-16, 2026-08-17) - all four share this one
+    `_fetch_with_circuit_breaker` helper, so a single hung symbol's fetch call stalled
+    every loader built on it, for hours, until an external reaper had to intervene.
+
+    A separate OS process has its own GIL and can be forcibly terminated by the OS
+    regardless of what it's doing internally - this is the only mechanism that can
+    actually enforce a timeout against a GIL-hostage hang.
+
+    One worker is spawned lazily and reused for the lifetime of the Python process (see
+    `_get_module_worker`) to amortize yfinance's import cost across the thousands of
+    per-symbol calls a full loader run makes - same rationale as
+    YfinanceProcessWorker's persistent-worker design.
+    """
+
+    def __init__(self, timeout_seconds: float = 10.0, worker_target: Any = None) -> None:
+        self._default_timeout = timeout_seconds
+        self._worker_target = worker_target or _yf_attr_worker_loop
+        self._next_request_id = 0
+        self._process: Any = None
+        self._request_queue: Any = None
+        self._response_queue: Any = None
+
+    def _ensure_alive(self) -> None:
+        if self._process is not None and self._process.is_alive():
+            return
+        ctx = multiprocessing.get_context("spawn")
+        self._request_queue = ctx.Queue()
+        self._response_queue = ctx.Queue()
+        self._process = ctx.Process(
+            target=self._worker_target,
+            args=(self._request_queue, self._response_queue),
+            daemon=True,
+        )
+        self._process.start()
+
+    def fetch(self, symbol: str, attr: str, timeout_seconds: float | None = None) -> Any:
+        """Fetch `getattr(yf.Ticker(symbol), attr)` via the persistent worker.
+
+        Raises TimeoutError if the worker doesn't respond within timeout_seconds - the
+        worker is terminated and replaced on the next call, so the caller sees a clean
+        exception rather than a hang. Re-raises whatever exception the worker itself hit
+        while fetching (e.g. a real yfinance/network error).
+        """
+        timeout = self._default_timeout if timeout_seconds is None else timeout_seconds
+        self._ensure_alive()
+        self._next_request_id += 1
+        request_id = self._next_request_id
+        self._request_queue.put((request_id, symbol, attr))
+        try:
+            response_id, success, payload = self._response_queue.get(timeout=timeout)
+        except queue.Empty:
+            self._terminate()
+            raise TimeoutError(f"[{symbol} {attr}] yfinance call exceeded {timeout:.0f}s - worker terminated") from None
+
+        if response_id != request_id:
+            # A response to an earlier request arrived late - discard rather than risk
+            # handing the caller a result for the wrong request (see
+            # YfinanceProcessWorker's identical guard for the full rationale).
+            raise RuntimeError(f"[{symbol} {attr}] yfinance worker response id mismatch (stale response)")
+
+        if not success:
+            raise payload
+        return payload
+
+    def _terminate(self) -> None:
+        if self._process is None:
+            return
+        try:
+            self._process.terminate()
+            self._process.join(timeout=5)
+            if self._process.is_alive():
+                self._process.kill()
+                self._process.join(timeout=5)
+        except Exception:
+            pass
+        self._process = None
+        self._request_queue = None
+        self._response_queue = None
+
+
+_module_worker: "_YfinanceAttrProcessWorker | None" = None
+_module_worker_lock = threading.Lock()
+
+
+def _get_module_worker() -> "_YfinanceAttrProcessWorker":
+    """Lazily create, then reuse, ONE persistent worker for the lifetime of this Python
+    process. Module-level (not tied to any one loader class) since `_fetch_with_circuit_
+    breaker` is shared across 5+ different loaders (earnings_calendar,
+    analyst_upgrade_downgrade, analyst_sentiment_analysis, analyst_earnings_estimates,
+    analyst_price_targets), each its own separate process invocation - the worker
+    naturally dies (daemon=True) when that process exits, no explicit shutdown hook
+    needed the way a single loader's run() has one.
+    """
+    global _module_worker
+    with _module_worker_lock:
+        if _module_worker is None:
+            _module_worker = _YfinanceAttrProcessWorker()
+        return _module_worker
+
+
 def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.0) -> Any:
     """Fetch one yf.Ticker attribute under the shared cross-ECS-task circuit breaker.
 
     CRITICAL FIX (2026-08-06): Added per-request timeout to prevent earnings_calendar
     loader from timing out on large symbol universes. yfinance requests can hang
     indefinitely without explicit timeout.
+
+    FIXED 2026-08-29: the fetch itself now goes through `_YfinanceAttrProcessWorker` (a
+    persistent subprocess) rather than an in-process `yf.Ticker` call - see that class's
+    docstring for why the prior `socket.setdefaulttimeout()` approach couldn't actually
+    bound a real hang.
 
     Args:
         symbol: Stock symbol to fetch
@@ -74,9 +225,6 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
         RuntimeError: on a real fetch failure (network, rate limit, parse error, timeout)
     """
     circuit_breaker = get_circuit_breaker()
-    import socket
-
-    import yfinance as yf
 
     def _do_fetch() -> Any:
         # Re-checked on every retry attempt, not just once up front - a rate-limit hit on
@@ -88,19 +236,14 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
         except YFinanceStillBannedError as e:
             raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
 
-        # Set socket timeout for this request
-        old_timeout = socket.getdefaulttimeout()
-        socket.setdefaulttimeout(timeout_sec)
         try:
-            return getattr(yf.Ticker(to_yfinance_symbol(symbol)), attr)
-        except TimeoutError:
-            raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
+            return _get_module_worker().fetch(to_yfinance_symbol(symbol), attr, timeout_seconds=timeout_sec)
+        except TimeoutError as e:
+            raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from e
         except Exception as e:
             if _is_rate_limit_error(e):
                 circuit_breaker.report_rate_limit_error()
             raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
-        finally:
-            socket.setdefaulttimeout(old_timeout)
 
     # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): a single failed
     # attempt here used to propagate straight up as a permanent-looking RuntimeError, which

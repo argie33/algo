@@ -65,21 +65,27 @@ class TestToYfinanceSymbolPreferredShares:
 
 
 class TestFetchWithCircuitBreakerUsesConvertedSymbol:
-    """The conversion must actually reach the yf.Ticker() call, not just exist as an
-    unused helper - asserts the real argument yfinance receives."""
+    """The conversion must actually reach the yfinance fetch, not just exist as an
+    unused helper - asserts the real argument the process-isolated worker receives.
 
-    def test_dot_suffixed_symbol_is_converted_before_reaching_yf_ticker(self):
+    2026-08-29: the fetch itself moved from an in-process `yf.Ticker()` call to
+    `_YfinanceAttrProcessWorker` (a persistent subprocess) - see that class's docstring
+    and `_fetch_with_circuit_breaker` for why. This test now asserts against the
+    worker's `.fetch()` call instead of `yfinance.Ticker` directly - a real yf.Ticker
+    call now happens inside a separate OS process the test process can't patch into."""
+
+    def test_dot_suffixed_symbol_is_converted_before_reaching_worker(self):
         from utils.external.yfinance_analyst_ratings import _fetch_with_circuit_breaker
 
-        mock_ticker_instance = MagicMock()
-        mock_ticker_instance.upgrades_downgrades = None
+        mock_worker = MagicMock()
+        mock_worker.fetch.return_value = None
 
         with (
             patch("utils.external.yfinance_analyst_ratings.get_circuit_breaker") as mock_get_cb,
             patch("utils.loaders.retry_helper.time.sleep"),
-            patch("yfinance.Ticker", return_value=mock_ticker_instance) as mock_ticker_class,
+            patch("utils.external.yfinance_analyst_ratings._get_module_worker", return_value=mock_worker),
         ):
             mock_get_cb.return_value = MagicMock()
             _fetch_with_circuit_breaker("BRK.B", "upgrades_downgrades")
 
-        mock_ticker_class.assert_called_once_with("BRK-B")
+        mock_worker.fetch.assert_called_once_with("BRK-B", "upgrades_downgrades", timeout_seconds=10.0)

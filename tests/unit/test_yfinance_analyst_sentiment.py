@@ -4,6 +4,9 @@ Covers the recommendations_summary + analyst_price_targets combination that
 analyst_sentiment_analysis needs: current-period count extraction, bullish/bearish/neutral
 bucketing, upside/downside computation, and no-coverage symbols returning None (not an
 error) - same conventions as fetch_analyst_actions's existing test coverage.
+
+2026-08-29: mocks `_get_module_worker()` instead of `yfinance.Ticker` - see
+test_yfinance_analyst_ratings.py's module docstring for why.
 """
 
 from unittest.mock import MagicMock, patch
@@ -13,12 +16,14 @@ import pytest
 
 from utils.external.yfinance_analyst_ratings import fetch_analyst_sentiment
 
+_WORKER_PATCH_TARGET = "utils.external.yfinance_analyst_ratings._get_module_worker"
 
-def _mock_ticker(recommendations_summary=None, analyst_price_targets=None):
-    ticker = MagicMock()
-    ticker.recommendations_summary = recommendations_summary
-    ticker.analyst_price_targets = analyst_price_targets
-    return ticker
+
+def _mock_worker(recommendations_summary=None, analyst_price_targets=None) -> MagicMock:
+    attr_values = {"recommendations_summary": recommendations_summary, "analyst_price_targets": analyst_price_targets}
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, attr, **kw: attr_values[attr]
+    return worker
 
 
 @pytest.fixture(autouse=True)
@@ -43,11 +48,11 @@ class TestFetchAnalystSentiment:
         )
 
     def test_maps_current_period_counts_and_target_price(self):
-        ticker = _mock_ticker(
+        worker = _mock_worker(
             recommendations_summary=self._summary_df(),
             analyst_price_targets={"current": 336.91, "high": 400.0, "low": 215.0, "mean": 318.8093, "median": 329.0},
         )
-        with patch("yfinance.Ticker", return_value=ticker):
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             result = fetch_analyst_sentiment("AAPL")
 
         assert result is not None
@@ -61,20 +66,20 @@ class TestFetchAnalystSentiment:
         assert result["upside_downside_percent"] == pytest.approx(-5.37, abs=0.01)
 
     def test_no_coverage_returns_none(self):
-        ticker = _mock_ticker(recommendations_summary=pd.DataFrame())
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(recommendations_summary=pd.DataFrame())
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_analyst_sentiment("ZZZZ") is None
 
     def test_all_zero_counts_returns_none(self):
-        ticker = _mock_ticker(
+        worker = _mock_worker(
             recommendations_summary=self._summary_df(strong_buy=0, buy=0, hold=0, sell=0, strong_sell=0)
         )
-        with patch("yfinance.Ticker", return_value=ticker):
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_analyst_sentiment("AAPL") is None
 
     def test_missing_price_targets_still_returns_counts(self):
-        ticker = _mock_ticker(recommendations_summary=self._summary_df(), analyst_price_targets=None)
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(recommendations_summary=self._summary_df(), analyst_price_targets=None)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             result = fetch_analyst_sentiment("AAPL")
 
         assert result is not None

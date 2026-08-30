@@ -6,6 +6,9 @@ source data, but with no magnitude bound this sailed straight into the DB write,
 exceeding earnings_calendar.eps_estimate's numeric(12,4) column precision (~$99.9M max)
 and raising a raw Postgres "numeric field overflow" for that symbol's entire COPY batch
 instead of being caught and marked unavailable like every other real-fetch-failure path.
+
+2026-08-29: mocks `_get_module_worker()` instead of `yfinance.Ticker` - see
+test_yfinance_analyst_ratings.py's module docstring for why.
 """
 
 from datetime import datetime, timezone
@@ -16,11 +19,13 @@ import pytest
 
 from utils.external.yfinance_analyst_ratings import fetch_earnings_calendar
 
+_WORKER_PATCH_TARGET = "utils.external.yfinance_analyst_ratings._get_module_worker"
 
-def _mock_ticker_with_df(df):
-    mock_ticker = MagicMock()
-    mock_ticker.earnings_dates = df
-    return mock_ticker
+
+def _mock_worker_with(df: pd.DataFrame) -> MagicMock:
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, attr, **kw: df
+    return worker
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +43,7 @@ class TestFetchEarningsCalendarEpsBound:
             {"EPS Estimate": [2_180_000_000_000.0], "Reported EPS": [None], "Surprise(%)": [None]},
             index=pd.to_datetime([today.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(df)):
             rows = fetch_earnings_calendar("ASTI")
 
         assert rows is not None
@@ -51,7 +56,7 @@ class TestFetchEarningsCalendarEpsBound:
             {"EPS Estimate": [1.5], "Reported EPS": [-9_999_999_999.0], "Surprise(%)": [None]},
             index=pd.to_datetime([today.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(df)):
             rows = fetch_earnings_calendar("AAPL")
 
         assert rows is not None
@@ -64,7 +69,7 @@ class TestFetchEarningsCalendarEpsBound:
             {"EPS Estimate": [1.25], "Reported EPS": [1.30], "Surprise(%)": [4.0]},
             index=pd.to_datetime([today.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(df)):
             rows = fetch_earnings_calendar("AAPL")
 
         assert rows is not None

@@ -9,6 +9,9 @@ INSERT batch with psycopg2.errors.CardinalityViolation ("ON CONFLICT DO UPDATE c
 cannot affect row a second time") - confirmed live against AAPL's real data before the
 fix. fetch_analyst_actions() must dedupe to one row per (action_date, firm), keeping the
 latest real timestamp.
+
+2026-08-29: mocks `_get_module_worker()` instead of `yfinance.Ticker` - see
+test_yfinance_analyst_ratings.py's module docstring for why.
 """
 
 from datetime import date, datetime, timezone
@@ -18,11 +21,13 @@ import pandas as pd
 
 from utils.external.yfinance_analyst_ratings import fetch_analyst_actions
 
+_WORKER_PATCH_TARGET = "utils.external.yfinance_analyst_ratings._get_module_worker"
 
-def _mock_ticker_with(df: pd.DataFrame) -> MagicMock:
-    ticker = MagicMock()
-    ticker.upgrades_downgrades = df
-    return ticker
+
+def _mock_worker_with(df: pd.DataFrame) -> MagicMock:
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, attr, **kw: df
+    return worker
 
 
 class TestSameDaySameFirmDedup:
@@ -44,7 +49,7 @@ class TestSameDaySameFirmDedup:
         )
         df.index.name = "GradeDate"
 
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(df)):
             rows = fetch_analyst_actions("AAPL")
 
         assert rows is not None
@@ -70,7 +75,7 @@ class TestSameDaySameFirmDedup:
         )
         df.index.name = "GradeDate"
 
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(df)):
             rows = fetch_analyst_actions("AAPL")
 
         assert len(rows) == 1
@@ -96,7 +101,7 @@ class TestSameDaySameFirmDedup:
         )
         df.index.name = "GradeDate"
 
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(df)):
             rows = fetch_analyst_actions("AAPL")
 
         assert len(rows) == 2
@@ -104,7 +109,7 @@ class TestSameDaySameFirmDedup:
         assert firms == {"Morgan Stanley", "HSBC"}
 
     def test_no_coverage_returns_none(self):
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with(pd.DataFrame())):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with(pd.DataFrame())):
             rows = fetch_analyst_actions("XYZQ")
 
         assert rows is None

@@ -4,6 +4,12 @@ Covers fetch_analyst_actions()'s DataFrame-to-row-dict conversion: valid action 
 firm-missing rows dropped (firm is part of the uniqueness key), lookback filtering, no-coverage
 symbols returning None (not an error), and rate-limit errors correctly reported to the shared
 circuit breaker.
+
+2026-08-29: the yfinance fetch itself moved from an in-process `yf.Ticker` call to
+`_YfinanceAttrProcessWorker` (a persistent subprocess) - see that class's docstring and
+`_fetch_with_circuit_breaker` for why. Tests below mock `_get_module_worker()` instead of
+`yfinance.Ticker` - a real yf.Ticker call now happens inside a separate OS process the test
+process can't patch into.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -14,11 +20,27 @@ import pytest
 
 from utils.external.yfinance_analyst_ratings import fetch_analyst_actions, fetch_forward_growth_estimates
 
+_WORKER_PATCH_TARGET = "utils.external.yfinance_analyst_ratings._get_module_worker"
+
+
+def _mock_worker_for(**attr_values: object) -> MagicMock:
+    """Build a mock worker whose fetch(symbol, attr, **kw) returns attr_values[attr] -
+    mirrors what `getattr(yf.Ticker(symbol), attr)` used to return directly."""
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, attr, **kw: attr_values[attr]
+    return worker
+
+
+def _failing_worker(exc: BaseException) -> MagicMock:
+    """A mock worker whose fetch() always raises exc - mirrors a Ticker call that used to
+    raise directly."""
+    worker = MagicMock()
+    worker.fetch.side_effect = exc
+    return worker
+
 
 def _mock_ticker_with_df(df):
-    mock_ticker = MagicMock()
-    mock_ticker.upgrades_downgrades = df
-    return mock_ticker
+    return _mock_worker_for(upgrades_downgrades=df)
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +66,7 @@ class TestFetchAnalystActions:
             },
             index=pd.to_datetime([today.isoformat(), today.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(df)):
             rows = fetch_analyst_actions("AAPL")
 
         assert rows is not None
@@ -57,10 +79,10 @@ class TestFetchAnalystActions:
         assert isinstance(rows[0]["action_date"], date)
 
     def test_no_coverage_returns_none_not_error(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(None)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(None)):
             assert fetch_analyst_actions("ZZZZ") is None
 
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(pd.DataFrame())):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(pd.DataFrame())):
             assert fetch_analyst_actions("ZZZZ") is None
 
     def test_rows_with_missing_firm_are_dropped(self, _patch_circuit_breaker):
@@ -69,7 +91,7 @@ class TestFetchAnalystActions:
             {"Firm": [None], "ToGrade": ["Buy"], "FromGrade": ["Hold"], "Action": ["up"]},
             index=pd.to_datetime([today.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(df)):
             assert fetch_analyst_actions("AAPL") is None
 
     def test_actions_older_than_lookback_are_excluded(self, _patch_circuit_breaker):
@@ -78,7 +100,7 @@ class TestFetchAnalystActions:
             {"Firm": ["Old Firm"], "ToGrade": ["Buy"], "FromGrade": ["Hold"], "Action": ["up"]},
             index=pd.to_datetime([old_date.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(df)):
             assert fetch_analyst_actions("AAPL", lookback_days=730) is None
 
     def test_unrecognized_action_value_maps_to_none_not_dropped(self, _patch_circuit_breaker):
@@ -87,7 +109,7 @@ class TestFetchAnalystActions:
             {"Firm": ["Some Firm"], "ToGrade": ["Buy"], "FromGrade": ["Hold"], "Action": ["weird_new_value"]},
             index=pd.to_datetime([today.isoformat()]),
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(df)):
             rows = fetch_analyst_actions("AAPL")
         assert rows is not None
         assert rows[0]["action"] is None
@@ -97,19 +119,19 @@ class TestFetchAnalystActions:
         failure now gets one retry (see _fetch_with_circuit_breaker's own comment) before
         giving up, so a real, still-failing rate limit reports twice - once per attempt,
         each of which independently observes and reports the same rate-limit error."""
-        with patch("yfinance.Ticker", side_effect=RuntimeError("Invalid Crumb (401)")):
+        with patch(_WORKER_PATCH_TARGET, return_value=_failing_worker(RuntimeError("Invalid Crumb (401)"))):
             with pytest.raises(RuntimeError, match="upgrades_downgrades fetch failed"):
                 fetch_analyst_actions("AAPL")
         assert _patch_circuit_breaker.report_rate_limit_error.call_count == 2
 
     def test_fetch_failure_non_rate_limit_does_not_report_rate_limit(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", side_effect=ValueError("unexpected parse error")):
+        with patch(_WORKER_PATCH_TARGET, return_value=_failing_worker(ValueError("unexpected parse error"))):
             with pytest.raises(RuntimeError, match="upgrades_downgrades fetch failed"):
                 fetch_analyst_actions("AAPL")
         _patch_circuit_breaker.report_rate_limit_error.assert_not_called()
 
     def test_success_reports_success_to_circuit_breaker(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df(None)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(None)):
             fetch_analyst_actions("AAPL")
         _patch_circuit_breaker.report_success.assert_called_once()
 
@@ -127,10 +149,9 @@ class TestFetchAnalystActions:
             {"Firm": ["Morgan Stanley"], "ToGrade": ["Buy"], "FromGrade": ["Hold"], "Action": ["up"]},
             index=pd.to_datetime([today.isoformat()]),
         )
-        with patch(
-            "yfinance.Ticker",
-            side_effect=[TimeoutError("socket timeout"), _mock_ticker_with_df(df)],
-        ):
+        worker = MagicMock()
+        worker.fetch.side_effect = [TimeoutError("worker terminated"), df]
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             rows = fetch_analyst_actions("NVDA")
 
         assert rows is not None
@@ -138,14 +159,6 @@ class TestFetchAnalystActions:
         assert rows[0]["firm"] == "Morgan Stanley"
         # The circuit breaker must be re-checked on the retry, not just the first attempt.
         assert _patch_circuit_breaker.wait_or_raise.call_count == 2
-
-
-def _mock_ticker_with_estimates(earnings_df=None, revenue_df=None, eps_trend_df=None):
-    mock_ticker = MagicMock()
-    mock_ticker.earnings_estimate = earnings_df
-    mock_ticker.revenue_estimate = revenue_df
-    mock_ticker.eps_trend = eps_trend_df
-    return mock_ticker
 
 
 class TestFetchForwardGrowthEstimates:
@@ -163,10 +176,8 @@ class TestFetchForwardGrowthEstimates:
             {"current": [8.81249], "90daysAgo": [8.75324]},
             index=["0y"],
         )
-        with patch(
-            "yfinance.Ticker",
-            return_value=_mock_ticker_with_estimates(earnings_df, revenue_df, eps_trend_df),
-        ):
+        worker = _mock_worker_for(earnings_estimate=earnings_df, revenue_estimate=revenue_df, eps_trend=eps_trend_df)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             result = fetch_forward_growth_estimates("AAPL")
 
         assert result is not None
@@ -177,13 +188,14 @@ class TestFetchForwardGrowthEstimates:
         assert result["eps_estimate_revision_90d_pct"] == pytest.approx(0.6769, abs=1e-3)
 
     def test_no_coverage_on_any_endpoint_returns_none(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_estimates(None, None, None)):
+        worker = _mock_worker_for(earnings_estimate=None, revenue_estimate=None, eps_trend=None)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_growth_estimates("ZZZZ") is None
 
-        with patch(
-            "yfinance.Ticker",
-            return_value=_mock_ticker_with_estimates(pd.DataFrame(), pd.DataFrame(), pd.DataFrame()),
-        ):
+        worker = _mock_worker_for(
+            earnings_estimate=pd.DataFrame(), revenue_estimate=pd.DataFrame(), eps_trend=pd.DataFrame()
+        )
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_growth_estimates("ZZZZ") is None
 
     def test_partial_coverage_returns_whatever_is_available(self, _patch_circuit_breaker):
@@ -191,10 +203,8 @@ class TestFetchForwardGrowthEstimates:
         common partial-coverage shape, not an error. The 2 unavailable fields must be
         None, not silently dropped from the result dict."""
         earnings_df = pd.DataFrame({"avg": [8.81, 9.53], "growth": [0.1813, 0.0816]}, index=["0y", "+1y"])
-        with patch(
-            "yfinance.Ticker",
-            return_value=_mock_ticker_with_estimates(earnings_df, None, None),
-        ):
+        worker = _mock_worker_for(earnings_estimate=earnings_df, revenue_estimate=None, eps_trend=None)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             result = fetch_forward_growth_estimates("AAPL")
 
         assert result is not None
@@ -205,9 +215,7 @@ class TestFetchForwardGrowthEstimates:
 
     def test_zero_prior_estimate_does_not_divide_by_zero(self, _patch_circuit_breaker):
         eps_trend_df = pd.DataFrame({"current": [0.05], "90daysAgo": [0.0]}, index=["0y"])
-        with patch(
-            "yfinance.Ticker",
-            return_value=_mock_ticker_with_estimates(None, None, eps_trend_df),
-        ):
+        worker = _mock_worker_for(earnings_estimate=None, revenue_estimate=None, eps_trend=eps_trend_df)
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             result = fetch_forward_growth_estimates("AAPL")
         assert result is None  # the only populated field is guarded off, so no_coverage

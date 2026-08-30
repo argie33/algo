@@ -6,6 +6,9 @@ slice of well-covered symbols (live-confirmed: BN, FOX, L, HEI-A, BF-A, LLYVA - 
 tracking-stock/foreign-ADR names, several $10B+ market caps) even though Ticker.info carries
 a real 'forwardEps' for the same symbol. fetch_forward_eps() now falls back to Ticker.info
 when the primary earningsTrend path is empty.
+
+2026-08-29: mocks `_get_module_worker()` instead of `yfinance.Ticker` - see
+test_yfinance_analyst_ratings.py's module docstring for why.
 """
 
 from unittest.mock import MagicMock, patch
@@ -15,12 +18,14 @@ import pytest
 
 from utils.external.yfinance_analyst_ratings import fetch_forward_eps
 
+_WORKER_PATCH_TARGET = "utils.external.yfinance_analyst_ratings._get_module_worker"
 
-def _mock_ticker(earnings_estimate=None, info=None):
-    ticker = MagicMock()
-    ticker.earnings_estimate = earnings_estimate
-    ticker.info = info if info is not None else {}
-    return ticker
+
+def _mock_worker(earnings_estimate=None, info=None) -> MagicMock:
+    attr_values = {"earnings_estimate": earnings_estimate, "info": info if info is not None else {}}
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, attr, **kw: attr_values[attr]
+    return worker
 
 
 def _estimate_df(avg_plus_1y=9.53127):
@@ -37,41 +42,44 @@ def _patch_circuit_breaker():
 
 class TestFetchForwardEps:
     def test_uses_earnings_trend_when_available(self):
-        ticker = _mock_ticker(earnings_estimate=_estimate_df(9.53127), info={"forwardEps": 999.0})
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(earnings_estimate=_estimate_df(9.53127), info={"forwardEps": 999.0})
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("AAPL") == pytest.approx(9.53127)
 
     def test_falls_back_to_info_when_earnings_trend_empty(self):
-        ticker = _mock_ticker(earnings_estimate=pd.DataFrame(), info={"forwardEps": 5.87})
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(earnings_estimate=pd.DataFrame(), info={"forwardEps": 5.87})
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("BN") == pytest.approx(5.87)
 
     def test_falls_back_to_info_when_plus_1y_row_missing(self):
         df = pd.DataFrame({"avg": {"0q": 1.0, "+1q": 1.1, "0y": 4.0}})  # no '+1y' row
-        ticker = _mock_ticker(earnings_estimate=df, info={"forwardEps": 4.31})
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(earnings_estimate=df, info={"forwardEps": 4.31})
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("HEI-A") == pytest.approx(4.31)
 
     def test_info_fallback_negative_value_still_returned(self):
         # Negative forward EPS is a real (if unprofitable) estimate - load_value_quality_
         # growth_metrics.py's forward_pe block is responsible for the negative-earnings
         # distinction (forward_pe_reason='negative_forward_eps'), not this fetch layer.
-        ticker = _mock_ticker(earnings_estimate=pd.DataFrame(), info={"forwardEps": -2.93})
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(earnings_estimate=pd.DataFrame(), info={"forwardEps": -2.93})
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("YQ") == pytest.approx(-2.93)
 
     def test_no_coverage_anywhere_returns_none(self):
-        ticker = _mock_ticker(earnings_estimate=pd.DataFrame(), info={})
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(earnings_estimate=pd.DataFrame(), info={})
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("ZZZZ") is None
 
     def test_info_missing_forward_eps_key_returns_none(self):
-        ticker = _mock_ticker(earnings_estimate=pd.DataFrame(), info={"shortName": "Zzzz Corp"})
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker(earnings_estimate=pd.DataFrame(), info={"shortName": "Zzzz Corp"})
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("ZZZZ") is None
 
     def test_info_non_dict_returns_none(self):
-        ticker = _mock_ticker(earnings_estimate=pd.DataFrame(), info=None)
-        ticker.info = None
-        with patch("yfinance.Ticker", return_value=ticker):
+        """`.info` itself is None (not merely missing the 'forwardEps' key) - a real
+        yfinance shape for some symbols, distinct from `_mock_worker`'s default `{}`."""
+        attr_values = {"earnings_estimate": pd.DataFrame(), "info": None}
+        worker = MagicMock()
+        worker.fetch.side_effect = lambda symbol, attr, **kw: attr_values[attr]
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             assert fetch_forward_eps("ZZZZ") is None
