@@ -1219,6 +1219,131 @@ class TestCrossTabSegmentRevenueFallback:
         assert revenues == {"AlphaMember": 70_000_000.0, "BetaMember": 10_000_000.0}
 
 
+class TestComponentSumSegmentRevenueFallback:
+    """Real gap found live against BOK Financial's, Ameris Bancorp's, and Arbor
+    Realty Trust's FY2025 10-K instances - three genuinely different sub-industries
+    (super-regional bank, community bank, mortgage REIT) all tag segment-level
+    revenue as two SEPARATE standard us-gaap concepts (InterestIncomeExpenseNet +
+    NoninterestIncome) rather than any single combined revenue-shaped concept -
+    neither the primary single-concept path nor the cross-tab fallback (which only
+    ever sums candidates for ONE concept at a time) can find this. Ameris Bancorp
+    and Arbor Realty Trust both reconcile to within 0.01% of their real consolidated
+    totals once summed; BOK Financial's real segment total is genuinely ~9.5% short
+    (a "Corporate allocations" reconciling adjustment it doesn't tag as its own
+    addable segment member) and correctly stays data_unavailable rather than
+    reporting an incomplete total.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_component_sum_used_when_only_two_separate_concepts_tagged(self) -> None:
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_noninterest", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestIncomeExpenseNet contextRef="c1">60000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c1">10000000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="c2">40000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c2">5000000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">100000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="anchor_noninterest">15000000</us-gaap:NoninterestIncome>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        assert result["segment_count"] == 2
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 70_000_000.0, "BetaMember": 45_000_000.0}
+
+    def test_component_sum_treats_missing_secondary_concept_as_zero(self) -> None:
+        """A segment can legitimately have no noninterest income at all - it must
+        still be counted (at its NII value alone), not excluded outright the way a
+        negative "Corporate and Eliminations" line is."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_noninterest", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestIncomeExpenseNet contextRef="c1">60000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c1">10000000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="c2">30000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">90000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="anchor_noninterest">10000000</us-gaap:NoninterestIncome>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 70_000_000.0, "BetaMember": 30_000_000.0}
+
+    def test_component_sum_fails_closed_when_reconciliation_off(self) -> None:
+        """Same shape as BOK Financial's real gap: the two components are tagged per
+        segment, but the segment total is genuinely far short of the consolidated
+        total (an unallocated corporate/reconciling piece not captured as its own
+        segment member) - must stay honestly unavailable, not report a partial sum."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_noninterest", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestIncomeExpenseNet contextRef="c1">60000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c1">10000000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="c2">30000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c2">5000000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">200000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="anchor_noninterest">50000000</us-gaap:NoninterestIncome>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+    def test_component_sum_not_reached_when_primary_concept_already_matches(self) -> None:
+        """If a filer tags a normal single revenue concept AND (redundantly, or for
+        some unrelated cost-allocation footnote) also tags InterestIncomeExpenseNet/
+        NoninterestIncome under the same axis, the primary path's match must win -
+        the component-sum fallback is only reached when the primary scan finds
+        nothing at all."""
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31"
+        ) + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+        facts = """
+        <us-gaap:Revenues contextRef="c1">60000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">40000000</us-gaap:Revenues>
+        <us-gaap:InterestIncomeExpenseNet contextRef="c1">999000000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c1">999000000</us-gaap:NoninterestIncome>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 60_000_000.0, "BetaMember": 40_000_000.0}
+
+
 class TestSingleReportableSegmentFallback:
     """Real gap found live: Gilead Sciences, Regeneron, United Airlines Holdings,
     and Realty Income all disclose exactly one reportable segment via the

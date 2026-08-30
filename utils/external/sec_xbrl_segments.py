@@ -221,6 +221,23 @@ _NON_ADDITIVE_CONSOLIDATION_MEMBERS = ("IntersegmentEliminationMember", "Materia
 # sales, overstates the real total by ~36%).
 _CROSS_TAB_RECONCILIATION_TOLERANCE = 0.03
 
+# Bank/thrift holding companies (verified live against BOK Financial's, Ameris
+# Bancorp's, and Arbor Realty Trust's FY2025 10-K instances - a super-regional bank,
+# a community bank, and a mortgage REIT, three genuinely different sub-industries
+# hitting the identical pattern) tag segment-level revenue as these two SEPARATE
+# standard us-gaap concepts rather than any single combined revenue-shaped concept
+# in _REVENUE_CONCEPT_LOCAL_NAMES - "net interest income + noninterest income" is the
+# standard bank-industry income-statement equivalent of "total revenue". Distinct
+# from JPMorgan/Bank of America's pattern (a single already-combined
+# RevenuesNetOfInterestExpense-family concept, already covered above): these three
+# filers tag no such combined concept at the segment level at all, only the two
+# components - _extract_component_sum_segment_revenue sums them and reconciles the
+# result the same way _extract_cross_tab_segment_revenue does. Order matters here
+# (unlike _REVENUE_CONCEPT_LOCAL_NAMES's "first match wins" list): the first concept
+# is the anchor used to discover which segment members and fiscal period exist at
+# all, the second is looked up only for members the anchor already found.
+_BANK_REVENUE_COMPONENT_CONCEPTS = ("InterestIncomeExpenseNet", "NoninterestIncome")
+
 # ASC 280 also requires segment operating income and assets "if regularly
 # provided to the CODM" - unlike revenue, not every filer discloses these by
 # segment (verified live: MSFT and AAPL tag OperatingIncomeLoss per segment but
@@ -741,6 +758,155 @@ class XBRLSegmentParser:
         return best_segments, max_end, max_duration
 
     @staticmethod
+    def _extract_component_sum_segment_revenue(  # noqa: C901 -- same reconciliation-discipline shape as the two sibling fallbacks above (_extract_cross_tab_segment_revenue, _extract_single_segment_revenue), both already carry this same suppression for the same reason: real fail-fast discipline (discover candidates, then verify against a plain consolidated anchor) is inherently a few linear steps, not deeply nested logic.
+        root: ET.Element,
+        context_segment: dict[str, tuple[str, str, str, str | None, bool]],
+        axis_to_use: str,
+        symbol: str,
+    ) -> tuple[dict[str, float], str, int] | None:
+        """Fallback for filers (confirmed live: BOK Financial, Ameris Bancorp, Arbor
+        Realty Trust FY2025 10-Ks) that tag segment-level revenue as two SEPARATE
+        concepts - see _BANK_REVENUE_COMPONENT_CONCEPTS's module-level comment for why
+        this is a distinct, real pattern from every other revenue concept already
+        covered, not a duplicate of the cross-tab or single-concept paths.
+
+        The anchor concept (InterestIncomeExpenseNet) is used first to discover which
+        segment members exist and which fiscal period to use - the same
+        latest-period-wins logic as the primary path in
+        extract_segment_revenue_from_xbrl_xml. The secondary concept
+        (NoninterestIncome) is then looked up ONLY for that period via the existing
+        _extract_segment_member_values helper and added in - a member missing the
+        secondary concept is treated as 0 for it (a real segment can legitimately have
+        no noninterest income), not excluded outright.
+
+        Reconciled the same way as _extract_cross_tab_segment_revenue: the summed
+        segment-level total is compared against the filer's own plain, non-dimensioned
+        consolidated total for the SAME two concepts and period, only trusted within
+        _CROSS_TAB_RECONCILIATION_TOLERANCE. Confirmed live this correctly separates a
+        clean case from a messy one: Ameris Bancorp and Arbor Realty Trust both
+        reconcile to within 0.01%, while BOK Financial's real segment total is
+        genuinely ~9.5% short of its consolidated total (a "Corporate allocations"
+        reconciling adjustment BOKF doesn't tag as its own addable segment member) -
+        correctly rejected rather than silently reporting an incomplete total.
+
+        Returns (member -> combined revenue, end_date, duration_days), or None if the
+        anchor concept isn't tagged under axis_to_use at all, or the combined total
+        doesn't reconcile.
+        """
+        anchor_concept, secondary_concept = _BANK_REVENUE_COMPONENT_CONCEPTS
+
+        candidate_facts: list[tuple[str, str, int, float]] = []
+        for elem in root.iter():
+            if _local_name(elem.tag) != anchor_concept:
+                continue
+            info = context_segment.get(elem.get("contextRef", ""))
+            if not info or info[0] != axis_to_use:
+                continue
+            _axis, member, end_str, start_str, _is_boilerplate = info
+            value = elem.text
+            if value is None:
+                continue
+            try:
+                revenue = float(value.strip())
+            except ValueError:
+                continue
+            duration_days = 0
+            if start_str and end_str:
+                try:
+                    duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                except ValueError:
+                    duration_days = 0
+            candidate_facts.append((member, end_str, duration_days, revenue))
+
+        if not candidate_facts:
+            return None
+
+        max_end = max(f[1] for f in candidate_facts)
+        same_end = [f for f in candidate_facts if f[1] == max_end]
+        max_duration = max(f[2] for f in same_end)
+        latest_facts = [f for f in same_end if f[2] == max_duration]
+
+        nii_by_member: dict[str, float] = {}
+        for member, _end, _duration, nii_value in latest_facts:
+            nii_by_member[member] = nii_by_member.get(member, 0.0) + nii_value
+
+        noninterest_by_member = XBRLSegmentParser._extract_segment_member_values(
+            root, context_segment, axis_to_use, (secondary_concept,), max_end, max_duration
+        )
+
+        combined = {member: nii_by_member[member] + noninterest_by_member.get(member, 0.0) for member in nii_by_member}
+
+        # Reconciliation anchor: the filer's own plain (non-dimensioned) consolidated
+        # facts for the same two concepts and period - built the same minimal way
+        # _extract_single_segment_revenue does (has_dims/start/end per context id),
+        # since context_segment only indexes segment-DIMENSIONED contexts.
+        plain_contexts: dict[str, tuple[bool, str | None, str | None]] = {}
+        for ctx in root.iter():
+            if _local_name(ctx.tag) != "context":
+                continue
+            ctx_id = ctx.get("id")
+            if not ctx_id:
+                continue
+            has_dims = False
+            plain_start_str: str | None = None
+            plain_end_str: str | None = None
+            for child in ctx.iter():
+                loc = _local_name(child.tag)
+                if loc == "explicitMember":
+                    has_dims = True
+                elif loc == "startDate":
+                    plain_start_str = (child.text or "").strip() or None
+                elif loc in ("endDate", "instant"):
+                    plain_end_str = (child.text or "").strip() or None
+            plain_contexts[ctx_id] = (has_dims, plain_start_str, plain_end_str)
+
+        def _plain_value(concept: str) -> float | None:
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept:
+                    continue
+                info = plain_contexts.get(elem.get("contextRef", ""))
+                if not info:
+                    continue
+                has_dims, start_str, end_str = info
+                if has_dims or end_str != max_end or elem.text is None:
+                    continue
+                if start_str:
+                    try:
+                        duration = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                    except ValueError:
+                        continue
+                    if duration != max_duration:
+                        continue
+                try:
+                    return float(elem.text.strip())
+                except ValueError:
+                    continue
+            return None
+
+        anchor_plain = _plain_value(anchor_concept)
+        secondary_plain = _plain_value(secondary_concept)
+        if anchor_plain is None or secondary_plain is None:
+            logger.info(
+                f"[{symbol}] Component-sum segment revenue found candidates but no plain "
+                f"consolidated {anchor_concept}/{secondary_concept} to reconcile against - not trusting."
+            )
+            return None
+        anchor = anchor_plain + secondary_plain
+        if anchor == 0:
+            return None
+
+        total = sum(combined.values())
+        error = abs(total - anchor) / abs(anchor)
+        if error > _CROSS_TAB_RECONCILIATION_TOLERANCE:
+            logger.info(
+                f"[{symbol}] Component-sum segment revenue reconciliation failed: segment total "
+                f"{total:,.0f} off by {error * 100:.1f}% vs consolidated {anchor:,.0f} - not trusting."
+            )
+            return None
+
+        return combined, max_end, max_duration
+
+    @staticmethod
     def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str, float, str, int] | None:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Fallback for filers that disclose exactly one reportable segment.
 
@@ -962,7 +1128,12 @@ class XBRLSegmentParser:
 
         if not candidate_facts:
             cross_tab = XBRLSegmentParser._extract_cross_tab_segment_revenue(root, symbol, axis_to_use)
-            if cross_tab is None:
+            component_sum = (
+                XBRLSegmentParser._extract_component_sum_segment_revenue(root, context_segment, axis_to_use, symbol)
+                if cross_tab is None
+                else None
+            )
+            if cross_tab is None and component_sum is None:
                 single = XBRLSegmentParser._extract_single_segment_revenue(root, symbol)
                 if single is not None:
                     _concept, revenue, single_end, single_duration = single
@@ -1010,8 +1181,17 @@ class XBRLSegmentParser:
                     "data_available": False,
                     "reason": "no_segment_revenue_in_xbrl_xml",
                 }
-            segments, max_end, max_duration = cross_tab
-            logger.debug(f"[{symbol}] Segment revenue matched via cross-tab reconciliation on {axis_to_use}")
+            if cross_tab is not None:
+                segments, max_end, max_duration = cross_tab
+                logger.debug(f"[{symbol}] Segment revenue matched via cross-tab reconciliation on {axis_to_use}")
+            elif component_sum is not None:
+                segments, max_end, max_duration = component_sum
+                logger.debug(
+                    f"[{symbol}] Segment revenue matched via component-sum "
+                    f"({' + '.join(_BANK_REVENUE_COMPONENT_CONCEPTS)}) on {axis_to_use}"
+                )
+            else:
+                raise AssertionError("unreachable: single-segment fallback branch above already handled this case")
         else:
             logger.debug(f"[{symbol}] Segment revenue matched via {matched_concept} on {axis_to_use}")
 
