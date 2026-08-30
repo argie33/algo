@@ -32,6 +32,8 @@ by adding these new columns as UPDATE operations.
 """
 
 import logging
+import multiprocessing
+import queue
 import sys
 import threading
 import time
@@ -79,41 +81,163 @@ def _bounded_margin_pct(numerator: float | None, denominator: float | None) -> f
 _YFINANCE_CALL_TIMEOUT_SECONDS = 20.0
 
 
-def _yfinance_call_with_timeout(fn: Any, context: str, timeout_seconds: float = _YFINANCE_CALL_TIMEOUT_SECONDS) -> Any:
-    """Run a single yfinance property fetch on a daemon thread and abandon it if it
-    doesn't return within timeout_seconds.
+def _yfinance_worker_loop(request_queue: Any, response_queue: Any) -> None:
+    """Entry point for a persistent yfinance-fetch worker process.
 
-    LIVE-REPRODUCED 2026-08-10: ticker.earnings_dates hung for 40+ minutes on one symbol
-    (py-spy showed the main thread idle inside curl_cffi's perform() the entire time),
-    blocking the whole loader (and everything queued behind it in local_loader_scheduler.py's
-    "metrics" pipeline). yfinance's own _make_request has a timeout=30 default, but that's
-    passed to curl_cffi - which is NOT built on Python's socket module, so this codebase's
-    usual socket.setdefaulttimeout() fix (used elsewhere for yfinance hangs, e.g.
-    utils/external/yfinance_analyst_ratings.py) has no effect on it either, and
-    retry_with_backoff can't help since a truly-hung call never raises for it to catch.
-    Same daemon-thread-abandon pattern as load_financial_statements.py's proven per-symbol
-    timeout (2026-08-09) - daemon=True so an abandoned thread can't block process exit.
+    Module-level (not a closure/lambda) because multiprocessing's "spawn" start method
+    (the default on Windows, used here deliberately - see YfinanceProcessWorker's
+    docstring) pickles a reference to the target function by import path, which only
+    works for something importable at module scope.
+
+    Reads (request_id, symbol, property_name) tuples from request_queue until it sees a
+    None sentinel, fetches `getattr(yf.Ticker(symbol), property_name)`, and puts
+    (request_id, success, payload) on response_queue - payload is the fetched value on
+    success, or the caught exception object on failure. Deliberately does NOT wrap this
+    in a broad try/except at the loop level: if something outside a single fetch attempt
+    goes wrong (e.g. the queue itself breaks), letting the process die is correct -
+    YfinanceProcessWorker.fetch() detects a dead/unresponsive worker via its own
+    response_queue.get(timeout=...) and replaces it, same recovery path as a genuine hang.
     """
-    result: list[Any] = [None]
-    exc: list[BaseException | None] = [None]
+    import yfinance as yf
 
-    def _run() -> None:
+    while True:
+        item = request_queue.get()
+        if item is None:
+            return
+        request_id, symbol, property_name = item
         try:
-            result[0] = fn()
-        except BaseException as e:
-            exc[0] = e
+            ticker = yf.Ticker(symbol)
+            result = getattr(ticker, property_name)
+            response_queue.put((request_id, True, result))
+        except Exception as e:
+            response_queue.put((request_id, False, e))
 
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-    thread.join(timeout=timeout_seconds)
 
-    if thread.is_alive():
-        raise TimeoutError(
-            f"[{context}] yfinance call exceeded {timeout_seconds:.0f}s - abandoning (thread left running)"
+class YfinanceProcessWorker:
+    """Persistent subprocess for yfinance property fetches, immune to hangs that defeat
+    Thread.join(timeout=N).
+
+    FIXED 2026-08-29 (goal: "full data"/loading-issues audit): replaces
+    `_yfinance_call_with_timeout` (a daemon thread + `Thread.join(timeout=N)`), which
+    live-reproduced evidence shows cannot actually bound a curl_cffi hang.
+    quality_metrics/growth_metrics's 2026-08-29 run hung ~8 hours on one symbol's
+    eps_trend fetch despite the 20s (and the outer 60s per-symbol) thread-based
+    timeouts, because curl_cffi's blocking C call appears to hold the GIL for the
+    entire hang - and `Thread.join(timeout=N)` itself needs the GIL to check elapsed
+    time, so a thread holding the GIL hostage in native code can starve every other
+    Python thread in the process, including the one trying to enforce the timeout,
+    indefinitely. See memory `yfinance_curl_cffi_gil_hostage_hang_diagnosed_not_fixed_20260829`
+    for the full evidence chain (this is the fix that memory's "not yet attempted"
+    section describes).
+
+    A separate OS process has its own GIL and can be forcibly terminated by the OS
+    regardless of what it's doing internally - this is the only mechanism that can
+    actually enforce a timeout against a GIL-hostage hang. `multiprocessing.Queue.get(
+    timeout=N)` is a genuine cross-process wait on OS-level primitives, not dependent on
+    GIL cooperation from the worker.
+
+    One worker is spawned lazily and reused across the whole loader run (not respawned
+    per call) to amortize yfinance's import cost - live-measured in this environment:
+    ~450ms to spawn+import yfinance fresh vs ~35ms for a bare process spawn. This loader
+    makes 2-3 yfinance calls per symbol across the ~5,000-symbol active universe, so
+    per-call spawning would add tens of minutes of pure overhead to every normal
+    (non-hung) run. A worker that times out or dies is terminated and a fresh one is
+    spawned on the next call - the one-time ~450ms respawn cost only applies on an
+    actual hang/crash, not the common case.
+    """
+
+    def __init__(
+        self,
+        timeout_seconds: float = _YFINANCE_CALL_TIMEOUT_SECONDS,
+        worker_target: Any = None,
+    ) -> None:
+        """worker_target: override the subprocess entry point (defaults to
+        _yfinance_worker_loop). Exists so tests can inject a deliberately-hung or
+        deterministic fake worker to verify the timeout/recovery mechanism itself
+        without depending on a real network hang - see
+        test_load_enhanced_quality_growth_metrics_revision_fields.py."""
+        self._timeout = timeout_seconds
+        self._worker_target = worker_target or _yfinance_worker_loop
+        self._next_request_id = 0
+        self._process: Any = None
+        self._request_queue: Any = None
+        self._response_queue: Any = None
+
+    def _ensure_alive(self) -> None:
+        if self._process is not None and self._process.is_alive():
+            return
+        ctx = multiprocessing.get_context("spawn")
+        self._request_queue = ctx.Queue()
+        self._response_queue = ctx.Queue()
+        self._process = ctx.Process(
+            target=self._worker_target,
+            args=(self._request_queue, self._response_queue),
+            daemon=True,
         )
-    if exc[0] is not None:
-        raise exc[0]
-    return result[0]
+        self._process.start()
+
+    def fetch(self, symbol: str, property_name: str) -> Any:
+        """Fetch `getattr(yf.Ticker(symbol), property_name)` via the persistent worker.
+
+        Raises TimeoutError if the worker doesn't respond within timeout_seconds - the
+        worker is terminated and replaced on the next call, so the caller sees a clean
+        exception rather than a hang. Re-raises whatever exception the worker itself hit
+        while fetching (e.g. a real yfinance/network error).
+        """
+        self._ensure_alive()
+        self._next_request_id += 1
+        request_id = self._next_request_id
+        self._request_queue.put((request_id, symbol, property_name))
+        try:
+            response_id, success, payload = self._response_queue.get(timeout=self._timeout)
+        except queue.Empty:
+            self._terminate()
+            raise TimeoutError(
+                f"[{symbol} {property_name}] yfinance call exceeded {self._timeout:.0f}s - worker terminated"
+            ) from None
+
+        if response_id != request_id:
+            # A response to an earlier request arrived late (e.g. the worker finished the
+            # PREVIOUS call just after this class gave up on it and terminated the
+            # process - the response was already queued before termination took effect).
+            # Discard rather than risk handing the caller a result for the wrong request.
+            raise RuntimeError(f"[{symbol} {property_name}] yfinance worker response id mismatch (stale response)")
+
+        if not success:
+            raise payload
+        return payload
+
+    def _terminate(self) -> None:
+        if self._process is None:
+            return
+        try:
+            self._process.terminate()
+            self._process.join(timeout=5)
+            if self._process.is_alive():
+                self._process.kill()
+                self._process.join(timeout=5)
+        except Exception:
+            pass
+        self._process = None
+        self._request_queue = None
+        self._response_queue = None
+
+    def shutdown(self) -> None:
+        """Best-effort clean shutdown - call once at the end of a loader run()."""
+        if self._process is None:
+            return
+        if not self._process.is_alive():
+            self._process = None
+            return
+        try:
+            self._request_queue.put(None)
+            self._process.join(timeout=5)
+        except Exception:
+            pass
+        if self._process is not None and self._process.is_alive():
+            self._terminate()
+        else:
+            self._process = None
 
 
 class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
@@ -131,6 +255,22 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
     # Class attribute (not a run() local) so tests can shrink it instead of waiting 60s.
     per_symbol_timeout_seconds = 60.0
+
+    # Instance attribute, but declared at class level so mypy sees the real type instead
+    # of inferring None from the first assignment - actual instances get their own None
+    # here per Python's normal instance-attribute-shadows-class-attribute lookup, so this
+    # is not shared mutable state across instances.
+    _yf_worker: "YfinanceProcessWorker | None" = None
+
+    def _get_yf_worker(self) -> "YfinanceProcessWorker":
+        """Lazily create (once per run()) the persistent process-isolated yfinance
+        fetcher - see YfinanceProcessWorker's docstring for why this replaced the prior
+        thread-based `_yfinance_call_with_timeout`. Not created in `__init__` since
+        OptimalLoader instances may be constructed without ever calling run() (e.g. for
+        introspection/testing) - no reason to spawn a subprocess for those."""
+        if self._yf_worker is None:
+            self._yf_worker = YfinanceProcessWorker()
+        return self._yf_worker
 
     def run(  # noqa: C901
         self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None
@@ -338,6 +478,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             logger.error(f"[ENHANCED] Fatal unexpected error: {type(e).__name__}: {e}", exc_info=True)
             _log_sla_status()
             return {"success": False, "error": str(e)}
+        finally:
+            # Clean up the persistent yfinance worker subprocess (see _get_yf_worker) on
+            # every exit path - success, a handled fatal error above, or an unexpected
+            # exception this method doesn't catch at all. A leaked worker process is a
+            # daemon (won't block interpreter exit) but there's no reason to leave one
+            # running past this run() call.
+            worker = getattr(self, "_yf_worker", None)
+            if worker is not None:
+                worker.shutdown()
+                self._yf_worker = None
 
     def _process_one_symbol(self, symbol: str, since_date: date | None, outcome: list[str]) -> None:
         """Fetch + write metrics for one symbol. Sets outcome[0]='success' on a real write.
@@ -770,22 +920,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         - Surprise(%): (Reported - Estimate) / Estimate * 100
         """
         try:
-            import yfinance as yf
-
             from utils.loaders.retry_helper import retry_with_backoff
 
-            ticker = yf.Ticker(to_yfinance_symbol(symbol))
+            yf_symbol = to_yfinance_symbol(symbol)
 
             # Get last 4 quarters of earnings data. Retried (2026-08-09) for the same reason
             # as _compute_estimate_revision_metrics's eps_trend/eps_revisions fetch - a single
             # transient yfinance failure here shouldn't be indistinguishable from real absence.
-            # Each attempt is timeout-bounded (2026-08-10 fix; the eps_trend/eps_revisions sibling
-            # call was NOT actually wrapped despite this comment claiming parity - live-reproduced
-            # 2026-08-16 hanging the loader for 30+min until the scheduler's external stall-killer
-            # intervened - see _yfinance_call_with_timeout's docstring for why a hang here can't
-            # just be caught by retry_with_backoff on its own).
+            # Fetched via the process-isolated YfinanceProcessWorker (2026-08-29 fix - see its
+            # docstring), not an in-process yf.Ticker call - a thread-based timeout here proved
+            # unable to bound a genuine curl_cffi hang (live-reproduced twice: 2026-08-16 on
+            # this exact call, then again 2026-08-29 on the eps_trend/eps_revisions siblings).
             earnings_dates = retry_with_backoff(
-                lambda: _yfinance_call_with_timeout(lambda: ticker.earnings_dates, f"{symbol} earnings_dates"),
+                lambda: self._get_yf_worker().fetch(yf_symbol, "earnings_dates"),
                 context=f"{symbol} earnings_dates",
                 max_retries=2,
                 backoff_seconds=1.0,
@@ -848,25 +995,28 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         the fetch itself before giving up.
         """
         try:
-            import yfinance as yf
-
             from utils.loaders.retry_helper import retry_with_backoff
 
-            ticker = yf.Ticker(to_yfinance_symbol(symbol))
+            yf_symbol = to_yfinance_symbol(symbol)
 
             # PACING FIX 2026-08-10: bumped from max_retries=2/backoff=1.0s (~3s total wait) to
             # max_retries=4/backoff=3.0s (~45s total wait, capped by RetryHelper's 32s/attempt
             # ceiling) - the shorter window wasn't enough to survive sustained per-IP throttling
             # over this loader's ~25min full-universe run (measured coverage stayed ~8-9% even
             # after the original retry fix landed and ran live - see this method's docstring).
+            # Fetched via the process-isolated YfinanceProcessWorker (2026-08-29 fix) rather
+            # than an in-process yf.Ticker call - see YfinanceProcessWorker's docstring and
+            # yfinance_curl_cffi_gil_hostage_hang_diagnosed_not_fixed_20260829 for why the
+            # prior thread-based timeout couldn't actually bound a real hang (live-reproduced
+            # 2026-08-29: this exact eps_trend call hung ~8 hours on one symbol).
             eps_trend = retry_with_backoff(
-                lambda: _yfinance_call_with_timeout(lambda: ticker.eps_trend, f"{symbol} eps_trend"),
+                lambda: self._get_yf_worker().fetch(yf_symbol, "eps_trend"),
                 context=f"{symbol} eps_trend",
                 max_retries=4,
                 backoff_seconds=3.0,
             )
             eps_revisions = retry_with_backoff(
-                lambda: _yfinance_call_with_timeout(lambda: ticker.eps_revisions, f"{symbol} eps_revisions"),
+                lambda: self._get_yf_worker().fetch(yf_symbol, "eps_revisions"),
                 context=f"{symbol} eps_revisions",
                 max_retries=4,
                 backoff_seconds=3.0,
