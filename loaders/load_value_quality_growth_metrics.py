@@ -4028,9 +4028,55 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # 500% right after this field's first production run, near-zero-revenue shells with
             # large negative FCF (e.g. MYSE: fcf_margin=-776,645%, revenue ~$550). Same >1000
             # bound as its siblings now applied.
+            # FIXED 2026-08-30 (goal: full-data audit): 618/729 (85%) missing_sec_data symbols
+            # live-confirmed with a real free_cash_flow value in SOME other fiscal year (current
+            # anchor year lacks it). Added a prior-year fallback, same 3-year-window-then-full-
+            # history two-tier pattern already used for interest_expense/gross_profit above -
+            # but scoped to a LOCAL pair (fcf_margin_free_cash_flow/fcf_margin_revenue), not the
+            # global free_cash_flow/revenue variables: those also feed fcf_to_net_income (paired
+            # with the anchor year's net_income) and fcf_growth_yoy (paired with
+            # prior_year_free_cash_flow) - overwriting them with a different fiscal year's value
+            # would silently break both of those already-correct, year-aligned calculations.
+            fcf_margin_free_cash_flow = free_cash_flow
+            fcf_margin_revenue = revenue
+            if fcf_margin_free_cash_flow is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT free_cash_flow, revenue
+                        FROM annual_cash_flow acf
+                        JOIN annual_income_statement ais
+                          ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
+                        WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
+                          AND acf.fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY acf.fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_fcf_row = cur.fetchone()
+                    if not fallback_fcf_row:
+                        cur.execute(
+                            """
+                            SELECT free_cash_flow, revenue
+                            FROM annual_cash_flow acf
+                            JOIN annual_income_statement ais
+                              ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
+                            WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
+                            ORDER BY acf.fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_fcf_row = cur.fetchone()
+                if fallback_fcf_row:
+                    fcf_margin_free_cash_flow = self._nan_to_none(
+                        safe_float(fallback_fcf_row[0], f"{symbol}.free_cash_flow_fallback_year", allow_none=True)
+                    )
+                    fcf_margin_revenue = self._nan_to_none(
+                        safe_float(fallback_fcf_row[1], f"{symbol}.revenue_fcf_margin_fallback_year", allow_none=True)
+                    )
             fcf_margin = None
-            if free_cash_flow is not None and revenue is not None and revenue > 0:
-                computed_fcf_margin = free_cash_flow / revenue * 100.0
+            if fcf_margin_free_cash_flow is not None and fcf_margin_revenue is not None and fcf_margin_revenue > 0:
+                computed_fcf_margin = fcf_margin_free_cash_flow / fcf_margin_revenue * 100.0
                 if abs(computed_fcf_margin) > 1000:
                     failed_metrics.append("fcf_margin")
                     implausible_ratio_metrics.append("fcf_margin")
