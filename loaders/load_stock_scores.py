@@ -3386,7 +3386,37 @@ class StockScoresLoader(OptimalLoader):
             i = j
         return result
 
-    def update_value_multiples_percentiles(self) -> None:
+    @staticmethod
+    def _components_with_corrected_value(components_old: Any, value_score_new: float) -> str:
+        """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'value'
+        key set to value_score_new, every other pillar untouched.
+
+        BUG FIX 2026-08-29 (goal-mode composite-score validation pass): update_value_multiples_
+        percentiles()'s UPDATE previously wrote value_score/composite_score but never touched
+        components - which still held the Pass-1 provisional (fixed-curve) value, not the
+        corrected cross-sectional-percentile one this method's caller just computed. Live-
+        audited: 4690/4708 scored symbols (99.6%) had components->'value' disagreeing with the
+        real value_score column, by up to 94 points on a 0-100 scale. Not currently read by the
+        scores API (lambda/api/routes/scores.py rebuilds its breakdown from the individual
+        *_score columns directly), so this was a latent data-integrity bug, not a live user-
+        facing one - fixed anyway since components is a real field in the API response model
+        (lambda/api/models/responses.py) and a direct DB consumer would be misled.
+
+        components_old comes back from psycopg2 already parsed to a dict for a real jsonb
+        value; the str/None branches are defensive only (a symbol with no Pass-1 components at
+        all shouldn't reach here, since value_score - required for this batch pass's own SELECT
+        WHERE clause - is only ever set alongside components in Pass-1).
+        """
+        if isinstance(components_old, dict):
+            components_new = dict(components_old)
+        elif components_old:
+            components_new = json.loads(components_old)
+        else:
+            components_new = {}
+        components_new["value"] = value_score_new
+        return json.dumps(components_new)
+
+    def update_value_multiples_percentiles(self) -> None:  # noqa: C901
         """Batch pass: replace P/E, P/B, P/S, and Forward P/E's Pass-1 PROVISIONAL fixed-curve
         scores with a true cross-sectional percentile rank against the current run's universe,
         then recompute value_score and composite_score to reflect it.
@@ -3473,7 +3503,8 @@ class StockScoresLoader(OptimalLoader):
                     SELECT ss.symbol, ss.value_score, ss.composite_score, ss.risk_score,
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
                            vm.dividend_yield,
-                           vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason
+                           vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
+                           ss.components
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     WHERE ss.value_score IS NOT NULL
@@ -3529,11 +3560,12 @@ class StockScoresLoader(OptimalLoader):
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
             )
 
-            updates: list[tuple[str, float, float]] = []
+            updates: list[tuple[str, float, float, str | None]] = []
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 pe, pb, ps, fwd_pe, dividend_yield = row[4], row[5], row[6], row[7], row[8]
                 pe_reason, fwd_pe_reason = row[9], row[10]
+                components_old = row[11]
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
@@ -3583,7 +3615,12 @@ class StockScoresLoader(OptimalLoader):
                 )
 
                 if value_score_new != value_score_old or composite_score_new != composite_score_old:
-                    updates.append((symbol, value_score_new, composite_score_new))
+                    # BUG FIX 2026-08-29 (goal-mode composite-score validation pass): components
+                    # must be kept in sync with the corrected value_score here, or it silently
+                    # drifts from the real composite_score math - see
+                    # _components_with_corrected_value's own docstring for the full evidence.
+                    components_json = self._components_with_corrected_value(components_old, value_score_new)
+                    updates.append((symbol, value_score_new, composite_score_new, components_json))
 
             if not updates:
                 logger.info(
@@ -3600,12 +3637,13 @@ class StockScoresLoader(OptimalLoader):
                     UPDATE stock_scores AS ss
                     SET value_score = v.value_score,
                         composite_score = v.composite_score,
+                        components = v.components::jsonb,
                         updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, value_score, composite_score)
+                    FROM (VALUES %s) AS v(symbol, value_score, composite_score, components)
                     WHERE ss.symbol = v.symbol
                     """,
                     updates,
-                    template="(%s, %s, %s)",
+                    template="(%s, %s, %s, %s)",
                 )
             logger.info(
                 f"[STOCK_SCORES] Value multiples cross-sectional percentile pass corrected "
