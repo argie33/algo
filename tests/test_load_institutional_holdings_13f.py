@@ -294,6 +294,84 @@ def test_verified_brand_name_alias_does_not_admit_a_different_resolved_name_for_
     assert result == {}
 
 
+def test_crosswalk_to_tickers_admits_the_verified_bio_raw_ticker_alias(monkeypatch):
+    """Live-verified 2026-08-30: Bio-Rad Laboratories Class A's crosswalk CUSIP (090572207)
+    resolves via OpenFIGI to raw ticker "BUWA" (not a recognizable ticker at all - not even in
+    our tracked universe) with resolved_name="BIO-RAD LABORATORIES-A". This falls all the way
+    to EntityNameIndex.find(), which returns None NOT because the name fails to plausibly
+    match (it does - names_plausibly_match("BIO-RAD LABORATORIES-A", "BIO-RAD LABORATORIES,
+    INC.") is True) but because our own SEC-sourced entity_name is IDENTICAL for both tracked
+    dual-class tickers BIO and BIO.B (SEC's companyfacts API collapses dual-class filers to one
+    entity - same structural gap as BRK.A/BRK.B), so both tie for the same candidate ratio and
+    the ambiguity guard correctly refuses to pick one. Fixed via _VERIFIED_RAW_TICKER_ALIASES,
+    a small individually-verified exception keyed on the exact (raw_ticker, resolved_name)
+    pair - NOT a blanket "break ties toward the first candidate" fix, which would risk silently
+    misattributing BIO.B's own real CUSIP the same wrong way."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("090572207", "BUWA", "BIO-RAD LABORATORIES-A")],
+        local_name_rows=[
+            ("BIO", "BIO-RAD LABORATORIES, INC."),
+            ("BIO.B", "BIO-RAD LABORATORIES, INC."),
+        ],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["BIO", "BIO.B"]
+    )
+
+    result, _manager_result = loader._crosswalk_to_tickers({"090572207": 4321})
+
+    assert result == {"BIO": 4321}
+
+
+def test_bio_raw_ticker_alias_does_not_admit_a_different_resolved_name_for_the_same_raw_ticker(monkeypatch):
+    """The alias is keyed on (raw_ticker, exact resolved_name) - if OpenFIGI ever resolves some
+    OTHER CUSIP to the same "BUWA" raw ticker with a different resolved_name, the alias must
+    NOT fire, and the ambiguous tie between BIO/BIO.B must still resolve to None rather than
+    guessing."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("999999999", "BUWA", "SOME UNRELATED HOLDINGS CORP")],
+        local_name_rows=[
+            ("BIO", "BIO-RAD LABORATORIES, INC."),
+            ("BIO.B", "BIO-RAD LABORATORIES, INC."),
+        ],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["BIO", "BIO.B"]
+    )
+
+    result, _manager_result = loader._crosswalk_to_tickers({"999999999": 999})
+
+    assert result == {}
+
+
 def test_get_known_tracked_cusips_applies_same_rescues_as_crosswalk_to_tickers(monkeypatch):
     """FIXED 2026-08-21 (goal session: "Ownership data unresolved" root-cause audit):
     _get_known_tracked_cusips() used to do a naive `ticker = ANY(symbols)` match with

@@ -122,6 +122,32 @@ _VERIFIED_BRAND_NAME_ALIASES: dict[str, str] = {
     "WAB": "WABTEC CORP",
 }
 
+# FIXED 2026-08-30 (goal: full-data audit continuation): a DIFFERENT failure mode than the
+# WAB alias above - that one fires only after `ticker` already landed inside our tracked
+# `symbols` set (either directly or via the dotted/currency-suffix rescues) and just needed
+# names_plausibly_match() overridden. Here the raw OpenFIGI ticker itself ("BUWA") is not a
+# recognizable ticker at all, so resolution falls all the way to EntityNameIndex.find(), which
+# returns None - live-confirmed via direct simulation, NOT because the name doesn't plausibly
+# match (names_plausibly_match("BIO-RAD LABORATORIES-A", "BIO-RAD LABORATORIES, INC.") is
+# True), but because BIO-RAD's SEC-sourced entity_name is IDENTICAL for both of our tracked
+# dual-class tickers (BIO and BIO.B both carry entity_name="BIO-RAD LABORATORIES, INC." in
+# company_info_sec - SEC's companyfacts API collapses dual-class filers to one entity, same
+# structural gap already documented for BRK.A/BRK.B elsewhere in this file) - so both tie for
+# the SAME candidate ratio and EntityNameIndex.find()'s ambiguity guard correctly refuses to
+# pick one. BRK.A/BRK.B and AGM/AGM.A don't hit this: OpenFIGI resolves their CUSIPs to
+# "BRK/A"/"BRK/B"-shaped tickers that the existing dotted-suffix rescue already turns into our
+# real tracked symbols directly, never reaching the ambiguous name-index path at all - BIO's
+# CUSIP 090572207 is the one verified case (2026-08-30) where OpenFIGI's ticker field is
+# useless AND our own entity_name can't disambiguate class A from class B. Keyed by the exact
+# (raw_ticker, resolved_name) pair, never a blanket "trust the tie-break" rule, so it can only
+# ever fire for this one verified CUSIP's resolution.
+_VERIFIED_RAW_TICKER_ALIASES: dict[tuple[str, str], str] = {
+    # (OpenFIGI raw ticker, OpenFIGI resolved_name) -> our tracked symbol, verified 2026-08-30
+    # against CUSIP 090572207 (Bio-Rad Laboratories Class A - our tracked "BIO", NOT "BIO.B"/
+    # CUSIP 090572108 which already resolves correctly via the "BIO/B" -> "BIO.B" dotted rescue).
+    ("BUWA", "BIO-RAD LABORATORIES-A"): "BIO",
+}
+
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
     """Load institutional ownership % from SEC Form 13F bulk INFOTABLE datasets.
@@ -412,7 +438,15 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     if name_match:
                         ticker = name_match
                     else:
-                        return None
+                        alias_match = (
+                            _VERIFIED_RAW_TICKER_ALIASES.get((ticker, resolved_name))
+                            if resolved_name is not None
+                            else None
+                        )
+                        if alias_match:
+                            ticker = alias_match
+                        else:
+                            return None
         if not names_plausibly_match(resolved_name, local_names.get(ticker)):
             # Individually-verified brand-name/legal-name exception (see
             # _VERIFIED_BRAND_NAME_ALIASES's own comment) - checked BEFORE the name-index
