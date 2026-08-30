@@ -6,6 +6,12 @@ normalization for fields yfinance reports as signed outflows/contra-items (capex
 dividends, depreciation - see the module's _ABS_MAGNITUDE_FIELDS comment for the live
 WRB case that motivated this), NaN/empty handling, and rate-limit errors correctly
 reported to the shared circuit breaker.
+
+2026-08-29: the yfinance fetch itself moved from an in-process `yf.Ticker` call to the
+shared `_YfinanceAttrProcessWorker` (see utils/external/yfinance_analyst_ratings.py and
+this module's own `_get_financial_currency`/`fetch_financial_statement` docstrings for
+why). Tests below mock `_get_module_worker()` instead of `yfinance.Ticker` - a real
+yf.Ticker call now happens inside a separate OS process the test process can't patch into.
 """
 
 from unittest.mock import MagicMock, patch
@@ -15,18 +21,27 @@ import pytest
 
 from utils.external.yfinance_financials import fetch_financial_statement
 
-
-def _mock_ticker_with_df(attr: str, df):
-    mock_ticker = MagicMock()
-    setattr(mock_ticker, attr, df)
-    return mock_ticker
+_WORKER_PATCH_TARGET = "utils.external.yfinance_financials._get_module_worker"
 
 
-def _mock_ticker_with_df_and_currency(attr: str, df, currency: str):
-    mock_ticker = MagicMock()
-    setattr(mock_ticker, attr, df)
-    mock_ticker.info = {"financialCurrency": currency}
-    return mock_ticker
+def _mock_worker_with_df(attr: str, df) -> MagicMock:
+    attr_values = {attr: df}
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, a, **kw: attr_values.get(a)
+    return worker
+
+
+def _mock_worker_with_df_and_currency(attr: str, df, currency: str) -> MagicMock:
+    attr_values = {attr: df, "info": {"financialCurrency": currency}}
+    worker = MagicMock()
+    worker.fetch.side_effect = lambda symbol, a, **kw: attr_values.get(a)
+    return worker
+
+
+def _failing_worker(exc: BaseException) -> MagicMock:
+    worker = MagicMock()
+    worker.fetch.side_effect = exc
+    return worker
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +68,7 @@ class TestFetchFinancialStatementIncome:
                 },
             }
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", df)):
             rows = fetch_financial_statement("TEST", "income", "annual")
 
         assert rows is not None
@@ -76,7 +91,7 @@ class TestFetchFinancialStatementIncome:
                 pd.Timestamp("2025-12-31"): {"Reconciled Depreciation": -48126000.0},
             }
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", df)):
             rows = fetch_financial_statement("WRB", "income", "annual")
 
         assert rows is not None
@@ -88,7 +103,7 @@ class TestFetchFinancialStatementIncome:
                 pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0, "Net Income": float("nan")},
             }
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", df)):
             rows = fetch_financial_statement("TEST", "income", "annual")
 
         assert rows is not None
@@ -96,10 +111,10 @@ class TestFetchFinancialStatementIncome:
         assert rows[0]["revenues"] == 1000.0
 
     def test_empty_dataframe_returns_none_not_error(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", pd.DataFrame())):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", pd.DataFrame())):
             assert fetch_financial_statement("ZZZZ", "income", "annual") is None
 
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", None)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", None)):
             assert fetch_financial_statement("ZZZZ", "income", "annual") is None
 
     def test_quarterly_period_sets_fiscal_period(self, _patch_circuit_breaker):
@@ -108,7 +123,7 @@ class TestFetchFinancialStatementIncome:
                 pd.Timestamp("2025-06-30"): {"Total Revenue": 500.0},
             }
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("quarterly_income_stmt", df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("quarterly_income_stmt", df)):
             rows = fetch_financial_statement("TEST", "income", "quarterly")
 
         assert rows is not None
@@ -126,7 +141,7 @@ class TestFetchFinancialStatementCashflow:
                 },
             }
         )
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("cashflow", df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("cashflow", df)):
             rows = fetch_financial_statement("TEST", "cashflow", "annual")
 
         assert rows is not None
@@ -145,8 +160,8 @@ class TestFetchFinancialStatementCurrencyConversion:
 
     def test_usd_currency_left_unconverted(self, _patch_circuit_breaker):
         df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
-        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "USD")
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "USD")
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             rows = fetch_financial_statement("TEST", "income", "annual")
 
         assert rows is not None
@@ -156,7 +171,7 @@ class TestFetchFinancialStatementCurrencyConversion:
         """.info missing/failing must not nuke otherwise-valid data for the (common) case
         where the symbol genuinely reports in USD - fail open on unknown, not closed."""
         df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
-        with patch("yfinance.Ticker", return_value=_mock_ticker_with_df("income_stmt", df)):
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", df)):
             rows = fetch_financial_statement("TEST", "income", "annual")
 
         assert rows is not None
@@ -171,9 +186,9 @@ class TestFetchFinancialStatementCurrencyConversion:
                 },
             }
         )
-        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "KRW")
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "KRW")
         with (
-            patch("yfinance.Ticker", return_value=ticker),
+            patch(_WORKER_PATCH_TARGET, return_value=worker),
             patch(
                 "utils.external.yfinance_financials._fx_rate_cache.get_usd_rate",
                 return_value=13.0,
@@ -191,8 +206,8 @@ class TestFetchFinancialStatementCurrencyConversion:
         """ARS (Argentine peso, the real GGAL case) isn't in MAJOR_CURRENCIES - fail
         closed and reject the whole fetch rather than store raw ARS as if it were USD."""
         df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1_000_000_000.0}})
-        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "ARS")
-        with patch("yfinance.Ticker", return_value=ticker):
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "ARS")
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
             rows = fetch_financial_statement("GGAL", "income", "annual")
 
         assert rows is None
@@ -204,9 +219,9 @@ class TestFetchFinancialStatementCurrencyConversion:
                 pd.Timestamp("2024-12-31"): {"Total Revenue": 1200.0},
             }
         )
-        ticker = _mock_ticker_with_df_and_currency("income_stmt", df, "KRW")
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "KRW")
         with (
-            patch("yfinance.Ticker", return_value=ticker),
+            patch(_WORKER_PATCH_TARGET, return_value=worker),
             patch(
                 "utils.external.yfinance_financials._fx_rate_cache.get_usd_rate",
                 side_effect=lambda currency, date_str: None if date_str == "2025-12-31" else 13.0,
@@ -225,14 +240,14 @@ class TestFetchFinancialStatementErrors:
             fetch_financial_statement("TEST", "income", "ttm")
 
     def test_rate_limit_error_reported_to_circuit_breaker(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", side_effect=RuntimeError("429 Too Many Requests")):
+        with patch(_WORKER_PATCH_TARGET, return_value=_failing_worker(RuntimeError("429 Too Many Requests"))):
             with pytest.raises(RuntimeError):
                 fetch_financial_statement("TEST", "income", "annual")
 
         _patch_circuit_breaker.report_rate_limit_error.assert_called_once()
 
     def test_non_rate_limit_error_not_reported_to_circuit_breaker(self, _patch_circuit_breaker):
-        with patch("yfinance.Ticker", side_effect=RuntimeError("connection reset")):
+        with patch(_WORKER_PATCH_TARGET, return_value=_failing_worker(RuntimeError("connection reset"))):
             with pytest.raises(RuntimeError):
                 fetch_financial_statement("TEST", "income", "annual")
 

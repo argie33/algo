@@ -26,10 +26,10 @@ row, with zero special-casing downstream.
 
 import logging
 import math
-import socket
 from typing import Any
 
 from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
+from utils.external.yfinance_analyst_ratings import _get_module_worker
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
 from utils.external.yfinance_symbol import to_yfinance_symbol
 
@@ -64,7 +64,7 @@ _SHARE_COUNT_FIELDS = frozenset(
 )
 
 
-def _get_financial_currency(ticker: Any, symbol: str) -> str | None:
+def _get_financial_currency(symbol: str, yf_symbol: str) -> str | None:
     """Best-effort lookup of the currency yfinance reports `symbol`'s statements in.
 
     Returns None ("unknown - assume USD, proceed unchanged") rather than raising: this is
@@ -74,9 +74,16 @@ def _get_financial_currency(ticker: Any, symbol: str) -> str | None:
     this alone. Only a POSITIVELY IDENTIFIED non-USD currency should change downstream
     behavior - same "fail open on unknown, fail closed on confirmed-bad" posture already
     used elsewhere in this codebase (e.g. has_annual_report_filing IS NOT FALSE).
+
+    FIXED 2026-08-29: fetches via the shared `_YfinanceAttrProcessWorker` (see
+    utils/external/yfinance_analyst_ratings.py) rather than a plain `ticker.info` call -
+    this was a SECOND, entirely unprotected yfinance network call in this module (the
+    other, `fetch_financial_statement`'s own attr fetch, at least had an - ultimately
+    ineffective - socket.setdefaulttimeout() around it; this one had none at all) that
+    runs on every successful statement fetch, not a rare corner case.
     """
     try:
-        info = ticker.info
+        info = _get_module_worker().fetch(yf_symbol, "info", timeout_seconds=10.0)
         currency = info.get("financialCurrency") if isinstance(info, dict) else None
     except Exception as e:
         logger.debug(f"[YFINANCE_FALLBACK] {symbol}: financialCurrency lookup failed: {e}")
@@ -193,12 +200,26 @@ def fetch_financial_statement(
 ) -> list[dict[str, Any]] | None:
     """Fetch one statement/period combo from yfinance, shaped like sec_statements.py's output.
 
+    FIXED 2026-08-29 (goal: "full data" audit, loading-issues sweep): the fetch itself now
+    goes through the shared `_YfinanceAttrProcessWorker` (see
+    utils/external/yfinance_analyst_ratings.py) - a persistent, genuinely-killable
+    subprocess - rather than an in-process `yf.Ticker` call wrapped in
+    `socket.setdefaulttimeout()`. yfinance 0.2.40+ requires curl_cffi, which isn't built
+    on Python's socket module, so that timeout had no effect on a genuine hang - the same
+    root cause already fixed at three other call sites this session
+    (load_enhanced_quality_growth_metrics.py, source_router.py,
+    yfinance_analyst_ratings.py's own `_fetch_with_circuit_breaker`). No live multi-hour
+    hang incident found for this specific fallback (used for only ~500-650/4,922 symbols
+    where SEC EDGAR has nothing), but it's the identical architectural vulnerability
+    already proven dangerous three times in this exact codebase - fixed proactively
+    rather than waiting for its own incident.
+
     Args:
         symbol: Stock ticker (yfinance takes tickers directly, no CIK lookup needed -
             this recovers the ~140/4,922 symbols SEC's cik_not_found case loses entirely).
         statement_type: 'income', 'balance', or 'cashflow'.
         period: 'annual' or 'quarterly'.
-        timeout_sec: Per-request socket timeout.
+        timeout_sec: Per-request timeout for the process-isolated worker call.
 
     Returns:
         List of row dicts (symbol, fiscal_year, [fiscal_period for quarterly], plus
@@ -222,21 +243,15 @@ def fetch_financial_statement(
     except YFinanceStillBannedError as e:
         raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
 
-    import yfinance as yf
-
-    old_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(timeout_sec)
+    yf_symbol = to_yfinance_symbol(symbol)
     try:
-        ticker = yf.Ticker(to_yfinance_symbol(symbol))
-        df = getattr(ticker, attr)
-    except TimeoutError:
-        raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
+        df = _get_module_worker().fetch(yf_symbol, attr, timeout_seconds=timeout_sec)
+    except TimeoutError as e:
+        raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from e
     except Exception as e:
         if _is_rate_limit_error(e):
             circuit_breaker.report_rate_limit_error()
         raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
-    finally:
-        socket.setdefaulttimeout(old_timeout)
 
     circuit_breaker.report_success()
 
@@ -248,7 +263,7 @@ def fetch_financial_statement(
     # were USD. A currency we can't identify (financial_currency is None) falls through
     # unconverted, same as before this fix - the common, correct case for the many
     # domestic filers this fallback also serves.
-    financial_currency = _get_financial_currency(ticker, symbol)
+    financial_currency = _get_financial_currency(symbol, yf_symbol)
     if financial_currency and financial_currency != "USD" and financial_currency not in MAJOR_CURRENCIES:
         logger.info(
             f"[YFINANCE_FALLBACK] {symbol}: financialCurrency={financial_currency} has no USD conversion "
