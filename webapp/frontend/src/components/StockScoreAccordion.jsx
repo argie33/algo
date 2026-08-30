@@ -990,34 +990,81 @@ const QUALITY_SCHEMA = [
 // (RESOLVED note) for the full evidence - this shows the actual number the score now
 // uses (35% weight = the exact combined 6m(20%)+12m(15%) it replaced), not a stale
 // predecessor value.
+// RESTORED 2026-08-30 (explicit user directive, after a full history dig found this pillar's
+// 07-23 -> 08-25 -> 08-28 consolidations had zero quoted user sign-off - see
+// loaders/load_stock_scores.py's _score_momentum docstring for the same note). Reverted to
+// the ORIGINAL 8-input formula: Momentum 1M 16% + 3M 16% + 6M 14% + 12M 9% + RSI(14) 15% +
+// MACD sign 10% + ROC composite 12% + SMA positioning 8%.
 const MOMENTUM_SCHEMA = [
+  {
+    key: "momentum_1m",
+    label: "Momentum (1M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "16%",
+  },
   {
     key: "momentum_3m",
     label: "Momentum (3M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "16%",
   },
   {
-    key: "momentum_12_1",
-    label: "Momentum (12-1, skip-month)",
+    key: "momentum_6m",
+    label: "Momentum (6M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "35%",
+    weight: "14%",
+  },
+  {
+    key: "momentum_12_3",
+    label: "Momentum (12M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "9%",
   },
   {
     key: "rsi",
     label: "RSI (14)",
     fmt: (v) => num(v, 1),
     used: true,
-    weight: "37% avg",
+    weight: "15%",
   },
   {
     key: "macd",
     label: "MACD Line",
     fmt: (v) => num(v, 3),
     used: true,
-    weight: "37% avg",
+    weight: "10%",
+  },
+  {
+    key: "roc_20d",
+    label: "ROC (20D)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "12% avg",
+  },
+  {
+    key: "roc_60d",
+    label: "ROC (60D)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "12% avg",
+  },
+  {
+    key: "roc_120d",
+    label: "ROC (120D)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "12% avg",
+  },
+  {
+    key: "roc_252d",
+    label: "ROC (252D)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "12% avg",
   },
   {
     key: "price_vs_sma_50",
@@ -1033,28 +1080,6 @@ const MOMENTUM_SCHEMA = [
     used: true,
     weight: "8% avg",
   },
-  // TRIMMED BACK 2026-08-28 (user directive: this tab should show ONLY what's actually in
-  // the scoring formula, not every computed field - reversing the same-day earlier
-  // "restore to display" pass below). Before cutting each field, checked whether it
-  // deserved to be a REAL scored input instead of just hidden - the standard the user asked
-  // for ("if we need more in the scoring logic to get it right, keep working on it").
-  // - current_price: not a signal, a display-only fact. Never a scoring candidate.
-  // - momentum_1m/momentum_6m/momentum_12_3 (raw 12m): already tested and excluded from
-  //   scoring on real evidence (Jegadeesh 1990 short-term reversal for 1m; redundancy with
-  //   3m/12-1 for 6m/12m - see this pillar's own docstring above). Confirmed rejects, not
-  //   gaps - the 12-1 skip-month row above IS the properly-constructed use of this same
-  //   underlying data.
-  // - roc_20d/60d/120d/252d: same `close.pct_change()` computation as the momentum windows
-  //   over near-identical trading-day windows - proven duplicate data, not a distinct signal.
-  // - price_vs_52w_high: the one candidate that hadn't actually been tested for this pillar
-  //   before today, despite being a real, separate, published anomaly (George & Hwang 2004,
-  //   JoF, "52-Week High and Momentum Investing"). Tested properly just now - monthly
-  //   cross-sectional panel, 37 months, 52,152 symbol-months, same Fama-MacBeth-style
-  //   methodology as every other factor in this file: mean_corr=0.0092, t=0.308 (no signal),
-  //   and unstable across sub-periods (first half t=0.92, second half t=-0.43, sign flip).
-  //   The naive pooled Spearman looked significant (r=-0.031, p=1.8e-12) but that's the same
-  //   inflated-significance artifact this file already warns about elsewhere (pooled panels
-  //   understate within-month correlation). Genuinely tested and rejected, not overlooked.
 ];
 
 // FIXED 2026-08-04: value_score (load_stock_scores.py::_score_value) weight badges were
@@ -1147,6 +1172,13 @@ const MOMENTUM_SCHEMA = [
 // don't use, but IBD's every SmartSelect rating and MSCI's factor construction both do).
 // Weights themselves (12%/30%/27%) are unchanged - only how a given raw ratio maps to a 0-100
 // sub-score changed.
+// RESTORED 2026-08-30 (explicit user directive, after a full history dig found this
+// pillar's various changes since 08-28 - PEG/FCF-Yield/Margin-of-Safety removal, Forward P/E
+// addition, percentile-rank scoring method - had little to no quoted user sign-off). Reverted
+// to the 08-26/08-28 7-input fixed-curve formula: P/E 12% + P/B 30% + P/S 27% + PEG 7% +
+// FCF Yield 9% + Dividend Yield 8% + Margin of Safety 7%. See loaders/load_stock_scores.py's
+// _score_value for the restored scoring code; update_value_multiples_percentiles() (the
+// cross-sectional percentile-rank batch pass) is disabled, not deleted.
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
@@ -1160,74 +1192,46 @@ const VALUE_SCHEMA = [
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "39%",
+    weight: "30%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "34%",
+    weight: "27%",
   },
-  // Forward P/E PROMOTED to a scored input 2026-08-28 (user directive - MSCI's Value index
-  // uses 12-month forward Earnings/Price as one of its three core descriptors; explicitly a
-  // judgment call, not evidence-based - analyst_earnings_estimates only has ~22 trading days
-  // of history and can't be backtested yet).
   {
-    key: "stock_forward_pe",
-    label: "Forward P/E",
+    key: "peg_ratio",
+    label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "4%",
+    weight: "7%",
   },
-  // "Net Payout Yield (Div + Buybacks)" (net_payout_yield) REVERTED 2026-08-28 back to plain
-  // Dividend Yield on explicit user directive ("we want the dividend yield instead of that
-  // payout shit") - see loaders/load_stock_scores.py's _score_value docstring for the full
-  // history. Weight 11% (2026-08-28, later same day: +3 from PEG's removal below).
+  {
+    key: "fcf_yield",
+    label: "FCF Yield",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "9%",
+  },
   {
     key: "stock_dividend_yield",
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "11%",
+    weight: "8%",
   },
-  // market_cap moved to the Size pillar 2026-08-26 - see SIZE_SCHEMA below.
-  // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't
-  // carry it at all (it lives in technical_data_daily, a different query entirely); adding it
-  // would need a real backend SQL/join change, out of scope for this display-only pass.
-  //
-  // FULLY REMOVED FROM DISPLAY 2026-08-28 (user directive: "if we not scoring it we dont want
-  // to display it" - overrides the prior "keep unscored fields visible for transparency"
-  // convention this tab used to follow). This is a Value-tab-specific display rule, not a
-  // data change - every field below stays fully computed/stored/API-served, just not rendered
-  // on THIS tab:
-  //   - PEG (peg_ratio): REMOVED FROM SCORING 2026-08-28 - a growth-ADJUSTED earnings multiple
-  //     (PE / growth rate) is, by design, a Value/Growth hybrid; no mainstream systematic
-  //     Value methodology (MSCI Enhanced Value/World Value, Russell, S&P Style, Barra,
-  //     Fama-French/AQR) includes one - institutional practice keeps Value and Growth as
-  //     separate, independently-measurable factors on purpose. This repo's own 15-pair
-  //     pillar-interaction sweep (algo/research/cross_pillar_interaction_sweep_20260828.py)
-  //     confirms Growth x Value specifically isn't era-robust either (only Value x Risk is -
-  //     see load_stock_scores.py's `_value_risk_adjusted_weights`). See _score_value's
-  //     "PEG - REMOVED FROM SCORING 2026-08-28" docstring note. Freed 3% went to Dividend
-  //     Yield above.
-  //   - FCF Yield (fcf_yield): REMOVED FROM SCORING 2026-08-25 - independently re-verified
-  //     robustly wrong-signed (t=-2.43/-0.91/-2.17 full/half/half). Checked 2026-08-28
-  //     specifically for the same missing-data selection bias that flipped the PE-vs-PB/PS
-  //     ranking dispute - does NOT apply here (fcf_yield is computed unconditionally, correctly
-  //     negative for cash-burning companies, not gated to positive-only like pe_ratio was) -
-  //     see "FCF YIELD - RESOLVED 2026-08-28" docstring note.
-  //   - EV/EBITDA (stock_ev_ebitda) / EV/Revenue (stock_ev_revenue): excluded as near-literal
-  //     duplicates of P/E (r=0.93) and P/S (r=1.00) respectively - would double-weight a signal
-  //     already scored, not add information.
-  //   - Margin of Safety (stock_margin_of_safety) / Intrinsic Value (stock_intrinsic_value):
-  //     REMOVED FROM SCORING 2026-08-28 - DCF-based intrinsic-value estimates are an
-  //     industry-standard deep-value screening/decision tool (Graham/Klarman), not a
-  //     systematic Value-factor ranking input - see "MARGIN OF SAFETY - REMOVED FROM SCORING
-  //     2026-08-28" docstring note. Both are the Deep Value Picks page's (DeepValueStocks.jsx)
-  //     primary metrics instead - their natural home, and where a viewer should look for them.
-  //   - net_payout_yield: was already fully hidden here on an earlier explicit user directive
-  //     ("make sure this one is gone") - unaffected by this pass, still gone.
+  {
+    key: "stock_margin_of_safety",
+    label: "Margin of Safety (DCF)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "7%",
+  },
+  // Forward P/E, EV/EBITDA, EV/Revenue, net_payout_yield: not part of this formula - still
+  // fetched/persisted via the API for reference, not shown here (matches this tab's
+  // "only show what's scored" convention).
 ];
 
 // SIZE (market cap, Fama-French SMB / Banz 1981) - RETIRED as a scored top-level pillar
@@ -1447,41 +1451,53 @@ const POSITIONING_SCHEMA = [
 // the same *100 scaling pct() doesn't do itself. max_drawdown_1y is the odd one out here -
 // _calculate_max_drawdown already multiplies by 100 (returns e.g. -25.5), so it's passed
 // through as-is like the loader-pre-scaled *_pct fields in QUALITY_SCHEMA.
+// RESTORED 2026-08-30 (explicit user directive, after a full history dig found this
+// pillar's 5-input -> 12-13 -> 8 -> 4 -> 3 evolution had zero quoted user sign-off on the
+// actual formula content at any point - only the pillar's rename, Stability->Risk, was ever
+// user-directed). Reverted to the ORIGINAL formula (pre-2026-07-23): Volatility 252D 40% +
+// Volatility 60D 20% + Volatility 30D 15% + Beta 15% + Debt-to-Assets 10%. Max Drawdown and
+// downside volatility - both added after this original design - are no longer scored here.
+// Note: the API's "volatility_12m" key actually carries volatility_252d (a legacy naming
+// quirk in lambda/api/routes/scores.py, not a real 12-month window) - relabeled below to
+// avoid re-confusing this the same way the rest of this file already got confused once.
 const RISK_SCHEMA = [
+  {
+    key: "volatility_12m",
+    label: "Volatility (252D)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    used: true,
+    weight: "40%",
+  },
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "60%",
+    weight: "20%",
+  },
+  {
+    key: "volatility_30d",
+    label: "Volatility (30D)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    used: true,
+    weight: "15%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "15%",
   },
   {
-    key: "max_drawdown_1y",
-    label: "Max Drawdown (1Y)",
-    fmt: (v) => pct(v, 2),
+    key: "debt_to_assets",
+    label: "Debt to Assets",
+    fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "10%",
   },
-  // TRIMMED BACK 2026-08-28 (user directive: this tab should show ONLY what's actually in
-  // the scoring formula, reversing the same-day earlier "restore to display" pass below).
-  // volatility_12m/30d and downside_volatility_252d/30d: confirmed rejects, not gaps -
-  // measured directly (400-symbol sample, 20,904 observations) at 0.52-0.92 correlation
-  // with the 60d windows that replaced them (volatility clustering, Engle 1982/Bollerslev
-  // 1986 GARCH literature). downside_volatility_60d itself REMOVED FROM SCORING (same day,
-  // later pass) and dropped from this tab entirely too, same "only show what's in the
-  // formula" rule - the 126-month FM panel already found it carries no independent signal
-  // once volatility_60d is controlled for (t=+1.39, wrong-signed), and it's correlated
-  // r=0.93 with volatility_60d even after the 6-window consolidation above (live-reverified
-  // same day) - freed 15% moved entirely to volatility_60d (45%->60%). See _score_risk's
-  // docstring in load_stock_scores.py for the full writeup. segment_count/
-  // largest_segment_revenue_pct/is_diversified also stay off this tab - the underlying XBRL
-  // segment-dimension extraction (utils/external/sec_xbrl_segments.py) always comes back
-  // empty, so every row would just render as unavailable noise.
+  // Max Drawdown and downside volatility (252d/60d/30d) are NOT part of the original
+  // 5-input formula this pillar was reverted to - still fetched/persisted for reference.
+  // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
+  // underlying XBRL segment-dimension extraction always comes back empty.
 ];

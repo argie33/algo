@@ -24,7 +24,7 @@ from loaders.load_stock_scores import StockScoresLoader
 class TestMomentumMetricsUnavailableBranchesUnified:
     def test_row_present_data_unavailable_scores_partial_from_technical(self):
         loader = StockScoresLoader()
-        loader._technical_cache = {"AAPL": (65.0, 1.2, 190.0, 180.0, 200.0)}
+        loader._technical_cache = {"AAPL": (65.0, 1.2, 190.0, 180.0, 200.0, 5.0, 8.0, 12.0, 20.0)}
         loader._momentum_cache = {"AAPL": (None, None, None, None, True)}
 
         metrics = loader._get_momentum_metrics(None, "AAPL")
@@ -41,7 +41,7 @@ class TestMomentumMetricsUnavailableBranchesUnified:
         must now score a partial momentum signal, same as the row-present-unavailable case,
         instead of being discarded entirely."""
         loader = StockScoresLoader()
-        loader._technical_cache = {"NEWCO": (72.0, -0.5, 50.0, 48.0, 55.0)}
+        loader._technical_cache = {"NEWCO": (72.0, -0.5, 50.0, 48.0, 55.0, 3.0, 6.0, 9.0, 15.0)}
         loader._momentum_cache = {}
 
         metrics = loader._get_momentum_metrics(None, "NEWCO")
@@ -79,7 +79,7 @@ class TestMomentumMetricsUnavailableBranchesUnified:
         must yield the exact same momentum_score - proving the two paths are now unified,
         not just individually non-crashing."""
         loader = StockScoresLoader()
-        tech_row = (55.0, 0.3, 100.0, 95.0, 105.0)
+        tech_row = (55.0, 0.3, 100.0, 95.0, 105.0, 4.0, 7.0, 10.0, 18.0)
 
         loader._technical_cache = {"ROW_ABSENT": tech_row}
         loader._momentum_cache = {}

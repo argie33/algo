@@ -64,92 +64,72 @@ def _assert_pct_matches(jsx_key: str, py_weight: float) -> None:
 
 class TestValueScoreWeightBadges:
     def test_weights_match_code(self):
+        """RESTORED 2026-08-30 (explicit user directive, after a full history dig found the
+        08-28 redesign - percentile-ranking, Forward P/E addition, PEG/FCF-Yield/Margin-of-
+        Safety removal - had little to no quoted user sign-off). Reverted to the 08-26/08-28
+        7-input fixed-curve formula: P/E 12% + P/B 30% + P/S 27% + PEG 7% + FCF Yield 9% +
+        Dividend Yield 8% + Margin of Safety 7%. Forward P/E is no longer scored.
+        update_value_multiples_percentiles() (cross-sectional percentile-rank batch pass) is
+        disabled, not deleted - see its call site's own comment in _compute_composite_score
+        for why running it now would corrupt scores against these reverted weights."""
         src = inspect.getsource(StockScoresLoader._score_value)
-        # eve_score/evr_score (EV/EBITDA, EV/Revenue) removed 2026-08-25 - r=1.00/0.93
-        # duplicates of ps_ratio/pe_ratio respectively, see _score_value's docstring RESOLVED
-        # note. Confirmed 2026-08-28 (classification research) they belong to Value
-        # conceptually but their non-PE/PS content is already covered by Quality's
-        # debt_to_equity - stays unscored, not a re-add candidate.
-        # size_score (market_cap) MOVED OUT 2026-08-26 - promoted to its own top-level "Size"
-        # pillar (StockScoresLoader._score_size), no longer part of _score_value at all. See
-        # TestSizeScoreWeightBadges below for its (trivial, single-input) coverage.
-        # illiq_score (amihud_illiquidity) ADDED 2026-08-26, REMOVED same day (user directive)
-        # - see _score_value's "AMIHUD ILLIQUIDITY" docstring note.
-        # div_score (dividend_yield) briefly REPLACED by payout_score (net_payout_yield =
-        # dividends + buybacks) 2026-08-26 on statistical grounds, then REVERTED back to
-        # div_score/dividend_yield 2026-08-28 on explicit user directive - see
-        # load_stock_scores.py's _score_value docstring for the full history.
-        # FCF yield REMOVED 2026-08-28 (independently re-verified robustly wrong-signed, see
-        # "FCF YIELD - RESOLVED 2026-08-28" docstring note). Forward P/E ADDED same pass
-        # (fwd_pe_score, MSCI Value index core descriptor, user directive - see "FORWARD P/E -
-        # ADDED 2026-08-28" docstring note). PB/PS weights bumped with FCF's freed weight.
-        # PEG REMOVED FROM SCORING ENTIRELY 2026-08-28 (later same day, goal: "is this value
-        # score right per industry best practice... lets figure out the right best for the
-        # value and lets go") - a growth-ADJUSTED earnings multiple (PE / growth rate) is, by
-        # design, a Value/Growth hybrid; no mainstream systematic Value methodology (MSCI
-        # Enhanced Value/World Value, Russell, S&P Style, Barra, Fama-French/AQR) includes one,
-        # and this repo's own 15-pair pillar-interaction sweep confirms Growth x Value isn't
-        # era-robust either - see _score_value's "PEG - REMOVED FROM SCORING 2026-08-28"
-        # docstring note. `_peg_to_score` was deleted (dead code, nothing calls it anymore).
-        # Freed 3% went to Dividend Yield (8% -> 11%).
-        # margin_of_safety (mos_score) REMOVED FROM SCORING 2026-08-28 (same day, earlier pass,
-        # goal: "is margin of safety typically a metric used in the value factor score... or is
-        # it typically used some other way") - industry-standard systematic Value factors
-        # (MSCI/Russell/S&P/Fama-French/AQR) are built from accounting yield ratios, not DCF
-        # intrinsic-value estimates; margin of safety is a Graham/Klarman per-stock deep-value
-        # screening tool by convention, not a cross-sectional ranking input - see _score_value's
-        # "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring note. Freed 11% went to
-        # PB (+6, now 39%) and PS (+5, now 34%) above.
-        # Both PEG and margin_of_safety, along with the already-unscored fcf_yield/ev_ebitda/
-        # ev_revenue, were FULLY REMOVED FROM DISPLAY on this tab too (user directive: "if we
-        # not scoring it we dont want to display it") - see TestUnscoredValueFieldsNotDisplayed
-        # below. All five stay fully computed/stored/API-served; margin_of_safety and
-        # intrinsic_value are the Deep Value Picks page's primary metrics instead.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
-            "fwd_pe_score": "stock_forward_pe",
             "div_score": "stock_dividend_yield",
+            "fcf_score": "fcf_yield",
+            "mos_score": "stock_margin_of_safety",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+        # PEG uses `self._peg_to_score(...) * 0.07` inline, not a named `peg_score` variable -
+        # different call shape than the other score vars above.
+        peg_match = re.search(r"_peg_to_score\([^)]*\)\s*\*\s*(0\.\d+)", src)
+        assert peg_match, "expected `self._peg_to_score(...) * 0.NN` in source"
+        _assert_pct_matches("peg_ratio", float(peg_match.group(1)))
 
-
-class TestUnscoredValueFieldsNotDisplayed:
-    def test_peg_and_margin_of_safety_not_scored(self):
-        """Guards the 2026-08-28 removals - PEG and margin of safety (DCF discount to
-        intrinsic value) should stay fully computed/stored but not weighted into value_score,
-        matching industry practice: PEG is a Value/Growth hybrid no mainstream systematic
-        methodology scores, and margin of safety is a deep-value screening tool, not a
-        cross-sectional ranking input (see _score_value's docstring for the full evidence).
-        Checks the backend side doesn't drift back."""
+    def test_forward_pe_not_scored(self):
+        """Forward P/E is not part of the reverted 08-26/08-28 formula - guards against it
+        drifting back into value_score without an explicit decision."""
         src = inspect.getsource(StockScoresLoader._score_value)
-        assert "mos_score" not in src, "margin of safety should no longer be a scored value_score component"
-        assert "_peg_to_score" not in src, "PEG should no longer be a scored value_score component"
-        assert not hasattr(StockScoresLoader, "_peg_to_score"), "_peg_to_score should be deleted, not just unused"
+        assert "fwd_pe_score" not in src, "forward_pe should not be a scored value_score component"
 
-    def test_unscored_value_fields_have_no_display_row_at_all(self):
-        """Guards the 2026-08-28 "if we not scoring it we dont want to display it" directive -
-        unlike the prior convention (unscored fields stayed visible as informational rows),
-        PEG/margin_of_safety/intrinsic_value/fcf_yield/ev_ebitda/ev_revenue should have NO row
-        in VALUE_SCHEMA at all now, scored or not. Data itself is untouched - still computed/
-        stored/API-served - this only guards the display layer."""
+    def test_percentile_ranking_disabled(self):
+        """update_value_multiples_percentiles() (called from post_run()) must not be active
+        while _score_value uses the reverted fixed-curve weights - its delta correction is
+        hardcoded to the pre-revert weights and would silently corrupt value_score/
+        composite_score if it ran. The method itself stays defined (not deleted)."""
+        assert hasattr(StockScoresLoader, "update_value_multiples_percentiles")
+        src = inspect.getsource(StockScoresLoader.post_run)
+        assert not re.search(r"^\s*self\.update_value_multiples_percentiles\(\)", src, re.MULTILINE), (
+            "update_value_multiples_percentiles() call should be disabled (commented out), "
+            "not active, while _score_value uses the reverted fixed-curve weights"
+        )
+
+
+class TestUnscoredValueFieldsDisplayed:
+    def test_forward_pe_and_ev_multiples_have_no_display_row(self):
+        """Forward P/E, EV/EBITDA, and EV/Revenue are not part of the reverted formula - should
+        have no row in VALUE_SCHEMA (unscored fields aren't displayed on this tab, per the
+        08-28 "if we not scoring it we dont want to display it" convention, which still
+        applies)."""
         schema_match = re.search(r"const VALUE_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
         assert schema_match, "expected VALUE_SCHEMA to still exist"
         schema_src = schema_match.group(1)
-        removed_keys = [
-            "peg_ratio",
-            "stock_margin_of_safety",
-            "stock_intrinsic_value",
-            "fcf_yield",
-            "stock_ev_ebitda",
-            "stock_ev_revenue",
-        ]
+        removed_keys = ["stock_forward_pe", "stock_ev_ebitda", "stock_ev_revenue"]
         for key in removed_keys:
             assert f'key: "{key}"' not in schema_src and f"key: '{key}'" not in schema_src, (
                 f"{key} should have no VALUE_SCHEMA row at all (not scored, so not displayed on this tab)"
             )
+
+    def test_peg_fcf_yield_margin_of_safety_are_scored_and_displayed(self):
+        """RESTORED 2026-08-30 - PEG, FCF Yield, and Margin of Safety are scored value_score
+        components again and must have a real (non-informational) weight badge in
+        VALUE_SCHEMA."""
+        for key in ["peg_ratio", "fcf_yield", "stock_margin_of_safety"]:
+            weight = _jsx_weight_for_key(key)
+            assert re.match(r"\d+%", weight), f"{key} should have a real weight badge, got {weight!r}"
 
 
 class TestGrowthScoreWeightBadges:
@@ -259,68 +239,71 @@ class TestPositioningScoreRemoved:
 
 
 class TestRiskScoreWeightBadges:
-    def test_volatility_and_beta_weights_match_code(self):
-        # volatility_12m/30d and downside_volatility_252d/30d removed 2026-08-25 (goal: full
-        # scoring-architecture audit) - all six volatility inputs correlated 0.52-0.92 with
-        # each other (measured directly), so consolidated to one symmetric + one downside
-        # window (60d) and redistributed the freed weight to beta/max_drawdown.
-        # downside_volatility_60d REMOVED ENTIRELY 2026-08-28 (still correlated r=0.93 with
-        # volatility_60d even after that consolidation, AND shown by this file's own
-        # Fama-MacBeth panel to carry no independent signal once vol_60d is controlled for -
-        # see _score_risk's docstring). Freed 15% moved to volatility_60d (45%->60%).
+    def test_volatility_beta_and_dta_weights_match_code(self):
+        """RESTORED 2026-08-30 (explicit user directive, after a full history dig found this
+        pillar's entire 5 -> 12-13 -> 8 -> 4 -> 3 input evolution had zero quoted user sign-off
+        on the formula content - only the Stability->Risk rename was ever user-directed).
+        Reverted to the ORIGINAL formula (pre-2026-07-23): Volatility 252D 40% + Volatility
+        60D 20% + Volatility 30D 15% + Beta 15% + Debt-to-Assets 10%."""
         src = inspect.getsource(StockScoresLoader._score_risk)
         score_var_to_jsx_key = {
+            "v252_score": "volatility_12m",  # API key "volatility_12m" actually carries volatility_252d
             "v60_score": "volatility_60d",
+            "v30_score": "volatility_30d",
             "beta_score": "beta",
-            "dd_score": "max_drawdown_1y",
+            "dta_score": "debt_to_assets",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
 
-    def test_downside_volatility_not_scored(self):
-        """Guards the 2026-08-28 removal - downside_volatility_60d should stay fully
-        computed/stored (stability_metrics) but no longer weighted into risk_score."""
+    def test_downside_volatility_and_max_drawdown_not_scored(self):
+        """downside_volatility and max_drawdown_1y are not part of the original 5-input
+        formula this pillar was reverted to - should stay fully computed/stored but no longer
+        weighted into risk_score."""
         src = inspect.getsource(StockScoresLoader._score_risk)
         assert "dvol60_score" not in src, "downside_volatility_60d should no longer be a scored risk_score component"
+        assert "dd_score" not in src, "max_drawdown_1y should no longer be a scored risk_score component"
 
 
 class TestMomentumScoreWeightBadges:
     def test_price_return_weights_match_code(self):
+        """RESTORED 2026-08-30 (explicit user directive, after a full history dig found this
+        pillar's momentum_1m drop / 12-1 skip-month construction / RSI-MACD merge / ROC
+        removal had zero quoted user sign-off). Reverted to the ORIGINAL 8-input formula:
+        Momentum 1M 16% + 3M 16% + 6M 14% + 12M 9%."""
         src = inspect.getsource(StockScoresLoader._score_momentum)
         dict_match = re.search(r"weights = \{([\s\S]*?)\}", src)
         assert dict_match, "expected a `weights = {...}` dict literal in _score_momentum"
         dict_weights = {k: float(v) for k, v in re.findall(r'"(\w+)":\s*(0\.\d+)', dict_match.group(1))}
 
-        # momentum_1m removed 2026-08-25 (goal: full scoring-architecture audit) - dropped
-        # per the standard academic 12-1 momentum construction (Jegadeesh 1990 short-term
-        # reversal); see _score_momentum's docstring for the empirical confirmation.
         field_to_jsx_key = {
+            "momentum_1m": "momentum_1m",
             "momentum_3m": "momentum_3m",
+            "momentum_6m": "momentum_6m",
+            "momentum_12m": "momentum_12_3",  # API key "momentum_12_3" carries raw momentum_12m
         }
         for field, jsx_key in field_to_jsx_key.items():
             _assert_pct_matches(jsx_key, dict_weights[field])
 
-        # momentum_6m/raw momentum_12m REPLACED same day by a derived 12-1 skip-month
-        # construction (mom_12_1_score, not a `weights` dict entry - a standalone
-        # `* 0.NN` line like eve_score/evr_score were) - see _score_momentum's docstring
-        # RESOLVED note.
-        _assert_pct_matches("momentum_12_1", _weight_for_score_var(src, "mom_12_1_score"))
+    def test_mom_12_1_not_scored(self):
+        """The derived 12-1 skip-month construction is not part of the original 8-input
+        formula this pillar was reverted to - should no longer be a scored component."""
+        src = inspect.getsource(StockScoresLoader._score_momentum)
+        assert "mom_12_1_score" not in src, "mom_12_1 should no longer be a scored momentum_score component"
 
     def test_rsi_and_macd_weights_match_code(self):
-        """CONSOLIDATED 2026-08-28 (goal: momentum/risk factor-interaction review): RSI(14)
-        and MACD-sign used to be two independently `rsi_score * 0.21` / `macd_score * 0.16`
-        terms - but they're correlated (r=0.70 in the 2026-08-25 FM panel, r=0.58 live-
-        reverified 2026-08-28) and their multivariate coefficients flip sign against each
-        other, the same redundancy symptom already fixed for SMA-50/200 (averaged into one
-        slot) and Risk's volatility windows (6 collapsed to 2). Now averaged into one
-        `tech_trend_scores` slot at a combined 0.37 weight (21%+16%, unchanged) - see
-        _score_momentum's CONSOLIDATED 2026-08-28 docstring note. `_weight_for_score_var`'s
-        `<var> * 0.NN` pattern has nothing to match against an averaged-list slot (same
-        reason SMA's weight was never checked this way either), so this checks the combined
-        weight constant directly instead, and that both JSX rows advertise it."""
+        """RESTORED 2026-08-30 - RSI(14) and MACD-sign are independently weighted again
+        (15%/10%), not averaged into one combined slot."""
         src = inspect.getsource(StockScoresLoader._score_momentum)
-        combined_match = re.search(r"tech_trend_scores\)\s*/\s*len\(tech_trend_scores\)\)\s*\*\s*(0\.\d+)", src)
-        assert combined_match, "expected `(sum(tech_trend_scores) / len(tech_trend_scores)) * 0.NN` in source"
+        _assert_pct_matches("rsi", _weight_for_score_var(src, "rsi_score"))
+        _assert_pct_matches("macd", _weight_for_score_var(src, "macd_score"))
+
+    def test_roc_composite_weight_matches_code(self):
+        """RESTORED 2026-08-30 - the ROC composite (roc_20d/60d/120d/252d, averaged) is a
+        scored input again."""
+        src = inspect.getsource(StockScoresLoader._score_momentum)
+        combined_match = re.search(r"roc_scores\)\s*/\s*len\(roc_scores\)\)\s*\*\s*(0\.\d+)", src)
+        assert combined_match, "expected `(sum(roc_scores) / len(roc_scores)) * 0.NN` in source"
         combined_weight = float(combined_match.group(1))
-        _assert_pct_matches("rsi", combined_weight)
-        _assert_pct_matches("macd", combined_weight)
+        for jsx_key in ["roc_20d", "roc_60d", "roc_120d", "roc_252d"]:
+            _assert_pct_matches(jsx_key, combined_weight)

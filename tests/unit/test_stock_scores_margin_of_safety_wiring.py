@@ -4,42 +4,34 @@ margin_of_safety_pct (loaders/load_stock_scores.py).
 
 value_metrics.margin_of_safety_pct (DCF-based "discount to intrinsic value", computed by
 load_sec_valuations.py and copied onto value_metrics by load_value_quality_growth_metrics.py,
-migration 1208) was added as a 0.20 sub-weight in commit 28e7ebf7d, removed 2026-08-18 (commit
-e38a6667d), REINSTATED 2026-08-24 (user-directed, NVDA margin-of-safety DCF audit), reweighted
-several times through 2026-08-28, and REMOVED FROM SCORING AGAIN 2026-08-28 (goal: "is margin of
-safety typically a metric used in the value factor score... or is it typically used some other
-way") - see _score_value's "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring note.
+migration 1208) has been through a long history: added at 0.20 (commit 28e7ebf7d), removed
+2026-08-18 (commit e38a6667d), REINSTATED 2026-08-24 (user-directed, NVDA margin-of-safety DCF
+audit), reweighted several times through 2026-08-28, REMOVED FROM SCORING 2026-08-28 (an
+industry-practice call: systematic Value factor methodologies like MSCI/Russell/S&P/Fama-French
+are built from accounting yield ratios, not DCF estimates), and RESTORED AGAIN 2026-08-30
+(explicit user directive, after a full history dig found the 2026-08-28 redesign - including
+this removal - had little to no quoted user sign-off, unlike the 2026-08-24 reinstatement which
+was directly user-requested). See _score_value's docstring for the full trail.
 
-Unlike the 2026-08-18 removal (a display-only-for-comparability rationale, later overridden by
-explicit user request), this one is an industry-practice call: systematic Value factor scores
-(MSCI Enhanced Value, Russell Style, S&P Style Indices, Fama-French HML, AQR) are built from
-accounting yield ratios (P/E, P/B, P/S, EV/EBITDA, dividend yield) computed directly from
-financials - not DCF intrinsic-value estimates, which require per-company growth/discount-rate
-assumptions and belong to a different tradition (Graham/Klarman "margin of safety" as a per-stock
-deep-value screening/decision rule, not a cross-sectional ranking factor). This repo's own
-sub-period t-stats for margin_of_safety were unstable (0.30 to 2.12 across halves) versus PE/PB/PS
-being robust in every sub-period tested - consistent with that industry-practice read. The field
-stays fully computed/stored/displayed and is the Deep Value Picks page's (DeepValueStocks.jsx)
-primary metric instead.
-
-These tests guard: (1) margin_of_safety_pct no longer moves value_score at all, in either
-direction, (2) its presence/absence is fully inert - a symbol scores identically whether the
-field is populated, None, or missing entirely, since it's not part of the weighted formula.
+These tests guard the CURRENT (restored) wiring: margin_of_safety_pct is a real 7%-weighted
+value_score component again - a positive (undervalued) reading scores higher than a negative
+(overvalued) one, and the field's presence/absence changes the score (since it now contributes
+real weight), not the reverse.
 """
 
 from loaders.load_stock_scores import StockScoresLoader
 
 
-class TestMarginOfSafetyNotWired:
+class TestMarginOfSafetyWired:
     def _base_metrics(self) -> dict:
         return {
             "pe_ratio": 18.0,
             "pb_ratio": 2.0,
         }
 
-    def test_margin_of_safety_value_does_not_move_value_score(self):
-        """Undervalued (positive MoS) vs. overvalued (negative MoS) must score identically -
-        margin_of_safety_pct is no longer part of the weighted value_score formula."""
+    def test_undervalued_scores_higher_than_overvalued(self):
+        """Undervalued (positive MoS) must score higher than overvalued (negative MoS) -
+        margin_of_safety_pct is a real, scored value_score component."""
         loader = StockScoresLoader()
 
         undervalued = dict(self._base_metrics(), margin_of_safety_pct=40.0)
@@ -50,12 +42,12 @@ class TestMarginOfSafetyNotWired:
 
         assert isinstance(undervalued_score, float)
         assert isinstance(overvalued_score, float)
-        assert undervalued_score == overvalued_score
+        assert undervalued_score > overvalued_score
 
     def test_missing_margin_of_safety_does_not_block_scoring(self):
         """A symbol with no margin_of_safety_pct (DCF not computable, e.g. negative
         FCF) must still get a real value score from its other available
-        sub-components - the field was never required, and still isn't."""
+        sub-components - the field is not required, just weighted when present."""
         loader = StockScoresLoader()
 
         score = loader._score_value(self._base_metrics(), "NO_DCF")
@@ -63,18 +55,29 @@ class TestMarginOfSafetyNotWired:
         assert isinstance(score, float)
         assert 0.0 <= score <= 100.0
 
-    def test_margin_of_safety_present_none_or_absent_scores_identically(self):
-        """Populated, None, or missing entirely - all three must produce the exact same
-        value_score, since margin_of_safety_pct no longer contributes to weighted_sum/
-        total_weight at all."""
+    def test_margin_of_safety_none_and_absent_score_identically(self):
+        """An explicit `None` value and a missing key must be treated the same -
+        both should renormalize over the remaining available components identically."""
         loader = StockScoresLoader()
 
-        with_value = dict(self._base_metrics(), margin_of_safety_pct=25.0)
         with_key_none = dict(self._base_metrics(), margin_of_safety_pct=None)
         without_key = self._base_metrics()
 
-        score_a = loader._score_value(with_value, "A")
         score_b = loader._score_value(with_key_none, "B")
         score_c = loader._score_value(without_key, "C")
 
-        assert score_a == score_b == score_c
+        assert score_b == score_c
+
+    def test_margin_of_safety_present_changes_score_vs_absent(self):
+        """Populated vs. missing must NOT produce the same value_score any more - MoS is a
+        real weighted component now, so adding it should move the score (renormalizing over
+        one more available component)."""
+        loader = StockScoresLoader()
+
+        with_value = dict(self._base_metrics(), margin_of_safety_pct=40.0)
+        without_key = self._base_metrics()
+
+        score_a = loader._score_value(with_value, "A")
+        score_c = loader._score_value(without_key, "C")
+
+        assert score_a != score_c

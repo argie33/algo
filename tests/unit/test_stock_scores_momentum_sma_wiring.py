@@ -21,8 +21,8 @@ from loaders.load_stock_scores import StockScoresLoader
 class TestMomentumMetricsSmaWiring:
     def test_price_vs_sma_computed_from_technical_cache(self):
         loader = StockScoresLoader()
-        # tech_row = (rsi_14, macd, sma_50, sma_200, close)
-        loader._technical_cache = {"AAPL": (65.0, 1.2, 190.0, 180.0, 200.0)}
+        # tech_row = (rsi_14, macd, sma_50, sma_200, close, roc_20d, roc_60d, roc_120d, roc_252d)
+        loader._technical_cache = {"AAPL": (65.0, 1.2, 190.0, 180.0, 200.0, 5.0, 8.0, 12.0, 20.0)}
         loader._momentum_cache = {"AAPL": (5.0, 10.0, 15.0, 20.0, False)}
 
         metrics = loader._get_momentum_metrics(None, "AAPL")
@@ -32,7 +32,7 @@ class TestMomentumMetricsSmaWiring:
 
     def test_missing_sma_data_yields_none_not_crash(self):
         loader = StockScoresLoader()
-        loader._technical_cache = {"AAPL": (65.0, 1.2, None, None, 200.0)}
+        loader._technical_cache = {"AAPL": (65.0, 1.2, None, None, 200.0, 5.0, 8.0, 12.0, 20.0)}
         loader._momentum_cache = {"AAPL": (5.0, 10.0, 15.0, 20.0, False)}
 
         metrics = loader._get_momentum_metrics(None, "AAPL")

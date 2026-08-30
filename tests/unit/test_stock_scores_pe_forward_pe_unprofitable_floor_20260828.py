@@ -92,7 +92,13 @@ class TestPeUnprofitableFloor:
         assert unprofitable_score < score_a
 
 
-class TestForwardPeNegativeForecastFloor:
+class TestForwardPeNotScored:
+    """Forward P/E was scored 2026-08-28 through 2026-08-29 (with a negative-forecast floor,
+    same treatment as trailing P/E above), then REMOVED 2026-08-30 (user directive - reverting
+    Value to its 08-26/08-28 7-input formula, which never included Forward P/E). Guards that
+    forward_pe no longer moves value_score at all, in either direction - still fetched/
+    persisted for reference, just not weighted."""
+
     def _base_metrics(self) -> dict:
         return {
             "pe_ratio": 15.0,
@@ -100,54 +106,25 @@ class TestForwardPeNegativeForecastFloor:
             "ps_ratio": 3.0,
         }
 
-    def test_negative_forecast_scores_lower_than_positive_forecast(self):
+    def test_forward_pe_value_does_not_move_value_score(self):
         loader = StockScoresLoader()
 
-        positive_forecast = dict(self._base_metrics(), forward_pe=18.0)
+        with_forward_pe = dict(self._base_metrics(), forward_pe=18.0)
+        without_forward_pe = self._base_metrics()
+
+        score_with = loader._score_value(with_forward_pe, "WITH_FWD_PE")
+        score_without = loader._score_value(without_forward_pe, "WITHOUT_FWD_PE")
+
+        assert score_with == score_without
+
+    def test_negative_forecast_reason_does_not_move_value_score(self):
+        loader = StockScoresLoader()
+
         negative_forecast = dict(
             self._base_metrics(), forward_pe=None, forward_pe_unavailable_reason="negative_forward_eps"
         )
-
-        positive_score = loader._score_value(positive_forecast, "POSITIVE_FORECAST")
-        negative_score = loader._score_value(negative_forecast, "NEGATIVE_FORECAST")
-
-        assert isinstance(positive_score, float)
-        assert isinstance(negative_score, float)
-        assert negative_score < positive_score
-
-    def test_negative_forecast_still_produces_a_real_score(self):
-        loader = StockScoresLoader()
-
-        score = loader._score_value(
-            dict(
-                self._base_metrics(),
-                forward_pe=None,
-                forward_pe_unavailable_reason="negative_forward_eps",
-            ),
-            "NEGATIVE_FORECAST",
-        )
-
-        assert isinstance(score, float)
-        assert 0.0 <= score <= 100.0
-
-    def test_genuine_no_analyst_coverage_is_not_floored(self):
-        """forward_pe None with the genuine "no_analyst_estimates" reason (real absence of
-        coverage, not a negative forecast) must stay excluded/renormalized, not floored."""
-        loader = StockScoresLoader()
-
-        no_coverage = dict(self._base_metrics(), forward_pe=None, forward_pe_unavailable_reason="no_analyst_estimates")
         without_key = self._base_metrics()
 
-        score_a = loader._score_value(no_coverage, "A")
+        score_a = loader._score_value(negative_forecast, "A")
         score_b = loader._score_value(without_key, "B")
         assert score_a == score_b
-
-        negative_forecast_score = loader._score_value(
-            dict(
-                self._base_metrics(),
-                forward_pe=None,
-                forward_pe_unavailable_reason="negative_forward_eps",
-            ),
-            "NEGATIVE_FORECAST",
-        )
-        assert negative_forecast_score < score_a
