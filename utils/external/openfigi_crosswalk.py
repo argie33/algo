@@ -475,7 +475,30 @@ class EntityNameIndex:
 
     def find(self, resolved_name: str | None) -> str | None:
         """Symbol whose local entity name plausibly matches resolved_name, or None
-        if zero or more than one tracked symbol qualifies."""
+        if zero or more than one tracked symbol qualifies.
+
+        FIXED 2026-08-30 (goal: full-data audit): the >=0.5 threshold treated every
+        qualifying candidate as equally strong evidence, so a symbol with a PERFECT
+        token-set match (e.g. AWK's local name tokenizing to exactly {AMERICAN,
+        WATER, WORKS}, identical to OpenFIGI's resolved_name "AMERICAN WATER WORKS
+        CO INC") got discarded as "ambiguous" whenever any other tracked symbol's
+        name merely cleared the same loose 0.5 bar (e.g. AWR "American States
+        Water" overlapping on just {AMERICAN, WATER}, ratio 0.667) - live-confirmed
+        55 real symbols (AWK, STZ, DD, FHN, DLB, TCOM, CHDN, and more) silently
+        losing their entire institutional_holdings_13f row to this.
+
+        A uniquely-highest ratio==1.0 candidate among the qualifying matches is
+        preferred over any lower-ratio candidate - but ONLY when candidate_tokens
+        has >=2 tokens. A single shared generic word (e.g. "GLOBAL") can trivially
+        produce a ratio-1.0 "exact" match against a short/heavily-stopword-stripped
+        local name while a genuinely different company also plausibly matches -
+        live-verified via this class's own existing ambiguity regression test
+        (two distinct companies both named "Global Holdings Group ..." collapse to
+        the single token {GLOBAL} after suffix-stripping) - too weak a signal to
+        ever auto-resolve, so that case must still fall through to "ambiguous".
+        Requiring >=2 tokens keeps this override scoped to genuinely distinctive,
+        multi-word exact matches like AWK's, not generic one-word coincidences.
+        """
         candidate_tokens = name_tokens(resolved_name)
         if not candidate_tokens:
             return None
@@ -484,14 +507,21 @@ class EntityNameIndex:
             candidates |= self._token_index.get(token, set())
 
         matches = []
+        ratios: dict[str, float] = {}
         for symbol in candidates:
             local = self._local_tokens[symbol]
             if not local:
                 continue
             overlap = candidate_tokens & local
-            if len(overlap) / min(len(candidate_tokens), len(local)) >= 0.5:
+            ratio = len(overlap) / min(len(candidate_tokens), len(local))
+            if ratio >= 0.5:
                 matches.append(symbol)
-                if len(matches) > 1:
-                    return None  # ambiguous - bail without scanning the rest
+                ratios[symbol] = ratio
 
-        return matches[0] if len(matches) == 1 else None
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1 and len(candidate_tokens) >= 2:
+            perfect = [s for s in matches if ratios[s] == 1.0]
+            if len(perfect) == 1:
+                return perfect[0]
+        return None
