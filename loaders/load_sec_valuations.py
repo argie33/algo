@@ -1177,6 +1177,30 @@ class SecValuationsLoader(OptimalLoader):
                 shares_out_from_fpi_yfinance,
                 float(common_stock_repurchased) if common_stock_repurchased is not None else None,
             )
+            # FIXED 2026-08-30 (goal: full-data audit, AKTX follow-up): yfinance_snapshot has
+            # zero coverage for 645 active-universe symbols (the table's own writer has been
+            # frozen since Session 275 - see the "39 days stale" comment above), leaving
+            # _sanity_check_market_cap with nothing to compare against for any of them - a
+            # wrong computed market_cap sails through completely unprotected, not just for
+            # FPIs (which already get their own live-fetch override above). Live-confirmed via
+            # AKTX (Akari Therapeutics, a $10.70 micro-cap biotech, NOT an FPI - see
+            # load_company_info_sec.py's is_foreign_private_issuer recency fix, same session):
+            # a genuinely-tagged-but-context-implausible share count computed
+            # market_cap=$720.4B with zero cross-check available. An ABSOLUTE ceiling can't
+            # fix this - the same query that found AKTX also surfaced SKHY ($1.14T, same
+            # shape) alongside BRK.B ($701.75B, a REAL value at nearly the same magnitude as
+            # AKTX's wrong one) - only a company-specific independent source can tell them
+            # apart. Gated to market_cap > $50B (not all 645) purely to bound live-fetch
+            # volume on a full-universe run - live-confirmed only 29 of the 645 clear this
+            # bar. Reuses the same live-fetch helper the FPI tier above already relies on;
+            # nothing about it is actually FPI-specific internally.
+            if yf_market_cap is None and not is_foreign_private_issuer:
+                computed_market_cap = valuation_row.get("market_cap")
+                if computed_market_cap is not None and computed_market_cap > 50_000_000_000:
+                    live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                    if live_mcap is not None:
+                        yf_market_cap = live_mcap
+
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
             return [valuation_row]
