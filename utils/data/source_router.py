@@ -34,7 +34,9 @@ Usage:
 
 import json
 import logging
+import multiprocessing
 import os
+import queue
 import threading
 import time
 from collections import deque
@@ -62,51 +64,110 @@ def _is_data_unavailable_marker(result: Any) -> bool:
     return isinstance(result, dict) and bool(result.get("data_unavailable"))
 
 
-def _call_with_timeout(fn: Callable[[], Any], timeout_sec: float = 30, retries: int = 3) -> Any:
-    """Call a function with timeout protection and automatic retry on timeout.
+def _yf_download_worker(response_queue: Any, symbols: Any, start: date, end: date, interval: str) -> None:
+    """Entry point for a one-shot yf.download worker process.
+
+    Module-level (not a closure over the caller's `symbols`/`start`/`end`/`interval`)
+    because multiprocessing's "spawn" start method (the default on Windows, used here
+    deliberately - see _download_via_process's docstring) pickles a reference to the
+    target function by import path, which only works for something importable at
+    module scope - the previous thread-based design's `do_download` closures could
+    never have crossed a process boundary at all, which is why this takes plain
+    picklable args instead. yfinance 0.2.40+ requires curl_cffi and doesn't accept a
+    `requests.Session`, so (same as the prior closures) nothing here passes one -
+    yfinance manages its own session internally.
+
+    Puts (success, payload) on response_queue - payload is the downloaded DataFrame on
+    success, or the caught exception object on failure - then the process exits.
+    """
+    import yfinance as yf
+
+    try:
+        hist = yf.download(symbols, start=start, end=end, interval=interval, auto_adjust=False, progress=False)
+        response_queue.put((True, hist))
+    except Exception as e:
+        response_queue.put((False, e))
+
+
+def _download_via_process(symbols: Any, start: date, end: date, interval: str, timeout_sec: float) -> Any:
+    """Run one yf.download() call in an isolated, genuinely-killable subprocess.
 
     LIVE-REPRODUCED 2026-08-17: the previous implementation ran fn() via
     `with ThreadPoolExecutor(...) as executor: future.result(timeout=timeout_sec)`.
-    When yf.download() genuinely hangs (curl_cffi stuck on a network read, no
-    socket-level timeout), future.result() raises FuturesTimeoutError as designed,
-    but that exception has to unwind through the `with` block first - and
+    When yf.download() genuinely hangs, future.result() raises FuturesTimeoutError as
+    designed, but that exception has to unwind through the `with` block first - and
     ThreadPoolExecutor.__exit__ calls shutdown(wait=True), which blocks the calling
-    thread until the hung worker thread finishes. Since it never finishes, the
-    "timeout" never actually fired; the whole call just hung forever instead,
-    silently, with no timeout warning ever logged. Confirmed live: load_prices.py's
-    batch yfinance fallback hung mid-symbol (logged "Batch calling yf.download ...
-    180s timeout" and then nothing) until an external reaper killed the process
-    minutes later - the in-process retry/backoff below never got a chance to run.
-    Same daemon-thread-abandon pattern already proven for this exact bug class in
-    loaders/load_enhanced_quality_growth_metrics.py's _yfinance_call_with_timeout
-    (live-reproduced 2026-08-10) - daemon=True so an abandoned thread can't block
-    process exit, and nothing here ever waits on it to finish.
+    thread until the hung worker thread finishes. Confirmed live: load_prices.py's
+    batch yfinance fallback hung mid-symbol until an external reaper killed the
+    process minutes later.
+
+    That was replaced (still 2026-08-17) with a daemon-thread + `Thread.join(timeout=N)`
+    design - but LIVE-REPRODUCED AGAIN 2026-08-29 (see
+    loaders/load_enhanced_quality_growth_metrics.py's YfinanceProcessWorker docstring
+    and memory `yfinance_curl_cffi_gil_hostage_hang_diagnosed_not_fixed_20260829`): a
+    curl_cffi call can hold the GIL hostage in native code for the entire hang, and
+    `Thread.join(timeout=N)` itself needs the GIL to check elapsed time - so a thread
+    holding the GIL hostage starves the very thread trying to enforce the timeout,
+    indefinitely. Only a separate OS process has its own GIL and can be forcibly
+    killed by the OS regardless of what it's doing internally.
+
+    Spawns a fresh process per call rather than reusing a persistent worker (contrast
+    with YfinanceProcessWorker, which amortizes spawn cost across a per-symbol hot
+    loop): this OHLCV path is a fallback behind Alpaca plus a couple of infrequent
+    health checks, not a hot loop, and several call sites construct a throwaway
+    `DataSourceRouter()` per call (e.g. utils/validation/rate_limit.py's
+    check_api_health) - a worker cached on the instance would never get shut down
+    there and would leak one subprocess per health check.
+    """
+    ctx = multiprocessing.get_context("spawn")
+    response_queue = ctx.Queue()
+    process = ctx.Process(
+        target=_yf_download_worker,
+        args=(response_queue, symbols, start, end, interval),
+        daemon=True,
+    )
+    process.start()
+    try:
+        success, payload = response_queue.get(timeout=timeout_sec)
+    except queue.Empty:
+        raise TimeoutError(f"yf.download exceeded {timeout_sec:.0f}s - worker terminated") from None
+    finally:
+        process.join(timeout=5)
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=5)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=5)
+
+    if not success:
+        raise payload
+    return payload
+
+
+def _call_with_timeout(
+    symbols: Any, start: date, end: date, interval: str, timeout_sec: float = 30, retries: int = 3
+) -> Any:
+    """Call yf.download() with process-isolated timeout protection and automatic retry
+    on timeout - see _download_via_process's docstring for why process isolation
+    (rather than a thread) is required to genuinely bound a curl_cffi hang.
+
+    Retries only on TimeoutError (a fresh subprocess each attempt, abandoning/killing
+    the previous hung one) - a real exception from the download itself (e.g. a rate
+    limit) propagates immediately without retry, same as before this fix, so the
+    caller (_yf_download_with_circuit_breaker) still sees it right away for circuit
+    breaker reporting.
     """
     for attempt in range(retries):
-        result: list[Any] = [None]
-        exc: list[BaseException | None] = [None]
-
-        def _run(fn: Callable[[], Any] = fn, result: list[Any] = result, exc: list[BaseException | None] = exc) -> None:
-            try:
-                result[0] = fn()
-            except BaseException as e:
-                exc[0] = e
-
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
-        thread.join(timeout=timeout_sec)
-
-        if thread.is_alive():
+        try:
+            return _download_via_process(symbols, start, end, interval, timeout_sec)
+        except TimeoutError:
             if attempt < retries - 1:
-                logger.warning(
-                    f"Timeout (attempt {attempt + 1}/{retries}), retrying... (abandoned thread left running)"
-                )
+                logger.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying... (worker terminated)")
                 time.sleep(2**attempt)  # Exponential backoff: 1s, 2s, 4s
-            continue
-        if exc[0] is not None:
-            raise exc[0]
-        return result[0]
-    raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
+                continue
+            raise
+    raise TimeoutError(f"yf.download exceeded {timeout_sec}s timeout after {retries} retries")
 
 
 _YF_RATE_LIMIT_KEYWORDS = ("429", "rate", "too many", "invalid crumb", "unauthorized")
@@ -117,8 +178,11 @@ def _is_yf_rate_limit_error(e: Exception) -> bool:
     return any(keyword in error_str for keyword in _YF_RATE_LIMIT_KEYWORDS)
 
 
-def _yf_download_with_circuit_breaker(do_download: Callable[[], Any], timeout_sec: float, retries: int) -> Any:
-    """Call yf.download() (via do_download) under the shared cross-ECS-task IP circuit breaker.
+def _yf_download_with_circuit_breaker(
+    symbols: Any, start: date, end: date, interval: str, timeout_sec: float, retries: int
+) -> Any:
+    """Call yf.download(symbols, start, end, interval) under the shared cross-ECS-task IP
+    circuit breaker.
 
     Every yf.download() call site in this module previously called _call_with_timeout()
     directly, bypassing the shared circuit breaker that utils/external/yfinance.py's
@@ -126,6 +190,11 @@ def _yf_download_with_circuit_breaker(do_download: Callable[[], Any], timeout_se
     hammering yfinance during an active shared-IP ban (set by any other ECS task hitting
     Ticker() calls), repeatedly re-triggering fresh 429s and preventing the ban from
     ever expiring. Mirrors the check/report pattern in utils/external/yfinance.py.
+
+    Takes the download's actual args rather than a `do_download` closure (as it did
+    before 2026-08-29) because _call_with_timeout now runs the download in a subprocess
+    (see _download_via_process's docstring) - a closure over local variables can't be
+    pickled across a process boundary, only plain picklable args can.
     """
     # wait_or_raise() only blocks this (billed) task for short bans; long bans raise
     # so the task fails fast instead of burning paid compute time asleep.
@@ -133,7 +202,7 @@ def _yf_download_with_circuit_breaker(do_download: Callable[[], Any], timeout_se
     circuit_breaker.wait_or_raise()
 
     try:
-        result = _call_with_timeout(do_download, timeout_sec=timeout_sec, retries=retries)
+        result = _call_with_timeout(symbols, start, end, interval, timeout_sec=timeout_sec, retries=retries)
         circuit_breaker.report_success()
         return result
     except Exception as e:
@@ -571,20 +640,8 @@ class DataSourceRouter:
             # so price_daily silently never advanced past the prior trading day.
             yf_end = end + timedelta(days=1)
 
-            def do_download() -> Any:
-                # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
-                # Let yfinance handle its own session management for compatibility
-                return yf.download(
-                    yf_symbol,
-                    start=start,
-                    end=yf_end,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                )
-
             logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
-            hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=120, retries=3)
+            hist = _yf_download_with_circuit_breaker(yf_symbol, start, yf_end, interval, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
                 logger.debug(f"[yfinance] No data returned for {symbol}")
@@ -680,21 +737,11 @@ class DataSourceRouter:
             # expected meaning) silently never get today's row without this +1.
             yf_end = end + timedelta(days=1)
 
-            def do_download() -> Any:
-                # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
-                # Let yfinance handle its own session management for compatibility
-                return yf.download(
-                    yf_symbols,
-                    start=start,
-                    end=yf_end,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                )
-
             logger.info(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout")
             try:
-                hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=180, retries=3)
+                hist = _yf_download_with_circuit_breaker(
+                    yf_symbols, start, yf_end, interval, timeout_sec=180, retries=3
+                )
                 logger.debug("[yfinance] Batch download completed successfully")
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
@@ -834,18 +881,10 @@ class DataSourceRouter:
 
             yf_symbol = _normalize_yfinance_symbol(symbol)
 
-            def do_download() -> Any:
-                return yf.download(
-                    yf_symbol,
-                    start=today,
-                    end=today + timedelta(days=1),
-                    interval="1d",
-                    auto_adjust=False,
-                    progress=False,
-                )
-
             # Use SHORT timeout for quick check (don't burn time waiting for API)
-            hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=timeout_sec, retries=1)
+            hist = _yf_download_with_circuit_breaker(
+                yf_symbol, today, today + timedelta(days=1), "1d", timeout_sec=timeout_sec, retries=1
+            )
 
             # Check if we got valid data with today's close
             if hist is None or hist.empty:
@@ -917,17 +956,9 @@ class DataSourceRouter:
             end = datetime.now(EASTERN_TZ).date()
             start = end - timedelta(days=5)
 
-            def do_download() -> Any:
-                return yf.download(
-                    yf_symbol,
-                    start=start,
-                    end=end + timedelta(days=1),
-                    interval="1d",
-                    auto_adjust=False,
-                    progress=False,
-                )
-
-            hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=timeout_sec, retries=1)
+            hist = _yf_download_with_circuit_breaker(
+                yf_symbol, start, end + timedelta(days=1), "1d", timeout_sec=timeout_sec, retries=1
+            )
             return hist is not None and not hist.empty
         except Exception as e:
             logger.debug(f"[yfinance-reachable] check failed: {type(e).__name__}: {str(e)[:100]}")
