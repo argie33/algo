@@ -173,6 +173,19 @@ class TestImplausibleRatioReasonNotConflatedWithMissingSecData:
         assert metrics["fcf_margin"] is None
         assert metrics["fcf_margin_unavailable_reason"] == "implausible_ratio"
 
+    def test_operating_profitability_bound_reports_implausible_ratio(self, monkeypatch):
+        # ADDED 2026-08-30 (goal: full-data audit, live sanity-check pass): operating_profitability
+        # had no bound at all (unlike every sibling ratio tested above) - live-caught
+        # min=-93,407.89%/max=16,821.79% already on file, same near-zero-denominator failure mode
+        # as fcf_margin above, but for stockholders_equity instead of revenue.
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(stockholders_equity=500_000.0, operating_income=10_000_000.0)
+
+        metrics = loader._compute_quality_metrics("TINYEQ", row, ev_metrics=None)
+
+        assert metrics["operating_profitability"] is None
+        assert metrics["operating_profitability_unavailable_reason"] == "implausible_ratio"
+
     def test_genuine_missing_data_still_reports_missing_sec_data(self, monkeypatch):
         # Control: no revenue/operating_income at all (not a bound suppression) must keep
         # the original "missing_sec_data" reason, not be swept into "implausible_ratio".

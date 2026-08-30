@@ -3942,13 +3942,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # above operating_income_for_margin's own definition. 866/1473 (59%)
             # missing_sec_data symbols live-confirmed with pretax_income present the same
             # fiscal year operating_income is null.
-            operating_profitability = (
-                (operating_income_for_margin - (interest_expense or 0.0)) / stockholders_equity * 100.0
-                if operating_income_for_margin is not None
-                and stockholders_equity is not None
-                and stockholders_equity > 0
-                else None
-            )
+            # FIXED 2026-08-30 (goal: full-data audit, live sanity-check pass): unlike every
+            # sibling ratio in this file (gross_profitability/fcf_margin/roic_pct/roce_pct/
+            # interest_coverage/etc, all guarded at the same |ratio|>1000 threshold right
+            # above/below this block), operating_profitability had NO implausible-ratio bound -
+            # live-caught min=-93,407.89%/max=16,821.79% already on file (a near-zero
+            # stockholders_equity base blowing up the ratio, the identical failure mode already
+            # fixed for gross_profitability's total_assets denominator and fcf_margin's revenue
+            # denominator). Guarded the same way: reject to implausible_ratio rather than persist
+            # a value with 2+ extra orders of magnitude past any real percentage.
+            operating_profitability = None
+            if operating_income_for_margin is not None and stockholders_equity is not None and stockholders_equity > 0:
+                computed_operating_profitability = (
+                    (operating_income_for_margin - (interest_expense or 0.0)) / stockholders_equity * 100.0
+                )
+                if abs(computed_operating_profitability) > 1000:
+                    failed_metrics.append("operating_profitability")
+                    implausible_ratio_metrics.append("operating_profitability")
+                else:
+                    operating_profitability = float(computed_operating_profitability)
             # RE-ADDED TO SCORING 2026-08-27 (goal: recover components wrongly killed by a
             # joint-dropna sample-bias bug found this pass - see MEMORY.md for the audit trail).
             # The 2026-08-26 removal above cited t=1.02 as the reason gross_profitability
@@ -4369,7 +4381,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             metrics["operating_profitability"] = operating_profitability
             metrics["operating_profitability_unavailable_reason"] = (
-                "missing_sec_data" if operating_profitability is None else None
+                ("implausible_ratio" if "operating_profitability" in implausible_ratio_metrics else "missing_sec_data")
+                if operating_profitability is None
+                else None
             )
             metrics["accruals_ratio"] = accruals_ratio
             metrics["accruals_ratio_unavailable_reason"] = "missing_sec_data" if accruals_ratio is None else None
