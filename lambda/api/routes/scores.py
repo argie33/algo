@@ -2253,6 +2253,11 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         {
             "non_dividend_paying_stock",
             "unprofitable_stock",
+            # ADDED 2026-08-29 (goal session: signal_quality_scores bare_reason_tables
+            # addition): the backfill marker [[signal_quality_scores_historical_reason_backfill_20260829]]
+            # applied to 53,567 pre-2026-08-29 rows that predate this table's reason-tracking
+            # entirely - a known historical gap already closed, not an ongoing/actionable one.
+            "historical_row_predates_reason_tracking",
             # ADDED 2026-08-22 (goal session: "No analyst coverage" bucket audit):
             # load_value_quality_growth_metrics.py's forward-looking analogue of
             # unprofitable_stock two lines above - a real analyst forward-EPS estimate is on
@@ -2396,6 +2401,19 @@ def _categorize_reason(reason: str) -> str:
     # flag. A set literal can't match every combination, hence the suffix check here.
     if reason.endswith("_data_in_sec_edgar_reit_or_special_entity"):
         return "Legitimate / not applicable"
+    # ADDED 2026-08-29 (goal session: "full data" audit continuation, signal_quality_scores
+    # bare_reason_tables addition above): loaders/signal_quality_scorer.py builds these two
+    # reason strings dynamically with the symbol/date range embedded inline (f"... scoring
+    # failed for {symbol} [{start} to {end}]: ..." / f"... No VCP patterns found for {symbol}
+    # in date range {start} to {end}. ..."), so `base` is unique per symbol and never matches
+    # a set literal. Both mean "the underlying event (a buy/sell breakout, a VCP
+    # contraction pattern) genuinely hasn't occurred for this symbol in the lookback window
+    # yet" - see [[buy_sell_daily_intermittent_71pct_shortfall_unresolved_20260821]] for the
+    # live-confirmed evidence that buy_sell_daily is deliberately sparse/event-driven (most
+    # of the universe legitimately has zero signals at any given time), not a loader bug -
+    # same "not enough qualifying data yet" class as "Insufficient history"'s other members.
+    if reason.startswith(("[SIGNAL_QUALITY]", "[VCP_NO_DATA]")):
+        return "Insufficient history"
     for cat, keys in _COVERAGE_CATEGORY_RULES:
         if base in keys or reason in keys:
             return cat
@@ -2703,6 +2721,16 @@ def _get_scores_coverage(cur: cursor) -> Any:
         # "reason" is just a coarse whole-row fallback (live-confirmed quality_metrics:
         # only 151 rows, mostly a single generic "Insufficient SEC financial data"
         # message) that would only add noise, not information, if included too.
+        # ADDED 2026-08-29 (goal session: "full data" audit continuation): signal_quality_scores
+        # is exactly the same "genuine per-symbol data source with a real, populated bare
+        # `reason` column" shape as the 6 tables above, but was missed when this allowlist was
+        # built - live-confirmed 100% invisible to this report despite being the single
+        # largest bare-reason population found this session (964,110 total reason rows,
+        # ~899,000 active-universe). Two dynamic, per-symbol reason families
+        # (`[SIGNAL_QUALITY] ... No buy/sell signals found` / `[VCP_NO_DATA] ... No VCP
+        # patterns found`) embed the ticker/date range inline, so _categorize_reason's
+        # `base = reason.split(":")[0]` never matches a set-literal key for either - see the
+        # startswith checks added there for both patterns.
         bare_reason_tables = (
             "institutional_holdings_13f",
             "analyst_earnings_estimates",
@@ -2710,6 +2738,7 @@ def _get_scores_coverage(cur: cursor) -> Any:
             "sec_segment_metrics",
             "short_interest_finra",
             "sec_valuations",
+            "signal_quality_scores",
         )
         cur.execute(
             """
