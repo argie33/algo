@@ -268,6 +268,24 @@ class SecSegmentInfoLoader(SecLoaderBase):
                     }
                 )
 
+            # BUG FOUND 2026-08-30 (goal session, live-confirmed via BRNX): a symbol whose
+            # symbol_to_cik() lookup failed once got a data_unavailable marker written via
+            # _handle_symbol_not_found() - the ONLY place stale-marker retraction was wired
+            # in was inside that same failure path (_unavailable_marker's guard, see its
+            # docstring), so it only fires on a REPEAT failure, never on the success that
+            # actually supersedes the old marker. A symbol that fully recovers (this run's
+            # own lookup succeeds, real segment data is found) never re-enters
+            # _handle_symbol_not_found/_unavailable_marker at all, so its old marker row was
+            # never deleted - live-confirmed via BRNX: real fiscal_year=2025 rows exist
+            # (segment_count=1, 100% single-segment) alongside an orphaned
+            # fiscal_year=2026/reason='symbol_not_found' marker from before its ticker
+            # resolved, which would outrank the real data in a naive `ORDER BY fiscal_year
+            # DESC LIMIT 1` read (the exact bug class _unavailable_marker's own docstring
+            # already describes - the one real downstream consumer, load_sec_segment_metrics.py,
+            # already guards against it with a data_unavailable-first ORDER BY, but a future
+            # or different consumer reading this table naively would not be so lucky).
+            # Retract unconditionally here too, on every successful extraction.
+            self._retract_stale_marker(symbol)
             return records
 
         except Exception as e:

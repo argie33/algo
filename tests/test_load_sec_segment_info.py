@@ -109,6 +109,45 @@ def test_no_segment_data_for_already_covered_symbol_skips_and_retracts_marker() 
     assert params == ("TEST",)
 
 
+def test_successful_extraction_retracts_a_stale_marker_from_before_the_symbol_resolved() -> None:
+    """BUG FOUND 2026-08-30 (goal session, live-confirmed via BRNX): stale-marker
+    retraction was only ever wired into the FAILURE call sites (_handle_symbol_not_found /
+    _unavailable_marker, see their own docstrings and the tests above) - each of those only
+    fires retraction when the SAME failure recurs on a later run and finds prior real
+    coverage already on record. A symbol that fully recovers (this run's own symbol_to_cik
+    succeeds, real segment data is found) never re-enters that guarded code path at all, so
+    an old marker from before it resolved is never deleted. Live-confirmed via BRNX: a real
+    fiscal_year=2025 segment row coexisted with an orphaned fiscal_year=2026/
+    reason='symbol_not_found' marker from before its ticker resolved - exactly the
+    "marker outranks real data in a naive ORDER BY fiscal_year DESC" bug class
+    _unavailable_marker's own docstring already describes, just reached via a path that
+    docstring's fix never covered. A successful extraction must also retract any stale
+    marker for the same symbol."""
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["10-K"],
+                "accessionNumber": ["0001193125-26-000111"],
+                "reportDate": ["2025-12-31"],
+                "filingDate": ["2026-02-10"],
+            }
+        }
+    }
+    loader.sec_client.get_filing_xml.return_value = _XML_WITH_SEGMENTS
+    ctx, cur = _fake_db_context()
+
+    with patch("loaders.load_sec_segment_info.DatabaseContext", return_value=ctx):
+        records = loader.fetch_incremental("BRNX", since=None)
+
+    assert len(records) == 3  # 1 aggregate + 2 segments
+    assert all(r["data_unavailable"] is False for r in records)
+    query, params = cur.execute.call_args[0]
+    assert "DELETE FROM sec_segment_info" in query
+    assert "data_unavailable = true" in query
+    assert params == ("BRNX",)
+
+
 _XML_WITH_SEGMENTS = """<?xml version="1.0"?>
 <xbrl xmlns:us-gaap="http://fasb.org/us-gaap/2024" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
   <context id="c1">
