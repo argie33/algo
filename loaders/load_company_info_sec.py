@@ -158,7 +158,35 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # these filers, rather than risk the same unit-mismatch trap in a fallback tier
             # nobody has separately audited - see that loader and migration 1211's own
             # comment for the live TSM case ($10.7T market cap, ~5x too high) this prevents.
-            is_foreign_private_issuer = any(f in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K") for f in recent_forms)
+            #
+            # FIXED 2026-08-30 (goal: full-data audit): the original `any(...)` check had no
+            # recency bound - a filer that permanently converted FROM a foreign private issuer
+            # TO a domestic filer stays misclassified forever, since its old 20-F/6-K history
+            # never leaves SEC's "recent" filings array. Live-confirmed via AKTX (Akari
+            # Therapeutics): its last 6-K was filed 2023-12-01, and every annual/quarterly
+            # report since (10-K filed 2024-03-29 through the current 10-Q filed 2026-08-13)
+            # is domestic-form - it stopped being an FPI over two years ago, yet `any()` still
+            # returned True. DEF 14A and Form 4 filings in that same recent history are
+            # independent confirmation: FPIs are exempt from both, so their presence alone
+            # proves current non-FPI status. FPI status is determined by the MOST RECENT
+            # annual report on file (10-K/10-K-A vs 20-F/20-F-A/40-F/40-F-A), not by whether a
+            # foreign form ever appeared historically - recent_forms is newest-first (same
+            # ordering assumption _fetch_shares_outstanding_from_filing_text already relies
+            # on). Falls back to the original any-6-K behavior only when no annual report of
+            # either kind exists yet in the recent window (a genuinely new/recently-registered
+            # filer), matching the prior conservative default for that edge case.
+            annual_report_forms_recent_first = [
+                f for f in recent_forms if f in ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A")
+            ]
+            if annual_report_forms_recent_first:
+                is_foreign_private_issuer = annual_report_forms_recent_first[0] in (
+                    "20-F",
+                    "20-F/A",
+                    "40-F",
+                    "40-F/A",
+                )
+            else:
+                is_foreign_private_issuer = any(f in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K") for f in recent_forms)
 
             # Get shares outstanding from DEI facts (if available)
             shares_outstanding = None
