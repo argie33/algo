@@ -3956,9 +3956,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # had no implausible-ratio bound - live-caught max=132,599.68%/min=-32,817.74%
             # (near-zero-total_assets artifacts, 4 of 2936 rows), same recurring bug class as
             # fcf_margin/margin_volatility/asset_turnover - now guarded the same way.
+            # FIXED 2026-08-30 (goal: full-data audit): this required cost_of_revenue
+            # unconditionally instead of preferring the directly-reported gross_profit like
+            # gross_margin/gross_margin_trend already do (same source, same fiscal year - both
+            # come from the single anchor query row, ais.gross_profit alongside abs.total_assets).
+            # 331 symbols live-confirmed with a real, same-year gross_profit but no separate
+            # cost_of_revenue tag (filers that report GrossProfit directly without breaking out
+            # COGS) were falling into missing_sec_data even though the Novy-Marx ratio was fully
+            # computable from data already on hand.
+            gross_profit_for_profitability = (
+                gross_profit_direct
+                if gross_profit_direct is not None
+                else (revenue - cost_of_revenue if revenue is not None and cost_of_revenue is not None else None)
+            )
             gross_profitability = None
-            if revenue is not None and cost_of_revenue is not None and total_assets is not None and total_assets > 0:
-                computed_gross_profitability = (revenue - cost_of_revenue) / total_assets * 100.0
+            if gross_profit_for_profitability is not None and total_assets is not None and total_assets > 0:
+                computed_gross_profitability = gross_profit_for_profitability / total_assets * 100.0
                 if abs(computed_gross_profitability) > 1000:
                     failed_metrics.append("gross_profitability")
                     implausible_ratio_metrics.append("gross_profitability")
