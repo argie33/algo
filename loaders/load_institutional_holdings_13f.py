@@ -139,6 +139,21 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
 
+    # Same floor/ceiling as load_sec_valuations.py's MIN_PLAUSIBLE_SHARES_OUTSTANDING/
+    # MAX_PLAUSIBLE_SHARES_OUTSTANDING and load_company_info_sec.py's
+    # _MIN_PLAUSIBLE_SHARES_OUTSTANDING (100 billion ceiling calibrated there to never reject a
+    # genuine value - see test_sec_valuations_shares_outstanding_ceiling.py). FIXED 2026-08-30
+    # (goal: full-data audit, AKTX follow-up): _calculate_and_cache_ownership below read
+    # company_info_sec.shares_outstanding with no bound at all, unlike every other consumer of
+    # this column - live-confirmed AKTX's then-stale 155,758,529,533 value (fixed at the source
+    # in load_company_info_sec.py, see that file's _STALENESS_CUTOFF_DAYS) would have silently
+    # produced institutional_ownership_pct near 0% instead of a real value, and any future bad
+    # value in this column (staleness fix or not - garbage SEC tags happen, see
+    # test_company_info_sec_shares_outstanding_stale_entry_rejected.py's FOXA/HQ/QNTM/RFL cases)
+    # would corrupt this metric the same way with no protection.
+    MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
+    MAX_PLAUSIBLE_SHARES_OUTSTANDING = 100_000_000_000
+
     # FIXED 2026-07-27: the OpenFIGI crosswalk step (utils/external/openfigi_crosswalk.py)
     # used to run unbounded, only saving its results to sec_13f_cusip_crosswalk after
     # EVERY batch in the whole CUSIP backlog had been attempted. terraform/modules/loaders/
@@ -776,11 +791,20 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT COALESCE(
-                            (SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s),
-                            (SELECT shares_outstanding FROM sec_valuations WHERE symbol = %s)
+                            (SELECT shares_outstanding FROM company_info_sec
+                             WHERE symbol = %s AND shares_outstanding > %s AND shares_outstanding < %s),
+                            (SELECT shares_outstanding FROM sec_valuations
+                             WHERE symbol = %s AND shares_outstanding > %s AND shares_outstanding < %s)
                         )
                         """,
-                        (ticker, ticker),
+                        (
+                            ticker,
+                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING,
+                            self.MAX_PLAUSIBLE_SHARES_OUTSTANDING,
+                            ticker,
+                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING,
+                            self.MAX_PLAUSIBLE_SHARES_OUTSTANDING,
+                        ),
                     )
                     row = cur.fetchone()
 
