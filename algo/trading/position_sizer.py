@@ -41,6 +41,16 @@ logger = logging.getLogger(__name__)
 
 PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
+# A degraded-but-200-OK Alpaca /v2/account response (stale cache, wrong account payload,
+# a decimal-place shift on their side) is otherwise indistinguishable from a real value -
+# no HTTP error to retry on, no exception to catch. Bound any single fetch against the last
+# known-good snapshot: a real trading account cannot lose >90% or gain >10x in one fetch
+# (circuit_breaker.py's own 20% portfolio-drawdown halt would have already stopped trading
+# long before a real loss got anywhere near this floor), so anything outside this band is
+# treated as a broker-side data error, not a real portfolio move.
+ALPACA_EQUITY_MIN_RATIO_VS_LAST_SNAPSHOT = Decimal("0.10")
+ALPACA_EQUITY_MAX_RATIO_VS_LAST_SNAPSHOT = Decimal("10")
+
 
 class PositionSizer:
     def __init__(self, config: dict[str, Any]) -> None:
@@ -256,6 +266,68 @@ class PositionSizer:
         logger.critical(error_msg)
         raise PortfolioValueError(error_msg)
 
+    def _last_known_portfolio_snapshot_value(self) -> Decimal | None:
+        """Best-effort read of the most recent snapshot, for sanity-bounding a live Alpaca fetch.
+
+        Deliberately does not take PORTFOLIO_SNAPSHOT_LOCK_ID (this is an advisory comparison,
+        not the authoritative read) and swallows DB errors - the caller must not let a sanity
+        check that can't complete block the primary fetch from succeeding.
+        """
+        try:
+
+            def fetch(cur: PsycopgCursor[Any]) -> Any:
+                cur.execute(
+                    "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                    "WHERE snapshot_date <= CURRENT_DATE AND total_portfolio_value IS NOT NULL "
+                    "ORDER BY snapshot_date DESC LIMIT 1"
+                )
+                return cur.fetchone()
+
+            result = self._with_cursor(fetch)
+            if result is not None and result[0] is not None:
+                return Decimal(str(result[0]))
+        except Exception as e:
+            logger.debug(f"[POSITION_SIZER] Could not fetch last snapshot for equity sanity check: {e}")
+        return None
+
+    def _validate_alpaca_equity(self, raw_value: Any) -> Decimal:
+        """Reject a live Alpaca equity/portfolio_value that is implausible on its face or
+        wildly inconsistent with the last known snapshot - a degraded-but-200-OK broker
+        response (stale cache, wrong account, decimal-shift bug) has no HTTP error or
+        exception to catch it otherwise. See ALPACA_EQUITY_MIN/MAX_RATIO_VS_LAST_SNAPSHOT.
+        """
+        try:
+            value = Decimal(str(raw_value))
+        except (InvalidOperation, ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[POSITION_SIZER] CRITICAL: Alpaca returned a non-numeric portfolio value "
+                f"({raw_value!r}): {e}. Treating as a degraded broker response, not a real value."
+            ) from e
+
+        if not value.is_finite() or value <= 0:
+            raise RuntimeError(
+                f"[POSITION_SIZER] CRITICAL: Alpaca returned an implausible portfolio value "
+                f"({value}). A funded live account can never report zero, negative, NaN, or "
+                f"infinite equity - treating as a degraded broker response, not a real value."
+            )
+
+        last_known = self._last_known_portfolio_snapshot_value()
+        if last_known is not None and last_known > 0:
+            ratio = value / last_known
+            if ratio < ALPACA_EQUITY_MIN_RATIO_VS_LAST_SNAPSHOT or ratio > ALPACA_EQUITY_MAX_RATIO_VS_LAST_SNAPSHOT:
+                raise RuntimeError(
+                    f"[POSITION_SIZER] CRITICAL: Alpaca-reported equity (${value:,.2f}) is "
+                    f"{ratio:.2f}x the last known portfolio snapshot (${last_known:,.2f}) - "
+                    f"outside the [{ALPACA_EQUITY_MIN_RATIO_VS_LAST_SNAPSHOT}, "
+                    f"{ALPACA_EQUITY_MAX_RATIO_VS_LAST_SNAPSHOT}] plausible band. Treating as a "
+                    f"degraded broker response (stale cache / wrong account / data corruption), "
+                    f"not a real portfolio move - no real trading day moves equity this much. "
+                    f"If this is a genuine capital deposit/withdrawal, record it via "
+                    f"scripts/record_capital_flow.py first so the snapshot baseline reflects it."
+                )
+
+        return value
+
     def _fetch_live_alpaca_equity(self) -> Decimal:
         execution_mode = self.config.get("execution_mode")
         if execution_mode is None:
@@ -380,11 +452,11 @@ class PositionSizer:
 
                     if "portfolio_value" in data and data["portfolio_value"] is not None:
                         pv = data["portfolio_value"]
-                        return Decimal(str(pv))
+                        return self._validate_alpaca_equity(pv)
 
                     if "equity" in data and data["equity"] is not None:
                         pv = data["equity"]
-                        return Decimal(str(pv))
+                        return self._validate_alpaca_equity(pv)
 
                     raise ValueError(
                         f"Portfolio value fields missing or null in Alpaca response. Expected 'portfolio_value' or 'equity', got: {list(data.keys())}"
