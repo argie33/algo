@@ -98,6 +98,32 @@ gh run list --workflow=deploy-all-infrastructure.yml --limit 3
 gh run list --workflow=deploy-ecs-image.yml --limit 3
 ```
 
+Then run `python scripts/verify_production_deployment.py` for a single-command check covering
+the trust policy itself, the 4 production API endpoints (confirmed returning 404 as of
+2026-08-31 - see step 5 below), Lambda staleness, RDS DR settings, and EventBridge schedule
+state - so a green `deploy-all-infrastructure.yml` run doesn't get mistaken for "everything is
+actually working" without checking the API is really serving requests.
+
+## Step 5: the production API may need its own fix, separate from the trust policy
+
+Direct `curl` against the production API (no AWS credentials needed) showed EVERY route -
+including the bare root and a health check - returning an identical generic 404:
+
+```bash
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/health
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/health
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/scores?limit=1
+```
+
+This is the signature of a missing/broken Lambda integration or deployment stage, not one
+route having moved. `api_gateway_stage_name` defaults to `$default` (`terraform/variables.tf`),
+so no stage prefix belongs in the URL - ruling out "wrong URL shape." Once you have AWS console
+access, check the API Gateway's route/integration configuration against
+`terraform/modules/services/main.tf`'s `aws_apigatewayv2_*` resources and the Lambda function's
+actual deployed state - this may be a second, independent problem from the OIDC trust policy,
+not something Step 3 alone will fix.
+
 Once `deploy-all-infrastructure.yml` succeeds, a subsequent normal `terraform apply` from CI
 will reconcile the rest of the account against current `main` - including the DB Multi-AZ/backup/
 deletion-protection settings in `terraform/prod.tfvars`, which cannot be confirmed live from a
