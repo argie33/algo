@@ -1172,6 +1172,53 @@ class PositionSizer:
                     ),
                 }
 
+        # OPTIONAL absolute-dollar per-trade backstop (added 2026-08-31 - see
+        # absolute_dollar_backstop_missing_open_recommendation_20260831 in project memory for
+        # the full finding). Every cap above is a PERCENTAGE of portfolio_value - if
+        # portfolio_value were ever wrong (a bug upstream of _validate_alpaca_equity's relative
+        # sanity check, or a bad snapshot that check can't itself catch), every percentage cap
+        # would look "compliant" while authorizing an arbitrarily large real-dollar trade. This
+        # is an independent ceiling that doesn't depend on portfolio_value at all - deliberately
+        # OPT-IN (skipped entirely when unset, zero behavior change for anyone who hasn't
+        # configured it) rather than a hardcoded guess, since the right dollar figure depends on
+        # the account's real intended size, not something a code-correctness pass should invent.
+        # Set absolute_max_dollars_per_trade in algo_config to activate.
+        absolute_max_dollars_val = self.config.get("absolute_max_dollars_per_trade")
+        if absolute_max_dollars_val is not None:
+            try:
+                absolute_max_dollars = Decimal(str(absolute_max_dollars_val))
+            except (ValueError, TypeError, decimal.InvalidOperation) as e:
+                raise ValueError(
+                    f"CRITICAL: absolute_max_dollars_per_trade config has invalid value "
+                    f"'{absolute_max_dollars_val}': {e}"
+                ) from None
+            if absolute_max_dollars <= 0:
+                raise ValueError(
+                    f"CRITICAL: absolute_max_dollars_per_trade must be positive, got "
+                    f"{absolute_max_dollars}. Set a real dollar ceiling or remove the config "
+                    f"key entirely to disable this check."
+                )
+            if position_value > absolute_max_dollars:
+                # Same ROUND_DOWN reasoning as the max_position_size_pct cap above - this is a
+                # hard ceiling, not a target.
+                shares = int(
+                    (absolute_max_dollars / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN)
+                )
+                position_value = Decimal(shares) * Decimal(str(entry_price))
+                risk_dollars = risk_per_share * Decimal(shares)
+                if shares < 1:
+                    return {
+                        "shares": 0,
+                        "position_size_pct": 0,
+                        "risk_dollars": 0,
+                        "status": "no_room",
+                        "reason": (
+                            f"Entry price ${entry_price} exceeds absolute_max_dollars_per_trade "
+                            f"${absolute_max_dollars:.2f} - cannot afford even 1 share within "
+                            f"the absolute ceiling"
+                        ),
+                    }
+
         if pv_dec <= 0:
             raise ValueError(
                 f"CRITICAL: Portfolio value invalid ({pv_dec}) - cannot calculate position sizing. "
@@ -1322,6 +1369,41 @@ class PositionSizer:
                 "status": "no_room",
                 "reason": f"Total invested would be {(total_invested / pv_dec * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
             }
+
+        # OPTIONAL absolute-dollar TOTAL EXPOSURE backstop - the total-exposure sibling of the
+        # per-trade check above (see absolute_dollar_backstop_missing_open_recommendation_20260831
+        # in project memory). Same reasoning: max_total_invested_pct is a percentage of
+        # portfolio_value, so a wrong portfolio_value would make it look compliant regardless of
+        # real dollar exposure. Deliberately opt-in (skipped when unset) for the same reason the
+        # per-trade version is - the right ceiling depends on the account's real intended size.
+        # Set absolute_max_total_exposure_dollars in algo_config to activate.
+        absolute_max_exposure_val = self.config.get("absolute_max_total_exposure_dollars")
+        if absolute_max_exposure_val is not None:
+            try:
+                absolute_max_exposure = Decimal(str(absolute_max_exposure_val))
+            except (ValueError, TypeError, decimal.InvalidOperation) as e:
+                raise ValueError(
+                    f"CRITICAL: absolute_max_total_exposure_dollars config has invalid value "
+                    f"'{absolute_max_exposure_val}': {e}"
+                ) from None
+            if absolute_max_exposure <= 0:
+                raise ValueError(
+                    f"CRITICAL: absolute_max_total_exposure_dollars must be positive, got "
+                    f"{absolute_max_exposure}. Set a real dollar ceiling or remove the config "
+                    f"key entirely to disable this check."
+                )
+            if total_invested > absolute_max_exposure:
+                return {
+                    "shares": 0,
+                    "position_size_pct": 0,
+                    "risk_dollars": 0,
+                    "status": "no_room",
+                    "reason": (
+                        f"Total invested (${total_invested:.2f}) would exceed "
+                        f"absolute_max_total_exposure_dollars (${absolute_max_exposure:.2f}) - "
+                        f"independent of any percentage-based limit"
+                    ),
+                }
 
         # SESSION 393 IMPLEMENTATION: Enforce total risk limit BEFORE returning success
         # Check if aggregate risk (current open + this new position) would exceed 4% limit
