@@ -88,6 +88,25 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 9_000_000_000_000.0  # $9 trillion - stays safely un
 # while still catching genuine data errors (the original NMR/BBAR-class currency-scale bugs
 # this guard was built for produced values in the hundreds of trillions to quadrillions).
 
+# FIXED 2026-08-31 (data-coverage sweep, "shares_outstanding_unavailable" bucket): the
+# dual-class sibling check just below (`has_dual_class_sibling`) only recognizes the
+# dot-separated ticker convention (BRK.A/BRK.B via `symbol.split(".")[0]`) - it never
+# matches companies whose two share classes are ticker-suffixed with no separator at all
+# (DGICA/DGICB, not DGIC.A/DGIC.B), so `base_root` comes back as the full symbol unchanged
+# and the sibling lookup always misses. Live-confirmed via company_info_sec.entity_name:
+# DGICA/DGICB (Donegal Group), KELYA/KELYB (Kelly Services), LBTYA/LBTYB/LBTYK (Liberty
+# Global), BELFA/BELFB (Bel Fuse), SENEA/SENEB (Seneca Foods), RUSHA/RUSHB (Rush
+# Enterprises) all share the identical entity_name across their listed classes - genuine
+# dual-class siblings, not coincidental ticker overlap. Deliberately an explicit, curated
+# root list rather than a generic "strip the trailing letter, look for another symbol with
+# the same root" heuristic: that heuristic produces real false positives in this repo's own
+# universe (NTR/NTRA/NTRB/NTRP/NTRS are five completely unrelated companies - Nutrien,
+# Natera, NutriBand, NextTrip, Northern Trust - that only coincidentally share a 3-letter
+# prefix), so every entry here was individually verified via entity_name match before being
+# added, same discipline as CIK_OVERRIDES-style lists elsewhere in this codebase. Add a new
+# root here only after the same entity_name verification - never on ticker-shape alone.
+DUAL_CLASS_NO_SEPARATOR_ROOTS = frozenset({"DGIC", "KELY", "LBTY", "BELF", "SENE", "RUSH"})
+
 
 class SecValuationsLoader(OptimalLoader):
     """Compute valuations from SEC audited data instead of yfinance estimates.
@@ -657,6 +676,25 @@ class SecValuationsLoader(OptimalLoader):
                         (symbol, base_root, f"{base_root}.%"),
                     )
                     has_dual_class_sibling = cur.fetchone() is not None
+                    if not has_dual_class_sibling:
+                        # See DUAL_CLASS_NO_SEPARATOR_ROOTS' own module-level comment for the
+                        # curated-list rationale (DGICA/DGICB etc. - no "." separator, so the
+                        # dot-split check above never fires for them).
+                        no_sep_root = next(
+                            (
+                                r
+                                for r in DUAL_CLASS_NO_SEPARATOR_ROOTS
+                                if symbol.startswith(r) and len(symbol) == len(r) + 1
+                            ),
+                            None,
+                        )
+                        if no_sep_root:
+                            cur.execute(
+                                "SELECT 1 FROM stock_symbols WHERE active = true AND symbol != %s "
+                                "AND symbol LIKE %s AND length(symbol) = %s LIMIT 1",
+                                (symbol, f"{no_sep_root}%", len(symbol)),
+                            )
+                            has_dual_class_sibling = cur.fetchone() is not None
                     if (
                         not has_dual_class_sibling
                         and reported_shares_outstanding
