@@ -286,7 +286,22 @@ class Orchestrator:
 
         from utils.db.local_file_lock import get_lock_manager
 
-        self.lock_manager = get_lock_manager()
+        # BUG FIX 2026-08-31: get_lock_manager()'s own default lock_duration_seconds is 300s
+        # (Session 107 lowered it from 600s for faster crashed-loader-lock cleanup), but
+        # _acquire_run_lock()'s own docstring says "Orchestrator runs typically take 470+
+        # seconds" - LONGER than the lock's own TTL. That means during every normal (non-crashed)
+        # run, this lock's DynamoDB expires_at timestamp passes while the run is still actively
+        # submitting real trades (around Phase 6-8) - any concurrent acquire() attempt from then
+        # until release (a manual re-trigger, an EventBridge Scheduler retry, a second invocation
+        # someone starts unaware one is already running) would see "expired" and succeed,
+        # producing exactly the "two orchestrators running simultaneously against the same live
+        # Alpaca account" scenario Session 282's fail-closed fix (below, this same class) was
+        # written to prevent - that fix only covers the lock BACKEND being unavailable, not the
+        # TTL being shorter than a real run. 1800s (30 min) gives a large safety margin over the
+        # documented ~470s typical runtime while still bounding a genuinely crashed run's lock
+        # hold time to something far short of the ~24h gap between scheduled production runs
+        # (see terraform/prod.tfvars - only the 9:30 AM run is enabled).
+        self.lock_manager = get_lock_manager(lock_duration_seconds=1800)
         self._lock_acquired = False
 
         self.degraded_mode = False
@@ -1364,10 +1379,11 @@ class Orchestrator:
         shell-level `timeout` implementations on Windows) terminates the process immediately
         with no chance for the finally block to run. Confirmed live 2026-07-27: a killed
         local orchestrator test run left the orchestrator-run-lock row held for its full
-        600s TTL, blocking every subsequent run attempt for up to 10 minutes with "ABORT:
-        Could not acquire run lock" until the TTL expired or someone manually deleted the
-        row. This closes the SIGTERM gap; a hard SIGKILL can never run any Python code (not
-        fixable at this layer) and still relies on the existing TTL expiry as the backstop.
+        TTL (at the time, whatever get_lock_manager()'s then-current default was - now an
+        explicit 1800s, see this class's __init__ for why), blocking every subsequent run
+        attempt until the TTL expired or someone manually deleted the row. This closes the
+        SIGTERM gap; a hard SIGKILL can never run any Python code (not fixable at this layer)
+        and still relies on the existing TTL expiry as the backstop.
         signal.signal() only works from the main thread - if invoked elsewhere (e.g. a
         non-main-thread Lambda invocation path), fails soft and leaves the TTL as the only
         recovery mechanism, same as before this fix.
