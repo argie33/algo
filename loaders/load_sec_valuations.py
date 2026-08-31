@@ -107,6 +107,31 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 9_000_000_000_000.0  # $9 trillion - stays safely un
 # root here only after the same entity_name verification - never on ticker-shape alone.
 DUAL_CLASS_NO_SEPARATOR_ROOTS = frozenset({"DGIC", "KELY", "LBTY", "BELF", "SENE", "RUSH"})
 
+# ADDED 2026-08-31 (goal: data-coverage sweep, AMRN follow-up to
+# sec_valuations_fpi_shares_out_missing_gate_fixed_20260831): a narrow, individually-verified
+# allowlist (same discipline as CIK_OVERRIDES/DUAL_CLASS_NO_SEPARATOR_ROOTS above) for the one
+# remaining shares_outstanding class this file's is_foreign_private_issuer gating structurally
+# cannot catch - a symbol that files DOMESTIC forms (10-K/10-Q, so is_foreign_private_issuer is
+# correctly False per company_info_sec's form-type-based classification) but whose SEC-tagged
+# share count is still on a different basis than the price it trades at, because its ADS
+# ratio isn't 1:1. Live-confirmed via AMRN (Amarin Corporation plc): a real 1-for-20 ADS ratio
+# change effective 2025-04-11 (SEC filing news, one ADS now = 20 ordinary shares) - BOTH
+# us-gaap:CommonStockSharesOutstanding (fresh, end=2026-06-30) AND
+# us-gaap:WeightedAverageNumberOfSharesOutstandingBasic (same period) independently agree on
+# ~420M ordinary shares, so neither the staleness fix nor the reverse-split override above helps
+# (SEC's own data is fresh and self-consistent - just not ADS-adjusted). Real ADS count is
+# ~420M/20 =~ 21M, matching live yfinance's ~$292-318M market cap at the real price almost
+# exactly (vs the unconverted $5.86B this file's sanity check correctly rejects today).
+# Genuinely no structural signal available to detect this class automatically (no XBRL concept
+# reports "ADS ratio"), so - like the dual-class no-separator case above - each entry here must
+# be individually verified via a real corporate-action filing before being added, never guessed.
+# Divides the resolved shares_out by the ratio right before market_cap computation, same
+# insertion point as every other override to keep every downstream field (pe_ratio's
+# denominator is price-only, so unaffected) consistent.
+DOMESTIC_FILER_ADS_RATIO_OVERRIDES: dict[str, float] = {
+    "AMRN": 20.0,  # Amarin Corporation plc - 1 ADS = 20 ordinary shares, effective 2025-04-11
+}
+
 
 class SecValuationsLoader(OptimalLoader):
     """Compute valuations from SEC audited data instead of yfinance estimates.
@@ -1288,6 +1313,16 @@ class SecValuationsLoader(OptimalLoader):
                     yf_market_cap_is_live = True
                 if live_pe is not None:
                     yf_pe_ratio = live_pe
+
+            # ADDED 2026-08-31: see DOMESTIC_FILER_ADS_RATIO_OVERRIDES' own module-level comment
+            # for the full AMRN rationale/evidence - applied here, after every other tier
+            # (including the FPI live-fetch, which never fires for AMRN since it's correctly
+            # classified domestic) has finished resolving shares_out, and before it's used for
+            # market_cap/pb_ratio/ps_ratio/etc below.
+            ads_ratio = DOMESTIC_FILER_ADS_RATIO_OVERRIDES.get(symbol)
+            if ads_ratio and shares_out:
+                logger.debug(f"[{symbol}] Applying ADS ratio override: {shares_out:,.0f} / {ads_ratio:g}")
+                shares_out = shares_out / ads_ratio
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
