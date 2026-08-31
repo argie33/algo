@@ -246,8 +246,61 @@ class TickerCache:
             match = _CIK_TAG_RE.search(resp.text)
             if not match:
                 return None
-            return match.group(1).zfill(10)
+            cik = match.group(1).zfill(10)
+
+            # BUG FOUND 2026-08-31 (goal session: "get all the data we need" full-coverage
+            # audit): browse-edgar's CIK=<symbol> search is NOT a reliable exact-ticker
+            # lookup for an unregistered/mistyped symbol - it silently falls back to a
+            # company-name/prefix search and returns the first hit's CIK with no exactness
+            # guarantee, unlike the docstring above's "never fabricates a CIK" claim (true
+            # for the fast-path bulk-file lookup, not for this fallback). Live-confirmed via
+            # real SEC data three separate ways: symbol "IAC" (should be IAC/InterActiveCorp)
+            # resolved here to CIK 1800227, whose OWN submissions.json lists ticker "PPLI"
+            # (People Inc), not "IAC" - and "DMC"/"FDP" (DMC Global and Fresh Del Monte
+            # Produce, two unrelated real companies) both resolved to CIK 1047340 (Del Monte
+            # Corporation, an unrelated third company) - each pair then silently shared one
+            # company's entire financial history in annual_income_statement (byte-for-byte
+            # identical revenue for 2-4 consecutive fiscal years), the same corruption
+            # signature as the WTRG/AWK 8-K bug fixed the same session (different root cause,
+            # same symptom). Verify the resolved CIK's OWN submissions actually list this
+            # ticker before trusting it - restores the "never fabricates" guarantee for this
+            # path too. A verification failure (network error, unexpected shape) fails open
+            # (returns the unverified CIK) rather than turning a slow/flaky verification call
+            # into a new source of false negatives - this fallback already only runs for
+            # tickers absent from the fast, authoritative bulk file, so an unverifiable-but-
+            # plausible CIK is still strictly better than raising.
+            if not self._verify_ticker_matches_cik(symbol, cik):
+                logger.warning(
+                    f"browse-edgar CIK fallback for {symbol} resolved to CIK {cik}, but that "
+                    f"CIK's own SEC submissions record does not list {symbol} as one of its "
+                    f"tickers - rejecting as a likely name/prefix-search mismatch, not a real "
+                    f"ticker match."
+                )
+                return None
+            return cik
         return None
+
+    def _verify_ticker_matches_cik(self, symbol: str, cik: str) -> bool:
+        """Return True unless SEC's own submissions record for `cik` positively contradicts
+        `symbol` - i.e. it lists at least one ticker and `symbol` isn't among them.
+
+        Fails open (True) on any network/parse problem or an empty/missing ticker list -
+        this is a safety net against a specific known failure mode (browse-edgar's fuzzy
+        name-search fallback), not a new hard dependency for every fallback resolution.
+        """
+        try:
+            resp = self._session.get(
+                f"https://data.sec.gov/submissions/CIK{cik}.json",
+                timeout=self._timeout,
+            )
+            if resp.status_code != 200:
+                return True
+            tickers = resp.json().get("tickers") or []
+            if not tickers:
+                return True
+            return symbol.upper() in {t.upper() for t in tickers}
+        except (requests.ConnectionError, requests.Timeout, ValueError):
+            return True
 
     def symbol_to_cik(self, symbol: str) -> str:
         """Convert ticker (AAPL) to zero-padded CIK (0000320193).
