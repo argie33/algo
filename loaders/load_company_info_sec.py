@@ -190,6 +190,8 @@ class CompanyInfoSECLoader(SecLoaderBase):
 
             # Get shares outstanding from DEI facts (if available)
             shares_outstanding = None
+            shares_outstanding_end_date: str | None = None
+            facts_obj: dict[str, Any] | None = None
             try:
                 facts = self.sec_client.get_company_facts(cik)
                 # EXPLICIT: Validate SEC API response structure (fail-fast if schema changes)
@@ -202,9 +204,12 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     facts_obj = facts["facts"]
                     dei_facts = facts_obj.get("dei") if isinstance(facts_obj, dict) else None
                     if isinstance(dei_facts, dict):
-                        shares_outstanding = self._latest_shares_value(
+                        dei_entry = self._latest_shares_entry(
                             dei_facts.get("EntityCommonStockSharesOutstanding"), restrict_to_domestic_forms=True
                         )
+                        if dei_entry:
+                            shares_outstanding = dei_entry["rounded_val"]
+                            shares_outstanding_end_date = dei_entry["end"]
                     # FIXED 2026-08-18 (goal: "no SEC data" loader audit): multi-class filers
                     # (Alphabet: GOOG/GOOGL, and others) don't tag the single-class-assuming
                     # dei:EntityCommonStockSharesOutstanding cover-page fact at all - live-
@@ -235,9 +240,24 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     if shares_outstanding is None:
                         gaap_facts = facts_obj.get("us-gaap") if isinstance(facts_obj, dict) else None
                         if isinstance(gaap_facts, dict):
-                            shares_outstanding = self._latest_shares_value(
+                            gaap_entry = self._latest_shares_entry(
                                 gaap_facts.get("CommonStockSharesOutstanding"), restrict_to_domestic_forms=True
                             )
+                            if gaap_entry:
+                                shares_outstanding = gaap_entry["rounded_val"]
+                                shares_outstanding_end_date = gaap_entry["end"]
+
+                    # Reverse-split/stale-instant-concept override - see
+                    # _weighted_average_shares_override's own docstring for the FUBO/AMRN
+                    # evidence. Only applies when we have both a candidate AND its end date
+                    # (i.e. it came from the dei/us-gaap tiers above, not the filing-text
+                    # fallback below, which has no comparable per-fact end date).
+                    if shares_outstanding is not None and shares_outstanding_end_date:
+                        override = self._weighted_average_shares_override(
+                            facts_obj, shares_outstanding, shares_outstanding_end_date, symbol
+                        )
+                        if override is not None:
+                            shares_outstanding = override
             except FileNotFoundError:
                 # 404 on companyfacts specifically (not submissions, which already
                 # succeeded above) - some entities have valid submissions but no XBRL
@@ -444,6 +464,35 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # short interest. A stale entry now correctly falls through to the us-gaap fallback
         # (or ultimately shares_outstanding=None) instead of being trusted just because it
         # was the newest entry within its own narrow concept's history.
+        entry = CompanyInfoSECLoader._latest_shares_entry(fact, restrict_to_domestic_forms)
+        return int(entry["rounded_val"]) if entry else None
+
+    @staticmethod
+    def _latest_shares_entry(
+        fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False
+    ) -> dict[str, Any] | None:
+        """Same selection as `_latest_shares_value` (latest-end-date-within-staleness-cutoff,
+        above the plausibility floor) but returns the winning candidate itself (`end` date +
+        `rounded_val`), not just the bare value - added 2026-08-31 (goal: data-coverage sweep,
+        reverse-split follow-up to
+        [[sec_valuations_frozen_yfinance_snapshot_live_recheck_fixed_20260831]]) so callers can
+        compare this candidate's recency against a DIFFERENT concept's candidate (see
+        `_weighted_average_shares_override` below) - `_latest_shares_value` alone throws the
+        `end` date away, so nothing could ever tell "this value is current" from "this value is
+        the newest thing an otherwise-stale concept happens to have".
+        """
+        if not fact or not isinstance(fact, dict) or "units" not in fact:
+            return None
+        units = fact["units"]
+        if "shares" not in units or not isinstance(units["shares"], list):
+            return None
+        pure_values = units["shares"]
+        if not pure_values:
+            return None
+        if restrict_to_domestic_forms:
+            pure_values = [v for v in pure_values if v.get("form") not in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K")]
+            if not pure_values:
+                return None
         staleness_cutoff = (date.today() - timedelta(days=CompanyInfoSECLoader._STALENESS_CUTOFF_DAYS)).isoformat()
         for candidate in sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True):
             end_date = candidate.get("end")
@@ -462,8 +511,66 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # primary (non-fallback) path.
             rounded = round(raw_val)
             if rounded > CompanyInfoSECLoader._MIN_PLAUSIBLE_SHARES_OUTSTANDING:
-                return rounded
+                return {"end": end_date, "rounded_val": rounded}
         return None
+
+    # ADDED 2026-08-31 (goal: data-coverage sweep, reverse-split follow-up). Live-confirmed via
+    # FUBO (1-for-12 reverse split effective 2026-03-23, confirmed via SEC filing history and
+    # web search) and AMRN (1-for-20, 2025-04-11): both `dei:EntityCommonStockSharesOutstanding`
+    # and `us-gaap:CommonStockSharesOutstanding` simply stopped being tagged AT ALL after the
+    # split (FUBO: nothing past end=2025-09-30 despite 3 more 10-Qs filed since, confirmed via
+    # SEC's own companyconcept API) - so `_latest_shares_entry` above correctly finds a "recent
+    # enough" (within the 730-day cutoff) but factually stale, pre-split candidate and has no way
+    # to know a fresher truth exists. `us-gaap:WeightedAverageNumberOfSharesOutstandingBasic` (a
+    # DURATION concept, needed for every filer's own EPS calculation, so tagged far more
+    # reliably every quarter) DOES have the fresh, correct, post-split value in both live cases
+    # (FUBO: 31,055,542 for the 9mo ended 2026-06-30, filed 2026-08-05 - the real post-split
+    # count is ~29-30M per Morningstar) - this override picks it up ONLY when it is BOTH
+    # meaningfully fresher (>=120 days newer `end` date - ordinary quarterly cadence, not noise)
+    # AND meaningfully different (>=1.3x ratio - a real split/major share-count event, not
+    # routine drift) than the existing instant-concept candidate, so a filer that just doesn't
+    # happen to have a recent instant-concept fact for an ordinary reason (e.g. only tags it
+    # annually) is untouched. Fails closed (returns None, no override) on any missing/malformed
+    # data - this only ever REPLACES an already-accepted candidate with a fresher one, never the
+    # sole source of a value.
+    _WEIGHTED_AVERAGE_OVERRIDE_MIN_FRESHNESS_DAYS = 120
+    _WEIGHTED_AVERAGE_OVERRIDE_MIN_RATIO = 1.3
+
+    @staticmethod
+    def _weighted_average_shares_override(
+        facts_obj: dict[str, Any] | None, current_value: int, current_end_date: str, symbol: str
+    ) -> int | None:
+        gaap_facts = facts_obj.get("us-gaap") if isinstance(facts_obj, dict) else None
+        if not isinstance(gaap_facts, dict):
+            return None
+        wavg_entry = CompanyInfoSECLoader._latest_shares_entry(
+            gaap_facts.get("WeightedAverageNumberOfSharesOutstandingBasic"), restrict_to_domestic_forms=True
+        )
+        if not wavg_entry:
+            return None
+        wavg_end = wavg_entry["end"]
+        wavg_val = wavg_entry["rounded_val"]
+        if wavg_end <= current_end_date:
+            return None
+        try:
+            freshness_days = (
+                datetime.strptime(wavg_end, "%Y-%m-%d").date() - datetime.strptime(current_end_date, "%Y-%m-%d").date()
+            ).days
+        except ValueError:
+            return None
+        if freshness_days < CompanyInfoSECLoader._WEIGHTED_AVERAGE_OVERRIDE_MIN_FRESHNESS_DAYS:
+            return None
+        larger, smaller = max(current_value, wavg_val), min(current_value, wavg_val)
+        if smaller <= 0 or larger / smaller < CompanyInfoSECLoader._WEIGHTED_AVERAGE_OVERRIDE_MIN_RATIO:
+            return None
+        logger.warning(
+            f"[{symbol}] shares_outstanding override: instant-concept candidate={current_value:,.0f} "
+            f"(end={current_end_date}) is {freshness_days}d staler than a "
+            f"WeightedAverageNumberOfSharesOutstandingBasic candidate={wavg_val:,.0f} (end={wavg_end}), "
+            f"ratio {larger / smaller:.1f}x - likely a stock split/major share event the instant "
+            "concept stopped reflecting; using the fresher weighted-average value instead"
+        )
+        return int(wavg_val)
 
     @staticmethod
     def _target_class_letter(symbol: str) -> str | None:

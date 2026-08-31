@@ -767,8 +767,25 @@ class SecValuationsLoader(OptimalLoader):
                                 f"[{symbol}] Using shares_outstanding_basic from an older fiscal year: {shares_out:,.0f}"
                             )
 
-                # If computation didn't work, try fetching from company_info_sec as fallback
-                if not shares_out:
+                # If computation didn't work, try fetching from company_info_sec as fallback.
+                # FIXED 2026-08-31 (goal: data-coverage sweep, PHAR/IONR/JZXN/MI follow-up to
+                # sec_valuations_frozen_yfinance_snapshot_live_recheck_fixed_20260831): this tier
+                # was the ONE domestic-SEC-sourced share-count tier in this whole cascade NOT
+                # gated on `not is_foreign_private_issuer` - every sibling tier above/below it
+                # (reported/derived/older-year/diluted) is explicitly gated for exactly the
+                # ADS/home-market unit-mismatch risk this file's module docstring and dual-class
+                # comments describe at length. `company_info_sec.shares_outstanding`'s OWN
+                # extraction (load_company_info_sec.py) is *supposed* to already be restricted to
+                # domestic forms, but that restriction has real gaps - live-confirmed via MI
+                # (Marchex/similar micro-cap FPI): company_info_sec.shares_outstanding=5,065,150
+                # landed here unguarded, producing market_cap=$12.46M vs yfinance's real live
+                # $584,756 (21x too high) - correctly caught by the sanity check ONLY when its own
+                # live-fetch succeeds; a batch run where that live-fetch transiently failed (rate
+                # limit/circuit breaker) let this wrong value through completely unchecked, since
+                # `_sanity_check_market_cap` has nothing to compare against when yf_market_cap is
+                # None. Relying solely on "already guarded upstream" isn't enough defense-in-depth
+                # for a value this consequential - this tier needs its own explicit gate too.
+                if not shares_out and not is_foreign_private_issuer:
                     cur.execute(
                         """
                         SELECT shares_outstanding FROM company_info_sec
@@ -828,39 +845,60 @@ class SecValuationsLoader(OptimalLoader):
                 # (sec_statements.py) never covered by those fixes. The cover-page fact is
                 # exactly as class-specific as basic/diluted, so the same ambiguity applies.
                 #
-                # FIXED 2026-08-31 (goal session: "VCIG tops the scores" follow-up investigation
-                # into FPI shares_outstanding - same bug class as load_company_info_sec.py's
-                # _latest_shares_value() 2026-08-20 fix, "stale entry rejected", not yet applied
-                # here). This tier has no recency bound - it picks whatever fiscal year has the
-                # MOST RECENT non-null shares_outstanding_dei, with no check on how old that
-                # fiscal year actually is. For a foreign private issuer, every fresher SEC tier
-                # above (basic/diluted, current fiscal years) is deliberately skipped (the
-                # `is_foreign_private_issuer` gate around lines 597-762), so this is the ONLY
-                # SEC-sourced path reached - and for several real FPIs, it resolves to a value
-                # several YEARS stale because intervening fiscal years simply have a NULL dei
-                # column (filer stopped tagging it, or it was extracted before a later fix to
-                # sec_statements.py's domestic-form restriction), not because that old value is
-                # still correct. Live-confirmed: ENIC resolved to its FY2017 dei value (8 years
-                # stale, 49.09B shares) with FY2018-2024 all NULL; CEPU to FY2019 (6 years
-                # stale, 1.51B shares); AIFU to FY2022 (1.07B shares) despite FY2023-2025 basic/
-                # diluted showing a real, much smaller, current count (~2.6M-10.1M - AIFU
+                # FIXED 2026-08-31, two independent same-day gaps in this same tier:
+                #
+                # (1) No recency bound (goal session: "VCIG tops the scores" follow-up into FPI
+                # shares_outstanding - same bug class as load_company_info_sec.py's
+                # _latest_shares_value() 2026-08-20 fix). This tier picked whatever fiscal year
+                # had the MOST RECENT non-null shares_outstanding_dei with no check on how old
+                # that fiscal year actually is - and since a foreign private issuer skips every
+                # fresher SEC tier above (basic/diluted, current fiscal years), this was often the
+                # ONLY SEC-sourced path reached. Live-confirmed: ENIC resolved to its FY2017 dei
+                # value (8 years stale, 49.09B shares) with FY2018-2024 all NULL; CEPU to FY2019
+                # (6 years stale, 1.51B shares); AIFU to FY2022 (1.07B shares) despite FY2023-2025
+                # basic/diluted showing a real, much smaller, current count (~2.6M-10.1M - AIFU
                 # genuinely restructured/consolidated its share count since FY2022, making the
                 # FY2022 dei figure doubly wrong: stale AND pre-restructuring). All three fed
-                # sec_valuations.shares_outstanding with data_source='sec_audited' (not the
-                # FPI-yfinance variant), silently implying SEC-audited-and-current when it was
-                # neither. Same fix as the company_info_sec precedent: reject a candidate more
-                # than 2 years (730 days, same bound) older than the most recent fiscal year
-                # this symbol has ANY income-statement row for, falling through to the
-                # FPI-yfinance live-fetch tier below instead of trusting a stale figure just for
-                # being the newest thing this narrow column happened to have.
-                if not shares_out and not has_dual_class_sibling:
+                # sec_valuations.shares_outstanding with data_source='sec_audited', silently
+                # implying SEC-audited-and-current when it was neither. Fixed the same way as the
+                # company_info_sec precedent: the query below rejects a candidate more than 2
+                # years (fiscal_year >= this year - 2) older than today, falling through to the
+                # FPI-yfinance live-fetch tier instead of trusting a stale figure. Same live class
+                # separately confirmed via GENI (Genius Sports): its ONLY shares_outstanding_dei
+                # entry across all fiscal years is FY2021's 18,500,000 (a SPAC-de-merger-year
+                # founder/sponsor-share figure) against ~254.76M real current shares - a ~14x
+                # UNDERcount (mirror image of the FUBO/GPUS/IHRT OVERcounts fixed elsewhere),
+                # closed by this same bound.
+                #
+                # (2) Missing the `not is_foreign_private_issuer` gate every other domestic-SEC-
+                # sourced tier in this cascade has (PHAR/IONR/JZXN follow-up - see the
+                # company_info_sec fallback tier's own comment above for the full rationale).
+                # Live-confirmed via IONR (ioneer Ltd, ADS)/JZXN/PHAR (Pharming, 1 ADS = 10
+                # ordinary shares): all three genuine FPIs whose shares_outstanding_dei
+                # nonetheless holds a plain ordinary-share count (2,325,614,708 / 11,011,389 /
+                # 701,680,440 respectively - sec_statements.py's "domestic forms only"
+                # restriction on this concept has a real gap for these filers), producing market
+                # caps 10-30x too high. Correctly caught by the sanity check ONLY when its live
+                # yfinance re-check succeeds - a batch run where that transiently failed (rate
+                # limit/circuit breaker) let all three through unchecked. Gating here too (not
+                # relying solely on the upstream restriction) means these symbols now correctly
+                # fall through to the FPI live-yfinance tier below instead, live-tested as
+                # accurate for PHAR (yfinance sharesOutstanding=70,778,124, correctly
+                # ADS-adjusted).
+                if not shares_out and not has_dual_class_sibling and not is_foreign_private_issuer:
                     cur.execute(
                         """
                         SELECT shares_outstanding_dei, fiscal_year FROM annual_income_statement
                         WHERE symbol = %s AND shares_outstanding_dei > %s AND shares_outstanding_dei < %s
+                        AND fiscal_year >= %s
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
-                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
+                        (
+                            symbol,
+                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING,
+                            self.MAX_PLAUSIBLE_SHARES_OUTSTANDING,
+                            date.today().year - 2,
+                        ),
                     )
                     dei_shares_row = cur.fetchone()
                     if dei_shares_row and dei_shares_row[0]:
@@ -1242,10 +1280,12 @@ class SecValuationsLoader(OptimalLoader):
             # for FPIs, outside the `with DatabaseContext` block above (cur already released -
             # don't hold a pooled connection open across a network call). Fails open to the
             # (likely-stale-but-better-than-nothing) table value on any live-fetch error.
+            yf_market_cap_is_live = False
             if is_foreign_private_issuer:
                 live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
                 if live_mcap is not None:
                     yf_market_cap = live_mcap
+                    yf_market_cap_is_live = True
                 if live_pe is not None:
                     yf_pe_ratio = live_pe
 
@@ -1317,9 +1357,10 @@ class SecValuationsLoader(OptimalLoader):
                     live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
                     if live_mcap is not None:
                         yf_market_cap = live_mcap
+                        yf_market_cap_is_live = True
 
-            self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap)
-            self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio)
+            self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap, yf_market_cap_is_live)
+            self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio, yf_market_cap_is_live)
             return [valuation_row]
 
         except TimeoutError as e:
@@ -2441,7 +2482,9 @@ class SecValuationsLoader(OptimalLoader):
     # independent extraction pipelines, not two paths that can share a root cause - a real,
     # non-buggy 10x+ gap between SEC-audited and yfinance market cap would itself be a strong
     # sign of stale/wrong data on one side, worth losing the metric over.
-    def _sanity_check_market_cap(self, symbol: str, result: dict[str, Any], yf_market_cap: float | None) -> None:
+    def _sanity_check_market_cap(
+        self, symbol: str, result: dict[str, Any], yf_market_cap: float | None, yf_market_cap_is_live: bool = False
+    ) -> None:
         market_cap = result.get("market_cap")
         if market_cap is None or market_cap <= 0:
             return
@@ -2450,6 +2493,30 @@ class SecValuationsLoader(OptimalLoader):
         ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
         if ratio <= 10:
             return
+        # FIXED 2026-08-31 (goal: data-coverage sweep): yf_market_cap here almost always comes
+        # from the yfinance_snapshot table read at the top of fetch_incremental, which has had
+        # NO active writer since Session 275 (see that read's own comment) - live-confirmed
+        # 100% of its 4,683 rows are frozen at 2026-07-04/07-12, 7-8 weeks stale as of this fix.
+        # A >10x disagreement against an 8-week-old number is exactly what normal price
+        # movement produces for any volatile small/mid-cap - NOT evidence of a mis-scaled
+        # shares_outstanding. Live-confirmed via AMRN: SEC-derived market_cap=$5.86B (price
+        # $13.97 x 419.5M shares, both independently correct) was rejected against the frozen
+        # table's $312M (implying $0.74/share, nowhere near the real price) - AMRN's real
+        # market cap is ~$6.00B per live external quotes, i.e. the SEC-derived value was right
+        # and the frozen table was wrong. This hit 66 active symbols (FUBO, GENI and other
+        # real, liquid names among them, not just illiquid micro-caps). Before finalizing a
+        # rejection on a *stale* comparison value, get one live number and re-check against
+        # that instead - bounded to only the ~rejection-path symbols (not the whole universe)
+        # so this doesn't multiply live-fetch volume on a full run. yf_market_cap_is_live=True
+        # (FPI / >$50B-ceiling tiers) means this IS already a live number - no help there,
+        # already the best signal available; keep it as-is and reject as before.
+        if not yf_market_cap_is_live:
+            live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+            if live_mcap is not None:
+                yf_market_cap = live_mcap
+                ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
+                if ratio <= 10:
+                    return
         logger.warning(
             f"[{symbol}] market_cap sanity check failed: SEC-derived=${market_cap:,.0f} vs "
             f"yfinance=${yf_market_cap:,.0f} (ratio {ratio:.0f}x) - shares_outstanding is "
@@ -2489,7 +2556,9 @@ class SecValuationsLoader(OptimalLoader):
     # yfinance_snapshot.pe_ratio. Same validity-check-only discipline as market_cap (never a
     # yfinance value substitution - see that method's docstring): nulls pe_ratio and its
     # sole dependent, peg_ratio, on a >10x disagreement.
-    def _sanity_check_pe_ratio(self, symbol: str, result: dict[str, Any], yf_pe_ratio: float | None) -> None:
+    def _sanity_check_pe_ratio(
+        self, symbol: str, result: dict[str, Any], yf_pe_ratio: float | None, yf_value_is_live: bool = False
+    ) -> None:
         pe_ratio = result.get("pe_ratio")
         if pe_ratio is None or pe_ratio <= 0:
             return
@@ -2498,6 +2567,18 @@ class SecValuationsLoader(OptimalLoader):
         ratio = max(pe_ratio, yf_pe_ratio) / min(pe_ratio, yf_pe_ratio)
         if ratio <= 10:
             return
+        # FIXED 2026-08-31 (goal: data-coverage sweep) - same frozen-yfinance_snapshot false-
+        # positive fixed in _sanity_check_market_cap above (see that method's comment for the
+        # full 66-symbol/AMRN evidence): pe_ratio moves with price just like market_cap does,
+        # so an 7-8-week-stale comparison value is just as unreliable here. One bounded live
+        # re-check before committing to a rejection.
+        if not yf_value_is_live:
+            _live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+            if live_pe is not None:
+                yf_pe_ratio = live_pe
+                ratio = max(pe_ratio, yf_pe_ratio) / min(pe_ratio, yf_pe_ratio)
+                if ratio <= 10:
+                    return
         logger.warning(
             f"[{symbol}] pe_ratio sanity check failed: SEC-derived={pe_ratio:.2f} vs "
             f"yfinance={yf_pe_ratio:.2f} (ratio {ratio:.0f}x) - ttm_eps is likely mis-scaled; "

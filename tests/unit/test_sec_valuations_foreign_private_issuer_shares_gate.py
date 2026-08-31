@@ -122,8 +122,10 @@ class TestForeignPrivateIssuerSharesGate:
         fetchone_results = [
             (30_000_000_000.0,),  # cash_and_equivalents (unconditional, fetched before shares_out gate)
             (970_500_000.0, None, None, None),  # debt_row (unconditional, same)
-            (None,),  # company_info_sec fallback (FPI-safe tier, not gated off)
-            (None,),  # shares_outstanding_dei cover-page fallback (FPI-safe tier, not gated off)
+            # company_info_sec and shares_outstanding_dei fallbacks are now BOTH gated on
+            # `not is_foreign_private_issuer` (2026-08-31 fix - see load_sec_valuations.py's own
+            # comments on those two tiers for the PHAR/IONR/JZXN/MI live-evidence) - neither
+            # query fires for this FPI-shaped fixture, so no fetchone entries for them here.
             (413.41,),  # price_daily.close
             (500_000_000_000.0,),  # stockholders_equity
             (1.0,),  # beta (stability_metrics)

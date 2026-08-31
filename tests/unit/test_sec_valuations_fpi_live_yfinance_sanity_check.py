@@ -12,13 +12,18 @@ instead of trusting the frozen table. Never a value source for pe_ratio/market_c
 (those stay 100% SEC-derived) - only used to validate/reject an already-computed value, same
 as the existing yfinance_snapshot-based check.
 
-Only covers the case where an FPI's shares_outstanding DID resolve (via a domestic-form-guarded
-tier like company_info_sec.shares_outstanding_dei) - a pure FPI with zero domestic-form data
-(the SAP/MFC/NGG live-observed case) hits the earlier `if not shares_out` unavailable-marker
-return and never reaches this code at all; that's a separate, deliberately-not-fixed gap (see
-this session's memory: fixing it would mean using yfinance as a VALUE source, which conflicts
-with this file's explicit "SEC data only" policy and GOVERNANCE.md's fail-fast/no-fallback
-principle).
+Only covers the case where an FPI's shares_outstanding DID resolve - via the live
+`_fetch_live_fpi_shares_outstanding_yfinance` fallback (mocked below), the ONLY tier that
+actually resolves shares_out for an FPI as of the 2026-08-31 fix. UPDATED 2026-08-31 (goal:
+data-coverage sweep, PHAR/IONR/JZXN/MI follow-up): this file's fixtures used to route shares_out
+through company_info_sec.shares_outstanding, on the assumption (documented in this file's own
+prior comment, now known wrong) that it was "domestic-form-guarded" and therefore FPI-safe.
+Live-confirmed that assumption was FALSE - PHAR/IONR/JZXN all had genuine ordinary-share (not
+ADS-adjusted) values land in that column/shares_outstanding_dei despite being real FPIs,
+producing 10-30x-too-high market caps. Both tiers are now explicitly gated on
+`not is_foreign_private_issuer` (see load_sec_valuations.py's own comments on those two tiers),
+so an FPI's shares_out can only come from the live yfinance fallback - these fixtures updated to
+match.
 """
 
 from typing import Any
@@ -67,8 +72,9 @@ def _run_fetch_incremental(
         return loader.fetch_incremental(symbol, None)
 
 
-# FPI-flagged (last element True), but shares_outstanding_basic present so the derived tiers
-# get a value via the domestic-form-guarded company_info_sec tier below (fetchone_results[2]).
+# FPI-flagged (last element True) - shares_out now only ever comes from the live yfinance
+# fallback (mocked per-test below), since company_info_sec/shares_outstanding_dei are both
+# gated off for FPI as of the 2026-08-31 fix.
 _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS = [
     (2024, 1_500_000_000.0, 227_000_000.0, 2.7, None, None, None, None, None, None, True),
 ]
@@ -79,7 +85,6 @@ class TestFpiLiveYfinanceSanityCheck:
         fetchone_results = [
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
-            (1_417_000_000.0,),  # company_info_sec shares_outstanding_dei (domestic-guarded tier)
             (376.86,),  # price_daily.close
             (60_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
@@ -90,11 +95,16 @@ class TestFpiLiveYfinanceSanityCheck:
             (999_999_999_999.0, 999.0),  # yfinance_snapshot (stale) - would NOT trigger mismatch if trusted
         ]
 
-        with patch.object(
-            SecValuationsLoader,
-            "_fetch_live_fpi_yfinance_check_values",
-            return_value=(30_990_489_600.0, None),  # live, fresh, real ~10x-mismatched value
-        ) as mock_live_fetch:
+        with (
+            patch.object(
+                SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance", return_value=1_417_000_000.0
+            ),
+            patch.object(
+                SecValuationsLoader,
+                "_fetch_live_fpi_yfinance_check_values",
+                return_value=(30_990_489_600.0, None),  # live, fresh, real ~10x-mismatched value
+            ) as mock_live_fetch,
+        ):
             result = _run_fetch_incremental("FPICO", _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS, fetchone_results)
 
         mock_live_fetch.assert_called_once_with("FPICO")
@@ -108,7 +118,6 @@ class TestFpiLiveYfinanceSanityCheck:
         fetchone_results = [
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
-            (1_417_000_000.0,),
             (376.86,),
             (60_000_000.0,),
             (1.0,),
@@ -119,10 +128,15 @@ class TestFpiLiveYfinanceSanityCheck:
             (None, None),  # yfinance_snapshot has nothing either - both sources empty
         ]
 
-        with patch.object(
-            SecValuationsLoader,
-            "_fetch_live_fpi_yfinance_check_values",
-            return_value=(None, None),
+        with (
+            patch.object(
+                SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance", return_value=1_417_000_000.0
+            ),
+            patch.object(
+                SecValuationsLoader,
+                "_fetch_live_fpi_yfinance_check_values",
+                return_value=(None, None),
+            ),
         ):
             result = _run_fetch_incremental("FPICO2", _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS, fetchone_results)
 
