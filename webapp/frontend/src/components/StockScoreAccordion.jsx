@@ -792,16 +792,6 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           inputsKey="risk_inputs"
           pillarWeight={PILLAR_COMPOSITE_WEIGHTS.risk}
         />
-        {/* Size RETIRED as a scored pillar 2026-08-28 (see loaders/load_stock_scores.py's
-            BASE_PILLAR_WEIGHTS) - market_cap is NOT deleted, shown informationally only, same
-            treatment as the Positioning card above. Still lives in value_inputs (same
-            value_metrics row Value reads) - no separate backend inputsKey needed. */}
-        <InputsCard
-          title="Size (informational)"
-          stock={stock}
-          schema={SIZE_SCHEMA}
-          inputsKey="value_inputs"
-        />
       </div>
 
       {/* Recent trading signals */}
@@ -1189,12 +1179,12 @@ const MOMENTUM_SCHEMA = [
 //
 // SIZE (market_cap) MOVED OUT 2026-08-26 - promoted to its own top-level "Size" pillar/tab,
 // removed from scoring the same day on a UX/product objection, RE-PROMOTED 2026-08-27 on new
-// era-robust half-split evidence, then RETIRED ENTIRELY 2026-08-28 (see SIZE_SCHEMA below and
-// loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full history). market_cap never
-// moved back into this schema - it stays displayed informationally via the Size (informational)
-// card instead. The 7 inputs below stay at the x1.25-rescaled weights that restored their
-// pre-Size 100% (unaffected by any of Size's later moves, since Value never absorbed
-// market_cap back).
+// era-robust half-split evidence, then RETIRED ENTIRELY 2026-08-28 (see
+// loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full history), and its last
+// informational-only display (a "Size (informational)" card / SIZE_SCHEMA) removed 2026-08-31.
+// market_cap never moved back into this schema. The 7 inputs below stay at the x1.25-rescaled
+// weights that restored their pre-Size 100% (unaffected by any of Size's later moves, since
+// Value never absorbed market_cap back).
 // AMIHUD ILLIQUIDITY added 2026-08-26, REMOVED same day (user directive - see
 // loaders/load_stock_scores.py's _score_value docstring "AMIHUD ILLIQUIDITY" note for why:
 // real academic signal, but scored favoring harder-to-trade micro-caps in a way that's
@@ -1253,7 +1243,7 @@ const VALUE_SCHEMA = [
     used: true,
     weight: "11%",
   },
-  // market_cap moved to the Size pillar 2026-08-26 - see SIZE_SCHEMA below.
+  // market_cap moved to the Size pillar 2026-08-26, since retired entirely (see comment above).
   // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't
   // carry it at all (it lives in technical_data_daily, a different query entirely); adding it
   // would need a real backend SQL/join change, out of scope for this display-only pass.
@@ -1290,22 +1280,10 @@ const VALUE_SCHEMA = [
   //     primary metrics instead - their natural home, and where a viewer should look for them.
   //   - net_payout_yield: was already fully hidden here on an earlier explicit user directive
   //     ("make sure this one is gone") - unaffected by this pass, still gone.
-];
-
-// SIZE (market cap, Fama-French SMB / Banz 1981) - RETIRED as a scored top-level pillar
-// 2026-08-28 (direct user directive "just get rid of size", triggered by
-// size_weight_collapse_reconfirmed_after_coverage_fixes_20260828 in memory: its
-// imputed-regime evidence didn't survive a strict complete-case retest even after fixing the
-// specific data-coverage bugs that retest required first - see loaders/load_stock_scores.py's
-// BASE_PILLAR_WEIGHTS for the full trail). market_cap itself is NOT deleted - shown here
-// informationally only, same treatment as POSITIONING_SCHEMA below (no `used`/`weight` -
-// those keys drove the weight badge, which no longer applies to an unscored field).
-const SIZE_SCHEMA = [
-  {
-    key: "market_cap",
-    label: "Market Cap",
-    fmt: (v) => (v == null ? "—" : `$${(v / 1e9).toFixed(2)}B`),
-  },
+  //   - market_cap (Size, formerly shown informationally via a separate "Size (informational)"
+  //     card below Safety): REMOVED FROM DISPLAY 2026-08-31 (user directive) - Size was already
+  //     retired as a scored pillar 2026-08-28 (see BASE_PILLAR_WEIGHTS history above); this
+  //     removes its last informational-only display too. No backend/scoring change.
 ];
 
 // RESTORED TO MULTI-INPUT 2026-08-28 (user directive, /goal session: "get the rest of the
@@ -1425,35 +1403,13 @@ const GROWTH_SCHEMA = [
     used: true,
     weight: "9%",
   },
-  // ADDED 2026-08-29 (backend: migration 1247 + commit 395ff9bd9) - real forward-looking data
-  // from yfinance's earnings_estimate/revenue_estimate/eps_trend endpoints, already computed/
-  // persisted in growth_metrics and served via the API's growth_inputs field, but never wired
-  // into this display. Deliberately NOT scored (no `used`/`weight` key, so no badge on this
-  // page - matches this pillar's existing "unscored = no badge" convention):
-  // analyst_earnings_estimates is a snapshot-per-day table with no backfill capability, so
-  // there's no historical depth yet to test whether these predict anything - see
-  // loaders/load_stock_scores.py's _score_growth docstring. These fields show "No data" for
-  // symbols without analyst coverage, real data for the rest.
-  {
-    key: "forward_eps_growth_current_fy",
-    label: "Forward EPS Growth (Current FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-  },
-  {
-    key: "forward_eps_growth_next_fy",
-    label: "Forward EPS Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-  },
-  {
-    key: "forward_revenue_growth_next_fy",
-    label: "Forward Revenue Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-  },
-  {
-    key: "eps_estimate_revision_90d_pct",
-    label: "EPS Estimate Revision (90D)",
-    fmt: (v) => pct(v, 2),
-  },
+  // forward_eps_growth_current_fy / forward_eps_growth_next_fy / forward_revenue_growth_next_fy /
+  // eps_estimate_revision_90d_pct REMOVED FROM DISPLAY 2026-08-31 (user directive - these rows
+  // were showing as "No data" for the stock being viewed, a legitimate per-symbol
+  // no_analyst_estimates gap, not a bug - analyst_earnings_estimates is a snapshot-per-day table
+  // with no backfill capability, so coverage is inherently partial). None of the 4 are scored
+  // inputs on this branch (no `used`/`weight` key) - this is a display-only removal, no
+  // backend/scoring change.
 ];
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see
