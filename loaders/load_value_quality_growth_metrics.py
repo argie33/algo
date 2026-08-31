@@ -5946,10 +5946,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     def update_quality_roe_roce_percentiles(self) -> None:
         """Batch pass: replace ROE's and ROCE's Pass-1 PROVISIONAL fixed-curve scores with a
         true cross-sectional percentile rank against the current run's universe, then
-        recompute quality_score to reflect it. Mirrors loaders/load_stock_scores.py's
-        `update_value_multiples_percentiles()` two-phase pattern (that file's own
-        `update_size_percentiles()` used the same pattern before Size was retired entirely
-        2026-08-28) - see that file's docstrings for the full IBD/MSCI citation trail.
+        FULLY RECOMPUTE quality_score from scratch off the raw stored ratio columns (not
+        patched relative to whatever quality_score currently holds). Mirrors
+        loaders/load_stock_scores.py's `update_rs_percentiles()` pure-overwrite pattern - see
+        that method's own docstring - not `update_value_multiples_percentiles()`'s additive-
+        delta pattern (that method's own docstring still describes the delta-reconciliation
+        design this method used until the rewrite below; the WHY/citation-trail comments there
+        are historically accurate but the MECHANISM section is now stale).
 
         WHY specifically ROE/ROCE (not all 8 Quality components): `algo/research/
         all_pillars_curve_vs_percentile_sweep_20260828.py` tested all 8 - only ROE and ROCE
@@ -5960,25 +5963,47 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         consistent-improvement pattern though short of the strict bar). The other 6 (ROA,
         FCF margin, Debt/Equity, margin volatility, asset turnover, gross profitability) showed
         no consistent benefit - several actually favored the existing curve - and are
-        deliberately left unchanged.
+        deliberately left unchanged (recomputed via their own Pass-1 curve formulas below, not
+        percentile-ranked).
 
-        MECHANISM: `_compute_quality_metrics` (Pass 1, UNCHANGED by this method) still computes
-        `roe_score`/`roce_score` via the live nested `_margin_curve` as a PROVISIONAL
-        placeholder, blended into quality_score and written by the existing, unmodified
-        `_insert_quality_metrics` INSERT path. This method runs after every symbol in the run
-        has a quality_score, computes the TRUE cross-sectional percentile for ROE and ROCE
-        independently (a symbol missing ROCE still gets ranked on ROE), and reconciles
-        quality_score via the same exact delta arithmetic as Value's own reconciliation:
-            weighted_sum_OLD = curve_score(roe)*11 + curve_score(roce_pct)*18
-            weighted_sum_NEW = percentile(roe)*11 + percentile(roce_pct)*18
-            quality_score_NEW = quality_score_OLD + (weighted_sum_NEW - weighted_sum_OLD) / total_weight_OLD
-        total_weight_OLD is re-derived from which of ALL 8 Quality components were genuinely
-        available for that symbol (ROA/FCF margin/D2E/margin vol/asset turnover/gross
-        profitability are UNCHANGED inputs, just re-checked for availability here) - not
-        approximated. This does NOT touch stock_scores.quality_score/composite_score directly
-        (a different table, written by a different loader) - the correction flows through
-        naturally the next time loaders/load_stock_scores.py reads the corrected
-        quality_metrics.quality_score, same as any other quality_metrics fix.
+        BUG FOUND + FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage
+        audit - live-verified, this file is byte-identical to main, so this was live on
+        production too, not a worktree artifact). Two independent, compounding problems in the
+        original additive-delta design:
+
+        (1) NON-IDEMPOTENT: `quality_score_NEW = quality_score_OLD + delta` read
+        `quality_score_OLD` from the SAME mutable `quality_metrics.quality_score` column this
+        method writes to, every time it ran (this batch pass runs unconditionally on the WHOLE
+        universe on every single invocation of this loader, regardless of `--symbols` scope -
+        confirmed live via three consecutive runs today with zero underlying data changes: AAPL
+        drifted 83.57 -> 86.69 -> (further), AAPG drifted 78.57 -> 87.30, on IDENTICAL
+        roe/roce_pct inputs both times, because the exact same delta got added again on top of
+        the prior run's already-corrected value instead of being computed fresh against a
+        stable baseline). Zero natural convergence - only the hard 0/100 clamp eventually
+        stopped the drift, which is why 1,567/5,110 symbols (30.7% of the scored universe) were
+        found stuck at EXACTLY 100.00 after roughly 3 days of this mechanism running
+        repeatedly in the normal pipeline cadence. Fixed by making this a pure function of the
+        raw stored ratio columns (roa/roe/roce_pct/fcf_margin/debt_to_equity/margin_volatility/
+        asset_turnover/gross_profitability), matching `update_rs_percentiles()`'s correct
+        pattern - quality_score is now only ever a WRITE target here, never also a read input,
+        so running this any number of times with unchanged inputs produces the identical
+        result every time.
+
+        (2) NEGATIVE-VALUE FLOOR MISMATCH: Pass-1's curve deliberately floors ROE/ROCE at 0.0
+        for any negative raw value (harsh, absolute treatment - see `_margin_curve`'s own
+        `if value < 0: return 0.0`), but a plain percentile rank never floors at 0 for a
+        non-worst performer - live-confirmed an ROE of -18.31% still ranked at the 31st
+        percentile of the real 3,858-symbol universe (roughly a third of all scored companies
+        have even worse ROE than that). Swapping curve-0 for percentile-31 on every unprofitable
+        company is a systematic upward bias exactly where it's least deserved (GLIBK: ROE
+        -18.31%, ROCE -11.99%, gross profitability -10.73%, landed at quality_score=100.00
+        before this fix). `load_stock_scores.py`'s own `update_value_multiples_percentiles()`
+        already solved this exact class of problem correctly for unprofitable P/E (see that
+        method's "UNPROFITABLE/NEGATIVE-FORECAST FLOOR ADDED 2026-08-28" docstring note) -
+        applying the same fix here: ROE/ROCE percentile ranking is now computed only over the
+        non-negative population, with negative-raw-value symbols explicitly floored to
+        percentile 0.0 (matching curve's own treatment) rather than ranked among the full
+        universe.
 
         CRITICAL: raises on failure, same as every other post_run() batch pass in this
         codebase - an inconsistent quality_score is a live-trading-relevant correctness issue.
@@ -5986,10 +6011,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         SKIPS Financial Services/Real Estate symbols (added 2026-08-28, alongside
         _compute_quality_metrics' sector-conditional formula - see that method's own docstring
         for the full evidence). Those two sectors' quality_score is now built from a two-cluster
-        (profitability + safety) structure, not the flat 8-input weighted average this method's
-        delta arithmetic assumes - reconciling ROE/ROCE percentiles through that structure needs
-        its own derivation, not attempted this pass. Excluded symbols keep Pass-1's curve-based
-        ROE/ROCE scores rather than risk a silently-wrong reconciliation.
+        (profitability + safety) structure, not the flat 8-input weighted average this method
+        recomputes - reconciling ROE/ROCE percentiles through that structure needs its own
+        derivation, not attempted this pass. Excluded symbols keep Pass-1's curve-based ROE/ROCE
+        scores rather than risk a silently-wrong reconciliation.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -6010,8 +6035,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 return
 
-            roe_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None}
-            roce_raw = {row[0]: float(row[4]) for row in rows if row[4] is not None}
+            # Percentile universe restricted to non-negative raw values (same "floor, don't
+            # dilute the ranking" precedent as load_stock_scores.py's unprofitable-P/E fix) -
+            # a negative ROE/ROCE symbol is floored to 0.0 directly below, never ranked.
+            roe_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None and float(row[2]) >= 0.0}
+            roce_raw = {row[0]: float(row[4]) for row in rows if row[4] is not None and float(row[4]) >= 0.0}
             roe_pct = self._percent_rank_higher_is_better(roe_raw)
             roce_pct = self._percent_rank_higher_is_better(roce_raw)
             logger.info(
@@ -6023,44 +6051,65 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 symbol, quality_score_old = row[0], float(row[1])
                 roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[2:10]
 
-                total_weight_old = 0.0
-                weighted_sum_old = 0.0
-                weighted_sum_new = 0.0
+                components: list[tuple[float, float]] = []
 
                 if roe is not None:
-                    total_weight_old += 11.0
-                    weighted_sum_old += (
-                        self._reconciliation_margin_curve(float(roe), [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-                        * 11.0
-                    )
-                    weighted_sum_new += roe_pct[symbol] * 11.0
+                    roe_component = 0.0 if float(roe) < 0.0 else roe_pct[symbol]
+                    components.append((roe_component, 11.0))
                 if roa is not None:
-                    total_weight_old += 18.0
-                if roce_pct_val is not None:
-                    total_weight_old += 18.0
-                    weighted_sum_old += (
-                        self._reconciliation_margin_curve(
-                            float(roce_pct_val), [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
-                        )
-                        * 18.0
+                    components.append(
+                        (self._reconciliation_margin_curve(float(roa), [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]), 18.0)
                     )
-                    weighted_sum_new += roce_pct[symbol] * 18.0
+                if roce_pct_val is not None:
+                    roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
+                    components.append((roce_component, 18.0))
                 if fcf_margin is not None:
-                    total_weight_old += 15.0
+                    components.append(
+                        (
+                            self._reconciliation_margin_curve(
+                                float(fcf_margin), [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)]
+                            ),
+                            15.0,
+                        )
+                    )
                 if d2e is not None:
-                    total_weight_old += 18.0
+                    d2e_val = float(d2e)
+                    d2e_score = 0.0 if d2e_val < 0.0 else max(0.0, min(100.0, 100.0 - (d2e_val / 2.0) * 100.0))
+                    components.append((d2e_score, 18.0))
                 if margin_vol is not None:
-                    total_weight_old += 7.0
+                    components.append(
+                        (
+                            100.0
+                            - self._reconciliation_margin_curve(
+                                float(margin_vol), [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)]
+                            ),
+                            7.0,
+                        )
+                    )
                 if asset_turnover is not None:
-                    total_weight_old += 7.0
+                    components.append(
+                        (
+                            self._reconciliation_margin_curve(
+                                float(asset_turnover), [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)]
+                            ),
+                            7.0,
+                        )
+                    )
                 if gross_prof is not None:
-                    total_weight_old += 7.0
+                    components.append(
+                        (
+                            self._reconciliation_margin_curve(
+                                float(gross_prof), [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)]
+                            ),
+                            7.0,
+                        )
+                    )
 
-                if total_weight_old <= 0:
+                total_weight = sum(w for _, w in components)
+                if total_weight <= 0:
                     continue  # defensive only - can't happen if quality_score is real
 
-                delta = (weighted_sum_new - weighted_sum_old) / total_weight_old
-                quality_score_new = round(max(0.0, min(100.0, quality_score_old + delta)), 2)
+                quality_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
                 if quality_score_new != quality_score_old:
                     updates.append((symbol, quality_score_new))
 
