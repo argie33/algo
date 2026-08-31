@@ -3135,10 +3135,11 @@ class StockScoresLoader(OptimalLoader):
     @staticmethod
     def _pe_curve_score(pe: float) -> float:
         """PROVISIONAL fixed-threshold P/E score (see _score_value's PE block comment) - used
-        as this symbol's Pass-1 placeholder AND, unchanged, to reconstruct Pass 1's original
-        contribution in update_value_multiples_percentiles()'s reconciliation math. Do not
-        change this formula without also checking that reconciliation still holds (it diffs
-        against whatever this function returns)."""
+        as this symbol's Pass-1 placeholder only. UPDATED 2026-08-31 (see
+        update_value_multiples_percentiles()'s "BUG FOUND + FIXED 2026-08-31" docstring note):
+        that method now fully recomputes value_score from percentile ranks each time rather
+        than diffing against this function's output, so this formula is free to change without
+        touching that reconciliation - it only affects Pass-1's provisional value."""
         if pe <= 10:
             return 40 + pe * 2  # very cheap / possibly value trap
         if pe <= 20:
@@ -3474,7 +3475,11 @@ class StockScoresLoader(OptimalLoader):
     def update_value_multiples_percentiles(self) -> None:
         """Batch pass: replace P/E, P/B, P/S, and Forward P/E's Pass-1 PROVISIONAL fixed-curve
         scores with a true cross-sectional percentile rank against the current run's universe,
-        then recompute value_score and composite_score to reflect it.
+        then FULLY RECOMPUTE value_score and composite_score from scratch off the raw stored
+        inputs (not patched relative to whatever value_score/composite_score currently hold).
+        Mirrors `update_rs_percentiles()`'s pure-overwrite pattern, not the additive-delta
+        design this method used until the rewrite below - see "BUG FOUND + FIXED 2026-08-31"
+        below.
 
         EXTENDED TO FORWARD P/E 2026-08-28 (see _score_value's "FORWARD P/E - ADDED 2026-08-28"
         docstring note): when Forward P/E was added to Value, it joined this percentile mechanism
@@ -3534,19 +3539,48 @@ class StockScoresLoader(OptimalLoader):
         placeholder so value_score/composite_score are never NULL mid-run. This method runs
         after every symbol in this run has a value_score, computes the true cross-sectional
         percentile per ratio (independently - a symbol missing P/B still gets ranked on P/E and
-        P/S), and RECONCILES value_score/composite_score via delta arithmetic:
-            weighted_sum_multiples_OLD = curve-based scores * their live weights (12/39/34/4)
-            weighted_sum_multiples_NEW = percentile-based scores * the SAME weights
-            value_score_NEW = value_score_OLD + (weighted_sum_multiples_NEW - weighted_sum_multiples_OLD) / total_weight_OLD
-            composite_score_NEW = composite_score_OLD + value_weight * (value_score_NEW - value_score_OLD)
-        total_weight_OLD (the sum of weights of every Value sub-component genuinely available for
-        that symbol - PE/PB/PS/forward_pe/dividend, NOT just the 4 percentile-ranked multiples;
-        PEG and margin_of_safety are no longer Value inputs at all, see above) and
-        value_weight (this symbol's own risk-conditioned Value weight, `_value_risk_adjusted_weights` -
-        see that function's own docstring) are re-derived exactly, not approximated - this is
-        arithmetically identical to recomputing both scores from scratch with the new multiples,
-        just without re-running the full per-symbol pipeline a second time. dividend and every
-        other pillar are completely unaffected.
+        P/S), and FULLY RECOMPUTES value_score from the percentile scores plus dividend_yield's
+        own unchanged curve score (the only Value sub-component this pass doesn't replace),
+        weighted exactly as `_score_value` itself weights them (12/39/34/4/11). composite_score
+        is then independently recomputed in full from quality_score/growth_score/risk_score/
+        momentum_score (read as-is, untouched by this pass) plus the new value_score, via
+        `_value_risk_adjusted_weights` - the same weighting `_score_value`'s own caller uses,
+        just re-derived here rather than patched.
+
+        BUG FOUND + FIXED 2026-08-31 (goal session: "VCIG tops the scores and it's a shitty
+        stock, dig in" - live-verified, this code is byte-identical to main, so this was live on
+        production too, not a worktree artifact). The original design computed
+        `value_score_NEW = value_score_OLD + delta`, reading `value_score_OLD` from the SAME
+        mutable `stock_scores.value_score` column this method writes to - non-idempotent, since
+        this batch pass runs unconditionally on the WHOLE universe on every single invocation of
+        this loader's post_run(), regardless of `--symbols` scope (same bug class just found and
+        fixed in `loaders/load_value_quality_growth_metrics.py`'s
+        `update_quality_roe_roce_percentiles()` - see that method's own "BUG FOUND + FIXED
+        2026-08-31" docstring note, which this fix mirrors exactly). Live-confirmed via two
+        consecutive live calls today with zero underlying pe/pb/ps/forward_pe changes: TAP.A
+        drifted 89.69 -> 83.70 -> 77.71 and CMCT drifted 81.84 -> 81.66 -> 81.48, the SAME delta
+        applied twice on top of the prior call's already-corrected value instead of being
+        computed fresh against a stable baseline - zero natural convergence, only the hard
+        0/100 clamp eventually stops the drift (VCIG/BMA/CISS/AAPL/MSFT were already pinned at
+        100.00/100.00/100.00/0.00/0.00 in this same test, consistent with the clamp already
+        having been reached repeatedly in the normal pipeline cadence). This was the main
+        mechanism - not just a one-time winsorization gap - behind multiple real, legitimate
+        tickers (BMA, a large Argentine bank; CISS; TAP.A) clustering at or near the 0/100
+        ceiling/floor on value_score well before any single pass's own math would justify it.
+        Fixed by making this a pure function of the raw stored ratio/pillar columns, matching
+        `update_rs_percentiles()`'s correct pattern - value_score and composite_score are now
+        only ever WRITE targets here, never also read inputs, so running this any number of
+        times with unchanged inputs produces the identical result every time.
+
+        NOTE (separate, NOT fixed by this pass): `_percent_rank_cheap_high` itself has no
+        winsorization - the single most extreme raw P/B or P/S in the entire universe always
+        wins percentile 100 regardless of whether that extremeness is genuine undervaluation or
+        a data/accounting artifact (live-confirmed: VCIG's pb_ratio=0.01/ps_ratio=0.02, tied for
+        the cheapest in a 4,500+-symbol universe, both win percentile 100/99.8 outright). This is
+        a real, standard-practice gap (MSCI's own cited z-score methodology conventionally
+        winsorizes before ranking) distinct from the compounding bug above, and is a candidate
+        for a future pass - not addressed here to keep this fix scoped to the confirmed
+        correctness bug.
 
         CRITICAL: raises on failure, same as `update_rs_percentiles()` - an inconsistent value_
         score/composite_score is a live-trading-relevant correctness issue, not just Phase 7
@@ -3556,6 +3590,7 @@ class StockScoresLoader(OptimalLoader):
             with DatabaseContext("write") as cur:
                 cur.execute("""
                     SELECT ss.symbol, ss.value_score, ss.composite_score, ss.risk_score,
+                           ss.quality_score, ss.growth_score, ss.momentum_score,
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
                            vm.dividend_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
@@ -3585,8 +3620,8 @@ class StockScoresLoader(OptimalLoader):
             unprofitable_symbols: set[str] = set()
             negative_fwd_symbols: set[str] = set()
             for row in rows:
-                symbol, pe, pb, ps, fwd_pe = row[0], row[4], row[5], row[6], row[7]
-                pe_reason, fwd_pe_reason = row[9], row[10]
+                symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
+                pe_reason, fwd_pe_reason = row[12], row[13]
                 if pe is not None and float(pe) > 0:
                     pe_raw[symbol] = float(pe)
                 elif pe_reason == "unprofitable_stock":
@@ -3618,56 +3653,63 @@ class StockScoresLoader(OptimalLoader):
             updates: list[tuple[str, float, float, str | None]] = []
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
-                pe, pb, ps, fwd_pe, dividend_yield = row[4], row[5], row[6], row[7], row[8]
-                pe_reason, fwd_pe_reason = row[9], row[10]
-                components_old = row[11]
+                quality_score, growth_score, momentum_score = row[4], row[5], row[6]
+                pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
+                pe_reason, fwd_pe_reason = row[12], row[13]
+                components_old = row[14]
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
-                total_weight_old = 0.0
-                weighted_sum_multiples_old = 0.0
-                weighted_sum_multiples_new = 0.0
-
+                # Pure recompute of value_score from the raw stored inputs - percentile rank
+                # for PE/PB/PS/forward_pe, dividend's own unchanged curve score (_score_value's
+                # own formula, see that method) - value_score_old is read above only to detect
+                # whether anything changed, never as an input to the new value. See "BUG FOUND
+                # + FIXED 2026-08-31" docstring note above for why this replaced the prior
+                # additive-delta-on-a-mutable-column design.
+                components: list[tuple[float, float]] = []
                 if pe is not None and float(pe) > 0:
-                    total_weight_old += 0.12
-                    weighted_sum_multiples_old += self._pe_curve_score(float(pe)) * 0.12
-                    weighted_sum_multiples_new += pe_pct[symbol] * 0.12
+                    components.append((pe_pct[symbol], 0.12))
                 elif pe_reason == "unprofitable_stock":
-                    total_weight_old += 0.12
-                    weighted_sum_multiples_old += 0.0
-                    weighted_sum_multiples_new += 0.0
+                    components.append((0.0, 0.12))
                 if pb is not None and float(pb) > 0:
-                    total_weight_old += 0.39
-                    weighted_sum_multiples_old += self._pb_curve_score(float(pb)) * 0.39
-                    weighted_sum_multiples_new += pb_pct[symbol] * 0.39
+                    components.append((pb_pct[symbol], 0.39))
                 if ps is not None and float(ps) > 0:
-                    total_weight_old += 0.34
-                    weighted_sum_multiples_old += self._ps_curve_score(float(ps)) * 0.34
-                    weighted_sum_multiples_new += ps_pct[symbol] * 0.34
+                    components.append((ps_pct[symbol], 0.34))
                 if fwd_pe is not None and float(fwd_pe) > 0:
-                    total_weight_old += 0.04
-                    weighted_sum_multiples_old += self._pe_curve_score(float(fwd_pe)) * 0.04
-                    weighted_sum_multiples_new += fwd_pe_pct[symbol] * 0.04
+                    components.append((fwd_pe_pct[symbol], 0.04))
                 elif fwd_pe_reason == "negative_forward_eps":
-                    total_weight_old += 0.04
-                    weighted_sum_multiples_old += 0.0
-                    weighted_sum_multiples_new += 0.0
+                    components.append((0.0, 0.04))
                 if dividend_yield is not None and float(dividend_yield) > 0:
-                    total_weight_old += 0.11
+                    div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
+                    div_score = min(100, div * 16.7)
+                    components.append((div_score, 0.11))
 
-                if total_weight_old <= 0:
+                total_weight = sum(w for _, w in components)
+                if total_weight <= 0:
                     # Defensive only - can't happen if value_score is a real float (it required
                     # total_weight > 0 to compute in the first place), but never divide by zero.
                     continue
 
-                delta = (weighted_sum_multiples_new - weighted_sum_multiples_old) / total_weight_old
-                value_score_new = round(max(0.0, min(100.0, value_score_old + delta)), 2)
+                value_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
 
+                # Pure recompute of composite_score from the 5 pillar scores as they currently
+                # stand in stock_scores (quality/growth/risk/momentum are untouched by this
+                # pass - only value_score changed above), mirroring _score_value's own caller
+                # (no weight redistribution for a missing pillar - GOVERNANCE rule, same as
+                # Pass 1) instead of patching composite_score_old by a delta.
                 risk_score_float = float(risk_score) if risk_score is not None else None
-                value_weight = _value_risk_adjusted_weights(risk_score_float)["value"]
-                composite_score_new = round(
-                    max(0.0, min(100.0, composite_score_old + value_weight * (value_score_new - value_score_old))), 2
-                )
+                weights = _value_risk_adjusted_weights(risk_score_float)
+                composite_val = 0.0
+                for pillar_name, pillar_score in (
+                    ("quality", quality_score),
+                    ("growth", growth_score),
+                    ("value", value_score_new),
+                    ("risk", risk_score),
+                    ("momentum", momentum_score),
+                ):
+                    if pillar_score is not None:
+                        composite_val += float(pillar_score) * weights[pillar_name]
+                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
 
                 if value_score_new != value_score_old or composite_score_new != composite_score_old:
                     # BUG FIX 2026-08-29 (goal-mode composite-score validation pass): components
@@ -3680,8 +3722,8 @@ class StockScoresLoader(OptimalLoader):
             if not updates:
                 logger.info(
                     "[STOCK_SCORES] Value multiples percentile pass: no symbol's value_score/"
-                    "composite_score changed (unexpected but not an error - would only happen "
-                    "if the fixed curve and the percentile rank agreed for every single symbol)."
+                    "composite_score changed (expected on a repeat run with unchanged inputs - "
+                    "this pass is now idempotent, see its 'BUG FOUND + FIXED 2026-08-31' note)."
                 )
                 return
 
