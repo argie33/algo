@@ -187,6 +187,26 @@ logger = logging.getLogger(__name__)
 # this file's own standard (wins clearly in 2023-24, roughly ties/trails in 2025-26) and loses
 # decisively on Pearson (~0.02 vs ~0.05 both eras) - suggestive, not conclusive. Left as an open
 # question for explicit user direction, not acted on unilaterally on a non-robust result.
+#
+# SAME SESSION, SECOND FOLLOW-UP (algo/research/goal2_joint_raw_input_vs_pillar_composite.py,
+# re-raised via /goal: "instead of factor pillar weights, the input relationship in whole").
+# The pillar-summary-level re-verification above (6 proxies) doesn't answer whether skipping
+# pillar aggregation ENTIRELY - one flat model over every raw input at once, no pillar
+# boundaries - beats pillar-then-combine; a 2026-08-27 version of this exact test found yes,
+# pillar-then-combine wins, but had drifted stale the same way the pillar-summary script had
+# (missing asset_turnover/vol_252d entirely, stale Growth/Value/Risk weight dicts). Rebuilt
+# against today's verified-in-code formulas (69 raw inputs incl. a real 60/252-trading-day Risk
+# reconstruction and asset_turnover, 374,741 symbol-months 2016-01 to 2026-07, 207,209 OOS
+# symbol-months across 5 independent test years 2022-2026): live pillar-then-combine Spearman
+# 0.0709 vs. a joint tree's 0.0455 and joint ridge's 0.0155 (naive lasso worse still at every
+# alpha tried) - same conclusion as 2026-08-27, now reconfirmed on corrected current formulas
+# rather than carried forward stale. Absolute numbers moved (0.0910->0.0709 live_linear,
+# 0.0357->0.0455 tree) since both the live formulas and this reconstruction's fidelity changed;
+# the qualitative verdict didn't. vol_252d (new this rebuild) ranked #2 in tree feature
+# importance behind macd_sign - a real signal, but the joint model still can't beat pillar
+# aggregation's use of it. No production change from this result - it's further confirmation
+# the existing architecture is not something to abandon for a flatter one, not new evidence for
+# a different one.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
     "growth": 0.24,
