@@ -204,6 +204,19 @@ const FACTORS = [
   },
 ];
 
+// Composite pillar weights - single source of truth for the top-level composite_score mix.
+// MUST match loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS exactly -
+// tests/unit/test_scores_frontend_weight_badges_match_backend.py verifies this. Positioning
+// and Size are retired composite pillars (informational-only tabs below, not part of
+// composite_score) and have no entry here.
+const PILLAR_COMPOSITE_WEIGHTS = {
+  quality: 0.2,
+  growth: 0.24,
+  value: 0.27,
+  risk: 0.19,
+  momentum: 0.1,
+};
+
 // ─── Empty state ────────────────────────────────────────────────────────────
 function Empty({ title, desc }) {
   return (
@@ -479,12 +492,25 @@ function FactorCard({ factor, stock, sectorAvg, marketAvg }) {
   );
 }
 
+// Parses the leading "NN%" or "NN.N%" out of a within-pillar weight display string (e.g.
+// "~11%", "37% avg", "45%") - returns null if the string has no parseable percentage (e.g. a
+// non-numeric badge like "fallback"). Used only to DERIVE the composite-level contribution,
+// never to re-store a duplicate literal - the pillar-level % stays single-sourced in each
+// SCHEMA array above, exactly as it always has.
+function _parsePctWeight(weight) {
+  const m = typeof weight === "string" ? weight.match(/(\d+(?:\.\d+)?)%/) : null;
+  return m ? parseFloat(m[1]) : null;
+}
+
 // ─── one row of a factor-inputs table ──────────────────────────────────────
 // tier: "used" (feeds the score formula), "tracked" (collected, not scored)
 // weight: display string for "used" rows, e.g. "35%", "avg", "fallback"
 // collected: false means this column is essentially never populated system-wide
 //   (verified against live DB, not just this stock) — rendered as "Not yet available"
 //   rather than the ambiguous "No data" used for a per-stock null.
+// compositePct: this row's share of the FULL composite_score (pillarWeight * within-pillar
+//   weight), e.g. Quality's ROE at ~11% inside a 20%-weighted Quality pillar = ~2.2% of the
+//   composite - only set (by InputsCard below) for pillars that actually feed the composite.
 function InputRow({ row }) {
   const hasValue = row.value != null;
   const reason = row.reason;
@@ -517,8 +543,24 @@ function InputRow({ row }) {
           <span
             className="badge badge-cyan"
             style={{ marginLeft: 6, fontSize: "0.62rem", padding: "1px 5px" }}
+            title="Weight within this factor score"
           >
             {row.weight}
+          </span>
+        )}
+        {row.compositePct != null && (
+          <span
+            className="badge"
+            style={{
+              marginLeft: 4,
+              fontSize: "0.62rem",
+              padding: "1px 5px",
+              color: "var(--text-faint)",
+              border: "1px solid var(--border)",
+            }}
+            title="Effective share of the full composite score (factor weight x this factor's own weight)"
+          >
+            {row.compositePct}% of composite
           </span>
         )}
       </td>
@@ -548,7 +590,10 @@ function InputRow({ row }) {
 
 // ─── factor inputs card — every remaining field is a real weighted score
 // input (20260816 second pass removed all unweighted reference-only fields) ─
-function InputsCard({ title, stock, schema, inputsKey = null }) {
+// pillarWeight: this factor's own share of composite_score (PILLAR_COMPOSITE_WEIGHTS[key]),
+//   e.g. 0.20 for Quality - omitted for Positioning/Size, which are informational-only tabs
+//   with no composite_score contribution at all, so no "% of composite" badge is shown there.
+function InputsCard({ title, stock, schema, inputsKey = null, pillarWeight = null }) {
   const inputsObj = inputsKey ? stock?.[inputsKey] : stock;
 
   // DIAGNOSTIC: Log if inputsObj is missing (helps debug "No data" issues)
@@ -567,7 +612,12 @@ function InputsCard({ title, stock, schema, inputsKey = null }) {
         `[InputsCard] No reason for ${s.key} on ${stock?.symbol || "unknown"}`
       );
     }
-    return { ...s, value, reason };
+    const withinPillarPct = s.used ? _parsePctWeight(s.weight) : null;
+    const compositePct =
+      pillarWeight != null && withinPillarPct != null
+        ? Math.round(withinPillarPct * pillarWeight * 10) / 10
+        : null;
+    return { ...s, value, reason, compositePct };
   });
 
   return (
@@ -658,7 +708,14 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           <strong>Legend:</strong>
         </div>
         <div style={{ marginBottom: "4px" }}>
-          • <strong>Cyan tag</strong> = weight in the live scoring formula
+          • <strong>Cyan tag</strong> = weight within this factor's own score
+          (e.g. Quality, Value)
+        </div>
+        <div style={{ marginBottom: "4px" }}>
+          • <strong>Outlined tag</strong> = that input's effective share of
+          the full composite score (factor weight × its weight within the
+          factor) - Positioning and Size don't feed the composite, so they
+          have no outlined tag
         </div>
         <div style={{ marginBottom: "4px" }}>
           • <strong style={{ color: "var(--success)" }}>Value</strong> = data
@@ -699,24 +756,28 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           stock={stock}
           schema={QUALITY_SCHEMA}
           inputsKey="quality_inputs"
+          pillarWeight={PILLAR_COMPOSITE_WEIGHTS.quality}
         />
         <InputsCard
           title="Momentum"
           stock={stock}
           schema={MOMENTUM_SCHEMA}
           inputsKey="momentum_inputs"
+          pillarWeight={PILLAR_COMPOSITE_WEIGHTS.momentum}
         />
         <InputsCard
           title="Value"
           stock={stock}
           schema={VALUE_SCHEMA}
           inputsKey="value_inputs"
+          pillarWeight={PILLAR_COMPOSITE_WEIGHTS.value}
         />
         <InputsCard
           title="Growth"
           stock={stock}
           schema={GROWTH_SCHEMA}
           inputsKey="growth_inputs"
+          pillarWeight={PILLAR_COMPOSITE_WEIGHTS.growth}
         />
         <InputsCard
           title="Positioning (informational)"
@@ -729,6 +790,7 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           stock={stock}
           schema={RISK_SCHEMA}
           inputsKey="risk_inputs"
+          pillarWeight={PILLAR_COMPOSITE_WEIGHTS.risk}
         />
         {/* Size RETIRED as a scored pillar 2026-08-28 (see loaders/load_stock_scores.py's
             BASE_PILLAR_WEIGHTS) - market_cap is NOT deleted, shown informationally only, same
@@ -775,7 +837,7 @@ const StockScoreAccordion = ({
 };
 
 export default StockScoreAccordion;
-export { QUALITY_SCHEMA, RISK_SCHEMA };
+export { QUALITY_SCHEMA, RISK_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
 
 // ─── Input Schemas ──────────────────────────────────────────────────────────
 // Ground-truthed against loaders/load_stock_scores.py and

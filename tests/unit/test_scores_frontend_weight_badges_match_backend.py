@@ -340,3 +340,42 @@ class TestMomentumScoreWeightBadges:
         combined_weight = float(combined_match.group(1))
         _assert_pct_matches("rsi", combined_weight)
         _assert_pct_matches("macd", combined_weight)
+
+
+class TestCompositeWeightBadges:
+    """StockScoreAccordion.jsx's PILLAR_COMPOSITE_WEIGHTS drives the "% of composite" badge
+    added 2026-08-31 (goal: composite-score architecture review) next to every scored input's
+    existing within-factor weight badge - each input's effective share of the full
+    composite_score, not just its share of its own factor. Guards the same drift class as
+    every other test in this file: a hardcoded frontend copy of BASE_PILLAR_WEIGHTS going
+    stale after the next pillar reweight."""
+
+    def test_pillar_composite_weights_match_backend(self):
+        match = re.search(r"const PILLAR_COMPOSITE_WEIGHTS = \{([\s\S]*?)\n\};", _JSX_SOURCE)
+        assert match, "expected a PILLAR_COMPOSITE_WEIGHTS object literal in StockScoreAccordion.jsx"
+        jsx_weights = {k: float(v) for k, v in re.findall(r"(\w+):\s*(0\.\d+)", match.group(1))}
+        assert jsx_weights == BASE_PILLAR_WEIGHTS, (
+            f"StockScoreAccordion.jsx's PILLAR_COMPOSITE_WEIGHTS {jsx_weights} doesn't match "
+            f"loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS {BASE_PILLAR_WEIGHTS}"
+        )
+
+    def test_pillar_composite_weights_is_exported(self):
+        assert re.search(r"export \{[^}]*PILLAR_COMPOSITE_WEIGHTS[^}]*\};", _JSX_SOURCE), (
+            "PILLAR_COMPOSITE_WEIGHTS should be exported so other files/tests can import "
+            "the same single source of truth instead of hand-copying it"
+        )
+
+    def test_positioning_and_size_have_no_composite_weight(self):
+        """Positioning and Size are retired composite pillars (informational-only tabs) -
+        their InputsCard invocations must not pass a pillarWeight prop, or they'd wrongly
+        imply these tabs still feed composite_score."""
+        positioning_call = re.search(r'<InputsCard\s+title="Positioning \(informational\)"[\s\S]*?/>', _JSX_SOURCE)
+        size_call = re.search(r'<InputsCard\s+title="Size \(informational\)"[\s\S]*?/>', _JSX_SOURCE)
+        assert positioning_call and "pillarWeight" not in positioning_call.group(0)
+        assert size_call and "pillarWeight" not in size_call.group(0)
+
+    def test_all_five_composite_pillars_wire_a_pillar_weight(self):
+        for key in ("quality", "growth", "value", "risk", "momentum"):
+            assert re.search(r"pillarWeight=\{PILLAR_COMPOSITE_WEIGHTS\." + key + r"\}", _JSX_SOURCE), (
+                f"expected InputsCard for '{key}' to wire pillarWeight={{PILLAR_COMPOSITE_WEIGHTS.{key}}}"
+            )
