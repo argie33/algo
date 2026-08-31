@@ -218,9 +218,12 @@ class TestSizeScoreRemoved:
         ENTIRELY 2026-08-28 (direct user directive "just get rid of size", triggered by its
         imputed-regime evidence not surviving a strict complete-case retest even after fixing
         the data-coverage bugs that retest required first) - see loaders/load_stock_scores.py's
-        BASE_PILLAR_WEIGHTS for the full trail. Guards against the JSX schema drifting back to
-        advertising market_cap as a scored (weight-badged) input - it's still displayed
-        informationally via the Size (informational) card, just not scored."""
+        BASE_PILLAR_WEIGHTS for the full trail. Its last informational-only display remnant
+        (the "Size (informational)" card / SIZE_SCHEMA) was itself removed 2026-08-31 (commit
+        3cf5bf937, user directive) - market_cap is no longer surfaced in the JSX at all.
+        Guards against the JSX schema drifting back to advertising market_cap as a scored
+        (weight-badged) input, or the informational card reappearing without a `used`/`weight`
+        key that would wrongly imply Size still feeds composite_score."""
         assert not hasattr(StockScoresLoader, "_score_size")
         assert not hasattr(StockScoresLoader, "_size_curve_score")
         assert not hasattr(StockScoresLoader, "update_size_percentiles")
@@ -228,11 +231,14 @@ class TestSizeScoreRemoved:
         with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
             jsx_source = f.read()
         assert 'scoreKey: "size_score"' not in jsx_source
-        # market_cap (informational display) is expected to remain - only the weight-badged
-        # SIZE_SCHEMA entry should have no `weight:` key left.
+        # SIZE_SCHEMA and its informational card were removed entirely 2026-08-31 - if either
+        # reappears, it must not be weight-badged (would wrongly imply Size scores again).
         schema_match = re.search(r"const SIZE_SCHEMA = \[([\s\S]*?)\n\];", jsx_source)
-        assert schema_match, "expected SIZE_SCHEMA to still exist (informational display)"
-        assert "weight:" not in schema_match.group(1)
+        if schema_match:
+            assert "weight:" not in schema_match.group(1)
+        size_card_match = re.search(r'<InputsCard\s+title="Size \(informational\)"[\s\S]*?/>', jsx_source)
+        if size_card_match:
+            assert "pillarWeight" not in size_card_match.group(0)
 
 
 class TestPositioningScoreRemoved:
@@ -366,13 +372,16 @@ class TestCompositeWeightBadges:
         )
 
     def test_positioning_and_size_have_no_composite_weight(self):
-        """Positioning and Size are retired composite pillars (informational-only tabs) -
-        their InputsCard invocations must not pass a pillarWeight prop, or they'd wrongly
-        imply these tabs still feed composite_score."""
+        """Positioning and Size are retired composite pillars. Positioning still has an
+        informational-only InputsCard, which must not pass a pillarWeight prop (would wrongly
+        imply it still feeds composite_score). Size's own informational card was removed
+        entirely 2026-08-31 (commit 3cf5bf937, user directive) - if it ever reappears, it must
+        not be weight-badged either."""
         positioning_call = re.search(r'<InputsCard\s+title="Positioning \(informational\)"[\s\S]*?/>', _JSX_SOURCE)
         size_call = re.search(r'<InputsCard\s+title="Size \(informational\)"[\s\S]*?/>', _JSX_SOURCE)
         assert positioning_call and "pillarWeight" not in positioning_call.group(0)
-        assert size_call and "pillarWeight" not in size_call.group(0)
+        if size_call:
+            assert "pillarWeight" not in size_call.group(0)
 
     def test_all_five_composite_pillars_wire_a_pillar_weight(self):
         for key in ("quality", "growth", "value", "risk", "momentum"):
