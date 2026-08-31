@@ -4862,12 +4862,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     # pre-split (EPS 1.76/3.91, shares_outstanding_diluted ~2.5B - 10x fewer shares). eps_growth_5y
     # compared FY2026 (4.93, post-split) against FY2021 (1.76, pre-split) and got 22.88% CAGR -
     # a plausible-looking number that is actually ~4x too low, since the true split-adjusted
-    # FY2021 EPS is 1.76/10=0.176 and the real CAGR is ~95%. Guarded by checking
-    # shares_outstanding at the two endpoints: a >=EPS_SPLIT_GUARD_SHARE_RATIO ratio is far
-    # beyond any real 5-year buyback/dilution drift and means the two EPS values are on
-    # different per-share bases - CAGR is meaningless there, same category of "mathematically
-    # undefined" as the sign-flip case below, not a real data gap.
-    EPS_SPLIT_GUARD_SHARE_RATIO = 1.5
+    # FY2021 EPS is 1.76/10=0.176 and the real CAGR is ~95%. Originally guarded by a flat
+    # endpoint-to-endpoint share-count ratio threshold; REVISED 2026-08-31 to instead require a
+    # single-year jump near a standard split multiple - see _compute_period_growth's guard for
+    # the full evidence/rationale (that endpoint-only version false-positived on ~50% of
+    # flagged cases, which turned out to be ordinary multi-year organic dilution/buybacks, not
+    # splits).
+    # Standard stock-split/reverse-split multiples a real single-year share-count jump should
+    # land near - see _compute_period_growth's guard for the full evidence/rationale.
+    EPS_SPLIT_GUARD_CLEAN_MULTIPLES: tuple[float, ...] = (
+        1.5,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        10,
+        15,
+        20,
+        25,
+        50,
+        100,
+    )
+    EPS_SPLIT_GUARD_CLEAN_TOLERANCE = 0.06
 
     def _compute_period_growth(
         self,
@@ -4902,9 +4921,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         2026-08-17: 796 of 1,493 symbols flagged eps_growth_1y "insufficient_history" actually
         had ample EPS history - this sign-flip case, not a real data gap).
 
-        shares_by_year (EPS calls only - see EPS_SPLIT_GUARD_SHARE_RATIO above): when a
-        fiscal-year share count is on record for both endpoints and they differ by more than
-        EPS_SPLIT_GUARD_SHARE_RATIO, the two EPS values are on different split bases and the
+        shares_by_year (EPS calls only - see EPS_SPLIT_GUARD_CLEAN_MULTIPLES above): when any
+        adjacent pair of fiscal years between the two endpoints has a share-count ratio near a
+        standard split multiple, the two EPS values are on different split bases and the
         metric fails closed into sign_change_metrics's sibling set instead of returning a
         silently-wrong number.
         """
@@ -4937,11 +4956,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return
 
         if shares_by_year:
-            shares_latest = shares_by_year.get(latest_year)
-            shares_target = shares_by_year.get(target_year)
-            if shares_latest and shares_target:
-                share_ratio = max(shares_latest, shares_target) / min(shares_latest, shares_target)
-                if share_ratio >= self.EPS_SPLIT_GUARD_SHARE_RATIO:
+            # REVISED 2026-08-31 (goal: data-loading gap investigation). The original guard
+            # compared shares only at the two CAGR ENDPOINTS - this conflates two very
+            # different real causes: (a) a genuine unrestated stock split (SEC 10-Ks only
+            # restate ~2 prior fiscal years, so a split after an older filing leaves that
+            # filing's EPS on the pre-split basis forever - the original NVDA bug this guard
+            # exists for) vs (b) ordinary multi-year organic dilution/buybacks (secondary
+            # offerings, M&A stock issuance, continuous buyback programs) which changes real
+            # per-share economics but does NOT invalidate the comparison - each year's own
+            # reported EPS is computed on that year's own real share count, so the growth
+            # number is legitimate, just reflecting real dilution/anti-dilution the way EPS
+            # growth is supposed to. Live-verified against annual_income_statement: TRNO/RCMT/
+            # LOPE/ARW (real, actively-scored companies) show smooth multi-year share drift
+            # (steady REIT equity issuance / steady buybacks) with no single-year jump near a
+            # clean split ratio, yet were blocked purely because their cumulative 3-5yr
+            # endpoint ratio crossed 1.5x - 787 of 1,569 currently-flagged (symbol, period)
+            # comparisons (50%) turned out to be this false-positive case. The known real
+            # splits (NVDA 2022->2023 9.89x~10, GOOGL 2021->2022 19.87x~20, AVGO 2021->2022
+            # 9.86x~10, SMCI 2021->2022 10.02x~10) are all still correctly caught by requiring
+            # the jump be concentrated in ONE adjacent fiscal-year pair AND close to a standard
+            # split multiple - multi-year buyback drift on top of a real split (e.g. GOOGL's
+            # 5yr endpoint ratio is only 18.1x, not exactly 20x, from ~7% buybacks since the
+            # split) means an endpoint-only near-clean check isn't reliable either; scanning
+            # adjacent-year pairs isolates the split year itself regardless of what happens in
+            # surrounding years.
+            window_years = sorted(y for y in shares_by_year if target_year <= y <= latest_year)
+            for year_a, year_b in itertools.pairwise(window_years):
+                shares_a, shares_b = shares_by_year[year_a], shares_by_year[year_b]
+                share_ratio = max(shares_a, shares_b) / min(shares_a, shares_b)
+                if any(
+                    abs(share_ratio - mult) / mult < self.EPS_SPLIT_GUARD_CLEAN_TOLERANCE
+                    for mult in self.EPS_SPLIT_GUARD_CLEAN_MULTIPLES
+                ):
                     failed_metrics.append(metric_key)
                     if split_discontinuity_metrics is not None:
                         split_discontinuity_metrics.add(metric_key)
@@ -4963,7 +5009,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         earnings_per_share[, shares_outstanding_diluted, shares_outstanding_basic[,
         stockholders_equity]]) sorted DESC by fiscal_year (most recent first). The two shares
         columns are optional (older 5-tuple test fixtures still work) and feed the
-        EPS_SPLIT_GUARD_SHARE_RATIO guard; stockholders_equity (added 2026-08-27) is also
+        EPS_SPLIT_GUARD_CLEAN_MULTIPLES guard; stockholders_equity (added 2026-08-27) is also
         optional (older 5/7-tuple test fixtures still work) and feeds book_value_growth's BVPS
         computation only - every other field here is unaffected by its absence.
         """

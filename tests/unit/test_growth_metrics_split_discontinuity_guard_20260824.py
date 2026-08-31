@@ -82,3 +82,51 @@ def test_modest_buyback_driven_share_change_does_not_trip_the_guard():
 
     assert result["eps_growth_5y"] is not None
     assert result["eps_growth_5y_unavailable_reason"] is None
+
+
+def test_cumulative_multi_year_dilution_with_no_single_year_split_jump_is_not_blocked():
+    """REGRESSION for the 2026-08-31 fix: the guard used to compare shares only at the two CAGR
+    endpoints, so gradual organic dilution/buybacks that happen to cross the 1.5x ratio over a
+    3-5 year window (e.g. a REIT steadily issuing equity, or a mature company steadily buying
+    back stock) got wrongly blocked as a "split" even though no single fiscal year shows
+    anything resembling a real split - live-confirmed on TRNO/RCMT/LOPE/ARW, ~50% of the
+    1,569 real (symbol, period) comparisons flagged in the live DB turned out to be this exact
+    false positive. This fixture's shares grow ~60% smoothly over 5 years (no single-year jump
+    above ~11%) - a real capital-structure change, not a split - so eps_growth_5y must compute.
+    """
+    loader = _make_loader()
+    income_rows = [
+        (2026, 100.0, None, None, 2.0, 160000000, None),
+        (2025, 100.0, None, None, 1.8, 148000000, None),
+        (2024, 100.0, None, None, 1.6, 135000000, None),
+        (2023, 100.0, None, None, 1.4, 122000000, None),
+        (2022, 100.0, None, None, 1.2, 110000000, None),
+        (2021, 100.0, None, None, 1.0, 100000000, None),
+    ]
+
+    result = loader._compute_growth_metrics("GRADUALDILUTE", income_rows)
+
+    assert result["eps_growth_5y"] is not None
+    assert result["eps_growth_5y_unavailable_reason"] is None
+
+
+def test_real_split_confounded_by_surrounding_buybacks_is_still_caught():
+    """GOOGL-shaped: a real 20:1 split concentrated in one fiscal year, with buybacks in the
+    surrounding years pulling the naive 5yr ENDPOINT ratio down to ~18x (not exactly 20x) - the
+    endpoint-only near-clean check the initial fix design considered would have missed this.
+    Scanning adjacent-year pairs isolates the split year itself and still catches it.
+    """
+    loader = _make_loader()
+    income_rows = [
+        (2026, 100.0, None, None, 2.0, 12100000000, None),
+        (2025, 100.0, None, None, 1.8, 12230000000, None),
+        (2024, 100.0, None, None, 1.6, 12447000000, None),
+        (2023, 100.0, None, None, 1.4, 12722000000, None),
+        (2022, 100.0, None, None, 1.2, 13159000000, None),  # post-split
+        (2021, 100.0, None, None, 1.0, 662121000, None),  # pre-split: ~19.9x jump vs 2022
+    ]
+
+    result = loader._compute_growth_metrics("SPLITBUYBACK", income_rows)
+
+    assert result["eps_growth_5y"] is None
+    assert result["eps_growth_5y_unavailable_reason"] == "growth_undefined_share_count_discontinuity"
