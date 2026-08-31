@@ -4474,7 +4474,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     min_weight_pct=1.0,  # >=1 of 2 available
                 )
                 quality_components = [(profitability_cluster_score, 1.0), (safety_cluster_score, 1.0)]
-                min_quality_weight_pct = 2.0  # both clusters must have scored something
+                # FIXED 2026-08-31 (goal: data-loading gap investigation): was 2.0 ("both
+                # clusters must have scored something", i.e. 100% of the 2.0 possible weight) -
+                # far stricter than the universal branch's own 40%-of-101 floor just below,
+                # despite this comment's neighbor above claiming "a symbol missing part of one
+                # cluster still scores off whatever it has, same 'score what's available'
+                # convention as the universal formula" - true for a PARTIAL cluster gap
+                # (handled correctly by each cluster's own internal _weighted_avg), false for a
+                # WHOLE cluster gap, which the 2.0 floor discarded entirely regardless of how
+                # well-populated the other cluster was. Live-confirmed: 66 of 91 FS/RE symbols
+                # (73%) currently null on quality_score via "insufficient_completeness" have a
+                # real, adequately-populated cluster on one side and zero data on the other -
+                # e.g. BAP (Credicorp, a real, large, profitable Peruvian bank): roe=16.08/
+                # roa=2.20/fcf_margin=51.73 all real (3/5 profitability inputs, clears that
+                # cluster's own 40% floor easily), but debt_to_equity AND margin_volatility are
+                # BOTH missing (foreign banks routinely report balance-sheet structure - equity/
+                # liabilities/deposits - in ways this pipeline's standard concepts don't map
+                # cleanly to margin_volatility's multi-year-history requirement or
+                # debt_to_equity's XBRL tags) so safety_cluster_score comes back None and the
+                # whole quality_score was discarded despite 60% of the profitability leg being
+                # real data. Lowered to 1.0 - at least ONE cluster (which already individually
+                # cleared its own internal completeness floor) is required, mirroring
+                # safety_cluster's own ">=1 of 2" pattern one level up, not "both required".
+                min_quality_weight_pct = 1.0
             else:
                 quality_components = [
                     (roe_score, 11.0),

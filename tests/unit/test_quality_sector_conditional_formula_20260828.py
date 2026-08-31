@@ -225,18 +225,65 @@ class TestSectorConditionalFormula:
 
         assert metrics["quality_score"] != self._expected_cluster_score()
 
-    def test_real_estate_missing_entire_safety_cluster_reports_insufficient_completeness(self):
-        # Both debt_to_equity and margin_volatility unavailable -> safety_cluster_score is None
-        # -> only 1 of 2 top-level cluster terms available -> below the min_weight_pct=2.0 floor
-        # (both clusters must contribute something) -> quality_score None, not a thin-sample
-        # profitability-only extrapolation.
+    def test_real_estate_missing_entire_safety_cluster_still_scores_off_profitability(self):
+        # FIXED 2026-08-31 (goal: data-loading gap investigation): both debt_to_equity and
+        # margin_volatility unavailable -> safety_cluster_score is None -> only 1 of 2
+        # top-level cluster terms available. Previously required min_weight_pct=2.0 (BOTH
+        # clusters present, 100% of the top-level weight) - far stricter than the universal
+        # formula's own 40%-of-101 floor just below in the same function, and contradicting
+        # this file's own "score what's available" convention (see the comment above
+        # quality_components' construction) which only actually held for a PARTIAL cluster
+        # gap, not a WHOLE one. Live-confirmed on real symbols (e.g. BAP/Credicorp, a real,
+        # large, profitable Peruvian bank with 3/5 real profitability inputs but both safety
+        # inputs missing) - 66 of 91 FS/RE symbols null on quality_score via
+        # "insufficient_completeness" had exactly this shape: one well-populated cluster, one
+        # entirely empty. Now: min_quality_weight_pct=1.0 (at least ONE cluster, which must
+        # have already cleared its own internal completeness floor) - quality_score renders
+        # off the profitability cluster alone, not silently discarded.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Real Estate"
-        # stockholders_equity=None removes debt_to_equity's denominator; margin_volatility=None
-        # removes the other safety-cluster input.
-        row = _row(stockholders_equity=None)
+        # long_term_debt=None (row) + total_debt_ev=None (ev_metrics) removes debt_to_equity's
+        # AND roce_pct's shared debt input without touching stockholders_equity (so roe stays
+        # available) - margin_volatility=None removes the other safety-cluster input. Leaves
+        # profitability_cluster with roe/roa/fcf_margin/gross_profitability (4/5, still well
+        # above that cluster's own 40% floor) and safety_cluster completely empty (0/2).
+        row = _row(long_term_debt=None)
+        ev_metrics_no_debt = (None, 500_000.0, 3_000_000.0)  # (total_debt, total_cash, ebitda)
 
-        metrics = loader._compute_quality_metrics("THINCO", row, ev_metrics=_EV_METRICS, margin_volatility=None)
+        metrics = loader._compute_quality_metrics("THINCO", row, ev_metrics=ev_metrics_no_debt, margin_volatility=None)
+
+        assert metrics.get("debt_to_equity") is None
+        assert metrics.get("margin_volatility") is None
+        assert metrics.get("roce_pct") is None
+        assert metrics.get("roe") is not None  # profitability cluster's other inputs intact
+
+        roe_curve = L._reconciliation_margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+        roa_curve = L._reconciliation_margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
+        fcf_curve = L._reconciliation_margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+        gp_curve = L._reconciliation_margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
+        expected_profitability_only = (roe_curve + roa_curve + fcf_curve + gp_curve) / 4.0
+
+        assert metrics["quality_score"] == expected_profitability_only
+        assert metrics["quality_score_unavailable_reason"] is None
+
+    def test_neither_cluster_populated_still_reports_insufficient_completeness(self):
+        # Genuine floor case retained: if BOTH clusters come back empty, quality_score must
+        # still be None - the fix above only stops discarding a real single-cluster signal,
+        # it doesn't remove the floor entirely.
+        loader = _make_loader()
+        loader._get_symbol_sector = lambda symbol: "Real Estate"
+        row = _row(
+            stockholders_equity=None,
+            total_assets=None,
+            revenue=None,
+            operating_income=None,
+            cost_of_revenue=None,
+            long_term_debt=None,
+            net_income=None,
+        )
+        ev_metrics_empty = (None, None, None)
+
+        metrics = loader._compute_quality_metrics("EMPTYCO", row, ev_metrics=ev_metrics_empty, margin_volatility=None)
 
         assert metrics.get("quality_score") is None
         assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
