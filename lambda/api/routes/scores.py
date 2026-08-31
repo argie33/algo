@@ -97,6 +97,13 @@ def handle(
             sort_order = (extract_param(params, "sortOrder") or "desc").lower()
             sp500_only = extract_param(params, "sp500Only") or "false"
             symbol = extract_param(params, "symbol")
+            min_market_cap_param = extract_param(params, "minMarketCap")
+            min_market_cap: float | None = None
+            if min_market_cap_param:
+                try:
+                    min_market_cap = float(min_market_cap_param)
+                except ValueError:
+                    return error_response(400, "bad_request", "minMarketCap must be numeric")
 
             allowed_sorts = [
                 "composite_score",
@@ -116,7 +123,9 @@ def handle(
             if sort_order not in ["asc", "desc"]:
                 return error_response(400, "bad_request", 'Sort order must be "asc" or "desc"')
 
-            return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol)
+            return _get_stock_scores(
+                cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol, min_market_cap
+            )
         else:
             return error_response(404, "not_found", "Invalid scores endpoint requested")
     except (
@@ -939,6 +948,7 @@ def _get_stock_scores(  # noqa: C901
     sort_order: str = "desc",
     sp500_only: bool = False,
     symbol: str | None = None,
+    min_market_cap: float | None = None,
 ) -> Any:
     """Get stock scores with multi-factor ranking."""
     try:
@@ -1099,6 +1109,28 @@ def _get_stock_scores(  # noqa: C901
             # This gives traders full visibility: completeness % shown for all scores >= 50%.
             where_clause += " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
 
+        # MARKET-CAP ELIGIBILITY FLOOR (added 2026-08-31, /goal session - "make sure the
+        # results make sense" investigation). This endpoint's default sort is composite_score
+        # DESC with no investability screen of any kind - live-verified the top of that
+        # ranking was dominated by nano/micro-caps (SOGP $37.6M mkt cap, COHN $19.6M, CPBI
+        # $79.5M, several under $200K/day dollar volume), because Size was deliberately
+        # retired as a scoring PILLAR (size_pillar_retired_entirely_20260828 in memory - not
+        # being re-litigated here) with nothing left to offset small-cap-favoring percentile
+        # scoring. A liquidity gate already exists for real trade EXECUTION
+        # (algo/risk/liquidity_checks.py, min_adv_shares/min_adv_dollars config) but only
+        # fires at Phase 8 entry time - invisible to anyone just browsing this "top stocks"
+        # list, so untradeable names surface as if they were the best picks. Opt-in
+        # (min_market_cap query param, no default) rather than a silent behavior change for
+        # existing callers/tests - single-symbol lookups are deliberately exempt (you should
+        # always be able to look up any specific symbol regardless of its size). Standard
+        # index-provider practice (Russell/S&P/MSCI) applies exactly this kind of investability
+        # screen separately from the factor scores themselves.
+        market_cap_join = ""
+        if min_market_cap is not None and not symbol:
+            market_cap_join = "JOIN value_metrics mcf ON mcf.symbol = sc.symbol"
+            where_clause += " AND mcf.market_cap >= %s"
+            params_list.append(min_market_cap)
+
         # Real universe count (goal: dashboard/API were reporting "only ~1000 stocks
         # screened" - traced to `estimated_total` below being a page-size heuristic instead
         # of an actual count, compounded by this endpoint's limit being capped at 1000. The
@@ -1109,6 +1141,7 @@ def _get_stock_scores(  # noqa: C901
             SELECT COUNT(*)
             FROM stock_scores sc
             JOIN stock_symbols ss ON ss.symbol = sc.symbol
+            {market_cap_join}
             {where_clause}
         """
         cur.execute(count_query, params_list)
@@ -1129,6 +1162,7 @@ def _get_stock_scores(  # noqa: C901
                     SELECT sc.*, ss.security_name, ss.is_sp500
                     FROM stock_scores sc
                     JOIN stock_symbols ss ON ss.symbol = sc.symbol
+                    {market_cap_join}
                     {where_clause}
                     ORDER BY sc.{sort_col} {sort_direction}
                     LIMIT %s OFFSET %s
