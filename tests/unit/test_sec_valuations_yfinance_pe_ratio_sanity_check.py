@@ -73,6 +73,7 @@ class TestYfinancePeRatioSanityCheck:
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (39_000_000.0,),  # company_info_sec shares cross-check - agrees, no override
             (376.86,),  # price_daily.close
             (60_000_000.0,),  # stockholders_equity
@@ -101,6 +102,7 @@ class TestYfinancePeRatioSanityCheck:
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (39_000_000.0,),
             (376.86,),
             (60_000_000.0,),
@@ -122,6 +124,7 @@ class TestYfinancePeRatioSanityCheck:
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (39_000_000.0,),
             (376.86,),
             (60_000_000.0,),

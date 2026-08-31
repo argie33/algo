@@ -80,6 +80,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (6_100_534.0,),  # company_info_sec shares_outstanding cross-check - real ~6.1M
             (32.21,),  # price_daily.close
             (60_000_000.0,),  # stockholders_equity
@@ -111,6 +112,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (None,),  # company_info_sec cross-check - nothing available
             (32.21,),  # price_daily.close
             (60_000_000.0,),  # stockholders_equity
@@ -137,6 +139,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (11_000_000.0,),  # company_info_sec cross-check - close, 1.1x, not a scale error
             (32.21,),  # price_daily.close
             (60_000_000.0,),  # stockholders_equity

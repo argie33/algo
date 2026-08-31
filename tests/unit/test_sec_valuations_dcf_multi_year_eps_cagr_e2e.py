@@ -125,6 +125,7 @@ class TestMultiYearEpsCagrEndToEnd:
             (68_111_000.0,),  # cash_row2 (cash_and_equivalents)
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             None,  # cross_check_row - no company_info_sec data, no override
             (50.0,),  # price_row (price_daily.close)
             (5_157_000_000.0,),  # balance_row (stockholders_equity)
@@ -203,6 +204,7 @@ class TestMultiYearEpsCagrEndToEnd:
             (68_111_000.0,),
             (20_000_000.0, 5_000_000.0, None, None),
             None,
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             None,
             (50.0,),
             (5_157_000_000.0,),

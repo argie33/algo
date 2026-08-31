@@ -72,6 +72,7 @@ class TestDomesticFilerAdsRatioOverride:
             (30_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (None,),  # company_info_sec cross-check (reported shares already resolved)
             (14.0,),  # price_daily.close
             (100_000_000.0,),  # stockholders_equity
@@ -98,6 +99,7 @@ class TestDomesticFilerAdsRatioOverride:
             (30_000_000.0,),
             (5_000_000.0, None, None, None),
             None,
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (None,),  # company_info_sec cross-check (reported shares already resolved)
             (14.0,),
             (100_000_000.0,),

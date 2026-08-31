@@ -202,6 +202,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
             (55_911_000_000.0,),  # cash_and_equivalents - real, current-year figure
             (None, 0.0, None, None),  # debt_row - GOOGL-FY2026-shaped: long_term_debt NULL
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
             (50.0,),
             (500_000_000.0,),

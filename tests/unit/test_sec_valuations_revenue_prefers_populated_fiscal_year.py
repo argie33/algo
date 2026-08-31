@@ -73,6 +73,7 @@ _DOWNSTREAM_FETCHONE = [
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     None,  # has_dual_class_sibling check (2026-08-21) - bare None = no matching row (LIMIT 1)
+    (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
     (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
     (50.0,),
     (500_000_000.0,),

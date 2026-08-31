@@ -152,6 +152,7 @@ class TestFpiLiveYfinanceSanityCheck:
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (1_417_000_000.0,),
             (376.86,),
             (60_000_000.0,),

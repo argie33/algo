@@ -75,6 +75,7 @@ class TestStaleAnnualSharesLoweredThreshold:
             (1_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match (WHLR is single-class)
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (1_931_568.0,),  # company_info_sec cross-check - real, fresher value
             (0.37,),  # price_daily.close
             (2_000_000.0,),  # stockholders_equity
@@ -103,6 +104,7 @@ class TestStaleAnnualSharesLoweredThreshold:
             (1_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (11_000_000.0,),  # company_info_sec cross-check - 11x higher
             (10.0,),  # price_daily.close
             (2_000_000.0,),  # stockholders_equity

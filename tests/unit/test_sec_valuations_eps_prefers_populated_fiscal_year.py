@@ -75,6 +75,7 @@ _DOWNSTREAM_FETCHONE = [
     (20_000_000.0, 5_000_000.0, None, None),
     None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a
     # tuple - "SELECT 1 FROM ... LIMIT 1" returns None when no row matches)
+    (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
     (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
     (35.26,),
     (500_000_000.0,),

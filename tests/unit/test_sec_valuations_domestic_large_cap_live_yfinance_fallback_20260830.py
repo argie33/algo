@@ -80,6 +80,7 @@ _BASE_FETCHONE_RESULTS = [
     (5_000_000.0,),  # cash_and_equivalents
     (1_000_000.0, None, None, None),  # debt_row
     None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+    (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
     (1_417_000_000.0,),  # company_info_sec domestic cross-check tier (agrees, no mismatch)
     (376.86,),  # price_daily.close
     (60_000_000.0,),  # stockholders_equity
@@ -120,6 +121,7 @@ class TestDomesticLargeCapLiveYfinanceFallback:
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (5_000_000.0,),  # company_info_sec cross-check tier (agrees)
             (10.70,),  # price
             (60_000_000.0,),

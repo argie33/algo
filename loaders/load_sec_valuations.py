@@ -730,6 +730,53 @@ class SecValuationsLoader(OptimalLoader):
                         shares_out = float(reported_shares_outstanding)
                         logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
 
+                        # FIXED 2026-08-31 (goal: data-coverage sweep, HBIO follow-up to
+                        # sec_valuations_fpi_shares_out_missing_gate_fixed_20260831): the query
+                        # above that produced `reported_shares_outstanding` orders by "has
+                        # revenue/EPS/net_income" FIRST, fiscal_year DESC second - so
+                        # `income_rows[0]` (and the shares_outstanding_basic riding along with
+                        # it) is tied to whichever fiscal year has usable P&L data, not
+                        # necessarily the most recent fiscal year on file. A real stock split
+                        # correctly updates the LATEST year's share count immediately, but if
+                        # that latest year's P&L hasn't posted yet (a fresh partial filing),
+                        # this tier silently uses an OLDER, pre-split share count instead - the
+                        # same "stale share count" failure mode already fixed elsewhere in this
+                        # session (FUBO/GPUS/IHRT), just via a different mechanism (row
+                        # selection, not concept staleness). Live-confirmed via HBIO (Harvard
+                        # Bioscience): its FY2026 row has shares_outstanding_basic=4,552,305
+                        # (matching real ~4.55M shares) but no revenue yet, so the query above
+                        # picked FY2025's row instead - shares_outstanding_basic=44,391,000 (a
+                        # real, ~10x-larger PRE-split figure) - producing market_cap=$352.0M vs
+                        # real ~$34.4M. FY2026's row doesn't even appear in `income_rows` (LIMIT
+                        # 6, already exhausted by 6 revenue-bearing years) so this can't be
+                        # solved by scanning already-fetched data - one bounded extra query for
+                        # the single most recent fiscal year with ANY usable share count (not
+                        # gated on revenue). Only overrides when it's both a later fiscal_year
+                        # than the row already selected AND meaningfully different (>=1.3x, same
+                        # threshold as the reverse-split override in load_company_info_sec.py),
+                        # so ordinary dilution/buybacks between two adjacent years don't trigger
+                        # it.
+                        cur.execute(
+                            """
+                            SELECT shares_outstanding_basic, fiscal_year FROM annual_income_statement
+                            WHERE symbol = %s AND shares_outstanding_basic > %s AND shares_outstanding_basic < %s
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
+                        )
+                        freshest_row = cur.fetchone()
+                        if freshest_row and freshest_row[0] and freshest_row[1] and freshest_row[1] > ttm_fiscal_year:
+                            freshest_shares = float(freshest_row[0])
+                            larger, smaller = max(shares_out, freshest_shares), min(shares_out, freshest_shares)
+                            if smaller > 0 and larger / smaller >= 1.3:
+                                logger.warning(
+                                    f"[{symbol}] shares_outstanding_basic from FY{ttm_fiscal_year} "
+                                    f"(the P&L-bearing row)={shares_out:,.0f} is staler than FY{freshest_row[1]}'s "
+                                    f"{freshest_shares:,.0f} (ratio {larger / smaller:.1f}x) - likely a stock "
+                                    "split/major share event between the two years; using the more recent count"
+                                )
+                                shares_out = freshest_shares
+
                     # Fallback: compute shares outstanding from SEC financial data: shares = net_income / eps.
                     # If both net_income and eps are available, we can compute shares directly from SEC audited data.
                     # This mathematically reconstructs whatever share count the filer itself used

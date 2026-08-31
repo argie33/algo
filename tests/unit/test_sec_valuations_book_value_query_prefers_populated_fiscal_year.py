@@ -90,6 +90,7 @@ class TestBookValueQueryPrefersPopulatedFiscalYear:
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None, None),  # freshest shares_outstanding_basic check (2026-08-31) - no fresher row
             (1_000_000_000.0,),  # company_info_sec shares cross-check - agrees, no override
             (50.0,),  # price_daily.close
             (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
