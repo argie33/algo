@@ -290,7 +290,38 @@ class SecValuationsLoader(OptimalLoader):
     # that would be wrongly flipped; FUBO (30.0M resolved vs 342.4M company_info_sec, 11.4x)
     # is a real live example of exactly this pattern being CORRECTED, not broken, by the
     # lower threshold (fuboTV's real share count is ~330-350M, not ~30M).
-    SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO = 10
+    #
+    # FIXED 2026-08-31 (goal session: continuation of the UROY ~2.6x discrepancy flagged open
+    # in sec_valuations_pl_row_coupled_stale_shares_hbio_fixed_20260831): lowered again, from
+    # 10x to 2x. Live-verified UROY's resolved shares_out (126.8M, from FY2025
+    # shares_outstanding_basic) vs company_info_sec (381.1M, ~3.0x) against a FRESH live
+    # yfinance fetch (not the 7-week-stale yfinance_snapshot row that made an earlier same-day
+    # check look deceptively close) - yfinance's sharesOutstanding=381,067,318 matches
+    # company_info_sec EXACTLY, confirming company_info_sec correct and the SEC-derived value
+    # stale/wrong, the same pattern as every fix above, just at a lower multiple this dataset
+    # hadn't been checked at yet.
+    #
+    # Verified this generalizes, not a UROY one-off, via a DB-wide scan + live yfinance
+    # cross-check on BOTH directions of the 2x-10x band (not just "company_info_sec bigger" -
+    # the existing cross-check below is direction-agnostic, so both needed checking):
+    # - company_info_sec LARGER (235 symbols DB-wide in this band): 7/7 spot-checked confirmed
+    #   correct via live yfinance, including COKE (Coca-Cola Consolidated, a real ~$13B
+    #   company, 7.9x) - not just distressed micro-caps this time. The lower end of this band
+    #   clusters suspiciously tight at ~2.00-2.04x across many unrelated tickers (ARTV/DCH/
+    #   RNAZ/LIDR/TNXP/MLI/NRXP/NKTR/JBIO/PTHS/...), consistent with an unadjusted 2-for-1
+    #   stock split signature.
+    # - `sv.shares_outstanding` LARGER (86 symbols DB-wide): 4/4 spot-checked ALSO confirmed
+    #   company_info_sec correct via live yfinance - including HON (Honeywell) and FOX (Fox
+    #   Corp), real large/mega-cap names. This one surprised the initial assumption ("a big
+    #   company's bigger number is probably right") - trust the live check, not company
+    #   familiarity: yfinance's real current sharesOutstanding matched company_info_sec exactly
+    #   for both, not the larger stored value.
+    # 11/11 live-verified correct in company_info_sec's favor, 0 counterexamples found in
+    # either direction - unlike the 20x->10x lowering's "spot-checked, overwhelmingly
+    # distressed/micro-cap" caveat, this evidence run deliberately included large/well-known
+    # names specifically to stress-test for a false-positive risk at this lower threshold, and
+    # found none.
+    SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO = 2
 
     # Per-run cache for _get_risk_free_rate() below - a plain class attribute (rather than an
     # __init__ override) since every real instantiation of this loader only ever runs once
