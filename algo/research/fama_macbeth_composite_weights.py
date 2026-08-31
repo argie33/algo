@@ -1,70 +1,102 @@
 #!/usr/bin/env python3
 """
 Fama-MacBeth test of the TOP-LEVEL composite_score combination (Quality/Growth/Value/Risk/
-Momentum/Size pillar weights).
+Momentum pillar weights).
 
-Built 2026-08-25, REBUILT 2026-08-27 (goal: user goal-mode session found this script's proxies
-had drifted stale against the pillar formulas that shipped on 2026-08-27 - Growth collapsed from
-a 14-input blend to a single book_value_growth input, Quality's components changed (ROCE/FCF
-Margin/margin_volatility/asset_turnover/gross_profitability replacing interest_coverage/payout),
-Value dropped dividend_yield for net_payout_yield and added PEG/margin_of_safety, Positioning was
-fully retired as a scored pillar, and Size was promoted from a Value sub-component to a real
-top-level pillar. This rewrite re-derives every proxy from the CURRENT live formula in
-loaders/load_stock_scores.py, drops positioning_proxy entirely (nothing left to test - retired on
-its own evidence), and folds size_proxy into the core 6-pillar regression instead of treating it
-as an optional 7th-factor add-on (that question was already answered and acted on).
-
-SECOND, more important change this pass (user pushback: "our analysis is no good with partial
-data... we cannot tell proper relationships between things"): the 2026-08-25
-"PARTIAL-AVAILABILITY REDESIGN" that z-scores each pillar over whatever's available and then
-0-imputes ("no information") any missing pillar to grow the sample from ~850 to ~6,500 symbols
-is a real methodological risk the user is right to flag - missingness is not necessarily random
-(MNAR): a stock missing Quality data because it's a thin SEC filer is a DIFFERENT population, not
-an "average" one, and imputing it to 0 can manufacture or mask a cross-pillar relationship rather
-than reveal a real one. This script now runs BOTH regimes side by side on every check
-(multivariate, univariate, half-split) - COMPLETE-CASE (strict dropna, every pillar proxy must be
-genuinely observed that symbol-month, small biased-toward-large-caps sample but no imputation
-artifact) and PARTIAL-AVAILABILITY (the larger, imputed sample) - and flags disagreement rather
-than trusting either alone. A pillar weight is only treated as evidence-backed here if the
-finding is directionally consistent across BOTH regimes AND both half-split eras - the same
-"don't trust a single point estimate" discipline this project already applies elsewhere
-(margin_volatility_3y, Size's promotion), extended to the imputation question specifically.
+Built 2026-08-25, REBUILT 2026-08-27, REBUILT AGAIN 2026-08-31 (composite-score research
+session - this script had drifted stale/BROKEN against main's live pillar formulas yet again,
+same recurring failure mode as the 2026-08-27 rebuild's own opening paragraph describes).
+Concretely, as of this rebuild: (1) Size was retired ENTIRELY from BASE_PILLAR_WEIGHTS on
+2026-08-28 (5 keys now: quality/growth/value/risk/momentum) - the pre-rebuild script still
+mapped size_proxy -> BASE_PILLAR_WEIGHTS["size"], which KeyErrors on the current dict, i.e. this
+script could not even RUN before this rebuild. (2) growth_proxy was a single input
+(-book_value_growth) from a since-abandoned single-input Growth design; Growth was restored to
+an 11-field equal-weighted blend on 2026-08-28 (explicit user override of that same session's
+own evidence - see GROWTH_SCORE_FIELDS in loaders/load_stock_scores.py). (3) stability_proxy
+(Risk) still included downside_vol_60d (removed from live scoring 2026-08-28) and omitted
+vol_252d (added this same session, 2026-08-31, alongside beta's no-longer-clipped-to-0 fix from
+2026-08-28/29) at the wrong weights entirely. (4) value_proxy's PE/PB/PS weights (12/30/27) are
+several reweights stale (live is currently 12/39/34). Bottom line: the evidence that justified
+today's BASE_PILLAR_WEIGHTS (quality=0.20/growth=0.24/value=0.27/risk=0.19/momentum=0.10) was
+generated against pillar formulas that have since changed multiple times - this rebuild exists
+to re-derive that evidence honestly against what's ACTUALLY live on main right now, verified
+directly against loaders/load_stock_scores.py line-by-line before writing a single proxy below
+(not copied from any docstring's prose, several of which were themselves found stale mid-verify -
+see MEMORY.md's stock_scores section for the broader pattern: multiple pillar formulas described
+there as "current" turned out to only exist in an uncommitted worktree, not on main).
 
 Pillar proxies (z-scored components combined at each pillar's LIVE weight ratios - NOT
 independently re-derived per-component weights, since that's what the per-pillar scripts already
 tested; this script answers the separate top-level question), verified against
-loaders/load_stock_scores.py directly on 2026-08-27:
-- growth_proxy: single input, -book_value_growth (BVPS YoY %, inverted - lower is better, same
-  sign the live _score_growth curve uses). Sole survivor of an isolated-FM audit that found the
-  old 11/14-input blend's other candidates all dominated/subsumed by this one - see
-  loaders/load_stock_scores.py's _score_growth docstring for the full evidence trail.
+loaders/load_stock_scores.py directly on 2026-08-31:
+
+- growth_proxy: equal-weighted average of z-scored [eps_growth_1y, eps_growth_3y, eps_growth_5y,
+  revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, net_income_growth_yoy,
+  fcf_growth_yoy, sustainable_growth_rate] - 9 of the live 11-field GROWTH_SCORE_FIELDS blend
+  (~82% coverage of the live equal-weight formula, honest partial proxy, not the full 11).
+  quarterly_growth_momentum and earnings_growth_4q_avg are EXCLUDED - both are derived from
+  QUARTERLY EPS/revenue history (load_value_quality_growth_metrics.py's
+  _compute_quarterly_metrics), and no existing research script in this repo reconstructs a
+  point-in-time quarterly fundamentals panel (annual_income_statement/annual_balance_sheet/
+  annual_cash_flow are all annual-only) - building one from scratch was out of scope for this
+  pass. sustainable_growth_rate IS newly reconstructed here (not in the pre-2026-08-31 version
+  of this script) via the same ROE x retention-ratio formula
+  load_value_quality_growth_metrics.py uses (net_income/stockholders_equity x
+  (1 - dividends_paid/|net_income|)), sourced from annual_balance_sheet.stockholders_equity and
+  annual_cash_flow.dividends_paid (NULL dividends_paid treated as 0, i.e. full retention - a
+  simplification of production's dividend_data-table fallback logic for genuinely-never-paid
+  dividends, disclosed here not hidden). NOT sign-flipped anywhere - matches live's plain
+  "higher growth = higher score" convention exactly (2026-08-28 user override of this file's own
+  prior growth-reversal research, see _score_growth's docstring).
+
+- value_proxy: P/E (12%) + P/B (39%) + P/S (34%), renormalized over 85 of the live 100
+  (Forward P/E's 4% and Dividend Yield's 11% EXCLUDED - forward_pe has ~4 weeks of real
+  analyst-estimate history in this DB, not enough for any point-in-time panel; a monthly
+  point-in-time dividend history reconstruction is a materially separate research effort not
+  attempted here). Live PE/PB/PS are now scored via a POST-RUN CROSS-SECTIONAL PERCENTILE rank
+  (update_value_multiples_percentiles()), not fixed curves - a cross-sectional z-score of
+  -PE/-PB/-PS (lower ratio = better) is this proxy's analogue of that percentile rank, same
+  z-score convention this script already uses for every other pillar.
+
 - quality_proxy: ROE 11% + ROA 18% + ROCE 18% + FCF Margin 15% + (-Debt/Equity) 18% +
   (-Margin Volatility 3Y) 7% + Asset Turnover 7% + Gross Profitability 7% (nominal 101, matches
-  _score_quality's current 8-component live weights exactly - Altman Z excluded, computed/
-  persisted but deliberately unscored as a discrete distress classifier, not part of the live
-  weighted formula either).
-- value_proxy: PE/PB/PS/FCF-yield only, renormalized over the live PE12/PB30/PS27/FCF9=78 nominal
-  (excludes PEG7/NetPayoutYield8/MoS7=22 of the live 100 - PEG needs a growth cross-term,
-  margin-of-safety needs a full DCF model, net_payout_yield needs buyback data not in this
-  script's point-in-time fundamentals fetch; none is a single point-in-time ratio like the rest
-  of this panel, same limitation the pre-2026-08-27 version of this script already had and
-  disclosed - NOT a new gap, still an honest ~78%-of-live-weight proxy, not the full formula).
-  No embedded Size term (unlike the pre-2026-08-27 version) - Size is a real top-level pillar now,
-  not a Value sub-component.
-- stability_proxy (maps to live BASE_PILLAR_WEIGHTS["risk"]): (-vol_60d)*0.45 + (-|beta-1|)*0.20 +
-  (-downside_vol_60d)*0.15 + max_dd*0.20 - unchanged, still matches the live Risk formula.
-- momentum_proxy: mom_3m*0.20 + mom_12_1*0.35 + rsi_14*0.21 + macd_sign*0.16 +
-  avg(price_vs_sma_50,price_vs_sma_200)*0.08 - unchanged, still matches _score_momentum live.
-- size_proxy: -log10(market_cap) - now a REAL top-level pillar (BASE_PILLAR_WEIGHTS["size"]=0.20
-  as of the 2026-08-27 re-promotion), not an optional 7th-factor test. positioning_proxy REMOVED
-  entirely - Positioning has no live scoring weight to validate any more (fully retired
-  2026-08-27, A/D rating null across every methodology tried including a full 2000-2026 re-test).
+  _score_quality's current 8-component live weights exactly, unchanged from the 2026-08-27
+  rebuild - re-verified against the live docstring this pass, still accurate). Altman Z
+  excluded, computed/persisted but deliberately unscored as a discrete distress classifier, not
+  part of the live weighted formula either.
 
-Each raw component is winsorized/z-scored the same way as its origin script BEFORE being combined
-into the pillar proxy, then the resulting pillar proxies are z-scored AGAIN at the top level
-before the final regression - so the final coefficients are directly comparable "how much does a
-1-std move in this whole pillar's current formula predict forward return, controlling for the
-others" numbers.
+- stability_proxy (maps to live BASE_PILLAR_WEIGHTS["risk"]): (-vol_60d)*0.45 + (-vol_252d)*0.20
+  + (-|beta-1|)*0.20 + max_dd_1y*0.15 - matches the Risk pillar's 2026-08-31 rework exactly
+  (downside_vol_60d fully removed from live scoring; vol_252d added; beta is NOT clipped to a
+  floor of 0 here, matching the live 2026-08-28/29 fix that removed that clip since beta is a
+  signed regression coefficient, not a floor-0 metric). FIDELITY UPGRADE this rebuild: vol_60d/
+  vol_252d/max_dd_1y are now computed from the DAILY price panel already fetched for Momentum
+  (60/252 actual trading days), not the prior version's 12-MONTH rolling-monthly-return
+  approximation (which was silently a ~3-month-vs-12-month mismatch for what was meant to proxy
+  a 60-trading-day window - a real, previously undisclosed fidelity gap in every prior version
+  of this script, not just a stale-weights problem). Beta is LEFT on the monthly 24-month
+  regression window (not upgraded to a matching daily window) - a known, disclosed
+  approximation carried over from every prior version of this script, not attempted to fix here
+  to keep this rebuild's scope to the weight/formula staleness it was written to address.
+
+- momentum_proxy: mom_3m*0.20 + mom_12_1*0.35 + avg(rsi_14, macd_sign)*0.37 +
+  avg(price_vs_sma_50, price_vs_sma_200)*0.08 - unchanged from the 2026-08-27 rebuild,
+  re-verified against _score_momentum's actual code (not just its docstring prose) this pass:
+  RSI/MACD are score-then-averaged in production (two 0-100 sub-scores), but macd_sign is
+  ALREADY a sign-only extraction here (np.sign(macd_line) in
+  fama_macbeth_momentum_factors.py's compute_daily_indicators), so z-scoring these two
+  components and averaging them is a faithful linear analogue of production's "average the two
+  0-100 sub-scores" treatment, not a mismatched approximation.
+
+Each raw component is winsorized/z-scored the same way as its origin script BEFORE being
+combined into the pillar proxy, then the resulting pillar proxies are z-scored AGAIN at the top
+level before the final regression - so the final coefficients are directly comparable "how much
+does a 1-std move in this whole pillar's current formula predict forward return, controlling for
+the others" numbers.
+
+Same dual-regime discipline as the 2026-08-27 rebuild (COMPLETE-CASE strict dropna vs
+PARTIAL-AVAILABILITY 0-imputed) - a pillar weight is only evidence-backed here if directionally
+consistent across BOTH regimes AND both half-split eras.
 
 Usage:
     python -m algo.research.fama_macbeth_composite_weights [options]
@@ -80,6 +112,7 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Lasso, Ridge
 
+from algo.research.fama_macbeth_growth_factors import REPORTING_LAG_DAYS, build_growth_panel, merge_asof_monthly
 from algo.research.fama_macbeth_momentum_factors import (
     build_month_end_panel,
     compute_daily_indicators,
@@ -93,20 +126,16 @@ from algo.research.fama_macbeth_price_factors import (
     fetch_month_end_prices,
 )
 from algo.research.fama_macbeth_quality_factors import build_quality_panel, fetch_annual_quality_fundamentals
-from algo.research.fama_macbeth_value_factors import fetch_annual_value_fundamentals
-from algo.research.growth_reinvestment_book_value_candidates import (
-    build_panel as build_book_value_panel,
-)
-from algo.research.growth_reinvestment_book_value_candidates import (
-    fetch_panel_raw as fetch_book_value_fundamentals,
-)
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-# 6 pillars, matching loaders/load_stock_scores.py's CURRENT BASE_PILLAR_WEIGHTS keys exactly
-# (quality/growth/value/risk/momentum/size) - no positioning_proxy (retired, nothing to test).
-PILLAR_COLS = ["growth_proxy", "value_proxy", "quality_proxy", "stability_proxy", "momentum_proxy", "size_proxy"]
+# 5 pillars, matching loaders/load_stock_scores.py's CURRENT BASE_PILLAR_WEIGHTS keys exactly
+# (quality/growth/value/risk/momentum). No size_proxy - Size was retired entirely 2026-08-28,
+# BASE_PILLAR_WEIGHTS has no "size" key any more (the pre-2026-08-31 version of this script
+# still had one, which is why it could not run - see module docstring).
+PILLAR_COLS = ["growth_proxy", "value_proxy", "quality_proxy", "stability_proxy", "momentum_proxy"]
 
 PILLAR_TO_LIVE_KEY = {
     "growth_proxy": "growth",
@@ -114,8 +143,19 @@ PILLAR_TO_LIVE_KEY = {
     "quality_proxy": "quality",
     "stability_proxy": "risk",
     "momentum_proxy": "momentum",
-    "size_proxy": "size",
 }
+
+GROWTH_PROXY_COLS = [
+    "eps_growth_1y",
+    "eps_growth_3y",
+    "eps_growth_5y",
+    "revenue_growth_1y",
+    "revenue_growth_3y",
+    "revenue_growth_5y",
+    "ni_growth_yoy",
+    "fcf_growth_yoy",
+    "sustainable_growth_rate",
+]
 
 
 def _zwinsor(s: pd.Series) -> pd.Series:
@@ -133,7 +173,6 @@ def build_value_panel_raw() -> pd.DataFrame:
     out["eps"] = fund["eps"]
     out["book_value_per_share"] = fund["stockholders_equity"] / shares
     out["sales_per_share"] = fund["revenue"] / shares
-    out["fcf_per_share"] = fund["free_cash_flow"] / shares
     out["shares_diluted"] = shares
     out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
         days=REPORTING_LAG_DAYS
@@ -141,18 +180,137 @@ def build_value_panel_raw() -> pd.DataFrame:
     return out.dropna(subset=["known_date"])
 
 
-from algo.research.fama_macbeth_growth_factors import REPORTING_LAG_DAYS, merge_asof_monthly  # noqa: E402
+def fetch_annual_value_fundamentals() -> pd.DataFrame:
+    """Point-in-time PE/PB/PS inputs - eps, stockholders_equity, revenue, shares_diluted."""
+    sql = """
+        SELECT i.symbol, i.fiscal_year,
+               COALESCE(i.diluted_eps, i.eps) AS eps,
+               i.revenue,
+               b.stockholders_equity,
+               i.shares_outstanding_diluted AS shares_diluted
+        FROM annual_income_statement i
+        LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
+        WHERE i.fiscal_year BETWEEN 2000 AND 2026
+          AND COALESCE(i.data_unavailable, false) = false
+          AND i.shares_outstanding_diluted > 0
+        ORDER BY i.symbol, i.fiscal_year
+    """
+    with DatabaseContext("read") as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    df = pd.DataFrame(
+        rows, columns=["symbol", "fiscal_year", "eps", "revenue", "stockholders_equity", "shares_diluted"]
+    )
+    for col in ["eps", "revenue", "stockholders_equity", "shares_diluted"]:
+        df[col] = df[col].astype(float)
+    return df
 
 
-def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa: C901 -- research script
+def fetch_growth_and_sgr_fundamentals() -> pd.DataFrame:
+    """Annual fundamentals panel for growth_proxy: reuses fama_macbeth_growth_factors'
+    fetch_annual_fundamentals() columns (revenue/eps/net_income/operating_income/fcf/ocf/
+    total_assets) PLUS stockholders_equity and dividends_paid, needed only for
+    sustainable_growth_rate (production: net_income/stockholders_equity x
+    (1 - dividends_paid/|net_income|) x 100). Extra columns are ignored by
+    build_growth_panel() (it only reads its own known column set), so this is a strict superset
+    safe to pass through unchanged.
+    """
+    sql = """
+        SELECT i.symbol, i.fiscal_year,
+               i.revenue, COALESCE(i.diluted_eps, i.eps) AS eps,
+               i.net_income, i.operating_income,
+               c.free_cash_flow, c.operating_cash_flow, c.dividends_paid,
+               b.total_assets, b.stockholders_equity
+        FROM annual_income_statement i
+        LEFT JOIN annual_cash_flow c ON c.symbol = i.symbol AND c.fiscal_year = i.fiscal_year
+        LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
+        WHERE i.fiscal_year BETWEEN 2000 AND 2026
+          AND COALESCE(i.data_unavailable, false) = false
+        ORDER BY i.symbol, i.fiscal_year
+    """
+    with DatabaseContext("read") as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "symbol",
+            "fiscal_year",
+            "revenue",
+            "eps",
+            "net_income",
+            "operating_income",
+            "fcf",
+            "ocf",
+            "dividends_paid",
+            "total_assets",
+            "stockholders_equity",
+        ],
+    )
+    for col in [
+        "revenue",
+        "eps",
+        "net_income",
+        "operating_income",
+        "fcf",
+        "ocf",
+        "dividends_paid",
+        "total_assets",
+        "stockholders_equity",
+    ]:
+        df[col] = df[col].astype(float)
+    return df
+
+
+def _compute_sgr(fund: pd.DataFrame) -> pd.Series:
+    """Sustainable growth rate = ROE x retention ratio x 100, same formula as
+    load_value_quality_growth_metrics.py. dividends_paid NULL -> 0 (full retention) - a
+    simplification of production's dividend_data-table fallback for genuinely-never-paid
+    dividends, disclosed not hidden. Only defined where stockholders_equity > 0 and
+    net_income != 0, matching production's own guard."""
+    se = fund["stockholders_equity"]
+    ni = fund["net_income"]
+    div = fund["dividends_paid"].fillna(0.0)
+    valid = (se > 0) & (ni != 0)
+    out = pd.Series(np.nan, index=fund.index)
+    roe = ni[valid] / se[valid]
+    retention = 1.0 - (div[valid] / ni[valid].abs())
+    out[valid] = roe * retention * 100.0
+    return out
+
+
+def build_growth_and_sgr_panel(fund: pd.DataFrame) -> pd.DataFrame:
+    growth_panel = build_growth_panel(fund)  # eps/revenue/ni/fcf growth + known_date
+    sgr = _compute_sgr(fund)
+    sgr_panel = fund[["symbol", "fiscal_year"]].copy()
+    sgr_panel["sustainable_growth_rate"] = sgr
+    return growth_panel.merge(sgr_panel, on=["symbol", "fiscal_year"], how="left")
+
+
+def build_pillar_proxy_records(
+    start_date: str, end_date: str, min_cross_section: int
+) -> tuple[
+    list[tuple[pd.Timestamp, pd.DataFrame]],
+    list[tuple[pd.Timestamp, pd.DataFrame]],
+    list[tuple[pd.Timestamp, pd.DataFrame]],
+]:
+    """Builds the monthly pillar-proxy panel once. Returns (records_partial, records_complete,
+    records_raw) - records_raw is the SAME per-month frame as records_complete's source before
+    the top-level per-month z-score/winsorize/impute step, added 2026-08-31 (composite-score
+    research session, Question B) so downstream scripts (e.g. a percentile-rank-vs-z-score
+    comparison) can derive an alternative per-month normalization from the identical underlying
+    data instead of re-running this same expensive DB fetch + panel-build a second time. Each
+    pillar proxy in records_raw is still a weighted average of z-scored SUB-components (e.g.
+    growth_proxy = average of 9 individually z-scored growth fields) - only the top-level
+    per-month cross-sectional normalization of the PILLAR proxy itself is skipped here, matching
+    exactly what records_complete/records_partial do next.
+    """
     logger.info("Building fundamentals panels (growth/value/quality)")
-    growth_fund = build_book_value_panel(fetch_book_value_fundamentals())
+    growth_fund = fetch_growth_and_sgr_fundamentals()
+    growth_panel = build_growth_and_sgr_panel(growth_fund)
     value_fund = build_value_panel_raw()
     quality_raw = fetch_annual_quality_fundamentals()
     quality_fund = build_quality_panel(quality_raw)
-    # asset_turnover isn't built by build_quality_panel() (added to _score_quality later than
-    # that panel builder was last touched) - Revenue/Total Assets, same DuPont formula as
-    # quality_asset_turnover_piotroski_candidates.py.
     quality_fund = quality_fund.merge(
         quality_raw[["symbol", "fiscal_year", "revenue", "total_assets"]], on=["symbol", "fiscal_year"], how="left"
     )
@@ -169,6 +327,10 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
     months_period = pd.PeriodIndex(months, freq="M")
 
     daily_close = fetch_daily_close(start_date, end_date)
+    daily_wide = daily_close.pivot(index="date", columns="symbol", values="px").sort_index()
+    daily_ret = daily_wide.pct_change(fill_method=None)
+    daily_dates = daily_wide.index
+
     daily_close = compute_daily_indicators(daily_close)
     _px_daily, indicators = build_month_end_panel(daily_close)
     for key in indicators:
@@ -176,9 +338,9 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
             indicators[key].set_axis(pd.PeriodIndex(indicators[key].index, freq="M")).reindex(months_period)
         )
 
-    growth_monthly = merge_asof_monthly(months, growth_fund, cols=["book_value_growth"])
+    growth_monthly = merge_asof_monthly(months, growth_panel, cols=GROWTH_PROXY_COLS)
     value_monthly = merge_asof_monthly(
-        months, value_fund, cols=["eps", "book_value_per_share", "sales_per_share", "fcf_per_share", "shares_diluted"]
+        months, value_fund, cols=["eps", "book_value_per_share", "sales_per_share", "shares_diluted"]
     )
     quality_monthly = merge_asof_monthly(
         months,
@@ -195,48 +357,50 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
         ],
     )
 
-    beta_window = 24
-    vol_window = 12
-    # Two parallel record sets: "partial" (0-imputed, matches the live composite's own
-    # skip-unavailable/renormalize tolerance) and "complete" (strict dropna on the 6 raw pillar
-    # proxies BEFORE any imputation - a real "is this relationship there even without imputation
-    # help" check, per the user's concern this pass exists to address).
+    beta_window = 24  # months - beta left on the monthly window, see module docstring
+    # Map each month-end to the closest actual trading day <= that month-end in the DAILY
+    # panel, so vol_60d/vol_252d/max_dd_1y can be computed from real 60/252 TRADING-DAY windows
+    # instead of the prior version's 12-month rolling-monthly-return approximation.
+    month_to_daily_idx: dict[pd.Timestamp, int | None] = {}
+    for month in months:
+        cutoff = pd.Timestamp(month) + pd.offsets.MonthEnd(0)
+        pos = int(daily_dates.searchsorted(cutoff, side="right")) - 1
+        month_to_daily_idx[month] = pos if pos >= 0 else None
+
     records_partial: list[tuple[pd.Timestamp, pd.DataFrame]] = []
     records_complete: list[tuple[pd.Timestamp, pd.DataFrame]] = []
+    records_raw: list[tuple[pd.Timestamp, pd.DataFrame]] = []
 
     for i in range(beta_window, len(months) - 1):
         month = months[i]
+        daily_idx = month_to_daily_idx.get(month)
 
         g = growth_monthly.get(month)
         v = value_monthly.get(month)
         q = quality_monthly.get(month)
-        if g is None or v is None or q is None or g.empty or v.empty or q.empty:
+        if g is None or v is None or q is None or g.empty or v.empty or q.empty or daily_idx is None:
+            continue
+        if daily_idx < 251:  # need a full 252-trading-day window
             continue
 
-        growth_proxy = -_zwinsor(g["book_value_growth"])
+        growth_cols_z = [_zwinsor(g[c]) for c in GROWTH_PROXY_COLS]
+        growth_proxy = sum(growth_cols_z) / len(growth_cols_z)
 
         price = px.iloc[i].reindex(v.index)
         pe = np.where(v["eps"] > 0, price / v["eps"], np.nan)
         pb = np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan)
         ps = np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan)
-        fcf_yield = v["fcf_per_share"] / price
-        # value_proxy: PE12/PB30/PS27/FCF9 renormalized over 78 (live's remaining 22 - PEG7/
-        # NetPayoutYield8/MoS7 - excluded, see module docstring). No Size term (Size is now a
-        # separate top-level pillar, not a Value sub-component).
+        # value_proxy: PE12/PB39/PS34 renormalized over 85 (live's remaining 15 - ForwardPE4/
+        # DividendYield11 - excluded, see module docstring).
         value_proxy = (
-            (12.0 / 78.0) * _zwinsor(-pd.Series(pe, index=v.index))
-            + (30.0 / 78.0) * _zwinsor(-pd.Series(pb, index=v.index))
-            + (27.0 / 78.0) * _zwinsor(-pd.Series(ps, index=v.index))
-            + (9.0 / 78.0) * _zwinsor(fcf_yield)
+            (12.0 / 85.0) * _zwinsor(-pd.Series(pe, index=v.index))
+            + (39.0 / 85.0) * _zwinsor(-pd.Series(pb, index=v.index))
+            + (34.0 / 85.0) * _zwinsor(-pd.Series(ps, index=v.index))
         )
-
-        market_cap = price * v["shares_diluted"]
-        log_mc = np.where((market_cap >= 1e6) & (market_cap <= 1e13), np.log10(market_cap), np.nan)
-        size_proxy = _zwinsor(-pd.Series(log_mc, index=v.index))
 
         # quality_proxy: ROE11/ROA18/ROCE18/FCFmargin15/(-D2E)18/(-marginvol)7/assetturnover7/
         # grossprofitability7, nominal 101 - matches _score_quality's current 8-component live
-        # weights exactly.
+        # weights exactly (re-verified 2026-08-31, unchanged from 2026-08-27).
         quality_proxy = (
             (11.0 / 101.0) * _zwinsor(q["roe"])
             + (18.0 / 101.0) * _zwinsor(q["roa"])
@@ -248,9 +412,16 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
             + (7.0 / 101.0) * _zwinsor(q["gross_profitability"])
         )
 
-        win = ret.iloc[i - vol_window + 1 : i + 1]
-        vol = win.std() * np.sqrt(12)
-        downside_vol = win.where(win < 0).std() * np.sqrt(12)
+        # Risk (stability_proxy): vol_60d/vol_252d/max_dd_1y from the DAILY panel (real
+        # 60/252-trading-day windows), beta from the monthly 24-month window (unchanged
+        # approximation - see module docstring).
+        win60 = daily_ret.iloc[daily_idx - 59 : daily_idx + 1]
+        win252 = daily_ret.iloc[daily_idx - 251 : daily_idx + 1]
+        vol_60d = win60.std() * np.sqrt(252)
+        vol_252d = win252.std() * np.sqrt(252)
+        px_window_252 = daily_wide.iloc[daily_idx - 251 : daily_idx + 1]
+        max_dd_1y = (px_window_252 / px_window_252.cummax() - 1.0).min()
+
         winb = ret.iloc[i - beta_window + 1 : i + 1]
         mkt_win = mkt.iloc[i - beta_window + 1 : i + 1]
         mkt_var = mkt_win.var()
@@ -259,27 +430,23 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
             if mkt_var and mkt_var > 0
             else pd.Series(np.nan, index=winb.columns)
         )
-        win_px = px.iloc[i - vol_window + 1 : i + 1]
-        max_dd = (win_px / win_px.cummax() - 1.0).min()
+        beta = beta.reindex(vol_60d.index)
         stability_proxy = (
-            0.45 * _zwinsor(-vol)
+            0.45 * _zwinsor(-vol_60d)
+            + 0.20 * _zwinsor(-vol_252d)
             + 0.20 * _zwinsor(-(beta - 1.0).abs())
-            + 0.15 * _zwinsor(-downside_vol)
-            + 0.20 * _zwinsor(max_dd)
+            + 0.15 * _zwinsor(max_dd_1y)
         )
 
         mom_3m = _trailing_cumret(px, i, 3)
         mom_12_1 = _trailing_cumret(px, i - 1, 11)
         rsi = indicators["rsi_14"].iloc[i]
         macd_sign = indicators["macd_sign"].iloc[i]
-        sma_avg = (indicators["price_vs_sma_50"].iloc[i] + indicators["price_vs_sma_200"].iloc[i]) / 2.0
-        momentum_proxy = (
-            0.20 * _zwinsor(mom_3m)
-            + 0.35 * _zwinsor(mom_12_1)
-            + 0.21 * _zwinsor(rsi)
-            + 0.16 * _zwinsor(macd_sign)
-            + 0.08 * _zwinsor(sma_avg)
-        )
+        tech_trend = (_zwinsor(rsi) + _zwinsor(macd_sign)) / 2.0
+        sma_avg = (
+            _zwinsor(indicators["price_vs_sma_50"].iloc[i]) + _zwinsor(indicators["price_vs_sma_200"].iloc[i])
+        ) / 2.0
+        momentum_proxy = 0.20 * _zwinsor(mom_3m) + 0.35 * _zwinsor(mom_12_1) + 0.37 * tech_trend + 0.08 * sma_avg
 
         fwd_ret = ret.iloc[i + 1]
 
@@ -290,7 +457,6 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
                 "quality_proxy": quality_proxy,
                 "stability_proxy": stability_proxy,
                 "momentum_proxy": momentum_proxy,
-                "size_proxy": size_proxy,
                 "fwd_ret": fwd_ret,
             }
         )
@@ -300,9 +466,8 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
         if len(raw) < min_cross_section:
             continue
 
-        # COMPLETE-CASE: strict dropna on the 6 raw pillar proxies (pre-imputation) - only
-        # symbol-months where every pillar was genuinely observed. Z-score within THIS reduced
-        # universe (not reusing partial's z-scores) so the comparison is apples-to-apples.
+        records_raw.append((month, raw.copy()))
+
         complete = raw.dropna(subset=PILLAR_COLS)
         if len(complete) >= min_cross_section:
             complete = complete.copy()
@@ -310,8 +475,6 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
                 complete[col] = _zwinsor(complete[col])
             records_complete.append((month, complete))
 
-        # PARTIAL-AVAILABILITY: z-score each pillar over whatever's available this month, then
-        # 0-impute missing (matches the live composite_score's own tolerance).
         partial = raw.copy()
         for col in PILLAR_COLS:
             partial[col] = _zwinsor(partial[col]).fillna(0.0)
@@ -321,6 +484,14 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
         raise RuntimeError("No usable cross-sectional months - pillars may not overlap enough symbols")
     if not records_complete:
         logger.warning("No complete-case months cleared min_cross_section - skipping that comparison")
+
+    return records_partial, records_complete, records_raw
+
+
+def run(start_date: str, end_date: str, min_cross_section: int) -> None:
+    records_partial, records_complete, _records_raw = build_pillar_proxy_records(
+        start_date, end_date, min_cross_section
+    )
 
     def _report(records: list[tuple[pd.Timestamp, pd.DataFrame]], label: str) -> None:
         sizes = [len(f) for _, f in records]
@@ -363,9 +534,6 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
     if records_complete:
         _report(records_complete, "COMPLETE-CASE (strict dropna, no imputation, smaller sample)")
 
-        # DIRECT AGREEMENT CHECK - the actual answer to the user's concern: does each pillar's
-        # multivariate sign/significance survive BOTH regimes, or does it only show up once
-        # imputation manufactures extra sample?
         multi_partial = _fama_macbeth(records_partial, PILLAR_COLS)
         multi_complete = _fama_macbeth(records_complete, PILLAR_COLS)
         print("\n########## AGREEMENT CHECK: partial-availability vs complete-case ##########")
@@ -381,9 +549,7 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:  # noqa
             "\nOnly a pillar marked ROBUST here (significant AND same-signed in both the imputed"
             " and the strict-complete-case regime) should be treated as evidence for a"
             " BASE_PILLAR_WEIGHTS change. 'same-sign'-only or DISAGREE means the imputed sample's"
-            " larger size is likely doing the work, not a real relationship - do not act on it"
-            " without first checking whether missingness itself correlates with the outcome"
-            " (survivorship/thin-filer bias) rather than assuming MCAR."
+            " larger size is likely doing the work, not a real relationship."
         )
     else:
         print("\n(No complete-case comparison available - see warning above.)")

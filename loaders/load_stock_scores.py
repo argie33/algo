@@ -155,6 +155,38 @@ logger = logging.getLogger(__name__)
 # unchanged, just no longer synthesized into its own 0-100 size_score. Migration
 # drops size_score from stock_scores/stock_scores_history (see migrations/ dir for the
 # positioning-retirement migration this one is modeled on).
+#
+# RE-VERIFIED 2026-08-31, NO CHANGE (composite-score architecture research session).
+# algo/research/fama_macbeth_composite_weights.py had drifted stale/BROKEN again by this date
+# (still mapped a retired size_proxy -> BASE_PILLAR_WEIGHTS["size"], a KeyError against this
+# dict's current 5 keys; growth_proxy/value_proxy/stability_proxy all several reweights out of
+# date - see that script's own module docstring for the itemized list). Rebuilt from scratch
+# against main's ACTUAL live formulas (110 months, 2017-06 to 2026-07): under this project's own
+# "must be significant AND same-signed in both the imputed and strict-complete-case regime" bar,
+# NO pillar clears it (growth/value: same-sign only, not both significant; quality/risk/momentum:
+# DISAGREE outright between regimes). Risk's eye-catching imputed-regime t=5.49 fails hard in the
+# complete-case check (t=-0.72, wrong sign) and is concentrated almost entirely in the second half
+# (2022-2026) - the exact imputation-artifact pattern this dual-regime discipline exists to catch,
+# not real evidence. Verdict: the weights below remain the best-supported choice by absence of a
+# better one, not by fresh confirmation - a meaningfully different, more honest state than "proven
+# correct." Separately re-confirmed pillar-based architecture over flat ML on the SAME corrected
+# data: walk-forward OOS, live fixed-weight linear Spearman=0.0830 vs a raw-pillar tree model's
+# 0.0160 (357,612 symbol-months, 2023-2026 test years) - same conclusion as the 2026-08-27
+# raw-input-level test, now reconfirmed post-formula-drift rather than assumed still true.
+#
+# SAME SESSION, FOLLOW-UP (algo/research/composite_percentile_and_interaction_test_20260831.py):
+# swept all 10 pillar-pair interactions (5 pillars, complete-case, same |t|>=2-both-eras bar) -
+# only value_proxy x stability_proxy clears it (t_FULL=-3.90, both eras -2.74/-2.77), reconfirming
+# the ALREADY-LIVE VALUE_RISK_INTERACTION_MAX_SHIFT mechanism below with corrected formulas, not
+# just carrying it forward on old evidence. No other pair is a candidate for similar treatment.
+# Also tested percentile-rank vs the current mixed fixed-curve/percentile scoring for scale
+# consistency (Quality/Growth/Momentum/Risk use fixed curves, Value's PE/PB/PS use a real
+# cross-sectional percentile via update_value_multiples_percentiles() - a genuine "are these
+# comparable scales" question, not previously tested): an all-percentile composite variant edges
+# the current approach on pooled walk-forward Spearman (0.0881 vs 0.0830) but is NOT era-robust by
+# this file's own standard (wins clearly in 2023-24, roughly ties/trails in 2025-26) and loses
+# decisively on Pearson (~0.02 vs ~0.05 both eras) - suggestive, not conclusive. Left as an open
+# question for explicit user direction, not acted on unilaterally on a non-robust result.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
     "growth": 0.24,
