@@ -2216,11 +2216,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             #   outside MAX_INTRINSIC_VALUE_PER_SHARE bounds (only reached when fcf_yield > 0 -
             #   the fcf_yield <= 0 case correctly returns negative_free_cash_flow instead, see
             #   intrinsic_value_reason_from_fcf_yield's own docstring/history).
-            # - garbage_metric_value_abs_gt_100000: an EPS/earnings growth rate whose magnitude
-            #   exceeds MAX_TREND_PERCENTAGE_POINTS (100000%) - a near-zero denominator
+            # - garbage_metric_value_implausible_growth_rate: an EPS/earnings growth rate whose
+            #   magnitude exceeds MAX_PLAUSIBLE_GROWTH_PCT (2000%, tightened 2026-08-28 from the
+            #   original MAX_TREND_PERCENTAGE_POINTS/100000% bound) - a near-zero denominator
             #   artifact, not a real growth rate, rejected the same way implausible_ratio is.
+            #   RENAMED 2026-08-31 from "garbage_metric_value_abs_gt_100000" - that string had
+            #   gone stale ever since the 2026-08-28 tightening (it still named the OLD 100000%
+            #   bound while every site setting it had already switched to the 2000% one).
             "implausible_dcf_result",
-            "garbage_metric_value_abs_gt_100000",
+            "garbage_metric_value_implausible_growth_rate",
             # ADDED 2026-08-20 (goal session: missing-data root-cause audit): load_sec_valuations.py's
             # _sanity_check_pe_ratio (>10x vs yfinance) rejects a mis-scaled ttm_eps the same way
             # _sanity_check_market_cap rejects a mis-scaled shares_outstanding just above - same

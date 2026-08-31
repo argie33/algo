@@ -1691,15 +1691,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             if eps_growth_rates:
                 earnings_growth_4q_avg = sum(eps_growth_rates) / len(eps_growth_rates)
-                # Bounded like every other growth/trend field in this file (see
-                # MAX_TREND_PERCENTAGE_POINTS above) - a near-zero prior-quarter EPS makes a
-                # single quarter's growth rate (and therefore this average) mathematically
-                # enormous despite being a "real" computation, which would overflow this
-                # NUMERIC(10,4) column and abort the entire row's write.
+                # Bounded like every other growth-RATE field in this file (see
+                # MAX_PLAUSIBLE_GROWTH_PCT above, not the looser MAX_TREND_PERCENTAGE_POINTS -
+                # that stale reference is what left the "garbage_metric_value_implausible_
+                # growth_rate" reason string itself mislabeled as "_abs_gt_100000" until
+                # 2026-08-31) - a near-zero prior-quarter EPS makes a single quarter's growth
+                # rate (and therefore this average) mathematically enormous despite being a
+                # "real" computation, which would overflow this NUMERIC(10,4) column and abort
+                # the entire row's write.
                 if abs(earnings_growth_4q_avg) < MAX_PLAUSIBLE_GROWTH_PCT:
                     metrics["earnings_growth_4q_avg"] = float(round(earnings_growth_4q_avg, 2))
                 else:
-                    metrics["earnings_growth_4q_avg_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
+                    metrics["earnings_growth_4q_avg_unavailable_reason"] = (
+                        "garbage_metric_value_implausible_growth_rate"
+                    )
 
                 if len(eps_growth_rates) >= 2:
                     mean_growth = sum(eps_growth_rates) / len(eps_growth_rates)
@@ -1711,7 +1716,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if stability_stddev < MAX_PLAUSIBLE_GROWTH_PCT:
                         metrics["eps_growth_stability"] = float(round(stability_stddev, 2))
                     else:
-                        metrics["eps_growth_stability_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
+                        metrics["eps_growth_stability_unavailable_reason"] = (
+                            "garbage_metric_value_implausible_growth_rate"
+                        )
                 else:
                     # Only one quarter-over-quarter EPS comparison available - not enough to
                     # compute a variance/stddev, but this is a real, explainable gap.
@@ -1736,7 +1743,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if abs(quarterly_growth_momentum) < MAX_PLAUSIBLE_GROWTH_PCT:
                     metrics["quarterly_growth_momentum"] = float(round(quarterly_growth_momentum, 2))
                 else:
-                    metrics["quarterly_growth_momentum_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
+                    metrics["quarterly_growth_momentum_unavailable_reason"] = (
+                        "garbage_metric_value_implausible_growth_rate"
+                    )
             elif any_yoy_period_matched:
                 metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_revenue_data"
             else:
@@ -1763,7 +1772,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if abs(surprise) < MAX_PLAUSIBLE_GROWTH_PCT:
                         metrics["earnings_surprise_avg"] = float(round(surprise, 2))
                     else:
-                        metrics["earnings_surprise_avg_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
+                        metrics["earnings_surprise_avg_unavailable_reason"] = (
+                            "garbage_metric_value_implausible_growth_rate"
+                        )
 
                 # Earnings beat rate: % of recent quarters with positive EPS growth (proxy for beats)
                 if len(eps_growth_rates) > 0:

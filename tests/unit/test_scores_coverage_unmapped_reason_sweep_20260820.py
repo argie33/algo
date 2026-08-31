@@ -10,9 +10,12 @@ rows that are genuine sanity-check rejections or missing-SEC-data cases, not err
 - implausible_dcf_result (loaders/load_value_quality_growth_metrics.py): the DCF model
   produced a per-share value outside MAX_INTRINSIC_VALUE_PER_SHARE bounds (only reached when
   fcf_yield > 0) - "Implausible / rejected value".
-- garbage_metric_value_abs_gt_100000 (loaders/load_value_quality_growth_metrics.py): an
-  EPS/earnings growth rate whose magnitude exceeds MAX_TREND_PERCENTAGE_POINTS (a near-zero
-  denominator artifact) - "Implausible / rejected value".
+- garbage_metric_value_implausible_growth_rate (loaders/load_value_quality_growth_metrics.py,
+  RENAMED 2026-08-31 from "garbage_metric_value_abs_gt_100000" - that name had gone stale, still
+  describing the pre-2026-08-28 MAX_TREND_PERCENTAGE_POINTS/100000% bound after every site
+  setting it had already switched to the tighter MAX_PLAUSIBLE_GROWTH_PCT/2000% one): an
+  EPS/earnings growth rate whose magnitude exceeds that bound (a near-zero denominator
+  artifact) - "Implausible / rejected value".
 """
 
 import importlib
@@ -25,7 +28,7 @@ def test_no_companyfacts_categorizes_as_missing_sec_data():
 
 
 def test_dcf_and_growth_sanity_rejections_categorize_as_implausible():
-    for reason in ("implausible_dcf_result", "garbage_metric_value_abs_gt_100000"):
+    for reason in ("implausible_dcf_result", "garbage_metric_value_implausible_growth_rate"):
         assert scores_mod._categorize_reason(reason) == "Implausible / rejected value", (
             f"{reason!r} categorized as {scores_mod._categorize_reason(reason)!r}, not 'Implausible / rejected value'"
         )

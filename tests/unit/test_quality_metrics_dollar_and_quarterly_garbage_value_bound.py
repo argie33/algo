@@ -172,7 +172,10 @@ class TestQuarterlyGrowthMomentumGarbageBound:
         metrics = loader._compute_quarterly_metrics("DUO")
 
         assert metrics.get("quarterly_growth_momentum") is None
-        assert metrics.get("quarterly_growth_momentum_unavailable_reason") == "garbage_metric_value_abs_gt_100000"
+        assert (
+            metrics.get("quarterly_growth_momentum_unavailable_reason")
+            == "garbage_metric_value_implausible_growth_rate"
+        )
 
     def test_near_zero_prior_quarter_eps_marked_unavailable(self, monkeypatch):
         rows = self._quarters(
@@ -185,7 +188,9 @@ class TestQuarterlyGrowthMomentumGarbageBound:
         metrics = loader._compute_quarterly_metrics("NIQ")
 
         assert metrics.get("earnings_growth_4q_avg") is None
-        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") == "garbage_metric_value_abs_gt_100000"
+        assert (
+            metrics.get("earnings_growth_4q_avg_unavailable_reason") == "garbage_metric_value_implausible_growth_rate"
+        )
 
     def test_normal_quarterly_growth_still_computes(self, monkeypatch):
         rows = self._quarters(
@@ -228,7 +233,7 @@ class TestEarningsSurpriseAvgGarbageBound:
         metrics = loader._compute_quarterly_metrics("SURPRISECO")
 
         assert metrics.get("earnings_surprise_avg") is None
-        assert metrics.get("earnings_surprise_avg_unavailable_reason") == "garbage_metric_value_abs_gt_100000"
+        assert metrics.get("earnings_surprise_avg_unavailable_reason") == "garbage_metric_value_implausible_growth_rate"
 
     def test_normal_earnings_surprise_still_computes(self, monkeypatch):
         rows = self._quarters_with_eps(last_eps=0.55)
