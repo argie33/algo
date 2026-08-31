@@ -140,12 +140,31 @@ _VERIFIED_BRAND_NAME_ALIASES: dict[str, str] = {
 # CUSIP 090572207 is the one verified case (2026-08-30) where OpenFIGI's ticker field is
 # useless AND our own entity_name can't disambiguate class A from class B. Keyed by the exact
 # (raw_ticker, resolved_name) pair, never a blanket "trust the tie-break" rule, so it can only
-# ever fire for this one verified CUSIP's resolution.
+# ever fire for the specific verified CUSIPs below.
+#
+# Same class found and individually verified for two more dual-class pairs, same session:
+# real-world share-class facts checked in both cases, not pattern-matched from the shape alone.
+# - McCormick & Co: ticker "MKC" is the NON-voting common stock (the one that actually trades
+#   on NYSE); "MKC.V" is the closely-held Voting Common Stock. CUSIP 579780206's OpenFIGI raw
+#   ticker "MCX" is unrecognized, resolved_name "MCCORMICK & CO-NON VTG SHRS" correctly
+#   identifies it as the non-voting class - i.e. our tracked "MKC", not "MKC.V" (whose own CUSIP
+#   579780107 resolves fine via the "MKC/V" -> "MKC.V" dotted rescue and needs no alias).
+# - Embotelladora Andina (Chilean Coca-Cola bottler): trades as NYSE ADRs "AKO.A"/"AKO.B".
+#   CUSIP 29081P303's raw ticker "AKOB" (missing the class separator) is unrecognized,
+#   resolved_name "EMBOTELLADORA ANDINA-ADR B" identifies it as Class B - our tracked "AKO.B"
+#   (Class A's own CUSIP 29081P204 resolves fine via "AKO/A" -> "AKO.A" and needs no alias).
+# Both confirmed broken in the live DB before this fix (institutional_holdings_13f.reason=
+# "no_resolved_13f_holdings" for MKC and AKO.B specifically, while their already-resolving
+# siblings MKC.V/AKO.A carried real values) and confirmed resolved by direct simulation after.
 _VERIFIED_RAW_TICKER_ALIASES: dict[tuple[str, str], str] = {
     # (OpenFIGI raw ticker, OpenFIGI resolved_name) -> our tracked symbol, verified 2026-08-30
     # against CUSIP 090572207 (Bio-Rad Laboratories Class A - our tracked "BIO", NOT "BIO.B"/
     # CUSIP 090572108 which already resolves correctly via the "BIO/B" -> "BIO.B" dotted rescue).
     ("BUWA", "BIO-RAD LABORATORIES-A"): "BIO",
+    # CUSIP 579780206 - see McCormick note above.
+    ("MCX", "MCCORMICK & CO-NON VTG SHRS"): "MKC",
+    # CUSIP 29081P303 - see Embotelladora Andina note above.
+    ("AKOB", "EMBOTELLADORA ANDINA-ADR B"): "AKO.B",
 }
 
 
