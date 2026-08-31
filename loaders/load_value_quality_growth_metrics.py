@@ -2895,8 +2895,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     )
                     fallback_tax_row = cur.fetchone()
 
-                    # If 3-year window fails, search entire history
-                    if not fallback_tax_row:
+                    # If 3-year window found nothing, OR found a tax/pretax row that STILL
+                    # can't recover operating_income/interest_expense (both None - this
+                    # fallback's entire reason to exist, per the comment above), search
+                    # entire history for one that actually can. FIXED 2026-08-31 (goal:
+                    # missing-data audit): previously only re-searched when zero rows
+                    # matched at all - a 3-year row satisfying just the tax/pretax WHERE
+                    # clause (with op-income/interest_expense both None) counted as
+                    # "success" and short-circuited the widen, even though it recovers
+                    # nothing this fallback needs. interest_expense's own sibling fallback
+                    # (search above, ~line 2244) never has this problem because its WHERE
+                    # clause itself requires interest_expense > 0, forcing a widen whenever
+                    # needed. Live-confirmed real large-caps (DHI, EMR, KBH, PCAR, TXT, TTE)
+                    # that never tag OperatingIncomeLoss/InterestExpense in ANY recent year
+                    # but do have a genuine years-old interest_expense>0 row further back
+                    # (e.g. DHI FY2013) - interest_coverage already finds and uses that row,
+                    # but roic_pct/roce_pct stayed stuck on missing_sec_data because this
+                    # search never looked past the unhelpful 3-year match. Keep the 3-year
+                    # row as a fallback (still unblocks effective_tax_rate) if the wider
+                    # search also comes up empty.
+                    if not fallback_tax_row or (fallback_tax_row[2] is None and fallback_tax_row[3] is None):
                         cur.execute(
                             """
                             SELECT income_tax_expense, pretax_income, operating_income, interest_expense, net_income
@@ -2909,7 +2927,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             """,
                             (symbol,),
                         )
-                        fallback_tax_row = cur.fetchone()
+                        wider_fallback_tax_row = cur.fetchone()
+                        if wider_fallback_tax_row:
+                            fallback_tax_row = wider_fallback_tax_row
 
                 if fallback_tax_row:
                     # FIXED 2026-08-22 (goal session: "Legitimate/not applicable" coverage

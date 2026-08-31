@@ -16,6 +16,31 @@ tax/pretax/interest_expense row (anchor or fallback) that only lacks OperatingIn
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
 
 
+class _FakeTwoTierCursor:
+    """Serves DIFFERENT canned rows to the ROIC tax/pretax fallback query depending on
+    call order - the 3-year-window call gets `near_row`, any subsequent (widened,
+    entire-history) call gets `far_row`. Matches both queries by their shared column
+    list since only the WHERE clause differs between them."""
+
+    def __init__(self, near_row, far_row):
+        self._near_row = near_row
+        self._far_row = far_row
+        self._calls = 0
+        self._last_query = ""
+
+    def execute(self, query, params=None):
+        self._last_query = query
+
+    def fetchall(self):
+        return []
+
+    def fetchone(self):
+        if "SELECT income_tax_expense, pretax_income, operating_income, interest_expense" in self._last_query:
+            self._calls += 1
+            return self._near_row if self._calls == 1 else self._far_row
+        return None
+
+
 class _FakeCursor:
     """Serves a canned row only to the ROIC tax/pretax fallback query (matched by its
     distinctive column list) - every other fallback query gets None."""
@@ -163,3 +188,42 @@ class TestRoicEbitFallback:
         metrics = loader._compute_quality_metrics("AFL", row, ev_metrics=None)
 
         assert metrics["roic_pct"] == (637_500_000.0 / 750_000_000.0) * 100
+
+    def test_widens_to_entire_history_when_3yr_row_cannot_recover_ebit(self, monkeypatch):
+        # DHI-shaped (live-confirmed 2026-08-31): anchor year already has real tax/pretax
+        # together (like AFL above), so the fallback DOES fire, but the 3-year window's
+        # own tax/pretax row (here: fiscal_year-1, same shape as the anchor since DHI never
+        # tags either concept in recent years) ALSO lacks operating_income/interest_expense
+        # - previously this counted as "found a row" and stopped, even though it recovers
+        # nothing. Must widen to entire history and find the real interest_expense row
+        # further back (DHI's actual FY2013, interest_expense=$7.1M).
+        import loaders.load_value_quality_growth_metrics as mod
+
+        # tax/pretax in both rows are decoys - the anchor already has real values for both
+        # (see row= below), so the "don't clobber a real anchor value" guard means these
+        # never get used. Only operating_income (index 2)/interest_expense (index 3) matter.
+        near_row = (999_000_000.0, 999_000_000.0, None, None, 999_000_000.0)  # 3yr: no EBIT recovery
+        far_row = (
+            999_000_000.0,
+            999_000_000.0,
+            None,
+            7_100_000.0,
+            999_000_000.0,
+        )  # full history: real interest_expense
+        cursor = _FakeTwoTierCursor(near_row, far_row)
+        monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+        loader = ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+        row = _quality_row(
+            operating_income=None,
+            interest_expense=None,
+            pretax_income=800_000_000.0,
+            income_tax_expense=200_000_000.0,
+        )
+
+        metrics = loader._compute_quality_metrics("DHI", row, ev_metrics=None)
+
+        # EBIT approx uses the ANCHOR's own pretax_income (800M, never clobbered) plus the
+        # WIDENED row's recovered interest_expense (7.1M) = 807.1M; tax_rate = 200M/800M.
+        # invested_capital = 500M + 300M - 50M = 750M
+        expected_nopat = 807_100_000.0 * (1 - 0.25)
+        assert metrics["roic_pct"] == (expected_nopat / 750_000_000.0) * 100
