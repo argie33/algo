@@ -824,8 +824,28 @@ class SecValuationsLoader(OptimalLoader):
                     # producing the SAME wrong shares_out for every sibling class regardless of
                     # which ticker asked. Gated on has_dual_class_sibling (computed once, above,
                     # alongside every other tier in this block).
+                    # FIXED 2026-08-31 (goal: data-coverage sweep, UROY follow-up to
+                    # sec_valuations_pl_row_coupled_stale_shares_hbio_fixed_20260831): this
+                    # "shares = net_income / eps" identity only holds when both operands come
+                    # from the SAME fiscal year - `ttm_eps_basic` can be silently substituted
+                    # from `income_rows[1]` (a DIFFERENT, older fiscal year) by the
+                    # `eps_substituted_from_row1` fallback above (added 2026-08-18 for a
+                    # different purpose - recovering pe_ratio/PEG when the anchor row's own EPS
+                    # isn't tagged yet), while `_ttm_net_income` stays the anchor row's own
+                    # value. Combining the two produces a mathematically meaningless number, not
+                    # a real share count. Live-confirmed via UROY (Uranium Royalty Corp): anchor
+                    # FY2026 has net_income=$40.249M but EPS not yet tagged, so EPS was
+                    # substituted from FY2025's -$0.04 - derived_shares_out =
+                    # 40,249,000/0.04 = 1,006,225,000 (a fabricated number, not UROY's real
+                    # ~381M shares per company_info_sec) - producing market_cap=$4.28B vs real
+                    # ~$1.6-1.67B. The PEG calculation elsewhere in this method already guards
+                    # against this exact cross-year mismatch via `ttm_eps_fiscal_year` - this
+                    # tier never had the same guard. Gated the same way: skip when EPS came from
+                    # a different fiscal year than net_income, same discipline as the
+                    # dual-class-sibling gate immediately below.
                     if (
                         not has_dual_class_sibling
+                        and not eps_substituted_from_row1
                         and not shares_out
                         and ttm_eps_basic
                         and ttm_eps_basic != 0
