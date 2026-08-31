@@ -2692,7 +2692,22 @@ class StockScoresLoader(OptimalLoader):
         # Weight 11% (2026-08-28, later same day: +3 from PEG's removal above - see "PEG -
         # REMOVED FROM SCORING 2026-08-28" docstring note - the only other input at PEG's same
         # "real but modest" evidentiary tier).
-        if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
+        # FIXED 2026-08-31 (goal: data-loading gap investigation - same bug class as the
+        # "UNPROFITABLE-COMPANY FLOOR"/"UNPROFITABLE-FORECAST FLOOR" notes above, found while
+        # auditing this file for the same pattern). value_metrics.dividend_yield is a REAL,
+        # already-computed 0.0 (not NULL) for non-dividend-paying stocks -
+        # dividend_yield_unavailable_reason='non_dividend_paying_stock' confirms live-checked:
+        # 2,850 of 5,111 universe symbols (56%), ALL with dividend_yield=0.0 exactly, never
+        # NULL. A `> 0` gate here treated that real, correctly-computed 0% yield exactly like
+        # missing data, silently reweighting the 11% dividend term away onto PE/PB/PS/Forward
+        # P/E instead of scoring it at the floor - the same selection-bias bug class already
+        # fixed for P/E/Forward P/E's own unprofitable-company case, just unnoticed here
+        # because the raw value was already correct (0.0, not NULL) so no `_unavailable_reason`
+        # plumbing was needed to fix it - only the `is not None` vs `> 0` gate. 0% yield is
+        # definitionally the worst end of any yield ranking, so div_score's own formula
+        # (min(100, div*16.7)) already floors correctly at div=0 -> score=0 once the gate lets
+        # it through.
+        if metrics.get("dividend_yield") is not None:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
             weighted_sum += div_score * 0.11
@@ -3858,7 +3873,11 @@ class StockScoresLoader(OptimalLoader):
                     components.append((fwd_pe_pct[symbol], 0.04))
                 elif fwd_pe_reason == "negative_forward_eps":
                     components.append((0.0, 0.04))
-                if dividend_yield is not None and float(dividend_yield) > 0:
+                # FIXED 2026-08-31 (same fix, same reasoning as _score_value's own dividend
+                # block above - value_metrics.dividend_yield is a real, already-computed 0.0
+                # for non-payers, never NULL, so a `> 0` gate wrongly reweighted this term away
+                # for 56% of the universe instead of scoring the real 0% floor).
+                if dividend_yield is not None:
                     div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
                     div_score = min(100, div * 16.7)
                     components.append((div_score, 0.11))
