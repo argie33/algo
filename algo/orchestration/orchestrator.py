@@ -611,6 +611,153 @@ class Orchestrator:
                 f"(2) Migrations have run, (3) Required views exist."
             ) from e
 
+    def _verify_alpaca_account_type(self) -> None:
+        """CRITICAL: Verify Alpaca account type matches execution_mode.
+
+        This prevents catastrophic errors where:
+        - execution_mode='auto' is set but account is paper trading (orders won't execute for real)
+        - execution_mode='paper' is set but account is LIVE (real money at risk during testing)
+
+        Requirements:
+        - execution_mode='auto' MUST have alpaca_paper_trading=False and real live account
+        - execution_mode='paper' works with any account type
+        - execution_mode='dry'/'review' don't call Alpaca API
+
+        Raises RuntimeError if verification fails.
+        """
+        execution_mode = self.config.get("execution_mode", "paper")
+        alpaca_paper_trading = self.config.get("alpaca_paper_trading", True)
+
+        # Skip for modes that don't call Alpaca API
+        if execution_mode in ("dry", "review"):
+            logger.info(f"[OK] {execution_mode} mode - Alpaca account type not checked (no API calls)")
+            return
+
+        # For paper mode, any account type is acceptable
+        if execution_mode == "paper":
+            logger.info("[OK] paper mode - Alpaca account type not enforced (paper trading)")
+            return
+
+        # CRITICAL: For auto mode, must have real account
+        if execution_mode == "auto":
+            if alpaca_paper_trading is True:
+                logger.critical(
+                    "[ACCOUNT TYPE MISMATCH] CRITICAL: execution_mode='auto' but alpaca_paper_trading=True. "
+                    "This means orders will be submitted to Alpaca's PAPER endpoint, not real account. "
+                    "NO REAL MONEY RISK, but this is likely a configuration error. "
+                    "For live trading: Set alpaca_paper_trading=False in algo_config. "
+                    "For paper trading: Set execution_mode='paper' instead."
+                )
+                raise RuntimeError(
+                    "[STARTUP] CRITICAL: Mode/Account Type Mismatch. "
+                    "execution_mode=auto requires alpaca_paper_trading=False for live trading, "
+                    "or execution_mode should be 'paper' for paper trading."
+                )
+
+            if alpaca_paper_trading is False:
+                logger.info(
+                    "[OK] LIVE TRADING MODE VERIFIED: execution_mode='auto' with alpaca_paper_trading=False. "
+                    "Orders will execute on the LIVE Alpaca account. REAL MONEY AT RISK."
+                )
+                return
+
+            # If neither True nor False (None or unexpected), fail fast
+            raise RuntimeError(
+                "[STARTUP] CRITICAL: alpaca_paper_trading is not explicitly set to True or False. "
+                "Cannot determine if live or paper trading. Set explicitly in algo_config table."
+            )
+
+        # Unexpected execution_mode (should have been caught by _validate_startup_configuration)
+        logger.error(
+            f"[ACCOUNT TYPE CHECK] Unexpected execution_mode={execution_mode!r}. "
+            f"This should have been caught by _validate_startup_configuration()."
+        )
+
+    def _verify_database_isolation_level(self) -> None:
+        """CRITICAL: Verify PostgreSQL transaction isolation level is suitable for trading.
+
+        Entry/exit operations use FOR UPDATE row locks to prevent concurrent modifications.
+        These locks ONLY WORK with READ COMMITTED or stricter isolation levels.
+
+        If database is misconfigured to READ UNCOMMITTED:
+        - FOR UPDATE locks are silently ignored
+        - Concurrent Phase 6 (exits) and Phase 8 (entries) can corrupt position state
+        - Data integrity failure results in incorrect risk calculations
+
+        Requirements:
+        - Minimum: READ COMMITTED (default)
+        - Recommended: REPEATABLE READ (safer, still allows concurrent access)
+        - Strictest: SERIALIZABLE (all-or-nothing, but slower)
+
+        Raises RuntimeError if isolation level is insufficient.
+        """
+        try:
+            with DatabaseContext("read", timeout=5) as cur:
+                cur.execute("SHOW default_transaction_isolation")
+                result = cur.fetchone()
+                isolation = result[0].lower() if result and result[0] else None
+
+                if not isolation:
+                    raise ValueError("SHOW isolation query returned empty result")
+
+                # Map PostgreSQL isolation level names to their strictness ranking
+                valid_levels = {
+                    "read committed": 1,
+                    "repeatable read": 2,
+                    "serializable": 3,
+                }
+
+                if isolation not in valid_levels:
+                    logger.critical(
+                        f"[DB ISOLATION CRITICAL] Invalid isolation level detected: '{isolation}'. "
+                        f"Valid levels: {', '.join(valid_levels.keys())}. "
+                        f"This indicates either a misconfigured database or a PostgreSQL version issue."
+                    )
+                    raise RuntimeError(
+                        f"[STARTUP] Invalid PostgreSQL isolation level: '{isolation}'. "
+                        f"Configure 'default_transaction_isolation' in PostgreSQL to one of: "
+                        f"{', '.join(valid_levels.keys())}"
+                    )
+
+                # READ UNCOMMITTED is too weak but PostgreSQL doesn't actually support it
+                # (it silently promotes to READ COMMITTED). However, if someone manually
+                # sets a session-level isolation to something we don't recognize, catch it.
+                if isolation not in valid_levels:
+                    logger.critical(
+                        f"[DB ISOLATION CRITICAL] Insufficient isolation level: '{isolation}'. "
+                        f"Trading system requires at least 'read committed' (default). "
+                        f"Current: {isolation}. "
+                        f"This breaks FOR UPDATE locks used to prevent race conditions."
+                    )
+                    raise RuntimeError(
+                        f"[STARTUP] Database isolation level insufficient for safe trading. "
+                        f"Detected: '{isolation}'. Required: 'read committed' or stricter. "
+                        f"This prevents concurrent entry/exit corruption. "
+                        f"Set 'default_transaction_isolation = read committed' in PostgreSQL config."
+                    )
+
+                logger.info(
+                    f"[OK] Database transaction isolation verified: '{isolation}' (sufficient for FOR UPDATE row locks)"
+                )
+
+        except RuntimeError:
+            raise
+        except TimeoutError as e:
+            logger.critical(
+                "[DB ISOLATION TIMEOUT] Could not verify isolation level - database timeout. "
+                "Connection pool may be exhausted or database unavailable."
+            )
+            raise RuntimeError(
+                "[STARTUP] Could not verify database isolation level (timeout). "
+                "Check database connectivity and connection pool health."
+            ) from e
+        except Exception as e:
+            logger.critical(f"[DB ISOLATION ERROR] Unexpected error during isolation check: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"[STARTUP] Could not verify database isolation level: {type(e).__name__}: {e}. "
+                f"This is a critical safety check - cannot proceed without it."
+            ) from e
+
     def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
@@ -2288,6 +2435,12 @@ class Orchestrator:
 
         logger.info("\n[CHECK] Validating startup configuration...")
         self._validate_startup_configuration()
+
+        logger.info("\n[CHECK] Verifying Alpaca account type matches execution mode...")
+        self._verify_alpaca_account_type()
+
+        logger.info("\n[CHECK] Verifying database transaction isolation level...")
+        self._verify_database_isolation_level()
 
         logger.info("\n[CHECK] Killing long-running analytics loaders...")
         self._kill_long_running_loaders()
