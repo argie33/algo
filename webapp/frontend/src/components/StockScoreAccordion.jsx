@@ -1469,13 +1469,28 @@ const POSITIONING_SCHEMA = [
 // the same *100 scaling pct() doesn't do itself. max_drawdown_1y is the odd one out here -
 // _calculate_max_drawdown already multiplies by 100 (returns e.g. -25.5), so it's passed
 // through as-is like the loader-pre-scaled *_pct fields in QUALITY_SCHEMA.
+// REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out the
+// best combination - see _score_risk's docstring in load_stock_scores.py for the per-input
+// reasoning). Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
+// Volatility 30D dropped (most redundant of the three windows). Downside volatility and
+// Debt-to-Assets stay out - both have clean, confirmed reasons (pure redundancy with
+// volatility_60d; balance-sheet metric scored under Quality's base quality_score instead).
+// Note: the API's "volatility_12m" key actually carries volatility_252d (a legacy naming
+// quirk in lambda/api/routes/scores.py, not a real 12-month window).
 const RISK_SCHEMA = [
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "60%",
+    weight: "45%",
+  },
+  {
+    key: "volatility_12m",
+    label: "Volatility (252D)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    used: true,
+    weight: "20%",
   },
   {
     key: "beta",
@@ -1489,21 +1504,11 @@ const RISK_SCHEMA = [
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "15%",
   },
-  // TRIMMED BACK 2026-08-28 (user directive: this tab should show ONLY what's actually in
-  // the scoring formula, reversing the same-day earlier "restore to display" pass below).
-  // volatility_12m/30d and downside_volatility_252d/30d: confirmed rejects, not gaps -
-  // measured directly (400-symbol sample, 20,904 observations) at 0.52-0.92 correlation
-  // with the 60d windows that replaced them (volatility clustering, Engle 1982/Bollerslev
-  // 1986 GARCH literature). downside_volatility_60d itself REMOVED FROM SCORING (same day,
-  // later pass) and dropped from this tab entirely too, same "only show what's in the
-  // formula" rule - the 126-month FM panel already found it carries no independent signal
-  // once volatility_60d is controlled for (t=+1.39, wrong-signed), and it's correlated
-  // r=0.93 with volatility_60d even after the 6-window consolidation above (live-reverified
-  // same day) - freed 15% moved entirely to volatility_60d (45%->60%). See _score_risk's
-  // docstring in load_stock_scores.py for the full writeup. segment_count/
-  // largest_segment_revenue_pct/is_diversified also stay off this tab - the underlying XBRL
-  // segment-dimension extraction (utils/external/sec_xbrl_segments.py) always comes back
-  // empty, so every row would just render as unavailable noise.
+  // Volatility 30D and downside volatility (252d/60d/30d) are NOT part of the current
+  // 4-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
+  // Quality instead, not this price-volatility/risk-of-loss pillar.
+  // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
+  // underlying XBRL segment-dimension extraction always comes back empty.
 ];

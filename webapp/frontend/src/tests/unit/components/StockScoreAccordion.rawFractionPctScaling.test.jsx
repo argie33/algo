@@ -33,17 +33,15 @@ import { RISK_SCHEMA } from "../../../components/StockScoreAccordion";
 const field = (schema, key) => schema.find((s) => s.key === key);
 
 describe("RISK_SCHEMA volatility formatting", () => {
-  // volatility_12m/30d and downside_volatility_252d/30d REMOVED from RISK_SCHEMA
-  // 2026-08-25 (goal: full scoring-architecture audit) - the six symmetric/downside
-  // volatility windows correlated 0.52-0.92 with each other (measured directly), so this
-  // pillar consolidated to one representative window per flavor (60d) and redistributed
-  // the freed weight to beta/max_drawdown. downside_volatility_60d REMOVED ENTIRELY
-  // 2026-08-28 (still correlated r=0.93 with volatility_60d even after that consolidation,
-  // and shown to carry no independent signal by this file's own Fama-MacBeth panel - see
-  // _score_risk's docstring in loaders/load_stock_scores.py) - dropped from this tab too,
-  // not just unweighted, per this tab's own "only show what's in the formula" rule. Only
-  // volatility_60d remains to test here.
-  it.each([["volatility_60d", 0.17]])("scales %s's raw fraction to a percent for display", (key, fraction) => {
+  // RISK_SCHEMA REWORKED 2026-08-30 (later same day, user directive: full delegation to
+  // figure out the best combination): Volatility 60D + Volatility 252D (key "volatility_12m" -
+  // a legacy API naming quirk, not a real 12-month window) + Beta + Max Drawdown 1Y.
+  // Volatility 30D and downside_volatility are not part of this formula/tab. Debt-to-Assets
+  // stays out - no RISK_SCHEMA row for it.
+  it.each([
+    ["volatility_12m", 0.22],
+    ["volatility_60d", 0.17],
+  ])("scales %s's raw fraction to a percent for display", (key, fraction) => {
     const f = field(RISK_SCHEMA, key);
     const expectedPct = `+${(fraction * 100).toFixed(2)}%`;
     expect(f.fmt(fraction)).toBe(expectedPct);
@@ -51,13 +49,23 @@ describe("RISK_SCHEMA volatility formatting", () => {
     expect(f.fmt(fraction)).not.toBe(`+${fraction.toFixed(2)}%`);
   });
 
+  it("beta is not percent-formatted", () => {
+    const beta = field(RISK_SCHEMA, "beta");
+    expect(beta.fmt(0.72)).toBe("0.72");
+  });
+
   it("max_drawdown_1y is passed through unscaled (already pre-scaled by the loader)", () => {
     const maxDrawdown = field(RISK_SCHEMA, "max_drawdown_1y");
     expect(maxDrawdown.fmt(-8.05)).toBe("-8.05%");
   });
 
-  it("beta is not percent-formatted", () => {
-    const beta = field(RISK_SCHEMA, "beta");
-    expect(beta.fmt(0.72)).toBe("0.72");
+  it("volatility_30d has no RISK_SCHEMA row (dropped from the formula)", () => {
+    const v30 = field(RISK_SCHEMA, "volatility_30d");
+    expect(v30).toBeUndefined();
+  });
+
+  it("debt_to_assets has no RISK_SCHEMA row (not scored under Risk)", () => {
+    const dta = field(RISK_SCHEMA, "debt_to_assets");
+    expect(dta).toBeUndefined();
   });
 });

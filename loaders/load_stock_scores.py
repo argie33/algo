@@ -2579,6 +2579,31 @@ class StockScoresLoader(OptimalLoader):
         (volatility/beta/downside-vol/max-drawdown), name only - the underlying
         stability_metrics input table and _get_stability_metrics accessor are unchanged.
 
+        REWORKED 2026-08-30 (later same day, user directive: "figure out what is best here and
+        do that" - full delegation after the 40/20/15/15 revert above was itself questioned).
+        Current formula: Volatility 60D (45%) + Volatility 252D (20%) + Beta (20%) + Max
+        Drawdown 1Y (15%). Reasoning per input, applying this file's own accumulated evidence
+        rather than re-deriving it: Volatility 60D gets the largest share because it's the one
+        robustly-significant signal in the whole panel (t=-6.07 multivariate). Volatility 252D
+        stays for genuine horizon diversity - its correlation with 60D (0.69-0.89) is real but
+        well short of the ~0.9+ band this file treats as actionable redundancy elsewhere.
+        Volatility 30D is DROPPED: it's the most redundant of the three windows (least distinct
+        horizon from 60D) and its removal doesn't lose a horizon 252D doesn't already cover
+        from the other side. Beta is kept at a deliberate, non-alpha weight - scored for
+        market-correlated swing-trading fit, not because it's return-predictive (it isn't,
+        t=0.93 - see below). Max Drawdown 1Y returns at a modest weight as a genuinely distinct
+        loss-severity dimension (a smooth-vol stock can still suffer one deep crash that vol
+        windows don't capture) rather than as a return-prediction bet, since the 2026-08-25
+        sub-period analysis below found it isn't stably predictive in either direction -
+        consistent with how Beta is already scored here for a non-predictive reason. Downside
+        volatility (all windows) and Debt-to-Assets stay OUT: both have clean, confirmed
+        reasons below (downside_vol is pure redundancy, r=0.93 wrong-signed once vol_60d is
+        controlled for; debt_to_assets is a balance-sheet solvency ratio, not a price-risk
+        metric, and already scored under Quality) rather than open questions.
+
+        The paragraphs below (40/20/15/15 revert, and before that the 60/20/20 consolidation)
+        describe earlier same-day states and are now STALE history, not the current design.
+
         Uses weighted scoring: Volatility 60d (60%, absorbed downside_volatility_60d's freed
         15% 2026-08-28 - see REMOVED note below) + Beta (20%) + Max Drawdown 1y (20%). Lower
         volatility and beta closer to 1.0 indicate stable, market-correlated stocks. Weights
@@ -2700,45 +2725,22 @@ class StockScoresLoader(OptimalLoader):
         weighted_sum = 0.0
         total_weight = 0.0
 
-        # CONSOLIDATED 2026-08-25 (goal: full scoring-architecture audit): this pillar
-        # previously scored volatility_252d/60d/30d AND downside_volatility_252d/60d/30d as 6
-        # separate inputs. Measured directly on a 400-symbol sample (20,904 observations):
-        # the three symmetric windows correlate 0.69-0.89 with each other, the three downside
-        # windows correlate 0.78-0.92 with each other, and even cross-flavor correlations run
-        # 0.52-0.83 - consistent with volatility clustering being one of the most robust
-        # stylized facts in finance (Engle 1982, Bollerslev 1986 GARCH literature). All six
-        # were essentially the same "how choppy is this stock" signal at different smoothing
-        # windows, carrying ~80% of this pillar's raw weight budget while beta and max
-        # drawdown - the two genuinely distinct, non-redundant signals here - carried the
-        # smallest weights. Collapsed to one symmetric + one downside window (60d - a
-        # reasonable middle-ground proxy, correlating 0.83-0.89 with both the 252d and 30d
-        # windows it replaces) and redistributed the freed weight to beta and max_drawdown.
+        # REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out
+        # the best combination - see this method's docstring for the per-input reasoning).
+        # Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
+        # Volatility 30D dropped (most redundant of the three windows). Debt-to-Assets stays
+        # fetched via Quality's own debt_to_assets read (quality_inputs on the scores API) -
+        # not merged into or scored by this pillar.
 
-        # downside_volatility_60d REMOVED ENTIRELY 2026-08-28 (goal: repo-wide factor-scores
-        # audit against industry best practice + real data). Two independent lines of evidence,
-        # not one: (1) this file's own 2026-08-25 Fama-MacBeth panel already found
-        # downside_volatility_60d "carries NO independent signal and comes out wrong-signed"
-        # (coef=+0.0013, t=+1.39) once volatility_60d is in the regression alongside it - a
-        # finding this pillar recorded but never fully acted on beyond moving 10pts of weight
-        # to volatility_60d, leaving downside_vol_60d at 15%. (2) Live-reverified same day: the
-        # two are correlated at Spearman r=0.93 (n=5,111, current stability_metrics) - ABOVE the
-        # ~0.85-0.93 band this file already treats as actionable redundancy elsewhere (EV/EBITDA
-        # r=0.93 removed outright as a PE duplicate; growth's fcf/ocf r=0.91 flagged the same
-        # way) and higher than either of the two pairs this pillar's Momentum sibling only
-        # AVERAGED rather than removed (RSI/MACD r=0.70, SMA-50/200 r=0.87) - unlike those two
-        # pairs, where FM evidence showed BOTH components carrying real (if correlated) signal,
-        # downside_vol_60d specifically carries NONE once vol_60d is controlled for, so full
-        # removal (the EV/EBITDA treatment) fits the evidence better than averaging (the
-        # RSI/MACD treatment) would. Freed 15% moves entirely to volatility_60d (45%->60%) -
-        # the single strongest, most robust signal in this file's entire multi-pillar FM audit
-        # (t=-6.07 multivariate), not split with beta/max_drawdown since neither showed any
-        # comparable evidence gap prompting a reweight.
-
-        # 60-day volatility: single representative symmetric-volatility window.
         if metrics.get("volatility_60d") is not None:
             v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
-            weighted_sum += v60_score * 0.60
-            total_weight += 0.60
+            weighted_sum += v60_score * 0.45
+            total_weight += 0.45
+
+        if metrics.get("volatility_252d") is not None:
+            v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
+            weighted_sum += v252_score * 0.20
+            total_weight += 0.20
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading.
         # Deliberately not the literature's low-beta preference (Frazzini & Pedersen 2014
@@ -2768,12 +2770,13 @@ class StockScoresLoader(OptimalLoader):
         # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
         # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
         # stock can have low day-to-day volatility yet still suffer one deep sustained
-        # drawdown). <=10% drawdown is mild, >50% is severe.
+        # drawdown). Scored as a loss-severity characterization, not a return-prediction bet -
+        # see this method's docstring for why (not stably predictive either direction).
         if metrics.get("max_drawdown_1y") is not None:
             drawdown_pct = abs(min(0.0, metrics["max_drawdown_1y"]))
             dd_score = self._max_drawdown_curve_score(drawdown_pct)
-            weighted_sum += dd_score * 0.20
-            total_weight += 0.20
+            weighted_sum += dd_score * 0.15
+            total_weight += 0.15
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -3416,7 +3419,7 @@ class StockScoresLoader(OptimalLoader):
         components_new["value"] = value_score_new
         return json.dumps(components_new)
 
-    def update_value_multiples_percentiles(self) -> None:  # noqa: C901
+    def update_value_multiples_percentiles(self) -> None:
         """Batch pass: replace P/E, P/B, P/S, and Forward P/E's Pass-1 PROVISIONAL fixed-curve
         scores with a true cross-sectional percentile rank against the current run's universe,
         then recompute value_score and composite_score to reflect it.

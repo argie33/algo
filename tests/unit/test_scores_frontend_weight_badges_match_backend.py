@@ -259,29 +259,45 @@ class TestPositioningScoreRemoved:
 
 
 class TestRiskScoreWeightBadges:
-    def test_volatility_and_beta_weights_match_code(self):
-        # volatility_12m/30d and downside_volatility_252d/30d removed 2026-08-25 (goal: full
-        # scoring-architecture audit) - all six volatility inputs correlated 0.52-0.92 with
-        # each other (measured directly), so consolidated to one symmetric + one downside
-        # window (60d) and redistributed the freed weight to beta/max_drawdown.
-        # downside_volatility_60d REMOVED ENTIRELY 2026-08-28 (still correlated r=0.93 with
-        # volatility_60d even after that consolidation, AND shown by this file's own
-        # Fama-MacBeth panel to carry no independent signal once vol_60d is controlled for -
-        # see _score_risk's docstring). Freed 15% moved to volatility_60d (45%->60%).
+    def test_volatility_beta_and_max_drawdown_weights_match_code(self):
+        """REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out
+        the best combination - see _score_risk's own docstring for the per-input reasoning).
+        Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
+        Volatility 30D dropped (most redundant of the three windows). Debt-to-Assets stays
+        out - see test_debt_to_assets_not_scored below."""
         src = inspect.getsource(StockScoresLoader._score_risk)
         score_var_to_jsx_key = {
             "v60_score": "volatility_60d",
+            "v252_score": "volatility_12m",  # API key "volatility_12m" actually carries volatility_252d
             "beta_score": "beta",
             "dd_score": "max_drawdown_1y",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
 
-    def test_downside_volatility_not_scored(self):
-        """Guards the 2026-08-28 removal - downside_volatility_60d should stay fully
-        computed/stored (stability_metrics) but no longer weighted into risk_score."""
+    def test_downside_volatility_and_volatility_30d_not_scored(self):
+        """downside_volatility and volatility_30d are not part of the current 4-input
+        formula - should stay fully computed/stored but no longer weighted into risk_score."""
         src = inspect.getsource(StockScoresLoader._score_risk)
         assert "dvol60_score" not in src, "downside_volatility_60d should no longer be a scored risk_score component"
+        assert "v30_score" not in src, "volatility_30d should no longer be a scored risk_score component"
+
+    def test_debt_to_assets_not_scored(self):
+        """Guards the 2026-08-30 "remove the debt to assets from the safety score" directive
+        (given the same day it was briefly restored) - debt_to_assets should stay fully
+        available via Quality's own quality_inputs/quality_score but no longer be merged into
+        or weighted into risk_score, and RISK_SCHEMA should have no display row for it."""
+        src = inspect.getsource(StockScoresLoader._score_risk)
+        assert "dta_score" not in src, "debt_to_assets should no longer be a scored risk_score component"
+        compute_src = inspect.getsource(StockScoresLoader._compute_stock_score)
+        assert 'risk_metrics["debt_to_assets"]' not in compute_src, (
+            "debt_to_assets should no longer be merged into risk_metrics before scoring"
+        )
+        schema_match = re.search(r"const RISK_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
+        assert schema_match, "expected RISK_SCHEMA to still exist"
+        assert 'key: "debt_to_assets"' not in schema_match.group(1), (
+            "debt_to_assets should have no RISK_SCHEMA row (not scored, so not displayed on this tab)"
+        )
 
 
 class TestMomentumScoreWeightBadges:

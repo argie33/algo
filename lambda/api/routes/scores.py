@@ -818,13 +818,15 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "max_drawdown_1y_unavailable_reason": data.get("max_drawdown_1y_unavailable_reason"),
                 "beta": data.get("beta_val"),
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
-                # CLEANUP 2026-08-16: debt_to_assets/debt_to_equity/current_ratio/quick_ratio/
-                # cash_per_share (Financial Stability) and revenue_concentration_hhi (Business
-                # Diversification) removed from here - no longer scored under Risk
-                # (see loaders/load_stock_scores.py _score_risk). The debt/liquidity/cash
-                # metrics now live under quality_inputs instead; revenue_concentration_hhi was
-                # dropped from scoring entirely. segment_count/largest_segment_revenue_pct/
-                # is_diversified below were always unweighted reference fields, kept as-is.
+                # debt_to_assets briefly RESTORED HERE 2026-08-30, then REMOVED AGAIN the same
+                # day (user directive) - a balance-sheet solvency ratio doesn't fit this
+                # pillar's price-volatility/risk-of-loss character, same CLEANUP 2026-08-16
+                # reasoning below. Still available via quality_inputs (debt_to_assets_val).
+                # current_ratio/quick_ratio/cash_per_share (Financial Stability) and
+                # revenue_concentration_hhi (Business Diversification) remain out - CLEANUP
+                # 2026-08-16, not scored under Risk (see loaders/load_stock_scores.py
+                # _score_risk). segment_count/largest_segment_revenue_pct/is_diversified below
+                # were always unweighted reference fields, kept as-is.
                 "segment_count": data.get("segment_count"),
                 "largest_segment_revenue_pct": data.get("largest_segment_revenue_pct"),
                 "is_diversified": data.get("is_diversified"),
@@ -1754,6 +1756,8 @@ def _get_stock_scores(  # noqa: C901
                 "max_drawdown_1y_unavailable_reason": d.get("max_drawdown_1y_unavailable_reason"),
                 "beta": d.get("beta_val"),
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
+                # debt_to_assets briefly RESTORED HERE 2026-08-30, then REMOVED AGAIN the same
+                # day (user directive) - see the other risk_inputs block above.
                 # CLEANUP 2026-08-16: same "moved to Quality" cleanup as the other
                 # risk_inputs block above - see that comment for details.
                 "segment_count": d.get("segment_count"),

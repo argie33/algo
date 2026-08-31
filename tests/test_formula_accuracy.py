@@ -373,20 +373,18 @@ class TestStockScoreWeights:
     def test_risk_component_weights(self) -> None:
         """Risk (renamed from Stability) metric sub-component weights.
 
-        FIXED 20260828: was a stale "Stability" dict (volatility_252/60/30 + beta +
-        debt_to_assets) that named fields _score_risk doesn't use at all. Live literals from
-        _score_risk's `weighted_sum +=` lines.
-
-        UPDATED 20260828 (later same day): downside_volatility_60d REMOVED ENTIRELY - still
-        correlated r=0.93 with volatility_60d even after the earlier 6-window consolidation,
-        and this file's own Fama-MacBeth panel already found it carries no independent signal
-        once volatility_60d is controlled for (t=+1.39, wrong-signed). Freed 15% moved to
-        volatility_60d (45%->60%).
+        REWORKED 20260830 (later same day, user directive: full delegation to figure out the
+        best combination - see _score_risk's own docstring for the per-input reasoning).
+        volatility_30d dropped (most redundant of the three windows); max_drawdown_1y restored
+        as a loss-severity characterization; debt_to_assets stays out (balance-sheet metric,
+        scored under Quality instead). Live literals from _score_risk's `weighted_sum +=`
+        lines - these four sum to exactly 1.0, unlike the prior formula's 0.90.
         """
         weights = {
-            "volatility_60d": 0.60,
+            "volatility_60d": 0.45,
+            "volatility_252d": 0.20,
             "beta": 0.20,
-            "max_drawdown": 0.20,
+            "max_drawdown": 0.15,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
