@@ -797,6 +797,24 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # booking case for any filer - the two tags serve different business models
         # (services vs. product/retail) and haven't been seen co-reported.
         "CostOfGoodsAndServicesSold",
+        # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
+        # industrial/materials filers that break out D&A as its own income-statement line
+        # (rather than folding it into cost of sales) tag this DD&A-excluded COGS variant
+        # instead of any concept above - live-confirmed via Linde plc (LIN, $230B market
+        # cap): zero data under CostOfRevenue/CostOfSales/CostOfGoodsAndServicesSold for
+        # any fiscal year, but real, plausible COGS on file here (FY2025 $17.39B against
+        # $33.99B revenue, ~51% - a normal industrial-gas cost ratio) under
+        # CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization (LIN's
+        # concept name pre-2023 was the older "GoodsSold" singular variant below - same
+        # figure, same filer, just renamed). `gross_profitability`/`cost_of_revenue` had
+        # been silently NULL for LIN this whole time despite 40,000+ real income-statement
+        # data on file. Same target column ("cost_of_revenue") as every other concept in
+        # this group; kept fallback-only (see load_financial_statements.py's
+        # _REVENUE_FALLBACK_ONLY_FIELDS) since it deliberately excludes D&A and so is a
+        # narrower/less-comparable figure than a full COGS-including-D&A tag when a filer
+        # reports both.
+        "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+        "CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization",
         # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
         # as would-be operating_income fallbacks, but neither has a field_mapping entry or
         # destination column, and live-checking real filers missing operating_income (SWK,

@@ -176,6 +176,14 @@ _INCOME_FIELD_MAPPING = {
     # comment above the concept for the live-verified AMZN/COST/CI/JD/SHEL/TTE cases this
     # recovers. Same target column as "cost_of_revenue" above.
     "cost_of_goods_and_services_sold": "cost_of_revenue",
+    # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit): see
+    # sec_statements.py's comment on these two concepts for the live-verified LIN case -
+    # industrial/materials filers that break out D&A separately tag this DD&A-excluded COGS
+    # variant instead of any concept above. Same target column, fallback-only (see
+    # _REVENUE_FALLBACK_ONLY_FIELDS below) since excluding D&A makes it a narrower figure
+    # than a full COGS-including-D&A tag when a filer reports both.
+    "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
+    "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
     "gross_profit": "gross_profit",
     # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist gap -
     # see sec_statements.py's get_income_statement() comment for the live-verification note).
@@ -332,6 +340,12 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # only fills cost_of_revenue when CostOfRevenue/CostOfSales didn't already set it,
         # same as this set's existing entries, so AMZN-style filers are unaffected.
         "cost_of_goods_and_services_sold",
+        # FIXED 2026-08-31: see sec_statements.py's comment on these two concepts (LIN
+        # live-verified) - same "fills only an already-empty db_field" reasoning as
+        # cost_of_goods_and_services_sold just above, since excluding D&A makes this a
+        # narrower figure than a full COGS-including-D&A tag when both are reported.
+        "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
+        "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
         # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
         # get_income_statement() comment for the live evidence (TXN/BA/NEE). Reusing this
         # same "fills only an already-empty db_field" set for the same overwrite-safety
