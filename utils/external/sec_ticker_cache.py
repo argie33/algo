@@ -45,8 +45,35 @@ DEFAULT_TIMEOUT = 10.0
 # data_unavailable=FALSE). Spot-checked 12 other large caps (CVX/JPM/WMT/KO/PG/GE/
 # DIS/JNJ/PFE/MRK/T/VZ) - all resolved correctly; this looks like a one-off SEC data
 # quirk specific to XOM's corporate history, not a systemic collision-handling bug.
+#
+# DMC/SHOE/GRSD: a DIFFERENT category from XOM above - not SEC source data being wrong,
+# but a live availability gap this session traced 2026-08-31 while following up the
+# browse-edgar fuzzy-match fix (commit 4061fd5c1, same day): all 3 are active-universe
+# symbols that came back "CIK not found" after that fix correctly started rejecting
+# unverified fuzzy matches (browse-edgar's CIK=<symbol> endpoint is also returning HTTP
+# 403 for these right now - a separate, transient SEC-side block on that legacy CGI
+# endpoint). Live-verified each via https://data.sec.gov/submissions/CIK<n>.json (the
+# same authoritative source this file's own _verify_ticker_matches_cik already trusts):
+# CIK 1047340's own tickers=["DMC"]/exchanges=["NYSE"] and CIK 895447's
+# tickers=["SHOE"]/["Nasdaq"] and CIK 1839799's tickers=["GRSD"]/["Nasdaq"] all
+# self-confirm cleanly - these are real, correct, currently-active exact matches, just
+# temporarily missing from this morning's cached company_tickers.json snapshot (a known,
+# already-documented gap in that bulk file - see _lookup_via_browse_edgar's own
+# docstring for the AEP/PARA/JHG precedent). IMPORTANT: the original browse-edgar fix's
+# commit message assumed "DMC" should mean DMC Global Inc - that assumption was WRONG,
+# not just stale-cache-related: DMC Global renamed its own ticker to "BOOM" (CIK 34067,
+# tickers=["BOOM"], confirmed same way) and does not use "DMC" at all anymore; our own
+# stock_symbols.security_name for DMC already independently says "Del Monte Corporation
+# Ordinary Shares" (NYSE) - i.e. CIK 1047340 was the correct resolution the whole time
+# for OUR tracked "DMC" entry. Pinned here (rather than left to self-heal on the next
+# cache refresh + a hopefully-recovered browse-edgar) since these are live, in-universe
+# symbols needing real data now, and a verified-correct override never goes stale the
+# way a bulk-file snapshot or a flaky legacy endpoint can.
 CIK_OVERRIDES: dict[str, str] = {
     "XOM": "0000034088",  # EXXON MOBIL CORP (real 10-K filer) - see comment above
+    "DMC": "0001047340",  # DEL MONTE CORP (NYSE) - see DMC/SHOE/GRSD comment above
+    "SHOE": "0000895447",  # SHOE STATION GROUP INC (Nasdaq) - see comment above
+    "GRSD": "0001839799",  # GRANDSTAND Ltd (Nasdaq) - see comment above
 }
 
 # Ensure socket timeout is configured globally

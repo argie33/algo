@@ -31,6 +31,28 @@ class TestCikOverrides:
         assert cache.symbol_to_cik("XOM") == "0000034088"
         assert cache.symbol_to_cik("xom") == "0000034088", "override lookup must be case-insensitive"
 
+    def test_dmc_shoe_grsd_overridden_to_verified_ciks(self):
+        # Added 2026-08-31 following up the browse-edgar fuzzy-match fix (commit
+        # 4061fd5c1, same day): once that fix started correctly rejecting unverified
+        # fuzzy matches, these 3 active-universe symbols came back "CIK not found"
+        # because this morning's cached company_tickers.json snapshot happened to be
+        # missing them and browse-edgar's own CIK=<symbol> endpoint was returning HTTP
+        # 403 at the time - not a real ambiguity. Each verified directly against
+        # https://data.sec.gov/submissions/CIK<n>.json: DMC=1047340 (own
+        # tickers=["DMC"], NYSE - also matches our stock_symbols.security_name "Del
+        # Monte Corporation Ordinary Shares"), SHOE=895447, GRSD=1839799 (both self-
+        # confirm via their own tickers arrays). See CIK_OVERRIDES's own comment for
+        # why "DMC" does NOT mean DMC Global Inc (that company renamed its ticker to
+        # BOOM and no longer uses "DMC" at all).
+        cache = TickerCache.__new__(TickerCache)
+        cache._ticker_cache = {}  # would raise ValueError if the override didn't short-circuit
+        cache._ticker_cache_time = 0.0
+        cache._cache_ttl = 86400
+
+        assert cache.symbol_to_cik("DMC") == "0001047340"
+        assert cache.symbol_to_cik("SHOE") == "0000895447"
+        assert cache.symbol_to_cik("GRSD") == "0001839799"
+
     def test_override_does_not_affect_unrelated_symbols(self):
         cache = TickerCache.__new__(TickerCache)
         cache._ticker_cache = {"AAPL": "0000320193"}
