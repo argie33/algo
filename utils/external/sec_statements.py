@@ -815,6 +815,30 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # reports both.
         "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
         "CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization",
+        # FIXED 2026-08-31 (goal session, same sweep as the DD&A-excluded COGS fix above):
+        # live-events/venue-based filers tag their pass-through artist/venue/ticketing costs
+        # under this concept instead of any concept above - live-confirmed Live Nation
+        # Entertainment (LYV, $23B market cap): zero data under every concept above for any
+        # recent fiscal year, but real, current, plausible DirectOperatingCosts on file every
+        # year through FY2025 (FY2023 $17.29B/$22.75B revenue ~76%, FY2024 $17.33B/$23.16B
+        # ~75% - consistent with Live Nation's well-known low-margin, pass-through-heavy
+        # concert-promotion economics). gross_profitability/gross_margin had been silently
+        # NULL (mislabeled "reit_special_entity", this codebase's generic "no cost concept
+        # found" label - see load_value_quality_growth_metrics.py) despite decades of
+        # otherwise-complete real SEC data on file. Same target column, fallback-only (see
+        # _REVENUE_FALLBACK_ONLY_FIELDS) since this is a narrower, business-model-specific
+        # cost measure rather than a universal COGS tag.
+        "DirectOperatingCosts",
+        # FIXED 2026-08-31 (same sweep): regulated water utilities tag their direct
+        # utility-operations cost under this utility-specific concept - live-confirmed AWK
+        # ($1.72B/$4.22B revenue FY2023 ~41%), WTRG, MSEX ($91.3M/$194.7M ~47%), and YORW
+        # ($20.8M/$77.0M ~27%) all have real, current, plausible data every year; CWT/SJW/
+        # ARTNA checked and confirmed to NOT use this concept (different taxonomy choice,
+        # not fixed by this). Electric utilities (NEE, live-verified) tag ZERO cost-of-X
+        # concepts of any kind and are unaffected either way. Fallback-only for the same
+        # narrower-measure reason as DirectOperatingCosts above - excludes D&A/interest/taxes
+        # that a full cost-of-revenue figure might otherwise include.
+        "UtilitiesOperatingExpenseMaintenanceAndOperations",
         # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
         # as would-be operating_income fallbacks, but neither has a field_mapping entry or
         # destination column, and live-checking real filers missing operating_income (SWK,

@@ -184,6 +184,12 @@ _INCOME_FIELD_MAPPING = {
     # than a full COGS-including-D&A tag when a filer reports both.
     "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
     "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
+    # FIXED 2026-08-31 (goal session, same sweep as the DD&A-excluded COGS fix above): see
+    # sec_statements.py's comment on these two concepts (LYV/AWK/WTRG/MSEX/YORW live-
+    # verified). Same target column, fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS)
+    # since both are narrower, business-model-specific cost measures.
+    "direct_operating_costs": "cost_of_revenue",
+    "utilities_operating_expense_maintenance_and_operations": "cost_of_revenue",
     "gross_profit": "gross_profit",
     # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist gap -
     # see sec_statements.py's get_income_statement() comment for the live-verification note).
@@ -346,6 +352,11 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # narrower figure than a full COGS-including-D&A tag when both are reported.
         "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
         "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
+        # FIXED 2026-08-31: same "fills only an already-empty db_field" reasoning - see
+        # sec_statements.py's comments on these two concepts (LYV/AWK/WTRG/MSEX/YORW live-
+        # verified) and _INCOME_FIELD_MAPPING's comment on them above.
+        "direct_operating_costs",
+        "utilities_operating_expense_maintenance_and_operations",
         # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
         # get_income_statement() comment for the live evidence (TXN/BA/NEE). Reusing this
         # same "fills only an already-empty db_field" set for the same overwrite-safety
