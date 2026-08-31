@@ -2182,6 +2182,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # symbol), just for the earnings-calendar table instead of analyst_* tables.
             "no_earnings_coverage",
             "no_next_earnings_available",
+            # ADDED 2026-08-31 (goal session: reason-code accuracy sweep): distinct from
+            # "no_analyst_estimates" - the symbol HAS real, current analyst coverage
+            # (a real analyst_earnings_estimates row), just not this one specific derived
+            # forward-growth/estimate-revision figure. See
+            # ValueQualityGrowthMetricsLoader._get_analyst_forward_growth_estimates's own
+            # docstring for the live evidence (AFRM/DB/VOD/NWG/WELL/L). Still fundamentally an
+            # analyst-coverage gap, same bucket, more precise label.
+            "analyst_coverage_incomplete_for_field",
         },
     ),
     ("Stale fiscal data", {"stale_fiscal_data"}),

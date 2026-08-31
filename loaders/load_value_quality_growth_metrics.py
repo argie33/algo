@@ -1547,6 +1547,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         Informational only - these fields do NOT feed growth_score: no historical depth exists
         yet to validate predictive power, since analyst_earnings_estimates is a snapshot-per-day
         table with no backfill capability.
+
+        FIXED 2026-08-31 (goal session: reason-code accuracy sweep): every field used to default
+        to "no_analyst_estimates" and only clear that default when ITS OWN value came back
+        non-null - so a symbol with real, current analyst coverage (a real
+        `data_unavailable = FALSE` row) that simply lacked ONE of these 4 specific derived
+        figures still got the "no_analyst_estimates" label on that field, indistinguishable from
+        a symbol with zero coverage at all. Live-confirmed on AFRM/DB/VOD/NWG/WELL/L (all
+        real, heavily-covered large/mega-caps, $22B-$1.1T market cap): each has a real, current
+        `forward_eps`/`forward_eps_growth_next_fy` from `analyst_earnings_estimates`, yet
+        `forward_eps_growth_current_fy_unavailable_reason` said "no_analyst_estimates" - yfinance's
+        `earnings_estimate` DataFrame simply didn't have a "growth" value for the "0y" (current
+        fiscal year) period specifically for these symbols, a real but distinct gap from "nobody
+        covers this stock". Now distinguishes: no `data_unavailable = FALSE` row found at all ->
+        still "no_analyst_estimates" (genuinely zero coverage, the common case); a row WAS found
+        but this specific field came back NULL -> "analyst_coverage_incomplete_for_field" (real
+        coverage exists, just not this one derived figure).
         """
         fields = (
             "forward_eps_growth_current_fy",
@@ -1575,6 +1591,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         if parsed is not None:
                             result[field] = parsed
                             result[f"{field}_unavailable_reason"] = None
+                        else:
+                            result[f"{field}_unavailable_reason"] = "analyst_coverage_incomplete_for_field"
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to fetch analyst forward growth estimates: {type(e).__name__}")
         return result
