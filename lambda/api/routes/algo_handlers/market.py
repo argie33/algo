@@ -1569,11 +1569,28 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         # Phase 9: Portfolio Snapshot Health
         try:
+            # BUG FIX 2026-08-31: MAX(snapshot_date) and MAX(total_portfolio_value) were
+            # independent aggregates with no pairing to the same row - after any drawdown
+            # from a prior peak (routine), this returned the all-time HIGHEST portfolio value
+            # mislabeled as the CURRENT one alongside the real latest date, understating real
+            # risk exposure to anyone reading this health check. Fixed to pair date and value
+            # from the same latest row, matching the correct pattern already used elsewhere
+            # (e.g. position_sizer.py's get_portfolio_value snapshot fallback). Also bounded by
+            # snapshot_date <= CURRENT_DATE - same "stray future-dated snapshot" bug class fixed
+            # 2026-08-09 across circuit_breaker.py/position_sizer.py/var.py/etc (see
+            # tests/unit/test_no_unbounded_portfolio_snapshot_queries.py's docstring).
             cur.execute("""
-                SELECT COUNT(*) as snapshot_count,
-                       MAX(snapshot_date) as latest_date,
-                       MAX(total_portfolio_value) as latest_value
-                FROM algo_portfolio_snapshots
+                SELECT counts.snapshot_count,
+                       latest.snapshot_date as latest_date,
+                       latest.total_portfolio_value as latest_value
+                FROM (SELECT COUNT(*) as snapshot_count FROM algo_portfolio_snapshots) counts
+                LEFT JOIN (
+                    SELECT snapshot_date, total_portfolio_value
+                    FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= CURRENT_DATE
+                    ORDER BY snapshot_date DESC
+                    LIMIT 1
+                ) latest ON TRUE
             """)
             snap_row = cur.fetchone()
             if snap_row:
