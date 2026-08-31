@@ -348,14 +348,44 @@ class TestStockScoreWeights:
         "PEG - REMOVED FROM SCORING 2026-08-28" docstring note. Freed 3% went to Dividend Yield
         (8% -> 11%) - the only other input at PEG's same "real but modest" evidentiary tier.
 
-        FINAL/CURRENT weights (2026-08-28): six inputs, no PEG, no margin_of_safety.
+        Everything in this docstring above this point (through 2026-08-28) is stale history -
+        the pillar was REVERTED 2026-08-30 (explicit user directive, full history dig found
+        little quoted user sign-off for the 08-28 redesign) back to its 08-26/08-28 7-input
+        fixed-curve formula, then went through a same-day chain of further explicit user
+        directives: Margin of Safety out (Forward P/E swapped in its place) -> FCF Yield out
+        (wrong-signed in every window of the pillar's own joint regression, full t=-2.43, both
+        halves -0.91/-2.17) -> a full principled reweight of what remained, checking BOTH this
+        repo's own backtests AND industry gold standard (MSCI Value: Book/Price + Forward E/P +
+        Dividend Yield, notably no trailing E/P) -> trailing P/E removed entirely once a real
+        measurement bug was found and fixed (unprofitable companies were being scored as
+        NEUTRAL instead of WORST in the test script, understating P/E's true weakness - fixed
+        in algo/research/fama_macbeth_value_factors.py's compute_ratios/run()) - once correctly
+        measured, trailing P/E's coefficient stays weakly positive and statistically
+        indistinguishable from zero in every window (full t=+0.59, first half t=+0.64, second
+        half t=+0.14 - re-verified directly against the live DB 2026-08-31, correcting an
+        earlier claim of a sign flip that did not reproduce), leaving it with no reliable signal
+        either way, and per MSCI's own methodology it was never supposed to be scored anyway. An
+        initial pass set weights on
+        the four remaining backtestable inputs (P/B/P/S/PEG/Dividend) proportional to each
+        one's average |t-stat| across full-sample/2014-2020/2020-2026 (post-fix numbers), with
+        Forward P/E held at a smaller judgment-anchored floor - SUPERSEDED same day by an
+        explicit user directive to equal-weight all five inputs at 20% each instead, which is
+        what's actually live. A legitimate, evidence-consistent choice, not just preference:
+        the research script's own composite backtest already found equal-weighting performs
+        statistically indistinguishably from hand-tuned weights in every window tested (input
+        SELECTION carries this pillar's performance, not the specific split). See
+        loaders/load_stock_scores.py's _score_value docstring "CURRENT LIVE FORMULA" note for
+        the full step-by-step trail.
+
+        FINAL/CURRENT weights (2026-08-30): five inputs, EQUAL WEIGHT, no trailing P/E, no
+        margin_of_safety, no fcf_yield.
         """
         weights = {
-            "pe_ratio": 0.12,
-            "pb_ratio": 0.39,
-            "ps_ratio": 0.34,
-            "forward_pe": 0.04,
-            "dividend_yield": 0.11,
+            "pb_ratio": 0.20,
+            "ps_ratio": 0.20,
+            "peg_ratio": 0.20,
+            "forward_pe": 0.20,
+            "dividend_yield": 0.20,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 

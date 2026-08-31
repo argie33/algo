@@ -64,36 +64,51 @@ def _assert_pct_matches(jsx_key: str, py_weight: float) -> None:
 
 class TestValueScoreWeightBadges:
     def test_weights_match_code(self):
-        """RESTORED 2026-08-30 (explicit user directive, after a full history dig found the
-        08-28 redesign - percentile-ranking, Forward P/E addition, PEG/FCF-Yield/Margin-of-
-        Safety removal - had little to no quoted user sign-off). Reverted to the 08-26/08-28
-        7-input fixed-curve formula: P/E 12% + P/B 30% + P/S 27% + PEG 7% + FCF Yield 9% +
-        Dividend Yield 8% + Margin of Safety 7%. Forward P/E is no longer scored.
+        """FINAL 2026-08-30 (end state of a same-day weight-derivation pass - see
+        loaders/load_stock_scores.py's _score_value docstring "CURRENT LIVE FORMULA" note for
+        the full step-by-step trail). Five inputs, EQUAL WEIGHT: P/B 20% + P/S 20% + PEG 20% +
+        Forward P/E 20% + Dividend Yield 20% (explicit user directive, superseding an initial
+        |t-stat|-proportional derivation pass the same day - see that docstring note for why
+        equal-weight is a legitimate, evidence-consistent choice here, not just a preference).
+        No trailing P/E (removed - see test_margin_of_safety_fcf_yield_and_trailing_pe_not_scored
+        below), no FCF Yield, no Margin of Safety.
         update_value_multiples_percentiles() (cross-sectional percentile-rank batch pass) is
         disabled, not deleted - see its call site's own comment in _compute_composite_score
-        for why running it now would corrupt scores against these reverted weights."""
+        for why running it now would corrupt scores against these weights."""
         src = inspect.getsource(StockScoresLoader._score_value)
         score_var_to_jsx_key = {
-            "pe_score": "stock_pe",
             "pb_score": "stock_pb",
             "ps_score": "stock_ps",
             "div_score": "stock_dividend_yield",
-            "fcf_score": "fcf_yield",
-            "mos_score": "stock_margin_of_safety",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
-        # PEG uses `self._peg_to_score(...) * 0.07` inline, not a named `peg_score` variable -
+        # PEG uses `self._peg_to_score(...) * 0.20` inline, not a named `peg_score` variable -
         # different call shape than the other score vars above.
         peg_match = re.search(r"_peg_to_score\([^)]*\)\s*\*\s*(0\.\d+)", src)
         assert peg_match, "expected `self._peg_to_score(...) * 0.NN` in source"
         _assert_pct_matches("peg_ratio", float(peg_match.group(1)))
+        # Forward P/E uses `self._pe_curve_score(metrics["forward_pe"]) * 0.20` inline (reuses
+        # the trailing-P/E curve function), not a named `fwd_pe_score` variable.
+        fwd_pe_match = re.search(r'_pe_curve_score\(metrics\["forward_pe"\]\)\s*\*\s*(0\.\d+)', src)
+        assert fwd_pe_match, 'expected `self._pe_curve_score(metrics["forward_pe"]) * 0.NN` in source'
+        _assert_pct_matches("stock_forward_pe", float(fwd_pe_match.group(1)))
 
-    def test_forward_pe_not_scored(self):
-        """Forward P/E is not part of the reverted 08-26/08-28 formula - guards against it
-        drifting back into value_score without an explicit decision."""
+    def test_margin_of_safety_fcf_yield_and_trailing_pe_not_scored(self):
+        """Margin of Safety, FCF Yield, and trailing P/E are not part of the current formula -
+        guards against any of them drifting back into value_score without an explicit decision.
+        Margin of Safety is a Deep Value page-only read (see
+        webapp/frontend/src/pages/DeepValueStocks.jsx); fcf_yield and pe_ratio stay
+        fetched/persisted for reference only, no VALUE_SCHEMA row for either. Trailing P/E was
+        removed 2026-08-30 after a corrected joint regression (fixing a real measurement bug -
+        unprofitable companies were being scored as neutral instead of worst) found its
+        coefficient statistically indistinguishable from zero in every window tested (never
+        significant, stays weakly positive throughout - re-verified 2026-08-31) and no
+        mainstream Value methodology (MSCI included) scores trailing E/P at all."""
         src = inspect.getsource(StockScoresLoader._score_value)
-        assert "fwd_pe_score" not in src, "forward_pe should not be a scored value_score component"
+        assert "mos_score" not in src, "margin_of_safety_pct should not be a scored value_score component"
+        assert "fcf_score" not in src, "fcf_yield should not be a scored value_score component"
+        assert "pe_score" not in src, "trailing pe_ratio should not be a scored value_score component"
 
     def test_percentile_ranking_disabled(self):
         """update_value_multiples_percentiles() (called from post_run()) must not be active
@@ -109,25 +124,29 @@ class TestValueScoreWeightBadges:
 
 
 class TestUnscoredValueFieldsDisplayed:
-    def test_forward_pe_and_ev_multiples_have_no_display_row(self):
-        """Forward P/E, EV/EBITDA, and EV/Revenue are not part of the reverted formula - should
-        have no row in VALUE_SCHEMA (unscored fields aren't displayed on this tab, per the
-        08-28 "if we not scoring it we dont want to display it" convention, which still
-        applies)."""
+    def test_margin_of_safety_fcf_yield_trailing_pe_and_ev_multiples_have_no_display_row(self):
+        """Margin of Safety, FCF Yield, trailing P/E, EV/EBITDA, and EV/Revenue are not part of
+        the current formula - should have no row in VALUE_SCHEMA (unscored fields aren't
+        displayed on this tab, per the 08-28 "if we not scoring it we dont want to display it"
+        convention, which still applies). Margin of Safety is a Deep Value page-only read - see
+        webapp/frontend/src/pages/DeepValueStocks.jsx. FCF Yield and trailing P/E were both
+        removed from scoring 2026-08-30 (FCF Yield: wrong-signed in this pillar's own evidence;
+        trailing P/E: no reliable signal once a real measurement bug was fixed, and no
+        mainstream Value methodology scores it either)."""
         schema_match = re.search(r"const VALUE_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
         assert schema_match, "expected VALUE_SCHEMA to still exist"
         schema_src = schema_match.group(1)
-        removed_keys = ["stock_forward_pe", "stock_ev_ebitda", "stock_ev_revenue"]
+        removed_keys = ["stock_margin_of_safety", "fcf_yield", "stock_pe", "stock_ev_ebitda", "stock_ev_revenue"]
         for key in removed_keys:
             assert f'key: "{key}"' not in schema_src and f"key: '{key}'" not in schema_src, (
                 f"{key} should have no VALUE_SCHEMA row at all (not scored, so not displayed on this tab)"
             )
 
-    def test_peg_fcf_yield_margin_of_safety_are_scored_and_displayed(self):
-        """RESTORED 2026-08-30 - PEG, FCF Yield, and Margin of Safety are scored value_score
-        components again and must have a real (non-informational) weight badge in
+    def test_peg_and_forward_pe_are_scored_and_displayed(self):
+        """PEG is scored throughout; Forward P/E was swapped back in 2026-08-30 (replacing
+        Margin of Safety) - both must have a real (non-informational) weight badge in
         VALUE_SCHEMA."""
-        for key in ["peg_ratio", "fcf_yield", "stock_margin_of_safety"]:
+        for key in ["peg_ratio", "stock_forward_pe"]:
             weight = _jsx_weight_for_key(key)
             assert re.match(r"\d+%", weight), f"{key} should have a real weight badge, got {weight!r}"
 

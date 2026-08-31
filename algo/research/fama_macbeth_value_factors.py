@@ -160,7 +160,22 @@ SIZE_CONTROL_COL = "size"
 # passes landed - amihud REMOVED (see AMIHUD ILLIQUIDITY docstring section), dividend_yield
 # REPLACED by net_payout_yield (see MISSING-INPUT CHECK section). This is now exactly the 7
 # inputs load_stock_scores.py._score_value actually weights (12/30/27/7/9/8/7).
-LIVE_VALUE_FACTOR_COLS = ["pe", "pb", "ps", "peg", "fcf_yield", "net_payout_yield", "margin_of_safety"]
+# UPDATED 2026-08-30 (weight-derivation pass, goal: "give me the right best list of the right
+# metrics... revisit the weightings"): the multivariate/univariate joint-regression sections
+# below (see run()) are used for exactly ONE purpose here - deriving |t-stat|-proportional
+# weights for the CURRENT live 6-input formula's 5 backtestable inputs (pe/pb/ps/peg/
+# dividend_yield; forward_pe stays out of scope, still fundamentally unbacktestable - see
+# load_stock_scores.py's _score_value docstring). fcf_yield/net_payout_yield/margin_of_safety
+# REMOVED from this list (no longer live inputs as of the 2026-08-30 Value pillar revisions -
+# see [[stock_scores_value_forward_pe_swapped_for_margin_of_safety_20260830]] memory);
+# dividend_yield RESTORED (the live formula uses plain dividend_yield, not net_payout_yield,
+# per explicit user directive - see load_stock_scores.py's _score_value docstring). NOTE:
+# LIVE_VALUE_WEIGHTS/_replicate_live_composite_score below still reference the OLD 7-input
+# formula (fcf_yield/net_payout_yield/margin_of_safety) - deliberately NOT touched by this pass,
+# since the composite-backtest section isn't needed to answer the weight-derivation question and
+# rewiring it risks introducing an unverified bug; treat that section's output as stale until a
+# future pass updates it.
+LIVE_VALUE_FACTOR_COLS = ["pe", "pb", "ps", "peg", "dividend_yield"]
 VALUE_FACTOR_COLS = LIVE_VALUE_FACTOR_COLS  # backward-compat alias for existing callers/tests
 # Production weights, same order as LIVE_VALUE_FACTOR_COLS - used by _replicate_live_composite_score
 # below for the composite-score backtest (see run()'s "COMPOSITE SCORE BACKTEST" section).
@@ -300,6 +315,19 @@ def compute_ratios(gframe: pd.DataFrame, price: pd.Series) -> pd.DataFrame:
 
     ratios = pd.DataFrame(index=df.index)
     ratios["pe"] = np.where(df["eps"] > 0, df["price"] / df["eps"], np.nan)
+    # UNPROFITABLE MARKER (2026-08-30, weight-derivation pass - user question: "are you basing
+    # this just on companies with positive and negative values?"). df["eps"] is a real reported
+    # number here (COALESCE(diluted_eps, eps) straight from annual_income_statement, not
+    # collapsed yet) - so it distinguishes "real, present, negative-or-zero EPS" from
+    # "eps genuinely missing" even though the `pe` computation above collapses both to NaN.
+    # Kept separately so run()'s z-score loop can floor known-unprofitable rows at the WORST
+    # value (matching production's `_score_value` unprofitable-company floor, added 2026-08-28)
+    # instead of imputing them as NEUTRAL (0, "no information") the way every other missing
+    # input in this script is treated - those two cases are NOT the same thing, and conflating
+    # them here would silently understate PE's true signal versus what production actually
+    # scores, since production explicitly treats "known unprofitable" as informative (bad), not
+    # as an "I don't know" gap the way a genuinely missing SEC filing is.
+    ratios["pe_unprofitable"] = (df["eps"] <= 0) & df["eps"].notna()
     ratios["pb"] = np.where(df["book_value_per_share"] > 0, df["price"] / df["book_value_per_share"], np.nan)
     ratios["ps"] = np.where(df["sales_per_share"] > 0, df["price"] / df["sales_per_share"], np.nan)
     ratios["fcf_yield"] = np.where(df["fcf_per_share"].notna(), df["fcf_per_share"] / df["price"], np.nan)
@@ -594,6 +622,17 @@ def run(  # noqa: C901 -- a research/reporting script's linear sequence of print
 
         for col in all_cols:
             lo, hi = frame[col].quantile([0.01, 0.99])
+            if col == "pe":
+                # UNPROFITABLE FLOOR (2026-08-30, weight-derivation pass): known-unprofitable
+                # rows (real, present eps<=0 - see compute_ratios' pe_unprofitable marker) get
+                # assigned this month's worst (99th-percentile-clipped) raw PE value BEFORE
+                # z-scoring, landing them at the top of the z-score distribution - the same
+                # "worst possible" treatment production's _score_value gives them (floored at
+                # sub-score 0, which is exactly what the most expensive real PE in the universe
+                # also gets there). Genuinely-missing PE (eps never reported) stays NaN here and
+                # falls through to the neutral fillna(0.0) below, unchanged - that distinction is
+                # the whole point, see compute_ratios' own comment.
+                frame.loc[frame["pe_unprofitable"] & frame[col].isna(), col] = hi
             frame[col] = frame[col].clip(lo, hi)
             std = frame[col].std()
             frame[col] = (frame[col] - frame[col].mean()) / std if std and std > 0 else frame[col] * 0.0

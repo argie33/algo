@@ -1800,6 +1800,64 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
+        CURRENT LIVE FORMULA (2026-08-30, end state of a same-day chat/goal chain that started
+        from commit ffb555704's Value/Safety/Momentum revert): P/B (20%) + P/S (20%) + PEG (20%)
+        + Forward P/E (20%) + Dividend Yield (20%) - FIVE inputs, EQUAL WEIGHT, no trailing P/E,
+        no Margin of Safety, no FCF Yield. Everything below this note (all the way through the
+        docstring) describes superseded history - read this note as the only current-state
+        summary, don't trust weight numbers quoted further down.
+
+        How it got here, in order, all same day: (1) ffb555704 reverted Value to its pre-audit
+        7-input formula (P/E 12/P/B 30/P/S 27/PEG 7/FCF 9/Div 8/MoS 7) on the finding that the
+        08-28 redesign's removals had little quoted user sign-off. (2) User asked to add Forward
+        P/E back and remove Margin of Safety from scoring (kept as a Deep-Value-page-only read,
+        webapp/frontend/src/pages/DeepValueStocks.jsx) - MoS's 7% went to Forward P/E. (3) User
+        asked to drop FCF Yield too ("doesn't seem to fit") - backed by this pillar's own
+        strongest evidence, wrong-signed in every window of the 8-input joint regression (full
+        t=-2.43, halves -0.91/-2.17); its 9% went to P/B (+5)/P/S (+4). (4) User asked for a
+        principled REWEIGHT of the whole remaining list rather than continuing the ad hoc
+        "freed weight to top two" pattern, explicitly requiring BOTH local evidence AND industry
+        gold standard (MSCI Value: Book/Price + Forward E/P + Dividend Yield - notably no
+        trailing E/P or PS) - not just our own backtests. Re-ran
+        algo/research/fama_macbeth_value_factors.py restricted to the live backtestable inputs
+        (pe/pb/ps/peg/dividend_yield; forward_pe stays out of scope, still fundamentally
+        unbacktestable - analyst_earnings_estimates has only ~4 weeks of history, no vendor
+        exposes historical consensus estimates) across full-sample (2014-2026) + both halves.
+        (5) User asked whether that test was fairly measuring profitable vs. unprofitable
+        companies - it wasn't: unprofitable companies (real, present eps<=0) were being
+        z-score-imputed as NEUTRAL (0, "no information") rather than floored at WORST the way
+        this function's own unprofitable-company floor actually treats them in production - a
+        real measurement gap, not a nitpick. Fixed (see that script's compute_ratios/run()
+        "UNPROFITABLE FLOOR" comments) and re-ran all three windows again. Once correctly
+        measured, trailing P/E stays weakly POSITIVE and statistically indistinguishable from
+        zero in every window (full t=+0.59, first half t=+0.64, second half t=+0.14 - re-verified
+        directly against the live DB 2026-08-31, correcting an earlier claim of a sign flip that
+        did not reproduce) - no reliable standalone signal either way, and per MSCI's own
+        methodology it was never supposed to be there anyway. REMOVED from scoring on both
+        grounds. (6) User confirmed
+        keeping PEG despite it also failing both checks (no mainstream methodology includes a
+        growth-adjusted P/E, and its own multivariate t=-1.59/-0.51/-1.66 across the three
+        windows never reaches significance) - an explicit judgment override, not an evidence
+        gap. (7) An initial pass set weights on the four remaining backtestable inputs (P/B/P/S/
+        PEG/Dividend) proportional to each one's average |t-stat| across the three windows
+        (post-unprofitable-floor-fix numbers), with Forward P/E held at its existing judgment-
+        anchored 7% - superseded the same day by (8) an explicit user directive to equal-weight
+        all five remaining inputs at 20% each instead, which is what's actually live now. This
+        is a legitimate, evidence-consistent choice, not just a preference override: the
+        research script's own composite backtest (see "COMPOSITE SCORE BACKTEST" section,
+        algo/research/fama_macbeth_value_factors.py's run()) already found equal-weighting the
+        pillar's inputs performs statistically indistinguishably from the hand-tuned live
+        percentages in every window tested - input SELECTION carries this pillar's performance,
+        not the specific weight split. pe_ratio/fcf_yield/margin_of_safety_pct all stay fetched/
+        persisted (API still returns all three unconditionally) - pe_ratio and fcf_yield have no
+        display surface left anywhere in the frontend, margin_of_safety_pct is Deep-Value-page-
+        only. Forward Sales-to-Price was raised as a real, standard candidate (yfinance exposes
+        a revenue-estimate API surface parallel to the EPS one that already feeds forward_pe)
+        but isn't loaded anywhere yet - flagged as a future data-plumbing project, deliberately
+        NOT part of this pass. Forward Book-to-Price was also considered and rejected - no data
+        vendor publishes consensus forward book value, and no mainstream methodology (including
+        MSCI's own) has ever used one.
+
         ARCHITECTURE CHANGE 2026-08-28 (goal: "what does IBD/the best and brightest do" - see
         VALUE_RISK_INTERACTION_MAX_SHIFT's neighbor, update_value_multiples_percentiles()'s own
         docstring, for the full evidence trail and citations). P/E, P/B, and P/S are no longer
@@ -2335,120 +2393,106 @@ class StockScoresLoader(OptimalLoader):
         weighted_sum = 0.0
         total_weight = 0.0
 
-        # P/E ratio: sweet spot 15-30 for growth momentum stocks
-        # Weight 12% (reverted 2026-08-26 to its pre-Amihud-rescale value - Amihud removed
-        # entirely from this pillar, see "FULL VALUE PILLAR RE-AUDIT" docstring note below).
-        # Reconfirmed weakest of the three multiples in the fresh 8-input joint regression
-        # (t=-1.59 full sample, -0.27/-1.83 sub-period halves) - see that note.
-        # PE/PB/PS scoring: LIVE CROSS-SECTIONAL PERCENTILE, not a fixed absolute curve. This
-        # per-symbol pass only knows THIS symbol's raw ratio, not the current run's universe
-        # distribution, so it uses `_pe_curve_score`/`_pb_curve_score`/`_ps_curve_score` (the
-        # OLD fixed-threshold formulas, preserved verbatim - see their own docstrings) as a
-        # PROVISIONAL value here; `update_value_multiples_percentiles()` (post_run(), batch
-        # pass, see its own docstring for the full evidence trail and the correction formula)
-        # OVERWRITES value_score/composite_score with the true cross-sectional-percentile-based
-        # multiples score once every symbol in this run has been scored. This two-phase
-        # provisional-then-corrected pattern mirrors `update_rs_percentiles()`'s own established
-        # precedent in this same file (Momentum's rs_percentile) - the only difference is that
-        # here the correction feeds back into value_score/composite_score itself rather than a
-        # separate auxiliary column, since PE/PB/PS are scored inputs, not just a display field.
-        # UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28 (goal: "is this value score right per
-        # industry best practice" - the P/E-vs-E/P gap). Institutional Value factors use
-        # earnings YIELD (E/P), which stays well-defined and correctly negative for a
-        # loss-making company; this file uses P/E (ratio form), which is mathematically
-        # undefined for negative earnings and was previously just SKIPPED for those symbols -
-        # renormalizing them onto P/B/P/S/etc. as if this component simply didn't exist,
-        # rather than correctly scoring them low. Live-confirmed real scale: 2283 of 2519
-        # universe pe_ratio NULLs (value_value_quality_growth_metrics.py's own audit) are
-        # unprofitable companies with a real, present EPS <= 0, not missing data - the
-        # `pe_ratio_unavailable_reason == "unprofitable_stock"` case below. Fix doesn't require
-        # a new stored earnings-yield field: any negative earnings yield is, by definition,
-        # worse than any non-negative one, so flooring at 0 (this pillar's existing "worst in
-        # curve/percentile" value, same floor `_pb_curve_score`/`_ps_curve_score`/the
-        # percentile mechanism already use) is exactly what a true E/P ranking would produce,
-        # up to the ordering AMONG unprofitable names (which would need the actual EPS
-        # magnitude to differentiate - not attempted here, same "no full-precision fix without
-        # new data" tradeoff already accepted for the "computed-but-unscored" fields
-        # elsewhere). `update_value_multiples_percentiles()`'s post_run() pass applies the
-        # identical floor at the cross-sectional percentile stage - see that method's docstring.
-        if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
-            pe_score = self._pe_curve_score(metrics["pe_ratio"])
-            weighted_sum += pe_score * 0.12
-            total_weight += 0.12
-        elif metrics.get("pe_ratio_unavailable_reason") == "unprofitable_stock":
-            weighted_sum += 0.0 * 0.12
-            total_weight += 0.12
+        # Trailing P/E: REMOVED FROM SCORING 2026-08-30 (weight-derivation pass, same day as the
+        # FCF Yield removal above). Backed by BOTH criteria the user asked to weigh jointly
+        # ("don't just rely on our own testing... also the industry gold standard"): (1)
+        # corrected local evidence - once unprofitable companies are properly floored at worst
+        # instead of neutrally imputed (a real measurement bug the user caught and asked about
+        # directly - "are you basing this just on companies with positive and negative values?" -
+        # fixed in algo/research/fama_macbeth_value_factors.py's compute_ratios/run(), see that
+        # script's "UNPROFITABLE FLOOR" comments), trailing P/E's multivariate coefficient is
+        # statistically indistinguishable from zero in every window tested (full t=+0.59, first
+        # half t=+0.64, second half t=+0.14 - re-verified directly against the live DB
+        # 2026-08-31, correcting an earlier claim of a sign flip that did not reproduce) - not
+        # "weak but real" like PEG/dividend_yield, genuinely no reliable signal once correctly
+        # measured; (2) MSCI's
+        # own Value methodology - the exact standard already used to justify keeping Forward P/E
+        # - never included trailing E/P to begin with, only Book/Price + Forward E/P + Dividend
+        # Yield. Both checks agree, same bar FCF yield was held to. Its freed 12% was
+        # redistributed proportional to |t-stat| across all four remaining backtestable inputs
+        # (P/B, P/S, PEG, Dividend Yield below), not just handed to the top two, since this was a
+        # full weight-derivation pass, not an ad hoc single-input reallocation - see this
+        # function's docstring note at the top for the full derivation and the corrected
+        # per-window numbers. pe_ratio stays fetched/persisted on value_metrics for reference
+        # (API/frontend), just no longer scored here. `_pe_curve_score` stays defined (still
+        # reused by Forward P/E below, and by
+        # `update_value_multiples_percentiles()`'s disabled percentile-rank pass).
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
-        # Weight 39% (2026-08-28: +6 from Margin of Safety's removal from scoring below - see
-        # "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring note - given to PB as
-        # the strongest, most robust multiple of the three, same reasoning precedent as
-        # EV/EBITDA/EV/Revenue's and FCF yield's freed weight both going preferentially to PB
-        # in the 2026-08-25/2026-08-28 notes). Reconfirmed STRONGEST of the three multiples in
-        # the fresh 8-input joint regression (t=-7.49 full sample, -3.05/-7.64 sub-period
-        # halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED" note established via
-        # a materially different spec - real corroboration.
+        # Weight 20% (2026-08-30, FINAL - user directive: equal-weight all five remaining
+        # inputs at 20% each, superseding the same-day |t-stat|-proportional derivation below
+        # this function's docstring note describes - see that note's tail for the switch).
+        # Reconfirmed STRONGEST input in every spec and every window tested throughout this
+        # pillar's entire audit history - the anchor of the pillar, even at equal weight.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb_score = self._pb_curve_score(metrics["pb_ratio"])
-            weighted_sum += pb_score * 0.30
-            total_weight += 0.30
+            weighted_sum += pb_score * 0.20
+            total_weight += 0.20
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
-        # Weight 34% (2026-08-28: +5 from Margin of Safety's removal from scoring below, same
-        # reasoning as PB's bump above - PS is the second-strongest, most robust multiple).
-        # Reconfirmed second-strongest of the three multiples (t=-4.40 full sample, -2.68/
-        # -3.52 sub-period halves).
+        # Weight 20% (2026-08-30, FINAL - equal-weight, see P/B's comment above). Reconfirmed
+        # second-strongest input, robust in every window.
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps_score = self._ps_curve_score(metrics["ps_ratio"])
-            weighted_sum += ps_score * 0.27
-            total_weight += 0.27
+            weighted_sum += ps_score * 0.20
+            total_weight += 0.20
 
-        # PEG ratio: RESTORED 2026-08-30 (user directive - reverting Value to its 08-26/08-28
-        # 7-input formula). <=1 is the classic Peter Lynch "undervalued relative to growth"
-        # zone; >4 signals growth already richly priced in. Weight 7%.
+        # PEG ratio: kept on explicit user directive ("no keep the PEG") despite failing both
+        # the local-evidence and industry-gold-standard checks that took Trailing P/E and FCF
+        # Yield out - real univariate signal, subsumed jointly (t=-1.59/-0.51/-1.66 all three
+        # windows, corrected numbers), no mainstream systematic Value methodology includes a
+        # growth-adjusted P/E. Weight 20% (2026-08-30, FINAL - equal-weight, see P/B's comment
+        # above).
         if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
-            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.07
-            total_weight += 0.07
+            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.20
+            total_weight += 0.20
 
-        # Forward P/E is NOT part of the 08-26/08-28 formula this pillar was reverted to - not
-        # scored here; still fetched/persisted for reference.
+        # Forward P/E: kept (unbacktestable - analyst_earnings_estimates too young for a real
+        # panel - see this function's docstring note at the top) on industry-standard grounds
+        # (MSCI's own Value methodology's actual forward-earnings pick) rather than local
+        # evidence. Weight 20% (2026-08-30, FINAL - equal-weight, see P/B's comment above; no
+        # longer held at a smaller judgment-anchored floor now that the pass is equal-weight
+        # rather than |t-stat|-proportional). Reuses `_pe_curve_score` (same threshold family
+        # trailing P/E used to use) and applies the same unprofitable-company floor logic
+        # trailing P/E used to (`forward_pe_unavailable_reason == "negative_forward_eps"` means
+        # a real, present negative-forecast EPS - not missing data - so it's floored at 0 and
+        # counts toward total_weight, rather than excluded/renormalized).
+        if metrics.get("forward_pe") is not None and metrics["forward_pe"] > 0:
+            weighted_sum += self._pe_curve_score(metrics["forward_pe"]) * 0.20
+            total_weight += 0.20
+        elif metrics.get("forward_pe_unavailable_reason") == "negative_forward_eps":
+            weighted_sum += 0.0 * 0.20
+            total_weight += 0.20
 
-        # FCF yield: RESTORED 2026-08-30 (user directive). sec_valuations.fcf_yield is stored
-        # already as a percentage (e.g. 2.27 = 2.27%). Weight 9%.
-        if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
-            fcf_pct = metrics["fcf_yield"]  # already a percentage
-            fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.09
-            total_weight += 0.09
+        # FCF yield: RESTORED 2026-08-30 (user directive), then REMOVED FROM SCORING AGAIN the
+        # same day (later user directive - "you can drop the FCF yield since it doesn't seem to
+        # fit"), backed by this pillar's own strongest available evidence: the most rigorous
+        # local test (8-input joint Fama-MacBeth regression, controlling for every other Value
+        # input) finds FCF yield's coefficient WRONG-SIGNED in all three windows tested - full
+        # sample t=-2.43, first half t=-0.91, second half t=-2.17 (see "FCF YIELD - RESOLVED
+        # 2026-08-28" docstring note above for the original finding this reproduces) - i.e.
+        # controlling for the rest of the pillar, a HIGHER fcf_yield predicts a LOWER forward
+        # return, backwards from how it was scored here. sec_valuations.fcf_yield stays
+        # fetched/persisted for reference (API/frontend), just no longer a Value pillar input.
 
         # Dividend yield: bonus signal for income/quality. Plain dividend_yield (not
         # net_payout_yield) on explicit user directive - see this function's docstring.
         # sec_valuations.dividend_yield (migration 1146) is stored as a decimal fraction
-        # (0.03 = 3%). Weight 8%, matching the 08-26/08-28 formula this pillar was reverted to.
+        # (0.03 = 3%). Weight 20% (2026-08-30, FINAL - equal-weight, see P/B's comment above).
         if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
-            weighted_sum += div_score * 0.08
-            total_weight += 0.08
+            weighted_sum += div_score * 0.20
+            total_weight += 0.20
 
         # Margin of Safety: DCF-based "discount to intrinsic value" (load_sec_valuations.py,
-        # migration 1208) - RESTORED 2026-08-30 (user directive). Positive means the stock
-        # trades below its DCF intrinsic value (undervalued), negative means above
-        # (overvalued). A legitimate value can be negative - gate on `is not None`, not `> 0`.
-        # Weight 7%.
-        if metrics.get("margin_of_safety_pct") is not None:
-            mos = metrics["margin_of_safety_pct"]
-            if mos >= 50:
-                mos_score = 100
-            elif mos >= 0:
-                mos_score = 60 + mos * 0.8  # 0% -> 60, 50% -> 100
-            elif mos >= -50:
-                mos_score = 60 + mos * 1.2  # 0% -> 60, -50% -> 0
-            else:
-                mos_score = 0
-            weighted_sum += mos_score * 0.07
-            total_weight += 0.07
+        # migration 1208) - REMOVED FROM SCORING 2026-08-30 (user directive - "remove margin of
+        # safety [from the value score], make sure it is just in the deep value page"). Its 7%
+        # went to Forward P/E above. Field stays fetched/persisted on value_metrics
+        # (margin_of_safety_pct) - still shown on the Deep Value page
+        # (webapp/frontend/src/pages/DeepValueStocks.jsx), just no longer a Value pillar input,
+        # same "computed-but-unscored" convention as ev_ebitda/ev_revenue below.
 
         # EV/EBITDA and EV/Revenue are NOT part of the 08-26/08-28 formula this pillar was
         # reverted to 2026-08-30 - near-duplicates of P/E and P/S respectively (r=0.93/1.00),

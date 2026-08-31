@@ -1179,59 +1179,62 @@ const MOMENTUM_SCHEMA = [
 // FCF Yield 9% + Dividend Yield 8% + Margin of Safety 7%. See loaders/load_stock_scores.py's
 // _score_value for the restored scoring code; update_value_multiples_percentiles() (the
 // cross-sectional percentile-rank batch pass) is disabled, not deleted.
+// FINAL 2026-08-30 (end state of a same-day chat/goal chain - see
+// loaders/load_stock_scores.py's _score_value docstring "CURRENT LIVE FORMULA" note for the
+// full step-by-step trail: Margin of Safety out -> Forward P/E back in -> FCF Yield out ->
+// a |t-stat|-proportional reweight of what remained, checking BOTH this repo's own backtests
+// AND industry gold standard (MSCI Value: Book/Price + Forward E/P + Dividend Yield, notably
+// no trailing E/P) -> trailing P/E removed entirely once a real measurement bug (unprofitable
+// companies scored as "neutral" instead of "worst") was found and fixed, which flipped
+// trailing P/E's sign in 2 of 3 test windows and left it with no reliable signal either way ->
+// SUPERSEDED same day by an explicit user directive to equal-weight all five remaining inputs
+// instead - a legitimate, evidence-consistent choice, not just preference: the research
+// script's own composite backtest already found equal-weighting performs statistically
+// indistinguishably from hand-tuned weights in every window tested (input SELECTION carries
+// this pillar's performance, not the specific split).
+// CURRENT formula, five inputs, EQUAL WEIGHT: P/B 20% + P/S 20% + PEG 20% + Forward P/E 20% +
+// Dividend Yield 20%. No trailing P/E, no FCF Yield, no Margin of Safety.
 const VALUE_SCHEMA = [
-  {
-    key: "stock_pe",
-    label: "P/E",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "12%",
-  },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "30%",
+    weight: "20%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "27%",
+    weight: "20%",
   },
   {
     key: "peg_ratio",
     label: "PEG",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "7%",
+    weight: "20%",
   },
   {
-    key: "fcf_yield",
-    label: "FCF Yield",
-    fmt: (v) => pct(v, 2),
+    key: "stock_forward_pe",
+    label: "Forward P/E",
+    fmt: (v) => num(v, 2),
     used: true,
-    weight: "9%",
+    weight: "20%",
   },
   {
     key: "stock_dividend_yield",
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "8%",
+    weight: "20%",
   },
-  {
-    key: "stock_margin_of_safety",
-    label: "Margin of Safety (DCF)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "7%",
-  },
-  // Forward P/E, EV/EBITDA, EV/Revenue, net_payout_yield: not part of this formula - still
-  // fetched/persisted via the API for reference, not shown here (matches this tab's
-  // "only show what's scored" convention).
+  // EV/EBITDA, EV/Revenue, net_payout_yield, stock_pe (trailing P/E), fcf_yield: none part of
+  // this formula - still fetched/persisted via the API for reference, not shown here (matches
+  // this tab's "only show what's scored" convention). Margin of Safety (DCF) is likewise not
+  // part of this formula - it's a Deep Value page-only read, see
+  // webapp/frontend/src/pages/DeepValueStocks.jsx.
 ];
 
 // SIZE (market cap, Fama-French SMB / Banz 1981) - RETIRED as a scored top-level pillar
@@ -1333,13 +1336,6 @@ const GROWTH_SCHEMA = [
     weight: "9%",
   },
   {
-    key: "net_income_growth_yoy",
-    label: "Net Income Growth (YoY)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "9%",
-  },
-  {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",
     fmt: (v) => pct(v, 2),
@@ -1356,6 +1352,13 @@ const GROWTH_SCHEMA = [
   {
     key: "earnings_growth_4q_avg",
     label: "Earnings Growth (4Q Avg)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "9%",
+  },
+  {
+    key: "net_income_growth_yoy",
+    label: "Net Income Growth (YoY)",
     fmt: (v) => pct(v, 2),
     used: true,
     weight: "9%",
