@@ -110,7 +110,16 @@ def _yfinance_worker_loop(request_queue: Any, response_queue: Any) -> None:
             result = getattr(ticker, property_name)
             response_queue.put((request_id, True, result))
         except Exception as e:
-            response_queue.put((request_id, False, e))
+            # FIXED 2026-08-31 (goal: data-coverage sweep) - same fix as
+            # utils/external/yfinance_analyst_ratings.py's identical `_yf_attr_worker_loop`
+            # (see that function's own comment for the full GENI live-repro evidence): some
+            # yfinance/curl_cffi exceptions carry unpicklable C-level state
+            # (`_cffi_backend._CDataBase`), which crashes this queue's internal `_feed` thread
+            # asynchronously on `put()` - undetectable via `is_alive()`, permanently hanging
+            # every future `fetch()` call on this worker until the whole process is replaced.
+            # Re-wrapping into a plain RuntimeError (type name + message preserved) keeps this
+            # queue always picklable - no caller here reads more than `str(e)`.
+            response_queue.put((request_id, False, RuntimeError(f"{type(e).__name__}: {e}")))
 
 
 class YfinanceProcessWorker:

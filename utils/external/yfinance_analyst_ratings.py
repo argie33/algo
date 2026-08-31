@@ -98,7 +98,27 @@ def _yf_attr_worker_loop(request_queue: Any, response_queue: Any) -> None:
             result = getattr(ticker, attr)
             response_queue.put((request_id, True, result))
         except Exception as e:
-            response_queue.put((request_id, False, e))
+            # FIXED 2026-08-31 (goal: data-coverage sweep, GENI follow-up): never enqueue the
+            # raw exception object - some yfinance/curl_cffi exception types carry unpicklable
+            # C-level state (live-confirmed: `TypeError: cannot pickle
+            # '_cffi_backend._CDataBase' object` from multiprocessing's internal `_feed` thread
+            # on `response_queue.put()`). That crash is ASYNCHRONOUS (the feeder thread does the
+            # actual pickling in the background - this `put()` call itself never raises), so it
+            # can't be caught here after the fact - the only fix is to never put anything
+            # unpicklable on the queue in the first place. Worse: `_feed` crashing kills only
+            # that background thread, not this loop's main thread, so `is_alive()` in the parent
+            # (`_YfinanceAttrProcessWorker._ensure_alive`) never notices - the worker looks
+            # alive forever but can never send a response again, silently hanging every future
+            # `fetch()` call until its own timeout, for the rest of this process's lifetime.
+            # Live-confirmed this broke a real GENI fetch (~3min of repeated timeouts) even
+            # though an isolated single-shot fetch of the exact same symbol/attr succeeded
+            # cleanly moments later in a fresh process - the trigger is a transient
+            # network/curl_cffi error, not anything GENI-specific. Re-wrapping into a plain,
+            # always-picklable RuntimeError preserves the original type name + message - every
+            # caller of `fetch()` already does a broad `except Exception` plus string-based
+            # rate-limit keyword matching on `str(e)`, so this loses no information any caller
+            # actually reads.
+            response_queue.put((request_id, False, RuntimeError(f"{type(e).__name__}: {e}")))
 
 
 class _YfinanceAttrProcessWorker:
