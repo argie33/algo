@@ -163,11 +163,14 @@ class TestGrowthScoreWeightBadges:
         "eps_growth_3y": "eps_growth_3y_cagr",
         "revenue_growth_5y": "revenue_growth_5y_cagr",
         "eps_growth_5y": "eps_growth_5y_cagr",
-        "net_income_growth_yoy": "net_income_growth_yoy",
+        "forward_eps_growth_current_fy": "forward_eps_growth_current_fy",
+        "forward_eps_growth_next_fy": "forward_eps_growth_next_fy",
+        "forward_revenue_growth_next_fy": "forward_revenue_growth_next_fy",
         "sustainable_growth_rate": "sustainable_growth_rate",
         "quarterly_growth_momentum": "quarterly_growth_momentum",
         "earnings_growth_4q_avg": "earnings_growth_4q_avg",
         "fcf_growth_yoy": "fcf_growth_yoy",
+        "eps_growth_stability": "eps_growth_stability",
     }
 
     def test_growth_score_fields_match_jsx_key_map(self):

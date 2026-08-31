@@ -856,8 +856,12 @@ export { QUALITY_SCHEMA, RISK_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
 // correctly excluded. earnings_growth_4q_avg (t=4.47) and eps_growth_stability (t=-5.00) are
 // strong full-sample but fail this project's own era-robustness bar (first half t=1.42/-1.38,
 // well under |t|>2, despite a much stronger second half t=4.45/-5.18 - same sign both halves,
-// not a flip, but not independently significant early on either) - NOT shipped, flagged as a
-// "strengthening" pattern worth revisiting as more recent-era data accumulates, not a dead end.
+// not a flip, but not independently significant early on either). earnings_growth_4q_avg
+// shipped anyway 2026-08-31 on industry-alignment grounds (IBD CAN SLIM "C" criterion).
+// eps_growth_stability ALSO shipped 2026-08-31 (later, separate /goal session, explicit user
+// directive to add earnings variability as a Growth input) - same "explicit user override of
+// the era-robustness bar" footing as this pillar's own standing multi-input restore, not a
+// reversal of the FM-test finding above (still true, just not the deciding factor here).
 //
 // used: true  -> this field is a genuine input to the score formula
 // weight: display string for the "Used in Score" badge
@@ -1299,8 +1303,11 @@ const VALUE_SCHEMA = [
 // still gets scored off whichever are present) and NOT sign-flipped (higher growth = higher
 // score for every field here, per the user's explicit direction - overriding this file's own
 // prior growth-reversal research, see _score_growth's docstring for the full evidence-vs-
-// override history). 11 inputs, so each is weighted ~1/11 - "9%" below is that rounded, not a
-// separately-tuned per-field weight (they're all equal).
+// override history). Equal-weighted across whatever GROWTH_SCORE_FIELDS currently holds (14
+// as of 2026-08-31's eps_growth_stability addition, so "7%" below is 1/14 rounded) - not a
+// separately-tuned per-field weight; update this comment's count/pct if the field list changes
+// again rather than letting it drift stale (see the 11/"9%" figure this replaced, which had
+// gone stale across 2 intervening field-count changes without being updated).
 //
 // ocf_growth_yoy/asset_growth_yoy REMOVED 2026-08-28 (user directive, /goal session: "remove
 // these two from growth score and from react") - dropped from both GROWTH_SCORE_FIELDS
@@ -1322,94 +1329,145 @@ const VALUE_SCHEMA = [
 // they remain a Quality-origin concept (relocated there 2026-08-27, removed from Quality
 // scoring the same day on their own isolated re-test) and are absent from GROWTH_SCORE_FIELDS.
 // Raw values remain computed/persisted in both quality_metrics and growth_metrics for
-// reference, just not displayed on this tab. eps_growth_stability is also excluded from the
-// blend (a dispersion metric, not a higher-is-better growth rate on the same scale as the rest
-// of GROWTH_SCORE_FIELDS) and isn't shown here either.
+// reference, just not displayed on this tab.
+//
+// eps_growth_stability ADDED 2026-08-31 (/goal session, explicit user directive: "add earnings
+// variability as additional input to growth score") - now scored (used:true) via a dedicated
+// inverted curve (_score_eps_growth_stability in loaders/load_stock_scores.py's _score_growth,
+// NOT the shared _score_single_growth every other row here uses, since this field is a
+// dispersion metric - always >=0, lower=more consistent - not a signed growth rate). Real,
+// live-computed data: 79.8% coverage, comparable to fcf_growth_yoy's 72.1%. GROWTH_SCORE_FIELDS
+// is now 14 fields, so every badge below (including this one) is ~1/14 - "7%", not "8%".
+//
+// REVISED 2026-08-31 (industry-alignment review - see GROWTH_SCORE_FIELDS's docstring in
+// loaders/load_stock_scores.py for the full rationale/evidence): net_income_growth_yoy is no
+// longer a scored input (raw net income growth isn't how MSCI/Russell/S&P/Zacks/IBD define
+// the "earnings growth" component of a Growth factor - they all use per-share EPS growth
+// specifically because it's buyback/dilution-adjusted) - still shown below for reference, same
+// still-computed/no-longer-scored treatment as ocf_growth_yoy/asset_growth_yoy/
+// operating_income_growth_yoy above. forward_eps_growth_current_fy/forward_eps_growth_next_fy/
+// forward_revenue_growth_next_fy are RESTORED and now scored (used:true) - forward/analyst-
+// consensus EPS growth is the headline Growth descriptor in MSCI/Russell/S&P's own
+// methodologies, and this pillar had no forward-looking input at all before this pass. Their
+// brief 2026-08-31 same-day removal-from-display was a display-only declutter reacting to one
+// stock's legitimate no-analyst-coverage gap, not a rejection of the fields themselves - see
+// loaders/load_value_quality_growth_metrics.py's _get_analyst_forward_growth_estimates
+// docstring for the live coverage numbers (73-77%, comparable to fcf_growth_yoy's 72%) that
+// motivated bringing them back. Values are raw fractions in the API's growth_inputs (0.18 =
+// 18%) - same *100 formatter this file already uses elsewhere for fraction-scaled fields (see
+// RISK_SCHEMA's volatility_60d). eps_estimate_revision_90d_pct restored informationally only
+// (unscored, no weight badge) - an estimate-REVISION-momentum signal is a distinct factor
+// style from a growth-rate level, not folded into this blend; already percentage-point scaled
+// (no *100 needed).
 const GROWTH_SCHEMA = [
   {
     key: "revenue_growth_1y_pct",
     label: "Revenue Growth (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "eps_growth_1y_pct",
     label: "EPS Growth (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "revenue_growth_3y_cagr",
     label: "Revenue Growth (3Y CAGR)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "eps_growth_3y_cagr",
     label: "EPS Growth (3Y CAGR)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "revenue_growth_5y_cagr",
     label: "Revenue Growth (5Y CAGR)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "eps_growth_5y_cagr",
     label: "EPS Growth (5Y CAGR)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
-    key: "net_income_growth_yoy",
-    label: "Net Income Growth (YoY)",
-    fmt: (v) => pct(v, 2),
+    key: "forward_eps_growth_current_fy",
+    label: "Forward EPS Growth (Current FY, analyst consensus)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
+  },
+  {
+    key: "forward_eps_growth_next_fy",
+    label: "Forward EPS Growth (Next FY, analyst consensus)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    used: true,
+    weight: "7%",
+  },
+  {
+    key: "forward_revenue_growth_next_fy",
+    label: "Forward Revenue Growth (Next FY, analyst consensus)",
+    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    used: true,
+    weight: "7%",
   },
   {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "quarterly_growth_momentum",
     label: "QoQ Growth Momentum",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "earnings_growth_4q_avg",
     label: "Earnings Growth (4Q Avg)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
   {
     key: "fcf_growth_yoy",
     label: "FCF Growth (YoY)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "9%",
+    weight: "7%",
   },
-  // forward_eps_growth_current_fy / forward_eps_growth_next_fy / forward_revenue_growth_next_fy /
-  // eps_estimate_revision_90d_pct REMOVED FROM DISPLAY 2026-08-31 (user directive - these rows
-  // were showing as "No data" for the stock being viewed, a legitimate per-symbol
-  // no_analyst_estimates gap, not a bug - analyst_earnings_estimates is a snapshot-per-day table
-  // with no backfill capability, so coverage is inherently partial). None of the 4 are scored
-  // inputs on this branch (no `used`/`weight` key) - this is a display-only removal, no
-  // backend/scoring change.
+  {
+    key: "eps_growth_stability",
+    label: "EPS Growth Stability (variability, lower = more consistent)",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "7%",
+  },
+  {
+    key: "net_income_growth_yoy",
+    label: "Net Income Growth (YoY)",
+    fmt: (v) => pct(v, 2),
+  },
+  {
+    key: "eps_estimate_revision_90d_pct",
+    label: "EPS Estimate Revision (90D)",
+    fmt: (v) => pct(v, 2),
+  },
 ];
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see

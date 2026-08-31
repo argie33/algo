@@ -1544,13 +1544,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         key per field (never partially-set) so the caller can merge it straight into the
         growth_metrics row dict.
 
-        Informational only - these fields do NOT feed growth_score: no historical depth exists
-        yet to validate predictive power, since analyst_earnings_estimates is a snapshot-per-day
-        table with no backfill capability.
+        forward_eps_growth_current_fy/forward_eps_growth_next_fy/forward_revenue_growth_next_fy
+        FEED growth_score as of 2026-08-31 (goal: growth-pillar industry-alignment pass - see
+        GROWTH_SCORE_FIELDS in loaders/load_stock_scores.py) - forward/analyst-consensus EPS
+        growth is the single most universally-cited Growth-factor descriptor across MSCI,
+        Russell, and S&P's published growth methodologies, and this table now has real
+        per-symbol coverage (~73-77%) even though it still lacks enough historical DEPTH
+        (only 24 distinct snapshot dates as of this writing, analyst_earnings_estimates has no
+        backfill capability) to backtest predictive power in this database. eps_estimate_revision_90d_pct
+        stays informational only (estimate-revision momentum is a distinct factor style from a
+        growth-RATE level, not shoehorned into this blend).
 
-        FIXED 2026-08-31 (goal session: reason-code accuracy sweep): every field used to default
-        to "no_analyst_estimates" and only clear that default when ITS OWN value came back
-        non-null - so a symbol with real, current analyst coverage (a real
+        Real, live implausible-value bug found and fixed 2026-08-31 while wiring this in: unlike
+        every other growth field in this file (see MAX_PLAUSIBLE_GROWTH_PCT above), these 4 had
+        NO plausibility bound at all - a near-zero prior-year EPS/revenue denominator produces
+        mathematically enormous (but not exceptions-raising) growth rates, live-confirmed up to
+        +437,145%/-34,954% (forward_eps_growth_next_fy/current_fy) and -20,357%/+4,838%
+        (eps_estimate_revision_90d_pct) - 11-29 symbols per field, ~0.5% of universe. Bounded the
+        same way as every other candidate here.
+
+        SEPARATE reason-code-accuracy fix (main, FIXED 2026-08-31, merged in 2026-08-31): every
+        field used to default to "no_analyst_estimates" and only clear that default when ITS OWN
+        value came back non-null - so a symbol with real, current analyst coverage (a real
         `data_unavailable = FALSE` row) that simply lacked ONE of these 4 specific derived
         figures still got the "no_analyst_estimates" label on that field, indistinguishable from
         a symbol with zero coverage at all. Live-confirmed on AFRM/DB/VOD/NWG/WELL/L (all
@@ -1559,10 +1574,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         `forward_eps_growth_current_fy_unavailable_reason` said "no_analyst_estimates" - yfinance's
         `earnings_estimate` DataFrame simply didn't have a "growth" value for the "0y" (current
         fiscal year) period specifically for these symbols, a real but distinct gap from "nobody
-        covers this stock". Now distinguishes: no `data_unavailable = FALSE` row found at all ->
-        still "no_analyst_estimates" (genuinely zero coverage, the common case); a row WAS found
-        but this specific field came back NULL -> "analyst_coverage_incomplete_for_field" (real
-        coverage exists, just not this one derived figure).
+        covers this stock". Distinguishes 3 states now: no `data_unavailable = FALSE` row found
+        at all -> still "no_analyst_estimates" (genuinely zero coverage, the common case); a row
+        WAS found but this specific field came back NULL -> "analyst_coverage_incomplete_for_field"
+        (real coverage exists, just not this one derived figure); a row was found AND the field
+        has a value, but it's implausible -> "garbage_metric_value_implausible_ratio" (this
+        branch's fix above, orthogonal to the None-vs-found distinction).
         """
         fields = (
             "forward_eps_growth_current_fy",
@@ -1570,6 +1587,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "forward_revenue_growth_next_fy",
             "eps_estimate_revision_90d_pct",
         )
+        # forward_eps_growth_current_fy/next_fy/forward_revenue_growth_next_fy are stored as raw
+        # FRACTIONS (0.18 = 18%, see load_stock_scores.py's _get_growth_metrics for the
+        # fraction->percentage-point conversion at scoring time); eps_estimate_revision_90d_pct
+        # is already percentage-point scaled. MAX_PLAUSIBLE_GROWTH_PCT is a percentage-point
+        # threshold, so the fraction-scaled fields compare against it divided by 100.
+        _fraction_scaled_fields = {
+            "forward_eps_growth_current_fy",
+            "forward_eps_growth_next_fy",
+            "forward_revenue_growth_next_fy",
+        }
         result: dict[str, Any] = {}
         for field in fields:
             result[field] = None
@@ -1588,11 +1615,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if row:
                     for field, val in zip(fields, row, strict=True):
                         parsed = safe_float(val, f"{symbol}.{field}", allow_none=True)
-                        if parsed is not None:
+                        if parsed is None:
+                            # merge 2026-08-31: main's reason-code-accuracy fix (0ca6489f0) - a
+                            # real data_unavailable=FALSE row was found but THIS field came back
+                            # NULL, distinct from no row/no coverage at all (default above).
+                            result[f"{field}_unavailable_reason"] = "analyst_coverage_incomplete_for_field"
+                            continue
+                        plausibility_bound = (
+                            MAX_PLAUSIBLE_GROWTH_PCT / 100
+                            if field in _fraction_scaled_fields
+                            else MAX_PLAUSIBLE_GROWTH_PCT
+                        )
+                        if abs(parsed) < plausibility_bound:
                             result[field] = parsed
                             result[f"{field}_unavailable_reason"] = None
                         else:
-                            result[f"{field}_unavailable_reason"] = "analyst_coverage_incomplete_for_field"
+                            result[f"{field}_unavailable_reason"] = "garbage_metric_value_implausible_ratio"
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to fetch analyst forward growth estimates: {type(e).__name__}")
         return result

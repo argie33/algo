@@ -766,6 +766,11 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "eps_estimate_revision_90d_pct_unavailable_reason": data.get(
                     "eps_estimate_revision_90d_pct_unavailable_reason"
                 ),
+                # ADDED 2026-08-31: eps_growth_stability is now a scored GROWTH_SCORE_FIELDS
+                # candidate (see loaders/load_stock_scores.py) - was already fetched into `data`
+                # for quality_inputs above, reused here under the growth_inputs section too.
+                "eps_growth_stability": data.get("eps_growth_stability"),
+                "eps_growth_stability_unavailable_reason": data.get("eps_growth_stability_unavailable_reason"),
             }
 
             # Positioning Inputs
@@ -1708,6 +1713,9 @@ def _get_stock_scores(  # noqa: C901
                 "eps_estimate_revision_90d_pct_unavailable_reason": d.get(
                     "eps_estimate_revision_90d_pct_unavailable_reason"
                 ),
+                # ADDED 2026-08-31 (see matching comment on the details-endpoint copy above).
+                "eps_growth_stability": d.get("eps_growth_stability"),
+                "eps_growth_stability_unavailable_reason": d.get("eps_growth_stability_unavailable_reason"),
             }
 
             # Positioning Inputs: Ownership and short interest

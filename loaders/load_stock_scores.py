@@ -38,6 +38,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+import itertools  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import math  # noqa: E402
@@ -188,6 +189,20 @@ logger = logging.getLogger(__name__)
 # decisively on Pearson (~0.02 vs ~0.05 both eras) - suggestive, not conclusive. Left as an open
 # question for explicit user direction, not acted on unilaterally on a non-robust result.
 #
+# DECIDED 2026-08-31 (explicit user direction: "figure what is best and do what is best"):
+# NOT switching to all-percentile pillar scaling. The Spearman edge fails this project's own
+# |t|>=2-both-eras bar (ERA2 roughly ties/trails) and Pearson favors the current z-score approach
+# decisively in BOTH eras - the same standard that rejected 9/10 pillar-pair interactions and 13/16
+# per-metric curve candidates above applies here too; a non-era-robust pooled metric isn't grounds
+# to override it just because this particular candidate is the "flagship" scale-consistency
+# question. Per-metric curve-vs-percentile was already handled correctly at the right granularity
+# (ROE/ROCE/size shipped where the win was real and consistent, see git history 2026-08-28) - this
+# pillar-level, all-or-nothing version is a coarser question and loses on the evidence. Current
+# mixed approach (Value's PE/PB/PS percentile-ranked, everything else fixed-curve-or-per-metric-
+# percentile as already decided per-candidate) stays as-is. Don't re-raise this without a new era
+# of data or a materially different test design - re-running the same 2023-2026 OOS window won't
+# produce a different answer.
+#
 # SAME SESSION, SECOND FOLLOW-UP (algo/research/goal2_joint_raw_input_vs_pillar_composite.py,
 # re-raised via /goal: "instead of factor pillar weights, the input relationship in whole").
 # The pillar-summary-level re-verification above (6 proxies) doesn't answer whether skipping
@@ -240,6 +255,77 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
 # computed/no-longer-scored treatment as above - raw value remains in growth_metrics
 # (load_value_quality_growth_metrics.py) for reference, just no longer scored or shown in
 # GROWTH_SCHEMA.
+#
+# 2026-08-31 INDUSTRY-ALIGNMENT REVIEW (goal session: "dig and be certain we come up with the
+# right list... best regarded metrics for identifying the growth factor"). Compared the prior
+# 11-field list against MSCI/Russell/S&P's own published Growth-factor methodologies and
+# IBD CAN SLIM, then re-verified every quantitative claim directly against the live DB (not
+# carried over from a prior memory - see feedback_verify_specific_quantitative_claims_before_trusting
+# in memory for why that matters on this exact file). Two changes:
+#
+# 1. net_income_growth_yoy REMOVED. Every major growth-style methodology (MSCI, Russell, S&P,
+#    Zacks, IBD) defines the "earnings growth" descriptor on a PER-SHARE (EPS) basis
+#    specifically because it is buyback/dilution-adjusted - a company can grow raw net income
+#    only by issuing shares (real dilution, no per-owner benefit) or shrink net income while
+#    growing EPS via buybacks (common for mature compounders). Raw net-income growth is not a
+#    named component of any of those methodologies. This is a methodological objection, NOT a
+#    redundancy fix - live Spearman correlation vs eps_growth_1y is only 0.16 (re-verified
+#    2026-08-31, matches the same-day correction in
+#    growth_pillar_industry_alignment_reviewed_no_action_20260828 - net_income_growth_yoy is
+#    NOT a near-duplicate of anything else in this blend), so it was carrying real independent
+#    variance, just not the industry-standard variance for this factor.
+# 2. forward_eps_growth_current_fy / forward_eps_growth_next_fy / forward_revenue_growth_next_fy
+#    ADDED. Forward (analyst-consensus) EPS growth is the headline Growth descriptor in MSCI's
+#    "Long Term Forward EPS Growth Rate", Russell's 2-year I/B/E/S forecast EPS growth, and
+#    S&P's growth methodology - this pillar was previously 100% backward-looking with no
+#    forward-estimate input at all (flagged as the clearest institutional-comparison gap in
+#    growth_pillar_industry_alignment_reviewed_no_action_20260828, "not fixable now" at the
+#    time). That's since changed: forward_eps_growth_current_fy/next_fy and
+#    forward_revenue_growth_next_fy were added to growth_metrics 2026-08-29 (real yfinance
+#    analyst-estimate data, not a placeholder) and now have live per-symbol coverage of
+#    73.1%/75.8%/76.7% respectively - comparable to already-scored fields like fcf_growth_yoy
+#    (72.1%) - even though analyst_earnings_estimates itself still only has ~24 distinct
+#    snapshot dates (no backfill capability), too little historical depth to backtest
+#    predictive power in this DB. Included on industry-standard-methodology grounds, consistent
+#    with this pillar's standing user override to prioritize matching well-regarded growth
+#    definitions over requiring a fresh era-robust regression result for every candidate (see
+#    growth_pillar_restored_multi_input_not_inverted_user_override_20260828). Correlate weakly
+#    with every backward-looking field already in this blend (|r|<=0.33, mostly <0.1) and with
+#    each other (0.42 forward EPS vs forward revenue) - genuinely new information, not
+#    redundant with anything already here. eps_estimate_revision_90d_pct (the 4th field on the
+#    same table) deliberately NOT added - estimate-revision momentum is a distinct factor style
+#    (Zacks Rank's basis) from a growth-RATE level, and mixing a revision-momentum metric into a
+#    naive equal-weight average of growth levels would conflate two different things this file
+#    is otherwise careful to keep separate (see Growth-vs-Momentum pillar separation elsewhere
+#    in this file) - stays informational-only in GROWTH_SCHEMA, fetched but unscored, same
+#    treatment as eps_growth_stability above.
+#
+# fcf_growth_yoy was also reviewed against this same "is it in MSCI/Russell/S&P's canon"
+# standard and is the other non-canonical member (FCF growth isn't a named Growth-factor
+# descriptor in any of the three) - kept anyway: it functions as a "quality of growth" check
+# (cash-backed earnings growth vs an accounting-only number) rather than a duplicate growth-
+# rate, is not correlated with anything else in the blend (|r|<=0.32), and this codebase
+# already trusts cash-flow-based measures elsewhere (FCF Yield in Value). Secondary/
+# supplementary rather than core-canon, but not "wrong" - left in.
+#
+# eps_growth_stability ADDED 2026-08-31 (/goal session, explicit user directive: "add earnings
+# variability as additional input to growth score"). Previously fetched into `metrics` but
+# deliberately excluded from GROWTH_SCORE_FIELDS/this blend (see the now-superseded note in
+# _score_growth's docstring) because, unlike every other candidate here, it's a dispersion
+# metric (population stddev, in percentage points, of the trailing-4-quarter YoY EPS growth
+# rates - see _compute_quarterly_metrics in load_value_quality_growth_metrics.py), always >=0
+# and "lower is better" rather than a signed growth rate on the same higher-is-better scale.
+# "Earnings variability" is itself a named signal in institutional factor methodology (e.g. it's
+# one of MSCI's own three Quality-index components, alongside ROE and leverage) - the user's
+# framing of it as a Growth input rather than Quality is an explicit, direct product decision,
+# not a methodology dispute to relitigate (same footing as this pillar's standing multi-input
+# user override - see _score_growth's docstring). Real, live-computed data: 3,879/4,862 non-
+# unavailable growth_metrics rows have a value (79.8% coverage, live-verified 2026-08-31 -
+# comparable to already-scored fcf_growth_yoy's 72.1% and quarterly_growth_momentum's 79.5%),
+# not a placeholder. Scored via a dedicated inverted piecewise curve
+# (_score_growth's _score_eps_growth_stability), NOT _score_single_growth - see that helper's
+# own docstring for why (this field's scale/shape has nothing in common with a signed growth
+# rate, so it can't reuse the shared cap=30 linear transform every other candidate does).
 GROWTH_SCORE_FIELDS: tuple[str, ...] = (
     "revenue_growth_1y",
     "eps_growth_1y",
@@ -247,11 +333,14 @@ GROWTH_SCORE_FIELDS: tuple[str, ...] = (
     "eps_growth_3y",
     "revenue_growth_5y",
     "eps_growth_5y",
-    "net_income_growth_yoy",
+    "forward_eps_growth_current_fy",
+    "forward_eps_growth_next_fy",
+    "forward_revenue_growth_next_fy",
     "sustainable_growth_rate",
     "quarterly_growth_momentum",
     "earnings_growth_4q_avg",
     "fcf_growth_yoy",
+    "eps_growth_stability",
 )
 
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
@@ -592,6 +681,15 @@ class StockScoresLoader(OptimalLoader):
             # Read off growth_metrics's own copy here rather than merging in quality_metrics's -
             # both hold the same value, and every other GROWTH_SCORE_FIELDS candidate is already
             # a growth_metrics column, so this keeps _score_growth reading one dict, one table.
+            #
+            # forward_eps_growth_current_fy/forward_eps_growth_next_fy/forward_revenue_growth_next_fy
+            # added 2026-08-31 (goal: growth-pillar industry-alignment review - see
+            # GROWTH_SCORE_FIELDS below for the full rationale): forward/analyst-consensus EPS
+            # growth is the headline Growth descriptor in MSCI/Russell/S&P's own published
+            # methodologies and this repo's Growth blend was entirely backward-looking without
+            # it. eps_estimate_revision_90d_pct fetched too but stays informational-only (a
+            # revision-momentum signal, not a growth-rate level - not a GROWTH_SCORE_FIELDS
+            # candidate).
             cur.execute(
                 "SELECT symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, "
                 "eps_growth_1y, eps_growth_3y, eps_growth_5y, book_value_growth, "
@@ -599,6 +697,8 @@ class StockScoresLoader(OptimalLoader):
                 "fcf_growth_yoy, ocf_growth_yoy, "
                 "gross_margin_trend, operating_margin_trend, net_margin_trend, roe_trend, asset_growth_yoy, "
                 "eps_growth_stability, quarterly_growth_momentum, earnings_growth_4q_avg, "
+                "forward_eps_growth_current_fy, forward_eps_growth_next_fy, forward_revenue_growth_next_fy, "
+                "eps_estimate_revision_90d_pct, "
                 "data_unavailable FROM growth_metrics"
             )
             self._growth_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -1279,14 +1379,15 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 21 columns (revenue_growth_1y/3y/5y, eps_growth_1y/
+        - Row length validation: Must have 25 columns (revenue_growth_1y/3y/5y, eps_growth_1y/
           3y/5y, book_value_growth, net_income_growth_yoy, operating_income_growth_yoy,
           sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy, gross/operating/net_margin_
           trend, roe_trend, asset_growth_yoy, eps_growth_stability, quarterly_growth_momentum,
-          earnings_growth_4q_avg, data_unavailable) - corrected 2026-08-28 while wiring the
-          20th/21st (quarterly_growth_momentum/earnings_growth_4q_avg, see
-          GROWTH_SCORE_FIELDS/_score_growth).
-        - Schema mismatch (len(row) < 21) → raises ValueError immediately
+          earnings_growth_4q_avg, forward_eps_growth_current_fy, forward_eps_growth_next_fy,
+          forward_revenue_growth_next_fy, eps_estimate_revision_90d_pct, data_unavailable) -
+          extended 2026-08-31 to add the 4 forward/analyst-estimate fields (see
+          GROWTH_SCORE_FIELDS/_score_growth for why 3 of the 4 now feed growth_score).
+        - Schema mismatch (len(row) < 25) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_growth_metrics_found"
@@ -1295,19 +1396,20 @@ class StockScoresLoader(OptimalLoader):
         marked data_unavailable=True with NULL values. Previously returned NULLs instead of
         marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 21 columns. Missing columns causes
+        MINIMUM DATA REQUIREMENT: Row must have exactly 25 columns. Missing columns causes
         immediate fail-fast ValueError. Dependent on upstream annual_income_statement availability.
         """
         row = self._growth_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 21 columns before accessing indices
-            # (19 + quarterly_growth_momentum + earnings_growth_4q_avg, added 2026-08-28)
-            if len(row) < 21:
+            # CRITICAL: Validate row has expected 25 columns before accessing indices
+            # (21 + forward_eps_growth_current_fy/next_fy + forward_revenue_growth_next_fy +
+            # eps_estimate_revision_90d_pct, added 2026-08-31)
+            if len(row) < 25:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 21. "
+                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 25. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[20]
+            data_unavailable = row[24]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1315,6 +1417,17 @@ class StockScoresLoader(OptimalLoader):
                     f"(likely security with missing SEC filings)"
                 )
                 return marker_not_applicable(symbol, "growth_metrics")
+
+            def _scale_fraction_to_pct(val: float | None) -> float | None:
+                """forward_eps_growth_current_fy/next_fy and forward_revenue_growth_next_fy are
+                stored as raw fractions (0.18 = 18%), unlike every other GROWTH_SCORE_FIELDS
+                candidate which is already percentage-point scaled - _score_single_growth's
+                cap=30 curve is calibrated for percentage-point inputs. Live-verified against
+                the DB directly (not assumed from the column name): AAPL's real
+                forward_eps_growth_next_fy=0.0816, not 8.16.
+                """
+                return val * 100 if val is not None else None
+
             # Row exists and data is available
             return {
                 "revenue_growth_1y": safe_float(row[0], f"{symbol}.revenue_growth_1y"),
@@ -1341,6 +1454,18 @@ class StockScoresLoader(OptimalLoader):
                     row[18], f"{symbol}.quarterly_growth_momentum", allow_none=True
                 ),
                 "earnings_growth_4q_avg": safe_float(row[19], f"{symbol}.earnings_growth_4q_avg", allow_none=True),
+                "forward_eps_growth_current_fy": _scale_fraction_to_pct(
+                    safe_float(row[20], f"{symbol}.forward_eps_growth_current_fy", allow_none=True)
+                ),
+                "forward_eps_growth_next_fy": _scale_fraction_to_pct(
+                    safe_float(row[21], f"{symbol}.forward_eps_growth_next_fy", allow_none=True)
+                ),
+                "forward_revenue_growth_next_fy": _scale_fraction_to_pct(
+                    safe_float(row[22], f"{symbol}.forward_revenue_growth_next_fy", allow_none=True)
+                ),
+                "eps_estimate_revision_90d_pct": safe_float(
+                    row[23], f"{symbol}.eps_estimate_revision_90d_pct", allow_none=True
+                ),
             }
         # No row exists at all
         logger.warning(
@@ -1734,13 +1859,31 @@ class StockScoresLoader(OptimalLoader):
         `metrics` already carries both by the time this method sees it, same as every other
         candidate.
 
+        REVISED 2026-08-31 (industry-alignment review, see GROWTH_SCORE_FIELDS's own docstring
+        for the full rationale/evidence): net_income_growth_yoy swapped out for
+        forward_eps_growth_current_fy/forward_eps_growth_next_fy/forward_revenue_growth_next_fy
+        - 13 fields now, not 11. forward_eps_growth_current_fy/next_fy and
+        forward_revenue_growth_next_fy arrive from _get_growth_metrics already converted from
+        their raw-fraction DB storage to the same percentage-point scale every other candidate
+        uses (see that method's _scale_fraction_to_pct helper) - _score_single_growth's cap=30
+        curve would otherwise silently collapse them toward the 0%-growth midpoint.
+
         Margin/ROE trend fields (operating_margin_trend/net_margin_trend/roe_trend) remain in
         Quality (relocated there 2026-08-27, then removed from scoring entirely the same day
         on their own isolated re-test - see load_value_quality_growth_metrics.py's
         quality_components comment) - not a Growth input either way, and NOT in
-        GROWTH_SCORE_FIELDS. eps_growth_stability is a dispersion metric (lower=more
-        consistent), not a higher-is-better growth rate on the same scale as the rest - also
-        excluded from the blend, fetched for reference/display only.
+        GROWTH_SCORE_FIELDS.
+
+        eps_growth_stability ADDED 2026-08-31 (/goal session, explicit user directive - see
+        GROWTH_SCORE_FIELDS's own docstring for the full rationale/coverage evidence). It's a
+        dispersion metric (population stddev of trailing-4Q YoY EPS growth rates, percentage
+        points, always >=0, lower=more consistent), not a higher-is-better growth rate on the
+        same [-50,cap] scale _score_single_growth assumes - it CANNOT reuse that helper (doing
+        so would score raw dispersion magnitude as if it were a growth rate, e.g. a median-ish
+        stddev of ~53 would saturate to a near-100 score via the positive-growth branch, exactly
+        backwards). Scored instead via _score_eps_growth_stability, a dedicated inverted
+        piecewise curve defined below, then folded into the same equal-weighted
+        `component_scores` blend as every other GROWTH_SCORE_FIELDS candidate.
 
         RETURN TYPES (STRICT):
         - >=1 of GROWTH_SCORE_FIELDS available → returns float (0-100)
@@ -1792,17 +1935,53 @@ class StockScoresLoader(OptimalLoader):
             # Positive growth: map [0, cap] → [40, 100]
             return min(100.0, 40 + (val / cap) * 60)
 
+        def _score_eps_growth_stability(val: float | None) -> float | None:
+            """Score eps_growth_stability (population stddev, percentage points, of the
+            trailing-4-quarter YoY EPS growth rates) as an inverted "earnings variability"
+            input: lower dispersion = more consistent execution = higher score. Always >=0, so
+            it needs its own curve rather than _score_single_growth's signed [-50,cap] shape.
+
+            Piecewise-linear "badness" curve (100 minus it), same convention this codebase
+            already uses for other dispersion/volatility metrics (see _margin_curve in
+            load_value_quality_growth_metrics.py's quality scoring), re-scaled for this field's
+            live distribution (verified directly against growth_metrics, not assumed):
+            p25~=18, median~=53, p75~=156, p90~=404 percentage points of stddev. Anchors: 0
+            stddev -> 100 (perfectly consistent), ~p25 -> 80, ~median -> ~59, ~p75 -> ~23,
+            >=p90 -> 0. Breakpoints are domain judgment calibrated to the real distribution,
+            not separately fit/backtested - same caveat this file already applies to its other
+            fixed-cap curves (e.g. the cap=30 above).
+            """
+            if val is None:
+                return None
+            if val <= 0:
+                return 100.0
+            breakpoints = [(20.0, 20.0), (75.0, 55.0), (200.0, 90.0), (400.0, 100.0)]
+            if val < breakpoints[0][0]:
+                badness = (val / breakpoints[0][0]) * breakpoints[0][1]
+            else:
+                badness = breakpoints[-1][1]
+                for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
+                    if val < x1:
+                        badness = y0 + (val - x0) / (x1 - x0) * (y1 - y0)
+                        break
+            return max(0.0, 100.0 - badness)
+
         # Equal-weighted blend, NOT sign-flipped (see docstring - explicit user override of
-        # this file's own growth-reversal research). Cap of 30% reused across every candidate:
-        # all GROWTH_SCORE_FIELDS share the same _cagr()/YoY-%-derived percentage-point scale
+        # this file's own growth-reversal research). Cap of 30% reused across every signed-rate
+        # candidate: all of them share the same _cagr()/YoY-%-derived percentage-point scale
         # this file has always used that cap for (domain judgment, not separately fit per
         # field - same caveat already applied elsewhere in this file, e.g. asset_turnover,
-        # gross_profitability, fcf_margin).
-        component_scores = [
-            score
-            for field in GROWTH_SCORE_FIELDS
-            if (score := _score_single_growth(metrics.get(field), 30)) is not None
-        ]
+        # gross_profitability, fcf_margin). eps_growth_stability is the one exception - it's a
+        # dispersion metric, not a signed rate, so it's scored via _score_eps_growth_stability
+        # instead (see that helper's docstring).
+        component_scores = []
+        for field in GROWTH_SCORE_FIELDS:
+            raw = metrics.get(field)
+            score = (
+                _score_eps_growth_stability(raw) if field == "eps_growth_stability" else _score_single_growth(raw, 30)
+            )
+            if score is not None:
+                component_scores.append(score)
 
         if component_scores:
             growth_score = sum(component_scores) / len(component_scores)
