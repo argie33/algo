@@ -113,6 +113,19 @@ every fiscal year, exclusively under unit="KZT", no USD-tagged alternative anywh
 guard is working exactly as designed (same as BSAC/CLP); this cannot be fixed without a
 different historical-FX data source for KZT, which this module deliberately doesn't add
 without live verification (see the top of this docstring).
+
+FIXED 2026-08-31 (goal: "data loading issues/missing coverage" pass): PHP added. Found while
+investigating a small cluster of "stale_fiscal_data" 20-F filers (BCH/BBAR/BBD/BMA/CCU/CEPU/
+LOMA all confirmed CLP/ARS/BRL - already-excluded currencies per above, correctly unconverted)
+that also turned up PHI (PLDT Inc., CIK 0000078150) reporting exclusively in PHP with no
+USD-tagged alternative. Frankfurter serves PHP (live-confirmed: `GET /2024-12-31?from=USD&to=PHP`
+returns a real rate); year-end PHP/USD moves were +9.05% (2021->2022), -0.28% (2022->2023),
++4.66% (2023->2024) - comparable to ZAR's 8.6% high-water mark and inside INR's 11.1% ceiling,
+both already accepted, well below MXN's rejected 22.4%/BRL's rejected 28-29%. Converting PLDT's
+real FY2024 revenue (PHP 216.833B) at its own fiscal-year-end rate produces ~$3.74B, matching
+PLDT's known real public revenue (Philippines' largest telecom, consistently $3.5-4B/year) - no
+magnitude red flag. Only 1 symbol in this repo's universe affected (PHI) - a small, single-
+symbol fix, but the same live-verification discipline applies regardless of population size.
 """
 
 import json
@@ -130,7 +143,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR"})
+MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP"})
 
 
 class FxRateCache:
