@@ -33,14 +33,14 @@ import { RISK_SCHEMA } from "../../../components/StockScoreAccordion";
 const field = (schema, key) => schema.find((s) => s.key === key);
 
 describe("RISK_SCHEMA volatility formatting", () => {
-  // RISK_SCHEMA RESTORED 2026-08-30 (user directive) to its original 5-input formula:
-  // Volatility 252D (key "volatility_12m" - a legacy API naming quirk, not a real 12-month
-  // window) + Volatility 60D + Volatility 30D + Beta + Debt-to-Assets. max_drawdown_1y and
-  // downside_volatility are no longer part of this formula/tab.
+  // RISK_SCHEMA REWORKED 2026-08-30 (later same day, user directive: full delegation to
+  // figure out the best combination): Volatility 60D + Volatility 252D (key "volatility_12m" -
+  // a legacy API naming quirk, not a real 12-month window) + Beta + Max Drawdown 1Y.
+  // Volatility 30D and downside_volatility are not part of this formula/tab. Debt-to-Assets
+  // stays out - no RISK_SCHEMA row for it.
   it.each([
     ["volatility_12m", 0.22],
     ["volatility_60d", 0.17],
-    ["volatility_30d", 0.19],
   ])("scales %s's raw fraction to a percent for display", (key, fraction) => {
     const f = field(RISK_SCHEMA, key);
     const expectedPct = `+${(fraction * 100).toFixed(2)}%`;
@@ -54,8 +54,18 @@ describe("RISK_SCHEMA volatility formatting", () => {
     expect(beta.fmt(0.72)).toBe("0.72");
   });
 
-  it("debt_to_assets is a plain ratio, not percent-formatted", () => {
+  it("max_drawdown_1y is passed through unscaled (already pre-scaled by the loader)", () => {
+    const maxDrawdown = field(RISK_SCHEMA, "max_drawdown_1y");
+    expect(maxDrawdown.fmt(-8.05)).toBe("-8.05%");
+  });
+
+  it("volatility_30d has no RISK_SCHEMA row (dropped from the formula)", () => {
+    const v30 = field(RISK_SCHEMA, "volatility_30d");
+    expect(v30).toBeUndefined();
+  });
+
+  it("debt_to_assets has no RISK_SCHEMA row (not scored under Risk)", () => {
     const dta = field(RISK_SCHEMA, "debt_to_assets");
-    expect(dta.fmt(0.42)).toBe("0.42");
+    expect(dta).toBeUndefined();
   });
 });

@@ -1454,53 +1454,46 @@ const POSITIONING_SCHEMA = [
 // the same *100 scaling pct() doesn't do itself. max_drawdown_1y is the odd one out here -
 // _calculate_max_drawdown already multiplies by 100 (returns e.g. -25.5), so it's passed
 // through as-is like the loader-pre-scaled *_pct fields in QUALITY_SCHEMA.
-// RESTORED 2026-08-30 (explicit user directive, after a full history dig found this
-// pillar's 5-input -> 12-13 -> 8 -> 4 -> 3 evolution had zero quoted user sign-off on the
-// actual formula content at any point - only the pillar's rename, Stability->Risk, was ever
-// user-directed). Reverted to the ORIGINAL formula (pre-2026-07-23): Volatility 252D 40% +
-// Volatility 60D 20% + Volatility 30D 15% + Beta 15% + Debt-to-Assets 10%. Max Drawdown and
-// downside volatility - both added after this original design - are no longer scored here.
+// REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out the
+// best combination - see _score_risk's docstring in load_stock_scores.py for the per-input
+// reasoning). Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
+// Volatility 30D dropped (most redundant of the three windows). Downside volatility and
+// Debt-to-Assets stay out - both have clean, confirmed reasons (pure redundancy with
+// volatility_60d; balance-sheet metric scored under Quality's base quality_score instead).
 // Note: the API's "volatility_12m" key actually carries volatility_252d (a legacy naming
-// quirk in lambda/api/routes/scores.py, not a real 12-month window) - relabeled below to
-// avoid re-confusing this the same way the rest of this file already got confused once.
+// quirk in lambda/api/routes/scores.py, not a real 12-month window).
 const RISK_SCHEMA = [
-  {
-    key: "volatility_12m",
-    label: "Volatility (252D)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "40%",
-  },
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "20%",
+    weight: "45%",
   },
   {
-    key: "volatility_30d",
-    label: "Volatility (30D)",
+    key: "volatility_12m",
+    label: "Volatility (252D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "15%",
+    weight: "20%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "15%",
+    weight: "20%",
   },
   {
-    key: "debt_to_assets",
-    label: "Debt to Assets",
-    fmt: (v) => num(v, 2),
+    key: "max_drawdown_1y",
+    label: "Max Drawdown (1Y)",
+    fmt: (v) => pct(v, 2),
     used: true,
-    weight: "10%",
+    weight: "15%",
   },
-  // Max Drawdown and downside volatility (252d/60d/30d) are NOT part of the original
-  // 5-input formula this pillar was reverted to - still fetched/persisted for reference.
+  // Volatility 30D and downside volatility (252d/60d/30d) are NOT part of the current
+  // 4-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
+  // Quality instead, not this price-volatility/risk-of-loss pillar.
   // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
   // underlying XBRL segment-dimension extraction always comes back empty.
 ];

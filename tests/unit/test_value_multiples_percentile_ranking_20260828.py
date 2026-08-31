@@ -335,19 +335,18 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
     TestValueMultiplesReconciliationMath above) - none of them called the real method against a
     real (or mocked) DB cursor, so a SELECT-column-count-vs-row-index mismatch had no test that
     could catch it. This test closes that gap: it mocks DatabaseContext with a cursor whose
-    fetchall() returns rows shaped EXACTLY like the method's real SELECT (12 columns: symbol,
-    value_score, composite_score, risk_score, pe_ratio, pb_ratio, ps_ratio, forward_pe,
-    dividend_yield, pe_ratio_unavailable_reason, forward_pe_unavailable_reason, components) and
-    calls `update_value_multiples_percentiles()` for real - if the SELECT and the row[N]
-    literals ever drift apart again, this raises IndexError immediately instead of only
-    surfacing in a live loader run against the real DB.
+    fetchall() returns rows shaped EXACTLY like the method's real SELECT and calls
+    `update_value_multiples_percentiles()` for real - if the SELECT and the row[N] literals
+    ever drift apart again, this raises IndexError immediately instead of only surfacing in a
+    live loader run against the real DB.
 
-    FIXED 2026-08-30: the 12th column (`ss.components`, added by the `components`-sync bug fix
-    - see _components_with_corrected_value's own docstring) was added to the real SELECT
-    without this mock row shape being updated to match, so this regression test - whose whole
-    purpose is catching exactly this class of drift - had itself drifted out of sync and was
-    silently not testing the real shape for some time. Found via a full-suite run, unrelated to
-    whatever else was being worked on that day.
+    UPDATED 2026-08-30 (goal: full-data audit): the SELECT grew a 12th column (`ss.components`,
+    unpacked as `components_old = row[11]`) after this test was written, and the fixture rows
+    below were never updated to match - reproducing the exact same "fixture shape lags a real
+    SELECT change" gap this test was written to close in the first place, just one field later.
+    Rows now carry all 12 columns: symbol, value_score, composite_score, risk_score, pe_ratio,
+    pb_ratio, ps_ratio, forward_pe, dividend_yield, pe_ratio_unavailable_reason,
+    forward_pe_unavailable_reason, components.
     """
 
     @staticmethod
@@ -362,7 +361,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
         # REAL 12-column shape the live SELECT actually returns (11 value-multiple columns +
         # components, the Pass-1 JSON breakdown dict this method also corrects in place).
         rows = [
-            ("AAPL", 60.0, 55.0, 40.0, 15.0, 2.0, 4.0, 18.0, 0.005, None, None, '{"value": 55.0}'),
+            ("AAPL", 60.0, 55.0, 40.0, 15.0, 2.0, 4.0, 18.0, 0.005, None, None, {"quality": 70.0}),
             (
                 "UNPROFIT",
                 50.0,
@@ -375,9 +374,9 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 None,
                 "unprofitable_stock",
                 "no_analyst_estimates",
-                '{"value": 50.0}',
+                None,
             ),
-            ("NEGFWD", 45.0, 45.0, 50.0, 12.0, 1.5, 2.5, None, 0.01, None, "negative_forward_eps", None),
+            ("NEGFWD", 45.0, 45.0, 50.0, 12.0, 1.5, 2.5, None, 0.01, None, "negative_forward_eps", "{}"),
         ]
         cur = self._make_mock_cursor(rows)
         mock_db_context = MagicMock()

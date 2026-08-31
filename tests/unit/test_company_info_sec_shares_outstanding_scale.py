@@ -28,6 +28,7 @@ def _submissions_with_10k(accession: str = "0001652044-26-000018") -> dict:
             "recent": {
                 "form": ["10-K"],
                 "accessionNumber": [accession],
+                "filingDate": ["2026-06-15"],
             }
         }
     }

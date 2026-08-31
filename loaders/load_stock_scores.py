@@ -732,18 +732,6 @@ class StockScoresLoader(OptimalLoader):
                 risk_metrics = self._get_stability_metrics(cur, symbol)
                 momentum = self._get_momentum_metrics(cur, symbol)
 
-            # RESTORED 2026-08-30 (user directive - reverting Safety to its original 5-input
-            # formula): debt_to_assets is fetched by _get_quality_metrics but Safety's own
-            # _get_stability_metrics stopped selecting it 2026-08-16 when it moved to Quality.
-            # Merge it in here rather than duplicating the fetch - same pattern this file
-            # already uses elsewhere for cross-pillar field sharing.
-            if (
-                isinstance(risk_metrics, dict)
-                and not risk_metrics.get("data_unavailable")
-                and isinstance(quality, dict)
-            ):
-                risk_metrics["debt_to_assets"] = quality.get("debt_to_assets")
-
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return float or dict (marker when data unavailable)
             # Keep marker dicts throughout to track missing data reasons
@@ -2558,6 +2546,31 @@ class StockScoresLoader(OptimalLoader):
         (volatility/beta/downside-vol/max-drawdown), name only - the underlying
         stability_metrics input table and _get_stability_metrics accessor are unchanged.
 
+        REWORKED 2026-08-30 (later same day, user directive: "figure out what is best here and
+        do that" - full delegation after the 40/20/15/15 revert above was itself questioned).
+        Current formula: Volatility 60D (45%) + Volatility 252D (20%) + Beta (20%) + Max
+        Drawdown 1Y (15%). Reasoning per input, applying this file's own accumulated evidence
+        rather than re-deriving it: Volatility 60D gets the largest share because it's the one
+        robustly-significant signal in the whole panel (t=-6.07 multivariate). Volatility 252D
+        stays for genuine horizon diversity - its correlation with 60D (0.69-0.89) is real but
+        well short of the ~0.9+ band this file treats as actionable redundancy elsewhere.
+        Volatility 30D is DROPPED: it's the most redundant of the three windows (least distinct
+        horizon from 60D) and its removal doesn't lose a horizon 252D doesn't already cover
+        from the other side. Beta is kept at a deliberate, non-alpha weight - scored for
+        market-correlated swing-trading fit, not because it's return-predictive (it isn't,
+        t=0.93 - see below). Max Drawdown 1Y returns at a modest weight as a genuinely distinct
+        loss-severity dimension (a smooth-vol stock can still suffer one deep crash that vol
+        windows don't capture) rather than as a return-prediction bet, since the 2026-08-25
+        sub-period analysis below found it isn't stably predictive in either direction -
+        consistent with how Beta is already scored here for a non-predictive reason. Downside
+        volatility (all windows) and Debt-to-Assets stay OUT: both have clean, confirmed
+        reasons below (downside_vol is pure redundancy, r=0.93 wrong-signed once vol_60d is
+        controlled for; debt_to_assets is a balance-sheet solvency ratio, not a price-risk
+        metric, and already scored under Quality) rather than open questions.
+
+        The paragraphs below (40/20/15/15 revert, and before that the 60/20/20 consolidation)
+        describe earlier same-day states and are now STALE history, not the current design.
+
         Uses weighted scoring: Volatility 60d (60%, absorbed downside_volatility_60d's freed
         15% 2026-08-28 - see REMOVED note below) + Beta (20%) + Max Drawdown 1y (20%). Lower
         volatility and beta closer to 1.0 indicate stable, market-correlated stocks. Weights
@@ -2679,44 +2692,27 @@ class StockScoresLoader(OptimalLoader):
         weighted_sum = 0.0
         total_weight = 0.0
 
-        # RESTORED 2026-08-30 (explicit user directive, after a full history dig found this
-        # pillar's entire evolution - 5 inputs -> 12-13 -> 8 -> 4 -> 3 - was carried out by
-        # repeated Fama-MacBeth/evidence-driven passes with ZERO quoted user sign-off on the
-        # actual formula content at any point (only the pillar's rename, Stability->Risk, was
-        # ever user-directed). Reverted to the ORIGINAL formula (pre-2026-07-23, before the
-        # Financial Stability block was bolted on): Volatility 252D 40% + Volatility 60D 20% +
-        # Volatility 30D 15% + Beta 15% + Debt-to-Assets 10%. downside_volatility and
-        # max_drawdown_1y - both added after this original design and never explicitly
-        # requested - are no longer scored here; still fetched/persisted for reference. The FM
-        # evidence trail this pillar accumulated 2026-08-25 through 2026-08-29 (vol_60d
-        # dominant, downside_vol redundant, 6 vol windows correlated) is real and undisputed -
-        # this reversion is a user-judgment override of that evidence, same footing as this
-        # file's Dividend-Yield-over-Net-Payout-Yield and Growth-restore precedents, not a claim
-        # the evidence was wrong.
-
-        if metrics.get("volatility_252d") is not None:
-            v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
-            weighted_sum += v252_score * 0.40
-            total_weight += 0.40
+        # REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out
+        # the best combination - see this method's docstring for the per-input reasoning).
+        # Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
+        # Volatility 30D dropped (most redundant of the three windows). Debt-to-Assets stays
+        # fetched via Quality's own debt_to_assets read (quality_inputs on the scores API) -
+        # not merged into or scored by this pillar. This landed on `main` (commit `4c1293464`)
+        # independently of this branch's own ffb555704 revert commit (which reverted THIS
+        # pillar to an older 5-input formula on a since-superseded user directive) - merging
+        # main back into this branch 2026-08-31 surfaced the conflict; resolved in favor of
+        # main's version per MEMORY.md's own standing note that the reworked/evidence-optimized
+        # formula supersedes the revert's Safety section.
 
         if metrics.get("volatility_60d") is not None:
             v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
-            weighted_sum += v60_score * 0.20
+            weighted_sum += v60_score * 0.45
+            total_weight += 0.45
+
+        if metrics.get("volatility_252d") is not None:
+            v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
+            weighted_sum += v252_score * 0.20
             total_weight += 0.20
-
-        if metrics.get("volatility_30d") is not None:
-            v30_score = self._vol_curve_score(max(0, metrics["volatility_30d"]))
-            weighted_sum += v30_score * 0.15
-            total_weight += 0.15
-
-        # Debt-to-Assets: solvency measure, merged in from Quality's own fetch (see
-        # _compute_stock_score) since this pillar's own _get_stability_metrics query never
-        # carried it. Target <0.5; scored via the same curve Quality uses for the same field.
-        if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
-            dta = min(metrics["debt_to_assets"], 1.0)
-            dta_score = max(0, 100 - (dta * 100))
-            weighted_sum += dta_score * 0.10
-            total_weight += 0.10
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading.
         # Deliberately not the literature's low-beta preference (Frazzini & Pedersen 2014
@@ -2740,11 +2736,19 @@ class StockScoresLoader(OptimalLoader):
             beta = metrics["beta"]
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))
-            weighted_sum += beta_score * 0.15
-            total_weight += 0.15
+            weighted_sum += beta_score * 0.20
+            total_weight += 0.20
 
-        # max_drawdown_1y is NOT part of the original 5-input formula this pillar was
-        # reverted to 2026-08-30 - still fetched/persisted for reference, just not scored here.
+        # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
+        # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
+        # stock can have low day-to-day volatility yet still suffer one deep sustained
+        # drawdown). Scored as a loss-severity characterization, not a return-prediction bet -
+        # see this method's docstring for why (not stably predictive either direction).
+        if metrics.get("max_drawdown_1y") is not None:
+            drawdown_pct = abs(min(0.0, metrics["max_drawdown_1y"]))
+            dd_score = self._max_drawdown_curve_score(drawdown_pct)
+            weighted_sum += dd_score * 0.15
+            total_weight += 0.15
 
         if total_weight > 0:
             return weighted_sum / total_weight

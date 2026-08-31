@@ -158,7 +158,35 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # these filers, rather than risk the same unit-mismatch trap in a fallback tier
             # nobody has separately audited - see that loader and migration 1211's own
             # comment for the live TSM case ($10.7T market cap, ~5x too high) this prevents.
-            is_foreign_private_issuer = any(f in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K") for f in recent_forms)
+            #
+            # FIXED 2026-08-30 (goal: full-data audit): the original `any(...)` check had no
+            # recency bound - a filer that permanently converted FROM a foreign private issuer
+            # TO a domestic filer stays misclassified forever, since its old 20-F/6-K history
+            # never leaves SEC's "recent" filings array. Live-confirmed via AKTX (Akari
+            # Therapeutics): its last 6-K was filed 2023-12-01, and every annual/quarterly
+            # report since (10-K filed 2024-03-29 through the current 10-Q filed 2026-08-13)
+            # is domestic-form - it stopped being an FPI over two years ago, yet `any()` still
+            # returned True. DEF 14A and Form 4 filings in that same recent history are
+            # independent confirmation: FPIs are exempt from both, so their presence alone
+            # proves current non-FPI status. FPI status is determined by the MOST RECENT
+            # annual report on file (10-K/10-K-A vs 20-F/20-F-A/40-F/40-F-A), not by whether a
+            # foreign form ever appeared historically - recent_forms is newest-first (same
+            # ordering assumption _fetch_shares_outstanding_from_filing_text already relies
+            # on). Falls back to the original any-6-K behavior only when no annual report of
+            # either kind exists yet in the recent window (a genuinely new/recently-registered
+            # filer), matching the prior conservative default for that edge case.
+            annual_report_forms_recent_first = [
+                f for f in recent_forms if f in ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A")
+            ]
+            if annual_report_forms_recent_first:
+                is_foreign_private_issuer = annual_report_forms_recent_first[0] in (
+                    "20-F",
+                    "20-F/A",
+                    "40-F",
+                    "40-F/A",
+                )
+            else:
+                is_foreign_private_issuer = any(f in ("20-F", "20-F/A", "40-F", "40-F/A", "6-K") for f in recent_forms)
 
             # Get shares outstanding from DEI facts (if available)
             shares_outstanding = None
@@ -303,6 +331,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # anything below this floor rather than trust it blindly.
     _MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
 
+    # Shared with _latest_shares_value's identical cutoff below (FIXED 2026-08-20, AEM/AI
+    # stale-fact case) - a share-count fact more than 2 years old may reflect a capital
+    # structure (dilution, reverse split, FPI conversion) that no longer holds today.
+    _STALENESS_CUTOFF_DAYS = 730
+
     # Matches inline-XBRL <ix:nonFraction ... name="dei:EntityCommonStockSharesOutstanding"
     # ...>VALUE</ix:nonFraction> tags regardless of attribute order (real filings, e.g. PLNT's,
     # put name= after unitRef=/contextRef=) - the lookahead asserts the target name= attribute
@@ -411,7 +444,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # short interest. A stale entry now correctly falls through to the us-gaap fallback
         # (or ultimately shares_outstanding=None) instead of being trusted just because it
         # was the newest entry within its own narrow concept's history.
-        staleness_cutoff = (date.today() - timedelta(days=730)).isoformat()
+        staleness_cutoff = (date.today() - timedelta(days=CompanyInfoSECLoader._STALENESS_CUTOFF_DAYS)).isoformat()
         for candidate in sorted(pure_values, key=lambda x: x.get("end") or "", reverse=True):
             end_date = candidate.get("end")
             if not end_date or end_date < staleness_cutoff:
@@ -495,6 +528,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
         recent = (submissions.get("filings") or {}).get("recent") or {}
         forms = recent.get("form") or []
         accessions = recent.get("accessionNumber") or []
+        dates = recent.get("filingDate") or []
         # Domestic 10-K/10-K-A only, NOT 20-F/20-F-A. Live-caught: BP and TV (Grupo
         # Televisa) both 20-F filers, produced market caps of $729B and $310B respectively
         # (real values: ~$90B and ~$2B) when their cover-page share count was trusted here -
@@ -504,8 +538,29 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # report the cover-page count in local/home-market share units with no ADS-ratio
         # conversion available anywhere in the filing text this regex can see.
         annual_forms = {"10-K", "10-K/A"}
+        # FIXED 2026-08-30 (goal: full-data audit): unlike _latest_shares_value's identical
+        # 730-day cutoff (2026-08-20, AEM/AI case), this fallback never checked how old the
+        # 10-K it parses actually is - live-confirmed via AKTX (Akari Therapeutics): its most
+        # recent 10-K predates its later conversion to a 20-F foreign-private-issuer filer by
+        # years, and its cover-page share count (155,758,529,533 - 6.4x NVDA, the real largest
+        # share count on file) is a stale, pre-reverse-split/pre-dilution-event figure. Nothing
+        # downstream (load_sec_valuations.py's MAX_PLAUSIBLE_SHARES_OUTSTANDING ceiling gates
+        # most but not all consumers - e.g. load_institutional_holdings_13f.py reads this
+        # column with no ceiling at all) can catch this once it's written, so reject a stale
+        # source filing here rather than downstream. `dates` is parallel to `forms`/
+        # `accessionNumber` (same shape load_current_reports_8k.py already relies on) - missing
+        # or malformed entries are treated as stale (skip) rather than trusted.
+        staleness_cutoff = (date.today() - timedelta(days=self._STALENESS_CUTOFF_DAYS)).isoformat()
         accession = next(
-            (accessions[i] for i, f in enumerate(forms) if f in annual_forms and i < len(accessions)),
+            (
+                accessions[i]
+                for i, f in enumerate(forms)
+                if f in annual_forms
+                and i < len(accessions)
+                and i < len(dates)
+                and dates[i]
+                and dates[i] >= staleness_cutoff
+            ),
             None,
         )
         if not accession:

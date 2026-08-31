@@ -122,6 +122,51 @@ _VERIFIED_BRAND_NAME_ALIASES: dict[str, str] = {
     "WAB": "WABTEC CORP",
 }
 
+# FIXED 2026-08-30 (goal: full-data audit continuation): a DIFFERENT failure mode than the
+# WAB alias above - that one fires only after `ticker` already landed inside our tracked
+# `symbols` set (either directly or via the dotted/currency-suffix rescues) and just needed
+# names_plausibly_match() overridden. Here the raw OpenFIGI ticker itself ("BUWA") is not a
+# recognizable ticker at all, so resolution falls all the way to EntityNameIndex.find(), which
+# returns None - live-confirmed via direct simulation, NOT because the name doesn't plausibly
+# match (names_plausibly_match("BIO-RAD LABORATORIES-A", "BIO-RAD LABORATORIES, INC.") is
+# True), but because BIO-RAD's SEC-sourced entity_name is IDENTICAL for both of our tracked
+# dual-class tickers (BIO and BIO.B both carry entity_name="BIO-RAD LABORATORIES, INC." in
+# company_info_sec - SEC's companyfacts API collapses dual-class filers to one entity, same
+# structural gap already documented for BRK.A/BRK.B elsewhere in this file) - so both tie for
+# the SAME candidate ratio and EntityNameIndex.find()'s ambiguity guard correctly refuses to
+# pick one. BRK.A/BRK.B and AGM/AGM.A don't hit this: OpenFIGI resolves their CUSIPs to
+# "BRK/A"/"BRK/B"-shaped tickers that the existing dotted-suffix rescue already turns into our
+# real tracked symbols directly, never reaching the ambiguous name-index path at all - BIO's
+# CUSIP 090572207 is the one verified case (2026-08-30) where OpenFIGI's ticker field is
+# useless AND our own entity_name can't disambiguate class A from class B. Keyed by the exact
+# (raw_ticker, resolved_name) pair, never a blanket "trust the tie-break" rule, so it can only
+# ever fire for the specific verified CUSIPs below.
+#
+# Same class found and individually verified for two more dual-class pairs, same session:
+# real-world share-class facts checked in both cases, not pattern-matched from the shape alone.
+# - McCormick & Co: ticker "MKC" is the NON-voting common stock (the one that actually trades
+#   on NYSE); "MKC.V" is the closely-held Voting Common Stock. CUSIP 579780206's OpenFIGI raw
+#   ticker "MCX" is unrecognized, resolved_name "MCCORMICK & CO-NON VTG SHRS" correctly
+#   identifies it as the non-voting class - i.e. our tracked "MKC", not "MKC.V" (whose own CUSIP
+#   579780107 resolves fine via the "MKC/V" -> "MKC.V" dotted rescue and needs no alias).
+# - Embotelladora Andina (Chilean Coca-Cola bottler): trades as NYSE ADRs "AKO.A"/"AKO.B".
+#   CUSIP 29081P303's raw ticker "AKOB" (missing the class separator) is unrecognized,
+#   resolved_name "EMBOTELLADORA ANDINA-ADR B" identifies it as Class B - our tracked "AKO.B"
+#   (Class A's own CUSIP 29081P204 resolves fine via "AKO/A" -> "AKO.A" and needs no alias).
+# Both confirmed broken in the live DB before this fix (institutional_holdings_13f.reason=
+# "no_resolved_13f_holdings" for MKC and AKO.B specifically, while their already-resolving
+# siblings MKC.V/AKO.A carried real values) and confirmed resolved by direct simulation after.
+_VERIFIED_RAW_TICKER_ALIASES: dict[tuple[str, str], str] = {
+    # (OpenFIGI raw ticker, OpenFIGI resolved_name) -> our tracked symbol, verified 2026-08-30
+    # against CUSIP 090572207 (Bio-Rad Laboratories Class A - our tracked "BIO", NOT "BIO.B"/
+    # CUSIP 090572108 which already resolves correctly via the "BIO/B" -> "BIO.B" dotted rescue).
+    ("BUWA", "BIO-RAD LABORATORIES-A"): "BIO",
+    # CUSIP 579780206 - see McCormick note above.
+    ("MCX", "MCCORMICK & CO-NON VTG SHRS"): "MKC",
+    # CUSIP 29081P303 - see Embotelladora Andina note above.
+    ("AKOB", "EMBOTELLADORA ANDINA-ADR B"): "AKO.B",
+}
+
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
     """Load institutional ownership % from SEC Form 13F bulk INFOTABLE datasets.
@@ -138,6 +183,21 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
+
+    # Same floor/ceiling as load_sec_valuations.py's MIN_PLAUSIBLE_SHARES_OUTSTANDING/
+    # MAX_PLAUSIBLE_SHARES_OUTSTANDING and load_company_info_sec.py's
+    # _MIN_PLAUSIBLE_SHARES_OUTSTANDING (100 billion ceiling calibrated there to never reject a
+    # genuine value - see test_sec_valuations_shares_outstanding_ceiling.py). FIXED 2026-08-30
+    # (goal: full-data audit, AKTX follow-up): _calculate_and_cache_ownership below read
+    # company_info_sec.shares_outstanding with no bound at all, unlike every other consumer of
+    # this column - live-confirmed AKTX's then-stale 155,758,529,533 value (fixed at the source
+    # in load_company_info_sec.py, see that file's _STALENESS_CUTOFF_DAYS) would have silently
+    # produced institutional_ownership_pct near 0% instead of a real value, and any future bad
+    # value in this column (staleness fix or not - garbage SEC tags happen, see
+    # test_company_info_sec_shares_outstanding_stale_entry_rejected.py's FOXA/HQ/QNTM/RFL cases)
+    # would corrupt this metric the same way with no protection.
+    MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
+    MAX_PLAUSIBLE_SHARES_OUTSTANDING = 100_000_000_000
 
     # FIXED 2026-07-27: the OpenFIGI crosswalk step (utils/external/openfigi_crosswalk.py)
     # used to run unbounded, only saving its results to sec_13f_cusip_crosswalk after
@@ -397,7 +457,15 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     if name_match:
                         ticker = name_match
                     else:
-                        return None
+                        alias_match = (
+                            _VERIFIED_RAW_TICKER_ALIASES.get((ticker, resolved_name))
+                            if resolved_name is not None
+                            else None
+                        )
+                        if alias_match:
+                            ticker = alias_match
+                        else:
+                            return None
         if not names_plausibly_match(resolved_name, local_names.get(ticker)):
             # Individually-verified brand-name/legal-name exception (see
             # _VERIFIED_BRAND_NAME_ALIASES's own comment) - checked BEFORE the name-index
@@ -776,11 +844,20 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT COALESCE(
-                            (SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s),
-                            (SELECT shares_outstanding FROM sec_valuations WHERE symbol = %s)
+                            (SELECT shares_outstanding FROM company_info_sec
+                             WHERE symbol = %s AND shares_outstanding > %s AND shares_outstanding < %s),
+                            (SELECT shares_outstanding FROM sec_valuations
+                             WHERE symbol = %s AND shares_outstanding > %s AND shares_outstanding < %s)
                         )
                         """,
-                        (ticker, ticker),
+                        (
+                            ticker,
+                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING,
+                            self.MAX_PLAUSIBLE_SHARES_OUTSTANDING,
+                            ticker,
+                            self.MIN_PLAUSIBLE_SHARES_OUTSTANDING,
+                            self.MAX_PLAUSIBLE_SHARES_OUTSTANDING,
+                        ),
                     )
                     row = cur.fetchone()
 

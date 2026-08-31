@@ -45,7 +45,7 @@ def _loader() -> CompanyInfoSECLoader:
 
 
 def _submissions_with_10k(accession: str = "0001067983-26-000018", tickers: list | None = None) -> dict:
-    d: dict = {"filings": {"recent": {"form": ["10-K"], "accessionNumber": [accession]}}}
+    d: dict = {"filings": {"recent": {"form": ["10-K"], "accessionNumber": [accession], "filingDate": ["2026-06-15"]}}}
     if tickers is not None:
         d["tickers"] = tickers
     return d
