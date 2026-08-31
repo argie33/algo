@@ -343,6 +343,31 @@ GROWTH_SCORE_FIELDS: tuple[str, ...] = (
     "eps_growth_stability",
 )
 
+# GROWTH_INPUT_IMPLAUSIBLE_PCT (added 2026-08-31, /goal session - "make sure the results make
+# sense" investigation). _score_single_growth's cap=30 already bounds every signed-rate
+# candidate's OUTPUT at 100, but does nothing to distinguish a genuinely excellent ~30-100%
+# grower from a candidate whose raw rate is in the hundreds or thousands of percent - both map
+# to an identical, fully-saturated 100. Live-verified two such cases dominating the top of
+# composite_score: KARO's eps_growth_1y=1889.36% traces to FY2026 net_income of $993.9M vs
+# $50.8M the prior year on an almost-unchanged share count (30.89M -> 30.89M, no split) -
+# implying a ~2x P/E on its $2.08B market cap, which is not a real recurring-earnings story,
+# almost certainly a one-off item (asset sale/tax benefit/settlement) counted at face value.
+# DX similarly has fcf_growth_yoy=739.5%, quarterly_growth_momentum=140.35% - both 5-25x this
+# cap. Neither looks like corrupted data (both are internally consistent with their own
+# financials, so the existing garbage-value bound elsewhere in this codebase - which catches
+# actual data-corruption cases up to +/-2000% - correctly leaves them alone), but they are not
+# comparable "growth quality" to a clean, sustainable 30-100% grower either. Standard factor-
+# investing practice (MSCI Barra, AQR) winsorizes/excludes outlier raw inputs before scoring for
+# exactly this reason - a single anomalous field shouldn't get to fully saturate a multi-input
+# equal-weighted blend. Set well above any plausible genuine "excellent" grower (the cap=30
+# curve already reaches its 100 ceiling at 30%) so normal strong growers (e.g. YB's real
+# eps_growth_1y=123.18%) are unaffected - only truly extreme values are excluded from the blend
+# entirely (same "drop what's missing, don't hand its weight to a different candidate" pattern
+# _score_growth already uses for None values), rather than counted as a full-credit 100.
+# Deliberately NOT applied to eps_growth_stability - its own inverted curve already penalizes
+# large values toward 0, so no separate exclusion is needed there.
+GROWTH_INPUT_IMPLAUSIBLE_PCT = 150.0
+
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
 # value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
 # via algo/research/cross_pillar_interaction_sweep_20260828.py (complete-case regime, current
@@ -1977,6 +2002,11 @@ class StockScoresLoader(OptimalLoader):
         component_scores = []
         for field in GROWTH_SCORE_FIELDS:
             raw = metrics.get(field)
+            if field != "eps_growth_stability" and raw is not None and raw > GROWTH_INPUT_IMPLAUSIBLE_PCT:
+                # See GROWTH_INPUT_IMPLAUSIBLE_PCT's docstring: exclude rather than score at a
+                # saturated 100 - an implausibly extreme rate isn't comparable "growth quality"
+                # to a genuine strong grower even though both would otherwise map identically.
+                continue
             score = (
                 _score_eps_growth_stability(raw) if field == "eps_growth_stability" else _score_single_growth(raw, 30)
             )
