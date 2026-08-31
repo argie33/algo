@@ -4067,11 +4067,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # cost_of_revenue tag (filers that report GrossProfit directly without breaking out
             # COGS) were falling into missing_sec_data even though the Novy-Marx ratio was fully
             # computable from data already on hand.
-            gross_profit_for_profitability = (
-                gross_profit_direct
-                if gross_profit_direct is not None
-                else (revenue - cost_of_revenue if revenue is not None and cost_of_revenue is not None else None)
-            )
+            # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
+            # this still only checked the CURRENT anchor fiscal year, unlike gross_profit_used
+            # right above (this method's gross_margin numerator) which already falls back
+            # through a 3-year window and then full history when the current year has neither
+            # gross_profit nor cost_of_revenue. Live-confirmed via a 2,000-row sample of
+            # gross_profitability's missing_sec_data bucket: 437 symbols have a real
+            # gross_profit/cost_of_revenue figure somewhere in history that gross_profit_used
+            # already recovers for gross_margin - the identical numerator concept was being
+            # silently thrown away here instead of reused. Also: this ratio's is-it-really-
+            # missing label never distinguished "structurally never reported" (banks, REITs,
+            # and - live-confirmed via REGN/JAZZ's real SEC companyfacts, $4-14B/yr revenue,
+            # zero CostOfRevenue/CostOfGoodsSold/CostOfGoodsAndServicesSold tagged since ~2020,
+            # no gross-profit-style income statement at all) from a genuine loader gap, unlike
+            # gross_margin/gross_margin_trend/current_ratio/quick_ratio which already use
+            # no_gross_profit_concept/unclassified_balance_sheet for exactly this - see reason
+            # assignment below.
+            gross_profit_for_profitability = gross_profit_used
             gross_profitability = None
             if gross_profit_for_profitability is not None and total_assets is not None and total_assets > 0:
                 computed_gross_profitability = gross_profit_for_profitability / total_assets * 100.0
@@ -4467,7 +4479,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # added the 4 columns + reason companions.
             metrics["gross_profitability"] = gross_profitability
             metrics["gross_profitability_unavailable_reason"] = (
-                ("implausible_ratio" if "gross_profitability" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "gross_profitability" in implausible_ratio_metrics
+                    else "reit_special_entity"
+                    if no_gross_profit_concept
+                    else "missing_sec_data"
+                )
                 if gross_profitability is None
                 else None
             )
