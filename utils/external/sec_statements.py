@@ -123,7 +123,19 @@ _INCOME_IFRS_ALIASES = [
     # InsuranceRevenue correctly with no ambiguity - for any given fiscal year at most one
     # of the two ever has a real entry (temporally exclusive: Revenue stops exactly when
     # InsuranceRevenue starts), so ordinary last-listed-wins is safe here.
-    ("InsuranceRevenue", "revenues"),
+    # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
+    # given its OWN target_key ("insurance_revenue") instead of sharing "revenues" with
+    # plain Revenue/RevenueAndOperatingIncome - see load_financial_statements.py's
+    # _REVENUE_TOTAL_CANDIDATE_FIELDS comment for the live-verified BBVA/HSBC bug this
+    # fixes (a bank's real insurance-SEGMENT figure, sometimes negative, was winning a
+    # same-filed-date tie against the bank's own true consolidated total purely because
+    # this alias is listed earlier in this list than RevenueAndOperatingIncome - the
+    # "last-listed-wins" tiebreak documented on that alias's own comment below never
+    # actually fires when both facts share an identical filed date, which is the common
+    # case for facts drawn from the same annual filing). Splitting the key lets the new
+    # magnitude-based final resolution in transform() choose correctly per filer instead
+    # of an accidental list-position artifact deciding it.
+    ("InsuranceRevenue", "insurance_revenue"),
     # FIXED 2026-08-19 (same-day follow-up, found by generalizing the InsuranceRevenue
     # search): the "Revenue" concept going silent partway through a filer's history isn't
     # insurance-specific - live-confirmed via UBS's real companyfacts JSON: "Revenue"

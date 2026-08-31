@@ -100,6 +100,26 @@ _MARKER_FIELDS = {
 
 _INCOME_FIELD_MAPPING = {
     "revenues": "revenue",
+    # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
+    # IFRS 17 InsuranceRevenue now gets its own target_key ("insurance_revenue" - see
+    # sec_statements.py's comment on the alias) instead of sharing "revenues" with plain
+    # Revenue/RevenueAndOperatingIncome. Live-confirmed via real SEC companyfacts JSON:
+    # BBVA (a bank with a minority insurance subsidiary) tags a real but small, sometimes
+    # NEGATIVE InsuranceRevenue fact (e.g. FY2025 EUR -3.627B - the segment's net result,
+    # not a revenue total at all) that was winning "revenue" over BBVA's real ~EUR26B
+    # total (tagged InterestRevenueExpense) purely because both facts share the exact
+    # same filed date (same 20-F) and InsuranceRevenue is listed earlier in
+    # _INCOME_IFRS_ALIASES - _aggregate_concepts's tiebreak keeps whichever fact was
+    # inserted first on an exact filed-date tie, so "last-listed wins" never actually
+    # applied here. Same bug independently corrupted HSBC (real total ~$65-68B tagged
+    # RevenueAndOperatingIncome, but InsuranceRevenue's small ~$2-3B insurance-segment
+    # figure - a real but ~20x-too-small number - silently won instead, undetected until
+    # now because it's positive and merely implausibly small rather than negative).
+    # See _REVENUE_TOTAL_CANDIDATE_FIELDS in loaders/helpers/sec_base.py for the new
+    # magnitude-based resolution among the fields below that fixes this generally rather
+    # than special-casing BBVA/HSBC - AEG (a genuine insurer with no bank-interest
+    # concepts) is unaffected since InsuranceRevenue is still its only real candidate.
+    "insurance_revenue": "revenue",
     # FIXED 2026-08-09: older/narrower goods-revenue tag some pre-2011-ish filers use
     # instead of "Revenues"/"SalesRevenueNet" - see sec_statements.py's concepts-list
     # comment on SalesRevenueGoodsNet for the live-verified AGCO case this recovers.
