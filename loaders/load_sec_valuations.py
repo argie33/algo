@@ -748,10 +748,36 @@ class SecValuationsLoader(OptimalLoader):
                 # shares_outstanding_dei is populated by a separate extraction path
                 # (sec_statements.py) never covered by those fixes. The cover-page fact is
                 # exactly as class-specific as basic/diluted, so the same ambiguity applies.
+                #
+                # FIXED 2026-08-31 (goal session: "VCIG tops the scores" follow-up investigation
+                # into FPI shares_outstanding - same bug class as load_company_info_sec.py's
+                # _latest_shares_value() 2026-08-20 fix, "stale entry rejected", not yet applied
+                # here). This tier has no recency bound - it picks whatever fiscal year has the
+                # MOST RECENT non-null shares_outstanding_dei, with no check on how old that
+                # fiscal year actually is. For a foreign private issuer, every fresher SEC tier
+                # above (basic/diluted, current fiscal years) is deliberately skipped (the
+                # `is_foreign_private_issuer` gate around lines 597-762), so this is the ONLY
+                # SEC-sourced path reached - and for several real FPIs, it resolves to a value
+                # several YEARS stale because intervening fiscal years simply have a NULL dei
+                # column (filer stopped tagging it, or it was extracted before a later fix to
+                # sec_statements.py's domestic-form restriction), not because that old value is
+                # still correct. Live-confirmed: ENIC resolved to its FY2017 dei value (8 years
+                # stale, 49.09B shares) with FY2018-2024 all NULL; CEPU to FY2019 (6 years
+                # stale, 1.51B shares); AIFU to FY2022 (1.07B shares) despite FY2023-2025 basic/
+                # diluted showing a real, much smaller, current count (~2.6M-10.1M - AIFU
+                # genuinely restructured/consolidated its share count since FY2022, making the
+                # FY2022 dei figure doubly wrong: stale AND pre-restructuring). All three fed
+                # sec_valuations.shares_outstanding with data_source='sec_audited' (not the
+                # FPI-yfinance variant), silently implying SEC-audited-and-current when it was
+                # neither. Same fix as the company_info_sec precedent: reject a candidate more
+                # than 2 years (730 days, same bound) older than the most recent fiscal year
+                # this symbol has ANY income-statement row for, falling through to the
+                # FPI-yfinance live-fetch tier below instead of trusting a stale figure just for
+                # being the newest thing this narrow column happened to have.
                 if not shares_out and not has_dual_class_sibling:
                     cur.execute(
                         """
-                        SELECT shares_outstanding_dei FROM annual_income_statement
+                        SELECT shares_outstanding_dei, fiscal_year FROM annual_income_statement
                         WHERE symbol = %s AND shares_outstanding_dei > %s AND shares_outstanding_dei < %s
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
@@ -759,10 +785,22 @@ class SecValuationsLoader(OptimalLoader):
                     )
                     dei_shares_row = cur.fetchone()
                     if dei_shares_row and dei_shares_row[0]:
-                        shares_out = float(dei_shares_row[0])
-                        logger.debug(
-                            f"[{symbol}] Using shares_outstanding_dei cover-page count (no us-gaap share concept reported): {shares_out:,.0f}"
-                        )
+                        most_recent_fiscal_year = income_rows[0][0]
+                        dei_fiscal_year = dei_shares_row[1]
+                        if most_recent_fiscal_year - dei_fiscal_year > 2:
+                            logger.debug(
+                                f"[{symbol}] shares_outstanding_dei cover-page count from fiscal_year "
+                                f"{dei_fiscal_year} is too stale (symbol has data through "
+                                f"{most_recent_fiscal_year}) - skipping rather than trusting a "
+                                f"multi-year-old figure, same bound as load_company_info_sec.py's "
+                                f"_latest_shares_value() staleness fix"
+                            )
+                        else:
+                            shares_out = float(dei_shares_row[0])
+                            logger.debug(
+                                f"[{symbol}] Using shares_outstanding_dei cover-page count (no us-gaap "
+                                f"share concept reported): {shares_out:,.0f}"
+                            )
 
                 # FIXED 2026-08-20 (goal: finance-accuracy audit): MAX_PLAUSIBLE_SHARES_OUTSTANDING
                 # (100 billion) is calibrated to catch truly absurd derived values (see
