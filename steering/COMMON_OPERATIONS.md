@@ -4,6 +4,18 @@
 
 ---
 
+## EMERGENCY: AWS OIDC Trust Policy Recovery (all AWS CI/CD workflows failing)
+
+**Use when:** every GitHub Actions workflow touching AWS fails with `Could not assume role
+with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity` - this also blocks the
+scheduled production orchestrator trigger, not just deploys. See
+`steering/AWS_OIDC_TRUST_POLICY_RECOVERY.md` for the full diagnosis and the exact
+`aws iam update-assume-role-policy` command - this cannot be fixed by CI itself (the only
+workflow that could `terraform apply` a fix needs the same broken role), it requires a human
+with real AWS IAM admin credentials run locally, one time.
+
+---
+
 ## EMERGENCY: Manual Stock Scores Sync
 
 **Use ONLY when:** Scheduled stock_scores loader fails or stalls for >2 hours during trading hours
