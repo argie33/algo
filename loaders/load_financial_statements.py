@@ -1653,6 +1653,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         # real UPDATE (not routed through bulk_insert_manager) - the only way to actually
         # overwrite a stale bad value that COALESCE would otherwise protect.
         self._explicit_null_rejections: list[tuple[dict[str, Any], str]] = []
+        self._fpi_symbol_cache: dict[str, bool] = {}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         rows = super().fetch_incremental(symbol, since)
@@ -1670,7 +1671,95 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 fiscal_year = row.get("fiscal_year")
                 if fiscal_year in custom_capex_by_year:
                     row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
+
+        # FIXED 2026-08-31 (goal session: "VCIG tops the scores, dig in" investigation -
+        # traced to BMA/LOMA/CEPU/CIG and other Argentine/Brazilian FPIs sitting at
+        # value_score=100.00 for the same reason: pb_ratio/ps_ratio computed against a
+        # STOCKHOLDERS_EQUITY/REVENUE value that is actually raw home-market-currency
+        # (ARS/BRL) magnitude, not USD, divided against a USD ADS price - e.g. BMA's
+        # annual_balance_sheet.stockholders_equity=$466.7B (2021), live-confirmed via
+        # BMA's own real SEC companyfacts JSON (CIK 1347426) to be tagged unit="ARS", not
+        # "USD" - a genuine foreign-currency fact, not a filer tagging error.
+        # utils/external/sec_statements.py's _aggregate_concepts already correctly REJECTS
+        # any non-USD/non-MAJOR_CURRENCIES unit (ARS isn't on that whitelist, by design -
+        # see fx_rates.py) - live-verified via a direct call: get_balance_sheet(client,
+        # 'BMA', 'annual') returns ZERO rows under CURRENT code, for every fiscal year.
+        # But that correct rejection never reaches the DB: __init__'s
+        # preserve_on_missing_fields COALESCEs a missing fresh value against whatever
+        # already exists on ON CONFLICT DO UPDATE - the exact same "can't distinguish
+        # deliberate rejection from a transient fetch gap" bug class already fixed once
+        # for _reject_implausible_eps/_reject_implausible_shares_outstanding (see this
+        # file's 2026-08-23 fix comment above) - just never extended to this rejection
+        # path. BMA's stockholders_equity rows were written/touched as recently as
+        # 2026-08-19 (AFTER the 2026-08-17/18 currency-rejection fix landed) with the same
+        # stale $466.7B ARS figure untouched, proving this is not a one-time historical
+        # artifact but an ongoing, every-run failure to actually apply the fix.
+        #
+        # sec_base.py's fetch_incremental (super() above) calls get_balance_sheet/
+        # get_income_statement/get_cash_flow with NO date cutoff - `rows` there is always
+        # the symbol's FULL XBRL history. If THAT is empty, sec_base.py returns
+        # `[self._unavailable_marker(symbol, reason)]` (a single data_unavailable=True
+        # row, never a bare `[]`) via _try_yfinance_fallback - live-confirmed via this
+        # exact BMA/LOMA/CEPU/CIG/GGB run: every one hit "[YFINANCE_FALLBACK] ...
+        # financialCurrency=ARS/BRL has no USD conversion available - rejecting", proving
+        # the full-history SEC extraction found nothing at all AND the yfinance fallback
+        # independently agreed the currency can't be trusted either. A bare empty `[]`
+        # only ever comes back from the SEPARATE since/fiscal_year>since_year filter
+        # further down in that same method (real history exists, just nothing NEWER than
+        # the watermark) - the overwhelmingly common, must-not-touch incremental case.
+        # So the correct signal is "every row this run got back is a data_unavailable
+        # marker", not "rows is falsy" - checking bare emptiness here would silently never
+        # fire (this bug's own first attempt did exactly that - the marker row made `rows`
+        # always truthy). Still gated behind an explicit large backfill
+        # (self._backfill_days >= 3650, matching this repo's established --backfill-days
+        # remediation pattern - see CLAUDE.md) as an extra intentionality guard before a
+        # brand-new force-null path runs against production data, and to FPI symbols only
+        # (company_info_sec.is_foreign_private_issuer) - a domestic filer's full-history
+        # extraction legitimately returning nothing means something else entirely
+        # (delisted, no XBRL at all) and should NOT have its historical data wiped here.
+        has_real_data = any(not r.get("data_unavailable") for r in rows)
+        if rows and not has_real_data and self._backfill_days >= 3650 and self._is_foreign_private_issuer(symbol):
+            self._reject_stale_fpi_currency_data(symbol)
         return rows
+
+    def _is_foreign_private_issuer(self, symbol: str) -> bool:
+        if symbol not in self._fpi_symbol_cache:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT is_foreign_private_issuer FROM company_info_sec WHERE symbol = %s", (symbol,))
+                row = cur.fetchone()
+            self._fpi_symbol_cache[symbol] = bool(row[0]) if row else False
+        return self._fpi_symbol_cache[symbol]
+
+    def _reject_stale_fpi_currency_data(self, symbol: str) -> None:
+        """Force-null every preserved-monetary-field cell this table already holds for
+        `symbol`, via the same _record_explicit_null_rejection/post_run() force-null path
+        _reject_implausible_eps/_reject_implausible_shares_outstanding use (see this
+        method's call site in fetch_incremental for the full BMA-class evidence and why
+        this is only reachable on an explicit large-backfill run for a confirmed FPI).
+        A full-history extraction that finds nothing usable for a real FPI's filing
+        history overwhelmingly means every fact is tagged in a rejected non-USD currency
+        (the whole filing shares one reporting currency) - there is no reliable USD value
+        underneath to fall back to, so an honest NULL is strictly more correct than
+        whatever pre-fix, wrong-currency-magnitude value is currently stored.
+        """
+        pk_cols = list(self.primary_key)
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                f"SELECT {', '.join(pk_cols)} FROM {self.table_name} WHERE symbol = %s",
+                (symbol,),
+            )
+            existing_rows = cur.fetchall()
+        if not existing_rows:
+            return
+        for existing in existing_rows:
+            pk_row = dict(zip(pk_cols, existing, strict=True))
+            for field in self._bulk_insert_mgr.preserve_on_missing_fields:
+                self._record_explicit_null_rejection(pk_row, field)
+        logger.warning(
+            f"[{self.table_name}] {symbol}: full-history SEC extraction returned zero usable rows "
+            f"(foreign private issuer, backfill_days={self._backfill_days}) - queued "
+            f"{len(existing_rows)} existing row(s) for stale foreign-currency-value force-null in post_run()."
+        )
 
     def _record_explicit_null_rejection(self, row: dict[str, Any], field: str) -> None:
         """Record that `field` was deliberately nulled on this row so post_run() can force

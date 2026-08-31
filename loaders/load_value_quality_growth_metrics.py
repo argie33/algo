@@ -230,6 +230,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     - growth_metrics (revenue/EPS growth from SEC)
     """
 
+    # ADDED 2026-08-31 (goal session: "VCIG tops the scores, dig in" investigation,
+    # continuation of load_sec_valuations.py's MIN_PLAUSIBLE_PB_RATIO/PE_RATIO fix - see
+    # that constant's docstring for the full VCIG evidence). forward_pe = current_price /
+    # forward_eps below had no plausibility floor at all (unlike pe_ratio/pb_ratio/
+    # ps_ratio, which are computed in load_sec_valuations.py and got this same floor
+    # earlier in this session) - a symbol whose tiny real share count inflates every
+    # per-share figure (forward EPS included) would win percentile 100 in Value's
+    # _percent_rank_cheap_high the same way VCIG's pe/pb/ps did, just via its forward
+    # estimate instead. Same 0.05 floor, same "exclude from the percentile universe
+    # rather than force a floor/ceiling score" treatment.
+    MIN_PLAUSIBLE_FORWARD_PE_RATIO = 0.05
+
     table_name = "value_metrics"  # Primary table for watermarking
     # Deliberately NOT declaring output_tables here (unlike e.g. load_sector_industry_daily).
     # That mechanism makes runner.py force quality_metrics/growth_metrics to the SAME
@@ -1190,7 +1202,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fe_row = cur.fetchone()
             forward_eps = fe_row[0] if fe_row else None
             if forward_eps is not None and forward_eps > 0:
-                forward_pe = float(current_price) / float(forward_eps)
+                computed_forward_pe = float(current_price) / float(forward_eps)
+                if computed_forward_pe >= self.MIN_PLAUSIBLE_FORWARD_PE_RATIO:
+                    forward_pe = computed_forward_pe
+                else:
+                    logger.warning(
+                        f"[VALUE_METRICS] {symbol}: forward_pe implausibly low "
+                        f"({computed_forward_pe:.4f} < {self.MIN_PLAUSIBLE_FORWARD_PE_RATIO}), "
+                        "excluding from Value scoring rather than letting a single extreme value rank #1."
+                    )
+                    forward_pe_reason = "implausibly_low_forward_pe"
             elif forward_eps is not None:
                 forward_pe_reason = "negative_forward_eps"
 

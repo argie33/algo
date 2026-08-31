@@ -112,6 +112,47 @@ class SecValuationsLoader(OptimalLoader):
     # micro-caps.
     MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
 
+    # ADDED 2026-08-31 (goal session: "VCIG tops the scores, dig in" investigation). PB/PS
+    # ratios below already had an UPPER bound ("Reasonable PB bounds" <=1000, "Reasonable PS
+    # bounds" <=10000 further below) but no symmetric LOWER one - live-confirmed via VCIG
+    # (VCI Global Ltd): pb_ratio=0.01/ps_ratio=0.02, tied for the single cheapest in a
+    # 4,500+-symbol universe, driving it to composite_score's #1 rank. Unlike the BMA/LOMA/
+    # CEPU/CIG/GGB class this session also fixed (a genuine unconverted-ARS/BRL-currency
+    # data bug - see ConsolidatedFinancialStatementsLoader._reject_stale_fpi_currency_data),
+    # VCIG's numbers are independently confirmed REAL: SEC XBRL's own USD-tagged Equity facts
+    # ($86.3M FY2024, $164.1M mid-2025 6-K) and a live yfinance snapshot (bookValue=$222.77/
+    # share, priceToBook=0.0096, sharesOutstanding=618,994) both agree with the stored
+    # pb_ratio, with no currency-unit mismatch - this is a real (if bizarre) market situation,
+    # not a loader bug. That's exactly the classic winsorization case, not a data-quality one:
+    # _percent_rank_cheap_high in load_stock_scores.py ranks PB/PS purely by ORDER, so any
+    # single most-extreme value - genuine or not - always wins percentile 100/0 outright, and
+    # (per that function's own docstring) capping/flooring the raw value before ranking can't
+    # fix a pure-rank system, since ties still take the tied block's best percentile. The only
+    # mechanism that actually changes the outcome is excluding the ratio from the percentile
+    # universe entirely for implausibly extreme cases, the same "skip what's unavailable"
+    # treatment every other missing Value input already gets (drops out of total_weight,
+    # doesn't force a floor/ceiling score) - mirrors the existing upper-bound rejection below
+    # exactly, just at the other tail. 0.05 (vs the upper bound's already-generous 1000/10000)
+    # is a deliberately conservative floor: live-scoped via a real DB query, only 29/4,521 PB
+    # and 44/4,517 PS values in the current universe fall below it - real, if rare, deep-
+    # distress cases (P/B 0.1-0.3) stay scored normally; only the single-most-extreme tail
+    # this session found actually driving unwarranted #1 ranks gets excluded.
+    MIN_PLAUSIBLE_PB_RATIO = 0.05
+    MIN_PLAUSIBLE_PS_RATIO = 0.05
+
+    # ADDED 2026-08-31 (same session, same-day follow-up): the PB/PS floor above did NOT
+    # fully fix VCIG - live-confirmed after a full remediation + recompute cycle, VCIG's
+    # value_score was STILL pinned at 100.00 because its pe_ratio is ALSO ~0.01, the same
+    # tiny-share-count-inflates-every-per-share-metric effect (VCIG's 618,994 real shares
+    # outstanding makes EPS AND book value both huge relative to its ~$2 price) driving PE
+    # to also win percentile 100 in _percent_rank_cheap_high once PB/PS were excluded. Same
+    # floor, same reasoning, applied consistently to every "cheap is good" percentile-
+    # ranked multiple in Value - not just the two this session happened to check first.
+    # forward_pe gets the equivalent floor too, but in load_value_quality_growth_metrics.py
+    # (MIN_PLAUSIBLE_FORWARD_PE_RATIO there) - it's computed from analyst_earnings_estimates
+    # in that file, not here, unlike pe_ratio/pb_ratio/ps_ratio which are this loader's own.
+    MIN_PLAUSIBLE_PE_RATIO = 0.05
+
     # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): depository
     # institutions never tag a "CapitalExpenditures" XBRL concept in any fiscal year -
     # live-confirmed via JPM, BAC, MS, WFC, PNC's real companyfacts JSON (capex NULL across
@@ -1883,40 +1924,58 @@ class SecValuationsLoader(OptimalLoader):
             result["reason"] = "invalid_shares_outstanding"
             return result
 
-        # PE Ratio = Price ÷ TTM EPS (bound to -10k..10k to reject data errors)
+        # PE Ratio = Price ÷ TTM EPS (bound to MIN_PLAUSIBLE_PE_RATIO..10000 - see
+        # MIN_PLAUSIBLE_PB_RATIO's docstring for the VCIG-driven lower-bound addition)
         if ttm_eps and ttm_eps > 0:
             pe = current_price / ttm_eps
-            if pe <= 10000:  # Reasonable PE bounds
+            if pe <= 10000 and pe >= self.MIN_PLAUSIBLE_PE_RATIO:  # Reasonable PE bounds
                 result["pe_ratio"] = round(pe, 2)
-            else:
+            elif pe > 10000:
                 logger.warning(f"[{symbol}] PE ratio out of bounds ({pe:.0f}), marking as NULL")
+            else:
+                logger.warning(
+                    f"[{symbol}] PE ratio implausibly low ({pe:.4f} < {self.MIN_PLAUSIBLE_PE_RATIO}), "
+                    "excluding from Value scoring rather than letting a single extreme value rank #1."
+                )
         elif ttm_eps == 0:
             # Company is unprofitable this TTM
             result["pe_ratio"] = None
         else:
             logger.warning(f"[{symbol}] TTM EPS missing or invalid, PE ratio unavailable")
 
-        # PB Ratio = Price ÷ Book Value Per Share (bound to 0..1000)
+        # PB Ratio = Price ÷ Book Value Per Share (bound to MIN_PLAUSIBLE_PB_RATIO..1000 -
+        # see that constant's docstring for the VCIG-driven lower-bound addition)
         if book_value and book_value > 0:
             bvps = book_value / shares_out
             if bvps > 0:
                 pb = current_price / bvps
-                if pb <= 1000:  # Reasonable PB bounds
+                if pb <= 1000 and pb >= self.MIN_PLAUSIBLE_PB_RATIO:  # Reasonable PB bounds
                     result["pb_ratio"] = round(pb, 2)
-                else:
+                elif pb > 1000:
                     logger.warning(f"[{symbol}] PB ratio out of bounds ({pb:.0f}), marking as NULL")
+                else:
+                    logger.warning(
+                        f"[{symbol}] PB ratio implausibly low ({pb:.4f} < {self.MIN_PLAUSIBLE_PB_RATIO}), "
+                        "excluding from Value scoring rather than letting a single extreme value rank #1."
+                    )
         else:
             logger.warning(f"[{symbol}] Book value missing, PB ratio unavailable")
 
-        # PS Ratio = Price ÷ Revenue Per Share (bound to 0..10000)
+        # PS Ratio = Price ÷ Revenue Per Share (bound to MIN_PLAUSIBLE_PS_RATIO..10000 -
+        # see MIN_PLAUSIBLE_PB_RATIO's docstring for the VCIG-driven lower-bound addition)
         if ttm_revenue and ttm_revenue > 0:
             rps = ttm_revenue / shares_out
             if rps > 0:
                 ps = current_price / rps
-                if ps <= 10000:  # Reasonable PS bounds
+                if ps <= 10000 and ps >= self.MIN_PLAUSIBLE_PS_RATIO:  # Reasonable PS bounds
                     result["ps_ratio"] = round(ps, 2)
-                else:
+                elif ps > 10000:
                     logger.warning(f"[{symbol}] PS ratio out of bounds ({ps:.0f}), marking as NULL")
+                else:
+                    logger.warning(
+                        f"[{symbol}] PS ratio implausibly low ({ps:.4f} < {self.MIN_PLAUSIBLE_PS_RATIO}), "
+                        "excluding from Value scoring rather than letting a single extreme value rank #1."
+                    )
         else:
             logger.warning(f"[{symbol}] TTM revenue missing, PS ratio unavailable")
 
