@@ -1548,6 +1548,36 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     if span_days is not None and span_days < 330:
                         continue  # Real single-quarter/partial-year data - not annual
 
+                # BUG FOUND 2026-08-31 (goal session: "get all the data we need" full-
+                # coverage audit): a duration fact (has "start") sourced from an 8-K is
+                # never a genuine periodic financial statement - Item 9.01 exhibits, investor-
+                # presentation Regulation FD disclosures, and other 8-K content are not
+                # subject to the same XBRL-tagging rigor as a 10-K/10-Q, and can carry
+                # numbers that are wrong, a peer-comparison figure, or otherwise not the
+                # filer's own audited result. Live-confirmed via real SEC companyfacts JSON:
+                # Essential Utilities (WTRG, CIK 0000078128) tags
+                # RevenueFromContractWithCustomerExcludingAssessedTax for FY2023/2024/2025
+                # under a single 2026-03-25 "Regulation FD Disclosure" 8-K (accn
+                # 0001193125-26-124163, fp=None, fy=None) with values ($4.217B/$4.653B/
+                # $5.121B) that exactly match American Water Works' (AWK, an unrelated
+                # company) real 10-K-sourced revenue for the same years to the dollar - not
+                # WTRG's own real revenue (WTRG's genuine "Revenues" concept for the same
+                # years, sourced from real 10-Ks, is ~$2.1-2.5B). Because this concept is
+                # listed after "Revenues" in get_income_statement()'s concepts list (ASC-606
+                # tags legitimately supersede the older concept for most post-2018 filers),
+                # this bad 8-K value silently overwrote WTRG's real revenue in
+                # annual_income_statement, corrupting every downstream ratio.
+                # Deliberately does NOT extend to DEF 14A/proxy statements (fp=None is
+                # accepted above specifically because 2026-07-31 relies on exactly that for
+                # quarterly-only reporters like EE with no full annual filing) - 8-K
+                # specifically, since it's a "current report" for events/exhibits, never a
+                # periodic financial statement, and no fix in this file has ever relied on
+                # trusting one for duration data (test_sec_custom_xbrl_concepts.py already
+                # treats 8-K as something to skip when looking for a filer's authoritative
+                # annual data, for the same reason).
+                if start_date and entry.get("form") in ("8-K", "8-K/A"):
+                    continue
+
                 # See the _max_end_by_accn comment above this loop: drop any instant fact
                 # that isn't the latest-end-date one within its own filing - a comparative/
                 # rollforward echo of a period whose real value comes from its own filing.
