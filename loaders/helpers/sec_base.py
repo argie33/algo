@@ -36,6 +36,32 @@ logger = logging.getLogger(__name__)
 # Configure socket timeout to prevent indefinite hangs
 configure_socket_timeout(30)
 
+# FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
+# these 4 sec_fields are the only concepts that can each independently BE a filer's
+# entire consolidated revenue (as opposed to a narrower ASC-606 fee line, REIT lease
+# income, or bank-thrift interest-income concept, all of which have their own established
+# SIC/fallback-only carve-outs elsewhere in this function and are deliberately NOT
+# included here). For these 4 specifically, "first-populated wins" (the general rule
+# everywhere else in this function) is provably wrong: live-confirmed via real SEC
+# companyfacts JSON that BBVA (a bank with a minority insurance subsidiary) tags a real
+# but small, sometimes NEGATIVE "insurance_revenue" fact (its segment's net result, not a
+# revenue total) that shares the EXACT SAME filed date as its own real ~EUR26B total
+# (tagged "interest_revenue_expense") - _aggregate_concepts's tiebreak in
+# sec_statements.py keeps whichever fact was inserted first on an exact filed-date tie,
+# so the file's own "last-listed wins" convention silently never fires for same-filing
+# collisions like this one. HSBC independently confirmed the same bug in its less
+# obviously-wrong positive form: its real ~$65-68B total ("revenues", sourced from
+# RevenueAndOperatingIncome) lost to its own ~$2-3B insurance-segment figure the same
+# way. Since which candidate is the TRUE total varies per filer (BBVA needs
+# interest_revenue_expense, HSBC/UBS need revenues, AEG - a genuine insurer with no
+# bank-interest concepts at all - needs insurance_revenue), no fixed concept-priority
+# ordering works for all of them; magnitude does, because a real consolidated total can
+# never be smaller than a genuine sub-line of itself, and is never negative when a
+# positive alternative exists.
+_REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
+    {"revenues", "insurance_revenue", "revenues_net_of_interest_expense", "interest_revenue_expense"}
+)
+
 
 class SecLoaderBase(OptimalLoader):
     """Unified base class for all SEC data loaders.
@@ -796,6 +822,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # regardless of incidental dict-insertion order.
             _reit_only_fallback: frozenset[str] = getattr(self, "_reit_only_fallback_fields", frozenset())
             ordered_fields = sorted(r.items(), key=lambda kv: kv[0] in _reit_only_fallback)
+            # See _REVENUE_TOTAL_CANDIDATE_FIELDS's module-level comment for why these 4
+            # fields specifically need magnitude-based resolution instead of the general
+            # first-populated-wins/fallback-only rule this loop uses everywhere else.
+            revenue_total_best: dict[str, float] = {}
             for sec_field, value in ordered_fields:
                 if sec_field in ("symbol", "fiscal_year"):
                     continue
@@ -824,6 +854,22 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
 
                 db_field = field_mapping[sec_field]
+                if sec_field in _REVENUE_TOTAL_CANDIDATE_FIELDS and db_field == "revenue":
+                    # Seed from any value a non-magnitude field already wrote (e.g. a
+                    # mortgage REIT's interest_income_operating), so this group only ever
+                    # OVERWRITES with a larger positive candidate - never blind to what's
+                    # already there, and never regresses an existing correct larger value.
+                    if db_field not in revenue_total_best and db_field in row:
+                        existing = row[db_field]
+                        if isinstance(existing, (int, float, Decimal)):
+                            revenue_total_best[db_field] = float(existing)
+                    if isinstance(value, (int, float, Decimal)) and float(value) > 0:
+                        fvalue = float(value)
+                        current_best = revenue_total_best.get(db_field)
+                        if current_best is None or fvalue > current_best:
+                            revenue_total_best[db_field] = fvalue
+                            row[db_field] = value
+                    continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
                     continue  # A higher-priority concept already populated this field
                 if (
