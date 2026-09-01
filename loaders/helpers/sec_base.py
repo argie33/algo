@@ -58,8 +58,40 @@ configure_socket_timeout(30)
 # ordering works for all of them; magnitude does, because a real consolidated total can
 # never be smaller than a genuine sub-line of itself, and is never negative when a
 # positive alternative exists.
+#
+# WIDENED 2026-08-31 (goal session, real-money-readiness audit - recovered from a stranded
+# unmerged worktree commit, d175737e3, found never reached main despite memory citing it as
+# FIXED; live-reverified against current main before porting): added sales_revenue_net/
+# sales_revenue_goods_net, previously fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS in
+# load_financial_statements.py - that set's own comment documents why they were made
+# fallback-only in the first place: KARO/AGCO-style filers where a much-larger real total
+# already sits in "revenue" from a normal concept and these two must never clobber it).
+# Fallback-only cuts only one way ("never overwrite an already-populated value") -
+# live-confirmed that's wrong when the ALREADY-populated value is itself the broken one.
+# ANDE (Andersons, SIC 5153): FY2013-2015 "Revenues" tags a small, wrong sub-line
+# ($882K/$6.159M/$5.447M) while "SalesRevenueNet" correctly holds the real total
+# ($5.605B/$4.540B/$4.198B, confirmed via real SEC companyconcept JSON) - "revenues" (a
+# magnitude-candidate field, so it wins "revenue" first) permanently blocked
+# sales_revenue_net's correct, much larger figure from ever being considered. PRGO
+# (Perrigo, SIC 2834) independently confirmed the identical shape for FY2013: real
+# "Revenues"=$800,000 vs real "SalesRevenueGoodsNet"/"SalesRevenueNet"=$3,539,800,000.
+# TKR (Timken, SIC 3562) independently reconfirms it again FY2015: DB showed $20.6M vs real
+# SalesRevenueGoodsNet=$2,872,300,000 (139x understated) - live-verified via SEC
+# companyconcept JSON before this port. Moving both into this magnitude-resolved group
+# fixes all three (whichever total-candidate concept has the LARGEST value now wins,
+# regardless of processing order) while provably not regressing KARO/OLDCO
+# (test_sec_sales_revenue_net_not_overwritten.py): the "revenue" seed-from-existing-row-
+# value step below still protects a real, larger, already-written total from a smaller
+# candidate exactly the same as it always has for the original 4 fields.
 _REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
-    {"revenues", "insurance_revenue", "revenues_net_of_interest_expense", "interest_revenue_expense"}
+    {
+        "revenues",
+        "insurance_revenue",
+        "revenues_net_of_interest_expense",
+        "interest_revenue_expense",
+        "sales_revenue_net",
+        "sales_revenue_goods_net",
+    }
 )
 
 

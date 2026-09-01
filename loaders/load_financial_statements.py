@@ -325,6 +325,15 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # Financial Group, which has zero data under any other revenue concept, for the case
         # this genuinely does need to fill).
         "interest_revenue_expense",
+        # WIDENED 2026-08-31: both also added to sec_base.py's _REVENUE_TOTAL_CANDIDATE_
+        # FIELDS (magnitude-resolved group, checked BEFORE this fallback-only set - see
+        # that set's own comment for the ANDE/PRGO/TKR cases that motivated it), same dual-
+        # membership precedent as interest_revenue_expense above. Their fallback-only
+        # membership here is now vestigial for filers that reach that check at all (the
+        # magnitude branch always continues first) but kept rather than removed - harmless,
+        # and this set is still the operative one for any other field that might someday
+        # legitimately need pure fallback-only (never-overwrite-if-populated) semantics
+        # without the magnitude comparison.
         "sales_revenue_net",
         "sales_revenue_goods_net",
         # FIXED 2026-08-17 (goal: "no SEC data" audit continuation): "cost_of_goods_and_
