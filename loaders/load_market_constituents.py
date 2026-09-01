@@ -28,6 +28,7 @@ import requests
 
 from loaders.runner import run_loader
 from utils.db import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
@@ -423,6 +424,49 @@ class MarketConstituentsLoader(OptimalLoader):
     # consecutive occurrence, not intermittent - every single run hit this).
     output_tables = ["etf_symbols"]
 
+    # GOVERNANCE 2026-09-01 (goal session - user-directed full "is this fully intact"
+    # verification pass after the SIC-6770 filter above): every deactivation method in this
+    # class flips stock_symbols.active=false, but downstream loaders (load_value_quality_
+    # growth_metrics.py, load_stock_scores.py) only ever fetch active symbols to compute NEW
+    # rows for - deactivating a symbol here does nothing to the score rows already computed
+    # for it BEFORE it was deactivated, so a stale row (with the exact garbage numbers that
+    # justified the exclusion in the first place) sits in stock_scores/value_metrics/
+    # stability_metrics/growth_metrics/momentum_metrics/quality_metrics forever, silently
+    # continuing to feed top-10/ranking views. Live-caught, not theoretical: DDT ("Dillard's
+    # Capital Trust I", excluded by the `\bcapital trust\b` pattern back on 2026-08-31) was
+    # STILL ranking #3 in stock_scores' Value top-10 today, with the exact misattributed-
+    # Dillard's-financials numbers (PE 0.72, PB 0.23, FCF yield 153%) the original fix
+    # documented - `stock_symbols.active` was correctly false, but nobody had ever deleted
+    # its already-computed value_metrics/stock_scores rows. A full live scan found 6 total
+    # symbols in this state (DDT, TALK, AXIA, KVAC, MBAV, BNZI) across all 6 tables. This
+    # helper closes the gap at its source - every deactivation call site below now purges
+    # the newly-deactivated symbols' rows from all 6 tables in the same pass, so this can't
+    # recur for any FUTURE deactivation (by any of the three methods below, not just the new
+    # SIC-6770 one), the same way manual cleanup has been required by hand after every SPAC-
+    # wave fix landed in this file so far.
+    _DOWNSTREAM_SCORE_TABLES = (
+        "stock_scores",
+        "value_metrics",
+        "stability_metrics",
+        "growth_metrics",
+        "momentum_metrics",
+        "quality_metrics",
+    )
+
+    def _purge_stale_downstream_score_rows(self, symbols: list[str]) -> None:
+        """Delete newly-deactivated `symbols`' rows from every downstream score table.
+
+        Called immediately after any UPDATE that sets stock_symbols.active=false - see the
+        GOVERNANCE note above this class attribute for why this is needed at all (deactivating
+        a symbol alone leaves its pre-deactivation score data live forever otherwise).
+        """
+        if not symbols:
+            return
+        with DatabaseContext("write") as cur:
+            for table in self._DOWNSTREAM_SCORE_TABLES:
+                table_safe = assert_safe_table(table)
+                cur.execute(f"DELETE FROM {table_safe} WHERE symbol = ANY(%s)", (symbols,))
+
     def _deactivate_stale_excluded_symbols(self) -> None:
         """Re-apply should_exclude() to already-`active=true` rows and flip any new matches.
 
@@ -462,6 +506,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 """,
                 (stale,),
             )
+        self._purge_stale_downstream_score_rows(stale)
 
         # BUG FOUND 2026-09-01 (/goal session, same class as the sibling
         # _deactivate_symbols_delisted_from_exchange_feed fix below): only ever a WARNING
@@ -624,6 +669,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 """,
                 (shells,),
             )
+        self._purge_stale_downstream_score_rows(shells)
 
     def _deactivate_symbols_delisted_from_exchange_feed(self, current_feed_symbols: set[str]) -> None:
         """Deactivate already-active symbols that have vanished entirely from today's
@@ -731,6 +777,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 """,
                 (gone,),
             )
+        self._purge_stale_downstream_score_rows(gone)
 
         # BUG FOUND 2026-09-01 (/goal session, "check the logs" pass, same class as
         # loaders/load_prices.py's _mark_symbol_permanently_unavailable fix): this

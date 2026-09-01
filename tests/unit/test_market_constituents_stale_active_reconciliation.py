@@ -58,7 +58,8 @@ class TestDeactivateStaleExcludedSymbols:
                 ("AAPL", "Apple Inc. - Common Stock"),
             ]
             mock_write_cur = MagicMock()
-            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur, mock_purge_cur]
 
             loader._deactivate_stale_excluded_symbols()
 
@@ -77,6 +78,14 @@ class TestDeactivateStaleExcludedSymbols:
         assert kwargs["severity"] == "warning"
         assert "AACPR" in kwargs["message"]
         assert kwargs["details"]["symbols"] == ["AACPR"]
+
+        # Deactivation must also purge the newly-inactive symbol's stale rows from
+        # every downstream score table - see _purge_stale_downstream_score_rows.
+        assert mock_purge_cur.execute.call_count == 6
+        for call in mock_purge_cur.execute.call_args_list:
+            sql, params = call[0]
+            assert "DELETE FROM" in sql
+            assert params == (["AACPR"],)
 
     def test_no_stale_matches_skips_write(self):
         loader = _make_loader()
@@ -204,7 +213,13 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
             mock_priced_cur = MagicMock()
             mock_priced_cur.fetchall.return_value = []  # NSA has no recent price_daily row
             mock_write_cur = MagicMock()
-            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur, mock_write_cur]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [
+                mock_active_cur,
+                mock_priced_cur,
+                mock_write_cur,
+                mock_purge_cur,
+            ]
 
             loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
 
@@ -225,6 +240,10 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
         assert kwargs["severity"] == "warning"
         assert "NSA" in kwargs["message"]
         assert kwargs["details"]["symbols"] == ["NSA"]
+
+        # Deactivation must also purge the newly-inactive symbol's stale rows from
+        # every downstream score table - see _purge_stale_downstream_score_rows.
+        assert mock_purge_cur.execute.call_count == 6
 
     def test_no_symbols_deactivated_means_no_alert(self):
         """Sanity check: the alert must not fire when nothing was actually deactivated -
@@ -379,7 +398,8 @@ class TestDeactivateBlankCheckShellsBySicAndRevenue:
             mock_read_cur = MagicMock()
             mock_read_cur.fetchall.return_value = [("CEPV",), ("GIX",)]
             mock_write_cur = MagicMock()
-            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur, mock_purge_cur]
 
             loader._deactivate_blank_check_shells_by_sic_and_revenue()
 
@@ -388,6 +408,8 @@ class TestDeactivateBlankCheckShellsBySicAndRevenue:
             assert "UPDATE stock_symbols" in sql
             assert "active = false" in sql
             assert params == (["CEPV", "GIX"],)
+
+            assert mock_purge_cur.execute.call_count == 6
 
     def test_read_query_scoped_to_sic_6770_and_no_revenue(self):
         """The read query must filter on sic_code=6770 AND a NOT EXISTS revenue check -
@@ -417,3 +439,51 @@ class TestDeactivateBlankCheckShellsBySicAndRevenue:
 
             # Only the read call happened - DatabaseContext("write") never entered.
             assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+
+class TestPurgeStaleDownstreamScoreRows:
+    """GOVERNANCE 2026-09-01: deactivating a symbol in stock_symbols does nothing to its
+    already-computed rows in stock_scores/value_metrics/stability_metrics/growth_metrics/
+    momentum_metrics/quality_metrics - downstream loaders only ever fetch active symbols to
+    write NEW rows, they never delete stale rows for symbols that later become inactive.
+    Live-caught: DDT ("Dillard's Capital Trust I", excluded since 2026-08-31) was still
+    ranking #3 in stock_scores' Value top-10 today with its original misattributed-financials
+    numbers, because nobody had ever deleted its stale value_metrics/stock_scores rows even
+    though stock_symbols.active was correctly false. A live scan found 6 total symbols in
+    this state across the 6 tables (DDT, TALK, AXIA, KVAC, MBAV, BNZI). This purge closes the
+    gap at its source so it can't recur for any future deactivation.
+    """
+
+    def _make_loader(self):
+        return MarketConstituentsLoader.__new__(MarketConstituentsLoader)
+
+    def test_purges_all_six_downstream_tables(self):
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.return_value = mock_purge_cur
+
+            loader._purge_stale_downstream_score_rows(["DDT", "TALK"])
+
+            mock_db_ctx.assert_called_once_with("write")
+            assert mock_purge_cur.execute.call_count == 6
+            tables_deleted = set()
+            for call in mock_purge_cur.execute.call_args_list:
+                sql, params = call[0]
+                assert sql.startswith("DELETE FROM ")
+                assert params == (["DDT", "TALK"],)
+                tables_deleted.add(sql.split()[2])
+            assert tables_deleted == {
+                "stock_scores",
+                "value_metrics",
+                "stability_metrics",
+                "growth_metrics",
+                "momentum_metrics",
+                "quality_metrics",
+            }
+
+    def test_empty_symbol_list_skips_db_entirely(self):
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            loader._purge_stale_downstream_score_rows([])
+            mock_db_ctx.assert_not_called()
