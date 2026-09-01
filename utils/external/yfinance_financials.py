@@ -192,11 +192,43 @@ _FIELD_MAPS = {
 }
 
 
+def _reject_reason_for_currency(financial_currency: str | None, is_known_foreign_issuer: bool) -> str | None:
+    """Returns a human-readable rejection reason if this currency must not be trusted for
+    the yfinance fallback, or None if the fetch should proceed (with conversion, if
+    `financial_currency` is a confirmed major non-USD currency).
+
+    Two distinct guards (see module docstring above _fx_rate_cache for the full governance
+    rationale):
+    1. A confirmed non-USD, non-convertible currency (e.g. ARS) is always rejected outright -
+       never store raw non-USD magnitudes as if they were USD.
+    2. An UNKNOWN currency (lookup failed/returned nothing) normally falls through
+       unconverted - the correct default for the common case of a genuine USD-domestic filer
+       hitting a transient .info blip. FIXED 2026-09-01 (KARO/Karooooo live incident - a
+       confirmed foreign private issuer's yfinance row stored raw ZAR magnitudes as USD,
+       created the day before the currency-conversion fix shipped, when this exact lookup
+       must have failed): for a symbol the caller already knows is foreign
+       (is_known_foreign_issuer=True), an unidentifiable currency is the confirmed-bad case,
+       not the innocuous unknown-domestic-filer one - fail closed instead of assuming USD.
+    """
+    if financial_currency and financial_currency != "USD" and financial_currency not in MAJOR_CURRENCIES:
+        return (
+            f"financialCurrency={financial_currency} has no USD conversion available - "
+            f"refusing to store raw {financial_currency} magnitudes mislabeled as USD."
+        )
+    if financial_currency is None and is_known_foreign_issuer:
+        return (
+            "financialCurrency lookup returned unknown for a confirmed foreign private "
+            "issuer - refusing to risk storing unconverted foreign-currency magnitudes as USD."
+        )
+    return None
+
+
 def fetch_financial_statement(
     symbol: str,
     statement_type: str,
     period: str,
     timeout_sec: float = 15.0,
+    is_known_foreign_issuer: bool = False,
 ) -> list[dict[str, Any]] | None:
     """Fetch one statement/period combo from yfinance, shaped like sec_statements.py's output.
 
@@ -220,6 +252,10 @@ def fetch_financial_statement(
         statement_type: 'income', 'balance', or 'cashflow'.
         period: 'annual' or 'quarterly'.
         timeout_sec: Per-request timeout for the process-isolated worker call.
+        is_known_foreign_issuer: pass the caller's own company_info_sec.is_foreign_private_issuer
+            flag when known (see FIXED 2026-09-01 note on the currency guard below) - changes
+            the "currency lookup came back unknown" default from fail-open to fail-closed for
+            symbols already confirmed to be foreign filers.
 
     Returns:
         List of row dicts (symbol, fiscal_year, [fiscal_period for quarterly], plus
@@ -258,18 +294,10 @@ def fetch_financial_statement(
     if df is None or df.empty:
         return None
 
-    # Currency guard (see module docstring above _fx_rate_cache): reject outright rather
-    # than store a confirmed non-USD, non-convertible currency's raw magnitudes as if they
-    # were USD. A currency we can't identify (financial_currency is None) falls through
-    # unconverted, same as before this fix - the common, correct case for the many
-    # domestic filers this fallback also serves.
     financial_currency = _get_financial_currency(symbol, yf_symbol)
-    if financial_currency and financial_currency != "USD" and financial_currency not in MAJOR_CURRENCIES:
-        logger.info(
-            f"[YFINANCE_FALLBACK] {symbol}: financialCurrency={financial_currency} has no USD conversion "
-            f"available - rejecting yfinance {statement_type} fallback rather than storing raw "
-            f"{financial_currency} magnitudes mislabeled as USD."
-        )
+    reject_reason = _reject_reason_for_currency(financial_currency, is_known_foreign_issuer)
+    if reject_reason is not None:
+        logger.info(f"[YFINANCE_FALLBACK] {symbol}: rejecting yfinance {statement_type} fallback - {reject_reason}")
         return None
 
     field_map = _FIELD_MAPS[statement_type]

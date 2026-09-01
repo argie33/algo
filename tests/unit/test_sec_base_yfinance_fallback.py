@@ -60,6 +60,50 @@ class TestYfinanceFallbackRecoversData:
         assert result[0]["fiscal_year"] == 2025
 
 
+class TestYfinanceFallbackThreadsForeignIssuerFlag:
+    """FIXED 2026-09-01 (goal: factor-score review, KARO currency-scale bug - see
+    utils/external/yfinance_financials.py's "FIXED 2026-09-01" docstring note for the full
+    evidence trail). _try_yfinance_fallback must pass the caller's own
+    is_foreign_private_issuer status through to fetch_financial_statement so an unknown
+    currency for a KNOWN foreign filer fails closed instead of silently assuming USD."""
+
+    def test_known_foreign_issuer_flag_passed_through(self) -> None:
+        loader = _make_loader()
+        loader._is_foreign_private_issuer = lambda symbol: True
+        with patch(
+            "utils.external.yfinance_financials.fetch_financial_statement",
+            return_value=[{"symbol": "KARO", "fiscal_year": 2026, "revenues": 344.0}],
+        ) as mock_fetch:
+            loader._try_yfinance_fallback("KARO", since=None, sec_reason="cik_not_found")
+
+        assert mock_fetch.call_args.kwargs.get("is_known_foreign_issuer") is True
+
+    def test_domestic_issuer_flag_passed_through_as_false(self) -> None:
+        loader = _make_loader()
+        loader._is_foreign_private_issuer = lambda symbol: False
+        with patch(
+            "utils.external.yfinance_financials.fetch_financial_statement",
+            return_value=[{"symbol": "TEST", "fiscal_year": 2025, "revenues": 1000.0}],
+        ) as mock_fetch:
+            loader._try_yfinance_fallback("TEST", since=None, sec_reason="cik_not_found")
+
+        assert mock_fetch.call_args.kwargs.get("is_known_foreign_issuer") is False
+
+    def test_missing_fpi_check_method_defaults_to_false_not_a_hard_failure(self) -> None:
+        """A future SecEdgarStatementLoader subclass without _is_foreign_private_issuer
+        must not crash - defaults to the pre-fix "unknown, proceed unchanged" behavior."""
+        loader = _make_loader()
+        assert not hasattr(loader, "_is_foreign_private_issuer")
+        with patch(
+            "utils.external.yfinance_financials.fetch_financial_statement",
+            return_value=[{"symbol": "TEST", "fiscal_year": 2025, "revenues": 1000.0}],
+        ) as mock_fetch:
+            result = loader._try_yfinance_fallback("TEST", since=None, sec_reason="cik_not_found")
+
+        assert mock_fetch.call_args.kwargs.get("is_known_foreign_issuer") is False
+        assert len(result) == 1
+
+
 class TestYfinanceFallbackFallsThroughToMarker:
     def test_returns_standard_marker_when_yfinance_has_nothing(self) -> None:
         loader = _make_loader()

@@ -622,7 +622,18 @@ class SecEdgarStatementLoader(SecLoaderBase):
         try:
             from utils.external.yfinance_financials import fetch_financial_statement
 
-            yf_rows = fetch_financial_statement(symbol, self.statement_type, self.period)
+            # FIXED 2026-09-01 (goal: factor-score review, "dig and get all things right"
+            # investigation - see fetch_financial_statement's own "FIXED 2026-09-01" docstring
+            # note for the full KARO evidence trail). getattr guards against a future
+            # SecEdgarStatementLoader subclass that doesn't define this method - currently only
+            # ConsolidatedFinancialStatementsLoader (load_financial_statements.py) does, and it
+            # falls back to the pre-fix "unknown -> proceed unchanged" behavior if absent,
+            # never a hard failure over a missing optional safety check.
+            is_fpi_check = getattr(self, "_is_foreign_private_issuer", None)
+            is_known_foreign_issuer = bool(is_fpi_check(symbol)) if is_fpi_check else False
+            yf_rows = fetch_financial_statement(
+                symbol, self.statement_type, self.period, is_known_foreign_issuer=is_known_foreign_issuer
+            )
         except Exception as e:
             logger.debug(f"[{self.table_name}] {symbol}: yfinance fallback also failed: {e}")
             yf_rows = None

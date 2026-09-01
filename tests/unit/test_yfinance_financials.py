@@ -234,6 +234,49 @@ class TestFetchFinancialStatementCurrencyConversion:
         assert rows[0]["fiscal_year"] == 2024
 
 
+class TestFetchFinancialStatementForeignIssuerUnknownCurrency:
+    """FIXED 2026-09-01: live-confirmed on KARO (Karooooo/Cartrack, a confirmed foreign
+    private issuer) - a stored yfinance row (created the day before the 2026-08-19 currency
+    fix shipped) had raw ZAR magnitudes stored as USD (revenue $5.48B vs the real $344M, a
+    ~16x scale error), corrupting Growth and Value's dividend_yield (a fake 33.79% yield that
+    helped rank KARO #1 in composite_score). The "unknown currency falls through unconverted"
+    default is correct for the common case (a genuine USD-domestic filer with a transient
+    .info blip) but wrong for a symbol ALREADY KNOWN to be foreign - is_known_foreign_issuer
+    changes that specific case from fail-open to fail-closed."""
+
+    def test_unknown_currency_for_known_foreign_issuer_rejected(self):
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", df)):
+            rows = fetch_financial_statement("KARO", "income", "annual", is_known_foreign_issuer=True)
+
+        assert rows is None
+
+    def test_unknown_currency_for_non_foreign_issuer_still_falls_through_unconverted(self):
+        """Control: the pre-existing fail-open behavior must be unchanged for the default
+        (is_known_foreign_issuer=False) case - this is the common, correct path for genuine
+        USD-domestic filers."""
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("income_stmt", df)):
+            rows = fetch_financial_statement("TEST", "income", "annual", is_known_foreign_issuer=False)
+
+        assert rows is not None
+        assert rows[0]["revenues"] == 1000.0
+
+    def test_identified_currency_for_known_foreign_issuer_still_converts_normally(self):
+        """is_known_foreign_issuer must only change behavior for the UNKNOWN-currency case -
+        a positively identified major currency still converts exactly as before."""
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1300.0}})
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "ZAR")
+        with (
+            patch(_WORKER_PATCH_TARGET, return_value=worker),
+            patch("utils.external.yfinance_financials._fx_rate_cache.get_usd_rate", return_value=13.0),
+        ):
+            rows = fetch_financial_statement("KARO", "income", "annual", is_known_foreign_issuer=True)
+
+        assert rows is not None
+        assert rows[0]["revenues"] == pytest.approx(100.0)
+
+
 class TestFetchFinancialStatementErrors:
     def test_unsupported_combo_raises_value_error(self, _patch_circuit_breaker):
         with pytest.raises(ValueError):
