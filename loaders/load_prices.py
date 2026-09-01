@@ -67,6 +67,42 @@ if not _correlation_id:
 set_correlation_id(_correlation_id)
 
 
+# HISTORICAL PRICE IMMUTABILITY GUARD (added 2026-09-01, goal session - see
+# loaders/load_risk_metrics_daily.py's 2026-09-01 adj_close-preference fix docstring for the
+# full evidence trail this closes out). Root cause, confirmed live: Yahoo Finance retroactively
+# split-adjusts its "Close" field once a real split is processed on their backend, regardless of
+# yfinance's auto_adjust parameter (that flag only controls dividend adjustment - splits get
+# backward-applied to "Close" either way, and "Adj Close" often just copies the already-adjusted
+# "Close" when Yahoo's response omits a distinct Adj Close column - see
+# utils/data/source_router.py's fallback comment). This loader's own backfill path
+# (self._backfill_days > 0) deliberately skips the watermark-based "WRITE TRIM" a few hundred
+# lines below (it exists specifically to avoid "dead re-upserts of every other symbol's
+# history"), so a backfill run re-fetches and unconditionally overwrites already-recorded
+# historical price_daily rows via the generic bulk upsert - letting Yahoo's retroactive
+# adjustment silently rewrite history depending on WHEN the row happened to be (re-)written.
+# Live-confirmed on MNST (a real 2:1 split ~2026-08-08/10): 4 pre-split dates got overwritten
+# with the already-halved close on a later run, producing an OSCILLATING (not one-time-step)
+# price series - not a data gap, active corruption. Fed straight into
+# load_risk_metrics_daily.py's volatility/beta/momentum math: volatility_60d read as 3.7450
+# (374.5% annualized) for a large, stable consumer-staples company.
+#
+# A genuine historical closing price is a permanent fact once correctly recorded - it should
+# never legitimately change by a large margin after the fact. This guard blocks any write to an
+# OLD (more than PRICE_HISTORY_PROTECTED_AFTER_DAYS days in the past) date whose incoming close
+# would silently revise an already-recorded close by more than
+# PRICE_HISTORY_MAX_SILENT_REVISION_PCT% - that magnitude of "revision" to settled history is a
+# data-integrity anomaly to flag for investigation, not something to auto-accept. Recent dates
+# stay freely correctable (genuine T+1/T+2 vendor settlement revisions do happen); a brand-new
+# (symbol, date) pair with no existing row is always allowed through unconditionally - this
+# guards against OVERWRITING an established fact, not against filling in a real gap. 15% is
+# deliberately far above ordinary single-day price noise (even a volatile stock rarely revises
+# an already-settled historical close by that much) and far below a real split/reverse-split
+# discontinuity (typically 50%+ for the common 2:1/1:2 ratios) - chosen to catch exactly this
+# failure class without blocking legitimate small corrections.
+PRICE_HISTORY_PROTECTED_AFTER_DAYS = 5
+PRICE_HISTORY_MAX_SILENT_REVISION_PCT = 15.0
+
+
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders.
 
@@ -2744,6 +2780,72 @@ class PriceLoader(OptimalLoader):
             return value.date()
         return cast(date, value)
 
+    def _guard_against_historical_price_revision(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Drop any row that would silently overwrite an already-recorded OLD historical close
+        with a wildly different value - see PRICE_HISTORY_PROTECTED_AFTER_DAYS/
+        PRICE_HISTORY_MAX_SILENT_REVISION_PCT's own module-level docstring for the full
+        evidence trail (Yahoo's retroactive split-adjustment corrupting price_daily via this
+        loader's backfill path). Recent dates and brand-new (symbol, date) pairs pass through
+        unchanged - this only blocks a large silent revision to already-settled history.
+        """
+        # Match this file's established run-date-context pattern (see the identical
+        # getattr(self, "_run_date_context", ...) usage a few hundred lines below in the
+        # watermark-staleness deadlock breaker) rather than raw wall-clock "now" - a test or
+        # backfill harness may be operating on a simulated historical run_date.
+        today = getattr(self, "_run_date_context", datetime.now(EASTERN_TZ).date())
+        cutoff = today - timedelta(days=PRICE_HISTORY_PROTECTED_AFTER_DAYS)
+        old_pairs = [(r["symbol"], self._row_date(r)) for r in rows if self._row_date(r) < cutoff]
+        if not old_pairs:
+            return rows
+
+        symbols_tuple = tuple({s for s, _d in old_pairs})
+        dates_tuple = tuple({d for _s, d in old_pairs})
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT symbol, date, close FROM {self.table_name} "
+                    "WHERE symbol = ANY(%s) AND date = ANY(%s) AND close IS NOT NULL",
+                    (list(symbols_tuple), list(dates_tuple)),
+                )
+                existing = {(sym, d): float(close) for sym, d, close in cur.fetchall()}
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(
+                f"[{self.table_name}] Historical price revision guard query failed ({e}) - "
+                "proceeding without the guard for this batch rather than blocking the whole run."
+            )
+            return rows
+
+        kept = []
+        dropped = 0
+        for row in rows:
+            row_date = self._row_date(row)
+            if row_date >= cutoff:
+                kept.append(row)
+                continue
+            existing_close = existing.get((row["symbol"], row_date))
+            if existing_close is None or existing_close == 0:
+                kept.append(row)  # genuine fill, not an overwrite
+                continue
+            new_close = float(row["close"])
+            revision_pct = abs(new_close - existing_close) / existing_close * 100
+            if revision_pct > PRICE_HISTORY_MAX_SILENT_REVISION_PCT:
+                dropped += 1
+                logger.warning(
+                    f"[{self.table_name}] HISTORICAL PRICE REVISION BLOCKED: {row['symbol']} {row_date} "
+                    f"existing close={existing_close} vs incoming close={new_close} "
+                    f"({revision_pct:.1f}% revision, source={row.get('data_source', 'unknown')}) - "
+                    "keeping the already-recorded value. Likely a retroactive source-side split "
+                    "adjustment, not a legitimate correction - investigate before trusting either value."
+                )
+                continue
+            kept.append(row)
+
+        if dropped:
+            logger.warning(
+                f"[{self.table_name}] Historical price revision guard blocked {dropped}/{len(rows)} rows this batch."
+            )
+        return kept
+
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls).
 
@@ -3201,6 +3303,9 @@ class PriceLoader(OptimalLoader):
 
         # ---- Batch write: one chunked insert for all symbols, then watermarks ----
         if pending_rows:
+            if self.table_name in ("price_daily", "etf_price_daily"):
+                pending_rows = self._guard_against_historical_price_revision(pending_rows)
+
             # BLOCKER #4 FIX: Pre-flight validation BEFORE any inserts
             # Validates all rows meet requirements before committing any data
             # Prevents partial inserts where Batch 1 commits but Batch 2 fails
