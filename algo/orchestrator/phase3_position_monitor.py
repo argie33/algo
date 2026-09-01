@@ -800,20 +800,35 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         time.sleep(0.5 * (2**attempt))  # Exponential backoff
                         continue
 
-                # For non-transient errors or after retries exhausted, enter degraded mode
-                if attempt >= max_retries - 1:
+                # FIX 2026-08-31 (/goal pre-real-money audit): this used to enter degraded mode
+                # for ANY exception type once attempt >= max_retries - 1, unlike paper mode's
+                # identical retry loop above (line ~565) which only enters degraded mode on the
+                # final attempt if the error is actually the transient cursor/transaction type -
+                # any other error there falls through to raise. Live mode was missing that same
+                # type check, so a genuinely non-transient bug in review_positions() (unrelated
+                # to a cursor/transaction hiccup) that happened to still be failing on the 3rd
+                # attempt was silently absorbed into "completed_degraded" (recommendations=[],
+                # halt=False) instead of halting - in LIVE mode specifically, the one where a
+                # cycle of unmonitored open positions matters most. Only a transient
+                # cursor/transaction error on the final attempt should enter degraded mode; any
+                # other error, at any attempt, must raise.
+                if attempt >= max_retries - 1 and (
+                    "cursor already closed" in error_str.lower()
+                    or "current transaction is aborted" in error_str.lower()
+                ):
                     logger.warning(f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode.")
                     # Return partial result: just price updates, skip analysis
                     # Return early with PhaseResult(status='completed_degraded', recommendations=[])
                     recommendations = []
                     entered_degraded_mode = True
                     break
-                else:
-                    # Non-transient error - raise with explicit context
-                    raise RuntimeError(
-                        f"[PHASE 3] Position halt review failed: {type(review_err).__name__}: "
-                        f"{str(review_err)[:500].replace('%', '%%')}"
-                    ) from review_err
+
+                # Non-transient error (or a transient one with no retries configured at all) -
+                # raise with explicit context rather than silently degrading.
+                raise RuntimeError(
+                    f"[PHASE 3] Position halt review failed: {type(review_err).__name__}: "
+                    f"{str(review_err)[:500].replace('%', '%%')}"
+                ) from review_err
 
         # ISSUE 5: Handle degraded mode where recommendations is empty due to retry exhaustion
         if recommendations is None:
