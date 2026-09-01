@@ -222,9 +222,40 @@ EXCLUSION_PATTERNS = [
 # sponsor word and "corp" - bounded to avoid matching arbitrary intervening company-name
 # words. No "Corp <numeral>" (numeral-after-corp) ordering found in current live data;
 # add that ordering here too if a future audit finds one.
+#
+# GOVERNANCE 2026-09-01 (goal: "top 10 per factor" review - Risk's safest list still wrong):
+# live-reverified against the CURRENT active universe and found this pattern, unchanged since
+# 2026-08-04, has been outrun by newer SPAC-sponsor naming conventions - 21 pre-merger shells
+# fingerprint-confirmed (same two-signal standard as KNOWN_SPAC_MISCLASSIFICATIONS below: beta
+# -0.04 to 0.03, volatility_60d 1.3%-5.8%, max_drawdown_1y under 13.5%, AND zero computable
+# growth history) sitting in stock_scores' Risk top-10, above Royal Bank of Canada and other
+# real names - the same pollution class as the 2026-08-31 fix, just newer sponsor cohorts. 9 of
+# the 21 (Artius II Acquisition Inc., American Drive Acquisition Company, Chenghe Acquisition
+# III Co., Republic Digital Acquisition Company, TRG Latin America Acquisitions Corp., Black
+# Spade Acquisition III Co, APEX Tech Acquisition Inc., Jackson Acquisition Company II, Shreya
+# Acquisition Group, Twelve Seas Investment Company III) were missed by two narrow gaps in the
+# regex, not a naming style outside its scope entirely: (1) "acquisition" required an exact
+# singular match, so the "Acquisitions" (plural) naming variant slipped through with no \b match
+# at all, and (2) the sponsor-keyword's only accepted suffixes were corp/corporation/limited/ltd
+# - "Acquisition Company"/"Acquisition Group"/"Acquisition Inc"/"Acquisition Co." (all real,
+# common SPAC-sponsor suffix conventions, not exotic ones) matched neither. Added optional
+# plural "s?" and inc(orporated)?/co\.?/company/group as accepted suffixes - verified against
+# the FULL active universe first (not just the 21 already found): matches exactly those 9 new
+# symbols and zero previously-included real operating companies (the false-positive risk this
+# pattern already guards against via requiring BOTH an explicit sponsor keyword AND the SPAC
+# share-class signal - see should_exclude below - the same reason a bare "Corp + Ordinary
+# Shares" pattern was rejected in the 2026-08-31 GOVERNANCE note above; broadening the accepted
+# suffix list under an unchanged, already-narrow sponsor-keyword requirement does not reopen
+# that risk). The remaining 12 (Karbon Capital Partners Corp., KRAKacquisition Corp, Dynamix
+# Corporation III, Gores Holdings X Inc., Cantor Equity Partners IV Inc., Social Commerce
+# Partners Corporation, Stellar V Capital Corp., Talon Capital Corp., KPET Ultra Paceline
+# Corporation, SilverBox Corp V, Insight Digital Partners II, Aldel Financial II Inc.) carry no
+# investment/acquisition/merger keyword at all (pure sponsor-brand names, plus one - KRAKacquisition
+# - that concatenates "acquisition" with no word boundary) - added individually to
+# KNOWN_SPAC_MISCLASSIFICATIONS below, same convention as the existing 7.
 CORP_SPONSOR_PATTERN = re.compile(
-    r"\b(investment|acquisition|merger)\s+(?:[ivxlcdm]+|\d+(?:st|nd|rd|th)?)?\s*"
-    r"(corp(oration)?|limited|ltd)\b",
+    r"\b(investment|acquisitions?|merger)\s+(?:[ivxlcdm]+|\d+(?:st|nd|rd|th)?)?\s*"
+    r"(corp(oration)?|limited|ltd|inc(orporated)?|co\.?|company|group)\b",
     re.IGNORECASE,
 )
 SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.IGNORECASE)
@@ -252,7 +283,67 @@ SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.
 # CUB (Lionheart Holdings - Class A Ordinary Shares) added same pass, same evidence shape
 # (beta 0.016, volatility_60d 2.7%, max_drawdown_1y -1.28%, zero computable growth history) -
 # "Holdings" carries no sponsor keyword either.
-KNOWN_SPAC_MISCLASSIFICATIONS = {"GIW", "APUR", "NWAX", "XFLH", "SBXD", "DYNC", "CUB"}
+#
+# GOVERNANCE 2026-09-01 (same regex-broadening pass documented on CORP_SPONSOR_PATTERN above):
+# 12 more, same evidentiary bar (fingerprint-verified via stability_metrics beta/volatility_60d/
+# max_drawdown_1y AND growth_metrics zero computable history before adding, not a text-pattern
+# guess) - KBON (Karbon Capital Partners Corp., beta 0.027, vol60d 2.6%, dd -1.1%), KRAQ
+# (KRAKacquisition Corp - "acquisition" concatenated onto the brand name with no word boundary,
+# beta 0.009, vol60d 1.9%, dd -0.7%), DNMX (Dynamix Corporation III - a numbered sequel to the
+# already-known DYNC/"Dynamix Corporation" sponsor, beta 0.010, vol60d 1.3%, dd -0.9%), GTEN
+# (Gores Holdings X, Inc., beta 0.023, vol60d 5.8%, dd -2.2%), CEPF (Cantor Equity Partners IV,
+# Inc., beta 0.029, vol60d 3.7%, dd -4.5%), SCPQ (Social Commerce Partners Corporation, beta
+# 0.016, vol60d 1.7%, dd -0.5%), SVCC (Stellar V Capital Corp., beta 0.0001, vol60d 2.1%, dd
+# -1.0%), TLNC (Talon Capital Corp., beta -0.016, vol60d 3.6%, dd -1.6%), KPET (KPET Ultra
+# Paceline Corporation, beta 0.011, vol60d 3.9%, dd -1.7%), SBXE (SilverBox Corp V - a numbered
+# sequel to the already-known XFLH/"SilverBox Corp IV" sponsor, beta -0.042, vol60d 3.2%, dd
+# -1.9%), DYOR (Insight Digital Partners II, beta -0.006, vol60d 2.4%, dd -0.6%), ALDF (Aldel
+# Financial II Inc., beta 0.007, vol60d 2.5%, dd -1.4%) - all found sitting in stock_scores'
+# Risk top-10/50 the same way the original 7 were.
+#
+# GOVERNANCE 2026-09-01 (same pass, follow-up sweep after the regex/list changes above): re-ran
+# the fingerprint scan (beta -0.15..0.20, volatility_60d <=13%, max_drawdown_1y >= -8%, zero
+# computable growth history) across the ENTIRE active universe by data shape rather than by name
+# pattern, to catch anything CORP_SPONSOR_PATTERN can never reach - specifically SPACs that list
+# "Common Stock" instead of "Ordinary Shares" (failing SPAC_SHARE_CLASS_PATTERN entirely, the
+# same evasion already noted for "New America Acquisition I Corp." above). 7 fingerprint matches
+# total; 4 confirmed genuine shells by name (IRHO "Iron Horse Acquisitions II Corp. - Common
+# Stock", beta 0.002, vol60d 1.4%, dd -0.6%; SDHI "Siddhi Acquisition Corp - Class A Common
+# stock", beta -0.007, vol60d 2.0%, dd -0.6%; GRAF/TONT both literally "Graf Global Corp. Class A
+# ordinary shares" - two different symbols sharing one security_name string verbatim in
+# stock_symbols, a data-quality oddity worth a future loader-side look but not chased further
+# here since both independently fingerprint- and name-confirm as the same shell either way, beta
+# 0.007-0.021, vol60d 12.7%, dd -4.6%). The other 3 fingerprint matches (HYNE "Hoyne Bancorp,
+# Inc.", NUTR "Nusatrip Incorporated", WSBK "Winchester Bancorp, Inc.") are real, if obscure and
+# thinly-traded, operating companies - NOT added; genuinely thin trading history producing a
+# SPAC-shaped fingerprint is not the same bug as an actual trust shell, and misclassifying a real
+# company here would be the exact wrong-direction error this whole exclusion mechanism exists to
+# avoid (see the AGNC/SAR false-positive note above).
+KNOWN_SPAC_MISCLASSIFICATIONS = {
+    "GIW",
+    "APUR",
+    "NWAX",
+    "XFLH",
+    "SBXD",
+    "DYNC",
+    "CUB",
+    "KBON",
+    "KRAQ",
+    "DNMX",
+    "GTEN",
+    "CEPF",
+    "SCPQ",
+    "SVCC",
+    "TLNC",
+    "KPET",
+    "SBXE",
+    "DYOR",
+    "ALDF",
+    "IRHO",
+    "SDHI",
+    "GRAF",
+    "TONT",
+}
 
 # GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): a bare
 # \bdepositary shares?\b/\bdep shs?\b pattern used to sit in EXCLUSION_PATTERNS above,

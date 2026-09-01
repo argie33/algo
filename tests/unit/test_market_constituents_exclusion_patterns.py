@@ -360,3 +360,82 @@ class TestCapitalTrustAndSpacSponsorGapsFoundInFactorScoreReview:
         own (without a sponsor keyword), match a real Canadian miner's plain "Corp.
         Ordinary Shares (Canada)" listing convention."""
         assert not CORP_SPONSOR_PATTERN.search("First Majestic Silver Corp. Ordinary Shares (Canada)")
+
+
+class TestPluralAndSuffixBroadenedSponsorPattern:
+    """GOVERNANCE 2026-09-01: a "top 10 per factor" review found Risk's safest list still
+    12/50-SPAC-polluted despite the 2026-08-31 fix - newer SPAC cohorts use "Acquisitions"
+    (plural) or Company/Group/Inc/Co suffixes CORP_SPONSOR_PATTERN didn't cover. Fingerprint-
+    verified (stability_metrics near-zero beta/volatility/drawdown + growth_metrics zero
+    computable history) before broadening, same standard as the 2026-08-31 fix.
+    """
+
+    def test_plural_acquisitions_now_caught(self):
+        assert should_exclude("TRG Latin America Acquisitions Corp. - Class A Ordinary Shares")
+        assert should_exclude("Twelve Seas Investment Company III - Class A Ordinary Shares")
+
+    def test_acquisition_company_suffix_now_caught(self):
+        assert should_exclude("American Drive Acquisition Company - Class A Ordinary Shares")
+        assert should_exclude("Republic Digital Acquisition Company - Class A Ordinary Shares")
+        assert should_exclude("Jackson Acquisition Company II Class A Ordinary Shares")
+
+    def test_acquisition_group_and_inc_and_co_suffixes_now_caught(self):
+        assert should_exclude("Shreya Acquisition Group Class A Ordinary Shares")
+        assert should_exclude("APEX Tech Acquisition Inc. Ordinary Shares")
+        assert should_exclude("Chenghe Acquisition III Co. - Class A Ordinary Shares")
+
+    def test_broadened_suffix_group_does_not_catch_real_companies(self):
+        """Same false-positive guard as the 2026-08-31 fix: the plural/suffix broadening
+        must not newly match real operating companies that happen to carry "Investment"/
+        "Acquisition"/"Merger" language without also being a pre-merger SPAC shell -
+        verified against the full active universe before shipping (zero new false
+        positives beyond the fingerprint-confirmed shells)."""
+        assert not should_exclude("AGNC Investment Corp. - Common Stock")
+        assert not should_exclude("Saratoga Investment Corp New")
+
+    def test_new_known_spac_misclassifications_individually_verified(self):
+        """12 more sponsor-brand-only names (no investment/acquisition/merger keyword at
+        all) plus 4 found via a data-shape (not name-pattern) fingerprint sweep across the
+        whole active universe - IRHO/SDHI use "Common Stock" instead of "Ordinary Shares"
+        (evading SPAC_SHARE_CLASS_PATTERN the same way NWAX's predecessor name did), and
+        GRAF/TONT are two different symbols sharing one verbatim security_name string.
+        Each individually verified via stability_metrics + growth_metrics, same convention
+        as the original 7."""
+        for symbol in (
+            "KBON",
+            "KRAQ",
+            "DNMX",
+            "GTEN",
+            "CEPF",
+            "SCPQ",
+            "SVCC",
+            "TLNC",
+            "KPET",
+            "SBXE",
+            "DYOR",
+            "ALDF",
+            "IRHO",
+            "SDHI",
+            "GRAF",
+            "TONT",
+        ):
+            assert symbol in KNOWN_SPAC_MISCLASSIFICATIONS
+
+        assert _is_excluded("KBON", "Karbon Capital Partners Corp. - Class A Ordinary Shares")
+        assert _is_excluded("KRAQ", "KRAKacquisition Corp - Class A Ordinary Shares")
+        assert _is_excluded("IRHO", "Iron Horse Acquisitions II Corp. - Common Stock")
+        assert _is_excluded("SDHI", "Siddhi Acquisition Corp - Class A Common stock")
+        assert _is_excluded("GRAF", "Graf Global Corp. Class A ordinary shares")
+        assert _is_excluded("TONT", "Graf Global Corp. Class A ordinary shares")
+
+    def test_thin_data_real_companies_not_misclassified(self):
+        """HYNE/NUTR/WSBK matched the same SPAC-shaped fingerprint (near-zero beta/
+        volatility, zero computable growth history) but are real, if obscure and thinly
+        traded, operating companies (small community banks / a travel-booking company) -
+        NOT SPAC shells. Confirms the fingerprint alone isn't a sufficient signal without
+        the name-pattern check too."""
+        assert not should_exclude("Hoyne Bancorp, Inc. - Common Stock")
+        assert not should_exclude("Nusatrip Incorporated - Common Stock")
+        assert not should_exclude("Winchester Bancorp, Inc. - Common Stock")
+        for symbol in ("HYNE", "NUTR", "WSBK"):
+            assert symbol not in KNOWN_SPAC_MISCLASSIFICATIONS
