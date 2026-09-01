@@ -1348,6 +1348,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # Live audit: 2283 of 2519 universe pe_ratio NULLs are unprofitable companies with a
         # real, present EPS that's just <= 0 - only 126 are genuine missing-EPS gaps. peg_ratio
         # requires pe_ratio, so it inherits the same reason when pe_ratio itself is the blocker.
+        #
+        # FIXED 2026-09-01 (goal session: factor-score review, user directly distrusted this
+        # exact classification - "you did it because you think a company with no P/E value is
+        # missing the data when in reality just no earnings"). This query was missing the
+        # `data_unavailable IS NOT TRUE` filter that load_sec_valuations.py's REAL anchor-row
+        # selection (the query that actually determines ttm_eps, and therefore whether pe_ratio
+        # itself comes back null) already uses. Live-confirmed on BMBL/WK/BAND/PSKY/AIAI/RKT
+        # (216-symbol "missing_sec_data" bucket, live-scanned): each has a most-recent fiscal
+        # year row flagged `data_unavailable=True, reason='incomplete_sec_filing_income'` that
+        # still carries a stray non-null (often positive) earnings_per_share value - the real
+        # valuation engine correctly skips that incomplete row and falls back to the PRIOR
+        # fiscal year (a genuine, complete loss year, e.g. BMBL FY2025: EPS=-5.95,
+        # net_income=-$693M) to compute ttm_eps, correctly landing on <=0 and nulling pe_ratio -
+        # but this query, lacking the same filter, picked up the incomplete row's stray positive
+        # EPS instead and concluded "not unprofitable, must be a data gap." Adding the identical
+        # filter makes this query select the SAME row load_sec_valuations.py's real computation
+        # used, not a different, unfiltered one.
         pe_ratio_reason = None
         if pe is None:
             with DatabaseContext("read") as cur:
@@ -1355,6 +1372,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     """
                     SELECT earnings_per_share FROM annual_income_statement
                     WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                      AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
