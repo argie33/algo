@@ -1320,6 +1320,38 @@ class OrderManager:
                 "message": "Alpaca credentials not configured",
             }
 
+        # BUG FOUND 2026-09-01 (/goal session, real-money-readiness sweep): unlike
+        # send_bracket_order() above - the entry path, hardened via a 28,561-combination
+        # fuzz pass that found 745 uncaught crashes at magnitude >= 1e300 - this exit path
+        # had zero validation on `shares` itself before it goes straight into
+        # order_data["qty"] and gets POSTed to Alpaca as a real sell order. shares_to_exit
+        # is computed upstream in executor_exit_handler.py's _calculate_exit_shares() via
+        # Decimal(str(current_qty)) * Decimal(str(exit_fraction)) - if either input were
+        # ever NaN/Infinite/corrupted, that arithmetic's behavior isn't the kind of thing to
+        # reason about by hand (Decimal NaN propagation/InvalidOperation semantics differ
+        # from float's), and "probably fine" was exactly the wrong call on the entry side
+        # until it was actually fuzzed. Cheap, same-shape guard at the literal broker-
+        # submission boundary regardless of what upstream corruption might look like.
+        max_abs_shares = 10_000_000.0
+        if (
+            shares is None
+            or (isinstance(shares, float) and (math.isnan(shares) or math.isinf(shares)))
+            or shares <= 0
+            or abs(shares) > max_abs_shares
+        ):
+            error_msg = (
+                f"[SEND_EXIT CRITICAL] {symbol}: Cannot send exit order with invalid shares={shares!r}. "
+                f"Must be a finite positive number no larger than {max_abs_shares:,.0f}. "
+                f"Refusing to submit a real order with corrupted data."
+            )
+            logger.critical(error_msg)
+            return {
+                "success": False,
+                "order_id": None,
+                "filled_price": None,
+                "message": error_msg,
+            }
+
         # Same NaN/Infinity/non-positive guard discipline as _build_bracket_order_payload's
         # caller (position_sizer.py etc.) - a corrupted limit_price must fall back to a plain
         # market order, not flow into _quantize_price() and produce a garbage order field.
