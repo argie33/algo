@@ -340,11 +340,23 @@ def run(  # noqa: C901
             category=ErrorCategory.DATABASE_ERROR,
             message="Position reconciliation database error",
             root_cause=str(e)[:200],
+            # recoverable=True is diagnostic metadata only (this class of error is often
+            # transient) - it feeds PhaseError.to_dict() for logging, nothing else. Verified
+            # via grep across algo/orchestrator/ and algo/orchestration/: no code branches
+            # on PhaseError.recoverable to decide retry/halt behavior - it is unrelated to,
+            # and does not conflict with, PhaseResult.halted below.
             recoverable=True,
             log_level="error",
         )
         log_phase_error(4, error, log_phase_result_fn)
-        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": str(e)[:200]}, False, str(e))
+        # FIX 2026-08-31 (/goal pre-real-money audit): was halted=False, the last remaining
+        # inconsistency in this file after the ValueError/generic-Exception/broker-unavailable
+        # fixes above. A reconciliation DB error means broker-vs-DB position state cannot be
+        # verified - entering new trades without that verification risks acting on stale/wrong
+        # position data (exposure, risk limits, etc. computed from unreconciled state). That's
+        # the same "cannot proceed without X" reasoning this codebase applies everywhere else,
+        # and matches every other phase's own convention for its critical-failure paths.
+        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": str(e)[:200]}, True, str(e))
 
     except Exception as e:
         # All reconciliation errors are critical - fail-fast to prevent stale data trading
