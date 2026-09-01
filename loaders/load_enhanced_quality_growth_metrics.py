@@ -525,6 +525,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             return
 
         with DatabaseContext("write") as cur:
+            # quarterly_growth_momentum REMOVED 2026-08-31 - see the matching removed-computation
+            # comment in _compute_quarterly_metrics above. This loader must never write that
+            # column again; load_value_quality_growth_metrics.py is the sole source.
             growth_fields = [
                 "gross_margin_trend",
                 "operating_margin_trend",
@@ -534,7 +537,6 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 "fcf_growth_yoy",
                 "ocf_growth_yoy",
                 "asset_growth_yoy",
-                "quarterly_growth_momentum",
                 "net_income_growth_yoy",
                 "operating_income_growth_yoy",
             ]
@@ -613,11 +615,21 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 # terraform/modules/loaders/main.tf's loader_file_map both schedule
                 # this loader in AWS production (a separate same-day 2026-08-03 fix
                 # enabled it), running after ValueQualityGrowthMetrics on the real
-                # quality_metrics/growth_metrics tables. It does NOT run in the local
-                # dev pipeline (scripts/local_loader_scheduler.py has zero references
-                # to it), so this file's behavior cannot be verified via a local
-                # orchestrator run - only in AWS. The roic_pct removal above was and
-                # is load-bearing in production, not a hypothetical.
+                # quality_metrics/growth_metrics tables.
+                #
+                # CORRECTION 2026-08-31: the "does NOT run in the local dev pipeline"
+                # half of the above was ALSO false, and was already false on 2026-08-09
+                # too - scripts/local_loader_scheduler.py's "metrics" pipeline has
+                # explicitly included "enhanced_quality_growth" right after
+                # "value_quality_growth" since a 2026-08-03 fix (same day as the AWS
+                # wiring above, predating this comment). This loader DOES run locally via
+                # `python scripts/local_loader_scheduler.py --now metrics`, in exactly
+                # this order, in both environments. Found while tracing why
+                # growth_metrics.quarterly_growth_momentum's live value didn't match this
+                # file's own (now-removed) duplicate computation for that field - see
+                # that removed block's comment above _compute_quarterly_metrics. The
+                # roic_pct removal above was and is load-bearing in both environments,
+                # not AWS-only.
                 "earnings_surprise_avg",
                 "eps_growth_stability",
                 "earnings_beat_rate",
@@ -863,7 +875,6 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 "consecutive_positive_quarters",
                 "earnings_growth_4q_avg",
                 "eps_growth_stability",
-                "quarterly_growth_momentum",
             ]
             computed_quarterly = {k: v for k, v in metrics.items() if k in quarterly_fields and v is not None}
             if computed_quarterly:
@@ -1147,18 +1158,23 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                                 f"Metric will be marked data_unavailable."
                             )
 
-            # Compute quarterly growth momentum (average of recent quarterly growth rates)
-            if len(valid_eps) >= 4:
-                recent_growth = []
-                for i in range(min(4, len(valid_eps) - 1)):
-                    if valid_eps[i + 1] is not None and valid_eps[i + 1] != 0:
-                        growth = (valid_eps[i] - valid_eps[i + 1]) / abs(valid_eps[i + 1]) * 100
-                        recent_growth.append(growth)
-                if recent_growth:
-                    momentum = sum(recent_growth) / len(recent_growth)
-                    # Guard against overflow: same near-zero EPS issue
-                    if abs(momentum) < MAX_TREND_PERCENTAGE_POINTS:
-                        metrics["quarterly_growth_momentum"] = float(momentum)
+            # quarterly_growth_momentum computation REMOVED 2026-08-31 (goal session: growth
+            # pillar redundancy/mislabel investigation). This block computed sequential-QoQ EPS
+            # growth (valid_eps[i] vs valid_eps[i+1], i.e. this quarter vs last quarter) and, via
+            # growth_fields above, unconditionally overwrote growth_metrics.quarterly_growth_momentum
+            # - clobbering load_value_quality_growth_metrics.py's canonical value (YoY same-quarter
+            # revenue growth, fixed 2026-08-28 specifically to remove sequential-QoQ seasonal
+            # noise - see that file's _compute_quarterly_metrics) on every symbol with >=4 valid
+            # EPS quarters, since "enhanced_quality_growth" runs immediately after
+            # "value_quality_growth" in both the local "metrics" pipeline
+            # (scripts/local_loader_scheduler.py) and AWS production (this file's own now-removed
+            # comment on quality_fields below already documented the AWS scheduling; the "local
+            # dev doesn't run this loader" half of that comment was stale/false - it does,
+            # explicitly ordered after value_quality_growth). Live-verified 2026-08-31: this
+            # symbol's real growth_metrics.quarterly_growth_momentum values matched the YoY-revenue
+            # formula, not this sequential-EPS one - the clobbering was latent (hadn't fired
+            # recently for the symbols checked), not actively corrupting data yet, but would on
+            # this loader's next run. load_value_quality_growth_metrics.py is the sole source now.
 
 
 def main() -> int:
