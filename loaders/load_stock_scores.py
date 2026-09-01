@@ -191,7 +191,10 @@ logger = logging.getLogger(__name__)
 #
 # DECIDED 2026-08-31 (explicit user direction: "figure what is best and do what is best"):
 # NOT switching to all-percentile pillar scaling. The Spearman edge fails this project's own
-# |t|>=2-both-eras bar (ERA2 roughly ties/trails) and Pearson favors the current z-score approach
+# |t|>=2-both-eras bar (ERA2 roughly ties/trails) and Pearson favors the current mixed fixed-curve/
+# percentile approach (magnitude-preserving, unlike a pure order-only percentile rank - "z-score
+# approach" in an earlier version of this note was loose/inaccurate phrasing for the same thing,
+# not a reference to a literal z-score computation anywhere in this file's live formulas)
 # decisively in BOTH eras - the same standard that rejected 9/10 pillar-pair interactions and 13/16
 # per-metric curve candidates above applies here too; a non-era-robust pooled metric isn't grounds
 # to override it just because this particular candidate is the "flagship" scale-consistency
