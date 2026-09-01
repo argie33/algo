@@ -3641,6 +3641,25 @@ def main() -> int:
     - 0: Success (prices fetched and stored)
     - 1: Error (database/API failure, validation error)
     """
+    # BUG FOUND (goal session, real-money-readiness "check the logs" audit): this script has
+    # no argparse - it's deliberately env-var-only ("no CLI args, cleaner for containerized
+    # execution", see the LOADER_SYMBOLS read below). But with no argument parser, ANY CLI
+    # argument (a typo, or the natural first instinct to try `--help`/`--symbols X` the way
+    # load_financial_statements.py/load_stock_scores.py support) was silently ignored - the
+    # script just fell straight through to a full, unscoped ~5000-symbol production run
+    # instead of erroring. Live-reproduced: `python -m loaders.load_prices --help` acquired
+    # the real stock_prices_daily loader lock and started loading all symbols. Explicit CLI
+    # args are rejected here rather than adding a parser (preserving the intentional env-var-
+    # only design) - use LOADER_SYMBOLS=A,B,C instead.
+    if len(sys.argv) > 1:
+        logger.critical(
+            "[MAIN] This loader takes no CLI arguments (env-var only by design) - got: %s. "
+            "Refusing to silently fall through to a full production run. "
+            "Use LOADER_SYMBOLS=A,B,C environment variable to scope a run instead.",
+            sys.argv[1:],
+        )
+        return 1
+
     start_time = time.time()
 
     # Setup socket-level timeouts to prevent hanging on network operations
