@@ -157,7 +157,10 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
     def test_symbol_missing_from_feed_and_no_recent_price_gets_deactivated(self):
         loader = _make_loader()
         feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}
-        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
             mock_active_cur = MagicMock()
             mock_active_cur.fetchall.return_value = [(s,) for s in feed_symbols] + [("NSA",)]
             mock_priced_cur = MagicMock()
@@ -173,6 +176,59 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
             assert "active = false" in sql
             assert "delisted_or_removed_from_exchange_feed" in sql
             assert params == (["NSA"],)
+
+        # BUG FOUND 2026-09-01 (/goal session): this deactivation used to be a bare log
+        # line - live-caught firing a genuine false positive for EQR (still-listed,
+        # yfinance-confirmed active NYSE equity) despite this exact "second orthogonal
+        # signal" guard, because a shared upstream yfinance gap can trip both conditions
+        # at once. Must alert so an operator can catch and reverse a false positive.
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["severity"] == "warning"
+        assert "NSA" in kwargs["message"]
+        assert kwargs["details"]["symbols"] == ["NSA"]
+
+    def test_no_symbols_deactivated_means_no_alert(self):
+        """Sanity check: the alert must not fire when nothing was actually deactivated -
+        covered implicitly by test_no_missing_symbols_skips_price_check_and_write and
+        test_symbol_missing_from_feed_but_still_recently_priced_stays_active below (neither
+        reaches the notify() call at all since `gone` is empty), but pinned explicitly here
+        too since this is the exact behavior those tests protect without asserting on it."""
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_active_cur = MagicMock()
+            mock_active_cur.fetchall.return_value = [(s,) for s in feed_symbols] + [("AVB",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = [("AVB",)]  # recent price_daily row exists
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur]
+
+            loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
+
+        mock_notify.assert_not_called()
+
+    def test_notify_failure_does_not_crash_the_loader(self):
+        """A notification-delivery failure must be swallowed (logged), not propagate and
+        abort the market-constituents run - alerting is best-effort here, not a
+        governance gate."""
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify", side_effect=RuntimeError("smtp down")),
+        ):
+            mock_active_cur = MagicMock()
+            mock_active_cur.fetchall.return_value = [(s,) for s in feed_symbols] + [("NSA",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = []
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur, mock_write_cur]
+
+            # Must not raise despite notify() failing internally.
+            loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
 
     def test_symbol_missing_from_feed_but_still_recently_priced_stays_active(self):
         """The exact false-positive this bug produced live: absent from the feed fetch,

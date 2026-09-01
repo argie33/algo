@@ -513,6 +513,40 @@ class MarketConstituentsLoader(OptimalLoader):
                 (gone,),
             )
 
+        # BUG FOUND 2026-09-01 (/goal session, "check the logs" pass, same class as
+        # loaders/load_prices.py's _mark_symbol_permanently_unavailable fix): this
+        # deactivation was only ever a WARNING/CRITICAL log line, no notify() anywhere in
+        # this function. Live-caught firing a genuine false positive for EQR (Equity
+        # Residential, a real S&P 500 REIT still recognized as an active NYSE equity by
+        # yfinance's own company-info API) - the "second orthogonal signal" guard this
+        # function's own docstring describes (absent from feed AND stale price) isn't
+        # actually fully independent when the SAME upstream yfinance gap that stales the
+        # price can coincide with an unrelated transient NASDAQ feed-fetch gap, tripping
+        # both conditions together for a symbol that's still genuinely listed and trading.
+        # Full deactivation (not just data_unavailable while still active, unlike the
+        # load_prices.py sibling case) drops the symbol from ALL downstream processing -
+        # an operator watching only alerts would never learn this happened, and nothing
+        # anywhere automatically reactivates a symbol marked this way.
+        try:
+            from algo.reporting import notify
+
+            notify(
+                severity="warning",
+                title="Symbols Deactivated as Delisted/Removed From Exchange Feed",
+                message=(
+                    f"{len(gone)} symbol(s) deactivated (active=false) after being absent from "
+                    f"today's NASDAQ/otherlisted feed AND having no price_daily data in "
+                    f"{stale_price_days}d: {', '.join(gone[:10])}"
+                    + (f" ...and {len(gone) - 10} more" if len(gone) > 10 else "")
+                    + ". Verify each is genuinely delisted before trusting this - the two "
+                    "signals aren't fully independent when a shared upstream data-provider gap "
+                    "can affect both at once."
+                ),
+                details={"symbols": gone, "stale_price_days": stale_price_days},
+            )
+        except (ValueError, TypeError, RuntimeError) as notify_err:
+            logger.error(f"[MARKET_CONSTITUENTS] Failed to send delisted-deactivation alert: {notify_err}")
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
 
