@@ -79,6 +79,17 @@ reason — before killing anything, run `tasklist /FI "PID eq <n>"` (or `ps -ef 
 confirm the PID in that lock file is actually dead, not just slow. If it's alive, it's not
 stuck — wait for it, or ask before touching it.
 
+**Execution mode changes require a full orchestrator/API restart.** `EXECUTION_MODE`
+(paper/dry/review/auto) is read and logged once at process startup (`algo/trading/
+executor_strategies.py`'s `validate_and_log_initialization`, `orchestrator.py`'s `[STARTUP]`
+log line) — it is not re-read mid-run. Changing the config or env var without restarting both
+`lambda/api/dev_server.py` and the orchestrator process leaves them running against
+inconsistent assumptions about which mode is active (e.g. the API server still reporting
+"paper" while the orchestrator process was restarted into "auto"), which can desync what the
+dashboard shows from what the orchestrator is actually doing. Always restart both processes
+together after an execution-mode change, and check the `[EXECUTOR] mode=...`/`[STARTUP]` log
+lines to confirm the mode you expect actually took effect.
+
 ## Core Rules (Non-Negotiable)
 
 **Data integrity first.** These rules prevent real bugs:
