@@ -12,7 +12,12 @@ is a real, actively-traded common ADR with a garbled security_name containing "P
 a bare `\\bpfd\\b` pattern would have wrongly excluded it.
 """
 
-from loaders.load_market_constituents import should_exclude
+from loaders.load_market_constituents import (
+    CORP_SPONSOR_PATTERN,
+    KNOWN_SPAC_MISCLASSIFICATIONS,
+    _is_excluded,
+    should_exclude,
+)
 
 
 class TestNewExclusionPatterns:
@@ -284,3 +289,74 @@ class TestRightToReceiveAdrRatioNotExcluded:
 
     def test_real_spac_right_singular_suffix_still_excluded(self):
         assert should_exclude("Calisa Acquisition Corp - Right")
+
+
+class TestCapitalTrustAndSpacSponsorGapsFoundInFactorScoreReview:
+    """Regression test added 2026-09-01 (/goal session, recovered from a stranded branch -
+    see risk_min_weight_available_floor_added_20260831 memory entry for the broader pattern
+    of fixes stuck on growth-factor-realignment never reaching main). Live-verified
+    stock_scores' Risk pillar top-50 was 12/50 pre-merger SPAC shells (trust-account cash
+    boxes that trade near-flat, near-zero beta, ranking above Royal Bank of Canada/Manulife)
+    plus DDT (Dillard's Capital Trust I, a trust-preferred security wrongly carrying
+    Dillard's Inc.'s whole-company financials in company_profile, ranking it in Value's
+    top-15 too).
+    """
+
+    def test_capital_trust_preferred_security_excluded(self):
+        """DDT: whole-company Dillard's Inc. financials were misattributed to this trust-
+        preferred security (same "shared CIK, wrong entity" bug class as the CCZ/ZONES fix
+        above), producing a nonsense PE of 0.72 and 97% margin of safety."""
+        assert should_exclude("Dillard's Capital Trust I")
+
+    def test_merger_corp_sponsor_now_caught(self):
+        """ "Merger Corp" is a common SPAC-sponsor naming convention CORP_SPONSOR_PATTERN
+        didn't cover - it only recognized "investment"/"acquisition" before "corp"."""
+        assert should_exclude("West Enclave Merger Corp. Ordinary Shares")
+        assert should_exclude("Highview Merger Corp. - Class A Ordinary Share")
+
+    def test_acquisition_limited_sponsor_now_caught(self):
+        """SPAC sponsors sometimes use "Limited"/"Ltd" instead of "Corp" as the entity
+        suffix - CORP_SPONSOR_PATTERN required literal "Corp(oration)"."""
+        assert should_exclude("Newbridge Acquisition Limited - Class A Ordinary Share")
+        assert should_exclude("Oxley Bridge Acquisition Limited - Class A Ordinary Shares")
+        assert should_exclude("Blueport Acquisition Ltd - Class A Ordinary Shares")
+
+    def test_broadened_sponsor_pattern_does_not_catch_real_companies(self):
+        """The "merger"/"limited"/"ltd" additions to CORP_SPONSOR_PATTERN must not
+        false-positive on real operating companies - verified against the full active
+        universe before shipping (zero new false positives found)."""
+        assert not should_exclude("AGNC Investment Corp. - Common Stock")
+        assert not should_exclude("Saratoga Investment Corp New")
+        assert not should_exclude("First Majestic Silver Corp. Ordinary Shares (Canada)")
+        assert not should_exclude("Telus Corporation Ordinary Shares")
+
+    def test_known_spac_misclassifications_individually_verified(self):
+        """GIW/APUR/NWAX/XFLH/SBXD/DYNC/CUB have no sponsor keyword ("acquisition"/
+        "investment"/"merger") in their name at all (e.g. "GigCapital8 Corp.", "Aperture
+        AC", "Lionheart Holdings") - broadening CORP_SPONSOR_PATTERN further to catch them
+        generically (e.g. any "Corp"/"Corporation" + "Ordinary Shares") was tested against
+        the full active universe and matches 47 symbols, most of them real large operating
+        companies (First Majestic Silver/AG, Telus/TU, Pembina Pipeline/PBA, Eldorado
+        Gold/EGO, Denison Mines/DNN, Webull/BULL, ProKidney/PROK) - the same false-positive
+        shape CORP_SPONSOR_PATTERN's own two-signal design exists to avoid. Each of these 7
+        was instead individually verified via stability_metrics (near-zero beta/volatility,
+        the SPAC trust-mechanic fingerprint) and growth_metrics (zero computable operating
+        history) before adding to the override list, same convention as
+        KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS/KNOWN_ETF_MISCLASSIFICATIONS.
+        """
+        for symbol in ("GIW", "APUR", "NWAX", "XFLH", "SBXD", "DYNC", "CUB"):
+            assert symbol in KNOWN_SPAC_MISCLASSIFICATIONS
+
+        assert _is_excluded("GIW", "GigCapital8 Corp. - Class A Ordinary Shares")
+        assert _is_excluded("APUR", "Aperture AC - Class A Ordinary Shares")
+        assert _is_excluded("NWAX", "New America Acquisition I Corp. Class A Common Stock")
+        assert _is_excluded("XFLH", "XFLH Capital Corporation Ordinary Shares")
+        assert _is_excluded("SBXD", "SilverBox Corp IV Class A Ordinary Shares")
+        assert _is_excluded("DYNC", "Dynamix Corporation - Class A Ordinary Share")
+        assert _is_excluded("CUB", "Lionheart Holdings - Class A Ordinary Shares")
+
+    def test_first_majestic_silver_not_caught_by_broadened_pattern(self):
+        """Regression guard: CORP_SPONSOR_PATTERN's broadened suffix group must not, on its
+        own (without a sponsor keyword), match a real Canadian miner's plain "Corp.
+        Ordinary Shares (Canada)" listing convention."""
+        assert not CORP_SPONSOR_PATTERN.search("First Majestic Silver Corp. Ordinary Shares (Canada)")

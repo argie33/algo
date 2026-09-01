@@ -2024,23 +2024,53 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         only implies-basically-no-real-float cases like the ones above trip it.
         """
         min_plausible_implied_shares = 10_000
+        # BUG FOUND 2026-08-31 (goal session: "let's check the logs" sweep of live loader
+        # output): SWK/UAMY quarterly rows hit the raw NUMERIC(12,4) column-overflow guard in
+        # sec_base.py instead of this smarter rejection (e.g. "earnings_per_share=150330000")
+        # - live-confirmed the reason: this function's implied-shares check requires
+        # net_income to be present and non-zero for the SAME row, but a quarterly row can
+        # have net_income missing/None while still carrying a garbage per-share value from
+        # the identical filer-side mistagging bug this function already exists to catch. The
+        # `continue` above skipped the whole row, so the garbage value reached the DB-insert
+        # layer's overflow guard instead - which fails safe (data_unavailable) but with a
+        # worse error and none of the informative "why" this function provides. Add an
+        # absolute-magnitude fallback that doesn't need net_income at all: no real company has
+        # ever reported anywhere near $1,000,000/share EPS in a single period (BRK.A's real
+        # historical extremes, driven by unrealized investment gains, stay under $200,000/share
+        # even in exceptional years - this floor leaves >5x headroom above that).
+        max_plausible_abs_eps = 1_000_000
         for row in transformed:
             net_income = row.get("net_income")
-            if net_income is None or net_income == 0:
-                continue
+            has_net_income = net_income is not None and net_income != 0
             for field in ("earnings_per_share", "diluted_eps"):
                 eps = row.get(field)
                 if eps is None or eps == 0:
                     continue
-                implied_shares = abs(float(net_income) / float(eps))
-                if implied_shares < min_plausible_implied_shares:
+                if has_net_income:
+                    assert net_income is not None  # narrows for mypy; has_net_income already guarantees this
+                    implied_shares = abs(float(net_income) / float(eps))
+                    if implied_shares < min_plausible_implied_shares:
+                        logger.warning(
+                            f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                            f"{field}={eps} implies only {implied_shares:,.0f} shares outstanding "
+                            f"against net_income={net_income:,.0f} - implausibly low for any real "
+                            "public float. Filer-side XBRL tagging error (raw net income reported "
+                            "as per-share), not a currency/scale issue. Rejecting rather than "
+                            "storing a confidently-wrong per-share value."
+                        )
+                        row[field] = None
+                        self._record_explicit_null_rejection(row, field)
+                        continue
+                if abs(float(eps)) > max_plausible_abs_eps:
                     logger.warning(
                         f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
-                        f"{field}={eps} implies only {implied_shares:,.0f} shares outstanding "
-                        f"against net_income={net_income:,.0f} - implausibly low for any real "
-                        "public float. Filer-side XBRL tagging error (raw net income reported "
-                        "as per-share), not a currency/scale issue. Rejecting rather than "
-                        "storing a confidently-wrong per-share value."
+                        f"{field}={eps} exceeds ${max_plausible_abs_eps:,}/share - implausible for "
+                        "any real filer regardless of net_income availability (net_income was "
+                        f"{'unavailable/zero' if not has_net_income else f'{net_income:,.0f}'} for "
+                        "this row, so the implied-shares cross-check above couldn't run). Same "
+                        "filer-side XBRL tagging error class, caught via absolute magnitude "
+                        "instead. Rejecting rather than storing a confidently-wrong per-share "
+                        "value or letting it hit the raw column-overflow guard downstream."
                     )
                     row[field] = None
                     self._record_explicit_null_rejection(row, field)

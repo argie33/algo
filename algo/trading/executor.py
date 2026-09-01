@@ -669,6 +669,15 @@ class TradeExecutor:
         Args:
             operation: Callable that takes a cursor and returns a result
             acquire_locks: If True, acquire advisory locks for algo_trades and algo_positions
+
+        CONCURRENCY ASSUMPTION: ALGO_TRADES_LOCK_ID/ALGO_POSITIONS_LOCK_ID are global (not
+        per-symbol) and are held for the full duration of `operation`, which for an entry can
+        include a ~30s broker fill-wait plus any 429/503 retry backoff. This is only safe
+        because phases run strictly sequentially within one orchestrator process (see
+        CLAUDE.md/MEMORY.md) - exit handling, Phase 6, and Phase 9 reconciliation all take the
+        same two lock IDs. If phases or runs are ever allowed to execute concurrently, a slow
+        fill-wait on one symbol's entry could stall an unrelated stop-loss exit for up to that
+        same window. Don't relax the sequential-execution assumption without revisiting this.
         """
         try:
             with DatabaseContext("write") as cur:

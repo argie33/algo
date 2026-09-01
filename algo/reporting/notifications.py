@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import smtplib
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
@@ -244,7 +245,18 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         always persists to algo_notifications regardless of email/SNS outcome) - a
         governance-critical notification could vanish with zero trace. Same fix as that
         file's equivalent bug: default=str degrades gracefully instead of raising.
+
+        Also writes to FileAlertLogger (2026-08-31, PRODUCTION_READINESS_AUDIT_20260831.md
+        Observation 9) BEFORE the DB write - unconditional, best-effort, independent of whether
+        the DB write below succeeds or raises. Reuses self.alert_manager's instance rather than
+        creating a second one, since AlertManager already owns one. This is a redundant local
+        record that doesn't depend on email/SNS being configured or actually confirmed.
         """
+        try:
+            self.alert_manager._file_logger.log_alert(kind, severity, title, message, symbol)
+        except Exception as e:
+            logger.error(f"[NOTIF] Failed to write alert to local file log: {e}. Title: {title}")
+
         with DatabaseContext("write") as cur:
             try:
                 cur.execute(
@@ -286,11 +298,31 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         """
         self._save_notification(kind, severity, subject, message, symbol, details)
 
+        # BUG FOUND 2026-08-31 (same class as the cancel_bracket_orders fix earlier this
+        # session): AlertManager._send_email() raises (smtplib.SMTPException, RuntimeError,
+        # OSError, ConnectionError) on a real send failure - e.g. no SMTP server reachable at
+        # the configured host (confirmed locally: .env.local's ALERT_SMTP_HOST=localhost has
+        # nothing listening on port 25 in this dev environment, so a real send attempt would
+        # raise ConnectionRefusedError, an OSError subclass). None of those match
+        # (psycopg2.DatabaseError, psycopg2.OperationalError) below, so a genuine send failure
+        # propagated as a raw, unconverted exception instead of this method's documented
+        # RuntimeError contract. The module-level notify() function's own outer `except
+        # Exception` happens to catch it anyway when called through that path, but
+        # process_events() calls this method directly with no such outer catch - currently
+        # dead code (never invoked anywhere in the repo), but exactly the kind of latent bug
+        # that bites the moment someone wires it up.
         try:
             if self.alert_manager.email_to:
                 self.alert_manager._send_email(subject=f"[ALGO] {subject}", body=message)
             logger.info(f"[NOTIF] Sent: {subject}")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+            smtplib.SMTPException,
+            RuntimeError,
+            OSError,
+            ConnectionError,
+        ) as e:
             raise RuntimeError(
                 f"CRITICAL: Failed to send notification: {subject}. "
                 f"Operators may not receive alerts. "

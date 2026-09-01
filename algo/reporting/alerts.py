@@ -20,22 +20,28 @@ from email.mime.text import MIMEText
 from typing import Any
 
 from algo.config.credential_manager import get_credential_manager
+from algo.reporting.alerts_file_fallback import FileAlertLogger
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 
 class AlertManager:
-    """Send alerts via email, SNS, and a durable database record.
+    """Send alerts via email, SNS, a local file, and a durable database record.
 
     Every alert is always persisted to algo_notifications (the table the dashboard already
-    surfaces), regardless of configuration. If no email/SNS channel is configured, external
+    surfaces) AND to a local file via FileAlertLogger, regardless of configuration - added
+    2026-08-31 (PRODUCTION_READINESS_AUDIT_20260831.md Observation 9) as a redundant channel
+    that doesn't depend on AWS-side confirmation state at all (an SNS subscription stuck in
+    PendingConfirmation, or a bad SMTP secret, both fail silently from this class's own
+    perspective - the file write does not). If no email/SNS channel is configured, external
     delivery is skipped ("no-op mode" for that part only) - this allows paper trading and
     testing without external alert infrastructure while still guaranteeing every critical
     safety event leaves a durable, queryable trace.
     """
 
     def __init__(self) -> None:
+        self._file_logger = FileAlertLogger()
         self.email_from = os.getenv("ALERT_SMTP_FROM", os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local"))
         self.email_to = [e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()]
 
@@ -124,6 +130,11 @@ class AlertManager:
         default=str to degrade gracefully instead of raising in the first place, and
         broadened the catch to match this function's own documented "must not prevent the
         caller... from proceeding" promise for anything else that could still go wrong.
+
+        Also writes to FileAlertLogger (2026-08-31) - independent of the DB write above via its
+        own try/except, so a DB outage doesn't skip the file record and a file-write failure
+        (e.g. read-only filesystem) doesn't skip the DB record. Neither write depends on
+        email/SNS being configured or confirmed.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -144,6 +155,11 @@ class AlertManager:
                 )
         except Exception as e:
             logger.error(f"[ALERTS] Failed to persist alert to algo_notifications: {e}. Title: {title}")
+
+        try:
+            self._file_logger.log_alert(kind, severity, title, message, symbol)
+        except Exception as e:
+            logger.error(f"[ALERTS] Failed to write alert to local file log: {e}. Title: {title}")
 
     def _get_sns_client(self) -> Any:
         if self._sns_client is None:

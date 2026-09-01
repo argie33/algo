@@ -917,11 +917,15 @@ class EntryHandler:
 
             if order_class == "bracket":
                 if len(legs) < 2:
+                    # RuntimeError included per the BUG FOUND 2026-08-31 note further down this
+                    # method (cancel_bracket_orders() raises plain RuntimeError on real failures,
+                    # not the TradingError/requests types this tuple used to list alone).
                     try:
                         self.context._cancel_bracket_orders(alpaca_order_id)
                     except (
                         OrderExecutionError,
                         DatabaseError,
+                        RuntimeError,
                         requests.RequestException,
                         requests.Timeout,
                     ) as e:
@@ -940,11 +944,14 @@ class EntryHandler:
                 has_take_profit = any(leg.get("order_type") == "limit" for leg in legs if isinstance(leg, dict))
 
                 if not has_stop_loss or not has_take_profit:
+                    # RuntimeError included per the BUG FOUND 2026-08-31 note further down this
+                    # method (cancel_bracket_orders() raises plain RuntimeError on real failures).
                     try:
                         self.context._cancel_bracket_orders(alpaca_order_id)
                     except (
                         OrderExecutionError,
                         DatabaseError,
+                        RuntimeError,
                         requests.RequestException,
                         requests.Timeout,
                     ) as e:
@@ -1007,11 +1014,22 @@ class EntryHandler:
                         f"CRITICAL: Failed to send fill-failure alert for {symbol} ({fill_error}): {e}. "
                         f"Trader was NOT notified that the order failed to fill."
                     ) from e
+                # BUG FOUND 2026-08-31: order_manager.cancel_bracket_orders() raises a plain
+                # RuntimeError on every real failure path (non-retryable status, or 429/503
+                # retries exhausted) - not OrderExecutionError/DatabaseError, which are unrelated
+                # TradingError subclasses, nor requests.RequestException/Timeout. This except
+                # clause could never actually catch a real cancel failure; it silently let the
+                # RuntimeError propagate uncaught out of this method instead of the intended
+                # graceful "log a warning, still report the fill failure" behavior - exactly the
+                # scenario this comment block already documents as "a real, anticipated failure
+                # mode" (order already filled and thus uncancelable, or a live rate-limit
+                # exhaustion) that must not crash the entry pipeline for one symbol.
                 try:
                     self.context._cancel_bracket_orders(alpaca_order_id)
                 except (
                     OrderExecutionError,
                     DatabaseError,
+                    RuntimeError,
                     requests.RequestException,
                     requests.Timeout,
                 ) as e:

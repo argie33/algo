@@ -167,9 +167,11 @@ class OrderManager:
         Fail-fast if stop loss is missing - do not send a simple limit order fallback.
 
         client_order_id: Passed through to Alpaca as broker-side idempotency protection.
-        Caller passes a deterministic idempotency_key (hash of symbol/signal_date/entry_price/
-        stop_loss_price), NOT the random per-attempt trade_id - the value must be the same
-        across separate attempts at the same underlying trade intent for this to work.
+        Caller passes a deterministic idempotency_key (hash of symbol/entry_price/signal_date only -
+        see executor_entry_handler.py's key_source; stop_loss_price is deliberately NOT part of the
+        hash since it's derived from the same signal and shouldn't vary between retries), NOT the
+        random per-attempt trade_id - the value must be the same across separate attempts at the
+        same underlying trade intent for this to work.
         If a submission's HTTP response is lost to a timeout/connection error (ambiguous:
         the order may have actually reached Alpaca and been accepted), our own duplicate-
         position check only queries algo_trades/algo_positions - it can't see an order that

@@ -164,6 +164,20 @@ EXCLUSION_PATTERNS = [
     # Shares", real common equity) doesn't contain the word "zones" at all, so it's
     # unaffected.
     r"\bzones\b",
+    # GOVERNANCE 2026-08-31 (goal: factor-score review - "why does Risk's safest list look
+    # wrong" investigation): trust-preferred securities named "<Company> Capital Trust N"
+    # (e.g. Dillard's Capital Trust I / DDT) aren't common equity and don't say
+    # "preferred"/"debenture"/"subordinated" anywhere in the name, so none of the existing
+    # patterns catch them. Live-confirmed the specific bug this caused: DDT's
+    # company_profile row had DILLARD'S, INC.'s whole-company financials (a different,
+    # much larger real entity sharing the same underlying CIK/filer) misattributed to the
+    # trust security's own tiny market cap, producing nonsense value_metrics (PE 0.72, PB
+    # 0.23, FCF yield 153%, 97% margin of safety) that then ranked DDT in stock_scores'
+    # Value top-15 - same "whole-company financials misattributed to a thinly-traded related
+    # security" bug class as the CCZ/ZONES fix above, different instrument type. Checked
+    # against the full live active-universe security_name feed: this pattern matches only
+    # DDT and no other active symbol.
+    r"\bcapital trust\b",
 ]
 
 # GOVERNANCE 2026-08-03: a bare `\binvestment corp\b` pattern used to sit in
@@ -209,10 +223,36 @@ EXCLUSION_PATTERNS = [
 # words. No "Corp <numeral>" (numeral-after-corp) ordering found in current live data;
 # add that ordering here too if a future audit finds one.
 CORP_SPONSOR_PATTERN = re.compile(
-    r"\b(investment|acquisition)\s+(?:[ivxlcdm]+|\d+(?:st|nd|rd|th)?)?\s*corp(oration)?\b",
+    r"\b(investment|acquisition|merger)\s+(?:[ivxlcdm]+|\d+(?:st|nd|rd|th)?)?\s*"
+    r"(corp(oration)?|limited|ltd)\b",
     re.IGNORECASE,
 )
 SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.IGNORECASE)
+
+# GOVERNANCE 2026-08-31 (same goal session as the Capital Trust pattern above): CORP_SPONSOR_PATTERN
+# requires an explicit "investment"/"acquisition"/"merger" sponsor keyword immediately before
+# "corp"/"limited" - live-confirmed 6 already-active pre-merger SPAC shells in the local DB whose
+# sponsor-brand name carries none of those three words (GigCapital8 Corp., Aperture AC, New
+# America Acquisition I Corp. [share class says "Common Stock" not "Ordinary Shares", failing
+# SPAC_SHARE_CLASS_PATTERN], XFLH Capital Corporation, SilverBox Corp IV, Dynamix Corporation) -
+# every one confirmed a genuine trust-shell via BOTH signals independently: stability_metrics
+# shows the SPAC trust-mechanic fingerprint (beta -0.046 to 0.037, essentially flat; volatility_60d
+# 1.6%-10%; max_drawdown_1y under 6.5%) AND growth_metrics has zero computable operating history
+# ("insufficient_history"/no revenue or EPS growth at all). This inflated Risk's "safest" ranking
+# above Royal Bank of Canada and Manulife (12/50 of stock_scores' top-50 risk_score names were
+# SPAC-shaped, live-verified 2026-08-31). Deliberately a symbol-level override, NOT a broader
+# regex ("Corp/Corporation" + "Ordinary Shares" alone) - that combination was tested against the
+# full active universe first and matches 47 symbols, most of them real large operating companies
+# (First Majestic Silver Corp/AG, Telus Corp/TU, Pembina Pipeline Corp/PBA, Eldorado Gold Corp/EGO,
+# Denison Mines Corp/DNN, Webull Corp/BULL, ProKidney Corp/PROK among them) - the same
+# false-positive shape CORP_SPONSOR_PATTERN's own two-signal design already exists to avoid (see
+# the GOVERNANCE 2026-08-03 AGNC/SAR note above). Same convention as
+# KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS/KNOWN_ETF_MISCLASSIFICATIONS: individually-verified
+# tickers, not a pattern change, when the general rule can't be safely widened further.
+# CUB (Lionheart Holdings - Class A Ordinary Shares) added same pass, same evidence shape
+# (beta 0.016, volatility_60d 2.7%, max_drawdown_1y -1.28%, zero computable growth history) -
+# "Holdings" carries no sponsor keyword either.
+KNOWN_SPAC_MISCLASSIFICATIONS = {"GIW", "APUR", "NWAX", "XFLH", "SBXD", "DYNC", "CUB"}
 
 # GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): a bare
 # \bdepositary shares?\b/\bdep shs?\b pattern used to sit in EXCLUSION_PATTERNS above,
@@ -256,6 +296,8 @@ def _is_excluded(symbol: str, name: str) -> bool:
     write path AND both deactivate/reactivate reconciliation methods, so a symbol-level
     override applies consistently everywhere `should_exclude` would otherwise be called
     directly on stored/fetched text alone."""
+    if symbol in KNOWN_SPAC_MISCLASSIFICATIONS:
+        return True
     return should_exclude(name) and symbol not in KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS
 
 
