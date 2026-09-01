@@ -3,6 +3,7 @@
 
 import json
 import logging
+import math
 import time
 from typing import Any
 
@@ -214,6 +215,37 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     )
 
                 daytrade_count_val = data.get("daytrade_count")
+
+                # BUG FOUND 2026-09-01 (real-money-readiness pass): none of these four
+                # numeric fields were checked for NaN/Infinity before being handed back as
+                # "real broker truth" (this codebase's own established phrase for this
+                # method's output - see reconciliation.py). A malformed Alpaca response
+                # (network/proxy corruption, or a numeric string like "nan"/"inf" that
+                # float() silently accepts) would otherwise flow into every caller as a
+                # normal-looking float. Some callers already guard independently
+                # (position_sizer.py's _validate_alpaca_equity checks is_finite()) and some
+                # accidentally fail safe (reconciliation.py's cascading <= comparisons all
+                # evaluate False against NaN, falling through to a critical alert) - but this
+                # is the single choke point every caller goes through, so guard here too
+                # rather than relying on every current and future caller re-deriving the
+                # same protection. Fail fast (not a silent None) - unlike a merely *missing*
+                # field (handled above), a non-finite VALUE means Alpaca sent something, and
+                # that something is corrupt; treating it as if nothing was sent would hide a
+                # real data-integrity problem.
+                for field_name, raw_val in (
+                    ("cash", cash_val),
+                    ("equity", equity_val),
+                    ("portfolio_value", portfolio_value_val),
+                    ("buying_power", buying_power_val),
+                ):
+                    if raw_val is not None and not math.isfinite(float(raw_val)):
+                        raise ValueError(
+                            f"[FETCH_ACCOUNT CRITICAL] Alpaca /v2/account returned non-finite "
+                            f"{field_name}={raw_val!r}. Refusing to treat this as real broker "
+                            f"truth - this indicates a corrupted API response, not a normal "
+                            f"account state."
+                        )
+
                 return {
                     "cash": float(cash_val) if cash_val is not None else None,
                     "equity": float(equity_val) if equity_val is not None else None,

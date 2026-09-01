@@ -7,6 +7,7 @@ independent testing of position sync logic.
 
 import json
 import logging
+import math
 import os
 from typing import Any
 
@@ -19,6 +20,33 @@ from algo.trading.executor_strategies import create_execution_mode_strategy
 from utils.db.advisory_locks import ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 
 logger = logging.getLogger(__name__)
+
+
+def _is_non_finite_qty(symbol: str, raw_qty: Any, qty_float: float) -> bool:
+    """True if qty_float is NaN/Infinity - caller must skip this position rather than
+    write a non-finite quantity (see the 2026-09-01 BUG FOUND comment at each call site)."""
+    if not math.isfinite(qty_float):
+        logger.critical(
+            f"[POSITION_SYNC] {symbol}: Alpaca returned non-finite qty={raw_qty!r} - "
+            "skipping this position rather than writing a NaN/Infinity quantity."
+        )
+        return True
+    return False
+
+
+def _finite_price_or_none(symbol: str, raw_price: Any) -> float | None:
+    """Converts raw_price to float, returning None (not a NaN/Infinity float) if it's
+    missing or non-finite - see the 2026-09-01 BUG FOUND comment at each call site."""
+    if raw_price is None:
+        return None
+    price_float = float(raw_price)
+    if not math.isfinite(price_float):
+        logger.critical(
+            f"[POSITION_SYNC] {symbol}: Alpaca returned non-finite current_price={raw_price!r} - "
+            "treating as unavailable rather than writing NaN/Infinity."
+        )
+        return None
+    return price_float
 
 
 class AlpacaSyncManager:
@@ -182,8 +210,16 @@ class AlpacaSyncManager:
                 if "current_price" not in pos_data or pos_data["current_price"] is None:
                     logger.warning(f"[ALPACA_SYNC] Missing current_price for position {symbol}")
                     continue
-                current_price = pos_data["current_price"]
-                position_value = qty_float * float(current_price)
+                # BUG FOUND 2026-09-01 (real-money-readiness pass): same non-finite gap as
+                # _reconcile_positions's main sync loop below (see its own comment) - qty/
+                # current_price from Alpaca were never checked for NaN/Infinity before being
+                # written to algo_untracked_positions.
+                if _is_non_finite_qty(symbol, pos_data["qty"], qty_float):
+                    continue
+                current_price = _finite_price_or_none(symbol, pos_data["current_price"])
+                if current_price is None:
+                    continue
+                position_value = qty_float * current_price
 
                 try:
                     cur.execute(
@@ -437,6 +473,17 @@ class AlpacaSyncManager:
                 continue
 
             qty_float = float(qty)
+            # BUG FOUND 2026-09-01 (real-money-readiness pass): `qty_float <= 0` is a no-op
+            # for NaN (every comparison against NaN is False in Python/IEEE 754), so a
+            # malformed Alpaca response (network/proxy corruption, or a numeric string like
+            # "nan"/"inf" that float() silently accepts) would fall through this guard and
+            # write a non-finite quantity straight into algo_positions.quantity - PostgreSQL
+            # NUMERIC legally accepts NaN, so this would persist silently with no exception
+            # and no downstream validation catching it. Same NaN/Infinity guard convention
+            # this codebase applies everywhere else price-derived data crosses a trust
+            # boundary (see e.g. capital_routing.py's math.isnan/isinf checks).
+            if _is_non_finite_qty(symbol, qty, qty_float):
+                continue
             if qty_float <= 0:
                 # Long-only algo: short or zero positions from Alpaca are anomalous.
                 # Close them in DB immediately rather than updating with negative values.
@@ -457,7 +504,11 @@ class AlpacaSyncManager:
             # current_price=0.0 as falsy, silently dropping position_value to None instead of
             # computing 0.0 - same anti-pattern already fixed elsewhere in this codebase for
             # financial fields (0.0 is a valid price, not "missing").
-            position_value = qty_float * float(current_price) if current_price is not None else None
+            # BUG FOUND 2026-09-01: same non-finite gap as qty_float above - a non-finite
+            # current_price would otherwise flow straight into position_value and
+            # algo_positions.current_price with no guard.
+            current_price_float = _finite_price_or_none(symbol, current_price)
+            position_value = qty_float * current_price_float if current_price_float is not None else None
 
             # Update existing algo-tracked position - never INSERT from Alpaca sync.
             # The algo's entry execution is the source of truth for position creation.
@@ -491,8 +542,10 @@ class AlpacaSyncManager:
                         qty_float,
                         # BUG FOUND 2026-08-16: same falsy-vs-None anti-pattern as above -
                         # current_price=0.0 or position_value=0.0 are legitimate values, not
-                        # "missing", and must not be silently written as NULL.
-                        float(current_price) if current_price is not None else None,
+                        # "missing", and must not be silently written as NULL. Reuses
+                        # current_price_float (already NaN/Infinity-guarded above) rather
+                        # than re-converting the raw current_price value here.
+                        current_price_float,
                         float(position_value) if position_value is not None else None,
                         symbol,
                     ),

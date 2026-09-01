@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -28,6 +29,50 @@ from algo.infrastructure.market_calendar import MarketCalendar
 from algo.trading.exceptions import ExchangeAPIError
 
 logger = logging.getLogger(__name__)
+
+# STALENESS GUARD (added 2026-09-01, real-money-readiness pass): the free-tier IEX feed
+# this function uses can fail by silently freezing rather than erroring - it keeps
+# returning HTTP 200 with the LAST quote it ever received, indistinguishable from a
+# genuinely fresh quote to every check above (bid/ask present and >0). That's a distinct
+# failure mode from the one this module's own docstring documents fixing (price_daily not
+# being refreshed intraday at all) - this guards the live source itself going stale while
+# still returning 200s. 5 minutes is generous versus a healthy feed (IEX order-book-driven
+# quotes refresh far faster than that even for thin names, since NBBO reflects the resting
+# book, not just print events) but tight enough to catch a feed that has actually stopped
+# updating, which this callers' real-time exit/stop evaluation must not silently trust.
+_MAX_QUOTE_AGE_SECONDS = 300
+
+
+def _check_quote_freshness(symbol: str, quote: dict[str, object], log_prefix: str) -> None:
+    """Raises RuntimeError if quote's own timestamp shows it's stale while the market is
+    open. A missing or unparseable timestamp is logged and treated as no freshness signal
+    (fail-open on the check itself, not on the underlying quote) rather than blocking an
+    otherwise-valid price over a formatting quirk."""
+    if not MarketCalendar.is_market_open():
+        return
+    quote_ts_raw = quote.get("t")
+    if not quote_ts_raw:
+        return
+    assert isinstance(quote_ts_raw, str)
+    try:
+        ts_str = quote_ts_raw[:-1] + "+00:00" if quote_ts_raw.endswith("Z") else quote_ts_raw
+        quote_dt = datetime.fromisoformat(ts_str)
+        if quote_dt.tzinfo is None:
+            quote_dt = quote_dt.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(timezone.utc) - quote_dt).total_seconds()
+    except (ValueError, TypeError) as e:
+        logger.warning(
+            f"[{log_prefix}] {symbol}: could not parse quote timestamp {quote_ts_raw!r}: {e} - "
+            f"proceeding without a freshness check for this quote."
+        )
+        return
+    if age_seconds > _MAX_QUOTE_AGE_SECONDS:
+        raise RuntimeError(
+            f"Alpaca quote for {symbol} is {age_seconds:.0f}s stale (timestamp "
+            f"{quote_ts_raw}) while market is open - feed has likely frozen, not "
+            f"just a normal reporting gap. Refusing to feed a stale price into a "
+            f"real-time exit/stop decision."
+        )
 
 
 def fetch_live_quote(
@@ -110,6 +155,8 @@ def fetch_live_quote(
             quote = quotes[symbol]
             if not isinstance(quote, dict):
                 raise RuntimeError(f"Alpaca quote API returned invalid data type for {symbol}: {type(quote)}")
+
+            _check_quote_freshness(symbol, quote, log_prefix)
 
             bid = quote.get("bp")
             ask = quote.get("ap")

@@ -1952,6 +1952,23 @@ class Orchestrator:
             # Validate position counts are sane
             if not validate_position_count():
                 logger.warning("[POSITION_SYNC_VALIDATE] Position count validation failed - possible data mismatch")
+                # BUG FOUND 2026-09-01 (real-money-readiness pass): this only ever logged a
+                # warning - validate_position_count()'s own CRITICAL log lines (for the
+                # "trades with no position" case specifically: "Positions were lost during
+                # sync or entry execution") never reached a real alert channel. That case is
+                # dangerous, not cosmetic: circuit_breaker.py's portfolio-risk/total-risk
+                # checks read from algo_positions, not algo_trades, so a symbol missing from
+                # algo_positions is invisible to risk management - its exposure silently
+                # isn't counted against any limit at all, with no operator ever notified.
+                # Same "computed but never delivered" bug class already found and fixed for
+                # Phase 9's VaR/concentration/beta alerts (commit 5ac092eea). This runs before
+                # Phase 1, so self.alerts (AlertManager) is already initialized in __init__.
+                self.alerts.critical(
+                    "[POSITION_SYNC_VALIDATE] Position count validation failed after sync - "
+                    "algo_positions and algo_trades disagree on open symbols. If any symbol is "
+                    "missing from algo_positions, its risk is NOT being counted by circuit "
+                    "breaker checks. See orchestrator logs for the specific symbol list."
+                )
         except RuntimeError as e:
             logger.error(f"[POSITION_SYNC] CRITICAL: {e}")
             raise

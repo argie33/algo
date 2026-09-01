@@ -139,23 +139,41 @@ class EarningsBlackout:
                 # reproduced 2026-08-09: WPM/BDX/DAC/GAIN/ERO all have real earnings_date rows days in
                 # the past (correctly outside the blackout window) but were blocked anyway on "earnings
                 # tomorrow", sourced entirely from a same-day mass yfinance fetch-failure event (4918
-                # placeholder rows in one run). Real dates (future, then past) now always outrank
-                # unavailable placeholders; a placeholder is only used as a fail-closed fallback signal
-                # when NO real earnings_date exists for this symbol anywhere in the window - preserving
-                # the original incident's protection for genuinely never-confirmed symbols.
+                # placeholder rows in one run). Real dates now always outrank unavailable placeholders;
+                # a placeholder is only used as a fail-closed fallback signal when NO real earnings_date
+                # exists for this symbol anywhere in the window - preserving the original incident's
+                # protection for genuinely never-confirmed symbols.
+                #
+                # BUG FOUND 2026-09-01 (real-money-readiness pass): the tiering above split "real" into
+                # TWO ranks - future-real (0) unconditionally above past-real (1) - rather than just
+                # "real vs unavailable". That silently defeated the entire days_after (post-earnings)
+                # blackout for any symbol that already has its NEXT forward earnings estimate loaded,
+                # which is the normal state for almost every actively-covered symbol (yfinance's
+                # earnings_dates returns recent history plus forward estimates together). Concrete
+                # failure: a symbol reports earnings Friday, gets re-scored/entered the following
+                # Monday (1 trading day post-earnings, squarely inside the default days_after window) -
+                # but its far-future (~90-day-out) forward estimate is already on file and, being
+                # "real+future", always won the old rank-0 slot over the true, days-old past earnings
+                # row, so trading_days_away was computed against the wrong date entirely and the gate
+                # silently returned pass=True. This is precisely the whipsaw scenario the fail-closed
+                # rework above (Session 70) cites real losses for ("-19%, -9%, -8% losses on
+                # 2026-08-08"). Fixed by ranking ALL real dates (future or past) together as tier 0,
+                # ordered purely by distance to eval_date - the nearest real earnings date, whichever
+                # direction, is always the one that determines blackout status. Unavailable placeholders
+                # stay strictly tier 1 (below every real date, regardless of distance), unchanged from
+                # the 2026-08-09 fix above.
                 cur.execute(
                     """SELECT earnings_date, data_unavailable FROM earnings_calendar
                        WHERE symbol = %s
                        AND earnings_date >= %s
                        AND earnings_date <= %s
                        ORDER BY CASE
-                                  WHEN data_unavailable IS NOT TRUE AND earnings_date >= %s THEN 0
-                                  WHEN data_unavailable IS NOT TRUE THEN 1
-                                  ELSE 2
+                                  WHEN data_unavailable IS NOT TRUE THEN 0
+                                  ELSE 1
                                 END,
                                 ABS(earnings_date - %s::date) ASC
                        LIMIT 1""",
-                    (symbol, lookback_date, lookahead_date, eval_date, eval_date),
+                    (symbol, lookback_date, lookahead_date, eval_date),
                 )
                 row = cur.fetchone()
 

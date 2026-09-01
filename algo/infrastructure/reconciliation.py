@@ -2483,11 +2483,29 @@ class DailyReconciliation:
             stuck = [p for p in pending_list if p["days_pending"] and p["days_pending"] > 1]
             if stuck:
                 stuck_examples = ", ".join(["{} {}".format(p["symbol"], p["trade_id"]) for p in stuck[:3]])
-                logger.critical(
+                stuck_message = (
                     f"RECONCILIATION STUCK: {len(stuck)} trades with estimated exit prices "
                     "stuck > 1 day without Alpaca price reconciliation. "
                     f"Examples: {stuck_examples}"
                 )
+                logger.critical(stuck_message)
+                # BUG FOUND 2026-09-01 (real-money-readiness pass): this only ever reached
+                # logger.critical() - unlike every other CRITICAL condition in this same
+                # file (broker cash missing/negative, account fetch failure, portfolio_value
+                # missing, all of which call notify() a few hundred lines above/below this
+                # one), a stuck reconciliation never reached a real alert channel. Effect:
+                # profit_loss_dollars/portfolio_value/drawdown get silently computed off a
+                # stale ESTIMATED exit price indefinitely, with no operator ever notified -
+                # same "computed but never delivered" bug class already found and fixed for
+                # Phase 9's VaR/concentration/beta alerts (commit 5ac092eea).
+                try:
+                    notify(
+                        "critical",
+                        title="Trade Reconciliation Stuck",
+                        message=stuck_message,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send stuck-reconciliation notification (non-blocking): {e}", exc_info=True)
 
             return {
                 "pending_count": len(pending_list),
