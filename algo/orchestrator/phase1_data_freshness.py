@@ -1164,11 +1164,27 @@ def run(  # noqa: C901
                     f"{required_date_coverage} symbols ({required_date_coverage / (symbol_count or 1) * 100:.1f}%). "
                     f"MAX(date) is {max_date}. Possible stale data reprocessing. Using {max_date} instead."
                 )
-                # Fall back to whatever date has the most data
+                # Fall back to whatever RECENT date has the most data. Bounded to the last 30
+                # days (BUG FOUND, goal session, Phase 1 deep-review pass): this query had no
+                # date filter at all - it picked whichever date in the ENTIRE history of
+                # price_daily had the most distinct symbols with non-null OHLC. Since the active
+                # trading universe shrinks over time via delistings, an old date can legitimately
+                # out-count today's partial/in-progress load, so an unbounded query could pick a
+                # date months or years stale. Traced where the reassigned `max_date` is used
+                # afterward: only cosmetic reporting (log lines, the returned `price_date` field)
+                # - Phase 1's own primary staleness halt already used the correctly-computed
+                # date earlier in this function, and Phase 8 independently re-verifies price
+                # freshness with its own bounded query before any entry - so this specific gap
+                # was not a live path to trading on stale data. Bounding it anyway as
+                # defense-in-depth so a future caller of this reassigned value (or an operator
+                # reading the dashboard's reported price_date) can't be misled by an
+                # arbitrarily-old date.
                 cur.execute(
                     """SELECT date, COUNT(DISTINCT symbol) as coverage
-                       FROM price_daily WHERE close IS NOT NULL AND open IS NOT NULL
-                       GROUP BY date ORDER BY coverage DESC LIMIT 1"""
+                       FROM price_daily
+                       WHERE close IS NOT NULL AND open IS NOT NULL AND date >= %s
+                       GROUP BY date ORDER BY coverage DESC LIMIT 1""",
+                    (run_date_obj - td(days=30),),
                 )
                 fallback_row = cur.fetchone()
                 if fallback_row:
