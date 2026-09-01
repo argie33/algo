@@ -74,9 +74,13 @@ class TestPermanentUnavailableMarking:
 
         loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)
 
-        with patch("loaders.load_prices.DatabaseContext") as mock_db_ctx:
+        with (
+            patch("loaders.load_prices.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
             mock_cur = MagicMock()
             mock_cur.fetchone.return_value = (0,)  # No recent rows found
+            mock_cur.rowcount = 1  # real psycopg2 cursors report an int; the UPDATE matched 1 row
             # _load_batch's 2026-08-10 watermark desync self-heal check (see
             # test_load_prices_watermark_desync_selfheal.py) runs first and queries real
             # MAX(date) via fetchall() - report DEAD's own watermark back as in sync so
@@ -101,6 +105,11 @@ class TestPermanentUnavailableMarking:
             c for c in loader.fetch_batch_incremental.call_args_list if c.args[1] == dead_watermark + timedelta(days=1)
         ]
         assert len(confirmation_calls) == 1
+
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["symbol"] == "DEAD"
+        assert "Permanently Unavailable" in kwargs["title"]
 
     def test_stale_symbol_with_newer_data_stays_failed_not_marked(self):
         """A confirmation fetch that finds a row NEWER than the watermark means this is a
@@ -153,8 +162,12 @@ class TestPermanentUnavailableMarking:
 
     def test_mark_symbol_permanently_unavailable_writes_expected_update(self):
         loader = _make_loader()
-        with patch("loaders.load_prices.DatabaseContext") as mock_db_ctx:
+        with (
+            patch("loaders.load_prices.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify"),
+        ):
             mock_cur = MagicMock()
+            mock_cur.rowcount = 1
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
 
             loader._mark_symbol_permanently_unavailable("ZOMBIE", "test reason")
@@ -171,3 +184,67 @@ class TestPermanentUnavailableMarking:
         loader = _make_loader()
         with patch("loaders.load_prices.DatabaseContext", side_effect=RuntimeError("db down")):
             loader._mark_symbol_permanently_unavailable("ZOMBIE", "test reason")  # must not raise
+
+
+class TestPermanentUnavailableAlert:
+    """BUG FOUND 2026-09-01 (/goal session, "check the logs" pass): _mark_symbol_permanently_
+    unavailable silently excludes a symbol from all future trading consideration with only a
+    WARNING log line - no notify() anywhere. Live-caught firing for AVB (AvalonBay Communities,
+    a real S&P 500 REIT) purely because yfinance had no fresh data for over a week - not a
+    genuine delisting. An operator watching only alerts, not tailing raw logs, would never learn
+    this happened."""
+
+    def test_first_marking_sends_alert(self):
+        """rowcount>0 means the UPDATE actually matched (WHERE data_unavailable=FALSE) - this
+        is a genuine first-time transition, must alert."""
+        loader = _make_loader()
+        with (
+            patch("loaders.load_prices.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_cur = MagicMock()
+            mock_cur.rowcount = 1
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            loader._mark_symbol_permanently_unavailable("AVB", "yfinance gap reason")
+
+        mock_notify.assert_called_once()
+        args, kwargs = mock_notify.call_args
+        assert kwargs["severity"] == "warning"
+        assert kwargs["symbol"] == "AVB"
+        assert "AVB" in kwargs["message"]
+        assert "yfinance gap reason" in kwargs["message"]
+        assert kwargs["details"] == {"table": "price_daily", "reason": "yfinance gap reason"}
+
+    def test_already_marked_symbol_does_not_spam_alert(self):
+        """rowcount==0 means the WHERE data_unavailable=FALSE clause matched nothing - this
+        symbol was already marked on a prior run. Same "notify once on first detection"
+        convention as alpaca_sync_manager.py's untracked-position alert - must NOT re-alert
+        every time an already-known, still-unresolved symbol gets rediscovered."""
+        loader = _make_loader()
+        with (
+            patch("loaders.load_prices.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_cur = MagicMock()
+            mock_cur.rowcount = 0
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            loader._mark_symbol_permanently_unavailable("ALREADY_MARKED", "test reason")
+
+        mock_notify.assert_not_called()
+
+    def test_notify_failure_does_not_crash_the_loader(self):
+        """A notification-delivery failure must be swallowed (logged), not propagate and
+        abort the price-loading run - alerting is best-effort here, not a governance gate."""
+        loader = _make_loader()
+        with (
+            patch("loaders.load_prices.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify", side_effect=RuntimeError("smtp down")),
+        ):
+            mock_cur = MagicMock()
+            mock_cur.rowcount = 1
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            # Must not raise despite notify() failing internally.
+            loader._mark_symbol_permanently_unavailable("ZOMBIE", "test reason")

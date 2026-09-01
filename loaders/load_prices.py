@@ -952,6 +952,23 @@ class PriceLoader(OptimalLoader):
         symbol, inflating consecutive_failures and completion_pct forever, and operators
         had to hand-patch stock_symbols out of band to make coverage checks stop flagging
         it. Writing the marker here makes the determination durable and self-service.
+
+        BUG FOUND 2026-09-01 (/goal session, "check the logs" pass): this determination is
+        actually a yfinance-source-only judgment call (loaders/price_fetcher.py has zero
+        Alpaca cross-check anywhere - see avb_eqr_wbs_yfinance_gap_reverified_still_open_20260901
+        in memory) that silently excludes a symbol from ALL future trading consideration -
+        live-caught firing today for AVB (AvalonBay Communities, a real S&P 500 REIT, not
+        remotely delisted) purely because yfinance itself has had no fresh data for it in
+        over a week. Before this fix, that determination was only ever a WARNING log line -
+        no notify() anywhere in this file except the unrelated rate-limit-circuit-breaker
+        alert far below. An operator watching only alerts (not tailing raw logs) would never
+        learn a real, liquid, tradable symbol just got silently dropped from the universe,
+        exactly the same "computed but never delivered" gap already fixed twice elsewhere
+        this session (Phase 9 risk alerts, exit-check failures). Alert only on the FIRST
+        transition (rowcount>0, i.e. the WHERE data_unavailable=FALSE actually matched) -
+        same "notify once on first detection" convention as alpaca_sync_manager.py's
+        untracked-position alert - so an already-known, still-unresolved symbol doesn't
+        spam an alert on every subsequent run that re-discovers the same marker.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -960,9 +977,34 @@ class PriceLoader(OptimalLoader):
                     "WHERE symbol = %s AND data_unavailable = FALSE",
                     (reason, symbol),
                 )
+                newly_marked = cur.rowcount > 0
             logger.warning(f"[{self.table_name}] {symbol}: marked data_unavailable in stock_symbols ({reason})")
         except Exception as e:
             logger.error(f"[{self.table_name}] {symbol}: failed to persist data_unavailable marker: {e}")
+            return
+
+        if newly_marked:
+            try:
+                from algo.reporting import notify
+
+                notify(
+                    severity="warning",
+                    title="Symbol Marked Permanently Unavailable",
+                    message=(
+                        f"{symbol}: {self.table_name} loader marked this symbol data_unavailable "
+                        f"after a 30-day lookback found no new data. It will be excluded from all "
+                        f"future price loads (and downstream scoring/trading) until manually "
+                        f"corrected. This determination is yfinance-source-only (no cross-check "
+                        f"against another provider) - verify the symbol is genuinely delisted "
+                        f"before assuming this is correct. Reason: {reason}"
+                    ),
+                    symbol=symbol,
+                    details={"table": self.table_name, "reason": reason},
+                )
+            except (ValueError, TypeError, RuntimeError) as notify_err:
+                logger.error(
+                    f"[{self.table_name}] {symbol}: failed to send permanently-unavailable alert: {notify_err}"
+                )
 
     def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict[str, Any] | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
