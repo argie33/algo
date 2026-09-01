@@ -120,6 +120,41 @@ class TestPhase2AccountBlockCheck:
         assert result.halted is False, "pattern_day_trader alone (not blocked) must not halt trading"
         assert result.status == "ok"
 
+    def test_daytrade_count_at_threshold_logs_even_when_flag_still_false(self):
+        """FIXED 2026-08-31: pattern_day_trader is a trailing flag Alpaca only sets True after
+        a 4th day trade has already landed - the pre-breach window (daytrade_count==3, flag
+        still False) is exactly the scenario Phase 8's proactive block (ddd778e04) exists to
+        catch, and this diagnostic log must not stay silent for it either."""
+        with (
+            patch("algo.risk.CircuitBreaker") as MockCB,
+            patch("algo.infrastructure.MarketEventHandler") as MockMEH,
+            patch("algo.infrastructure.alpaca_broker_adapter.AlpacaBrokerAdapter") as MockBroker,
+            patch("algo.orchestrator.phase2_circuit_breakers.logger") as mock_logger,
+        ):
+            MockCB.return_value.check_all.return_value = _clean_cb_result()
+            MockMEH.return_value.check_market_circuit_breaker.return_value = None
+            MockBroker.return_value.fetch_account.return_value = {
+                "trading_blocked": False,
+                "account_blocked": False,
+                "pattern_day_trader": False,
+                "daytrade_count": 3,
+            }
+
+            result = phase2_run(
+                config=_auto_config(),
+                run_date=None,
+                dry_run=False,
+                alerts=MagicMock(),
+                verbose=False,
+                log_phase_result_fn=MagicMock(),
+            )
+
+        assert result.halted is False
+        warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+        assert any("daytrade_count=3" in c for c in warning_calls), (
+            "must log daytrade_count>=3 even before pattern_day_trader flips True"
+        )
+
     def test_credential_error_halts_in_auto_mode(self):
         with (
             patch("algo.risk.CircuitBreaker") as MockCB,

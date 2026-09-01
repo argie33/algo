@@ -335,20 +335,34 @@ def run(  # noqa: C901
                         "Check Alpaca API response."
                     )
                 pattern_day_trader = bool(account_data["pattern_day_trader"])
-                if pattern_day_trader:
-                    daytrade_count = account_data.get("daytrade_count")
-                    if daytrade_count is None:
-                        logger.warning(
-                            "[PHASE 2] Alpaca account flagged pattern_day_trader=True "
-                            "but daytrade_count is missing. Cannot determine current day-trade count. "
-                            "PDT limit enforcement may be inaccurate."
-                        )
+                # FIXED 2026-08-31 (goal: real-money-readiness, PDT visibility follow-up to
+                # ddd778e04's Phase 8 fix): `pattern_day_trader` is a *trailing* flag Alpaca
+                # only sets True once a 4th day trade has already landed in the rolling
+                # 5-business-day window - see _check_pdt_limit_breach()'s docstring in
+                # phase8_entry_execution.py for the full mechanism. Gating this diagnostic log
+                # on that same flag meant an operator watching logs saw nothing about
+                # daytrade_count building toward the limit until AFTER the account was already
+                # flagged - the exact window (daytrade_count==3, about to place a trade that
+                # could become day-trade #4) Phase 8's proactive block exists to protect is also
+                # the window this log stayed silent for. Not a trading-safety bug (Phase 8
+                # already blocks correctly regardless of this log), just an operational
+                # blind-spot fix so a human watching logs gets the same early warning Phase 8
+                # itself acts on, not just a post-hoc explanation once the flag flips.
+                daytrade_count = account_data.get("daytrade_count")
+                if daytrade_count is None:
                     logger.warning(
-                        f"[PHASE 2] Alpaca account flagged pattern_day_trader=True "
-                        f"(daytrade_count={daytrade_count}). Alpaca will reject "
-                        "same-day round-trip orders once the rolling 5-business-day day-trade limit "
-                        "is exceeded on an account under $25k equity - a subsequent entry rejection "
-                        "may be this, not a data/config bug."
+                        "[PHASE 2] daytrade_count missing from Alpaca account data. Cannot "
+                        "determine current day-trade count. PDT limit enforcement may be "
+                        "inaccurate."
+                    )
+                elif daytrade_count >= 3 or pattern_day_trader:
+                    logger.warning(
+                        f"[PHASE 2] daytrade_count={daytrade_count}, pattern_day_trader="
+                        f"{pattern_day_trader}. Alpaca will reject same-day round-trip orders "
+                        "once the rolling 5-business-day day-trade limit is exceeded on an "
+                        "account under $25k equity - a subsequent entry rejection may be this, "
+                        "not a data/config bug. Phase 8 proactively blocks new entries once "
+                        "daytrade_count>=3."
                     )
             except RuntimeError as e:
                 # fetch_account() raises RuntimeError specifically for missing/invalid
