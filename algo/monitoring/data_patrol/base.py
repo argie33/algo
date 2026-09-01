@@ -177,6 +177,42 @@ class DataPatrol:
         # Ready if no critical errors (ERROR or CRIT)
         ready = errors == 0
 
+        # BUG FOUND 2026-09-01 (/goal session): DataPatrol is the codebase's central data-
+        # integrity monitor (staleness/coverage/quality/price-sanity/alignment/specialized
+        # checks across 6 checkers), but this run() - the only place results get aggregated -
+        # never called notify() anywhere. Findings only ever reached a human via the CLI
+        # entrypoint's (algo_data_patrol.py) process exit code and log output - if nobody is
+        # watching the ECS task's exit status/CloudWatch logs, a genuine data-integrity failure
+        # (e.g. a stale price_daily table, or - live-confirmed 2026-09-01 - aaii_sentiment
+        # sitting 12 days stale against this checker's own 7-day threshold after AAII's
+        # anti-bot protection started blocking every fetch attempt) goes completely unnoticed.
+        # Same "computed but never delivered" alert gap already found and fixed today in
+        # load_market_constituents.py, Phase 9's risk-alert path, and AlgoConfig's partial-DB-
+        # load-failure warning. Wired here (not only in the CLI entrypoint) so any caller -
+        # not just the scheduled ECS task - gets the alert. Fail-safe: swallows notify()
+        # failures so alerting can never crash the patrol run itself.
+        if errors > 0 or warnings > 0:
+            severity = "critical" if errors > 0 else "warning"
+            failing = [r for r in self.results if r.severity in (ERROR, CRIT, "warn")]
+            summary_lines = [
+                f"[{r.severity.upper()}] {r.check_name} ({r.target_table}): {r.message}" for r in failing[:10]
+            ]
+            more = f" ...and {len(failing) - 10} more" if len(failing) > 10 else ""
+            try:
+                from algo.reporting import notify
+
+                notify(
+                    severity=severity,
+                    title="Data Patrol Findings" if errors > 0 else "Data Patrol Warnings",
+                    message=(
+                        f"Data patrol found {errors} error(s) and {warnings} warning(s) across "
+                        f"{len(self.results)} checks. ready={ready}.\n" + "\n".join(summary_lines) + more
+                    ),
+                    details={"errors": errors, "warnings": warnings, "ready": ready},
+                )
+            except (ValueError, TypeError, RuntimeError) as notify_err:
+                logger.error(f"[DataPatrol] Failed to send data-patrol-findings alert: {notify_err}")
+
         return {
             "ready": ready,
             "findings": [r.to_dict() for r in self.results],
