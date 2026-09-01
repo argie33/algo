@@ -30,8 +30,10 @@ def test_implausible_momentum_return_nulled_not_crashed() -> None:
     # anchor day 1m momentum looks back to (21 trading days back), which is an implausibly
     # tiny fraction of a cent - produces a >=10,000% raw return for momentum_1m only, while
     # 3m/6m/12m (unaffected anchors) stay real, computable values.
-    rows = [(today - timedelta(days=i), 20.0) for i in range(253)]
-    rows[21] = (rows[21][0], 0.0001)  # 1m's price_old anchor: implausibly tiny
+    # 3-tuple (date, close, adj_close) matching _compute_momentum_row's SELECT date, close,
+    # adj_close (2026-09-01 adj_close fix) - adj_close equals close here, no split to adjust for.
+    rows = [(today - timedelta(days=i), 20.0, 20.0) for i in range(253)]
+    rows[21] = (rows[21][0], 0.0001, 0.0001)  # 1m's price_old anchor: implausibly tiny
 
     with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx:
         cur = MagicMock()
@@ -60,8 +62,10 @@ def test_overflow_nulled_period_records_reason_not_silent() -> None:
     loader = _make_loader()
 
     today = date(2026, 8, 18)
-    rows = [(today - timedelta(days=i), 20.0) for i in range(253)]
-    rows[21] = (rows[21][0], 0.0001)  # 1m's price_old anchor: implausibly tiny
+    # 3-tuple (date, close, adj_close) matching _compute_momentum_row's SELECT date, close,
+    # adj_close (2026-09-01 adj_close fix) - adj_close equals close here, no split to adjust for.
+    rows = [(today - timedelta(days=i), 20.0, 20.0) for i in range(253)]
+    rows[21] = (rows[21][0], 0.0001, 0.0001)  # 1m's price_old anchor: implausibly tiny
 
     with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx:
         cur = MagicMock()
@@ -84,7 +88,7 @@ def test_insufficient_history_period_records_reason_not_silent() -> None:
     loader = _make_loader()
 
     today = date(2026, 8, 18)
-    rows = [(today - timedelta(days=i), 20.0) for i in range(100)]  # only 100 days: no 6m/12m
+    rows = [(today - timedelta(days=i), 20.0, 20.0) for i in range(100)]  # only 100 days: no 6m/12m
 
     with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx:
         cur = MagicMock()

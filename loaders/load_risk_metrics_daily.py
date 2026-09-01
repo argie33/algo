@@ -72,11 +72,15 @@ class RiskMetricsLoader(OptimalLoader):
     def _compute_momentum_row(self, symbol: str) -> dict[str, Any]:
         try:
             with DatabaseContext("read") as cur:
+                # ADJ_CLOSE FIX 2026-09-01 (see _compute_stability_row's own docstring note for
+                # the full evidence trail): fetch adj_close alongside close and prefer it - raw
+                # close is NOT a reliable point-in-time historical price for return math, see
+                # that note for why.
                 cur.execute(
-                    "SELECT date, close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 253",
+                    "SELECT date, close, adj_close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 253",
                     (symbol,),
                 )
-                rows = cur.fetchall()
+                rows = [(r[0], r[2] if r[2] is not None else r[1]) for r in cur.fetchall()]
 
                 # FIX 2026-07-20: Previously required the full 252 days (needed only
                 # for 12m momentum) before computing ANYTHING, discarding real 1m/3m/6m
@@ -134,6 +138,13 @@ class RiskMetricsLoader(OptimalLoader):
                     # mode already guarded for roc_Xd via ROC_OVERFLOW_SKIP in load_prices.py.
                     # Null out just this one implausible period instead of crashing DFNS's whole
                     # row - the other momentum periods and technical fields are still real data.
+                    # NOTE 2026-09-01: this guard only catches the extreme (>=9999%) tail - see
+                    # `prices` above (now built from adj_close, not raw close) for the actual
+                    # root-cause fix. AKTS's cited case (an unadjusted reverse split) is exactly
+                    # the class this magnitude-only guard was papering over without fixing: a
+                    # smaller-magnitude split (e.g. 2:1, 3:1) stays well under 9999% and would
+                    # have silently corrupted this period instead of nulling it. Left in place as
+                    # defense-in-depth for genuinely extreme real moves, not removed.
                     if abs(ret_pct) >= 9999.0:
                         logger.warning(
                             f"[RISK_METRICS] {symbol}: momentum_{period_name}={ret_pct:.2f}% exceeds "
@@ -306,8 +317,29 @@ class RiskMetricsLoader(OptimalLoader):
         debt_to_assets = self._get_debt_to_assets(symbol)
         try:
             with DatabaseContext("read") as cur:
+                # ADJ_CLOSE FIX 2026-09-01 (goal session - user live-questioned why scores
+                # weren't matching expectations; dug into raw data rather than trusting prior
+                # formula-level conclusions). Root cause, confirmed directly: price_daily.close
+                # is NOT a reliable point-in-time historical price - Yahoo Finance retroactively
+                # split-adjusts its "Close" field once a real split is processed on their
+                # backend, REGARDLESS of yfinance's auto_adjust parameter (that flag only
+                # controls dividend adjustment; splits get backward-applied to "Close" either
+                # way, a well-documented yfinance/Yahoo quirk). Since this loader's ingestion
+                # re-fetches/re-writes price_daily rows on different days, a historical date's
+                # stored `close` can silently flip depending on WHEN it was last written
+                # relative to any later-discovered split for that symbol. Live-confirmed on
+                # MNST (a real 2:1 split ~2026-08-08/10): 4 pre-split dates (7/21, 7/22, 7/31,
+                # 8/6) show the ALREADY-halved close while the surrounding dates correctly show
+                # the true ~$95-99 pre-split price - not a one-time step, an oscillating
+                # inconsistency. Result: volatility_60d read as 3.7450 (374.5% annualized) and
+                # beta as 0.1123 for a large, stable consumer-staples company. `adj_close`
+                # (fetched from yfinance's "Adj Close", split+dividend adjusted, see
+                # utils/data/source_router.py) does NOT have this instability - it is the
+                # correct series for return-math per standard finance practice (never compute
+                # returns from a source that can retroactively rewrite history). Falls back to
+                # close only when adj_close is genuinely absent (e.g. some Alpaca-sourced rows).
                 cur.execute(
-                    "SELECT date, close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 252",
+                    "SELECT date, close, adj_close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 252",
                     (symbol,),
                 )
                 rows = cur.fetchall()
@@ -322,7 +354,7 @@ class RiskMetricsLoader(OptimalLoader):
                                     date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
                                 )
                             ),
-                            row[1],
+                            row[2] if row[2] is not None else row[1],
                         )
                         for row in rows
                     ]
@@ -333,7 +365,7 @@ class RiskMetricsLoader(OptimalLoader):
                     min_date = min(stock_dates)
                     max_date = max(stock_dates)
                     cur.execute(
-                        "SELECT date, close FROM price_daily WHERE symbol = 'SPY' AND date >= %s AND date <= %s ORDER BY date ASC",
+                        "SELECT date, close, adj_close FROM price_daily WHERE symbol = 'SPY' AND date >= %s AND date <= %s ORDER BY date ASC",
                         (min_date, max_date),
                     )
                     spy_rows_raw = cur.fetchall()
@@ -350,7 +382,7 @@ class RiskMetricsLoader(OptimalLoader):
                                         else row[0]
                                     )
                                 ),
-                                row[1],
+                                row[2] if row[2] is not None else row[1],
                             )
                             for row in spy_rows_raw
                         ]

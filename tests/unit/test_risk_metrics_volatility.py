@@ -73,8 +73,11 @@ class TestVolatility252dRequiresMeaningfulSample:
     of price history got a "252-day" figure confidently reported and given the most
     influence over its stability score."""
 
-    def _rows(self, n: int, today: date) -> list[tuple[date, float]]:
-        return [(today - timedelta(days=i), 100.0 + (i % 7)) for i in range(n)]
+    def _rows(self, n: int, today: date) -> list[tuple[date, float, float]]:
+        # 3-tuple (date, close, adj_close) matching the SELECT date, close, adj_close shape
+        # _compute_stability_row now queries (2026-09-01 adj_close fix) - adj_close equals
+        # close here since these synthetic rows have no real corporate action to adjust for.
+        return [(today - timedelta(days=i), 100.0 + (i % 7), 100.0 + (i % 7)) for i in range(n)]
 
     def test_small_sample_leaves_volatility_252d_unavailable(self):
         today = date(2026, 7, 20)
@@ -110,8 +113,8 @@ class TestZeroVolatilityIsPreservedNotDiscarded:
     `is not None` to decide whether to include each component, so this dropped a real,
     meaningful "very low volatility" reading from the risk score entirely."""
 
-    def _flat_rows(self, n: int, today: date, price: float = 100.0) -> list[tuple[date, float]]:
-        return [(today - timedelta(days=i), price) for i in range(n)]
+    def _flat_rows(self, n: int, today: date, price: float = 100.0) -> list[tuple[date, float, float]]:
+        return [(today - timedelta(days=i), price, price) for i in range(n)]
 
     def test_flat_price_stock_reports_zero_not_none(self):
         today = date(2026, 7, 20)
