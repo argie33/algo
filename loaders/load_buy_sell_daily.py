@@ -1299,11 +1299,38 @@ def main() -> int:  # noqa: C901
         # SANITY CHECK (Session 267 FIX, hardened 2026-07-26): Detect signal count degradation
         # BEFORE marking loader COMPLETED. See _check_signal_degradation() docstring for the
         # all-time-average bug this replaced.
+        #
+        # BUG FOUND (goal session, real-money-readiness "check the logs" audit): a
+        # psycopg2.DatabaseError/OperationalError hitting the check's OWN read query (e.g. a
+        # transient connection-pool hiccup - this loader runs alongside many others, and the
+        # pool is finite) used to be caught here and merely logged as a warning before falling
+        # through to the unconditional mark_completed() calls below - treating "the check
+        # couldn't run" identically to "the check ran and found no problem". Live-observed
+        # 2026-08-31: buy_sell_daily's real BUY-signal count had been declining for a week
+        # (80->25/day, correctly triggering this exact check's RuntimeError at 15:18), yet
+        # data_loader_status showed a clean COMPLETED with no error from a later 20:17 run
+        # despite the persisted count still being 25 - the same degraded value, unresolved.
+        # Root cause of that specific gap wasn't pinned down with certainty (no log survived
+        # for the 20:17 run), but this except clause is a real, demonstrable way it COULD
+        # happen regardless: a transient DB error here silently clears the path to COMPLETED
+        # without the degradation ever actually being re-verified, directly contradicting this
+        # check's own stated purpose ("Do NOT accept this as normal - investigate immediately").
+        # Fixed by treating "couldn't verify" the same as "verification failed" - re-raise as
+        # the same RuntimeError class the real degradation case already uses, so it hits the
+        # same fail-loud, retry-safe path (this loader's watermark is deliberately UNUSED -
+        # Session 262 fix above - so a failed run costs nothing but a retry, no lost progress).
         try:
             with DatabaseContext("read") as cur:
                 _check_signal_degradation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as sanity_check_err:
-            logger.warning(f"[SANITY_CHECK] Could not validate signal count: {sanity_check_err}. Continuing.")
+            raise RuntimeError(
+                f"[SANITY_CHECK] Could not validate signal count due to a database error: "
+                f"{sanity_check_err}. Refusing to mark buy_sell_daily COMPLETED with an "
+                f"unverified signal count - this check exists specifically to catch signal "
+                f"degradation before completion, and a DB error prevents it from running, not "
+                f"from finding a problem. Retry - this loader's watermark is unused, so a "
+                f"failed run has no lasting cost."
+            ) from sanity_check_err
 
         # CRITICAL FIX: Only advance watermark if records were actually loaded
         # BLOCKER #3 FIX: Prevent watermark advancement on zero-record days (weekends/holidays)
