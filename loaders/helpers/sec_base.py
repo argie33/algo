@@ -91,6 +91,23 @@ _REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
         "interest_revenue_expense",
         "sales_revenue_net",
         "sales_revenue_goods_net",
+        # WIDENED 2026-09-01 (recovered from the growth-multi-input-blend worktree, orig.
+        # commit 11f1e0269, found stranded off main despite MEMORY.md citing it as fixed):
+        # regulated_operating_revenue/regulated_and_unregulated_operating_revenue - designed
+        # for "pure single-segment regulated utility with no unregulated business" filers,
+        # where they're temporally exclusive with "Revenues" (one goes silent exactly when
+        # the other starts) - safe under magnitude resolution when that holds. Live-confirmed
+        # via ALTO (Alto Ingredients, an ethanol producer, SIC 2860 - not a utility): real,
+        # complete "Revenues"=$1,222,940,000 for FY2023 coexists with an unrelated minor
+        # RegulatedOperatingRevenue fact ($3,216,500, some regulated commodity-credit line)
+        # for the SAME year - the temporal-exclusivity assumption doesn't hold here, and the
+        # smaller concept was unconditionally winning "revenue" via plain last-processed-
+        # wins before this widening. Verified this doesn't regress the existing XEL/OGS
+        # utility-recovery precedent (test_sec_utility_revenue_concept_fallback.py) - those
+        # cases only ever have ONE candidate populated per fiscal year, so magnitude
+        # resolution is a no-op there.
+        "regulated_operating_revenue",
+        "regulated_and_unregulated_operating_revenue",
     }
 )
 
@@ -997,6 +1014,30 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         # more rows with the same signature (ALLY, AMTB, AUBN, and
                         # others).
                         or r.get("symbol") in self._get_depository_institution_symbols()
+                    )
+                    # WIDENED 2026-09-01 (recovered from the growth-multi-input-blend
+                    # worktree, found stranded off main): this skip used to be unconditional
+                    # once "revenue" held ANY value, on the assumption whatever got there
+                    # first for a confirmed REIT/insurer/bank is always more authoritative
+                    # than the ASC-606 fallback. Live-confirmed false via CLDT (Chatham
+                    # Lodging Trust, a real hotel REIT, SIC 7011): reports no lease-income
+                    # concept at all (hotel revenue isn't tenant lease income), only a real
+                    # ASC-606 total ($295,871,000 for FY2016) and an unrelated, tiny
+                    # investment_income_interest_and_dividend fact ($51,000, interest on
+                    # cash) that happens to sit earlier in `r`'s insertion order (that
+                    # concept isn't reit-only-fallback, so the sort above never defers it) -
+                    # the unconditional skip let the $51,000 figure permanently block the
+                    # real $295,871,000 total, same failure shape as the CPT case this
+                    # block's own history already fixed once, just via a different pair of
+                    # concepts. A magnitude check (only protect the existing value if it
+                    # isn't already SMALLER than the ASC-606 candidate) fixes CLDT without
+                    # touching the WAFDP/AMTB bank case above - there the existing value
+                    # (interest income, $607.1M) is already larger than the ASC-606 fee
+                    # ($25.9M), so the magnitude check still protects it exactly as before.
+                    and not (
+                        isinstance(row[db_field], (int, float, Decimal))
+                        and isinstance(value, (int, float, Decimal))
+                        and float(row[db_field]) < float(value)
                     )
                 ):
                     # REIT filer: real lease revenue already populated this field.

@@ -133,6 +133,13 @@ _INCOME_FIELD_MAPPING = {
     # recovers. REIT-gated via _REIT_REVENUE_FALLBACK_ONLY_FIELDS below, not a plain
     # mapping - see that set's comment for why.
     "operating_lease_lease_income": "revenue",
+    # ADDED 2026-09-01 (recovered from the growth-multi-input-blend worktree, found stranded
+    # off main): older-era (pre-ASC 842, largely pre-2016) equity REITs used this concept as
+    # their real estate rental revenue total before "OperatingLeaseLeaseIncome" existed as a
+    # tag at all - see utils/external/sec_statements.py's comment on RealEstateRevenueNet for
+    # the live-verified ARE case. Same _REIT_EXCLUSIVE_FIELDS wiring as
+    # operating_lease_lease_income below (never touches "revenue" outside a confirmed REIT).
+    "real_estate_revenue_net": "revenue",
     # FIXED 2026-08-01: RevenuesNetOfInterestExpense for banks (2020+ data).
     # Maps to same "revenue" column - this is the standard revenue metric for
     # financial services companies since 2020. Ordering in sec_statements.py
@@ -417,6 +424,7 @@ _REIT_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
 _REIT_EXCLUSIVE_FIELDS = frozenset(
     {
         "operating_lease_lease_income",
+        "real_estate_revenue_net",
     }
 )
 

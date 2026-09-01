@@ -688,6 +688,21 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # RevenueFromContractWithCustomer entries, and it only ever fills an already-empty
         # revenue rather than risking a clobber for a non-REIT filer that happens to tag it.
         "OperatingLeaseLeaseIncome",
+        # ADDED 2026-09-01 (recovered from the growth-multi-input-blend worktree, found
+        # stranded off main): older-era (pre-ASC 842, largely pre-2016) equity REITs used
+        # this concept as their real estate rental revenue total before
+        # "OperatingLeaseLeaseIncome" existed as a tag at all. Live-confirmed via ARE
+        # (Alexandria Real Estate Equities, a real office/lab REIT, SIC 6798): FY2010 real
+        # "RealEstateRevenueNet"=$487,303,000 (later restated $460,621,000, both plausible
+        # for ARE's real historical scale) - no "Revenues"/"OperatingLeaseLeaseIncome"/
+        # ASC-606 concept exists for this filer at all for that era, so revenue fell back
+        # all the way to a genuinely unrelated, minor `InterestIncomeOperating` fact
+        # ($800,000) - a ~600x understatement with no data_unavailable/reason flag anywhere.
+        # Same REIT-exclusive wiring as OperatingLeaseLeaseIncome (see
+        # load_financial_statements.py's _REIT_EXCLUSIVE_FIELDS) - a non-REIT filer tagging
+        # real-estate rental revenue at all is implausible, so this never touches "revenue"
+        # outside a confirmed REIT.
+        "RealEstateRevenueNet",
         # FIXED 2026-08-01: RevenuesNetOfInterestExpense for financial services companies.
         # Banks (MS, WFC, etc.) switched from reporting "Revenues" (2007-2019) to
         # "RevenuesNetOfInterestExpense" (2013+) as their primary revenue metric in 2020+.
