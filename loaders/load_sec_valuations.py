@@ -597,6 +597,31 @@ class SecValuationsLoader(OptimalLoader):
                 # merely non-NULL (a lone real `short_term_debt=0` on an in-progress year must
                 # not outrank a fuller prior year), which in turn is preferred over a bare
                 # `ORDER BY fiscal_year DESC` for genuinely zero-debt companies.
+                #
+                # TIER 0 ADDED 2026-09-01 (goal-mode factor-usage review, category-leaders spot
+                # check): the "any nonzero sum" tier above couldn't distinguish a COMPLETE year
+                # from a PARTIAL one - a stray small short_term_debt/lease-liability figure on an
+                # in-progress fiscal year (real, but missing the dominant long_term_debt line
+                # because a mid-year 10-Q simply doesn't re-disclose the full debt schedule the
+                # way an annual 10-K's footnotes do) counted as "nonzero" exactly like a genuinely
+                # complete prior year - and being MORE RECENT, won the tiebreak outright. Live-
+                # confirmed via COF (Capital One): FY2026 has short_term_debt=$1.626B alone
+                # (long_term_debt NULL) while FY2025 has the real, complete long_term_debt=
+                # $49.913B - old logic picked FY2026's $1.626B "total debt" for one of the
+                # largest, most leveraged banks in the market. Same root cause as JCAP's
+                # near-zero debt_to_equity found the same session (a $3.891M operating-lease-only
+                # FY2026 figure beating FY2025's real $1.754B long_term_debt). Universe-wide sweep:
+                # 477 symbols (incl. GE, GS, TD, COF, TMUS, DUK, SO, PCG) had their most recent
+                # nonzero year measure under 5% of their own historical max debt-sum - not a
+                # financials-only issue, a general "incomplete current year" issue. Fix: a year
+                # where long_term_debt ITSELF is present (the single most information-dense,
+                # hardest-to-accidentally-populate component - no filing accidentally reports a
+                # multi-billion-dollar long-term debt figure) now wins over any year that only has
+                # the smaller components, tiebroken by fiscal_year DESC among long_term_debt-real
+                # years so the freshest COMPLETE year still wins. Falls through unchanged to the
+                # existing tiers for companies that never report long_term_debt at all (genuinely
+                # short-term-debt-only or lease-only capital structures aren't penalized - they
+                # simply never populate tier 0, same as before this fix).
                 cur.execute(
                     """
                     SELECT
@@ -607,15 +632,17 @@ class SecValuationsLoader(OptimalLoader):
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY (CASE
+                                WHEN long_term_debt IS NOT NULL
+                                THEN 0
                                 WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
                                      + COALESCE(operating_lease_liability, 0)
                                      + COALESCE(finance_lease_liability, 0) != 0
-                                THEN 0
+                                THEN 1
                                 WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
                                      OR operating_lease_liability IS NOT NULL
                                      OR finance_lease_liability IS NOT NULL
-                                THEN 1
-                                ELSE 2
+                                THEN 2
+                                ELSE 3
                               END), fiscal_year DESC
                     LIMIT 1
                     """,

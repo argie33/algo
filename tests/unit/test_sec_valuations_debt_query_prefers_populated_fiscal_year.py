@@ -190,7 +190,55 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         debt_sql = debt_queries[0]
         assert "COALESCE(long_term_debt, 0)" in debt_sql
         assert "!= 0" in debt_sql
-        assert "THEN 0" in debt_sql
+        # FIXED 2026-09-01 (see TestDebtQueryPrefersRealLongTermDebtOverIncompleteRecentYear
+        # below): the nonzero-sum tier moved from THEN 0 to THEN 1 - a bare "long_term_debt IS
+        # NOT NULL" tier now ranks above it. Assert the nonzero-sum clause specifically maps to
+        # its own THEN value by anchoring on the text immediately preceding it, rather than a
+        # bare "THEN 0" substring search that would now match the wrong tier.
+        nonzero_sum_clause_idx = debt_sql.index("!= 0")
+        next_then_idx = debt_sql.index("THEN", nonzero_sum_clause_idx)
+        then_after_nonzero_sum = debt_sql[next_then_idx : next_then_idx + 6]
+        assert then_after_nonzero_sum.strip() == "THEN 1"
+
+
+class TestDebtQueryPrefersRealLongTermDebtOverIncompleteRecentYear:
+    def test_long_term_debt_present_outranks_a_more_recent_partial_nonzero_year(self) -> None:
+        # FIXED 2026-09-01 (goal-mode factor-usage review, category-leaders spot check):
+        # live-confirmed via COF (Capital One) - FY2026 has short_term_debt=$1.626B alone
+        # (long_term_debt NULL, an in-progress fiscal year whose 10-Q hasn't re-disclosed the
+        # full debt schedule yet) while FY2025 has the real, complete long_term_debt=$49.913B.
+        # The nonzero-sum tier (THEN 1 as of this fix, THEN 0 before it) treated BOTH years as
+        # equally "has debt data" and picked the more recent one on the `fiscal_year DESC`
+        # tiebreak - producing total_debt=$1.626B for one of the most leveraged banks in the
+        # market. Same root cause independently found for JCAP (a $3.891M operating-lease-only
+        # figure beating a real $1.754B long_term_debt). A year where long_term_debt ITSELF is
+        # populated must now win outright, regardless of any other year's component sum.
+        fetchone_results = [
+            (30_000_000.0,),
+            (49_913_000_000.0, 1_087_000_000.0, 1_259_000_000.0, None),  # debt_row: FY2025's real figures
+            None,  # has_dual_class_sibling check (2026-08-21) - no matching row
+            (None,),  # company_info_sec shares_outstanding cross-check (2026-08-20)
+            (50.0,),
+            (500_000_000.0,),
+            (1.0,),  # beta (stability_metrics)
+            (4.5,),  # risk_free_rate (economic_data DGS10) - CAPM discount rate
+            (20.0,),  # current VIX (economic_data VIXCLS)
+            (20.0,),  # long-run avg VIX - equal to current so dynamic ERP == static 5% (not under test here)
+            None,  # net borrowing check (2026-08-25) - no adjacent-year debt data
+            (None, None),  # yfinance_snapshot market_cap/pe_ratio sanity check (2026-08-20)
+        ]
+        _, cursor = _run_fetch_incremental("COF", fetchone_results)
+
+        debt_queries = [sql for sql in cursor.executed_sql if "COALESCE(long_term_debt" in sql and "SELECT" in sql]
+        assert len(debt_queries) == 1
+        debt_sql = debt_queries[0]
+        # The bare "long_term_debt IS NOT NULL" tier must appear BEFORE (rank ahead of, i.e. at
+        # a lower CASE position in the SQL text) the nonzero-sum tier - a mocked cursor can't
+        # exercise real Postgres ORDER BY evaluation, so this pins the tier ordering textually,
+        # the same convention every other test in this file already uses.
+        long_term_debt_tier_idx = debt_sql.index("WHEN long_term_debt IS NOT NULL\n")
+        nonzero_sum_tier_idx = debt_sql.index("!= 0")
+        assert long_term_debt_tier_idx < nonzero_sum_tier_idx
 
     def test_cash_is_queried_separately_from_debt(self) -> None:
         # The cash query must not be coupled to the debt-prioritization ORDER BY (it uses its
