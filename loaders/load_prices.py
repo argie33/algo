@@ -953,18 +953,28 @@ class PriceLoader(OptimalLoader):
         had to hand-patch stock_symbols out of band to make coverage checks stop flagging
         it. Writing the marker here makes the determination durable and self-service.
 
-        BUG FOUND 2026-09-01 (/goal session, "check the logs" pass): this determination is
-        actually a yfinance-source-only judgment call (loaders/price_fetcher.py has zero
-        Alpaca cross-check anywhere - see avb_eqr_wbs_yfinance_gap_reverified_still_open_20260901
-        in memory) that silently excludes a symbol from ALL future trading consideration -
-        live-caught firing today for AVB (AvalonBay Communities, a real S&P 500 REIT, not
-        remotely delisted) purely because yfinance itself has had no fresh data for it in
-        over a week. Before this fix, that determination was only ever a WARNING log line -
-        no notify() anywhere in this file except the unrelated rate-limit-circuit-breaker
-        alert far below. An operator watching only alerts (not tailing raw logs) would never
-        learn a real, liquid, tradable symbol just got silently dropped from the universe,
-        exactly the same "computed but never delivered" gap already fixed twice elsewhere
-        this session (Phase 9 risk alerts, exit-check failures). Alert only on the FIRST
+        BUG FOUND 2026-09-01 (/goal session, "check the logs" pass): this silently excludes
+        a symbol from ALL future trading consideration - live-caught firing for AVB
+        (AvalonBay Communities, a real S&P 500 REIT, not remotely delisted) in a local-dev
+        sandbox running yfinance-only. CORRECTION (same session, later): this determination
+        is NOT actually yfinance-only in the deployed system - self.router
+        (utils/data/source_router.py's DataSourceRouter, wired in via
+        PriceFetcher.fetch_batch_incremental) already routes to Alpaca as primary with
+        yfinance-residual fallback whenever PRICE_DATA_SOURCE=alpaca, and
+        terraform/variables.tf defaults that variable to "alpaca" in the real deployed
+        config (changed 2026-07-14, penny-exact-verified vs yfinance). The AVB false
+        positive here was specific to this sandbox, where PRICE_DATA_SOURCE is unset and
+        the Python-level default ("yfinance") applies instead - see
+        avb_eqr_wbs_yfinance_gap_reverified_still_open_20260901 in memory for the full
+        correction. This alert is still worth having regardless of source (a genuine
+        delisting or a real multi-provider gap both deserve operator visibility), just
+        don't assume yfinance-only is the deployed reality when reading this comment.
+        Before this fix, this determination was only ever a WARNING log line - no notify()
+        anywhere in this file except the unrelated rate-limit-circuit-breaker alert far
+        below. An operator watching only alerts (not tailing raw logs) would never learn a
+        real, liquid, tradable symbol just got silently dropped from the universe, exactly
+        the same "computed but never delivered" gap already fixed twice elsewhere this
+        session (Phase 9 risk alerts, exit-check failures). Alert only on the FIRST
         transition (rowcount>0, i.e. the WHERE data_unavailable=FALSE actually matched) -
         same "notify once on first detection" convention as alpaca_sync_manager.py's
         untracked-position alert - so an already-known, still-unresolved symbol doesn't
