@@ -548,6 +548,21 @@ function InputRow({ row }) {
             {row.weight}
           </span>
         )}
+        {row.tracked && (
+          <span
+            className="badge"
+            style={{
+              marginLeft: 6,
+              fontSize: "0.62rem",
+              padding: "1px 5px",
+              color: "var(--text-faint)",
+              border: "1px solid var(--border)",
+            }}
+            title="Collected but not part of the score formula"
+          >
+            tracked, not scored
+          </span>
+        )}
         {row.compositePct != null && (
           <span
             className="badge"
@@ -603,6 +618,12 @@ function InputsCard({ title, stock, schema, inputsKey = null, pillarWeight = nul
     );
   }
 
+  // A schema is "mixed" when some rows are scored (have a weight) and others are
+  // display-only (no weight) - Growth's net_income_growth_yoy/eps_estimate_revision_90d_pct
+  // rows are the motivating case (see tier comment on InputRow below). Pure informational
+  // tabs (Positioning/Size) have zero weighted rows, so every row there is unmarked - the
+  // tab-level "(informational)" title already covers that case, no per-row badge needed.
+  const isMixedSchema = schema.some((s) => s.weight);
   const rows = schema.map((s) => {
     const value = inputsObj?.[s.key];
     const reason = inputsObj?.[s.key + "_unavailable_reason"];
@@ -617,7 +638,8 @@ function InputsCard({ title, stock, schema, inputsKey = null, pillarWeight = nul
       pillarWeight != null && withinPillarPct != null
         ? Math.round(withinPillarPct * pillarWeight * 10) / 10
         : null;
-    return { ...s, value, reason, compositePct };
+    const tracked = isMixedSchema && !s.weight;
+    return { ...s, value, reason, compositePct, tracked };
   });
 
   return (
@@ -1432,7 +1454,7 @@ const GROWTH_SCHEMA = [
   },
   {
     key: "quarterly_growth_momentum",
-    label: "QoQ Growth Momentum",
+    label: "Revenue Growth (4Q YoY Avg)",
     fmt: (v) => num(v, 2),
     used: true,
     weight: "7%",
