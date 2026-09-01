@@ -829,6 +829,24 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
             alerts_count = len(alerts)
             if alerts_count:
                 summary_parts.append(f"{alerts_count} alerts")
+                # BUG FOUND 2026-09-01 (/goal session, risk-mgmt review pass): this `alerts`
+                # list (VaR>2%, concentration>30%, beta>2.0x) was only ever folded into the
+                # "N alerts" phase-result log line above - never surfaced via notify() like
+                # every other portfolio-level risk breach in this codebase (this same file's
+                # own P&L-divergence call site above, phase2_circuit_breakers.py's halt
+                # alerts, notify_signal_staleness()). A real VaR/beta/concentration breach
+                # was invisible unless someone read algo_risk_daily or this log by hand.
+                try:
+                    from algo.reporting import notify
+
+                    notify(
+                        severity="warning",
+                        title="Portfolio Risk Report Alert",
+                        message=f"{run_date}: " + "; ".join(alerts),
+                        details={"alerts": alerts, "run_date": str(run_date)},
+                    )
+                except (ValueError, TypeError, RuntimeError) as notify_err:
+                    logger.error(f"[PHASE 9] Failed to send risk alert notification: {notify_err}")
             risk_summary = ", ".join(summary_parts) if summary_parts else "row inserted (no metrics available yet)"
         elif risk_report:
             risk_summary = risk_report.get("message", "insufficient data")
