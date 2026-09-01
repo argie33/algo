@@ -1410,8 +1410,28 @@ class PositionSizer:
         if enforce_total_risk_limit:
             try:
                 with DatabaseContext("read") as cur:
+                    # FIX 2026-08-31 (/goal pre-real-money audit): was `p.quantity` (a
+                    # position-level total) multiplied into EVERY fanned-out row of the
+                    # JOIN - for a pyramided position (trade_ids_arr has 2+ open trades,
+                    # a real, supported case per position_sync.py's own LINKED_TRADE_STATUSES
+                    # handling), each constituent trade's row repeated the SAME full
+                    # position quantity instead of that trade's own share count, summing to
+                    # an inflated total. Concrete example: position qty=100 (60sh @ entry
+                    # $50 + 40sh @ entry $52, stop=$45) used to compute
+                    # (50-45)*100 + (52-45)*100 = $1,200 instead of the real
+                    # 60*(50-45) + 40*(52-45) = $580 - the aggregate open-risk figure this
+                    # file's own comment calls "the single most important portfolio-level
+                    # guardrail" was overstated for any pyramided position (fails
+                    # over-conservative - spuriously blocks/scales down otherwise-good new
+                    # entries - not under-protective, but still wrong). algo_trades.quantity
+                    # is the correct per-trade figure: verified it's actively decremented on
+                    # partial exits (executor_exit_handler.py's partial-exit UPDATE, itself a
+                    # documented prior fix in this same file's history) and trade_ids_arr is
+                    # already scoped to TradeStatus.all_open() trades only
+                    # (position_sync.py's LINKED_TRADE_STATUSES), so no additional t.status
+                    # filter is needed here.
                     cur.execute("""
-                        SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity))
+                        SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * t.quantity))
                         FROM algo_positions p
                         JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                         WHERE p.status = 'open'
