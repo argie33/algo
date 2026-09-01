@@ -2144,12 +2144,19 @@ class StockScoresLoader(OptimalLoader):
         (now 33/29) and the PEG trim / Forward P/E addition below are LATER, separate changes -
         see "PEG - TRIMMED FURTHER, NOT REMOVED" and "FCF YIELD - RESOLVED 2026-08-28" notes.
 
-        Uses weighted scoring (2026-08-31, FINAL/CURRENT): P/E (12%) + P/B (41%) + P/S (35%)
-        + Forward P/E (4%) + Dividend Yield (8%) - five scored inputs, no PEG, no Margin of
-        Safety. Dividend Yield trimmed 11%->8% this session (weak evidence, kept at user
-        directive - see "DIVIDEND YIELD - TRIMMED 2026-08-31" note below); PB/PS absorbed the
-        freed 3pts. The 2026-08-28 weights (12/39/34/4/11) quoted throughout the rest of this
-        docstring are superseded by this line wherever they conflict.
+        Uses weighted scoring (2026-09-01, FINAL/CURRENT): P/E (27%) + P/B (27%) + P/S (27%)
+        + Forward P/E (9%) + Dividend Yield (10%) - five scored inputs, no PEG, no Margin of
+        Safety. EQUAL-WEIGHTED the 3 core multiples this session (user directive: "lets get the
+        weightings more normal the 41% still seems wacky... is that what the industry players
+        set these at too?") - the prior 12/41/35 split was DATA-DRIVEN (whichever multiple
+        backtested strongest on this repo's own sample got more weight, 3 separate times), not
+        matched to how real multi-metric Value composites are actually built (Fama-French's
+        classic HML uses book-to-market alone; AQR/practitioner composites average their core
+        ratios roughly equally). Forward P/E and Dividend Yield stay smaller satellite weights
+        (9%/10%) rather than equal to the 3 core multiples - thinner history and weaker
+        evidence respectively, not "core" descriptors in the cited methodologies either. Every
+        earlier weight (12/39/34/4/11, then 12/41/35/4/8) quoted throughout the rest of this
+        docstring is superseded by this line wherever they conflict.
         This is the end state of a same-day, goal-driven ("is this value score right per
         industry best practice") full re-audit against how real systematic Value factors are
         actually built (MSCI Enhanced Value/World Value, Russell, S&P Style, Barra,
@@ -2695,42 +2702,41 @@ class StockScoresLoader(OptimalLoader):
         # new data" tradeoff already accepted for the "computed-but-unscored" fields
         # elsewhere). `update_value_multiples_percentiles()`'s post_run() pass applies the
         # identical floor at the cross-sectional percentile stage - see that method's docstring.
+        # EQUAL-WEIGHTED 2026-09-01 (/goal session: "lets get the weightings more normal the
+        # 41% still seems wacky... is that what the industry players set these at too?").
+        # Previous weights (12/41/35) were DATA-DRIVEN, not industry-standard - three separate
+        # rounds of "give more weight to whichever multiple backtested strongest in OUR data"
+        # (Margin of Safety's removal, EV/FCF's removal, Dividend Yield's trim all routed freed
+        # weight to PB specifically). That's a defensible philosophy but not how real multi-
+        # metric Value composites are built: Fama-French's classic HML uses book-to-market
+        # ALONE (no blend at all); AQR and most practitioner multi-ratio Value composites
+        # average book/price, earnings/price, and sales/price roughly EQUALLY, not skewed
+        # toward whichever ratio happens to backtest strongest on one specific sample. User's
+        # explicit direction: match the industry-conventional equal-weight-the-core-multiples
+        # approach over this repo's own in-sample-optimized weights. P/E (27%) + P/B (27%) +
+        # P/S (27%) equal-weighted core; Forward P/E (9%) and Dividend Yield (10%) stay smaller
+        # satellite inputs (thinner history / weaker evidence respectively - neither is one of
+        # the 3 "core" multiples in any of the cited methodologies).
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe_score = self._pe_curve_score(metrics["pe_ratio"])
-            weighted_sum += pe_score * 0.12
-            total_weight += 0.12
+            weighted_sum += pe_score * 0.27
+            total_weight += 0.27
         elif metrics.get("pe_ratio_unavailable_reason") == "unprofitable_stock":
-            weighted_sum += 0.0 * 0.12
-            total_weight += 0.12
+            weighted_sum += 0.0 * 0.27
+            total_weight += 0.27
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
-        # Weight 41% (2026-08-31: +2 from Dividend Yield's trim below - see "DIVIDEND YIELD -
-        # TRIMMED 2026-08-31" docstring note - given to PB as the strongest of the two,
-        # proportional to their t-stat magnitudes (PB t=-7.49 vs PS t=-4.40, ~63/37 split of
-        # the freed 3 points). Previously 39% (2026-08-28: +6 from Margin of Safety's removal
-        # from scoring below - see "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28"
-        # docstring note - given to PB as the strongest, most robust multiple of the three,
-        # same reasoning precedent as EV/EBITDA/EV/Revenue's and FCF yield's freed weight both
-        # going preferentially to PB in the 2026-08-25/2026-08-28 notes). Reconfirmed STRONGEST
-        # of the three multiples in the fresh 8-input joint regression (t=-7.49 full sample,
-        # -3.05/-7.64 sub-period halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED"
-        # note established via a materially different spec - real corroboration.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb_score = self._pb_curve_score(metrics["pb_ratio"])
-            weighted_sum += pb_score * 0.41
-            total_weight += 0.41
+            weighted_sum += pb_score * 0.27
+            total_weight += 0.27
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
-        # Weight 35% (2026-08-31: +1 from Dividend Yield's trim below, same proportional split
-        # as PB's bump above). Previously 34% (2026-08-28: +5 from Margin of Safety's removal
-        # from scoring below, same reasoning as PB's bump above - PS is the second-strongest,
-        # most robust multiple). Reconfirmed second-strongest of the three multiples (t=-4.40
-        # full sample, -2.68/-3.52 sub-period halves).
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps_score = self._ps_curve_score(metrics["ps_ratio"])
-            weighted_sum += ps_score * 0.35
-            total_weight += 0.35
+            weighted_sum += ps_score * 0.27
+            total_weight += 0.27
 
         # PEG - REMOVED FROM SCORING 2026-08-28 (goal: "is this value score right per industry
         # best practice"). Prior passes (see "PEG - TRIMMED FURTHER, NOT REMOVED" docstring
@@ -2788,13 +2794,17 @@ class StockScoresLoader(OptimalLoader):
         # (`forward_pe_unavailable_reason == "negative_forward_eps"`), not genuine no-coverage.
         # Floored at 0, same as P/E's floor - any negative forward earnings yield is worse than
         # any non-negative one by definition.
+        # Weight 9% (2026-09-01: raised from 4% as part of the equal-weight-the-core-multiples
+        # reweight above - see that note. Kept as a smaller satellite weight, not equal to
+        # PE/PB/PS, since analyst_earnings_estimates still has thin history (~22 trading days
+        # at last check) that can't be backtested the way the 3 core trailing multiples were.
         if metrics.get("forward_pe") is not None and metrics["forward_pe"] > 0:
             fwd_pe_score = self._pe_curve_score(metrics["forward_pe"])
-            weighted_sum += fwd_pe_score * 0.04
-            total_weight += 0.04
+            weighted_sum += fwd_pe_score * 0.09
+            total_weight += 0.09
         elif metrics.get("forward_pe_unavailable_reason") == "negative_forward_eps":
-            weighted_sum += 0.0 * 0.04
-            total_weight += 0.04
+            weighted_sum += 0.0 * 0.09
+            total_weight += 0.09
 
         # FCF yield REMOVED 2026-08-28 (see "FCF YIELD - RESOLVED 2026-08-28" docstring note
         # below): independently re-verified and confirmed robustly wrong-signed - higher
@@ -2846,11 +2856,13 @@ class StockScoresLoader(OptimalLoader):
         # explicitly asked for - not removed, not left at a weight the data doesn't support.
         # Freed 3pts split proportionally to PB(+2)/PS(+1) above, the two strongest, most
         # robust multiples in this pillar.
+        # RAISED 8%->10% 2026-09-01 (equal-weight-the-core-multiples reweight above, see
+        # PE/PB/PS's own note) - still a smaller satellite weight than the 27% core multiples.
         if metrics.get("dividend_yield") is not None:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
-            weighted_sum += div_score * 0.08
-            total_weight += 0.08
+            weighted_sum += div_score * 0.10
+            total_weight += 0.10
 
         # Forward P/E REMOVED 2026-08-25, RE-ADDED 2026-08-28 - see "FORWARD P/E - ADDED
         # 2026-08-28" docstring note above and the scored block earlier in this function for
@@ -4015,30 +4027,36 @@ class StockScoresLoader(OptimalLoader):
                 # whether anything changed, never as an input to the new value. See "BUG FOUND
                 # + FIXED 2026-08-31" docstring note above for why this replaced the prior
                 # additive-delta-on-a-mutable-column design.
+                # EQUAL-WEIGHTED 2026-09-01 (see _score_value's own matching note - "lets get
+                # the weightings more normal... is that what the industry players set these at
+                # too?"). PE/PB/PS now equal at 27% each (was 12/41/35, data-driven skew toward
+                # PB/PS) - matches AQR/practitioner convention of averaging core value ratios
+                # roughly equally rather than in-sample-optimized weights. Forward P/E raised
+                # 4%->9%, Dividend Yield raised 8%->10% (both stay smaller satellite weights,
+                # not equal to the 3 core multiples).
                 components: list[tuple[float, float]] = []
                 if pe is not None and float(pe) > 0:
-                    components.append((pe_pct[symbol], 0.12))
+                    components.append((pe_pct[symbol], 0.27))
                 elif pe_reason == "unprofitable_stock":
-                    components.append((0.0, 0.12))
+                    components.append((0.0, 0.27))
                 if pb is not None and float(pb) > 0:
-                    components.append((pb_pct[symbol], 0.41))
+                    components.append((pb_pct[symbol], 0.27))
                 if ps is not None and float(ps) > 0:
-                    components.append((ps_pct[symbol], 0.35))
+                    components.append((ps_pct[symbol], 0.27))
                 if fwd_pe is not None and float(fwd_pe) > 0:
-                    components.append((fwd_pe_pct[symbol], 0.04))
+                    components.append((fwd_pe_pct[symbol], 0.09))
                 elif fwd_pe_reason == "negative_forward_eps":
-                    components.append((0.0, 0.04))
+                    components.append((0.0, 0.09))
                 # FIXED 2026-08-31 (same fix, same reasoning as _score_value's own dividend
                 # block above - value_metrics.dividend_yield is a real, already-computed 0.0
                 # for non-payers, never NULL, so a `> 0` gate wrongly reweighted this term away
                 # for 56% of the universe instead of scoring the real 0% floor).
-                # TRIMMED 11%->8% same session (see _score_value's "DIVIDEND YIELD - TRIMMED
-                # 2026-08-31" docstring note) - weak evidence, kept at user directive but sized
-                # down; freed 3pts split to PB(+2)/PS(+1) above.
+                # TRIMMED 11%->8% 2026-08-31, RAISED 8%->10% 2026-09-01 (equal-weight reweight
+                # above) - weak evidence, kept at user directive, sized as a satellite weight.
                 if dividend_yield is not None:
                     div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
                     div_score = min(100, div * 16.7)
-                    components.append((div_score, 0.08))
+                    components.append((div_score, 0.10))
 
                 total_weight = sum(w for _, w in components)
                 if total_weight <= 0:

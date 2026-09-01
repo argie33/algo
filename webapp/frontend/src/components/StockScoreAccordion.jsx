@@ -1235,21 +1235,21 @@ const VALUE_SCHEMA = [
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "12%",
+    weight: "27%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "41%",
+    weight: "27%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "35%",
+    weight: "27%",
   },
   // Forward P/E PROMOTED to a scored input 2026-08-28 (user directive - MSCI's Value index
   // uses 12-month forward Earnings/Price as one of its three core descriptors; explicitly a
@@ -1260,7 +1260,7 @@ const VALUE_SCHEMA = [
     label: "Forward P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "4%",
+    weight: "9%",
   },
   // "Net Payout Yield (Div + Buybacks)" (net_payout_yield) REVERTED 2026-08-28 back to plain
   // Dividend Yield on explicit user directive ("we want the dividend yield instead of that
@@ -1271,7 +1271,7 @@ const VALUE_SCHEMA = [
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "8%",
+    weight: "10%",
   },
   // market_cap moved to the Size pillar 2026-08-26, since retired entirely (see comment above).
   // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't

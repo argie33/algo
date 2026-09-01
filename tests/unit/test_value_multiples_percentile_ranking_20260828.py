@@ -99,6 +99,14 @@ class TestValueMultiplesReconciliationMath:
     the best-covered sub-period, see load_stock_scores.py's "DIVIDEND YIELD - TRIMMED
     2026-08-31" docstring note): Dividend Yield 11%->8%, freed 3pts split PB 39%->41% (+2),
     PS 34%->35% (+1), proportional to their t-stat magnitudes.
+
+    UPDATED AGAIN 2026-09-01 (goal: factor-score review, "lets get the weightings more normal
+    the 41% still seems wacky... is that what the industry players set these at too?" - see
+    load_stock_scores.py's matching "EQUAL-WEIGHTED 2026-09-01" docstring note): PE/PB/PS
+    equal-weighted at 27% each (was 12/41/35, a data-driven skew this repo's own regression
+    produced, not how real multi-metric Value composites like AQR's are actually built).
+    Forward P/E 4%->9%, Dividend Yield 8%->10% - both stay smaller satellite weights, not
+    equal to the 3 core multiples.
     pe_reason/fwd_pe_reason params ADDED - the "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" /
     "UNPROFITABLE-FORECAST FLOOR ADDED 2026-08-28" fix: an unprofitable/negative-forecast
     symbol now counts toward total_weight_old at the normal weight with BOTH old and new
@@ -127,27 +135,27 @@ class TestValueMultiplesReconciliationMath:
         weighted_sum_multiples_old = 0.0
         weighted_sum_multiples_new = 0.0
         if pe is not None and pe > 0:
-            total_weight_old += 0.12
-            weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(pe) * 0.12
-            weighted_sum_multiples_new += pe_pct * 0.12  # type: ignore[operator]
+            total_weight_old += 0.27
+            weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(pe) * 0.27
+            weighted_sum_multiples_new += pe_pct * 0.27  # type: ignore[operator]
         elif pe_reason == "unprofitable_stock":
-            total_weight_old += 0.12
+            total_weight_old += 0.27
         if pb is not None and pb > 0:
-            total_weight_old += 0.41
-            weighted_sum_multiples_old += StockScoresLoader._pb_curve_score(pb) * 0.41
-            weighted_sum_multiples_new += pb_pct * 0.41  # type: ignore[operator]
+            total_weight_old += 0.27
+            weighted_sum_multiples_old += StockScoresLoader._pb_curve_score(pb) * 0.27
+            weighted_sum_multiples_new += pb_pct * 0.27  # type: ignore[operator]
         if ps is not None and ps > 0:
-            total_weight_old += 0.35
-            weighted_sum_multiples_old += StockScoresLoader._ps_curve_score(ps) * 0.35
-            weighted_sum_multiples_new += ps_pct * 0.35  # type: ignore[operator]
+            total_weight_old += 0.27
+            weighted_sum_multiples_old += StockScoresLoader._ps_curve_score(ps) * 0.27
+            weighted_sum_multiples_new += ps_pct * 0.27  # type: ignore[operator]
         if fwd_pe is not None and fwd_pe > 0:
-            total_weight_old += 0.04
-            weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(fwd_pe) * 0.04
-            weighted_sum_multiples_new += fwd_pe_pct * 0.04  # type: ignore[operator]
+            total_weight_old += 0.09
+            weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(fwd_pe) * 0.09
+            weighted_sum_multiples_new += fwd_pe_pct * 0.09  # type: ignore[operator]
         elif fwd_pe_reason == "negative_forward_eps":
-            total_weight_old += 0.04
+            total_weight_old += 0.09
         if dividend_yield is not None and dividend_yield > 0:
-            total_weight_old += 0.08
+            total_weight_old += 0.10
 
         delta = (weighted_sum_multiples_new - weighted_sum_multiples_old) / total_weight_old
         value_score_new = round(max(0.0, min(100.0, value_score_old + delta)), 2)
@@ -302,7 +310,7 @@ class TestValueMultiplesReconciliationMath:
             fwd_pe_pct=None,
         )
         unprofitable = self._reconcile(
-            value_score_old=(StockScoresLoader._pe_curve_score(0.0) * 0.0 + pb_curve * 0.41) / 0.53,
+            value_score_old=(StockScoresLoader._pe_curve_score(0.0) * 0.0 + pb_curve * 0.27) / 0.54,
             composite_score_old=50.0,
             risk_score=50.0,
             pe=None,
