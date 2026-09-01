@@ -169,8 +169,6 @@ class TestGrowthScoreWeightBadges:
         "sustainable_growth_rate": "sustainable_growth_rate",
         "quarterly_growth_momentum": "quarterly_growth_momentum",
         "earnings_growth_4q_avg": "earnings_growth_4q_avg",
-        "fcf_growth_yoy": "fcf_growth_yoy",
-        "eps_growth_stability": "eps_growth_stability",
     }
 
     def test_growth_score_fields_match_jsx_key_map(self):

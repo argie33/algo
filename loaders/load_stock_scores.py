@@ -326,6 +326,32 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
 # (_score_growth's _score_eps_growth_stability), NOT _score_single_growth - see that helper's
 # own docstring for why (this field's scale/shape has nothing in common with a signed growth
 # rate, so it can't reuse the shared cap=30 linear transform every other candidate does).
+# fcf_growth_yoy / eps_growth_stability REMOVED 2026-08-31 (goal session: "figure out what is
+# right and best, best proven validated best practices" - user explicitly asked to judge every
+# field on finance merit alone, not on what a prior session had already decided). Both were kept
+# through 3 earlier reviews on "real, uncorrelated signal" grounds - true, but insufficient once
+# actually held to the SAME two-part bar the other 12 fields already clear:
+# 1. fcf_growth_yoy: not a named component of MSCI/Russell/S&P/IBD's Growth methodology (cash-
+#    flow growth isn't a canonical Growth descriptor anywhere), AND its own era-split predictive
+#    evidence - independently reproduced this session via
+#    `python -m algo.research.fama_macbeth_growth_factors` (not reused from a prior claim) -
+#    actively FLIPS SIGN with real significance both ways (H1 2014-2020-06 t=-2.09, H2
+#    2020-06-2026 t=+2.45, full-sample t=0.43). This is the identical "era-inconsistent, reject"
+#    pattern this file has used to reject every other flipping candidate (e.g.
+#    net_income_growth_yoy/operating_income_growth_yoy, asset_growth_yoy under the no-flip
+#    convention) - not weak evidence, actively unstable evidence.
+# 2. eps_growth_stability: real, non-redundant signal (~0 correlation with every growth-rate
+#    field, live-checked) and legitimate, well-established methodology - but it's MSCI's own
+#    Quality-index earnings-variability component, not a Growth-factor descriptor in MSCI's,
+#    Russell's, S&P's, or IBD's published methodology. Held to the same "must be a named
+#    component of a real Growth methodology" standard as the other 12, it doesn't qualify for
+#    THIS pillar - it may belong in Quality instead (which has no earnings-variability input of
+#    its own, only the related-but-distinct Margin Volatility), but that's a separate Quality-
+#    pillar decision, not made here. Still computed/persisted in growth_metrics and displayed as
+#    a tracked-not-scored row in GROWTH_SCHEMA (frontend), per this repo's standing "convert
+#    removed fields to informational rows, don't delete" practice - not scored here.
+# Net result: 12 fields, all independently verified canonical to a named MSCI/Russell/S&P/IBD
+# Growth-factor component, equal-weighted (1/12 ~= 8.3% each - see GROWTH_SCHEMA/weight badges).
 GROWTH_SCORE_FIELDS: tuple[str, ...] = (
     "revenue_growth_1y",
     "eps_growth_1y",
@@ -339,8 +365,6 @@ GROWTH_SCORE_FIELDS: tuple[str, ...] = (
     "sustainable_growth_rate",
     "quarterly_growth_momentum",
     "earnings_growth_4q_avg",
-    "fcf_growth_yoy",
-    "eps_growth_stability",
 )
 
 # GROWTH_INPUT_IMPLAUSIBLE_PCT (added 2026-08-31, /goal session - "make sure the results make
@@ -367,6 +391,25 @@ GROWTH_SCORE_FIELDS: tuple[str, ...] = (
 # Deliberately NOT applied to eps_growth_stability - its own inverted curve already penalizes
 # large values toward 0, so no separate exclusion is needed there.
 GROWTH_INPUT_IMPLAUSIBLE_PCT = 150.0
+
+# GROWTH_MIN_FIELDS_AVAILABLE (added 2026-08-31, same /goal session, found while actually looking
+# at post-reload live results rather than just trusting the code change). _score_growth's equal-
+# weighted blend had NO minimum-coverage floor at all - `if component_scores:` accepted even a
+# single available field and renormalized it up to a full 0-100 score. Live-verified this produces
+# a real, visible problem: after the 12-field trim, symbols like ATTO/GFUZ/VRXA/KWM/BLSM (each with
+# exactly 1 of 12 fields available, that one field happening to be >=30%) landed a saturated 100
+# growth_score - indistinguishable in the DB from NVDA's real 100 (built from 11/12 fields, all
+# genuinely strong). Live sweep of the full universe: 76/4882 non-null-growth_metrics symbols have
+# <=2/12 fields available, 11 of those score >=90 - a small slice of the universe, but exactly the
+# kind of thin-sample extrapolation that lands at the TOP of any growth-sorted view, disproportionately
+# visible. This is the identical problem Quality already solved for itself - see _score_quality's
+# docstring ("40-point minimum-available-weight floor out of a 101-point nominal total... below
+# that, quality_score is None rather than a thin-sample extrapolation") - Growth just never got the
+# same treatment when it moved from single-input to multi-input. 5/12 (~42%) mirrors Quality's
+# ~40%-of-101 ratio; below this, _score_growth returns a data_unavailable marker instead of a
+# score built from too little evidence, same "honest partial data, not thin-sample extrapolation"
+# principle, not a new one invented here.
+GROWTH_MIN_FIELDS_AVAILABLE = 5
 
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
 # value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
@@ -1886,8 +1929,8 @@ class StockScoresLoader(OptimalLoader):
 
         REVISED 2026-08-31 (industry-alignment review, see GROWTH_SCORE_FIELDS's own docstring
         for the full rationale/evidence): net_income_growth_yoy swapped out for
-        forward_eps_growth_current_fy/forward_eps_growth_next_fy/forward_revenue_growth_next_fy
-        - 13 fields now, not 11. forward_eps_growth_current_fy/next_fy and
+        forward_eps_growth_current_fy/forward_eps_growth_next_fy/forward_revenue_growth_next_fy.
+        forward_eps_growth_current_fy/next_fy and
         forward_revenue_growth_next_fy arrive from _get_growth_metrics already converted from
         their raw-fraction DB storage to the same percentage-point scale every other candidate
         uses (see that method's _scale_fraction_to_pct helper) - _score_single_growth's cap=30
@@ -1899,21 +1942,27 @@ class StockScoresLoader(OptimalLoader):
         quality_components comment) - not a Growth input either way, and NOT in
         GROWTH_SCORE_FIELDS.
 
-        eps_growth_stability ADDED 2026-08-31 (/goal session, explicit user directive - see
-        GROWTH_SCORE_FIELDS's own docstring for the full rationale/coverage evidence). It's a
-        dispersion metric (population stddev of trailing-4Q YoY EPS growth rates, percentage
-        points, always >=0, lower=more consistent), not a higher-is-better growth rate on the
-        same [-50,cap] scale _score_single_growth assumes - it CANNOT reuse that helper (doing
-        so would score raw dispersion magnitude as if it were a growth rate, e.g. a median-ish
-        stddev of ~53 would saturate to a near-100 score via the positive-growth branch, exactly
-        backwards). Scored instead via _score_eps_growth_stability, a dedicated inverted
-        piecewise curve defined below, then folded into the same equal-weighted
-        `component_scores` blend as every other GROWTH_SCORE_FIELDS candidate.
+        eps_growth_stability ADDED 2026-08-31 (/goal session, explicit user directive), then
+        REMOVED again later the same day (separate /goal session, "figure out what is right and
+        best... based on finance best practices, not our previous conversations" - see
+        GROWTH_SCORE_FIELDS's own docstring for the full rationale). It was a dispersion metric
+        (population stddev of trailing-4Q YoY EPS growth rates, percentage points, always >=0,
+        lower=more consistent) scored via a dedicated inverted piecewise curve
+        (_score_eps_growth_stability, kept below but unused by this method now) rather than
+        _score_single_growth - real, non-redundant signal, but an MSCI Quality-index component
+        (earnings variability), not a named Growth-factor descriptor anywhere, so it didn't clear
+        the same canon bar the other 12 fields are held to. fcf_growth_yoy was removed the same
+        pass for a different reason - not canonical either, AND its own era-split predictive sign
+        flips (H1 t=-2.09, H2 t=+2.45, live-reproduced) rather than just being weak.
 
         RETURN TYPES (STRICT):
-        - >=1 of GROWTH_SCORE_FIELDS available → returns float (0-100)
+        - >=GROWTH_MIN_FIELDS_AVAILABLE of GROWTH_SCORE_FIELDS available → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
         - metrics is None or missing → returns marker dict (never None)
+        - 1..GROWTH_MIN_FIELDS_AVAILABLE-1 candidates available → returns marker dict with
+          reason="insufficient_growth_inputs_thin_sample" (see that constant's own docstring -
+          added 2026-08-31, a 1-2 field renormalization is thin-sample extrapolation, not an
+          honest partial score, same principle Quality already applies to quality_score)
         - every GROWTH_SCORE_FIELDS candidate is None → returns marker dict with
           reason="no_growth_inputs_available"
 
@@ -1925,7 +1974,8 @@ class StockScoresLoader(OptimalLoader):
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for growth metric computation.
 
-        MINIMUM DATA REQUIREMENT: at least one of GROWTH_SCORE_FIELDS must be non-NULL.
+        MINIMUM DATA REQUIREMENT: at least GROWTH_MIN_FIELDS_AVAILABLE of GROWTH_SCORE_FIELDS
+        must be non-NULL (see that constant's own docstring for why).
         """
         if not metrics or metrics.get("data_unavailable"):
             reason = metrics.get("reason") if metrics else "metrics_is_none"
@@ -1996,30 +2046,42 @@ class StockScoresLoader(OptimalLoader):
         # candidate: all of them share the same _cagr()/YoY-%-derived percentage-point scale
         # this file has always used that cap for (domain judgment, not separately fit per
         # field - same caveat already applied elsewhere in this file, e.g. asset_turnover,
-        # gross_profitability, fcf_margin). eps_growth_stability is the one exception - it's a
-        # dispersion metric, not a signed rate, so it's scored via _score_eps_growth_stability
-        # instead (see that helper's docstring).
+        # gross_profitability, fcf_margin). No dispersion-metric candidate is scored here since
+        # eps_growth_stability's removal 2026-08-31 (see GROWTH_SCORE_FIELDS's own docstring) -
+        # _score_eps_growth_stability is kept, unused, in case a future Quality-pillar pass wants
+        # this exact well-tested dispersion curve for an earnings-variability input there.
         component_scores = []
         for field in GROWTH_SCORE_FIELDS:
             raw = metrics.get(field)
-            if field != "eps_growth_stability" and raw is not None and raw > GROWTH_INPUT_IMPLAUSIBLE_PCT:
+            if raw is not None and raw > GROWTH_INPUT_IMPLAUSIBLE_PCT:
                 # See GROWTH_INPUT_IMPLAUSIBLE_PCT's docstring: exclude rather than score at a
                 # saturated 100 - an implausibly extreme rate isn't comparable "growth quality"
                 # to a genuine strong grower even though both would otherwise map identically.
                 continue
-            score = (
-                _score_eps_growth_stability(raw) if field == "eps_growth_stability" else _score_single_growth(raw, 30)
-            )
+            score = _score_single_growth(raw, 30)
             if score is not None:
                 component_scores.append(score)
 
-        if component_scores:
+        if len(component_scores) >= GROWTH_MIN_FIELDS_AVAILABLE:
             growth_score = sum(component_scores) / len(component_scores)
             logger.debug(
                 f"[STOCK_SCORES] {symbol} growth_score computed: {growth_score:.2f} "
                 f"({len(component_scores)}/{len(GROWTH_SCORE_FIELDS)} inputs available)"
             )
             return growth_score
+
+        if component_scores:
+            logger.info(
+                f"[STOCK_SCORES] {symbol} growth_score withheld: only {len(component_scores)}/"
+                f"{len(GROWTH_SCORE_FIELDS)} inputs available, below GROWTH_MIN_FIELDS_AVAILABLE="
+                f"{GROWTH_MIN_FIELDS_AVAILABLE}. See that constant's docstring - a 1-2 field "
+                f"renormalization is thin-sample extrapolation, not an honest partial score."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "insufficient_growth_inputs_thin_sample",
+            }
 
         logger.warning(
             f"[STOCK_SCORES] {symbol} growth_score computation FAILED: all {len(GROWTH_SCORE_FIELDS)} "
