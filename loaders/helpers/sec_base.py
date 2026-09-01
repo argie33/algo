@@ -761,6 +761,52 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     )
                     unavailable_years |= {r[0] for r in cur.fetchall() if r[0] is not None}
 
+            # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage
+            # audit, CHTR live-confirmed): a fiscal year can be written as real
+            # (data_unavailable=FALSE) from a partial-year/interim SEC fact that an
+            # earlier version of this extraction pipeline mistakenly accepted as a
+            # complete annual figure, then later have that acceptance bug fixed - but
+            # nothing ever retracted the row THAT bug already wrote, since the normal
+            # `fiscal_year > since_year` filter only ever ADDS newer years, never
+            # removes a now-unconfirmed one. Live-confirmed via CHTR: annual_income_
+            # statement.fiscal_year=2026 held a real-looking $27.123B "revenue" (written
+            # 2026-08-01, before whatever later fix stopped this), but CHTR's fiscal
+            # year runs calendar-year (ends December 31) so FY2026 cannot have a real
+            # 10-K yet - and a fresh, full-history refetch (`rows` here, unfiltered by
+            # `since`) genuinely returns no FY2026 entry at all today, confirming the
+            # stored row is a stale orphan, not a legitimate gap. This silently poisoned
+            # every downstream revenue-growth calculation that anchors on "the most
+            # recent fiscal year" (CHTR's revenue_growth_1y computed a nonsensical
+            # -50.48%, comparing the stub's implausibly low value against the real
+            # FY2025 total). `rows` is always the symbol's FULL current-truth history
+            # (see the comment on `unavailable_years` above) - if it doesn't reach as
+            # far as a fiscal year the DB currently marks available, that year is no
+            # longer backed by any data this extraction pipeline can produce and must be
+            # retracted, the same "explicit, not silent" governance principle every
+            # other data_unavailable marker in this codebase already follows. Bounded to
+            # fiscal years the DB has but a full unfiltered refetch does NOT reproduce -
+            # never touches a year genuinely absent from `rows` because SEC transiently
+            # failed to answer for it this run (that year simply isn't compared against
+            # at all, since the DB row for it - if any - is untouched by this max()
+            # check unless it's the one exceeding the fresh maximum).
+            fetched_fiscal_years = {r["fiscal_year"] for r in rows if r.get("fiscal_year") is not None}
+            if fetched_fiscal_years:
+                max_fetched_fiscal_year = max(fetched_fiscal_years)
+                with DatabaseContext("write") as write_cur:
+                    write_cur.execute(
+                        f"UPDATE {self.table_name} SET data_unavailable = TRUE, "
+                        f"reason = 'stale_fiscal_year_not_confirmed_by_full_sec_refetch', "
+                        f"updated_at = NOW() "
+                        f"WHERE symbol = %s AND data_unavailable = FALSE AND fiscal_year > %s",
+                        (symbol, max_fetched_fiscal_year),
+                    )
+                    if write_cur.rowcount:
+                        logger.warning(
+                            f"[{self.table_name}] {symbol}: retracted {write_cur.rowcount} stale fiscal-year "
+                            f"row(s) beyond the freshest full-history fiscal_year ({max_fetched_fiscal_year}) "
+                            f"a complete refetch actually reproduces."
+                        )
+
         try:
             since_year = int(since.year) if since else 2000
             filtered = []
@@ -795,6 +841,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
             if "fiscal_year" in r:
                 row["fiscal_year"] = r["fiscal_year"]
             row["data_unavailable"] = False
+            # FIXED 2026-08-31 (goal session continued: ANDE live-confirmed same clobber
+            # shape as CHTR/HTLD but via the EXCLUDING_assessed_tax sibling instead -
+            # revenue_from_contract_with_customer_excluding_assessed_tax=$1.531B vs. real
+            # "Revenues"=$11.009B, a ~7x understatement). Tracks which sec_field most
+            # recently wrote "revenue" so the excluding_assessed_tax magnitude guard below
+            # can tell "an earlier normal concept like revenues already holds the real
+            # total" (must protect it) apart from "including_assessed_tax already wrote a
+            # smaller value that excluding_assessed_tax is SUPPOSED to override regardless
+            # of magnitude" (must NOT protect it - see that guard's own comment).
+            _revenue_source_sec_field: str | None = None
 
             field_mapping = self._field_mapping
             # FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
@@ -869,6 +925,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         if current_best is None or fvalue > current_best:
                             revenue_total_best[db_field] = fvalue
                             row[db_field] = value
+                            if db_field == "revenue":
+                                _revenue_source_sec_field = sec_field
                     continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
                     continue  # A higher-priority concept already populated this field
@@ -906,6 +964,64 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # Depository institution (2026-08-22 fix): real interest-income-derived
                     # revenue already populated this field - see this branch's own comment
                     # above for the live-verified WAFDP case.
+                    continue
+                # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage
+                # audit): the REIT/insurance/depository gate above assumes "IncludingAssessedTax
+                # as a narrow sub-line, not the real total" is an industry-specific (SIC-coded)
+                # failure mode - false. Live-confirmed via three ordinary, non-REIT/insurance/
+                # bank filers: CHTR (Charter Communications, SIC 4841 cable) tags a real,
+                # current, correct "Revenues" every year through FY2025 ($54.607B/$55.085B/
+                # $54.774B for FY2023-2025) while ALSO tagging
+                # RevenueFromContractWithCustomerIncludingAssessedTax with a much narrower
+                # same-year figure ($993M/$941M/$889M); HTLD (Heartland Express, SIC 4213
+                # trucking) shows the identical shape via the same concept ($58.1M FY2025 vs. a
+                # real ~$863M total); ANDE (Andersons, SIC 5153 grain/agribusiness) shows the
+                # SAME shape via the sibling ExcludingAssessedTax concept instead ($1.531B
+                # FY2025 vs. real "Revenues"=$11.009B, a ~7x understatement). None of these
+                # filers are REIT/insurer/depository, so the SIC-gated branch above never fires,
+                # and the general "last-listed-wins" priority let the narrow figure silently
+                # clobber the correct total - up to a ~61x understatement with no
+                # data_unavailable/reason flag anywhere, corrupting every downstream revenue-
+                # based metric (P/S, revenue growth, all margin ratios) for these and up to 63
+                # other real symbols sharing this fingerprint (see the DB-wide "latest fiscal
+                # year revenue present but cost_of_revenue/gross_profit both NULL" scan this
+                # goal session ran). A real consolidated revenue total can never be smaller than
+                # a genuine sub-line of itself, so if a field a normal-priority concept already
+                # wrote to "revenue" is LARGER than either ASC-606 concept's incoming value, the
+                # incoming value is never allowed to shrink it, regardless of SIC code. This does
+                # NOT weaken the AAPL case (test_sec_reit_lease_revenue_not_overwritten.py's
+                # test_non_insurer_still_uses_normal_priority_asc606_wins): there the ASC-606
+                # figure is LARGER than the legacy "Revenues" figure (391B > 300B), so neither
+                # guard below fires and normal overwrite still applies.
+                #
+                # The excluding_assessed_tax guard (added same pass, ANDE fix) additionally
+                # checks `_revenue_source_sec_field` (tracked at every "revenue" write site
+                # above) is NOT the including_assessed_tax concept: excluding_assessed_tax is
+                # always processed strictly AFTER including_assessed_tax (concept-list order in
+                # sec_statements.py), so it may see "revenue" already holding including_assessed_
+                # tax's own (smaller, by definition) value -
+                # test_load_financial_statements_revenue_precedence.py's
+                # test_tax_exclusive_revenue_wins_when_both_concepts_reported requires
+                # excluding_assessed_tax to keep unconditionally overwriting THAT specific value
+                # even though it's smaller (excluding tax is deliberately preferred as "the
+                # standard net-revenue measure most filers use" - a precedence rule, not a
+                # magnitude one). The source check lets that precedence stand while still
+                # protecting a genuinely different, larger, earlier-written total like ANDE's
+                # "Revenues".
+                if (
+                    db_field in row
+                    and isinstance(row[db_field], (int, float, Decimal))
+                    and isinstance(value, (int, float, Decimal))
+                    and float(row[db_field]) > float(value)
+                    and (
+                        sec_field == "revenue_from_contract_with_customer_including_assessed_tax"
+                        or (
+                            sec_field == "revenue_from_contract_with_customer_excluding_assessed_tax"
+                            and _revenue_source_sec_field
+                            != "revenue_from_contract_with_customer_including_assessed_tax"
+                        )
+                    )
+                ):
                     continue
                 # BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): a separate,
                 # stricter category from _reit_only_fallback_fields above. That set's
@@ -956,6 +1072,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         row["reason"] = f"Numeric overflow in {db_field}"
                     else:
                         row[db_field] = value
+                        if db_field == "revenue":
+                            _revenue_source_sec_field = sec_field
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
             # filers don't tag) - derive it from operating_cash_flow - capex, the standard
