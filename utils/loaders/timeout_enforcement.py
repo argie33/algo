@@ -9,6 +9,7 @@ Used by:
 import logging
 import os
 import signal
+import sys
 import threading
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,12 @@ def _force_exit_on_timeout() -> None:
     logger.critical(
         f"[TIMEOUT] Loader exceeded {timeout_str} timeout. Exiting forcefully. Active threads: {thread_info}"
     )
+    # See loaders/runner.py's identical fix for the full rationale: this critical log line
+    # is the only diagnostic signal explaining why the process vanished, and os._exit(1)
+    # (unlike sys.exit()) does not guarantee buffered stdout/stderr reaches the OS before
+    # the process dies. Explicit flush removes any doubt.
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(1)
 
 

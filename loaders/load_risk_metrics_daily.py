@@ -29,12 +29,33 @@ import math  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
 
+from algo.infrastructure import MarketCalendar  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.infrastructure.timezone import EASTERN_TZ  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# STALE_PRICE FIX 2026-09-01 (/goal session - user live-questioned FBRX ranking #1 in
+# Momentum despite, per the user, apparently not even trading). Root cause: FBRX was
+# acquired by argenx via a $77/share tender offer that completed 2026-08-27 (8-K on file:
+# item_2_01 Completion of Acquisition + item_3_01 Notice of Delisting, both true) - real
+# trading stopped after 2026-08-26's close. `_compute_momentum_row` below sets
+# `today = sorted_dates[-1]` (whatever the SYMBOL's own latest price_daily row happens to
+# be) with no check against the actual current date, so a symbol whose price feed has gone
+# silent (delisted, halted, or a persistent per-symbol fetch failure) keeps having its last
+# real close treated as "current" forever - momentum/ROC computed off an increasingly stale
+# window, with no gate, no flag, nothing to distinguish it from a live, actively-traded
+# stock. table-level DataAgeValidator checks (see load_technical_indicators.py) don't catch
+# this either: the universe as a whole is fresh, only this one symbol has gone dark. A
+# 3-trading-day threshold tolerates the normal 1-day pipeline-timing gap (self-heals per
+# technical_data_daily_price_daily_load_order_race_20260824 in memory) while still catching
+# a genuinely-stopped-trading symbol well before it can dominate momentum rankings the way
+# FBRX did here (roc_60d=303%, roc_252d=331%, top momentum leader, five calendar days after
+# it stopped trading).
+STALE_PRICE_TRADING_DAYS_THRESHOLD = 3
 
 
 class RiskMetricsLoader(OptimalLoader):
@@ -100,6 +121,17 @@ class RiskMetricsLoader(OptimalLoader):
                 sorted_dates = sorted(prices.keys())
 
                 today = sorted_dates[-1]
+
+                # STALE_PRICE FIX 2026-09-01: see module-level STALE_PRICE_TRADING_DAYS_THRESHOLD
+                # comment - don't compute momentum off a frozen close as if it were current.
+                now_et = datetime.now(EASTERN_TZ).date()
+                days_stale = MarketCalendar.trading_days_elapsed(today, now_et)
+                if days_stale > STALE_PRICE_TRADING_DAYS_THRESHOLD:
+                    raise RuntimeError(
+                        f"Stale price data: last close {today} is {days_stale} trading days old "
+                        f"(threshold {STALE_PRICE_TRADING_DAYS_THRESHOLD}) - symbol likely halted/"
+                        "delisted/acquired, not computing momentum from a frozen price"
+                    )
 
                 momentum: dict[str, float | None] = {}
                 # FIX 2026-08-28 (goal: repo-wide data-coverage audit, same "NULL with no
@@ -358,6 +390,55 @@ class RiskMetricsLoader(OptimalLoader):
                         )
                         for row in rows
                     ]
+
+                # STALE_PRICE FIX 2026-09-01 (/goal session - same root cause as
+                # _compute_momentum_row's gate above, live-confirmed on WBS: Webster Financial,
+                # a real actively-traded regional bank, ranked #4 in the Risk pillar with
+                # risk_score=91.68 and #4 in Composite - off a price_daily feed frozen at
+                # 2026-08-19, 13 trading days stale as of this fix (see
+                # avb_eqr_wbs_yfinance_gap_reverified_still_open_20260901 in memory for the
+                # known yfinance-outage root cause on this exact symbol). This method computes
+                # volatility/beta from whatever the most recent 252 price_daily rows happen to
+                # be with no check against the actual current date - same blind spot the
+                # momentum gate above was built for, just unfixed on this sibling method in the
+                # same loader. A stale-feed symbol's volatility/beta get silently reported as
+                # current risk when they're actually a frozen historical window that may no
+                # longer reflect the stock's real current risk profile.
+                if rows:
+                    latest_price_date = max(row[0] for row in rows)
+                    now_et = datetime.now(EASTERN_TZ).date()
+                    days_stale = MarketCalendar.trading_days_elapsed(latest_price_date, now_et)
+                    if days_stale > STALE_PRICE_TRADING_DAYS_THRESHOLD:
+                        reason = (
+                            f"stale_price_data: last close {latest_price_date} is {days_stale} "
+                            f"trading days old (threshold {STALE_PRICE_TRADING_DAYS_THRESHOLD}) - "
+                            "symbol's price feed has stopped, not computing volatility/beta from "
+                            "a frozen window"
+                        )
+                        logger.warning(f"[RISK_METRICS] {symbol}: stability unavailable - {reason}")
+                        return {
+                            "symbol": symbol,
+                            "volatility_30d": None,
+                            "volatility_60d": None,
+                            "volatility_252d": None,
+                            "downside_volatility_30d": None,
+                            "downside_volatility_60d": None,
+                            "downside_volatility_252d": None,
+                            "max_drawdown_1y": None,
+                            "beta": None,
+                            "debt_to_assets": debt_to_assets,
+                            "beta_unavailable_reason": "stale_price_data",
+                            "volatility_30d_unavailable_reason": "stale_price_data",
+                            "volatility_60d_unavailable_reason": "stale_price_data",
+                            "volatility_252d_unavailable_reason": "stale_price_data",
+                            "downside_volatility_30d_unavailable_reason": "stale_price_data",
+                            "downside_volatility_60d_unavailable_reason": "stale_price_data",
+                            "downside_volatility_252d_unavailable_reason": "stale_price_data",
+                            "max_drawdown_1y_unavailable_reason": "stale_price_data",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "data_unavailable": debt_to_assets is None,
+                            "reason": reason if debt_to_assets is None else None,
+                        }
 
                 spy_rows: list[Any] = []
                 if rows:

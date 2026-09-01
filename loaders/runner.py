@@ -127,6 +127,7 @@ def _force_exit_on_timeout() -> None:
     - Log all active threads for debugging
     - Exit immediately without cleanup (may be stuck in DB transaction)
     """
+    import sys
     import threading as th
 
     active_threads = th.enumerate()
@@ -135,6 +136,18 @@ def _force_exit_on_timeout() -> None:
     logger.critical(
         f"[TIMEOUT] Loader exceeded {timeout_str} timeout. Exiting forcefully. Active threads: {thread_info}"
     )
+    # BUG FOUND 2026-09-01 (/goal session): this critical log line is the ONE diagnostic
+    # signal explaining why a loader process vanished with no clean exit - and it's the
+    # last thing logged before os._exit(1), which (unlike sys.exit()/normal interpreter
+    # shutdown) skips atexit handlers and does not guarantee buffered output reaches the
+    # OS. Under local_loader_scheduler.py's subprocess.Popen(stdout=PIPE, stderr=STDOUT)
+    # capture (no PYTHONUNBUFFERED set), a logging.StreamHandler.emit() call already
+    # flushes Python's own io buffer, but explicit stdout/stderr flushes here remove any
+    # doubt regardless of handler configuration - live-observed 2026-09-01: an AAII
+    # sentiment loader run's log cut off mid-fetch with zero further lines (not even this
+    # message), the exact silent-disappearance failure mode this flush closes off.
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(1)
 
 

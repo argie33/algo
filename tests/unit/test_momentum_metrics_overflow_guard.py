@@ -11,7 +11,7 @@ load_prices.py. Fixed by nulling out just the implausible period instead of lett
 whole row crash at insert time.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from loaders.load_risk_metrics_daily import RiskMetricsLoader
@@ -20,6 +20,17 @@ from loaders.load_risk_metrics_daily import RiskMetricsLoader
 def _make_loader() -> RiskMetricsLoader:
     loader = RiskMetricsLoader.__new__(RiskMetricsLoader)
     return loader
+
+
+def _patch_now(as_of: date):
+    """Pin `datetime.now(EASTERN_TZ)` to `as_of` so the 2026-09-01 stale-price gate (see
+    STALE_PRICE_TRADING_DAYS_THRESHOLD in loaders/load_risk_metrics_daily.py) doesn't fire
+    against these tests' synthetic historical `today` - this file is testing the overflow/
+    insufficient-history guards, not staleness."""
+    return patch(
+        "loaders.load_risk_metrics_daily.datetime",
+        **{"now.return_value": datetime(as_of.year, as_of.month, as_of.day, tzinfo=timezone.utc)},
+    )
 
 
 def test_implausible_momentum_return_nulled_not_crashed() -> None:
@@ -35,7 +46,7 @@ def test_implausible_momentum_return_nulled_not_crashed() -> None:
     rows = [(today - timedelta(days=i), 20.0, 20.0) for i in range(253)]
     rows[21] = (rows[21][0], 0.0001, 0.0001)  # 1m's price_old anchor: implausibly tiny
 
-    with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx:
+    with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx, _patch_now(today):
         cur = MagicMock()
         cur.fetchall.return_value = rows
         cur.fetchone.return_value = None  # technical_data_daily lookup: no row found
@@ -67,7 +78,7 @@ def test_overflow_nulled_period_records_reason_not_silent() -> None:
     rows = [(today - timedelta(days=i), 20.0, 20.0) for i in range(253)]
     rows[21] = (rows[21][0], 0.0001, 0.0001)  # 1m's price_old anchor: implausibly tiny
 
-    with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx:
+    with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx, _patch_now(today):
         cur = MagicMock()
         cur.fetchall.return_value = rows
         cur.fetchone.return_value = None
@@ -90,7 +101,7 @@ def test_insufficient_history_period_records_reason_not_silent() -> None:
     today = date(2026, 8, 18)
     rows = [(today - timedelta(days=i), 20.0, 20.0) for i in range(100)]  # only 100 days: no 6m/12m
 
-    with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx:
+    with patch("loaders.load_risk_metrics_daily.DatabaseContext") as mock_ctx, _patch_now(today):
         cur = MagicMock()
         cur.fetchall.return_value = rows
         cur.fetchone.return_value = None

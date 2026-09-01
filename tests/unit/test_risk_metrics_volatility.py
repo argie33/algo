@@ -6,12 +6,23 @@ sample-variance conventions). Population variance systematically understates vol
 """
 
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
 from loaders.load_risk_metrics_daily import RiskMetricsLoader
+
+
+def _patch_now(as_of: date):
+    """Pin `datetime.now(EASTERN_TZ)` to `as_of` so the 2026-09-01 stale-price gate (see
+    STALE_PRICE_TRADING_DAYS_THRESHOLD in loaders/load_risk_metrics_daily.py) doesn't fire
+    against these tests' synthetic historical `today` - this file is testing the sample-size/
+    zero-volatility guards, not staleness."""
+    return patch(
+        "loaders.load_risk_metrics_daily.datetime",
+        **{"now.return_value": datetime(as_of.year, as_of.month, as_of.day, tzinfo=timezone.utc)},
+    )
 
 
 class TestCalculateVolatilityUsesSampleVariance:
@@ -87,7 +98,10 @@ class TestVolatility252dRequiresMeaningfulSample:
         spy_rows = self._rows(10, today)
 
         loader = RiskMetricsLoader()
-        with patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)):
+        with (
+            patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)),
+            _patch_now(today),
+        ):
             result = loader._compute_stability_row("NEWIPO")
 
         assert result["volatility_252d"] is None
@@ -99,7 +113,10 @@ class TestVolatility252dRequiresMeaningfulSample:
         spy_rows = self._rows(100, today)
 
         loader = RiskMetricsLoader()
-        with patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)):
+        with (
+            patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)),
+            _patch_now(today),
+        ):
             result = loader._compute_stability_row("ESTABLISHED")
 
         assert result["volatility_252d"] is not None
@@ -122,7 +139,10 @@ class TestZeroVolatilityIsPreservedNotDiscarded:
         spy_rows = self._flat_rows(100, today, price=400.0)
 
         loader = RiskMetricsLoader()
-        with patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)):
+        with (
+            patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)),
+            _patch_now(today),
+        ):
             result = loader._compute_stability_row("FLATLINE")
 
         assert result["volatility_30d"] == 0.0
