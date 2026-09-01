@@ -440,11 +440,21 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Not in drawdown halt"}
 
         halt_date = halt_row[0]
-        days_elapsed = (
-            (current_date - halt_date.date()).days
-            if isinstance(halt_date, datetime)
-            else (current_date - halt_date).days
-        )
+        halt_date_only = halt_date.date() if isinstance(halt_date, datetime) else halt_date
+        # BUG FOUND 2026-09-01 (/goal session, risk-mgmt fringe-case sweep): raw calendar-day
+        # subtraction, not trading-day-aware, unlike every other date-sensitive check in this
+        # same file (see the MarketCalendar.is_trading_day calls elsewhere here) and the
+        # repo-wide load-bearing rule ("Date math via MarketCalendar only"). For a SAFETY
+        # recovery window this matters in the dangerous direction: calendar days pass FASTER
+        # than trading days across a weekend/holiday, so a halt on a Thursday would count 5
+        # calendar days elapsed by the following Tuesday (a real trading day span of only 3
+        # sessions) - re-engaging the circuit breaker up to 2 sessions earlier than the
+        # `re_engage_min_days` config value was actually meant to require. Switched to
+        # MarketCalendar.trading_days_elapsed, matching this file's own convention elsewhere
+        # and exit_engine.py's identical days_held calculation.
+        from algo.infrastructure import MarketCalendar
+
+        days_elapsed = MarketCalendar.trading_days_elapsed(halt_date_only, current_date)
 
         recovery_val = self._get_required_config("re_engage_recovery_pct", "in re-engagement recovery check")
         min_days_val = self._get_required_config("re_engage_min_days", "in re-engagement timing check")
