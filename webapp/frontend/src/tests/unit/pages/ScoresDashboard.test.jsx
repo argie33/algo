@@ -49,6 +49,7 @@ const mockStocks = [
     price: 175.5,
     change_percent: 1.2,
     sector: "Technology",
+    market_cap: 3000000000000,
   },
   {
     symbol: "MSFT",
@@ -62,8 +63,28 @@ const mockStocks = [
     price: 420.75,
     change_percent: 2.1,
     sector: "Technology",
+    market_cap: 3100000000000,
   },
 ];
+
+// Regression fixture (2026-09-01): a nano-cap that should be excluded once a Min Market Cap
+// filter is applied, same shape as the live JCSE-style ($2-3M cap) top-of-Value entries that
+// prompted wiring this filter into the page (backend minMarketCap param existed but no UI ever
+// called it - see lambda/api/routes/scores.py).
+const nanoStock = {
+  symbol: "NANO",
+  company_name: "Nano Cap Co.",
+  composite_score: 95.0,
+  quality_score: 95.0,
+  momentum_score: 95.0,
+  value_score: 99.0,
+  growth_score: 95.0,
+  risk_score: 95.0,
+  price: 1.5,
+  change_percent: 0.1,
+  sector: "Technology",
+  market_cap: 2500000,
+};
 
 vi.mock("../../../services/api", () => {
   const mockApi = {
@@ -262,6 +283,25 @@ describe("ScoresDashboard Page", () => {
       // this would render. "Quality" also matches a sort-select option, so scope
       // to the accordion's own span label.
       expect(screen.getAllByText(/Quality/i).length).toBeGreaterThan(1);
+    });
+  });
+
+  it("filters out nano-caps when a Min Market Cap floor is selected", async () => {
+    const mockApi = await import("../../../services/api");
+    mockApi.api.get.mockResolvedValue({ data: { items: [...mockStocks, nanoStock] } });
+
+    renderScoresDashboard();
+    await waitFor(() => {
+      expect(screen.getAllByText("NANO").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.change(screen.getByTitle(/thinly-traded micro\/nano-caps/i), {
+      target: { value: "50000000" },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryAllByText("NANO").length).toBe(0);
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     });
   });
 

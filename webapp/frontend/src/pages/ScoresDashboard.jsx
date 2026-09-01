@@ -145,6 +145,15 @@ function ScoresDashboardPage() {
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
   const [minScore, setMinScore] = useState(0);
+  // Investability screen (2026-09-01): the backend's `minMarketCap` API param
+  // (lambda/api/routes/scores.py) was added specifically because raw factor scores have no
+  // liquidity/size floor - a nano-cap with $2-3M market cap can top Value/Composite purely on
+  // scoring mechanics while being effectively untradeable at real size. That param was never
+  // actually wired into this page, so the exact "top of list" problem it was built to solve
+  // kept recurring here regardless. Filtered client-side (market_cap is already in every row
+  // from value_metrics, same as minScore above) rather than round-tripping the API, since this
+  // page already fetches the full universe in one call.
+  const [minMarketCap, setMinMarketCap] = useState(0);
   const [tab, setTab] = useState("rankings");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -184,7 +193,7 @@ function ScoresDashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, sector, sortBy, sortOrder, minScore]);
+  }, [search, sector, sortBy, sortOrder, minScore, minMarketCap]);
 
   const sectors = useMemo(() => {
     if (!items || items.length === 0) return [];
@@ -203,6 +212,10 @@ function ScoresDashboardPage() {
         const v = s[sortBy];
         if (v == null || Number(v) < minScore) return false;
       }
+      if (minMarketCap > 0) {
+        const mc = Number(s.market_cap);
+        if (!mc || mc < minMarketCap) return false;
+      }
       return true;
     });
     arr.sort((a, b) => {
@@ -216,7 +229,7 @@ function ScoresDashboardPage() {
         : Number(av) - Number(bv);
     });
     return arr;
-  }, [items, search, sector, sortBy, sortOrder, minScore]);
+  }, [items, search, sector, sortBy, sortOrder, minScore, minMarketCap]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageStart = (page - 1) * pageSize;
@@ -334,6 +347,7 @@ function ScoresDashboardPage() {
     setSortBy("composite_score");
     setSortOrder("desc");
     setMinScore(0);
+    setMinMarketCap(0);
   };
 
   const detailStock = selectedSymbol
@@ -459,6 +473,18 @@ function ScoresDashboardPage() {
               <option value="70">≥ 70</option>
               <option value="80">≥ 80</option>
               <option value="90">≥ 90</option>
+            </select>
+            <select
+              className="select"
+              value={minMarketCap}
+              onChange={(e) => setMinMarketCap(Number(e.target.value))}
+              title="Filter out thinly-traded micro/nano-caps that can top a factor score on scoring mechanics alone without being realistically tradeable"
+            >
+              <option value="0">Min market cap: any</option>
+              <option value="50000000">≥ $50M</option>
+              <option value="300000000">≥ $300M</option>
+              <option value="2000000000">≥ $2B</option>
+              <option value="10000000000">≥ $10B</option>
             </select>
             <button className="btn btn-ghost btn-sm" onClick={clear}>
               Clear
