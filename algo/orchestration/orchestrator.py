@@ -719,23 +719,10 @@ class Orchestrator:
                         f"{', '.join(valid_levels.keys())}"
                     )
 
-                # READ UNCOMMITTED is too weak but PostgreSQL doesn't actually support it
-                # (it silently promotes to READ COMMITTED). However, if someone manually
-                # sets a session-level isolation to something we don't recognize, catch it.
-                if isolation not in valid_levels:
-                    logger.critical(
-                        f"[DB ISOLATION CRITICAL] Insufficient isolation level: '{isolation}'. "
-                        f"Trading system requires at least 'read committed' (default). "
-                        f"Current: {isolation}. "
-                        f"This breaks FOR UPDATE locks used to prevent race conditions."
-                    )
-                    raise RuntimeError(
-                        f"[STARTUP] Database isolation level insufficient for safe trading. "
-                        f"Detected: '{isolation}'. Required: 'read committed' or stricter. "
-                        f"This prevents concurrent entry/exit corruption. "
-                        f"Set 'default_transaction_isolation = read committed' in PostgreSQL config."
-                    )
-
+                # READ UNCOMMITTED is too weak but PostgreSQL doesn't actually support it as a
+                # real value (it silently promotes to READ COMMITTED) - the `isolation not in
+                # valid_levels` check above already catches any unrecognized session-level
+                # setting, so every value reaching this point is >= read committed.
                 logger.info(
                     f"[OK] Database transaction isolation verified: '{isolation}' (sufficient for FOR UPDATE row locks)"
                 )
