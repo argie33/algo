@@ -56,15 +56,15 @@ class TestRiskNegativeBetaNotClipped:
         """diff is capped at 2.0 before the score formula, so very negative beta still
         floors cleanly at beta_score=0 rather than going out of the 0-100 range.
 
-        beta_score=0 at this extreme: (83.3333*0.45 + 0*0.15) / 0.60 = 62.5 - the vol
-        filler's own contribution, not a bare 0.0 (which the pre-floor version of this test
-        pinned when beta was the only input). Beta's weight is 15% (was 20% before the
-        2026-09-01 Liquidity reweight - see _score_risk's docstring)."""
+        volatility_60d=1.10 -> v60_score=0.0 too (see _vol_curve_score's >0.60 branch:
+        max(0, 10 - (1.10-0.60)*20) = 0), so the blended score is exactly 0.0 regardless of
+        the 2026-09-01 Liquidity reweight's new beta/vol weights (0*0.45 + 0*0.15)/0.60 = 0.0
+        - both components genuinely agree at the floor, not just beta alone."""
         loader = StockScoresLoader()
 
         score = loader._score_risk({"beta": -50.0, "volatility_60d": 1.10}, "GARBAGE")
 
-        assert score == pytest.approx(62.5, abs=1e-3)
+        assert score == pytest.approx(0.0)
 
     def test_positive_beta_symmetric_around_target_unaffected(self):
         """Sanity check the fix didn't change behavior for the common positive-beta case.
@@ -77,8 +77,8 @@ class TestRiskNegativeBetaNotClipped:
         pre-floor version of this test pinned (100.0 > 50.0)."""
         loader = StockScoresLoader()
 
-        at_target = loader._score_risk({"beta": 1.0, "volatility_60d": 0.0}, "TARGET")
-        high_beta = loader._score_risk({"beta": 2.0, "volatility_60d": 0.30}, "HIGH")
+        at_target = loader._score_risk({"beta": 1.0, "volatility_60d": 0.20}, "TARGET")
+        high_beta = loader._score_risk({"beta": 2.0, "volatility_60d": 0.20}, "HIGH")
 
         assert at_target == pytest.approx(87.5, abs=1e-3)
         assert high_beta == pytest.approx(75.0, abs=1e-3)
@@ -104,7 +104,7 @@ class TestRiskMinWeightAvailable:
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
     def test_beta_alone_is_below_floor_returns_thin_sample_marker(self):
-        # beta is 0.20 weight alone, still under the 0.40 floor.
+        # beta is 0.15 weight alone (was 0.20 pre-Liquidity-reweight), still under the 0.40 floor.
         loader = StockScoresLoader()
         result = loader._score_risk({"beta": 1.0}, "TEST")
         assert isinstance(result, dict)
@@ -118,16 +118,20 @@ class TestRiskMinWeightAvailable:
         assert isinstance(result, float)
 
     def test_beta_plus_max_drawdown_together_clear_floor(self):
-        # 0.20 + 0.15 = 0.35, still just under 0.40 - must NOT clear the floor.
+        # 0.15 + 0.10 = 0.25 (was 0.20 + 0.15 = 0.35 pre-Liquidity-reweight), still under
+        # 0.40 - must NOT clear the floor.
         loader = StockScoresLoader()
         result = loader._score_risk({"beta": 1.0, "max_drawdown_1y": -10.0}, "TEST")
         assert isinstance(result, dict)
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
     def test_volatility_252d_plus_beta_exactly_at_floor_returns_real_score(self):
-        # 0.20 (volatility_252d) + 0.20 (beta) = 0.40, exactly at the floor - must clear it.
+        # 0.15 (volatility_252d) + 0.15 (beta) + 0.10 (max_drawdown_1y) = 0.40, exactly at
+        # the floor - must clear it. (Was volatility_252d 0.20 + beta 0.20 alone before the
+        # 2026-09-01 Liquidity reweight shrank both to 0.15 each; a third input is now needed
+        # to reach the same 0.40 floor.)
         loader = StockScoresLoader()
-        result = loader._score_risk({"volatility_252d": 0.10, "beta": 1.0}, "TEST")
+        result = loader._score_risk({"volatility_252d": 0.10, "beta": 1.0, "max_drawdown_1y": -0.05}, "TEST")
         assert isinstance(result, float)
 
     def test_zero_fields_available_returns_no_scores_marker_not_thin_sample(self):

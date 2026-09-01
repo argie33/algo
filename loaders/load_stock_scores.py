@@ -3200,10 +3200,12 @@ class StockScoresLoader(OptimalLoader):
         - Type conversion errors → RuntimeError (via _safe_float)
         - Negative volatility → treated as 0 (impossible case, but defensive)
 
-        MINIMUM DATA REQUIREMENT: available weight (volatility_60d 0.45 + volatility_252d 0.20 +
-        beta 0.20 + max_drawdown_1y 0.15) must reach RISK_MIN_WEIGHT_AVAILABLE (0.40) - see that
-        constant's own docstring for why a single thin field (e.g. max_drawdown_1y alone) is no
-        longer enough. If all stability metrics are None, returns data_unavailable marker.
+        MINIMUM DATA REQUIREMENT: available weight (volatility_60d 0.45 + volatility_252d 0.15 +
+        beta 0.15 + max_drawdown_1y 0.10 + avg_dollar_volume_20d/Liquidity 0.15, current as of
+        the 2026-09-01 Liquidity reweight - see that field's own docstring below) must reach
+        RISK_MIN_WEIGHT_AVAILABLE (0.40) - see that constant's own docstring for why a single
+        thin field (e.g. max_drawdown_1y alone) is no longer enough. If all stability metrics
+        are None, returns data_unavailable marker.
         Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable"):
