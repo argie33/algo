@@ -254,6 +254,30 @@ def run(  # noqa: C901
             if "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
                 # Broker authentication/availability error during market hours = critical failure
                 # Only gracefully skip on weekends/market-closed, otherwise fail-fast
+                #
+                # FIX 2026-08-31 (/goal pre-real-money audit): the comment above already
+                # specified this weekday/weekend distinction, but the code below it never
+                # actually implemented it - every broker-unavailable error was treated as a
+                # market-hours critical failure regardless of whether run_date was even a
+                # trading day. A broker maintenance window or connectivity blip on a genuine
+                # weekend/holiday (when there's no real reconciliation need - markets are
+                # closed) was indistinguishable from the same error on a live trading day,
+                # both surfacing identically as status="error"/halted. Uses MarketCalendar
+                # (the established date-authority for this codebase, not a raw weekday
+                # check, so real market holidays are handled too) against run_date - the
+                # orchestrator's own date, not system "today" - matching the deterministic-
+                # date convention every other phase in this codebase follows.
+                from algo.infrastructure import MarketCalendar
+
+                if not MarketCalendar.is_trading_day(run_date):
+                    skip_msg = (
+                        f"Broker unavailable on non-trading day {run_date} ({error_msg[:300]}). "
+                        f"No reconciliation needed - market is closed. Not treated as a failure."
+                    )
+                    logger.warning(f"[PHASE 4] {skip_msg}")
+                    log_phase_result_fn(4, "reconciliation", "degraded", skip_msg)
+                    return PhaseResult(4, "reconciliation", "degraded", result, False, None)
+
                 logger.error(f"[PHASE 4] CRITICAL: Broker authentication/availability error: {error_msg[:120]}")
                 # CRITICAL FIX: was "alert", a status string neither the dashboard's phase
                 # panel (dashboard/panels/health.py ERROR_STATES=("error","failed")) nor
@@ -269,6 +293,13 @@ def run(  # noqa: C901
                     "error",
                     f"Broker unavailable ({error_msg[:500]}). Positions cannot be reconciled. Check Alpaca API status.",
                 )
+                # FIX 2026-08-31 (/goal pre-real-money audit): matches the same-session fix
+                # to the ValueError/generic-Exception branches below (halted=True instead of
+                # False) - see those branches' own comments for the full reasoning. This is
+                # the market-hours case of the SAME "critical failure" this comment block
+                # has always claimed; the non-trading-day case above already returns
+                # separately with the correct degraded/non-halted status.
+                return PhaseResult(4, "reconciliation", "error", result, True, error_msg)
             else:
                 # CRITICAL: Always use explicit error message, don't default to generic
                 if not error_msg:
