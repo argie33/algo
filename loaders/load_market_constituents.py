@@ -448,6 +448,36 @@ class MarketConstituentsLoader(OptimalLoader):
                 (stale,),
             )
 
+        # BUG FOUND 2026-09-01 (/goal session, same class as the sibling
+        # _deactivate_symbols_delisted_from_exchange_feed fix below): only ever a WARNING
+        # log line, no notify() anywhere. A tightened/broadened EXCLUSION_PATTERNS/
+        # CORP_SPONSOR_PATTERN regex (this session alone broadened CORP_SPONSOR_PATTERN to
+        # add "merger"/"limited"/"ltd" - see spac_trust_preferred_universe_leaks_fixed_20260831
+        # in memory) can reach into the already-active universe and flip real symbols
+        # inactive on the very next run this reconciliation executes - the false-positive
+        # risk this docstring's own test suite spends most of its lines guarding against
+        # (AGNC/Saratoga/First Majestic Silver near-misses). An operator watching only
+        # alerts deserves the same visibility here as the feed-absence sibling gets.
+        try:
+            from algo.reporting import notify
+
+            notify(
+                severity="warning",
+                title="Symbols Deactivated by Exclusion Pattern",
+                message=(
+                    f"{len(stale)} already-active symbol(s) deactivated (active=false) after "
+                    f"newly matching should_exclude() under current naming patterns: "
+                    f"{', '.join(stale[:10])}"
+                    + (f" ...and {len(stale) - 10} more" if len(stale) > 10 else "")
+                    + ". Verify each is a genuine non-equity instrument (SPAC/preferred/trust/"
+                    "etc.) - a recently-broadened exclusion pattern could catch a real "
+                    "operating company."
+                ),
+                details={"symbols": stale},
+            )
+        except (ValueError, TypeError, RuntimeError) as notify_err:
+            logger.error(f"[MARKET_CONSTITUENTS] Failed to send excluded-by-pattern alert: {notify_err}")
+
     def _reactivate_no_longer_excluded_symbols(self) -> None:
         """Reverse of `_deactivate_stale_excluded_symbols` - re-apply should_exclude() to
         already-`active=false, data_unavailable_reason='excluded_by_naming_pattern'` rows

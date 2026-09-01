@@ -48,7 +48,10 @@ class TestAcquisitionCorpSponsorPattern:
 class TestDeactivateStaleExcludedSymbols:
     def test_active_row_matching_current_pattern_gets_deactivated(self):
         loader = _make_loader()
-        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
             mock_read_cur = MagicMock()
             mock_read_cur.fetchall.return_value = [
                 ("AACPR", "Apogee Acquisition Corp - Rights"),
@@ -65,9 +68,22 @@ class TestDeactivateStaleExcludedSymbols:
             assert "active = false" in sql
             assert params == (["AACPR"],)
 
+        # BUG FOUND 2026-09-01 (/goal session): a tightened/broadened exclusion pattern
+        # can reach into the already-active universe and flip a real symbol inactive -
+        # must alert so an operator can catch a false positive, same as the sibling
+        # feed-absence deactivation path.
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["severity"] == "warning"
+        assert "AACPR" in kwargs["message"]
+        assert kwargs["details"]["symbols"] == ["AACPR"]
+
     def test_no_stale_matches_skips_write(self):
         loader = _make_loader()
-        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
             mock_read_cur = MagicMock()
             mock_read_cur.fetchall.return_value = [("AAPL", "Apple Inc. - Common Stock")]
             mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
@@ -76,6 +92,28 @@ class TestDeactivateStaleExcludedSymbols:
 
             # Only the read call happened - DatabaseContext("write") never entered.
             assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+        mock_notify.assert_not_called()
+
+    def test_notify_failure_does_not_crash_the_loader(self):
+        """A notification-delivery failure must be swallowed (logged), not propagate and
+        abort the market-constituents run - alerting is best-effort here, not a
+        governance gate."""
+        loader = _make_loader()
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify", side_effect=RuntimeError("smtp down")),
+        ):
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [
+                ("AACPR", "Apogee Acquisition Corp - Rights"),
+                ("AAPL", "Apple Inc. - Common Stock"),
+            ]
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur]
+
+            # Must not raise despite notify() failing internally.
+            loader._deactivate_stale_excluded_symbols()
 
 
 class TestReactivateNoLongerExcludedSymbols:
