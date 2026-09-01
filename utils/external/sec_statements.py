@@ -1862,10 +1862,33 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 # non-primary one (DEF 14A, 8-K, S-1, etc.) regardless of end/filed date -
                 # see the 2026-08-17 DEF 14A comment above. Only when ranks tie do we fall
                 # through to the existing instant-vs-duration end-date/filed-date tiebreak.
+                is_instant = not start_date
                 if col not in row:
                     should_replace = True
                 elif entry_rank != row_rank:
                     should_replace = entry_rank > row_rank
+                elif is_instant != bool(row.get(f"_is_instant_{col}")):
+                    # FIX 2026-08-31 (/goal pre-real-money audit, live-verified LADR): a
+                    # genuine annual duration fact (has "start", already passed the
+                    # span_days>=330 annual-shape filter above) must always outrank an
+                    # instant (point-in-time, no "start") fact colliding into the same
+                    # (fiscal_year, "FY") bucket for the same concept - an instant fact
+                    # appearing at all under a duration-shaped concept's name is itself
+                    # anomalous (a real annual total is never point-in-time). Live-confirmed
+                    # via LADR (Ladder Capital, mortgage REIT) FY2019: OperatingLeaseLeaseIncome
+                    # has both the real annual total (start=2019-01-01/end=2019-12-31,
+                    # val=$106,366,000) AND a bare instant fact (no start, end=2019-05-01,
+                    # val=$3,900,000 - almost certainly a future-minimum-lease-payments
+                    # schedule row, not a period total) from the SAME accn/filed date, so
+                    # neither the rank gate above nor the old filed-date tiebreak below could
+                    # tell them apart - whichever was iterated first in SEC's JSON silently
+                    # won, and that was the wrong one. Safe for balance-sheet concepts too:
+                    # they structurally never emit a genuine annual-duration-shaped fact
+                    # under their own concept name (Assets/Liabilities/etc. are inherently
+                    # point-in-time - no legitimate "start" date ever exists for them), so
+                    # this branch is a no-op there and only fires on a real conflict like
+                    # LADR's.
+                    should_replace = bool(row.get(f"_is_instant_{col}"))
                 else:
                     # FIXED 2026-08-18 (live-verified RIGL): instant/point-in-time balance-
                     # sheet facts (no "start" - see this loop's is_instant-equivalent comment
@@ -1887,7 +1910,6 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     # recently filed" legitimately means "most likely restated/corrected".
                     # Quarterly duration facts get their own span tiebreak below - see the
                     # 2026-08-29 comment at that branch.
-                    is_instant = not start_date
                     if is_instant:
                         should_replace = row_end is None or end_date > row_end
                         if not should_replace and end_date == row_end:
@@ -1967,6 +1989,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     row[f"_end_{col}"] = end_date
                     row[f"_rank_{col}"] = entry_rank
                     row[f"_frame_{col}"] = bool(entry.get("frame"))
+                    row[f"_is_instant_{col}"] = is_instant
                     if period == "quarterly" and start_date and end_date:
                         try:
                             row[f"_span_{col}"] = (
@@ -1992,6 +2015,7 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 and not k.startswith("_rank_")
                 and not k.startswith("_frame_")
                 and not k.startswith("_span_")
+                and not k.startswith("_is_instant_")
                 and k not in ("period_end", "filed", "form")
             }
         )
