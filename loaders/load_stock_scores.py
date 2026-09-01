@@ -438,6 +438,36 @@ GROWTH_MIN_FIELDS_AVAILABLE = 5
 # so adding an artificial floor there would only cost real coverage without fixing anything real.
 RISK_MIN_WEIGHT_AVAILABLE = 0.40
 
+# NEAR-ZERO LIQUIDITY PRICE-STAT RELIABILITY GATE (added 2026-09-01, same goal session as the
+# Liquidity input above - found while checking whether that morning's fix actually closed the
+# "untradeable name tops the safest ranking" failure mode). Live-checked: QNBC (the symbol that
+# motivated Liquidity's addition) only dropped from rank ~1-5 to rank #33/5045 in composite_score
+# - barely moved, and still comfortably a top-100 name. Root cause is upstream of Liquidity's own
+# 15% weight: volatility_60d/volatility_252d/beta are computed from price_daily close-to-close
+# returns, and a stock that trades near-zero volume has a frozen/near-frozen price series, which
+# produces MECHANICALLY SUPPRESSED (not genuinely low) volatility and beta - the input isn't a
+# real "this stock is calm" signal, it's a measurement-validity failure. Confirmed both the
+# mechanism and its scale directly: EFTY/UCFI/PC/LAWR/QMMM/NUTR/MCTA/MAMK/MAGH all show
+# volatility_60d EXACTLY 0.0000 with avg_dollar_volume_20d under $1,000 (EFTY's raw price_daily
+# history: flat $15.02, volume=0, every single day of the lookback - not a real "no risk"
+# reading). Universe-wide: corr(ln(avg_dollar_volume_20d), volatility_60d) = -0.158 across 4,980
+# symbols with a scored volatility_60d - systemic, not a handful of coincidences, though this
+# gate only targets the unambiguous near-zero-trading end of that gradient (9 symbols currently
+# hit volatility_60d==0.0 AND avg_dollar_volume_20d<$1,000; 14 total under $1,000). Deliberately
+# NOT set at algo_config's own $500K min_adv_dollars tradability floor - that threshold covers
+# genuinely-trading-but-thin names (e.g. QNBC at $454,701/day, vol_60d=0.0825 - a real, if
+# somewhat suppressed, reading) which is Liquidity's own policy question from the note above, not
+# a measurement-validity one; conflating the two would re-litigate that already-made call. $2,000
+# is comfortably below the smallest ADV in this file's own "genuinely thin but real" universe
+# sweep and comfortably above the $0-1,000 frozen-price cluster actually observed. Same
+# GOVERNANCE "unavailable metric -> skip its weight, don't redistribute" mechanism this whole
+# file already uses elsewhere (RISK_MIN_WEIGHT_AVAILABLE, GROWTH_MIN_FIELDS_AVAILABLE) - a
+# symbol this thin still gets scored on whatever Risk inputs remain reliable (Liquidity,
+# max_drawdown_1y), continuous not excluded, consistent with this morning's own "we dont want to
+# exclude" directive; if too little weight remains it correctly falls through to Risk's existing
+# insufficient_risk_inputs_thin_sample marker rather than a fabricated score.
+NEAR_ZERO_LIQUIDITY_THRESHOLD = 2000.0
+
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
 # value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
 # via algo/research/cross_pillar_interaction_sweep_20260828.py (complete-case regime, current
@@ -3187,6 +3217,13 @@ class StockScoresLoader(OptimalLoader):
         price_daily where the raw OHLCV is), a bigger scope than a stock_scores.py-only
         change - flagged as the clearest remaining structural gap after Size, not rushed in.
 
+        NEAR-ZERO-LIQUIDITY PRICE-STAT GATE, ADDED 2026-09-01 (see NEAR_ZERO_LIQUIDITY_THRESHOLD's
+        own docstring): volatility_60d/volatility_252d/beta are skipped (weight not counted) when
+        avg_dollar_volume_20d is known and below $2,000/day - below that, the price series is
+        frozen or near-frozen and these read as mechanically-suppressed noise (e.g. exactly 0.0
+        volatility), not a genuine low-risk signal. A measurement-validity fix, distinct from and
+        in addition to Liquidity's own 15%-weighted policy input above.
+
         RETURN TYPES (STRICT):
         - available weight >= RISK_MIN_WEIGHT_AVAILABLE (0.40) → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
@@ -3222,12 +3259,20 @@ class StockScoresLoader(OptimalLoader):
         # fetched via Quality's own debt_to_assets read (quality_inputs on the scores API) -
         # not merged into or scored by this pillar.
 
-        if metrics.get("volatility_60d") is not None:
+        # NEAR_ZERO_LIQUIDITY_THRESHOLD gate (see that constant's own docstring): a near-zero
+        # or frozen-price series makes volatility_60d/volatility_252d/beta measurement noise,
+        # not a real signal - skip their weight here rather than trust a fabricated "calm"
+        # reading. Only gates when avg_dollar_volume_20d is actually known; missing liquidity
+        # data doesn't imply thin trading, so it leaves these inputs untouched.
+        adv20 = metrics.get("avg_dollar_volume_20d")
+        price_stats_unreliable = adv20 is not None and 0 <= adv20 < NEAR_ZERO_LIQUIDITY_THRESHOLD
+
+        if not price_stats_unreliable and metrics.get("volatility_60d") is not None:
             v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
             weighted_sum += v60_score * 0.45
             total_weight += 0.45
 
-        if metrics.get("volatility_252d") is not None:
+        if not price_stats_unreliable and metrics.get("volatility_252d") is not None:
             v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
             weighted_sum += v252_score * 0.15
             total_weight += 0.15
@@ -3250,7 +3295,7 @@ class StockScoresLoader(OptimalLoader):
         # fix. Removing the clip lets |beta-1.0| grow past 2.0 for these names, which the
         # existing `min(diff, 2.0)` saturation already correctly floors to beta_score=0 - no
         # separate guard needed.
-        if metrics.get("beta") is not None:
+        if not price_stats_unreliable and metrics.get("beta") is not None:
             beta = metrics["beta"]
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))

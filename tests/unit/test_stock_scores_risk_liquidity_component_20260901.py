@@ -77,13 +77,31 @@ class TestLiquidityScoredIntoRiskScore:
         assert deep > thin
 
     def test_zero_dollar_volume_guarded_not_scored(self):
-        """avg_dollar_volume_20d=0 (e.g. a symbol with a zero-volume trading halt in its
-        recent window) must not reach log10(0) - guarded by the `> 0` check, same as any
-        other Risk field's None check, not a crash."""
+        """avg_dollar_volume_20d=0 must not reach log10(0) - guarded by the `> 0` check, same
+        as any other Risk field's None check, not a crash.
+
+        UPDATED 2026-09-01 (same goal session, later pass - see NEAR_ZERO_LIQUIDITY_THRESHOLD's
+        own docstring): a KNOWN avg_dollar_volume_20d of 0 no longer scores identically to a
+        MISSING one. Live-confirmed this session: a stock with genuinely zero trading over its
+        avg_dollar_volume_20d window cannot also have a trustworthy volatility_60d=0.20 "real"
+        reading - the two are computed from the same price series, and live-swept symbols with
+        near-zero liquidity show near-zero (often exactly 0.0) volatility too, not an unrelated
+        real value (e.g. EFTY: flat $15.02, volume=0 for its entire lookback, volatility_60d
+        read as exactly 0.0 - a measurement-validity failure the old code scored as "extremely
+        safe"). This test's old `_VOL_FILLER` combination (0 liquidity + a real-looking 0.20
+        vol) was a synthetic case that doesn't occur in production; the gate correctly treats
+        a KNOWN zero as evidence price stats are unreliable, not just evidence Liquidity itself
+        can't be scored - so it now withholds the whole risk_score (falls through to the
+        existing no_risk_scores_computed marker) rather than fabricating 83.33 from a vol
+        reading that a genuine zero-liquidity window couldn't have actually produced. A MISSING
+        (None) avg_dollar_volume_20d is unaffected - unknown liquidity doesn't imply thin
+        trading, so it still scores off whatever other inputs are present."""
         loader = StockScoresLoader()
         with_zero = loader._score_risk({"avg_dollar_volume_20d": 0, **_VOL_FILLER}, "ZERO_VOL")
         without_field = loader._score_risk(dict(_VOL_FILLER), "NO_FIELD")
-        assert with_zero == without_field
+        assert isinstance(with_zero, dict)
+        assert with_zero.get("data_unavailable") is True
+        assert without_field == pytest.approx(83.33, abs=0.1)
 
     def test_missing_liquidity_field_falls_back_to_other_inputs(self):
         """A symbol with no avg_dollar_volume_20d (e.g. cache miss) must still score off
@@ -92,3 +110,43 @@ class TestLiquidityScoredIntoRiskScore:
         loader = StockScoresLoader()
         result = loader._score_risk({"volatility_60d": 0.20, "beta": 1.0}, "NO_LIQ")
         assert isinstance(result, float)
+
+
+class TestNearZeroLiquidityPriceStatGate:
+    """NEAR_ZERO_LIQUIDITY_THRESHOLD (added 2026-09-01, later same session): live-verified
+    that QNBC - the exact symbol that motivated the Liquidity component above - barely moved
+    (composite rank ~1-5 -> #33/5045) from Liquidity's 15% weight alone, because
+    volatility_60d/beta computed from a near-frozen price series read as mechanically low
+    (not genuinely low) risk, and those two inputs alone are 60% of Risk's weight. This gate
+    treats volatility_60d/volatility_252d/beta as unreliable - not scored - when
+    avg_dollar_volume_20d is known and below $2,000/day (see the constant's own module-level
+    docstring for the live evidence: EFTY/UCFI/PC/etc. all show volatility_60d==0.0 exactly
+    with sub-$1,000 ADV and a literally frozen price_daily history)."""
+
+    def test_near_zero_liquidity_disqualifies_volatility_and_beta(self):
+        loader = StockScoresLoader()
+        result = loader._score_risk(
+            {"avg_dollar_volume_20d": 500, "volatility_60d": 0.0, "beta": 0.05, "max_drawdown_1y": -1.0}, "GHOST"
+        )
+        # max_drawdown_1y alone is 10% weight - below RISK_MIN_WEIGHT_AVAILABLE (0.40).
+        assert isinstance(result, dict)
+        assert result.get("data_unavailable") is True
+        assert result.get("reason") == "insufficient_risk_inputs_thin_sample"
+
+    def test_liquidity_just_above_threshold_is_not_gated(self):
+        """$2,000+ (e.g. QNBC's real $454,701/day) scores volatility/beta normally - this
+        gate targets only the unambiguous near-zero-trading end, not Liquidity's own 15%
+        weighted policy question (already handled by _score_risk's Liquidity component)."""
+        loader = StockScoresLoader()
+        result = loader._score_risk({"avg_dollar_volume_20d": 454_701, **_VOL_FILLER}, "QNBC_LIKE")
+        assert isinstance(result, float)
+        assert result > 0
+
+    def test_unknown_liquidity_does_not_gate(self):
+        """avg_dollar_volume_20d=None (cache miss, not a known-zero reading) must not imply
+        thin trading - scores off volatility/beta normally, same as
+        test_missing_liquidity_field_falls_back_to_other_inputs above."""
+        loader = StockScoresLoader()
+        result = loader._score_risk(dict(_VOL_FILLER), "UNKNOWN_LIQ")
+        assert isinstance(result, float)
+        assert result == pytest.approx(83.33, abs=0.1)
