@@ -207,8 +207,35 @@ class TestGrowthScoreWeightBadges:
         expected_weight = round(100 / len(GROWTH_SCORE_FIELDS)) / 100
         for jsx_key in self._PY_FIELD_TO_JSX_KEY.values():
             _assert_pct_matches(jsx_key, expected_weight)
-        assert 'label: "Revenue Growth (1Y' in _JSX_SOURCE
-        assert "inverted" not in schema_match.group(1).lower()
+
+    def test_growth_schema_has_no_unscored_rows(self):
+        """Guards the 2026-08-31 "if they not scored then dont track" directive - GROWTH_SCHEMA
+        must contain exactly GROWTH_SCORE_FIELDS' rows, no extra unscored/reference-only rows
+        (fcf_growth_yoy/eps_growth_stability/net_income_growth_yoy/eps_estimate_revision_90d_pct
+        were removed from display, not just unweighted - same "if we not scoring it we dont want
+        to display it" rule already applied to Value, see TestUnscoredValueFieldsNotDisplayed
+        above). Data itself is untouched - still computed/stored/API-served - this only guards
+        the display layer. Every other pillar's *_SCHEMA is already 100% scored; this keeps
+        Growth consistent with that, not a Growth-specific rule."""
+        schema_match = re.search(r"const GROWTH_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
+        assert schema_match, "expected GROWTH_SCHEMA to still exist"
+        schema_src = schema_match.group(1)
+        row_count = len(re.findall(r"key: [\"']", schema_src))
+        used_count = len(re.findall(r"used: true", schema_src))
+        assert row_count == used_count == len(GROWTH_SCORE_FIELDS), (
+            f"GROWTH_SCHEMA has {row_count} rows ({used_count} scored) but GROWTH_SCORE_FIELDS "
+            f"has {len(GROWTH_SCORE_FIELDS)} - every row must be scored, none unscored/tracked"
+        )
+        removed_keys = [
+            "fcf_growth_yoy",
+            "eps_growth_stability",
+            "net_income_growth_yoy",
+            "eps_estimate_revision_90d_pct",
+        ]
+        for key in removed_keys:
+            assert f'key: "{key}"' not in schema_src and f"key: '{key}'" not in schema_src, (
+                f"{key} should have no GROWTH_SCHEMA row at all (not scored, so not displayed)"
+            )
 
 
 class TestSizeScoreRemoved:

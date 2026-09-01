@@ -411,6 +411,30 @@ GROWTH_INPUT_IMPLAUSIBLE_PCT = 150.0
 # principle, not a new one invented here.
 GROWTH_MIN_FIELDS_AVAILABLE = 5
 
+# RISK_MIN_WEIGHT_AVAILABLE (added 2026-08-31, same /goal session - "dig in one more time" pass
+# after fixing the identical problem in Growth). _score_risk had the same missing-floor gap:
+# `if total_weight > 0: return weighted_sum / total_weight` accepted even a single available
+# component. Live-verified before fixing (not assumed from the code alone): APMC/FTRA/CAES/CCCT/
+# IPVV/MTNE and others each have ONLY max_drawdown_1y available (15% weight, the smallest of the
+# 4 Risk components - volatility_60d 45%/volatility_252d 20%/beta 20%/max_drawdown_1y 15%), and
+# each lands a risk_score of 97-99+ (near-perfect "safety") purely from that one field, with
+# volatility and beta - 85% of the pillar's real signal - completely absent. Checked APMC's real
+# price history directly (price_daily table) before assuming a bug: it genuinely is a flat-priced,
+# ~$9.9-10.0 SPAC-trust-style instrument with only 42 days on file, so its tiny max_drawdown_1y
+# value is REAL, not a scale-mismatch artifact - the bug isn't the drawdown number itself, it's
+# that one thin, low-weight field alone is enough to produce a near-max composite risk_score.
+# Universe-wide sweep confirmed this is live, not theoretical: 75/5101 scored symbols have <40%
+# of Risk's weight available, 17 of those score >=90. Same fix pattern as Growth
+# (GROWTH_MIN_FIELDS_AVAILABLE) and the same ~40% ratio as Quality's own established floor - 0.40
+# here since Risk's weights are fractional (sum to 1.0), not Growth's field-count-based floor,
+# since Risk is weighted (45/20/20/15) rather than equal-weighted.
+# Deliberately NOT applied to Value or Momentum: live-swept both the same way (61 and 58
+# thin-coverage symbols respectively) and found ZERO symbols scoring >=90 off <40% weight in
+# either - Value's cross-sectional percentile-rank correction and Momentum's "skip weak
+# momentum" None-handling already prevent the single-field-saturation failure mode structurally,
+# so adding an artificial floor there would only cost real coverage without fixing anything real.
+RISK_MIN_WEIGHT_AVAILABLE = 0.40
+
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
 # value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
 # via algo/research/cross_pillar_interaction_sweep_20260828.py (complete-case regime, current
@@ -3043,17 +3067,22 @@ class StockScoresLoader(OptimalLoader):
         change - flagged as the clearest remaining structural gap after Size, not rushed in.
 
         RETURN TYPES (STRICT):
-        - metrics available with ≥1 stability field → returns float (0-100)
+        - available weight >= RISK_MIN_WEIGHT_AVAILABLE (0.40) → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
         - metrics is None or missing → returns marker dict (never None)
+        - 0 < available weight < RISK_MIN_WEIGHT_AVAILABLE → returns marker dict with
+          reason="insufficient_risk_inputs_thin_sample" (added 2026-08-31 - see that constant's
+          own docstring, same thin-sample-extrapolation principle as Growth/Quality)
         - all risk fields None → returns marker dict with reason="no_risk_scores_computed"
 
         ERROR HANDLING:
         - Type conversion errors → RuntimeError (via _safe_float)
         - Negative volatility → treated as 0 (impossible case, but defensive)
 
-        MINIMUM DATA REQUIREMENT: At least one of volatility/beta/financial_stability metrics
-        must be non-NULL. If all stability metrics are None, returns data_unavailable marker.
+        MINIMUM DATA REQUIREMENT: available weight (volatility_60d 0.45 + volatility_252d 0.20 +
+        beta 0.20 + max_drawdown_1y 0.15) must reach RISK_MIN_WEIGHT_AVAILABLE (0.40) - see that
+        constant's own docstring for why a single thin field (e.g. max_drawdown_1y alone) is no
+        longer enough. If all stability metrics are None, returns data_unavailable marker.
         Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable"):
@@ -3116,8 +3145,19 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += dd_score * 0.15
             total_weight += 0.15
 
-        if total_weight > 0:
+        if total_weight >= RISK_MIN_WEIGHT_AVAILABLE:
             return weighted_sum / total_weight
+        if total_weight > 0:
+            logger.info(
+                f"[STOCK_SCORES] {symbol} risk_score withheld: only {total_weight:.2f}/1.00 weight "
+                f"available, below RISK_MIN_WEIGHT_AVAILABLE={RISK_MIN_WEIGHT_AVAILABLE}. See that "
+                f"constant's docstring - a thin-weight renormalization is not an honest partial score."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "insufficient_risk_inputs_thin_sample",
+            }
         logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for risk_score({symbol}) - no scoreable fields")
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_risk_scores_computed"}
 

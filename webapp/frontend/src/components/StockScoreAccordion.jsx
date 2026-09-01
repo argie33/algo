@@ -603,8 +603,12 @@ function InputRow({ row }) {
   );
 }
 
-// ─── factor inputs card — every remaining field is a real weighted score
-// input (20260816 second pass removed all unweighted reference-only fields) ─
+// ─── factor inputs card ─────────────────────────────────────────────────
+// CORRECTED 2026-08-31: the line above used to claim "every remaining field is a real
+// weighted score input (20260816 second pass removed all unweighted reference-only
+// fields)" - no longer true, and hasn't been since tracked/reference-only rows were
+// reintroduced for several pillars (e.g. Growth's net_income_growth_yoy). See
+// isMixedSchema/tracked below for how scored vs. reference-only rows are told apart now.
 // pillarWeight: this factor's own share of composite_score (PILLAR_COMPOSITE_WEIGHTS[key]),
 //   e.g. 0.20 for Quality - omitted for Positioning/Size, which are informational-only tabs
 //   with no composite_score contribution at all, so no "% of composite" badge is shown there.
@@ -1466,35 +1470,18 @@ const GROWTH_SCHEMA = [
     used: true,
     weight: "8%",
   },
-  {
-    // REMOVED FROM SCORING 2026-08-31 (loaders/load_stock_scores.py's GROWTH_SCORE_FIELDS
-    // docstring has the full rationale): not a named MSCI/Russell/S&P/IBD Growth-factor
-    // component, and its own era-split predictive sign flips (H1 t=-2.09, H2 t=+2.45,
-    // live-reproduced) rather than being merely weak. Still computed/displayed for reference.
-    key: "fcf_growth_yoy",
-    label: "FCF Growth (YoY)",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    // REMOVED FROM SCORING 2026-08-31 (same rationale doc as above): real, non-redundant
-    // signal, but it's MSCI's own Quality-index earnings-variability component, not a Growth
-    // descriptor in any major provider's methodology - doesn't clear the same canon bar the
-    // other 12 fields are held to. Still computed/displayed for reference.
-    key: "eps_growth_stability",
-    label: "EPS Growth Stability (variability, lower = more consistent)",
-    fmt: (v) => num(v, 2),
-  },
-  {
-    key: "net_income_growth_yoy",
-    label: "Net Income Growth (YoY)",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "eps_estimate_revision_90d_pct",
-    label: "EPS Estimate Revision (90D)",
-    fmt: (v) => pct(v, 2),
-  },
 ];
+// fcf_growth_yoy / eps_growth_stability / net_income_growth_yoy / eps_estimate_revision_90d_pct
+// REMOVED FROM DISPLAY 2026-08-31 (user directive: "if they not scored then dont track" - same
+// "if we not scoring it we dont want to display it" rule Value's PEG/margin_of_safety were
+// already held to, see TestUnscoredValueFieldsNotDisplayed below). All 4 stopped being scored
+// earlier the same session (see loaders/load_stock_scores.py's GROWTH_SCORE_FIELDS docstring for
+// the fcf_growth_yoy/eps_growth_stability removal rationale; net_income_growth_yoy/
+// eps_estimate_revision_90d_pct were already unscored before that). Every field stays fully
+// computed/persisted in growth_metrics for reference - this removes the DISPLAY row only, same
+// "computed-but-unscored, not deleted from the database" convention used everywhere else in this
+// file, just now applied consistently to Growth too (it was previously the one pillar tab that
+// still showed unscored rows inline - every other pillar's *_SCHEMA is already 100% scored).
 
 // POSITIONING RETIRED AS A SCORED PILLAR 2026-08-27 (evidence-driven - see
 // loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full trail): A/D rating showed no
