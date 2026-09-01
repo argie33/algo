@@ -439,3 +439,21 @@ class TestPluralAndSuffixBroadenedSponsorPattern:
         assert not should_exclude("Winchester Bancorp, Inc. - Common Stock")
         for symbol in ("HYNE", "NUTR", "WSBK"):
             assert symbol not in KNOWN_SPAC_MISCLASSIFICATIONS
+
+
+class TestAdsWarrantAbbreviationExcluded:
+    """GOVERNANCE 2026-09-01: PSNYW ("Polestar Automotive Holding UK Limited - Class C-1
+    ADS (ADW)") is Polestar's publicly traded ADS warrant, not common equity - the bare
+    `\\bwarrant(s)?\\b` pattern never matches because the word "warrant" is abbreviated to
+    "(ADW)". Live-confirmed via price action: PSNYW went from $0.2645 (2025-09-30) to $5.75
+    (2026-08-31), a ~21.7x move, while the underlying PSNY common ADS only traded $12.59
+    that same day - the leveraged-warrant amplification signature, not a plausible common-
+    equity return. This inflated a single-instrument leverage artifact into Momentum's
+    top-10 above real operating companies.
+    """
+
+    def test_psnyw_ads_warrant_excluded(self):
+        assert should_exclude("Polestar Automotive Holding UK Limited - Class C-1 ADS (ADW)")
+
+    def test_psny_common_ads_not_excluded(self):
+        assert not should_exclude("Polestar Automotive Holding UK Limited - Class A ADS")

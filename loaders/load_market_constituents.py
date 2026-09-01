@@ -164,6 +164,21 @@ EXCLUSION_PATTERNS = [
     # Shares", real common equity) doesn't contain the word "zones" at all, so it's
     # unaffected.
     r"\bzones\b",
+    # GOVERNANCE 2026-09-01 (goal: "top 10 per factor" review - Momentum's top ranks look
+    # wrong investigation): PSNYW ("Polestar Automotive Holding UK Limited - Class C-1 ADS
+    # (ADW)") is Polestar's publicly traded ADS WARRANT, not common equity - "(ADW)" is an
+    # abbreviated "ADS Warrant" notation the bare `\bwarrant(s)?\b` pattern above doesn't
+    # catch since the word "warrant" never appears spelled out. Live-confirmed via price
+    # action, not name alone: PSNYW went from $0.2645 (2025-09-30) to $5.75 (2026-08-31), a
+    # ~21.7x move, while the underlying PSNY common ADS only traded $12.59 that same day -
+    # the classic leveraged-warrant amplification signature (a warrant moves far more than
+    # its underlying for the same event), not a plausible common-equity return. This
+    # inflated a single-instrument leverage artifact into Momentum's top-10, ahead of real
+    # operating companies. Checked against the full live active-universe security_name feed:
+    # "(ADW)" matches PSNYW and zero other symbols today, so a narrow literal pattern is
+    # safe rather than a broader "ADW"/warrant-abbreviation guess that could false-positive
+    # on an unrelated ticker or name fragment.
+    r"\(adw\)",
     # GOVERNANCE 2026-08-31 (goal: factor-score review - "why does Risk's safest list look
     # wrong" investigation): trust-preferred securities named "<Company> Capital Trust N"
     # (e.g. Dillard's Capital Trust I / DDT) aren't common equity and don't say
