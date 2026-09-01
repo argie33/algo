@@ -26,6 +26,7 @@ Or directly:
 """
 
 import os
+import statistics
 import sys
 import time
 
@@ -2000,6 +2001,120 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     row[field] = None
                     self._record_explicit_null_rejection(row, field)
 
+    def _fill_derived_eps(self, transformed: list[dict[str, Any]]) -> None:
+        """Fill earnings_per_share when the filer never tagged EarningsPerShareBasic/Diluted
+        at all, using data this same row already carries. Mutates `transformed` in place.
+
+        ADDED 2026-09-01 (goal: data-loading gap investigation). Live-verified DB-wide: 7,397
+        annual_income_statement rows have revenue but NULL earnings_per_share; 77 of those
+        already carry a real diluted_eps (a different XBRL concept, EarningsPerShareDiluted,
+        mapped to its own column since the 2026-07-28 fix above but never used as a fallback
+        for earnings_per_share itself) and 4,434 have net_income plus a usable share count
+        that could derive one. Both recover real signal that growth_metrics/quality_metrics/
+        value_metrics currently discard outright (eps_growth_1y/3y/5y, EPS-based quality
+        inputs) purely because one specific EPS tag was never filed - the filer still reported
+        net income and share count, which is all EPS is defined as.
+
+        Order matters: called AFTER _reject_implausible_shares_outstanding (so the shares this
+        derives from have already survived both the absolute-floor and the company_info_sec
+        cross-check scale guards above) and BEFORE _reject_implausible_eps (so a still-bad
+        derived value gets the same implied-shares/absolute-magnitude rejection a directly-
+        reported one would). Both source and derived values come from the SAME row/filing, so
+        unlike the shares=net_income/eps derivation in load_sec_valuations.py (which mixed
+        values that turned out to come from inconsistently-converted sources, see that file's
+        MAX_PLAUSIBLE_SHARES_OUTSTANDING comment for the NMR case) there's no cross-source
+        currency/scale mismatch possible here - net_income and shares_outstanding_basic/
+        diluted are both this filer's own same-period, same-currency figures.
+
+        Never overwrites a real reported earnings_per_share - only fills when it's still None
+        after direct XBRL mapping.
+
+        CROSS-CHECKS ADDED 2026-09-01 (same pass, live-caught while sanity-checking derived
+        values before backfilling): dividing by a scale-corrupted share count would derive a
+        plausible-looking-but-wrong EPS, and neither existing guard reliably catches that here
+        - _reject_implausible_shares_outstanding's company_info_sec cross-check only fires when
+        a reference row exists (foreign large-caps without one, e.g. VALE, sail through), and
+        the absolute floor (100,000) doesn't catch a corrupted value that's still comfortably
+        above it (VALE's own FY2008 shares_outstanding_basic=5,062,148 would derive
+        ~$2,611/share, ~1030x its own FY2009 row of 5,212,406,000). So before dividing:
+        1. Cross-check against company_info_sec.shares_outstanding when a reference exists
+           (same 20x threshold as _reject_implausible_shares_outstanding above).
+        2. Otherwise cross-check against this SAME symbol's OWN other fiscal years already
+           present in this batch (same idea as EPS_SPLIT_GUARD_CLEAN_MULTIPLES's adjacent-year
+           scan in load_value_quality_growth_metrics.py, applied here to catch a scale error
+           rather than a real split).
+        3. If NEITHER cross-check has anything to compare against (a symbol with exactly one
+           ever-fetched share-count data point and no company_info_sec row - live-confirmed on
+           ATHS: shares_outstanding_basic=203,805 alone would derive an uncorroborated
+           ~$13,301/share), don't derive at all rather than trust a single, uncorroborated
+           number - same "missing scores are better than fabricated heuristics" governance this
+           file already applies elsewhere, just applied to a single input instead of a score.
+        """
+        # First fill the zero-risk diluted_eps fallback - no cross-check needed, it's already a
+        # real reported XBRL value under a different concept.
+        needs_division: list[dict[str, Any]] = []
+        for row in transformed:
+            if row.get("earnings_per_share") is not None:
+                continue
+            diluted = row.get("diluted_eps")
+            if diluted is not None:
+                row["earnings_per_share"] = diluted
+                continue
+            net_income = row.get("net_income")
+            if net_income is None:
+                continue
+            shares = row.get("shares_outstanding_diluted") or row.get("shares_outstanding_basic")
+            if shares is None or shares <= 0:
+                continue
+            needs_division.append(row)
+
+        if not needs_division:
+            return
+
+        # Only issue the company_info_sec round-trip when at least one row actually needs it -
+        # same "skip the query in the common healthy case" pattern the downgrade-guard lookup
+        # above already uses.
+        symbols_needing_division = sorted({str(row["symbol"]) for row in needs_division if row.get("symbol")})
+        reference_shares: dict[str, float] = {}
+        if symbols_needing_division:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT symbol, shares_outstanding FROM company_info_sec "
+                    "WHERE symbol = ANY(%s) AND shares_outstanding > 0",
+                    (symbols_needing_division,),
+                )
+                reference_shares = {sym: float(val) for sym, val in cur.fetchall()}
+
+        shares_history_by_symbol: dict[str, list[float]] = {}
+        for row in transformed:
+            symbol = row.get("symbol")
+            if not symbol:
+                continue
+            for field in ("shares_outstanding_diluted", "shares_outstanding_basic"):
+                val = row.get(field)
+                if val:
+                    shares_history_by_symbol.setdefault(str(symbol), []).append(float(val))
+
+        for row in needs_division:
+            net_income = row["net_income"]
+            shares = row.get("shares_outstanding_diluted") or row.get("shares_outstanding_basic")
+            assert shares is not None  # narrows for mypy; needs_division's filter already guarantees this
+            symbol = str(row.get("symbol") or "")
+
+            reference = reference_shares.get(symbol)
+            if reference:
+                ratio = reference / float(shares)
+                if ratio > 20 or ratio < 1 / 20:
+                    continue
+            else:
+                siblings = [v for v in shares_history_by_symbol.get(symbol, []) if v != float(shares)]
+                if not siblings:
+                    continue
+                ratio = statistics.median(siblings) / float(shares)
+                if ratio > 20 or ratio < 1 / 20:
+                    continue
+            row["earnings_per_share"] = float(net_income) / float(shares)
+
     def _reject_implausible_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Reject earnings_per_share/diluted_eps values that are confidently wrong due to
         filer-side XBRL tagging errors, not a SEC API normalization issue like the shares
@@ -2104,6 +2219,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         # load_company_info_sec.py.
         self._reject_implausible_shares_outstanding(transformed)
         if self.statement_type == "income":
+            self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
 
         # Define REQUIRED metric fields (must have at least one non-NULL value) vs OPTIONAL fields
