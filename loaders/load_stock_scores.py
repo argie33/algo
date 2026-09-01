@@ -856,6 +856,41 @@ class StockScoresLoader(OptimalLoader):
             )
             self._stability_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
+            # GOVERNANCE 2026-09-01 (goal session - user directive: "figure out what is best"
+            # after observing untradeable micro-caps topping Risk's "safest" list; see
+            # [[momentum_ads_warrant_leak_fixed_and_pillar_sweep_20260901]]'s liquidity-gap
+            # finding). Same 20-trading-day average(volume*close) definition
+            # algo/risk/liquidity_checks.py's _check_dollar_volume already uses for the
+            # trade-eligibility gate (min_adv_dollars=$500K in algo_config) - deliberately the
+            # SAME metric family this codebase already trusts operationally, not a new concept.
+            # A 45-calendar-day lookback (vs that check's 25) comfortably covers 20 real trading
+            # days including holidays without per-signal-date precision requirements this batch
+            # query doesn't need. See _score_risk's docstring for why this is scored as a
+            # tradability-RISK penalty, not an academic illiquidity-return-premium reward
+            # (opposite signs - this codebase already tested the premium direction in
+            # algo/research/fama_macbeth_liquidity_factor.py; using that sign here would reward
+            # the exact thin names this input exists to flag).
+            cur.execute(
+                """
+                WITH ranked AS (
+                    SELECT symbol, volume, close,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                      AND COALESCE(data_unavailable, false) = false
+                      AND volume IS NOT NULL AND close IS NOT NULL
+                )
+                SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d
+                FROM ranked
+                WHERE rn <= 20
+                GROUP BY symbol
+                """
+            )
+            self._liquidity_cache: dict[str, float] = {
+                row[0]: safe_float(row[1], f"{row[0]}.avg_dollar_volume_20d", allow_none=False)
+                for row in cur.fetchall()
+            }
+
             # CRITICAL FIX 2026-07-18: Read momentum from momentum_metrics table instead of computing from scratch
             # momentum_metrics is populated by load_risk_metrics_daily.py with precomputed momentum values
             cur.execute(
@@ -973,6 +1008,11 @@ class StockScoresLoader(OptimalLoader):
                 growth = self._get_growth_metrics(cur, symbol)
                 value = self._get_value_metrics(cur, symbol)
                 risk_metrics = self._get_stability_metrics(cur, symbol)
+                # Merged in regardless of stability's own data_unavailable state - _score_risk's
+                # early-return guard already handles that case before looking at any individual
+                # field, so this is safe either way. See _prepare_batch_context's liquidity-cache
+                # query docstring for what this value is and why it's scored as a Risk input.
+                risk_metrics["avg_dollar_volume_20d"] = self._liquidity_cache.get(symbol)
                 momentum = self._get_momentum_metrics(cur, symbol)
 
             # Compute individual factor scores from REAL data only (no defaults)
@@ -3000,21 +3040,45 @@ class StockScoresLoader(OptimalLoader):
 
         REWORKED 2026-08-30 (later same day, user directive: "figure out what is best here and
         do that" - full delegation after the 40/20/15/15 revert above was itself questioned).
-        Current formula: Volatility 60D (45%) + Volatility 252D (20%) + Beta (20%) + Max
-        Drawdown 1Y (15%). Reasoning per input, applying this file's own accumulated evidence
-        rather than re-deriving it: Volatility 60D gets the largest share because it's the one
-        robustly-significant signal in the whole panel (t=-6.07 multivariate). Volatility 252D
-        stays for genuine horizon diversity - its correlation with 60D (0.69-0.89) is real but
-        well short of the ~0.9+ band this file treats as actionable redundancy elsewhere.
-        Volatility 30D is DROPPED: it's the most redundant of the three windows (least distinct
-        horizon from 60D) and its removal doesn't lose a horizon 252D doesn't already cover
-        from the other side. Beta is kept at a deliberate, non-alpha weight - scored for
-        market-correlated swing-trading fit, not because it's return-predictive (it isn't,
-        t=0.93 - see below). Max Drawdown 1Y returns at a modest weight as a genuinely distinct
-        loss-severity dimension (a smooth-vol stock can still suffer one deep crash that vol
-        windows don't capture) rather than as a return-prediction bet, since the 2026-08-25
-        sub-period analysis below found it isn't stably predictive in either direction -
-        consistent with how Beta is already scored here for a non-predictive reason. Downside
+        Volatility 60D (45%) + Volatility 252D (20%) + Beta (20%) + Max Drawdown 1Y (15%) was
+        the formula from that pass through 2026-08-31; see the REWEIGHTED 2026-09-01 note below
+        for the current one (Liquidity added, other four proportionally rescaled). Reasoning per
+        input, applying this file's own accumulated evidence rather than re-deriving it:
+        Volatility 60D gets the largest share because it's the one robustly-significant signal
+        in the whole panel (t=-6.07 multivariate). Volatility 252D stays for genuine horizon
+        diversity - its correlation with 60D (0.69-0.89) is real but well short of the ~0.9+
+        band this file treats as actionable redundancy elsewhere. Volatility 30D is DROPPED:
+        it's the most redundant of the three windows (least distinct horizon from 60D) and its
+        removal doesn't lose a horizon 252D doesn't already cover from the other side. Beta is
+        kept at a deliberate, non-alpha weight - scored for market-correlated swing-trading fit,
+        not because it's return-predictive (it isn't, t=0.93 - see below). Max Drawdown 1Y
+        returns at a modest weight as a genuinely distinct loss-severity dimension (a smooth-vol
+        stock can still suffer one deep crash that vol windows don't capture) rather than as a
+        return-prediction bet, since the 2026-08-25 sub-period analysis below found it isn't
+        stably predictive in either direction - consistent with how Beta is already scored here
+        for a non-predictive reason.
+
+        REWEIGHTED 2026-09-01 (goal session - user live-observed untradeable micro-cap banks
+        topping this pillar's "safest" ranking, e.g. HYNE/PROV/QNBC all below algo_config's own
+        min_adv_dollars=$500K trade-eligibility floor, and explicitly delegated "figure out what
+        is best" after clarifying "we dont want to exclude"). Added Liquidity (20-trading-day
+        average dollar volume, 15%) as a new weighted component - see that field's own inline
+        comment in this method for the full rationale (tradability-RISK framing, deliberately
+        NOT the opposite-signed academic illiquidity-return-premium direction this codebase's
+        own algo/research/fama_macbeth_liquidity_factor.py already found real for a buy-and-hold
+        horizon, which doesn't apply to this pillar's swing-trading framing). Volatility 60D left
+        UNCHANGED at 45% rather than proportionally rescaled with the others - it's this pillar's
+        single most robust individual signal (t=-6.07, see above) and RISK_MIN_WEIGHT_AVAILABLE
+        (0.40) requires a symbol to clear that floor on whatever inputs it has; a first-pass
+        proportional rescale (45%->38%) would have dropped it BELOW 0.40, silently breaking the
+        "the most important input can carry a score alone" property this file already relies on
+        (live-caught via test_stock_scores_risk_min_weight_available_20260831.py, not assumed).
+        The other three funded Liquidity's 15% instead: Volatility 252D 20%->15%, Beta 20%->15%,
+        Max Drawdown 1Y 15%->10% (45+15+15+10+15=100). A continuous score, not a hard cutoff,
+        per the explicit "don't exclude" directive - a thin-liquidity name is scored lower here,
+        not removed from the universe; Phase 7/8's own liquidity gate (unchanged by this) remains
+        the actual binary trade-eligibility check at execution time.
+        Downside
         volatility (all windows) and Debt-to-Assets stay OUT: both have clean, confirmed
         reasons below (downside_vol is pure redundancy, r=0.93 wrong-signed once vol_60d is
         controlled for; debt_to_assets is a balance-sheet solvency ratio, not a price-risk
@@ -3163,8 +3227,8 @@ class StockScoresLoader(OptimalLoader):
 
         if metrics.get("volatility_252d") is not None:
             v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
-            weighted_sum += v252_score * 0.20
-            total_weight += 0.20
+            weighted_sum += v252_score * 0.15
+            total_weight += 0.15
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading.
         # Deliberately not the literature's low-beta preference (Frazzini & Pedersen 2014
@@ -3188,8 +3252,8 @@ class StockScoresLoader(OptimalLoader):
             beta = metrics["beta"]
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))
-            weighted_sum += beta_score * 0.20
-            total_weight += 0.20
+            weighted_sum += beta_score * 0.15
+            total_weight += 0.15
 
         # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
         # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
@@ -3199,7 +3263,40 @@ class StockScoresLoader(OptimalLoader):
         if metrics.get("max_drawdown_1y") is not None:
             drawdown_pct = abs(min(0.0, metrics["max_drawdown_1y"]))
             dd_score = self._max_drawdown_curve_score(drawdown_pct)
-            weighted_sum += dd_score * 0.15
+            weighted_sum += dd_score * 0.10
+            total_weight += 0.10
+
+        # Liquidity (20-trading-day average dollar volume), ADDED 2026-09-01 (goal session -
+        # user directive after live-observing untradeable micro-cap banks topping Risk's
+        # "safest" list: HYNE/PROV/QNBC all sit below algo_config's own min_adv_dollars=$500K
+        # trade-eligibility floor, meaning a stock could rank near the top of "safest" while
+        # being genuinely un-tradeable per this system's OWN downstream execution gate - the
+        # scoring layer had no concept of tradability at all, only a disconnected pass/fail
+        # gate applied much later in Phase 7/8, well after ranking already happened).
+        #
+        # Deliberately NOT the academic illiquidity-return-PREMIUM direction (Amihud 2002:
+        # illiquid stocks earn HIGHER expected returns as compensation - this codebase's own
+        # algo/research/fama_macbeth_liquidity_factor.py already tested and confirmed that
+        # direction, t=3.34, real and distinct from size). Rewarding illiquidity would be
+        # exactly backwards for this input's purpose here: that academic premium compensates a
+        # BUY-AND-HOLD investor for tolerating years of hard-to-exit risk, but every other Risk
+        # input in this pillar is explicitly scored for swing-trading fit (see Beta's own note
+        # above - market-correlated-not-alpha, same non-return-predictive standard), where an
+        # investor needs to enter AND exit within days-to-weeks. For that horizon, thin volume
+        # is unambiguously a cost (wide spreads, slippage, can't size a position without moving
+        # the price) - liquidity RISK, not an academic factor to harvest. Same non-alpha
+        # design-choice footing as Beta, not a contradiction of the illiquidity-premium finding.
+        #
+        # Curve anchored to real, already-trusted numbers rather than an invented threshold:
+        # breakpoints in log10(dollar_volume) space, piecewise-linear like this file's other
+        # curves (_vol_curve_score/_margin_curve style) - $100K->0 (can't realistically trade
+        # at all), $500K->35 (exactly algo_config.min_adv_dollars, this system's OWN existing
+        # trade-eligibility floor - below this a stock would fail Phase 7/8's liquidity gate
+        # outright, so it shouldn't score above marginal here either), $2M->65, $10M->90,
+        # $50M+->100 (saturates - no further scoring benefit to being more liquid than that).
+        if metrics.get("avg_dollar_volume_20d") is not None and metrics["avg_dollar_volume_20d"] > 0:
+            liq_score = self._liquidity_curve_score(metrics["avg_dollar_volume_20d"])
+            weighted_sum += liq_score * 0.15
             total_weight += 0.15
 
         if total_weight >= RISK_MIN_WEIGHT_AVAILABLE:
@@ -3582,6 +3679,28 @@ class StockScoresLoader(OptimalLoader):
         if drawdown_pct <= 50:
             return 50 - (drawdown_pct - 25) * 1.2  # 50->20
         return max(0.0, 20 - (drawdown_pct - 50) * 0.4)
+
+    @staticmethod
+    def _liquidity_curve_score(avg_dollar_volume_20d: float) -> float:
+        """Tradability-risk score for 20-trading-day average dollar volume. See _score_risk's
+        liquidity-component docstring for the full rationale and why the breakpoints are
+        anchored to algo_config.min_adv_dollars ($500K) rather than an invented number.
+        `avg_dollar_volume_20d` must already be positive (callers guard via `> 0`).
+
+        Piecewise-linear on log10(dollar_volume), same style as `_vol_curve_score`/
+        `_max_drawdown_curve_score`: $100K->0, $500K->35 (the trade-eligibility floor itself),
+        $2M->65, $10M->90, $50M+->100 (saturates).
+        """
+        log_dv = math.log10(avg_dollar_volume_20d)
+        breakpoints = [(5.0, 0.0), (5.7, 35.0), (6.3, 65.0), (7.0, 90.0), (7.7, 100.0)]
+        if log_dv <= breakpoints[0][0]:
+            return 0.0
+        if log_dv >= breakpoints[-1][0]:
+            return 100.0
+        for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
+            if log_dv <= x1:
+                return y0 + (log_dv - x0) / (x1 - x0) * (y1 - y0)
+        return 100.0  # unreachable - satisfies mypy's exhaustiveness check
 
     def _value_metrics_coverage_excluding_fpi(self, cur: Any) -> tuple[int, int] | None:
         """Return (covered, total) for value_metrics over the active, non-FPI universe.

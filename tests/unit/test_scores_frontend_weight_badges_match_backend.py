@@ -294,17 +294,18 @@ class TestPositioningScoreRemoved:
 
 class TestRiskScoreWeightBadges:
     def test_volatility_beta_and_max_drawdown_weights_match_code(self):
-        """REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out
-        the best combination - see _score_risk's own docstring for the per-input reasoning).
-        Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
-        Volatility 30D dropped (most redundant of the three windows). Debt-to-Assets stays
-        out - see test_debt_to_assets_not_scored below."""
+        """REWEIGHTED 2026-09-01 (goal session - user live-observed untradeable micro-cap
+        banks topping Risk's "safest" ranking; see _score_risk's own docstring for the full
+        rationale). Volatility 60D 45% + Volatility 252D 15% + Beta 15% + Max Drawdown 1Y 10%
+        + Liquidity 15%. Volatility 30D dropped (most redundant of the three windows).
+        Debt-to-Assets stays out - see test_debt_to_assets_not_scored below."""
         src = inspect.getsource(StockScoresLoader._score_risk)
         score_var_to_jsx_key = {
             "v60_score": "volatility_60d",
             "v252_score": "volatility_12m",  # API key "volatility_12m" actually carries volatility_252d
             "beta_score": "beta",
             "dd_score": "max_drawdown_1y",
+            "liq_score": "avg_dollar_volume_20d",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))

@@ -356,6 +356,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     sm.downside_volatility_252d_unavailable_reason,
                     sm.max_drawdown_1y,
                     sm.max_drawdown_1y_unavailable_reason,
+                    liq.avg_dollar_volume_20d,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
                     pm.short_interest_pct AS short_pct_val,
@@ -414,6 +415,22 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     ORDER BY date DESC
                     LIMIT 1
                 ) pl ON true
+                LEFT JOIN LATERAL (
+                    -- Same 20-trading-day average(volume*close) definition
+                    -- algo/risk/liquidity_checks.py's _check_dollar_volume and
+                    -- loaders/load_stock_scores.py's Risk-pillar liquidity input both use -
+                    -- see _score_risk's docstring for why this is now a scored Risk component
+                    -- (2026-09-01 Liquidity reweight), not just a display-only field.
+                    SELECT AVG(volume * close) AS avg_dollar_volume_20d
+                    FROM (
+                        SELECT volume, close FROM price_daily
+                        WHERE symbol = sc.symbol
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                        ORDER BY date DESC
+                        LIMIT 20
+                    ) recent20
+                ) liq ON true
                 LEFT JOIN LATERAL (
                     SELECT close
                     FROM price_daily
@@ -830,6 +847,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "downside_volatility_252d_unavailable_reason": data.get("downside_volatility_252d_unavailable_reason"),
                 "max_drawdown_1y": data.get("max_drawdown_1y"),
                 "max_drawdown_1y_unavailable_reason": data.get("max_drawdown_1y_unavailable_reason"),
+                "avg_dollar_volume_20d": data.get("avg_dollar_volume_20d"),
                 "beta": data.get("beta_val"),
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 # debt_to_assets briefly RESTORED HERE 2026-08-30, then REMOVED AGAIN the same
@@ -1354,6 +1372,7 @@ def _get_stock_scores(  # noqa: C901
                     sm.downside_volatility_252d_unavailable_reason,
                     sm.max_drawdown_1y,
                     sm.max_drawdown_1y_unavailable_reason,
+                    liq.avg_dollar_volume_20d,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
                     pm.short_interest_pct AS short_pct_val,
@@ -1411,6 +1430,22 @@ def _get_stock_scores(  # noqa: C901
                     ORDER BY date DESC
                     LIMIT 1
                 ) pl ON true
+                LEFT JOIN LATERAL (
+                    -- Same 20-trading-day average(volume*close) definition
+                    -- algo/risk/liquidity_checks.py's _check_dollar_volume and
+                    -- loaders/load_stock_scores.py's Risk-pillar liquidity input both use -
+                    -- see _score_risk's docstring for why this is now a scored Risk component
+                    -- (2026-09-01 Liquidity reweight), not just a display-only field.
+                    SELECT AVG(volume * close) AS avg_dollar_volume_20d
+                    FROM (
+                        SELECT volume, close FROM price_daily
+                        WHERE symbol = fs.symbol
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                        ORDER BY date DESC
+                        LIMIT 20
+                    ) recent20
+                ) liq ON true
                 LEFT JOIN LATERAL (
                     SELECT close
                     FROM price_daily
@@ -1796,6 +1831,7 @@ def _get_stock_scores(  # noqa: C901
                 "downside_volatility_252d_unavailable_reason": d.get("downside_volatility_252d_unavailable_reason"),
                 "max_drawdown_1y": d.get("max_drawdown_1y"),
                 "max_drawdown_1y_unavailable_reason": d.get("max_drawdown_1y_unavailable_reason"),
+                "avg_dollar_volume_20d": d.get("avg_dollar_volume_20d"),
                 "beta": d.get("beta_val"),
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 # debt_to_assets briefly RESTORED HERE 2026-08-30, then REMOVED AGAIN the same

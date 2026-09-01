@@ -55,27 +55,33 @@ class TestRiskNegativeBetaNotClipped:
     def test_extreme_negative_beta_saturates_to_zero_not_negative(self):
         """diff is capped at 2.0 before the score formula, so very negative beta still
         floors cleanly at beta_score=0 rather than going out of the 0-100 range.
-        volatility_60d=1.10 -> v60_score=0.0 too (see _vol_curve_score's >0.60 branch:
-        max(0, 10 - (1.10-0.60)*20) = 0), so the blended score is exactly 0.0, not just
-        "some non-negative number" - both components genuinely agree at the floor."""
+
+        beta_score=0 at this extreme: (83.3333*0.45 + 0*0.15) / 0.60 = 62.5 - the vol
+        filler's own contribution, not a bare 0.0 (which the pre-floor version of this test
+        pinned when beta was the only input). Beta's weight is 15% (was 20% before the
+        2026-09-01 Liquidity reweight - see _score_risk's docstring)."""
         loader = StockScoresLoader()
 
         score = loader._score_risk({"beta": -50.0, "volatility_60d": 1.10}, "GARBAGE")
 
-        assert score == pytest.approx(0.0)
+        assert score == pytest.approx(62.5, abs=1e-3)
 
     def test_positive_beta_symmetric_around_target_unaffected(self):
         """Sanity check the fix didn't change behavior for the common positive-beta case.
-        Each filler's own v60_score is chosen to exactly match the expected beta_score
-        (100.0 and 50.0 respectively - see _vol_curve_score), so the blended average equals
-        that same value exactly rather than approximating it."""
+
+        vol filler alone scores 83.3333 (see test_volatility_60d_alone_at_0_20_is_neutral_baseline)
+        at 45% weight; beta contributes its own beta_score at 15% weight (was 20% before the
+        2026-09-01 Liquidity reweight). at_target (beta=1.0, beta_score=100):
+        (83.3333*0.45 + 100*0.15) / 0.60 = 87.5. high_beta (beta=2.0, beta_score=50):
+        (83.3333*0.45 + 50*0.15) / 0.60 = 75.0 - strictly lower, same ordering the
+        pre-floor version of this test pinned (100.0 > 50.0)."""
         loader = StockScoresLoader()
 
         at_target = loader._score_risk({"beta": 1.0, "volatility_60d": 0.0}, "TARGET")
         high_beta = loader._score_risk({"beta": 2.0, "volatility_60d": 0.30}, "HIGH")
 
-        assert at_target == pytest.approx(100.0)
-        assert high_beta == pytest.approx(50.0)
+        assert at_target == pytest.approx(87.5, abs=1e-3)
+        assert high_beta == pytest.approx(75.0, abs=1e-3)
 
 
 class TestRiskMinWeightAvailable:

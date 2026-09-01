@@ -1566,6 +1566,17 @@ const POSITIONING_SCHEMA = [
 // volatility_60d; balance-sheet metric scored under Quality's base quality_score instead).
 // Note: the API's "volatility_12m" key actually carries volatility_252d (a legacy naming
 // quirk in lambda/api/routes/scores.py, not a real 12-month window).
+//
+// REWEIGHTED 2026-09-01 (goal session - user live-observed untradeable micro-cap banks
+// topping Risk's "safest" ranking; see _score_risk's own REWEIGHTED 2026-09-01 docstring in
+// load_stock_scores.py for the full rationale). Added Liquidity (20-trading-day average
+// dollar volume, 15% - a tradability-RISK penalty for thin volume, not the opposite-signed
+// academic illiquidity-return-premium). Volatility 60D left at 45% (it's this pillar's most
+// robust individual signal and needs to clear RISK_MIN_WEIGHT_AVAILABLE=0.40 alone); the
+// other three funded Liquidity instead: Volatility 252D 20%->15%, Beta 20%->15%, Max
+// Drawdown 1Y 15%->10% (45+15+15+10+15=100). Precedent for not leaving a real scored input
+// off this tab: momentum_1m was once a real 16%-weighted Momentum input with no display row
+// at all (see this file's own module docstring above) - same omission class, avoided here.
 const RISK_SCHEMA = [
   {
     key: "volatility_60d",
@@ -1579,24 +1590,31 @@ const RISK_SCHEMA = [
     label: "Volatility (252D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "20%",
+    weight: "15%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "15%",
   },
   {
     key: "max_drawdown_1y",
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
+    weight: "10%",
+  },
+  {
+    key: "avg_dollar_volume_20d",
+    label: "Avg Dollar Volume (20D)",
+    fmt: (v) => (v == null ? null : `$${Math.round(v).toLocaleString()}`),
+    used: true,
     weight: "15%",
   },
   // Volatility 30D and downside volatility (252d/60d/30d) are NOT part of the current
-  // 4-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
+  // 5-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
   // Quality instead, not this price-volatility/risk-of-loss pillar.
   // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
   // underlying XBRL segment-dimension extraction always comes back empty.
