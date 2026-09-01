@@ -354,3 +354,66 @@ class TestKnownWhenIssuedMisclassificationOverride:
         """The override is scoped to the specific known-misclassified symbols, not a
         blanket exemption for the when-issued pattern."""
         assert _is_excluded("XYZ", "Resideo Technologies, Inc. Common Stock When-Issued")
+
+
+class TestDeactivateBlankCheckShellsBySicAndRevenue:
+    """GOVERNANCE 2026-09-01: user pushback that name-pattern SPAC exclusion "lets too
+    many in" after two rounds of CORP_SPONSOR_PATTERN/KNOWN_SPAC_MISCLASSIFICATIONS
+    whack-a-mole in the same session. Replaces (for the SPAC-shell category specifically)
+    ongoing name-pattern guessing with a structural, self-maintaining SEC-classification
+    signal: sic_code=6770 ("Blank Checks") is SEC's own entity classification, not text
+    matched from free-form security_name. Live-verified against a full active-universe
+    scan: 28 active sic_code=6770 symbols, 27 with zero nonzero-revenue years ever
+    (genuine dormant shells) and exactly one (INV/Innventure, real revenue in 2 fiscal
+    years) that completed its de-SPAC merger - confirming the revenue check is needed as
+    a second signal, not just the SIC code alone, to avoid the AGNC/SAR-class false
+    positive of excluding a real operating company.
+    """
+
+    def _make_loader(self):
+        return MarketConstituentsLoader.__new__(MarketConstituentsLoader)
+
+    def test_shell_with_no_revenue_ever_gets_deactivated(self):
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [("CEPV",), ("GIX",)]
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur]
+
+            loader._deactivate_blank_check_shells_by_sic_and_revenue()
+
+            mock_write_cur.execute.assert_called_once()
+            sql, params = mock_write_cur.execute.call_args[0]
+            assert "UPDATE stock_symbols" in sql
+            assert "active = false" in sql
+            assert params == (["CEPV", "GIX"],)
+
+    def test_read_query_scoped_to_sic_6770_and_no_revenue(self):
+        """The read query must filter on sic_code=6770 AND a NOT EXISTS revenue check -
+        not just sic_code alone, which would wrongly exclude a real de-SPAC'd company
+        like INV whose SIC code is simply stale."""
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._deactivate_blank_check_shells_by_sic_and_revenue()
+
+            sql = mock_read_cur.execute.call_args[0][0]
+            assert "sic_code = 6770" in sql
+            assert "annual_income_statement" in sql
+            assert "revenue > 0" in sql
+
+    def test_no_shells_found_skips_write(self):
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._deactivate_blank_check_shells_by_sic_and_revenue()
+
+            # Only the read call happened - DatabaseContext("write") never entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {})]

@@ -542,6 +542,89 @@ class MarketConstituentsLoader(OptimalLoader):
                 (recovered,),
             )
 
+    def _deactivate_blank_check_shells_by_sic_and_revenue(self) -> None:
+        """Deactivate active symbols SEC itself classifies as pre-merger SPAC shells
+        (sic_code=6770, "Blank Checks") that have never reported any nonzero revenue.
+
+        GOVERNANCE 2026-09-01 (goal session - user pushback that name-pattern exclusion
+        "lets too many in", after two rounds of CORP_SPONSOR_PATTERN/KNOWN_SPAC_MISCLASSIFICATIONS
+        whack-a-mole in the same session already: see [[spac_trust_preferred_universe_leaks_
+        fixed_20260831]] and [[spac_leak_recurrence_second_wave_fixed_20260901]] in memory).
+        Text-pattern matching on security_name is structurally reactive - it can only catch a
+        naming convention someone has already seen, and new SPAC sponsors keep inventing ones
+        (plural "Acquisitions", brand-only names with zero sponsor keyword, abbreviated share-
+        class suffixes). Checked whether a better signal exists: company_info_sec.sic_code is
+        SEC's OWN classification of the entity's business purpose (assigned from the filer's own
+        SEC registration, not guessed from free text), and 6770 = "Blank Checks" is literally
+        the SEC's shell-company code. Live-verified against this session's already-confirmed 23
+        shells: 21/23 (91%) carry sic_code=6770 directly - a structural signal that requires zero
+        naming-convention guessing and will keep matching future SPACs automatically as long as
+        their SEC filer registration says "blank check", regardless of what marketing name a
+        sponsor picks.
+
+        Also live-verified the false-positive risk before trusting sic_code alone: a full active-
+        universe scan found 28 active sic_code=6770 symbols total, 27 of which have NEVER
+        reported nonzero revenue in annual_income_statement (still genuine dormant shells) - but
+        one, INV (Innventure, Inc.), has real revenue in 2 separate fiscal years ($1.117M FY2023,
+        $2.056M FY2025). INV completed its de-SPAC merger and is now a real, if young, operating
+        company - its SIC code is simply stale (SEC classification lags real corporate events and
+        isn't guaranteed to be re-filed promptly). Excluding on sic_code alone would have wrongly
+        excluded a real company, the exact AGNC/SAR-class false positive this file's should_exclude
+        design has guarded against since 2026-08-03. The revenue check is the second, independent
+        signal that distinguishes "still a shell" from "was a shell, now isn't" - and it's ALSO
+        sourced from SEC's own filings, not a guess, so this stays a fully structural two-signal
+        check rather than reintroducing name-pattern fragility through the back door.
+
+        Deliberately narrower than the name-pattern EXCLUSION_PATTERNS/CORP_SPONSOR_PATTERN
+        checks above (only sic_code=6770, not every non-operating-company SIC code - a broader
+        scan of the active universe by SIC found Pharmaceutical/Biological/Mining companies with
+        high zero-revenue rates too, but those are real pre-revenue operating companies, not
+        shells; 6770 specifically means the filer self-declared "blank check" as its business
+        purpose, which zero-revenue pharma/mining companies never do) - this doesn't replace
+        EXCLUSION_PATTERNS/CORP_SPONSOR_PATTERN, it closes the gap they structurally cannot: a
+        SPAC whose marketing name gives no textual hint at all that it's a blank-check shell.
+
+        Only reachable for symbols company_info_sec has already ingested a sic_code for - a
+        brand-new SPAC still gets admitted by the looser name/share-class gate in fetch_global()
+        first (same as before), then this reconciliation pass - which re-runs every loader cycle,
+        same convention as _deactivate_stale_excluded_symbols() above - catches it automatically
+        once its SEC filer data lands, typically within a few days of IPO, without anyone needing
+        to add a new regex or a new ticker to KNOWN_SPAC_MISCLASSIFICATIONS by hand.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT sy.symbol
+                FROM stock_symbols sy
+                JOIN company_info_sec cis ON cis.symbol = sy.symbol
+                WHERE sy.active = true
+                  AND cis.sic_code = 6770
+                  AND NOT EXISTS (
+                      SELECT 1 FROM annual_income_statement ais
+                      WHERE ais.symbol = sy.symbol AND ais.revenue IS NOT NULL AND ais.revenue > 0
+                  )
+                """
+            )
+            shells = [row[0] for row in cur.fetchall()]
+        if not shells:
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Deactivating {len(shells)} symbol(s) SEC classifies as "
+            f"blank-check shells (sic_code=6770) with no nonzero revenue ever reported: "
+            f"{shells[:10]}" + (f" ...and {len(shells) - 10} more" if len(shells) > 10 else "")
+        )
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE stock_symbols
+                SET active = false, data_unavailable = true,
+                    data_unavailable_reason = 'blank_check_shell_sic_6770_no_revenue'
+                WHERE symbol = ANY(%s)
+                """,
+                (shells,),
+            )
+
     def _deactivate_symbols_delisted_from_exchange_feed(self, current_feed_symbols: set[str]) -> None:
         """Deactivate already-active symbols that have vanished entirely from today's
         NASDAQ/otherlisted feed - i.e. no longer trade under this symbol on any listed exchange.
@@ -700,6 +783,7 @@ class MarketConstituentsLoader(OptimalLoader):
         try:
             self._deactivate_stale_excluded_symbols()
             self._reactivate_no_longer_excluded_symbols()
+            self._deactivate_blank_check_shells_by_sic_and_revenue()
 
             # STEP 1: Fetch NASDAQ/NYSE symbols
             logger.info("STEP 1/3: Fetching NASDAQ/NYSE tradable symbols")
