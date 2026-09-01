@@ -572,7 +572,76 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
     _fill_long_term_debt_from_noncurrent_current_split(rows)
+    if period == "annual":
+        _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     return rows
+
+
+def _fill_long_term_debt_from_segment_dimensional_facts(rows: list[dict[str, Any]], client: Any, symbol: str) -> None:
+    """Last-resort fallback: sum segment-dimensional debt facts from the filing's own XBRL
+    instance document when every concept-alias tier above found nothing for a fiscal year.
+
+    See loaders/helpers/sec_segment_debt.py's module docstring (Ford live-confirmed
+    2026-09-01) for why no concept alias can ever close this gap: SEC's companyconcept/
+    companyfacts APIs - the only thing every fallback concept above reads from - structurally
+    exclude any fact tagged inside a dimensional (segment) context. A filer like Ford that
+    only tags real debt dimensionally (Company-excluding-Ford-Credit vs Ford-Credit segments)
+    has ZERO entries for every concept above, indistinguishable via those APIs from "reports
+    no debt at all" - the only fix is reading the actual filing.
+
+    One extra HTTP fetch (submissions) + one XML fetch+parse per genuinely-missing fiscal
+    year, not per symbol - a filer with real long_term_debt from any tier above never
+    triggers this. Deliberately conservative for this first pass: only fires when
+    long_term_debt is still None outright (not yet extended to "implausibly small vs
+    total_liabilities" - see module docstring's SCOPE note for the narrower residual gap
+    that leaves open, e.g. Ford's own 2018-2020 taxonomy-transition years).
+    """
+    from loaders.helpers.sec_segment_debt import find_10k_for_fiscal_year, sum_segment_dimensional_debt
+
+    missing_years = [row["fiscal_year"] for row in rows if row.get("long_term_debt") is None and row.get("fiscal_year")]
+    if not missing_years:
+        return
+
+    try:
+        cik = client.symbol_to_cik(symbol)
+        submissions = client.get_submissions(cik)
+    except Exception:
+        logger.debug(
+            f"[SEGMENT_DEBT] {symbol}: could not fetch submissions for dimensional debt fallback", exc_info=True
+        )
+        return
+
+    for row in rows:
+        if row.get("long_term_debt") is not None or row.get("fiscal_year") not in missing_years:
+            continue
+        located = find_10k_for_fiscal_year(submissions, int(row["fiscal_year"]))
+        if located is None:
+            continue
+        accession, period_end = located
+        try:
+            xml_text = client.get_filing_xml(cik, accession, "10-K")
+        except Exception:
+            logger.debug(
+                f"[SEGMENT_DEBT] {symbol} FY{row['fiscal_year']}: could not fetch instance XML "
+                f"({accession}) for dimensional debt fallback",
+                exc_info=True,
+            )
+            continue
+        result = sum_segment_dimensional_debt(xml_text, period_end)
+        if result is None:
+            logger.debug(
+                f"[SEGMENT_DEBT] {symbol} FY{row['fiscal_year']}: no unambiguous single-axis "
+                f"business-segment debt decomposition found in {accession} - leaving "
+                "long_term_debt None rather than risk an undercount from a partial context set."
+            )
+            continue
+        total, segment_count = result
+        logger.info(
+            f"[SEGMENT_DEBT] {symbol} FY{row['fiscal_year']}: recovered long_term_debt="
+            f"{total:,.0f} by summing {segment_count} business-segment dimensional contexts "
+            f"({accession}) - standard concept extraction found none."
+        )
+        row["long_term_debt"] = total
 
 
 def _fill_earnings_per_share_from_continuing_discontinued_split(rows: list[dict[str, Any]]) -> None:

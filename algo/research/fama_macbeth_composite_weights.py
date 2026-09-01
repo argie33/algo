@@ -31,15 +31,34 @@ tested; this script answers the separate top-level question), verified against
 loaders/load_stock_scores.py directly on 2026-08-31:
 
 - growth_proxy: equal-weighted average of z-scored [eps_growth_1y, eps_growth_3y, eps_growth_5y,
-  revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, net_income_growth_yoy,
-  fcf_growth_yoy, sustainable_growth_rate] - 9 of the live 11-field GROWTH_SCORE_FIELDS blend
-  (~82% coverage of the live equal-weight formula, honest partial proxy, not the full 11).
-  quarterly_growth_momentum and earnings_growth_4q_avg are EXCLUDED - both are derived from
-  QUARTERLY EPS/revenue history (load_value_quality_growth_metrics.py's
-  _compute_quarterly_metrics), and no existing research script in this repo reconstructs a
-  point-in-time quarterly fundamentals panel (annual_income_statement/annual_balance_sheet/
-  annual_cash_flow are all annual-only) - building one from scratch was out of scope for this
-  pass. sustainable_growth_rate IS newly reconstructed here (not in the pre-2026-08-31 version
+  revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, sustainable_growth_rate] - 7 of the
+  live 12-field GROWTH_SCORE_FIELDS blend (~58% coverage of the live equal-weight formula,
+  honest partial proxy, not the full 12).
+
+  CORRECTED 2026-09-01 (goal session: "understand our data gaps before resuming Fama-MacBeth" -
+  live-verified against loaders/load_stock_scores.py's GROWTH_SCORE_FIELDS directly, which is
+  now 12 fields, not the 11 this docstring previously claimed - a further instance of this
+  exact script drifting stale, caught while trying to act on a PRIOR correction attempt).
+  net_income_growth_yoy/fcf_growth_yoy were DROPPED from GROWTH_PROXY_COLS entirely - neither
+  is in the live 12-field list anymore (both were removed from production in a later
+  2026-08-31 pass than this script's own last verify), so testing them was testing fields that
+  don't exist in production - not a partial-coverage gap, a stale-test bug. The 5 fields still
+  untested (forward_eps_growth_current_fy, forward_eps_growth_next_fy,
+  forward_revenue_growth_next_fy, quarterly_growth_momentum, earnings_growth_4q_avg) remain
+  excluded for VERIFIED, not assumed, data reasons - do not add them without re-verifying the
+  underlying data has actually changed:
+    * The 3 forward-looking fields need a point-in-time analyst-estimate panel.
+      `analyst_earnings_estimates` currently spans only 2026-08-03 to 2026-08-31 (25 distinct
+      dates, live-queried) - a single snapshot, not history; cannot be reconstructed at all
+      yet, let alone as a "proxy-code fix only" (a prior version of this same correction
+      mistakenly claimed otherwise in MEMORY.md - corrected there too).
+    * quarterly_growth_momentum/earnings_growth_4q_avg are derived from QUARTERLY EPS/revenue
+      history (load_value_quality_growth_metrics.py's _compute_quarterly_metrics). Unlike the
+      forward fields, the RAW data does exist with real depth (quarterly_income_statement:
+      194,750 rows across 5,584 symbols, live-queried) - building a point-in-time quarterly
+      panel here is a real, scoped, buildable follow-up, just not attempted in this pass.
+
+  sustainable_growth_rate IS newly reconstructed here (not in the pre-2026-08-31 version
   of this script) via the same ROE x retention-ratio formula
   load_value_quality_growth_metrics.py uses (net_income/stockholders_equity x
   (1 - dividends_paid/|net_income|)), sourced from annual_balance_sheet.stockholders_equity and
@@ -152,8 +171,6 @@ GROWTH_PROXY_COLS = [
     "revenue_growth_1y",
     "revenue_growth_3y",
     "revenue_growth_5y",
-    "ni_growth_yoy",
-    "fcf_growth_yoy",
     "sustainable_growth_rate",
 ]
 
@@ -301,7 +318,7 @@ def build_pillar_proxy_records(
     comparison) can derive an alternative per-month normalization from the identical underlying
     data instead of re-running this same expensive DB fetch + panel-build a second time. Each
     pillar proxy in records_raw is still a weighted average of z-scored SUB-components (e.g.
-    growth_proxy = average of 9 individually z-scored growth fields) - only the top-level
+    growth_proxy = average of 7 individually z-scored growth fields) - only the top-level
     per-month cross-sectional normalization of the PILLAR proxy itself is skipped here, matching
     exactly what records_complete/records_partial do next.
     """

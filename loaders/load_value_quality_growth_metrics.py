@@ -1384,10 +1384,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         peg_ratio_reason: str | None
         if peg is None and pe is not None:
             with DatabaseContext("read") as cur:
+                # FIXED 2026-09-01 (goal session: "we had data but didn't know how to read it"
+                # audit, direct follow-up to pe_ratio_unavailable_reason's identical bug - see
+                # memory/value_equal_weight_and_pe_reason_bug_fixed_20260901.md). Same bug
+                # class: this query independently re-derived the two most-recent EPS years
+                # WITHOUT the `data_unavailable IS NOT TRUE` filter that the REAL peg_ratio
+                # computation's income_rows query (load_sec_valuations.py, ~line 395) already
+                # applies - so a stray non-NULL EPS on an incomplete/unfiled fiscal year could
+                # get compared as if it were the real TTM or prior-year figure, producing a
+                # peg_ratio_reason that disagrees with (or is unrelated to) the actual
+                # filtered EPS pair load_sec_valuations.py used to decide peg_ratio itself.
+                # Live-confirmed 474 symbols (incl. ACN, ABNB, AEP) where the unfiltered
+                # "latest non-NULL EPS" pick differs from the filtered pick.
                 cur.execute(
                     """
                     SELECT fiscal_year, earnings_per_share FROM annual_income_statement
                     WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                      AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 2
                     """,
                     (symbol,),
@@ -1411,11 +1424,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         pb_ratio_reason = None
         if pb is None:
             with DatabaseContext("read") as cur:
+                # FIXED 2026-09-01 (same bug class as peg_ratio_reason above and the already-
+                # fixed pe_ratio_unavailable_reason - see memory/
+                # value_equal_weight_and_pe_reason_bug_fixed_20260901.md): missing the
+                # `data_unavailable IS NOT TRUE` filter that the REAL book_value query
+                # (load_sec_valuations.py, ~line 1330) already applies, so an incomplete/
+                # unfiled fiscal year's stray stockholders_equity value could drive this
+                # reason to "negative_book_value" or "missing_sec_data" independent of what
+                # the real pb_ratio computation actually saw.
                 cur.execute(
                     """
                     SELECT stockholders_equity
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
                     ORDER BY (CASE WHEN stockholders_equity IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
                     LIMIT 1
                     """,
@@ -2346,6 +2367,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_coverage_pretax_income = pretax_income
             if interest_expense is None or interest_expense <= 0:
                 with DatabaseContext("read") as cur:
+                    # FIXED 2026-09-01 (same pattern/fix as the gross_profit fallback above -
+                    # goal session "we had data but didn't know how to read it" audit).
+                    # Missing `data_unavailable IS NOT TRUE` let an incomplete/unfiled fiscal
+                    # year's stub interest_expense/operating_income/pretax_income get used as
+                    # the real figure. Live-confirmed 271 symbols where the unfiltered pick
+                    # comes from a data_unavailable=True row.
                     # First try: recent history (3 years)
                     cur.execute(
                         """
@@ -2353,6 +2380,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         FROM annual_income_statement
                         WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
                           AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)
+                          AND data_unavailable IS NOT TRUE
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
@@ -2368,6 +2396,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             FROM annual_income_statement
                             WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
                               AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)
+                              AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC LIMIT 1
                             """,
                             (symbol,),
@@ -2796,12 +2825,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Fallback to prior year if current year lacks both sources
             if gross_profit_used is None and (gross_profit_direct is None and cost_of_revenue is None):
                 with DatabaseContext("read") as cur:
+                    # FIXED 2026-09-01 (goal session: "we had data but didn't know how to read
+                    # it" audit - same root pattern as pe/peg/pb_ratio_unavailable_reason, but
+                    # this time it's the VALUE itself, not just a reason label, that was wrong).
+                    # Missing `data_unavailable IS NOT TRUE` let an incomplete/unfiled current
+                    # fiscal year's stub gross_profit/cost_of_revenue/revenue get used as if it
+                    # were the real complete-year figure. Live-confirmed 258 symbols where the
+                    # unfiltered pick comes from a data_unavailable=True row - and the stub
+                    # figure is systematically much SMALLER than the real complete year (a
+                    # partial filing naturally under-reports vs a full fiscal year), e.g. ABNB
+                    # $2.097B (incomplete FY2026 stub) vs real FY2025 $10.155B, AOS $753.5M vs
+                    # real $1.4874B, ANGI $228.457M vs real $983.099M - gross_margin/
+                    # gross_profitability was materially UNDERSTATED for all of them.
                     cur.execute(
                         """
                         SELECT gross_profit, cost_of_revenue, revenue
                         FROM annual_income_statement
                         WHERE symbol = %s AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
-                          AND revenue IS NOT NULL
+                          AND revenue IS NOT NULL AND data_unavailable IS NOT TRUE
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
@@ -2815,7 +2856,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             SELECT gross_profit, cost_of_revenue, revenue
                             FROM annual_income_statement
                             WHERE symbol = %s AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
-                              AND revenue IS NOT NULL
+                              AND revenue IS NOT NULL AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC LIMIT 1
                             """,
                             (symbol,),
@@ -2936,12 +2977,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # NOPAT compute - operating_income directly, interest_expense via EBIT
                     # approximation), but don't require it - a tax/pretax-only row still
                     # unblocks effective_tax_rate even if NOPAT itself later fails.
+                    # FIXED 2026-09-01 (same pattern/fix as the gross_profit and
+                    # interest_coverage fallbacks above - goal session "we had data but didn't
+                    # know how to read it" audit). Missing `data_unavailable IS NOT TRUE` let
+                    # an incomplete/unfiled fiscal year's stub tax/pretax/operating-income
+                    # figures get used as real. Live-confirmed 374 symbols where the unfiltered
+                    # pick comes from a data_unavailable=True row.
                     cur.execute(
                         """
                         SELECT income_tax_expense, pretax_income, operating_income, interest_expense, net_income
                         FROM annual_income_statement
                         WHERE symbol = %s AND income_tax_expense IS NOT NULL
-                          AND pretax_income IS NOT NULL
+                          AND pretax_income IS NOT NULL AND data_unavailable IS NOT TRUE
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY (CASE WHEN operating_income IS NOT NULL OR interest_expense IS NOT NULL
                                        THEN 0 ELSE 1 END), fiscal_year DESC
@@ -2976,7 +3023,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             SELECT income_tax_expense, pretax_income, operating_income, interest_expense, net_income
                             FROM annual_income_statement
                             WHERE symbol = %s AND income_tax_expense IS NOT NULL
-                              AND pretax_income IS NOT NULL
+                              AND pretax_income IS NOT NULL AND data_unavailable IS NOT TRUE
                             ORDER BY (CASE WHEN operating_income IS NOT NULL OR interest_expense IS NOT NULL
                                            THEN 0 ELSE 1 END), fiscal_year DESC
                             LIMIT 1
@@ -3156,13 +3203,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             roic_stockholders_equity, roic_cash_and_equivalents = stockholders_equity, cash_and_equivalents_bs
             if stockholders_equity is None or cash_and_equivalents_bs is None:
                 with DatabaseContext("read") as cur:
+                    # FIXED 2026-09-01 (same pattern/fix as gross_profit/interest_coverage/
+                    # roic-tax fallbacks above - goal session "we had data but didn't know how
+                    # to read it" audit). Missing `data_unavailable IS NOT TRUE` let an
+                    # incomplete/unfiled or stale-orphan (see sec_base.py's
+                    # stale_fiscal_year_not_confirmed_by_full_sec_refetch) fiscal year's stub
+                    # stockholders_equity/cash_and_equivalents get used as real. Live-confirmed
+                    # 2,989 symbols where the unfiltered pick comes from a data_unavailable=True
+                    # row.
                     # First try: both fields in recent history (3 years)
                     cur.execute(
                         """
                         SELECT stockholders_equity, cash_and_equivalents
                         FROM annual_balance_sheet
                         WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                          AND cash_and_equivalents IS NOT NULL
+                          AND cash_and_equivalents IS NOT NULL AND data_unavailable IS NOT TRUE
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
@@ -3177,7 +3232,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             SELECT stockholders_equity, cash_and_equivalents
                             FROM annual_balance_sheet
                             WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                              AND cash_and_equivalents IS NOT NULL
+                              AND cash_and_equivalents IS NOT NULL AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC LIMIT 1
                             """,
                             (symbol,),
@@ -3204,11 +3259,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             roic_long_term_debt = long_term_debt_bs
             if total_debt_ev is None and long_term_debt_bs is None:
                 with DatabaseContext("read") as cur:
+                    # FIXED 2026-09-01 (same pattern/fix as the fallbacks above - goal session
+                    # "we had data but didn't know how to read it" audit). Missing
+                    # `data_unavailable IS NOT TRUE` let an incomplete/stale-orphan fiscal
+                    # year's stub long_term_debt get used as real. Live-confirmed 1,267 symbols
+                    # where the unfiltered pick comes from a data_unavailable=True row.
                     cur.execute(
                         """
                         SELECT long_term_debt
                         FROM annual_balance_sheet
-                        WHERE symbol = %s AND long_term_debt IS NOT NULL
+                        WHERE symbol = %s AND long_term_debt IS NOT NULL AND data_unavailable IS NOT TRUE
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
@@ -3221,7 +3281,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             """
                             SELECT long_term_debt
                             FROM annual_balance_sheet
-                            WHERE symbol = %s AND long_term_debt IS NOT NULL
+                            WHERE symbol = %s AND long_term_debt IS NOT NULL AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC LIMIT 1
                             """,
                             (symbol,),
