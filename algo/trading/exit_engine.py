@@ -1206,7 +1206,30 @@ class ExitEngine:
                             exits_executed += 1
                             logger.info(f"      -> {message}")
                         else:
+                            # BUG FOUND 2026-09-01 (/goal session, risk-mgmt review pass): a
+                            # `success: False` result from exit_trade() (e.g. a stop-raise
+                            # rejected because the broker-side sync failed, or any other
+                            # non-exception failure) was only ever a bare logger.error line -
+                            # unlike every exception caught in the `except` block below, which
+                            # increments trade_errors AND persists to algo_exit_check_errors
+                            # (see that block's own comment: "the only place a failed exit-
+                            # check for an open position gets recorded" - stdout is gone the
+                            # moment a scheduled run exits). This branch was the one gap in
+                            # that same statement: a persistently-failing stop-raise (e.g. a
+                            # broker-sync that never recovers) would recur silently every
+                            # cycle with zero structured/durable record and zero reflection in
+                            # this run's error count, only the position keeping its prior
+                            # (still-valid, not naked) stop-loss instead of the improved one.
                             logger.error(f"      -> FAILED: {message}")
+                            trade_errors += 1
+                            _persist_exit_check_error(
+                                current_date,
+                                trade_id,
+                                _position_id,
+                                symbol,
+                                "StopRaiseFailed" if fraction == 0 else "ExitFailed",
+                                message,
+                            )
 
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
