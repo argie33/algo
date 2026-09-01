@@ -1973,7 +1973,36 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         else:
                             should_replace = row_filed is None or entry_filed > row_filed
                     else:
-                        should_replace = row_filed is None or entry_filed > row_filed
+                        # FIX 2026-08-31 (/goal pre-real-money audit, live-verified TKR):
+                        # two genuine annual-length (>=330-day) duration facts for the SAME
+                        # concept can both exist in the SAME filing (same accn/filed date) -
+                        # a real calendar-year total and an off-calendar spurious value
+                        # (e.g. a stray sub-line or filing-agent error) - and then both get
+                        # re-cited verbatim in later years' 10-Ks with matching filed dates
+                        # each time, so the old plain filed-date tiebreak (strict >) never
+                        # distinguishes them; whichever was iterated first in SEC's JSON
+                        # silently won. Live-confirmed via TKR (Timken) FY2015
+                        # SalesRevenueGoodsNet: the real total (start=2015-01-01/
+                        # end=2015-12-31, val=$2,872,300,000) and a spurious value
+                        # (start=2014-10-01/end=2015-09-30, val=$20,600,000, ~0.7% of real
+                        # revenue) both first appear in accn 0000098362-16-000097 (filed
+                        # 2016-02-24) and both get re-cited identically in 2 later 10-Ks
+                        # (accn ...17-000031 filed 2017-02-21, accn ...18-000033 filed
+                        # 2018-02-15) - same filed dates every time. The one reliable
+                        # difference: the real value eventually gets frame="CY2015" in its
+                        # later re-citations (SEC's own signal for "the single canonical
+                        # value for this standardized period" - already trusted the same
+                        # way for the instant-fact PMT case above), the spurious value
+                        # never does, in any of its 3 occurrences. Applying the identical
+                        # frame-preference principle here (not a new heuristic - the same
+                        # one already proven safe for instant facts) before falling back to
+                        # filed-date resolves this the same way it does for PMT.
+                        entry_has_frame = bool(entry.get("frame"))
+                        row_has_frame = bool(row.get(f"_frame_{col}"))
+                        if entry_has_frame != row_has_frame:
+                            should_replace = entry_has_frame
+                        else:
+                            should_replace = row_filed is None or entry_filed > row_filed
                 if should_replace:
                     val = entry.get("val")
                     if is_major_currency and isinstance(val, (int, float)) and end_date:
