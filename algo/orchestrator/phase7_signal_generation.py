@@ -606,8 +606,21 @@ def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt,
                       AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
                       AND bsd.symbol NOT IN (SELECT symbol FROM algo_positions WHERE status = 'open')
                 )
+                -- BUG FOUND 2026-09-01 (/goal session, fringe-case sweep): ordering by
+                -- composite_score alone with no tiebreaker means the exact set of symbols
+                -- selected at the LIMIT boundary is non-deterministic across otherwise-
+                -- identical runs whenever two candidates tie (composite_score is a rounded
+                -- percentile-derived value across a universe of thousands - ties at the
+                -- margin are plausible, not a corner case). rs_percentile (already selected
+                -- above) is a real secondary ranking signal, not an arbitrary tiebreaker -
+                -- among equally-scored candidates, prefer the one with stronger relative
+                -- strength. NULLS LAST since a NULL rs_percentile candidate gets filtered
+                -- out downstream anyway (see the Python-side skip further down this
+                -- function) and must not rank ahead of a real candidate on a tie. `symbol
+                -- ASC` as a final tiebreaker guarantees total determinism even if
+                -- rs_percentile also ties.
                 SELECT * FROM ranked
-                ORDER BY composite_score DESC
+                ORDER BY composite_score DESC, rs_percentile DESC NULLS LAST, symbol ASC
                 LIMIT %s
                 """,
                 (
