@@ -1242,14 +1242,14 @@ const VALUE_SCHEMA = [
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "39%",
+    weight: "41%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "34%",
+    weight: "35%",
   },
   // Forward P/E PROMOTED to a scored input 2026-08-28 (user directive - MSCI's Value index
   // uses 12-month forward Earnings/Price as one of its three core descriptors; explicitly a
@@ -1271,7 +1271,7 @@ const VALUE_SCHEMA = [
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "11%",
+    weight: "8%",
   },
   // market_cap moved to the Size pillar 2026-08-26, since retired entirely (see comment above).
   // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't

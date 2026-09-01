@@ -93,6 +93,12 @@ class TestValueMultiplesReconciliationMath:
     SCORING 2026-08-28" / "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring
     notes), no longer part of total_weight_old at all. Weights: PB 33%->39%, PS 29%->34%
     (absorbed margin_of_safety's freed 11%), Dividend Yield 8%->11% (absorbed PEG's freed 3%).
+
+    UPDATED AGAIN 2026-08-31 (goal: factor-score review, "do what is best here maybe 7-8%" -
+    Dividend Yield's own predictive evidence never cleared full significance and vanished in
+    the best-covered sub-period, see load_stock_scores.py's "DIVIDEND YIELD - TRIMMED
+    2026-08-31" docstring note): Dividend Yield 11%->8%, freed 3pts split PB 39%->41% (+2),
+    PS 34%->35% (+1), proportional to their t-stat magnitudes.
     pe_reason/fwd_pe_reason params ADDED - the "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" /
     "UNPROFITABLE-FORECAST FLOOR ADDED 2026-08-28" fix: an unprofitable/negative-forecast
     symbol now counts toward total_weight_old at the normal weight with BOTH old and new
@@ -127,13 +133,13 @@ class TestValueMultiplesReconciliationMath:
         elif pe_reason == "unprofitable_stock":
             total_weight_old += 0.12
         if pb is not None and pb > 0:
-            total_weight_old += 0.39
-            weighted_sum_multiples_old += StockScoresLoader._pb_curve_score(pb) * 0.39
-            weighted_sum_multiples_new += pb_pct * 0.39  # type: ignore[operator]
+            total_weight_old += 0.41
+            weighted_sum_multiples_old += StockScoresLoader._pb_curve_score(pb) * 0.41
+            weighted_sum_multiples_new += pb_pct * 0.41  # type: ignore[operator]
         if ps is not None and ps > 0:
-            total_weight_old += 0.34
-            weighted_sum_multiples_old += StockScoresLoader._ps_curve_score(ps) * 0.34
-            weighted_sum_multiples_new += ps_pct * 0.34  # type: ignore[operator]
+            total_weight_old += 0.35
+            weighted_sum_multiples_old += StockScoresLoader._ps_curve_score(ps) * 0.35
+            weighted_sum_multiples_new += ps_pct * 0.35  # type: ignore[operator]
         if fwd_pe is not None and fwd_pe > 0:
             total_weight_old += 0.04
             weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(fwd_pe) * 0.04
@@ -141,7 +147,7 @@ class TestValueMultiplesReconciliationMath:
         elif fwd_pe_reason == "negative_forward_eps":
             total_weight_old += 0.04
         if dividend_yield is not None and dividend_yield > 0:
-            total_weight_old += 0.11
+            total_weight_old += 0.08
 
         delta = (weighted_sum_multiples_new - weighted_sum_multiples_old) / total_weight_old
         value_score_new = round(max(0.0, min(100.0, value_score_old + delta)), 2)
@@ -296,7 +302,7 @@ class TestValueMultiplesReconciliationMath:
             fwd_pe_pct=None,
         )
         unprofitable = self._reconcile(
-            value_score_old=(StockScoresLoader._pe_curve_score(0.0) * 0.0 + pb_curve * 0.39) / 0.51,
+            value_score_old=(StockScoresLoader._pe_curve_score(0.0) * 0.0 + pb_curve * 0.41) / 0.53,
             composite_score_old=50.0,
             risk_score=50.0,
             pe=None,

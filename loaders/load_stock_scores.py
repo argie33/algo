@@ -2144,8 +2144,12 @@ class StockScoresLoader(OptimalLoader):
         (now 33/29) and the PEG trim / Forward P/E addition below are LATER, separate changes -
         see "PEG - TRIMMED FURTHER, NOT REMOVED" and "FCF YIELD - RESOLVED 2026-08-28" notes.
 
-        Uses weighted scoring (2026-08-28, FINAL/CURRENT): P/E (12%) + P/B (39%) + P/S (34%)
-        + Forward P/E (4%) + Dividend Yield (11%) - six inputs, no PEG, no Margin of Safety.
+        Uses weighted scoring (2026-08-31, FINAL/CURRENT): P/E (12%) + P/B (41%) + P/S (35%)
+        + Forward P/E (4%) + Dividend Yield (8%) - five scored inputs, no PEG, no Margin of
+        Safety. Dividend Yield trimmed 11%->8% this session (weak evidence, kept at user
+        directive - see "DIVIDEND YIELD - TRIMMED 2026-08-31" note below); PB/PS absorbed the
+        freed 3pts. The 2026-08-28 weights (12/39/34/4/11) quoted throughout the rest of this
+        docstring are superseded by this line wherever they conflict.
         This is the end state of a same-day, goal-driven ("is this value score right per
         industry best practice") full re-audit against how real systematic Value factors are
         actually built (MSCI Enhanced Value/World Value, Russell, S&P Style, Barra,
@@ -2700,29 +2704,33 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.12
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
-        # Weight 39% (2026-08-28: +6 from Margin of Safety's removal from scoring below - see
-        # "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring note - given to PB as
-        # the strongest, most robust multiple of the three, same reasoning precedent as
-        # EV/EBITDA/EV/Revenue's and FCF yield's freed weight both going preferentially to PB
-        # in the 2026-08-25/2026-08-28 notes). Reconfirmed STRONGEST of the three multiples in
-        # the fresh 8-input joint regression (t=-7.49 full sample, -3.05/-7.64 sub-period
-        # halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED" note established via
-        # a materially different spec - real corroboration.
+        # Weight 41% (2026-08-31: +2 from Dividend Yield's trim below - see "DIVIDEND YIELD -
+        # TRIMMED 2026-08-31" docstring note - given to PB as the strongest of the two,
+        # proportional to their t-stat magnitudes (PB t=-7.49 vs PS t=-4.40, ~63/37 split of
+        # the freed 3 points). Previously 39% (2026-08-28: +6 from Margin of Safety's removal
+        # from scoring below - see "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28"
+        # docstring note - given to PB as the strongest, most robust multiple of the three,
+        # same reasoning precedent as EV/EBITDA/EV/Revenue's and FCF yield's freed weight both
+        # going preferentially to PB in the 2026-08-25/2026-08-28 notes). Reconfirmed STRONGEST
+        # of the three multiples in the fresh 8-input joint regression (t=-7.49 full sample,
+        # -3.05/-7.64 sub-period halves), the same ranking the "PE-vs-PB/PS RANKING - REVERSED"
+        # note established via a materially different spec - real corroboration.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb_score = self._pb_curve_score(metrics["pb_ratio"])
-            weighted_sum += pb_score * 0.39
-            total_weight += 0.39
+            weighted_sum += pb_score * 0.41
+            total_weight += 0.41
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
-        # Weight 34% (2026-08-28: +5 from Margin of Safety's removal from scoring below, same
-        # reasoning as PB's bump above - PS is the second-strongest, most robust multiple).
-        # Reconfirmed second-strongest of the three multiples (t=-4.40 full sample, -2.68/
-        # -3.52 sub-period halves).
+        # Weight 35% (2026-08-31: +1 from Dividend Yield's trim below, same proportional split
+        # as PB's bump above). Previously 34% (2026-08-28: +5 from Margin of Safety's removal
+        # from scoring below, same reasoning as PB's bump above - PS is the second-strongest,
+        # most robust multiple). Reconfirmed second-strongest of the three multiples (t=-4.40
+        # full sample, -2.68/-3.52 sub-period halves).
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps_score = self._ps_curve_score(metrics["ps_ratio"])
-            weighted_sum += ps_score * 0.34
-            total_weight += 0.34
+            weighted_sum += ps_score * 0.35
+            total_weight += 0.35
 
         # PEG - REMOVED FROM SCORING 2026-08-28 (goal: "is this value score right per industry
         # best practice"). Prior passes (see "PEG - TRIMMED FURTHER, NOT REMOVED" docstring
@@ -2826,11 +2834,23 @@ class StockScoresLoader(OptimalLoader):
         # definitionally the worst end of any yield ranking, so div_score's own formula
         # (min(100, div*16.7)) already floors correctly at div=0 -> score=0 once the gate lets
         # it through.
+        # DIVIDEND YIELD - TRIMMED 2026-08-31 (/goal session: factor-score review, "do what is
+        # best here maybe 7-8%"). Kept as a scored input on explicit user directive (see this
+        # docstring's REVERTED/"we want the dividend yield instead of that payout shit" note
+        # above), but its own predictive evidence has never been strong: full-sample t=0.98-2.28
+        # depending on spec, and the effect vanished entirely in the best-covered 2019-2024
+        # sub-period (p=0.542) - see the REDESIGNED 2026-08-25 docstring note above, which
+        # already flagged this exact weakness and cut the weight once before (to "a token
+        # weight") for the same reason, prior to the 2026-08-28 revert back up to 11%. Trimmed
+        # 11%->8% to size the weight to the evidence while still keeping the input the user
+        # explicitly asked for - not removed, not left at a weight the data doesn't support.
+        # Freed 3pts split proportionally to PB(+2)/PS(+1) above, the two strongest, most
+        # robust multiples in this pillar.
         if metrics.get("dividend_yield") is not None:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
-            weighted_sum += div_score * 0.11
-            total_weight += 0.11
+            weighted_sum += div_score * 0.08
+            total_weight += 0.08
 
         # Forward P/E REMOVED 2026-08-25, RE-ADDED 2026-08-28 - see "FORWARD P/E - ADDED
         # 2026-08-28" docstring note above and the scored block earlier in this function for
@@ -4001,9 +4021,9 @@ class StockScoresLoader(OptimalLoader):
                 elif pe_reason == "unprofitable_stock":
                     components.append((0.0, 0.12))
                 if pb is not None and float(pb) > 0:
-                    components.append((pb_pct[symbol], 0.39))
+                    components.append((pb_pct[symbol], 0.41))
                 if ps is not None and float(ps) > 0:
-                    components.append((ps_pct[symbol], 0.34))
+                    components.append((ps_pct[symbol], 0.35))
                 if fwd_pe is not None and float(fwd_pe) > 0:
                     components.append((fwd_pe_pct[symbol], 0.04))
                 elif fwd_pe_reason == "negative_forward_eps":
@@ -4012,10 +4032,13 @@ class StockScoresLoader(OptimalLoader):
                 # block above - value_metrics.dividend_yield is a real, already-computed 0.0
                 # for non-payers, never NULL, so a `> 0` gate wrongly reweighted this term away
                 # for 56% of the universe instead of scoring the real 0% floor).
+                # TRIMMED 11%->8% same session (see _score_value's "DIVIDEND YIELD - TRIMMED
+                # 2026-08-31" docstring note) - weak evidence, kept at user directive but sized
+                # down; freed 3pts split to PB(+2)/PS(+1) above.
                 if dividend_yield is not None:
                     div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
                     div_score = min(100, div * 16.7)
-                    components.append((div_score, 0.11))
+                    components.append((div_score, 0.08))
 
                 total_weight = sum(w for _, w in components)
                 if total_weight <= 0:
