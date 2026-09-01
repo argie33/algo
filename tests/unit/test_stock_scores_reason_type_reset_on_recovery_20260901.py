@@ -20,6 +20,7 @@ class TestReasonTypeAlwaysWrittenOnSuccessPath:
     def _compute(self) -> dict:
         loader = StockScoresLoader.__new__(StockScoresLoader)
         loader._min_completeness_threshold = 70.0
+        loader._liquidity_cache = {}
 
         with (
             patch("loaders.load_stock_scores.DatabaseContext") as mock_db_ctx,
