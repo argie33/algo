@@ -1277,7 +1277,24 @@ def run(
                         # same convention exit_engine.py's own stop-exit path already uses.
                         # Other EARLY_EXIT reasons (health-flag accumulation, earnings-forced)
                         # aren't tied to a price level, so they keep using current_price.
-                        result = trade_executor.exit_trade(
+                        # FIX 2026-08-31 (/goal pre-real-money audit): this used to call
+                        # trade_executor.exit_trade() directly, unlike both exposure_actions
+                        # branches above (lines ~998, ~1070) which correctly go through
+                        # _retry_exit_trade(). Two compounding problems: (1) a transient
+                        # TimeoutError/ConnectionError/OSError during THIS call - the actual
+                        # stop-loss/target-hit exit path, the highest-stakes one in this file -
+                        # got zero retry, unlike every other exit path; (2) this loop's own
+                        # `except (RuntimeError, ValueError, TypeError, AttributeError)` a few
+                        # lines below does not include those three transient types either, so
+                        # such an error propagated all the way out of run() uncaught - crashing
+                        # the entire Phase 6 execution mid-loop, leaving the triggering position
+                        # open AND every other still-pending position_recs entry (plus the
+                        # ExitEngine tiered-exit pass that runs after this loop) unprocessed for
+                        # the cycle. _retry_exit_trade retries the transient types with backoff
+                        # and converts anything it can't recover into RuntimeError, which the
+                        # existing except below already handles per-position without crashing.
+                        result = _retry_exit_trade(
+                            trade_executor,
                             trade_id=rec["trade_id"],
                             exit_price=rec.get("exit_price_override", rec["current_price"]),
                             exit_reason=rec["action_reason"],
@@ -1485,7 +1502,19 @@ def run(
                                 LIMIT 1
                             """)
                             oldest = cur_w.fetchone()
-                            if oldest:
+                            if not oldest:
+                                # Benign race: open_count (from the read cursor above) was >=
+                                # max_positions, but by the time this write cursor re-queried,
+                                # someone else already closed the position that would have been
+                                # picked - the deadlock this check exists to break may already
+                                # be resolved. Not counted as an error (nothing actually failed),
+                                # but logged so it isn't a silent no-op either.
+                                logger.warning(
+                                    "[PHASE 6 PORTFOLIO_ROTATION] Portfolio was reported full, but no "
+                                    "open position found on re-query - likely closed by a concurrent "
+                                    "process between the count and this check."
+                                )
+                            else:
                                 _pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
                                 # BUG FOUND (goal session, "before real money" audit, exit-path
                                 # completeness sweep): this force-close used to write
@@ -1514,10 +1543,28 @@ def run(
                                 # matching exit_engine.py's own per-trade_id query pattern,
                                 # rather than assuming exactly one.
                                 if current_price is None:
+                                    # BUG FOUND (goal session, Phase 6 deep-review pass): this
+                                    # branch used to only log, with no `errors += 1` - unlike
+                                    # every other no-op/failure case in this file. Portfolio
+                                    # rotation only fires when the portfolio is already full
+                                    # AND normal exits produced zero closes, so this is the
+                                    # deadlock-breaking mechanism of last resort - if IT fails
+                                    # silently too, Phase 6 can report "ok, 0 errors" on a run
+                                    # where the portfolio is stuck full with no exit capacity
+                                    # and nobody is alerted.
+                                    errors += 1
                                     logger.error(
                                         f"[PHASE 6 PORTFOLIO_ROTATION] {symbol}: no current_price available - "
                                         f"refusing to force-close without a valid exit price (this used to "
                                         f"silently write exit_price=NULL)."
+                                    )
+                                    _persist_exit_check_error(
+                                        run_date,
+                                        None,
+                                        pos_uuid,
+                                        symbol,
+                                        "portfolio_rotation_no_current_price",
+                                        "force-close skipped: current_price is NULL",
                                     )
                                 else:
                                     open_statuses = TradeStatus.all_open()
@@ -1529,9 +1576,18 @@ def run(
                                     )
                                     open_trade_ids = [row[0] for row in cur_w.fetchall()]
                                     if not open_trade_ids:
+                                        errors += 1
                                         logger.error(
                                             f"[PHASE 6 PORTFOLIO_ROTATION] {symbol}: position {pos_uuid} is "
                                             f"'open' but has no open trade_id - cannot force-close."
+                                        )
+                                        _persist_exit_check_error(
+                                            run_date,
+                                            None,
+                                            pos_uuid,
+                                            symbol,
+                                            "portfolio_rotation_no_open_trade_id",
+                                            "force-close skipped: position has no open trade_id",
                                         )
                                     for force_trade_id in open_trade_ids:
                                         force_result = trade_executor.exit_trade(
@@ -1557,7 +1613,22 @@ def run(
                                                 f"{force_result.get('message')}"
                                             )
             except Exception as e:
+                # Catches any failure anywhere in this block (DB error, exit_trade() exception,
+                # etc.) - symbol/pos_uuid may or may not have been assigned yet depending on
+                # where it failed, so look them up defensively rather than risking a NameError
+                # while trying to report the original error.
+                errors += 1
+                failed_symbol = locals().get("symbol", "unknown")
+                failed_pos_uuid = locals().get("pos_uuid")
                 logger.error(f"[PHASE 6] Portfolio rotation safety check failed: {e}")
+                _persist_exit_check_error(
+                    run_date,
+                    None,
+                    failed_pos_uuid,
+                    failed_symbol,
+                    "portfolio_rotation_exception",
+                    str(e),
+                )
         elif dry_run:
             # In dry-run mode, log what the exit engine WOULD have checked
             logger.info("[DRY-RUN] Exit engine checks (tiered targets/stops/time) would run, but execution skipped")

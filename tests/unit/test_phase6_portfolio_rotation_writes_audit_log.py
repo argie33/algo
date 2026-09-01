@@ -35,7 +35,7 @@ SOURCE = (Path(__file__).parent.parent.parent / "algo" / "orchestrator" / "phase
 
 def _portfolio_rotation_block() -> str:
     match = re.search(
-        r"# BUG FOUND \(goal session.*?except Exception as e:\s*\n\s*logger\.error",
+        r"# BUG FOUND \(goal session.*?Portfolio rotation safety check failed",
         SOURCE,
         re.DOTALL,
     )
