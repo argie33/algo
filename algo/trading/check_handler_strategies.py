@@ -132,12 +132,23 @@ class ReentryCheckHandler(CheckResultHandler):
                     "Cannot determine failure reason without validation context."
                 )
             status = "reentry_blocked" if "prior re-entries" in error_msg else "reentry_cooldown"
+            # FIX 2026-08-31 (/goal pre-real-money audit): reentry_blocked used to be derived
+            # from `"prior" in error_msg.lower()` - a second, independent substring check on
+            # the same message check_reentry_rules.py's cooldown message
+            # ("only {days_since_exit}d since stop-out; require ... before re-entry (reset
+            # period)") never contains "prior" at all, so this evaluated to False for the
+            # cooldown-block case even though we're already inside `if not valid:` (the check
+            # failed, meaning re-entry WAS blocked, unconditionally, regardless of which of
+            # the two block reasons fired). Currently inert - nothing reads this specific
+            # dict key today (the `status` string above, not this boolean, is what
+            # phase8_entry_execution.py's _POLICY_REJECTION_STATUSES actually checks) - but
+            # left as-is it's a live-wrong value waiting for a future reader to trust it.
             return (
                 True,
                 error_msg,
                 {
                     "status": status,
-                    "reentry_blocked": "prior" in error_msg.lower(),
+                    "reentry_blocked": True,
                 },
             )
         return False, "", None
