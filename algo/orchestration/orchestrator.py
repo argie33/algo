@@ -2173,6 +2173,7 @@ class Orchestrator:
             check_halt_flag=self.halt_manager.check_halt_flag,
             executor=executor,
             exposure_constraints=exposure_constraints,
+            alerts=self.alerts,
         )
         return result
 

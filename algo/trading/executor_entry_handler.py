@@ -1100,6 +1100,31 @@ class EntryHandler:
                 )
             order_status = str(verified_status)
 
+        # BUG FOUND 2026-09-01 (real-money-readiness sweep, partial-fill lifecycle audit):
+        # the re-verification above can come back with a terminal status ("cancelled"/
+        # "canceled"/"expired") for an order that still filled part of its quantity before
+        # being cut short (day-order TIF expiry, cancel-remaining after a partial fill,
+        # etc.) - order_manager.wait_for_order_fill() has a matching fix so this case still
+        # reaches this method instead of hard-stopping earlier, but without normalizing the
+        # status here too, the "partially_filled" check right below would never fire for it:
+        # actual_shares would stay at the originally-REQUESTED shares (not what filled), and
+        # the position-creation gate further down (which only recognizes "filled"/
+        # "partially_filled"/"paper_pending"/"open") would skip creating a position entirely
+        # - the same "invisible live position" bug class this file already guards against
+        # elsewhere, reached via a cancel/expire status instead of "partially_filled" itself.
+        if order_status in ("cancelled", "canceled", "rejected", "expired") and alpaca_order_id:
+            filled_qty_on_terminal = self.context._get_order_filled_quantity(alpaca_order_id)
+            if filled_qty_on_terminal is not None and filled_qty_on_terminal > 0:
+                logger.warning(
+                    _redact_for_logs(
+                        f"{symbol}: order_status={order_status} but broker filled_qty="
+                        f"{filled_qty_on_terminal} > 0 - normalizing to partially_filled so "
+                        f"these shares are recorded instead of becoming an invisible live "
+                        f"position."
+                    )
+                )
+                order_status = "partially_filled"
+
         if order_status == "partially_filled" and alpaca_order_id:
             filled_qty = self.context._get_order_filled_quantity(alpaca_order_id)
             if filled_qty is not None and filled_qty > 0:

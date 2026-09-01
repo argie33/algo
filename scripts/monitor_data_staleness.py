@@ -434,19 +434,37 @@ def get_price_symbol_coverage() -> tuple[int, int, float] | None:
     for trading itself (see algo/orchestrator/phase1_data_freshness.py) but that only halts
     the orchestrator - the diagnostic tools operators run *before* trading hours to
     sanity-check data need per-symbol visibility. Mirrors Phase 1's own query (same
-    active-symbol scoping, same non-NULL open/close requirement) so the two report the
-    same number.
+    active-symbol scoping, same non-NULL open/close requirement).
+
+    BUG FIX 2026-09-01 (real-money-readiness sweep): this used to always check
+    `today - 1 day` (walking back to the nearest trading day), NEVER today's own date,
+    regardless of time of day. Phase 1 requires TODAY's data once market close has passed
+    (its own EOD grace period ends at 6 PM ET - see phase1_data_freshness.py's "before 6 PM
+    ET, accept yesterday... gracefully" comment). Concretely: if the EOD price loader
+    crashes and writes zero rows for today, Phase 1 correctly halts on missing today's data,
+    but this function would still report yesterday's (complete, unrelated) coverage as
+    "[OK] 5471/5471 (100%)" - a false-green on exactly the question this diagnostic exists
+    to answer, and a direct contradiction of this docstring's own "report the same number"
+    claim. Mirror Phase 1's 6 PM ET cutoff for when today's date becomes required.
     """
     try:
+        from utils.infrastructure.timezone import EASTERN_TZ
+
         today = date.today()
-        # Price data is only available after EOD load - find the most recent date with data
-        d = today - timedelta(days=1)  # Start with yesterday
-        last_trading_day = None
-        for _ in range(10):
-            if MarketCalendar.is_trading_day(d):
-                last_trading_day = d
-                break
-            d -= timedelta(days=1)
+        now_et = datetime.now(EASTERN_TZ)
+        requires_today = MarketCalendar.is_trading_day(today) and now_et.hour >= 18
+
+        if requires_today:
+            last_trading_day = today
+        else:
+            # Price data is only available after EOD load - find the most recent date with data
+            d = today - timedelta(days=1)  # Start with yesterday
+            last_trading_day = None
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(d):
+                    last_trading_day = d
+                    break
+                d -= timedelta(days=1)
 
         with DatabaseContext("read") as cur:
             cur.execute(

@@ -1029,6 +1029,41 @@ class OrderManager:
                         return (True, filled_price, "")
 
                     elif status in ("cancelled", "rejected", "expired"):
+                        # BUG FOUND 2026-09-01 (real-money-readiness sweep, partial-fill
+                        # lifecycle audit): a terminal cancel/expire status can still carry a
+                        # nonzero filled_qty - Alpaca moves a partially-filled day order
+                        # straight to "canceled"/"expired" (not "partially_filled", which is a
+                        # still-open state) once no further fill is possible, e.g. a TIF expiry
+                        # or a manual cancel-remaining after a partial fill. filled_qty still
+                        # reflects what DID fill at the broker. This branch used to report
+                        # unconditional failure for ANY terminal status, discarding that
+                        # filled_qty entirely - the exact same "invisible live position" bug
+                        # class as the partially_filled-fell-through-to-unknown-status bug
+                        # fixed above (2026-08-11), just reached via a cancel/expire status
+                        # instead of a stuck "unknown status". Real shares bought before the
+                        # cancellation would never get an algo_trades/algo_positions row.
+                        filled_qty_raw = data.get("filled_qty")
+                        try:
+                            filled_qty_on_terminal = float(filled_qty_raw) if filled_qty_raw is not None else 0.0
+                        except (TypeError, ValueError):
+                            filled_qty_on_terminal = 0.0
+                        if filled_qty_on_terminal > 0:
+                            if "filled_avg_price" not in data or data["filled_avg_price"] is None:
+                                error_msg = (
+                                    f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: status={status} with "
+                                    f"filled_qty={filled_qty_on_terminal} but filled_avg_price missing or "
+                                    f"NULL. Cannot record partial fill price."
+                                )
+                                logger.error(error_msg)
+                                raise RuntimeError(error_msg)
+                            filled_price = float(data["filled_avg_price"])
+                            logger.warning(
+                                f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: status={status} but "
+                                f"filled_qty={filled_qty_on_terminal} > 0 - broker filled part of the "
+                                f"order before cancelling/expiring the remainder. Treating as a partial "
+                                f"fill, not a total failure, so the shares that DID fill get recorded."
+                            )
+                            return (True, filled_price, "")
                         # Alpaca doesn't guarantee 'cancel_reason' is present for every terminal
                         # status (utils/validation/alpaca.py's own validator already falls back
                         # through cancel_reason -> failed_reason -> reason for this exact reason).

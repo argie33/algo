@@ -1169,6 +1169,7 @@ def run(
     exposure_constraints: ExposureConstraints | None = None,
     check_halt_flag: Callable[..., Any] | None = None,
     executor: Any = None,
+    alerts: Any = None,
 ) -> PhaseResult:
     """Execute Phase 8: Entry Execution.
 
@@ -3739,12 +3740,36 @@ def run(
 
     # CRITICAL FIX: Log all failures with details for debugging
     if failed_count > 0:
+        success_rate_pct = round((executed_count / (executed_count + failed_count) * 100), 1)
         logger.critical(
             f"[PHASE 8 CRITICAL] {failed_count} trades failed to execute. "
             f"Failed entries: {failed_entries}. "
-            f"Success rate: {round((executed_count / (executed_count + failed_count) * 100), 1)}%. "
+            f"Success rate: {success_rate_pct}%. "
             f"These failures prevent position entry and require investigation."
         )
+        # BUG FOUND 2026-09-01 (real-money-readiness pass, round 3): this CRITICAL log was
+        # the only signal a failed entry batch ever produced - same "computed but never
+        # delivered" bug class already found 3x this session (position_sync/reconciliation/
+        # database_health_monitor). A broker-connectivity outage during Phase 8 (e.g. Alpaca
+        # unreachable/erroring for every symbol) makes EVERY execute_trade() call raise or
+        # return success=False - this loop already handles that per-symbol (no entries placed,
+        # no crash), but nothing beyond an application log line - which nobody may ever read
+        # in real time - ever reached an operator. Distinguish a real outage from an
+        # occasional single-symbol rejection: only page when every attempted entry failed
+        # (0 executed) with at least 2 attempts, so a lone bad-data rejection for one symbol
+        # among many successful entries doesn't page unnecessarily.
+        if alerts is not None and executed_count == 0 and failed_count >= 2:
+            try:
+                alerts.send_position_alert(
+                    "PORTFOLIO",
+                    "PHASE8_ALL_ENTRIES_FAILED",
+                    f"Phase 8 entry execution: all {failed_count} attempted entries failed "
+                    f"(0 executed). This may indicate a broker outage or connectivity issue - "
+                    f"investigate immediately. Failed entries: {failed_entries}",
+                    {"failed_count": failed_count, "failed_entries": failed_entries},
+                )
+            except Exception as alert_err:
+                logger.error(f"[PHASE 8] Failed to send entry-failure alert (non-blocking): {alert_err}")
 
     # ISSUE 14 FIX: Log resource cleanup summary
     if failed_entries:

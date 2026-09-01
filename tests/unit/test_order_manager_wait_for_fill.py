@@ -13,6 +13,8 @@ an unhandled crash instead of a graceful rejection result.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from algo.trading.order_manager import OrderManager
 
 
@@ -118,3 +120,73 @@ class TestWaitForOrderFillPartialFillAndPriceFormat:
 
         assert success is True
         assert filled_price == 50.25
+
+
+class TestWaitForOrderFillTerminalStatusWithPartialFill:
+    """Regression tests for the 2026-09-01 fix (real-money-readiness sweep, partial-fill
+    lifecycle audit): a terminal cancel/expire status can still carry a nonzero filled_qty -
+    Alpaca moves a partially-filled day order straight to "canceled"/"expired" (not
+    "partially_filled", which is a still-open state) once no further fill is possible, e.g. a
+    TIF expiry or a manual cancel-remaining after a partial fill. This branch used to report
+    unconditional failure for ANY terminal status, discarding real filled_qty and losing track
+    of shares that were actually bought - the same "invisible live position" bug class as the
+    partially_filled-fell-through-to-unknown-status bug above, just reached via a cancel/expire
+    status instead.
+    """
+
+    def test_cancelled_with_nonzero_filled_qty_is_treated_as_partial_fill(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        with patch(
+            "algo.trading.order_manager.requests.get",
+            return_value=_mock_response(
+                "cancelled", {"filled_qty": "40", "filled_avg_price": "75.30", "cancel_reason": "day order expired"}
+            ),
+        ):
+            success, filled_price, error_msg = manager.wait_for_order_fill("TEST", "order-123")
+
+        assert success is True, "a partial fill before cancellation is a real fill and must not be reported as failure"
+        assert filled_price == 75.30
+        assert error_msg == ""
+
+    def test_expired_with_nonzero_filled_qty_is_treated_as_partial_fill(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        with patch(
+            "algo.trading.order_manager.requests.get",
+            return_value=_mock_response("expired", {"filled_qty": "5.5", "filled_avg_price": "12.10"}),
+        ):
+            success, filled_price, error_msg = manager.wait_for_order_fill("TEST", "order-123")
+
+        assert success is True
+        assert filled_price == 12.10
+
+    def test_cancelled_with_zero_filled_qty_is_still_a_failure(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        with patch(
+            "algo.trading.order_manager.requests.get",
+            return_value=_mock_response("cancelled", {"filled_qty": "0", "cancel_reason": "user requested"}),
+        ):
+            success, filled_price, error_msg = manager.wait_for_order_fill("TEST", "order-123")
+
+        assert success is False
+        assert filled_price is None
+        assert "user requested" in error_msg
+
+    def test_cancelled_with_missing_filled_qty_is_still_a_failure(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        with patch(
+            "algo.trading.order_manager.requests.get",
+            return_value=_mock_response("cancelled", {"cancel_reason": "user requested"}),
+        ):
+            success, filled_price, error_msg = manager.wait_for_order_fill("TEST", "order-123")
+
+        assert success is False
+        assert filled_price is None
+
+    def test_cancelled_with_filled_qty_but_missing_price_raises(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        with patch(
+            "algo.trading.order_manager.requests.get",
+            return_value=_mock_response("cancelled", {"filled_qty": "10"}),
+        ):
+            with pytest.raises(RuntimeError, match="filled_avg_price"):
+                manager.wait_for_order_fill("TEST", "order-123")
