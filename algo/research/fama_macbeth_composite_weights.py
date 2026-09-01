@@ -407,12 +407,15 @@ def build_pillar_proxy_records(
         pe = np.where(v["eps"] > 0, price / v["eps"], np.nan)
         pb = np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan)
         ps = np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan)
-        # value_proxy: PE12/PB39/PS34 renormalized over 85 (live's remaining 15 - ForwardPE4/
-        # DividendYield11 - excluded, see module docstring).
+        # value_proxy: PE27/PB27/PS27 (equal-weighted, live-verified 2026-09-01 - see module
+        # docstring's CORRECTED note) renormalized over 81 (live's remaining 19 - ForwardPE9/
+        # DividendYield10 - excluded). CORRECTED 2026-09-01: this was PE12/PB39/PS34/85 (stale
+        # since before the 2026-09-01 equal-weight reweight - see
+        # value_equal_weight_and_pe_reason_bug_fixed_20260901 in memory).
         value_proxy = (
-            (12.0 / 85.0) * _zwinsor(-pd.Series(pe, index=v.index))
-            + (39.0 / 85.0) * _zwinsor(-pd.Series(pb, index=v.index))
-            + (34.0 / 85.0) * _zwinsor(-pd.Series(ps, index=v.index))
+            (27.0 / 81.0) * _zwinsor(-pd.Series(pe, index=v.index))
+            + (27.0 / 81.0) * _zwinsor(-pd.Series(pb, index=v.index))
+            + (27.0 / 81.0) * _zwinsor(-pd.Series(ps, index=v.index))
         )
 
         # quality_proxy: ROE11/ROA18/ROCE18/FCFmargin15/(-D2E)18/(-marginvol)7/assetturnover7/
@@ -448,11 +451,16 @@ def build_pillar_proxy_records(
             else pd.Series(np.nan, index=winb.columns)
         )
         beta = beta.reindex(vol_60d.index)
+        # CORRECTED 2026-09-01 (live-reverified in loaders/load_stock_scores.py's _score_risk):
+        # live weights are now vol_60d 45 + vol_252d 15 + beta 15 + max_dd_1y 10 + Liquidity 15
+        # (Liquidity added 2026-09-01, avg_dollar_volume_20d-based - not reconstructed here, no
+        # point-in-time dollar-volume panel built yet, same "disclosed exclusion" convention as
+        # value_proxy's forward_pe/dividend_yield). Renormalized over the remaining 85.
         stability_proxy = (
-            0.45 * _zwinsor(-vol_60d)
-            + 0.20 * _zwinsor(-vol_252d)
-            + 0.20 * _zwinsor(-(beta - 1.0).abs())
-            + 0.15 * _zwinsor(max_dd_1y)
+            (45.0 / 85.0) * _zwinsor(-vol_60d)
+            + (15.0 / 85.0) * _zwinsor(-vol_252d)
+            + (15.0 / 85.0) * _zwinsor(-(beta - 1.0).abs())
+            + (10.0 / 85.0) * _zwinsor(max_dd_1y)
         )
 
         mom_3m = _trailing_cumret(px, i, 3)
