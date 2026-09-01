@@ -119,7 +119,8 @@ class TestDeactivateStaleExcludedSymbols:
                 ("AAPL", "Apple Inc. - Common Stock"),
             ]
             mock_write_cur = MagicMock()
-            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_write_cur, mock_purge_cur]
 
             # Must not raise despite notify() failing internally.
             loader._deactivate_stale_excluded_symbols()
@@ -282,7 +283,13 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
             mock_priced_cur = MagicMock()
             mock_priced_cur.fetchall.return_value = []
             mock_write_cur = MagicMock()
-            mock_db_ctx.return_value.__enter__.side_effect = [mock_active_cur, mock_priced_cur, mock_write_cur]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [
+                mock_active_cur,
+                mock_priced_cur,
+                mock_write_cur,
+                mock_purge_cur,
+            ]
 
             # Must not raise despite notify() failing internally.
             loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
