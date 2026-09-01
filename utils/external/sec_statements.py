@@ -1484,6 +1484,47 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 _accn, _e_end = _e.get("accn"), _e.get("end")
                 if _accn and _e_end and (_accn not in _max_end_by_accn or _e_end > _max_end_by_accn[_accn]):
                     _max_end_by_accn[_accn] = _e_end
+            # BUG FOUND 2026-08-31 (goal session: real-money-readiness audit, resolving
+            # jakk_duration_fact_comparative_aliasing_found_not_fixed_20260831): the comment
+            # just above ("duration facts... don't collide across periods the way instant
+            # facts do") assumes a comparative echo always carries dates matching its real
+            # period. Live-confirmed false via JAKK (JAKKS Pacific, CIK 1009829): its Q1
+            # 2026 10-Q (accn 0001185185-26-001667) correctly tags its own Q1-2025
+            # comparative (start=2025-01-01/end=2025-03-31, val=$113,253,000,
+            # frame="CY2025Q1") but ALSO carries a second fact for the SAME concept with
+            # FULL-YEAR dates (start=2025-01-01/end=2025-12-31) and the IDENTICAL
+            # $113,253,000 value - not FY2025's real revenue ($570,671,000, confirmed via
+            # JAKK's own real FY2025 10-K, accn 0001185185-26-000723, filed 2026-03-02).
+            # This full-year-shaped fact even carries frame="CY2025" - the canonical-period
+            # marker the PMT fix above trusts for instant facts - while the REAL 10-K fact
+            # for that year carries no frame at all here, so extending that precedent to
+            # duration facts would pick the WRONG value; deliberately not done. The
+            # reliable signal instead: a real annual total practically never exactly equals
+            # a single quarter's total for an operating company (verified zero false
+            # positives against AAPL/MSFT/CHTR/ANDE's combined 685 real annual-span
+            # duration facts) - only a copy-pasted/aliased comparative would. Detect this
+            # per-accn: if an annual-span (>=330 day) duration fact's value exactly matches
+            # a genuine short-span (<330 day) duration fact for the SAME concept from the
+            # SAME accn (i.e. the filing's own real quarter figure), the long-span fact is
+            # that quarter's value wearing borrowed annual dates, not a real annual total.
+            # Skipped entirely below rather than let it win a "latest filed" tiebreak
+            # against the genuine 10-K figure - exactly what happened for JAKK: the
+            # mistagged fact's 2026-05-01 filed date beat the real 10-K's 2026-03-02 filed
+            # date under the plain latest-filed rule the annual duration-fact tiebreak
+            # otherwise uses.
+            _short_span_val_by_accn: dict[str, set[Any]] = {}
+            for _e in entries:
+                _e_start = _e.get("start")
+                if not _e_start or not _e.get("end"):
+                    continue
+                try:
+                    _span = (datetime.date.fromisoformat(_e["end"]) - datetime.date.fromisoformat(_e_start)).days
+                except ValueError:
+                    continue
+                if _span < 330:
+                    _accn = _e.get("accn")
+                    if _accn:
+                        _short_span_val_by_accn.setdefault(_accn, set()).add(_e.get("val"))
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
                 # whatever share unit the local filing uses - domestic 10-K/10-Q filers
@@ -1547,6 +1588,14 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         span_days = None
                     if span_days is not None and span_days < 330:
                         continue  # Real single-quarter/partial-year data - not annual
+                    # See the _short_span_val_by_accn comment above this loop (JAKK case):
+                    # an annual-shaped span whose value exactly matches a genuine quarter
+                    # from the same accn is that quarter's value under borrowed annual
+                    # dates, not a real annual total.
+                    if span_days is not None and span_days >= 330:
+                        _accn = entry.get("accn")
+                        if _accn and entry.get("val") in _short_span_val_by_accn.get(_accn, ()):
+                            continue
 
                 # BUG FOUND 2026-08-31 (goal session: "get all the data we need" full-
                 # coverage audit): a duration fact (has "start") sourced from an 8-K is
