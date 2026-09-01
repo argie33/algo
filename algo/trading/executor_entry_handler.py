@@ -978,7 +978,80 @@ class EntryHandler:
                 symbol, alpaca_order_id, max_wait_seconds=30
             )
             if not fill_ok:
-                # Order did not fill - do NOT write to DB
+                # Order did not fill within the poll window - do NOT immediately assume no DB
+                # write is needed. Attempt cleanup cancellation FIRST (before any alert), then
+                # check whether it actually reveals a real fill that raced past the timeout -
+                # see order_manager.cancel_bracket_orders' FILL-VS-CANCEL RACE note (found
+                # 2026-09-01, real-money-readiness sweep, order-retry fringe-case review): a
+                # 30s poll timeout does not mean the order died - it's still LIVE at the
+                # broker and can fill at any moment, including during the cancel request
+                # itself. Discarding that fill here would be the exact same "invisible live
+                # position" bug class already fixed for wait_for_order_fill's own
+                # partially_filled/cancelled-with-fill branches, just reached via this
+                # different path.
+                #
+                # BUG FOUND 2026-08-31: order_manager.cancel_bracket_orders() raises a plain
+                # RuntimeError on every real failure path (non-retryable status, or 429/503
+                # retries exhausted) - not OrderExecutionError/DatabaseError, which are unrelated
+                # TradingError subclasses, nor requests.RequestException/Timeout. This except
+                # clause could never actually catch a real cancel failure; it silently let the
+                # RuntimeError propagate uncaught out of this method instead of the intended
+                # graceful "log a warning, still report the fill failure" behavior - exactly the
+                # scenario this comment block already documents as "a real, anticipated failure
+                # mode" (order already filled and thus uncancelable, or a live rate-limit
+                # exhaustion) that must not crash the entry pipeline for one symbol.
+                cancel_result: dict[str, Any] = {}
+                try:
+                    cancel_result = self.context._cancel_bracket_orders(alpaca_order_id)
+                except (
+                    OrderExecutionError,
+                    DatabaseError,
+                    RuntimeError,
+                    requests.RequestException,
+                    requests.Timeout,
+                ) as e:
+                    logger.warning(f"Failed to cancel failed order {alpaca_order_id}: {e}")
+
+                raced_filled_qty = cancel_result.get("filled_qty") if isinstance(cancel_result, dict) else None
+                if raced_filled_qty:
+                    raced_price = cancel_result.get("filled_avg_price")
+                    if raced_price is None:
+                        raise RuntimeError(
+                            f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: {raced_filled_qty} shares "
+                            f"filled during the cancel race (fill-vs-cancel race) but no fill price was "
+                            f"available - cannot record a trade without a price. Position may be untracked; "
+                            f"Phase 9's AlpacaSyncManager should catch it."
+                        )
+                    executed_price = Decimal(str(raced_price))
+                    order_status = "partially_filled" if float(raced_filled_qty) < float(shares) else "filled"
+                    logger.warning(
+                        f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: fill-vs-cancel race detected - "
+                        f"{raced_filled_qty} shares filled @ ${executed_price} despite the 30s poll timeout "
+                        f"({fill_error}). Recording as a real fill, not discarding it."
+                    )
+                    try:
+                        notify(
+                            "warning",
+                            title=f"Fill-vs-cancel race recovered: {symbol}",
+                            message=(
+                                f"Trade {trade_id}: order timed out after 30s ({fill_error}) but "
+                                f"{raced_filled_qty} shares actually filled @ ${executed_price} - recorded "
+                                f"correctly, not lost."
+                            ),
+                        )
+                    except NotificationError as e:
+                        logger.warning(f"Failed to send fill-vs-cancel-race recovery notice for {symbol}: {e}")
+                    return (
+                        True,
+                        "",
+                        order_status,
+                        alpaca_order_id,
+                        executed_price,
+                        rejection_reason,
+                        order_send_time,
+                    )
+
+                # Genuinely zero fill - safe to report failure as before.
                 #
                 # BUG FOUND 2026-08-11: the "Check for order rejection/cancellation" block that
                 # used to follow this one (removed here) checked `order_status`, which is set
@@ -1014,26 +1087,6 @@ class EntryHandler:
                         f"CRITICAL: Failed to send fill-failure alert for {symbol} ({fill_error}): {e}. "
                         f"Trader was NOT notified that the order failed to fill."
                     ) from e
-                # BUG FOUND 2026-08-31: order_manager.cancel_bracket_orders() raises a plain
-                # RuntimeError on every real failure path (non-retryable status, or 429/503
-                # retries exhausted) - not OrderExecutionError/DatabaseError, which are unrelated
-                # TradingError subclasses, nor requests.RequestException/Timeout. This except
-                # clause could never actually catch a real cancel failure; it silently let the
-                # RuntimeError propagate uncaught out of this method instead of the intended
-                # graceful "log a warning, still report the fill failure" behavior - exactly the
-                # scenario this comment block already documents as "a real, anticipated failure
-                # mode" (order already filled and thus uncancelable, or a live rate-limit
-                # exhaustion) that must not crash the entry pipeline for one symbol.
-                try:
-                    self.context._cancel_bracket_orders(alpaca_order_id)
-                except (
-                    OrderExecutionError,
-                    DatabaseError,
-                    RuntimeError,
-                    requests.RequestException,
-                    requests.Timeout,
-                ) as e:
-                    logger.warning(f"Failed to cancel failed order {alpaca_order_id}: {e}")
                 return (False, fill_error, "", "", None, None, order_send_time)
 
             # Order filled - use actual fill price from broker

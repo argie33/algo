@@ -383,16 +383,33 @@ class OrderManager:
     def cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
         """Cancel bracket order and its children (stop loss + take profit).
 
-        Returns: { success: bool, message: str }
+        Returns: { success: bool, message: str, filled_qty: float | None,
+                   filled_avg_price: float | None }
+
+        filled_qty/filled_avg_price are populated whenever a post-cancel status check finds
+        the order had ALREADY filled (fully or partially) by the time the cancel request
+        reached the broker - see the FILL-VS-CANCEL RACE note below. None when the order
+        genuinely had zero fill, or when the post-cancel check itself couldn't be completed
+        (never block/crash cancellation cleanup on this best-effort check failing).
         """
         if not alpaca_order_id:
-            return {"success": False, "message": "No order ID provided"}
+            return {"success": False, "message": "No order ID provided", "filled_qty": None, "filled_avg_price": None}
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
-            return {"success": False, "message": "Paper mode, no Alpaca order to cancel (not a failure)"}
+            return {
+                "success": False,
+                "message": "Paper mode, no Alpaca order to cancel (not a failure)",
+                "filled_qty": None,
+                "filled_avg_price": None,
+            }
 
         if not self.alpaca_key or not self.alpaca_secret:
-            return {"success": False, "message": "Cannot cancel order - Alpaca credentials missing"}
+            return {
+                "success": False,
+                "message": "Cannot cancel order - Alpaca credentials missing",
+                "filled_qty": None,
+                "filled_avg_price": None,
+            }
 
         # RETRY (found 2026-07-28, same class as send_bracket_order's fix): a single-attempt
         # transient 429/503 here used to be reported as a permanent cancel failure. Callers
@@ -414,10 +431,44 @@ class OrderManager:
                     timeout=get_api_timeout(),
                 )
                 if resp.status_code in (200, 204):
+                    # FILL-VS-CANCEL RACE (found 2026-09-01, real-money-readiness sweep,
+                    # order-retry fringe-case review): a 200/204 here only means the DELETE
+                    # request was accepted - it does NOT guarantee zero shares filled. Alpaca
+                    # cancels only the still-open remainder of a partially-filled order and
+                    # still returns 200/204; the already-filled portion is real and stays
+                    # filled. The prior version of this method returned bare success/failure
+                    # with no fill info at all, so every caller (executor_entry_handler.py's
+                    # timeout-cancel path) discarded that fill entirely - the exact same
+                    # "invisible live position" bug class already fixed for wait_for_order_
+                    # fill's own partially_filled/cancelled-with-fill branches, just reached
+                    # via THIS cancel path instead of the polling loop. Check the order's real
+                    # final state before declaring success - best-effort, never let a check
+                    # failure here mask that the cancel itself DID succeed.
+                    filled_qty, filled_avg_price = self._post_cancel_fill_check(alpaca_order_id)
                     return {
                         "success": True,
                         "message": f"Cancelled bracket order {alpaca_order_id}",
+                        "filled_qty": filled_qty,
+                        "filled_avg_price": filled_avg_price,
                     }
+
+                if resp.status_code == 422:
+                    # Alpaca returns 422 when the order is already in a terminal state (e.g.
+                    # fully filled) and thus can no longer be cancelled - the FILL-VS-CANCEL
+                    # RACE note above applies here even more directly: this is the exact
+                    # signature of "the order finished filling before our cancel reached the
+                    # broker." Check for a real fill before treating this as a bare failure.
+                    filled_qty, filled_avg_price = self._post_cancel_fill_check(alpaca_order_id)
+                    if filled_qty:
+                        return {
+                            "success": False,
+                            "message": (
+                                f"Order {alpaca_order_id} could not be cancelled (422 - already terminal) "
+                                f"but filled {filled_qty} shares before the cancel raced past it"
+                            ),
+                            "filled_qty": filled_qty,
+                            "filled_avg_price": filled_avg_price,
+                        }
 
                 last_error = f"Failed to cancel: {resp.status_code}"
                 if resp.status_code in (429, 503) and attempt < max_attempts - 1:
@@ -440,6 +491,44 @@ class OrderManager:
         raise RuntimeError(
             f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id} after {max_attempts} attempts: {last_error}"
         )
+
+    def _post_cancel_fill_check(self, alpaca_order_id: str) -> tuple[float | None, float | None]:
+        """Best-effort check of an order's real filled_qty/filled_avg_price right after a
+        cancel attempt - see cancel_bracket_orders' FILL-VS-CANCEL RACE note for why this
+        exists. Never raises: a failure here must not mask whether the cancel itself
+        succeeded, so any error just means "couldn't confirm, treat as no fill" - the
+        existing AlpacaSyncManager._sync_untracked_positions safety net (Phase 9) still
+        catches a genuinely-missed fill later, this is a best-effort earlier catch only.
+        """
+        try:
+            order = self.get_order(alpaca_order_id)
+        except (OrderExecutionError, RuntimeError, requests.RequestException, requests.Timeout) as e:
+            logger.warning(
+                f"[CANCEL_BRACKET] {alpaca_order_id}: post-cancel fill check failed ({e}) - "
+                f"cannot confirm whether shares filled before the cancel. Relying on Phase 9's "
+                f"untracked-position sync to catch this if a real fill was missed here."
+            )
+            return None, None
+        if not order:
+            return None, None
+        try:
+            filled_qty = float(order["filled_qty"]) if order.get("filled_qty") is not None else 0.0
+        except (TypeError, ValueError):
+            filled_qty = 0.0
+        if filled_qty <= 0:
+            return None, None
+        filled_avg_price_raw = order.get("filled_avg_price")
+        filled_avg_price = None
+        if filled_avg_price_raw is not None:
+            try:
+                filled_avg_price = float(filled_avg_price_raw)
+            except (TypeError, ValueError):
+                filled_avg_price = None
+        logger.warning(
+            f"[CANCEL_BRACKET] {alpaca_order_id}: {filled_qty} shares filled @ "
+            f"{filled_avg_price} before/during cancellation - NOT discarding this fill."
+        )
+        return filled_qty, filled_avg_price
 
     def get_order(self, alpaca_order_id: str) -> dict[str, Any] | None:
         """Fetch the full order object (including nested `legs`) from Alpaca.
