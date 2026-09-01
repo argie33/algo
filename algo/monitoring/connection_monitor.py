@@ -109,6 +109,14 @@ class ConnectionPoolMonitor:
             }
 
     def check_and_alert_stuck_connections(self) -> None:
+        """NOTE (2026-09-01): despite the name/log line, this only logs - it does not call
+        a real AlertManager/notify(). The sole live caller,
+        database_health_monitor.py's check_connection_pool_health(), was found to have the
+        same "computed but never delivered" gap and was fixed there to call
+        self.alerts.critical() itself right after this method returns - that's currently
+        the only real alert delivery for a stuck-connection condition. If this method
+        gains another caller that doesn't already alert independently, it will need real
+        delivery added here too, not just this log line."""
         status = self.get_status()
         if status["stuck_connections_count"] > 0:
             logger.error(

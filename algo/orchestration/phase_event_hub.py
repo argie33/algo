@@ -86,12 +86,22 @@ class PhaseCompletedEvent(PhaseEvent):
         summary: str = "",
         metrics: dict[str, Any] | None = None,
     ):
+        # BUG FOUND 2026-09-01 (real-money-readiness pass): this default (metrics=None)
+        # immediately raised ValueError whenever a caller relied on it - a self-defeating
+        # signature that guaranteed failure unless every caller explicitly passed metrics.
+        # The one live caller, Orchestrator.log_phase_result(), has no metrics parameter of
+        # its own at all (it only receives phase_num/name/status/summary) and constructs
+        # this event with no metrics= argument on EVERY phase completion - so this ValueError
+        # fired 100% of the time, silently swallowed by the caller's broad
+        # `except (ValueError, Exception)` at logger.debug level (invisible in normal
+        # production logging). Net effect: PhaseEventHub's dashboard/API subscriber system
+        # (this module's own docstring: "Decouples phase execution from dashboard/API
+        # consumers") never received one real phase_completed event in production -
+        # hub.get_phase_status() always returned None. Default to an empty dict instead of
+        # raising - an event with sparse metrics is still a real, useful event; the whole
+        # point of this pub/sub system is that it must actually fire.
         if metrics is None:
-            raise ValueError(
-                f"[PHASE_EVENT] Phase completion event for '{phase_name}' missing metrics. "
-                f"Cannot publish phase completion without metrics data-events with missing metrics hide phase progress. "
-                f"Ensure phase executor populates metrics before firing PhaseCompletedEvent."
-            )
+            metrics = {}
         super().__init__(
             event_type="phase_completed",
             phase_num=phase_num,

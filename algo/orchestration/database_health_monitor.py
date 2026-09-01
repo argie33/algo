@@ -60,6 +60,21 @@ class DatabaseHealthMonitor:
             if status["stuck_connections_count"] > 0:
                 logger.warning(f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections")
                 check_stuck_connections()
+                # BUG FOUND 2026-09-01 (real-money-readiness pass): self.alerts was injected
+                # by __init__ ("AlertManager instance for escalation") but never referenced
+                # anywhere in this class before this fix - every CRITICAL condition here
+                # (stuck connections, missing required tables, ECS task-termination failure)
+                # only ever reached a log line. check_stuck_connections() above is equally
+                # misleading despite its name (check_and_alert_stuck_connections in
+                # connection_monitor.py) - it also only calls logger.error(), see that file's
+                # own 2026-09-01 fix. Same "computed but never delivered" bug class already
+                # found and fixed twice this session (position_sync.py, reconciliation.py,
+                # commit 6f70d1e27).
+                self.alerts.critical(
+                    f"[RDS_POOL] {status['stuck_connections_count']} stuck connections "
+                    f"held >5min ({status['usage_pct']:.0f}% pool usage). See RDS_POOL logs "
+                    f"for details."
+                )
         except (KeyError, ValueError, AttributeError) as e:
             logger.warning(f"[RDS_POOL] Could not check connection pool health: {e}")
 
@@ -230,6 +245,13 @@ class DatabaseHealthMonitor:
             f"[TASK_TERMINATION] FAILED: {loader_name} task {task_arn} did not transition to STOPPED after {max_retries} attempts. "
             "RDS connection may not be released. Manual intervention required."
         )
+        # BUG FOUND 2026-09-01: same "computed but never delivered" gap as
+        # check_connection_pool_health above - never reached a real alert.
+        self.alerts.critical(
+            f"[TASK_TERMINATION] {loader_name} task {task_arn} did not transition to STOPPED "
+            f"after {max_retries} attempts. RDS connection may not be released. Manual "
+            f"intervention required."
+        )
         return False
 
     def validate_required_tables(self, cur: Any) -> bool:
@@ -265,6 +287,9 @@ class DatabaseHealthMonitor:
 
             if missing_tables:
                 logger.error(f"[CRITICAL] Missing required tables: {', '.join(missing_tables)}")
+                # BUG FOUND 2026-09-01: same "computed but never delivered" gap as
+                # check_connection_pool_health above - never reached a real alert.
+                self.alerts.critical(f"[TABLE_VALIDATION] Missing required tables: {', '.join(missing_tables)}")
                 return False
 
             logger.info("[OK] All required tables exist")

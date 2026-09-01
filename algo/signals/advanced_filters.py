@@ -364,6 +364,16 @@ class AdvancedFilters:
                 else:
                     logger.warning(f"  {symbol}: Additional failure (price trend) but already failed: {hard_fail}")
 
+            # BUG FOUND 2026-09-01 (real-money-readiness pass): a stray, unconditional
+            # `subscores["momentum"] += setup_pts` used to sit right after this try/except,
+            # duplicating the one already inside the try block (line below) on every
+            # successful evaluation - silently doubling the setup-quality bonus (0-5 pts)
+            # into every candidate's momentum subscore and composite_score, distorting the
+            # ranking this gate exists to produce. On the exception path it was worse: since
+            # setup_pts is never bound when _setup_quality_score() raises, that stray line
+            # raised an uncaught UnboundLocalError - exactly the failure class every other
+            # "FIX (2026-08-09)" comment in this method was written to eliminate. Removed;
+            # the single addition inside the try block below is correct and sufficient.
             try:
                 setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
                 components["setup_quality"] = setup_breakdown
@@ -377,7 +387,6 @@ class AdvancedFilters:
                 else:
                     logger.warning(f"  {symbol}: Additional failure (setup quality) but already failed: {hard_fail}")
                 components["setup_quality"] = None
-            subscores["momentum"] += setup_pts
 
             # QUALITY (30)
             # FIX (2026-08-09): both were fully unwrapped (not even a re-raise-with-context, just
