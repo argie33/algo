@@ -307,7 +307,19 @@ class ValueAtRisk:
                         "reason": "insufficient_history",
                     }  # Portfolio too new for Stressed VaR
 
-                values = [Decimal(str(float(row[1]))) for i, row in enumerate(rows)]
+                # FIX 2026-08-31 (/goal pre-real-money audit): this used to build `values`
+                # inline (`Decimal(str(float(row[1])))` with no validation) instead of
+                # going through _extract_portfolio_values() the way historical_var()/cvar()
+                # both do - missing that helper's `val <= 0` check. A negative
+                # adjusted_equity row (corrupted snapshot data) would silently flip the
+                # sign of every return computed from it instead of raising the same clear
+                # RuntimeError historical_var()/cvar() give for identical bad data - VaR is
+                # informational-only (doesn't gate trading, see phase9_reconciliation.py's
+                # _compute_risk_metrics()), so this could only mislead an operator reading
+                # the risk report, never risk extra capital directly, but the three
+                # functions computing the same statistic from the same table should fail
+                # the same way on the same bad input.
+                values = self._extract_portfolio_values(rows)
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 returns = np.array([float(r) for i, r in enumerate(returns_decimal)])
 
