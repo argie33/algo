@@ -1327,6 +1327,28 @@ class StockScoresLoader(OptimalLoader):
                 "data_sources": json.dumps(data_sources),  # Data source attribution
                 "data_unavailable": not score_available,  # CRITICAL: Mark unavailable if completeness < 70%
                 "reason": reason_text,
+                # reason_type ADDED 2026-09-01 (/goal session, "make sure results make sense"
+                # investigation). This dict is written on every non-exceptional pass through
+                # _compute_stock_score, but previously never included "reason_type" at all -
+                # only fetch_incremental's two exception-handling branches set it, to
+                # "loader_failed". Since BulkInsertManager derives each row's UPSERT column
+                # list from that row's own dict keys (see bulk_insert_manager.py), a symbol
+                # that failed once (reason_type='loader_failed' persisted) and later recovered
+                # never had reason_type in its column list on the recovery write - the stale
+                # 'loader_failed' value was silently carried forward FOREVER, untouched by
+                # every subsequent successful re-score. Live-confirmed 2026-09-01: symbols
+                # (including NVDA, BRK.A, BRK.B, BYND) sat at reason_type='loader_failed'
+                # despite full completeness and real scored pillars - a false-failure signal
+                # that would mislead exactly this kind of "why is data missing" triage. Always
+                # writing "unknown" here (this loader's own reason_text messages are plain
+                # completeness-threshold strings, never the "loader_failed:"/"not_applicable:"/
+                # "unavailable_temporary:" prefixes utils/loaders/unavailable_markers.py's
+                # extract_reason_type() checks for for other loaders' governance markers, so it
+                # would resolve to "unknown" here regardless) matches the column's own DEFAULT
+                # and every other successful row already in the table - it just also now
+                # actively RESETS a stale 'loader_failed' on recovery instead of leaving it out
+                # of the write entirely.
+                "reason_type": "unknown",
                 "date": datetime.now(timezone.utc).date(),
                 "updated_at": datetime.now(timezone.utc),
             }
