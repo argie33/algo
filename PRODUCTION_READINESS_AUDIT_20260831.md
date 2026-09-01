@@ -224,7 +224,14 @@ psql -h <rds-host> -U postgres -d algo_trading -c "SHOW default_transaction_isol
 - ✅ Entry blockage is the correct fallback
 - ✅ Manual reconciliation possible via dashboard
 
-**Recommendation**: Accept this limitation. Create runbook for "Alpaca API outage" scenario in OPERATIONS.md.
+**Recommendation**: Accept this limitation. Create runbook for "Alpaca API outage" scenario in
+OPERATIONS.md.
+
+**RESOLVED 2026-09-01**: `OPERATIONS.md` doesn't exist in this repo (deleted 2026-07-26, see
+CLAUDE.md) - written instead as "EMERGENCY: Alpaca API Outage" in
+`steering/COMMON_OPERATIONS.md`. Also corrected this audit's own implicit claim that "Phase 6
+still executes" fully covers a real outage - Phase 6 needs live Alpaca API access too, only
+already-resting broker-side bracket stop/target orders are unaffected.
 
 ---
 

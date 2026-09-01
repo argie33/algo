@@ -95,6 +95,57 @@ themselves are the actual problem.
 
 ---
 
+## EMERGENCY: Alpaca API Outage
+
+**Added 2026-09-01** (real-money-readiness `/goal` review, PRODUCTION_READINESS_AUDIT_20260831.md
+Observation 5) after finding this scenario documented as "create a runbook" but never actually
+written - the audit's own recommended location, `OPERATIONS.md`, doesn't exist in this repo (see
+this file's "Getting Help" section below).
+
+**Symptom:** Phase 9 (`phase9_reconciliation.py`) raises `RuntimeError` on every run -
+`_run_reconciliation_step` re-raises any Alpaca API failure rather than proceeding with stale or
+hardcoded data (deliberate - see that function's own comments: masking a real sync failure with
+`$100k` defaults is worse than halting).
+
+**What is and isn't safe:**
+- ✅ **Already-open positions' stop-loss/take-profit orders are safe.** Every entry is submitted
+  as an Alpaca-native bracket order (`order_class == "bracket"`,
+  `algo/trading/executor_entry_handler.py`) - the stop and target legs rest **at the broker**,
+  not in this system. They fire on Alpaca's side even if your orchestrator can't reach Alpaca's
+  API at all, and even if the orchestrator isn't running.
+- ❌ **Phase 6 (exit execution) also needs live Alpaca API access** to submit a *new* exit
+  order (e.g. a signal-driven early exit, or a manually-triggered `flatten_all_positions.py`) -
+  it raises `[PHASE 6 CRITICAL] Alpaca credentials required` if credentials/API aren't reachable
+  (`phase6_exit_execution.py` line ~928). A true Alpaca-side outage blocks this the same way it
+  blocks Phase 9 - don't assume "Phase 6 still executes" covers a full API outage, only a
+  Phase-9-specific failure with Alpaca otherwise reachable.
+- ❌ **No new entries.** Phase 8 needs live Alpaca access for the same reason; a real outage
+  blocks new positions from opening regardless of any halt flag.
+
+**Recovery:**
+1. Confirm it's actually Alpaca, not a local credentials/network problem:
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://status.alpaca.markets/api/v2/status.json
+curl -s https://paper-api.alpaca.markets/v2/account -H "APCA-API-KEY-ID: $APCA_API_KEY_ID" -H "APCA-API-SECRET-KEY: $APCA_API_SECRET_KEY"
+```
+   (swap `paper-api` for `api` against the live endpoint per `APCA_API_BASE_URL`)
+2. If Alpaca itself is down (check https://status.alpaca.markets), there is nothing to fix on
+   this system's side - **do not** try to route around it (no alternate broker path exists, and
+   shouldn't). Set the halt flag so nobody's surprised by repeated Phase 8/9 failures in logs
+   while you wait: `python scripts/manage_halt_flag.py --set "Alpaca API outage - see status.alpaca.markets"`
+3. Existing bracket orders keep protecting open positions the whole time (see above) - this is
+   not an emergency-close situation by itself. Only reach for
+   `scripts/flatten_all_positions.py` (see "EMERGENCY: Halting Trading" above) if something
+   else is *also* wrong, since that script itself requires working Alpaca API access to place
+   the closing orders.
+4. Once Alpaca's status page confirms recovery, verify credentials still authenticate before
+   clearing the halt: `python scripts/verify_live_trading_readiness.py`
+5. Clear the halt flag: `python scripts/manage_halt_flag.py --clear "Alpaca API outage resolved"`
+6. Manually reconcile via the dashboard (`python -m dashboard --local` or AWS mode) to confirm
+   position/order state matches Alpaca's before the next scheduled orchestrator run.
+
+---
+
 ## Problem: Dashboard Shows "Data Not Available"
 
 **Symptom:** Dashboard displays "data not available" on all panels.
