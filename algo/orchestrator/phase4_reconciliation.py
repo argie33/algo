@@ -295,7 +295,14 @@ def run(  # noqa: C901
             error_msg = f"Reconciliation error: {str(e)[:200]}"
 
         log_phase_result_fn(4, "reconciliation", "error", error_msg)
-        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, False, error_msg)
+        # FIX 2026-08-31 (/goal pre-real-money audit): was `halted=False` despite this
+        # branch's own comment saying "fail-fast to prevent trading on stale position
+        # data" - status="error" already makes PhaseResult.ok False (the field that
+        # actually gates phase_executor.py's dependency chain today, see
+        # phase_result.py's ok property), so this had no live behavioral effect as of
+        # this fix, but left the flag meaning the opposite of the stated intent for
+        # any future code that keys off .halted specifically for this phase.
+        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, True, error_msg)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error = PhaseError(
@@ -315,4 +322,6 @@ def run(  # noqa: C901
 
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
         log_phase_result_fn(4, "reconciliation", "error", error_msg)
-        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, False, error_msg)
+        # FIX 2026-08-31 (/goal pre-real-money audit): was `halted=False`, same class as
+        # the ValueError branch above - see that fix's comment for the full reasoning.
+        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, True, error_msg)
