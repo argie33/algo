@@ -188,7 +188,13 @@ class TestSectorConditionalFormula:
 
         profitability_cluster = (roe_curve + roa_curve + roce_curve + fcf_curve + gp_curve) / 5.0
         safety_cluster = (d2e_score + mv_score) / 2.0
-        return (profitability_cluster + safety_cluster) / 2.0
+        # WEIGHTS FIXED 2026-09-01: top-level cluster combination is now weighted by each
+        # cluster's actual share of the universal branch's nominal weight (profitability 69 =
+        # roe 11+roa 18+roce 18+fcf_margin 15+gross_profitability 7; safety 25 = debt_to_equity
+        # 18+margin_volatility 7), not a flat 1.0/1.0 split - see that fix's own comment in
+        # loaders/load_value_quality_growth_metrics.py for why (a flat split let a single thin
+        # cluster like safety-only produce a full, undiscounted score - SBR/PBT/XP live-confirmed).
+        return (profitability_cluster * 69.0 + safety_cluster * 25.0) / 94.0
 
     def test_real_estate_uses_cluster_formula_not_universal(self):
         loader = _make_loader()
@@ -286,6 +292,42 @@ class TestSectorConditionalFormula:
         metrics = loader._compute_quality_metrics("EMPTYCO", row, ev_metrics=ev_metrics_empty, margin_volatility=None)
 
         assert metrics.get("quality_score") is None
+        assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
+
+    def test_safety_cluster_alone_no_longer_produces_a_full_score(self):
+        # REGRESSION for the bug the 2026-08-31 fix (min_quality_weight_pct 2.0->1.0, see the
+        # test above) unintentionally reintroduced: a flat (cluster_score, 1.0)/(cluster_score,
+        # 1.0) top-level split let the safety cluster ALONE - even fully populated with both its
+        # own inputs - clear "at least one cluster present" and produce a full, undiscounted
+        # quality_score off just debt_to_equity/margin_volatility, with zero profitability
+        # signal at all. Live-confirmed on real symbols 2026-09-01: SBR (an Oil Royalty Trust,
+        # vendor-classified "Financial Services" by legal/trust structure, not economics) scored
+        # 97.13 off margin_volatility ALONE; PBT scored 87.52 the same way; XP (a real,
+        # legitimately Financial-Services brokerage) scored 98.19, also off margin_volatility
+        # alone. FIXED by weighting each cluster by its actual share of the universal branch's
+        # nominal weight (profitability 69, safety 25, of 94 total) and gating on a proportional
+        # 37.2 floor - safety alone (25 points) no longer clears it, matching the universal
+        # branch's own "don't extrapolate a full score from a thin sample" principle.
+        loader = _make_loader()
+        loader._get_symbol_sector = lambda symbol: "Financial Services"
+        # debt_to_equity = debt_for_roic / roic_stockholders_equity, where roic_stockholders_equity
+        # comes straight from stockholders_equity and debt_for_roic prefers _EV_METRICS's
+        # total_debt over row's long_term_debt - so stockholders_equity (and _EV_METRICS) must
+        # stay real for debt_to_equity to survive while every profitability-cluster input dies:
+        # net_income kills roe/roa, total_assets kills roa/roce/gross_profitability, revenue
+        # kills fcf_margin (the same-fiscal-year DB fallback is neutralized by the autouse
+        # _mock_db fixture returning no rows).
+        row = _row(net_income=None, total_assets=None, revenue=None)
+
+        metrics = loader._compute_quality_metrics("SAFETYONLYCO", row, ev_metrics=_EV_METRICS, margin_volatility=10.0)
+
+        assert metrics.get("debt_to_equity") is not None
+        assert metrics.get("margin_volatility") is not None
+        assert metrics.get("roe") is None
+        assert metrics.get("roa") is None
+        assert metrics.get("fcf_margin") is None
+        assert metrics.get("gross_profitability") is None
+        assert metrics["quality_score"] is None
         assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
 
 

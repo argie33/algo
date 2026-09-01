@@ -4473,30 +4473,42 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     [(debt_to_equity_score, 1.0), (margin_volatility_score, 1.0)],
                     min_weight_pct=1.0,  # >=1 of 2 available
                 )
-                quality_components = [(profitability_cluster_score, 1.0), (safety_cluster_score, 1.0)]
-                # FIXED 2026-08-31 (goal: data-loading gap investigation): was 2.0 ("both
-                # clusters must have scored something", i.e. 100% of the 2.0 possible weight) -
-                # far stricter than the universal branch's own 40%-of-101 floor just below,
-                # despite this comment's neighbor above claiming "a symbol missing part of one
-                # cluster still scores off whatever it has, same 'score what's available'
-                # convention as the universal formula" - true for a PARTIAL cluster gap
-                # (handled correctly by each cluster's own internal _weighted_avg), false for a
-                # WHOLE cluster gap, which the 2.0 floor discarded entirely regardless of how
-                # well-populated the other cluster was. Live-confirmed: 66 of 91 FS/RE symbols
-                # (73%) currently null on quality_score via "insufficient_completeness" have a
-                # real, adequately-populated cluster on one side and zero data on the other -
-                # e.g. BAP (Credicorp, a real, large, profitable Peruvian bank): roe=16.08/
-                # roa=2.20/fcf_margin=51.73 all real (3/5 profitability inputs, clears that
-                # cluster's own 40% floor easily), but debt_to_equity AND margin_volatility are
-                # BOTH missing (foreign banks routinely report balance-sheet structure - equity/
-                # liabilities/deposits - in ways this pipeline's standard concepts don't map
-                # cleanly to margin_volatility's multi-year-history requirement or
-                # debt_to_equity's XBRL tags) so safety_cluster_score comes back None and the
-                # whole quality_score was discarded despite 60% of the profitability leg being
-                # real data. Lowered to 1.0 - at least ONE cluster (which already individually
-                # cleared its own internal completeness floor) is required, mirroring
-                # safety_cluster's own ">=1 of 2" pattern one level up, not "both required".
-                min_quality_weight_pct = 1.0
+                # WEIGHTS FIXED 2026-09-01 (goal-mode factor-usage review, live-verified via
+                # category-leaders spot check, not assumed from reading the code alone). The
+                # 2026-08-31 fix directly above correctly solved BAP's case (a real, substantial
+                # profitability leg with safety entirely absent) but reintroduced the EXACT bug
+                # class the universal branch's own 40%-of-101 floor was built to catch
+                # (COMPLETENESS FLOOR comment above, PBT/SBR's original ROA=761%/961% case): a
+                # flat (cluster_score, 1.0)/(cluster_score, 1.0) top-level split, gated on
+                # "at least one of 2.0 possible weight", let a single cluster - regardless of how
+                # thin that cluster's own contents are, down to ONE raw field once its own
+                # internal floor is barely cleared - produce a full, undiscounted quality_score.
+                # Live-confirmed 2026-09-01: SBR (an Oil Royalty Trust, vendor-classified
+                # "Financial Services" by legal structure, not economics - the same symbol this
+                # file's original completeness-floor fix was written for) scored 97.13 off
+                # margin_volatility=0.72 ALONE (roe/roa/roce/fcf_margin/debt_to_equity/
+                # gross_profitability all NULL); PBT scored 87.52 the identical way; XP (a real,
+                # legitimately-Financial-Services brokerage, not a misclassification) scored
+                # 98.19, also off margin_volatility alone. Universe sweep: 57/1,030 FS/RE-scored
+                # symbols get their score from only one cluster, 7 of those from a single raw
+                # field. Fixed by weighting each cluster by its ACTUAL share of the universal
+                # branch's own nominal weight instead of an arbitrary flat split - profitability
+                # (roe 11 + roa 18 + roce 18 + fcf_margin 15 + gross_profitability 7 = 69) and
+                # safety (debt_to_equity 18 + margin_volatility 7 = 25), summing to 94 (= the
+                # universal branch's 101 minus asset_turnover's 7, the one input this whole
+                # sector-conditional path exists to drop - see this method's own docstring).
+                quality_components = [(profitability_cluster_score, 69.0), (safety_cluster_score, 25.0)]
+                # min_quality_weight_pct PROPORTIONAL FIX 2026-09-01 (same pass): the universal
+                # branch requires 40 of its 101 nominal points (~39.6%) before allowing a real
+                # score through, rather than a thin-sample extrapolation. This branch's own
+                # nominal total is 94 (see above), so the equivalent floor is 40 * (94/101) =
+                # 37.2 - NOT "at least one cluster present" (that check no longer means anything
+                # once the weights above reflect each cluster's true size: safety alone is only
+                # 25 points, below this floor, so a safety-only symbol like XP/SBR/PBT now
+                # correctly returns None instead of a single-field score). BAP's case (69 points,
+                # profitability only) still clears 37.2 easily, so the 2026-08-31 fix's own
+                # target case remains fixed - this tightens the gate without reopening that one.
+                min_quality_weight_pct = 37.2
             else:
                 quality_components = [
                     (roe_score, 11.0),

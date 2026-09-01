@@ -1564,18 +1564,6 @@ def run(
             "Phase 5 (exposure_policy) did not provide constraints. Phase 8 requires Phase 5 output to execute entries safely.",
         )
 
-        # CHECKPOINT 3: Validate safe defaults have all required fields (fallback path)
-        required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
-        safe_defaults_dict = exposure_constraints_from_executor
-        missing_in_defaults = [k for k in required_fields if k not in safe_defaults_dict]
-        if missing_in_defaults:
-            error_msg = (
-                f"[PHASE 8 CRITICAL] Safe default constraints incomplete: missing {missing_in_defaults}. "
-                f"Cannot proceed - default constraints must have all required fields."
-            )
-            logger.critical(error_msg)
-            raise RuntimeError(error_msg)
-
     # Override with executor data if available, else use passed-in data
     if qualified_trades_from_executor is not None:
         qualified_trades = qualified_trades_from_executor
@@ -3381,7 +3369,11 @@ def run(
             # Session 28 root cause: signals 16+ hours old cause 75% loss rate (momentum already faded)
             # Signals generated yesterday at 4:05 PM → entered today at 1:00 PM = 16+ hours old
             # This gate prevents entering dead setups by age threshold (default 24 hours)
-            signal_age_hours_val = config.get("max_signal_age_hours", default=24)
+            # positional default (not `default=24`): config is typed Any and a plain dict's
+            # C-implemented .get() is positional-only, unlike AlgoConfig.get()'s real method -
+            # a plain-dict config here would previously raise TypeError instead of falling
+            # back to 24.
+            signal_age_hours_val = config.get("max_signal_age_hours", 24)
             try:
                 max_signal_age_hours = int(signal_age_hours_val)
                 if max_signal_age_hours <= 0:
