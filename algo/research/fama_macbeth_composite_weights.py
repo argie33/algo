@@ -31,9 +31,9 @@ tested; this script answers the separate top-level question), verified against
 loaders/load_stock_scores.py directly on 2026-08-31:
 
 - growth_proxy: equal-weighted average of z-scored [eps_growth_1y, eps_growth_3y, eps_growth_5y,
-  revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, sustainable_growth_rate] - 7 of the
-  live 12-field GROWTH_SCORE_FIELDS blend (~58% coverage of the live equal-weight formula,
-  honest partial proxy, not the full 12).
+  revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, sustainable_growth_rate,
+  quarterly_growth_momentum, earnings_growth_4q_avg] - 9 of the live 12-field
+  GROWTH_SCORE_FIELDS blend (75% coverage of the live equal-weight formula).
 
   CORRECTED 2026-09-01 (goal session: "understand our data gaps before resuming Fama-MacBeth" -
   live-verified against loaders/load_stock_scores.py's GROWTH_SCORE_FIELDS directly, which is
@@ -42,21 +42,20 @@ loaders/load_stock_scores.py directly on 2026-08-31:
   net_income_growth_yoy/fcf_growth_yoy were DROPPED from GROWTH_PROXY_COLS entirely - neither
   is in the live 12-field list anymore (both were removed from production in a later
   2026-08-31 pass than this script's own last verify), so testing them was testing fields that
-  don't exist in production - not a partial-coverage gap, a stale-test bug. The 5 fields still
-  untested (forward_eps_growth_current_fy, forward_eps_growth_next_fy,
-  forward_revenue_growth_next_fy, quarterly_growth_momentum, earnings_growth_4q_avg) remain
-  excluded for VERIFIED, not assumed, data reasons - do not add them without re-verifying the
-  underlying data has actually changed:
-    * The 3 forward-looking fields need a point-in-time analyst-estimate panel.
-      `analyst_earnings_estimates` currently spans only 2026-08-03 to 2026-08-31 (25 distinct
-      dates, live-queried) - a single snapshot, not history; cannot be reconstructed at all
-      yet, let alone as a "proxy-code fix only" (a prior version of this same correction
-      mistakenly claimed otherwise in MEMORY.md - corrected there too).
-    * quarterly_growth_momentum/earnings_growth_4q_avg are derived from QUARTERLY EPS/revenue
-      history (load_value_quality_growth_metrics.py's _compute_quarterly_metrics). Unlike the
-      forward fields, the RAW data does exist with real depth (quarterly_income_statement:
-      194,750 rows across 5,584 symbols, live-queried) - building a point-in-time quarterly
-      panel here is a real, scoped, buildable follow-up, just not attempted in this pass.
+  don't exist in production - not a partial-coverage gap, a stale-test bug.
+
+  SAME-DAY LATER PASS: quarterly_growth_momentum/earnings_growth_4q_avg ADDED - both are
+  derived from QUARTERLY EPS/revenue history and already have a working point-in-time
+  reconstruction in algo/research/growth_quarterly_earnings_quality_candidates.py (built
+  2026-08-27 for an isolated per-field FM test), reused here rather than rebuilt. Only 3 of
+  the original 5 untested fields remain excluded now (forward_eps_growth_current_fy,
+  forward_eps_growth_next_fy, forward_revenue_growth_next_fy) - genuinely not buildable:
+  `analyst_earnings_estimates` currently spans only 2026-08-03 to 2026-08-31 (25 distinct
+  dates, live-queried), a single snapshot, not history; cannot be reconstructed at all yet, let
+  alone as a "proxy-code fix only" (a prior version of this same correction mistakenly claimed
+  otherwise in MEMORY.md - corrected there too). This is now an irreducible data-depth gap, not
+  an unstarted-project gap - closing it requires waiting for analyst_earnings_estimates to
+  accumulate real history over time, not more engineering effort today.
 
   sustainable_growth_rate IS newly reconstructed here (not in the pre-2026-08-31 version
   of this script) via the same ROE x retention-ratio formula
@@ -145,6 +144,12 @@ from algo.research.fama_macbeth_price_factors import (
     fetch_month_end_prices,
 )
 from algo.research.fama_macbeth_quality_factors import build_quality_panel, fetch_annual_quality_fundamentals
+from algo.research.growth_quarterly_earnings_quality_candidates import (
+    build_panel as build_quarterly_earnings_panel,
+)
+from algo.research.growth_quarterly_earnings_quality_candidates import (
+    fetch_quarterly_panel,
+)
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
 from utils.db.context import DatabaseContext
 
@@ -172,7 +177,26 @@ GROWTH_PROXY_COLS = [
     "revenue_growth_3y",
     "revenue_growth_5y",
     "sustainable_growth_rate",
+    "quarterly_growth_momentum",
+    "earnings_growth_4q_avg",
 ]
+# quarterly_growth_momentum/earnings_growth_4q_avg ADDED 2026-09-01 (same /goal session as the
+# value_proxy/stability_proxy fix in dfdb110e7 - "make sure we have the full dataset before
+# resuming FM"). These 2 of the 5 previously-excluded live GROWTH_SCORE_FIELDS turned out to
+# already have a working point-in-time reconstruction -
+# algo/research/growth_quarterly_earnings_quality_candidates.py (built 2026-08-27 to
+# isolated-FM-test them individually) - reused here rather than rebuilt, closing this proxy from
+# 7/12 (58%) to 9/12 (75%) of the live 12-field blend. The other 3 (forward_eps_growth_current_fy/
+# next_fy, forward_revenue_growth_next_fy) remain excluded - genuinely not buildable yet,
+# analyst_earnings_estimates still has only ~1 month of real snapshot history, not a point-in-time
+# panel. Note: quarterly_growth_momentum was already isolated-tested and found a clean null
+# (t=-1.41) and earnings_growth_4q_avg failed this project's own both-eras-robust bar (see
+# growth_quarterly_earnings_quality_candidates_tested_20260827 in memory) - live production
+# still scores both anyway per the user's standing "match published Growth methodology, not just
+# whichever field last won an isolated FM test" override (GROWTH_SCORE_FIELDS RESTORED
+# 2026-08-28). Including them here even though they didn't clear the isolated bar is deliberate:
+# this proxy's job is to test the LIVE formula as-is, not to re-litigate which fields belong in
+# it.
 
 
 def _zwinsor(s: pd.Series) -> pd.Series:
@@ -325,6 +349,8 @@ def build_pillar_proxy_records(
     logger.info("Building fundamentals panels (growth/value/quality)")
     growth_fund = fetch_growth_and_sgr_fundamentals()
     growth_panel = build_growth_and_sgr_panel(growth_fund)
+    quarterly_fund = fetch_quarterly_panel()
+    quarterly_panel = build_quarterly_earnings_panel(quarterly_fund)
     value_fund = build_value_panel_raw()
     quality_raw = fetch_annual_quality_fundamentals()
     quality_fund = build_quality_panel(quality_raw)
@@ -355,7 +381,14 @@ def build_pillar_proxy_records(
             indicators[key].set_axis(pd.PeriodIndex(indicators[key].index, freq="M")).reindex(months_period)
         )
 
-    growth_monthly = merge_asof_monthly(months, growth_panel, cols=GROWTH_PROXY_COLS)
+    growth_monthly = merge_asof_monthly(
+        months,
+        growth_panel,
+        cols=[c for c in GROWTH_PROXY_COLS if c not in ("quarterly_growth_momentum", "earnings_growth_4q_avg")],
+    )
+    quarterly_monthly = merge_asof_monthly(
+        months, quarterly_panel, cols=["quarterly_growth_momentum", "earnings_growth_4q_avg"]
+    )
     value_monthly = merge_asof_monthly(
         months, value_fund, cols=["eps", "book_value_per_share", "sales_per_share", "shares_diluted"]
     )
@@ -399,6 +432,13 @@ def build_pillar_proxy_records(
             continue
         if daily_idx < 251:  # need a full 252-trading-day window
             continue
+
+        qtr = quarterly_monthly.get(month)
+        g = (
+            g.join(qtr, how="left")
+            if qtr is not None
+            else g.assign(quarterly_growth_momentum=np.nan, earnings_growth_4q_avg=np.nan)
+        )
 
         growth_cols_z = [_zwinsor(g[c]) for c in GROWTH_PROXY_COLS]
         growth_proxy = sum(growth_cols_z) / len(growth_cols_z)
