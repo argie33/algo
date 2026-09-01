@@ -48,7 +48,7 @@ from typing import Any, cast
 import requests
 import yfinance as yf
 
-from algo.infrastructure import retry
+from algo.infrastructure.retry import retry
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 from utils.external.yfinance_symbol import to_yfinance_symbol as _normalize_yfinance_symbol
 from utils.infrastructure import EASTERN_TZ

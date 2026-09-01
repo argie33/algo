@@ -1812,11 +1812,33 @@ class AlgoConfig:
 
         # WARNING: Mostly defaults (>75% not loaded) indicates partial database failure
         if total_sources > 0 and (default_sources / total_sources) > 0.75:
-            logger.critical(
+            message = (
                 f"[CONFIG WARNING] PARTIAL database load failure: {default_sources}/{total_sources} configs "
                 f"still at defaults ({(default_sources / total_sources) * 100:.0f}%). "
                 f"Database may be slow/degraded. Verify algo_config table has all required values."
             )
+            logger.critical(message)
+            # BUG FOUND 2026-09-01 (/goal session): unlike the full-failure case just above
+            # (db_sources == 0), which raises and is fail-fast/blocking in live mode, this
+            # partial-failure branch only ever logged - the same "computed but never delivered"
+            # alert gap already found and fixed today in load_market_constituents.py and Phase
+            # 9's risk-alert path. A degraded (not fully down) DB during live trading means the
+            # system silently keeps running on mostly-HARDCODED-DEFAULT safety/position-sizing
+            # thresholds - not the tuned production values - with nothing but a log line an
+            # operator would have to be actively watching to catch. Alerting is best-effort here
+            # (config loading itself must not fail because notify() failed), matching every
+            # other notify()-wiring fix from today's sweep.
+            try:
+                from algo.reporting import notify
+
+                notify(
+                    severity="warning",
+                    title="Partial Config Database Load Failure",
+                    message=message,
+                    details={"default_sources": default_sources, "total_sources": total_sources},
+                )
+            except (ValueError, TypeError, RuntimeError) as notify_err:
+                logger.error(f"[AlgoConfig] Failed to send partial-database-load-failure alert: {notify_err}")
 
     def _validate_critical_thresholds(self) -> None:
         """Fail-fast validation: critical safety thresholds must be within safe ranges.
