@@ -66,6 +66,7 @@ CURRENT_DATE/CURRENT_TIMESTAMP directly for trading decisions. All database quer
 use the run_date parameter or query price_daily MAX(date) to align with ET-based trading.
 """
 
+import contextlib
 import logging
 import math
 import os
@@ -3479,10 +3480,27 @@ def run(
             )
 
             if not dry_run:
-                # ISSUE 14 FIX: Execute each trade with fresh database context to prevent connection corruption
-                # If one trade corrupts the connection, the next trade gets a fresh connection from the pool
+                # FIX 2026-08-31 (/goal pre-real-money audit): this used to be
+                # `with DatabaseContext("write") as cur:` per the original "ISSUE 14 FIX"
+                # comment below, intending each trade to get an isolated DB connection. It
+                # didn't actually do that: `cur` was never referenced anywhere in this block -
+                # trade_executor.execute_trade() (and the nested DatabaseContext at the
+                # algo_signals status update below) each acquire their OWN connections from
+                # the pool independently, and DatabaseContext.__enter__ only reuses a shared
+                # connection via utils/db/pooled_context_var.py's contextvar, which is set by
+                # OptimalLoader.run() - Phase 8 is not an OptimalLoader, so nothing here was
+                # ever shared downstream either. Net effect: every trade in this loop held one
+                # real pool connection open, unused, for the full duration of the broker order
+                # submission (network round-trip) plus all the success/failure bookkeeping
+                # below - live-verified via `utils/db/pooled_context_var.py`/`utils/db/context.py`
+                # read, not just inferred. Replaced with a real no-op so a large qualified_trades
+                # batch (or one slow/hung broker call) no longer ties up a pool connection per
+                # trade for zero benefit.
+                # ISSUE 14 FIX (original intent, still true): each trade's execution is isolated
+                # from the next - if one trade's own DB writes fail, the next trade in the loop
+                # still gets a fresh connection, since execute_trade() acquires its own per call.
                 try:
-                    with DatabaseContext("write") as cur:
+                    with contextlib.nullcontext():
                         # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
                         # OPTIONAL: sector, industry (enrichment data, may be None if data unavailable)
                         # SESSION 367 FIX: Pass signal quality scores for trade entry validation
