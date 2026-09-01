@@ -1261,6 +1261,35 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             logger.critical(error_msg)
                             raise RuntimeError(error_msg)
 
+                        # BUG FOUND 2026-08-31: unlike algo_positions.stop_loss_price (NOT NULL since
+                        # migration 020), algo_trades.stop_loss_price has no such constraint - other
+                        # code in this same file (see the WHERE stop_loss_price IS NOT NULL filters
+                        # elsewhere) already treats it as nullable in practice. Without this guard, a
+                        # NULL here reaches `float(entry_price) - float(stop_loss_price)` below and
+                        # raises an uncaught TypeError - not a psycopg2 error, so it isn't caught by
+                        # this function's `except (psycopg2.DatabaseError, psycopg2.OperationalError)`
+                        # handlers, and it occurs before the per-symbol SAVEPOINT even exists. It
+                        # propagates out of the whole `with DatabaseContext("write")` block, which
+                        # rolls back on ANY exception - silently discarding every other symbol already
+                        # successfully recorded earlier in this same batch, not just this one row.
+                        if position_qty is None or position_qty <= 0:
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Trade {symbol} has invalid position_qty ({position_qty}). "
+                                f"Cannot record trade P&L without a valid closed quantity. "
+                                f"Halting Phase 9 to prevent audit trail corruption."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
+                        if stop_loss_price is None:
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has NULL "
+                                f"stop_loss_price on algo_trades. Cannot calculate risk_per_share/R-multiple. "
+                                f"Halting Phase 9 to prevent audit trail corruption - backfill "
+                                f"algo_trades.stop_loss_price for this trade_id before re-running."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
+
                         # CRITICAL FIX 2026-07-29: Fetch actual exit price from broker or price_daily,
                         # NOT from stale algo_positions.current_price. Use reconciliation pattern from
                         # reconciliation.py::resolve_local_pending_exits (use actual price_daily close)
