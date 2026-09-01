@@ -197,6 +197,23 @@ class SecValuationsLoader(OptimalLoader):
     # in that file, not here, unlike pe_ratio/pb_ratio/ps_ratio which are this loader's own.
     MIN_PLAUSIBLE_PE_RATIO = 0.05
 
+    # TIGHTENED 2026-09-01 (goal session, "get the missing data"/"bizarre results" audit):
+    # the prior <=1.0 (100%) bound below was live-confirmed to still let through absurd
+    # "dividend yields" of 63-95% for real going-concern companies - HVT.A (63.08%, and #1
+    # on the entire Value factor's top list off this alone), JEM (95.17%), HTCR (95.12%),
+    # LZM (92.22%), TASK (88.48%), among 30+ symbols above 30%. Root causes vary (a
+    # shares_outstanding scale error deflating entity_market_cap for JEM/HTCR - same class
+    # already fixed once for PARA, see this bound's own prior history below; a per-share XBRL
+    # concept that turned out to carry a much larger, likely mis-scaled figure for AD's
+    # dividends_paid) - different mechanisms, same symptom, same fix: a tighter output-level
+    # plausibility bound, the same guard-rather-than-chase-every-mechanism pattern already
+    # used for MIN_PLAUSIBLE_PB_RATIO/PS_RATIO above (also added after a loose bound was
+    # found "driving unwarranted #1 ranks"). No real, live sample case checked this session
+    # cleared 30%; genuine high-yield BDCs/CLO funds/mREITs (FSK 22.6%, XFLT 27.4%, GPMT
+    # 20.4%) stay comfortably under it, so this isn't cutting off a real category, just the
+    # tail that's actually a data error.
+    MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO = 0.30
+
     # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): depository
     # institutions never tag a "CapitalExpenditures" XBRL concept in any fiscal year -
     # live-confirmed via JPM, BAC, MS, WFC, PNC's real companyfacts JSON (capex NULL across
@@ -2291,7 +2308,7 @@ class SecValuationsLoader(OptimalLoader):
         # dividend_yield is inflated the same way fcf_yield was.
         if dividends_paid and dividends_paid > 0 and entity_market_cap and entity_market_cap > 0:
             div_yield = dividends_paid / entity_market_cap
-            if 0 < div_yield <= 1.0:  # >100% yield indicates a data error
+            if 0 < div_yield <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
                 result["dividend_yield"] = round(div_yield, 4)
             else:
                 logger.debug(f"[{symbol}] Dividend yield out of bounds ({div_yield:.2%}), marking as NULL")

@@ -101,20 +101,25 @@ class TestEntityWideFcfDenominator:
         entity-wide market cap, not the class-specific one."""
         loader = _make_loader()
         kwargs = self._base_kwargs()
-        kwargs["dividends_paid"] = 20.0
+        # dividends_paid=10.0 (not 20.0): the class-specific-denominator yield (10/50=20%) must
+        # stay under MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO (0.30, tightened 2026-09-01) so this test
+        # still exercises the real denominator-selection logic instead of tripping the
+        # plausibility bound - a change to that unrelated constant shouldn't silently invalidate
+        # this test's own assertions.
+        kwargs["dividends_paid"] = 10.0
         kwargs["total_debt"] = 500.0
         kwargs["total_cash"] = 100.0
         kwargs["ebitda"] = 400.0
 
         no_entity_result = loader._compute_valuations(**kwargs)
         # Pre-fix-equivalent (no entity shares supplied): class-specific market cap = 50.
-        assert no_entity_result["dividend_yield"] == round(20.0 / 50.0, 4)
+        assert no_entity_result["dividend_yield"] == round(10.0 / 50.0, 4)
         assert no_entity_result["enterprise_value"] == 50.0 + 500.0 - 100.0
 
         kwargs["entity_shares_out_for_fcf"] = 1000.0
         entity_result = loader._compute_valuations(**kwargs)
         entity_market_cap = 5.0 * 1000.0
-        assert entity_result["dividend_yield"] == round(20.0 / entity_market_cap, 4)
+        assert entity_result["dividend_yield"] == round(10.0 / entity_market_cap, 4)
         assert entity_result["enterprise_value"] == entity_market_cap + 500.0 - 100.0
         assert entity_result["enterprise_value"] > no_entity_result["enterprise_value"]
         assert entity_result["ev_ebitda"] == round(entity_result["enterprise_value"] / 400.0, 2)

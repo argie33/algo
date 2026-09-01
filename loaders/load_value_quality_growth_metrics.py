@@ -242,6 +242,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     # rather than force a floor/ceiling score" treatment.
     MIN_PLAUSIBLE_FORWARD_PE_RATIO = 0.05
 
+    # TIGHTENED 2026-09-01 (goal session, "get the missing data"/"bizarre results" audit) -
+    # same fix, same rationale, as load_sec_valuations.py's MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO
+    # (see that constant's docstring for the live-confirmed evidence: HVT.A 63%/#1 Value rank,
+    # JEM/HTCR 95%, LZM 92%, TASK 88%, 30+ symbols above 30%, no genuine case found above it).
+    # This file's TIER 3/TIER 4 dividend_yield fallbacks below copied the same now-corrected
+    # <=1.0 bound from that file's primary computation - kept in sync here for the same reason.
+    MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO = 0.30
+
     table_name = "value_metrics"  # Primary table for watermarking
     # Deliberately NOT declaring output_tables here (unlike e.g. load_sector_industry_daily).
     # That mechanism makes runner.py force quality_metrics/growth_metrics to the SAME
@@ -1061,7 +1069,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         # this fallback's dividend_yield to 29.87%. 100% matches
                         # load_sec_valuations.py's own primary dividend_yield bound.
                         candidate = float(cf_div_row[0]) / float(market_cap)
-                        if 0 < candidate <= 1.0:
+                        if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
                             dividend_yield = candidate
                             logger.debug(
                                 f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
@@ -1256,7 +1264,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     ttm_dividends = ttm_row[0] if ttm_row else None
                     if ttm_dividends is not None and ttm_dividends > 0:
                         candidate = float(ttm_dividends) / float(current_price)
-                        if 0 < candidate <= 1.0:
+                        if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
                             dividend_yield = candidate
                             logger.debug(
                                 f"[VALUE_METRICS] {symbol}: Using dividend_data.dividend_per_share "
