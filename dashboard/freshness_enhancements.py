@@ -150,7 +150,12 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
         "stock_scores": [
             "symbol",
             "composite_score",
-        ],  # stock_scores has no date/signal_strength column (verified 2026-08-05)
+        ],  # date/signal_strength columns now EXIST (added after 2026-08-05, re-verified
+        # 2026-09-01) but stay excluded deliberately, not because they're missing: `date` is
+        # always populated (not a useful NULL-check target) and `signal_strength` is a reserved/
+        # unused column - loaders/load_stock_scores.py never writes it (0/5045 populated
+        # live-checked 2026-09-01) - so adding it here would flag every single row as a false
+        # "critical column is NULL" data-quality issue, not catch a real gap.
         "market_health_daily": ["date", "vix_level"],  # market_trend not market_regime (verified 2026-08-05)
         "market_exposure_daily": [
             "date",
