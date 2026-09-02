@@ -2047,7 +2047,40 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         f"Check SEC data source or API response."
                     )
                 entry_form = entry.get("form")
-                entry_rank = 1 if entry_form in _PRIMARY_STATEMENT_FORMS else 0
+                # FIXED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, live SEC
+                # EDGAR verification): _PRIMARY_STATEMENT_FORMS ranks 10-K and 10-Q equally
+                # (both "primary", tier 1) - correct for a QUARTERLY bucket, but wrong for
+                # an annual ("FY") bucket: a 10-Q can carry a genuine "trailing twelve
+                # months" duration fact (start/end exactly ~365 days apart, passing this
+                # loop's own span_days>=330 "annual-shaped" filter above) that is NOT the
+                # filer's real Jan-Dec fiscal year - it's a rolling window ending mid-year.
+                # Live-confirmed via real SEC EDGAR companyconcept JSON: AMZN's Q2 2026
+                # 10-Q (filed 2026-07-31) tags NetIncomeLoss with start=2025-07-01,
+                # end=2026-06-30, val=$135,281,000,000 (a real TTM figure) - this lands in
+                # the SAME (period_year=2026, "FY") bucket as AMZN's real FY2026 10-K would,
+                # and via the old equal-rank-then-latest-filed tiebreak, ALSO clobbered the
+                # already-correct FY2025 entry: AMZN's real FY2025 10-K (filed 2026-02-06)
+                # reports NetIncomeLoss=$77,670,000,000, but a LATER-filed Q2 2026 10-Q TTM
+                # fact (start=2024-07-01, end=2025-06-30, val=$70,623,000,000, also >=330
+                # days) won the (2025, "FY") bucket instead purely by filing date - live-
+                # confirmed exactly these two wrong values on file in annual_income_statement
+                # before this fix. A genuine annual-report-form entry (10-K/20-F/40-F) must
+                # always outrank a same-tier 10-Q/6-K entry for the "FY" key specifically,
+                # regardless of filed date - same "structural form authority beats filing
+                # recency" principle _ANNUAL_REPORT_FORMS already applies to the instant-fact
+                # premature-bucket guard elsewhere in this function. Only applies to the "FY"
+                # key; quarterly buckets (fp in Q1-Q4) are unaffected, so a pure quarterly-
+                # only reporter's own latest-filed 10-Q still wins its bucket unchanged - and
+                # a 10-Q still wins the "FY" bucket by the ordinary rank-vs-non-primary-form
+                # rule above when no annual-report-form entry exists for that period at all.
+                is_fy_bucket = key[1] == "FY"
+                entry_rank = (
+                    2
+                    if is_fy_bucket and entry_form in _ANNUAL_REPORT_FORMS
+                    else 1
+                    if entry_form in _PRIMARY_STATEMENT_FORMS
+                    else 0
+                )
                 row_filed = row.get(f"_filed_{col}")
                 row_end = row.get(f"_end_{col}")
                 rank_key = f"_rank_{col}"
