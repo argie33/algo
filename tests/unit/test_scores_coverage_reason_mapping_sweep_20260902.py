@@ -54,3 +54,11 @@ def test_momentum_single_period_insufficient_history_categorizes_correctly():
 def test_momentum_multi_period_insufficient_history_categorizes_correctly():
     reason = "momentum_3m:insufficient_price_history; momentum_6m:insufficient_price_history; momentum_12m:insufficient_price_history"
     assert scores_mod._categorize_reason(reason) == "Insufficient history"
+
+
+def test_negative_enterprise_value_categorizes_as_legitimate_not_applicable():
+    assert scores_mod._categorize_reason("negative_enterprise_value") == "Legitimate / not applicable"
+
+
+def test_zero_revenue_reported_this_period_categorizes_as_legitimate_not_applicable():
+    assert scores_mod._categorize_reason("zero_revenue_reported_this_period") == "Legitimate / not applicable"

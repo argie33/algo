@@ -2397,6 +2397,19 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         {
             "non_dividend_paying_stock",
             "unprofitable_stock",
+            # ADDED 2026-09-02 (SEC/XBRL missing-data sweep, load_value_quality_growth_
+            # metrics.py commits 7cfb8e7ae/e29d475a1): same "the ratio is mathematically
+            # undefined for real business reasons, not a data gap" class as
+            # unprofitable_stock two lines above. negative_enterprise_value = a genuine
+            # net-cash-rich filer (total_cash alone exceeds market_cap + total_debt), so
+            # EV/EBITDA and EV/Revenue have no meaningful denominator relationship;
+            # zero_revenue_reported_this_period = a real $0.00 anchor-year revenue (e.g. a
+            # wind-down period), so EV/Revenue and P/S are undefined for that period
+            # regardless of other years' history. Both would otherwise fall through to
+            # "Other (errors / excluded)" via _categorize_reason's default, undoing the
+            # point of giving them an honest label in the first place.
+            "negative_enterprise_value",
+            "zero_revenue_reported_this_period",
             # ADDED 2026-08-29 (goal session: signal_quality_scores bare_reason_tables
             # addition): the backfill marker [[signal_quality_scores_historical_reason_backfill_20260829]]
             # applied to 53,567 pre-2026-08-29 rows that predate this table's reason-tracking
