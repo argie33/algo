@@ -1503,6 +1503,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             pb_ratio_reason = (
                 "negative_book_value"
                 if latest_book_value is not None and latest_book_value <= 0
+                # FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL
+                # audit, same fix/pattern applied to pe_ratio_reason's `eps_row is None` case
+                # above): `equity_row is None` means this full-history query found ZERO fiscal
+                # years with a real stockholders_equity value, a distinct, verifiable fact from
+                # "found a value but pb still came out null for some other reason" (which
+                # correctly stays "missing_sec_data"). Live-verified 23 of the universe's 65
+                # pb_ratio "missing_sec_data" rows are this exact case - real total_assets/
+                # total_liabilities present (EPD, NRP, SPH spot-checked: MLPs that tag
+                # "Partners' Capital" instead of a "StockholdersEquity" concept, same taxonomy
+                # difference class as HESM's EPS gap in
+                # [[interest_coverage_and_pe_ratio_reason_gates_fixed_20260902]]) or, for a
+                # handful of Latin American ADRs (UGP/PAGS/XP), a balance sheet that never
+                # extracted ANY field at all - either way, a genuine "never tagged", not an
+                # ambiguous remainder.
+                else "stockholders_equity_never_tagged_in_filings"
+                if equity_row is None
                 else "missing_sec_data"
             )
 

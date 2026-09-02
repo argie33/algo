@@ -155,7 +155,11 @@ class TestPbRatioUnavailableReasonExcludesIncompleteFilingRow:
 
         assert metrics["pb_ratio_unavailable_reason"] == "negative_book_value"
 
-    def test_genuinely_missing_equity_still_reports_missing_sec_data(self):
+    def test_genuinely_missing_equity_reports_never_tagged(self):
+        """A symbol with NO usable stockholders_equity row anywhere in its full filing history
+        gets the specific "stockholders_equity_never_tagged_in_filings" reason - see
+        test_pb_ratio_never_tagged_equity_reason_20260902.py for the dedicated regression test
+        this label was added by. No longer the generic "missing_sec_data"."""
         loader = _make_loader()
         cursor = _RoutingCursor({"SELECT stockholders_equity": None})
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
@@ -167,4 +171,4 @@ class TestPbRatioUnavailableReasonExcludesIncompleteFilingRow:
                 ),
             )
 
-        assert metrics["pb_ratio_unavailable_reason"] == "missing_sec_data"
+        assert metrics["pb_ratio_unavailable_reason"] == "stockholders_equity_never_tagged_in_filings"
