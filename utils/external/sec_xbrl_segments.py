@@ -307,6 +307,24 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # match AMH's real, publicly known revenue scale. Same low-collision-risk filer-extension
     # rationale as the GLW/BAC entries above.
     "CoreRevenues",
+    # FIXED 2026-09-02 (goal: "SEC/XBRL missing data" audit, live SEC EDGAR verification):
+    # APA Corporation's (APA, CIK 1841666) own extension concept (apachecorp.com: namespace,
+    # matched here by local name only per this file's existing convention) for segment-level
+    # revenue including realized hedging gains/losses. Live-confirmed against APA's real
+    # FY2025 10-K instance document: tagged directly under StatementBusinessSegmentsAxis
+    # (paired only with the standard ConsolidationItemsAxis=OperatingSegmentsMember
+    # boilerplate _index_segment_contexts already strips), so this resolves via the PRIMARY
+    # single-axis path, not even needing the cross-tab/component-sum fallbacks. Segment
+    # values (US $5.541B, Egypt $2.637B, North Sea $0.773B) sum to EXACTLY APA's own plain
+    # consolidated total for all 3 fiscal years on file: FY2025 $8.951B, FY2024 $9.739B,
+    # FY2023 $8.327B (0% reconciliation error, not just within tolerance). Before this fix,
+    # APA fell through to "no_segment_revenue_in_xbrl_xml" because the loader was matching a
+    # DIFFERENT, unrelated "Revenues" concept instead - APA also tags oil/gas/NGL revenue by
+    # segment cross-tabbed with ProductOrServiceAxis/ReserveQuantitiesByTypeOfReserveAxis
+    # under the standard "Revenues" concept (a finer sub-breakdown including purchased
+    # volumes, correctly excluded by _index_segment_contexts' multi-axis filter) - this
+    # extension concept is the real, complete, ASC 280-reportable segment total.
+    "RevenuesAndRealizedGainsLossesOnDerivativeInstruments",
 )
 
 # `ifrs-full:GrossProfit` is deliberately NOT in _REVENUE_CONCEPT_LOCAL_NAMES above, even
