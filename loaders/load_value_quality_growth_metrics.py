@@ -2846,6 +2846,68 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_free_cash_flow_symbols_cache = result
         return result
 
+    def _get_operating_cash_flow_available_elsewhere_symbols(self) -> frozenset[str]:
+        """Symbols with a real (non-NULL) operating_cash_flow in at least one available
+        annual_cash_flow fiscal year - the direct positive counterpart to
+        _get_no_recent_operating_cash_flow_symbols() above, not its logical negation. Same
+        "anchor-year fiscal mismatch" gate pattern as
+        _get_net_income_available_elsewhere_symbols()/_get_revenue_available_elsewhere_symbols().
+
+        FIX 2026-09-02 (quality_row_db anchor-year investigation, goal: "keep the missing-
+        data number going down"): _get_no_recent_operating_cash_flow_symbols()'s own docstring
+        already documented this exact residual ("the majority of the remaining rows have OCF
+        in an off-anchor year instead ... deliberately NOT fixed this pass") but never wired a
+        label-only fix for it - accruals_ratio/ocf_to_net_income both fell to generic
+        "missing_sec_data" for this population. Cached for the life of this loader instance;
+        this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_operating_cash_flow_available_elsewhere_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_cash_flow
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(operating_cash_flow) >= 1
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._operating_cash_flow_available_elsewhere_symbols_cache = result
+        return result
+
+    def _get_free_cash_flow_available_elsewhere_symbols(self) -> frozenset[str]:
+        """Symbols with a real (non-NULL) free_cash_flow in at least one available
+        annual_cash_flow fiscal year - the direct positive counterpart to
+        _get_no_recent_free_cash_flow_symbols() above, not its logical negation. Same
+        "anchor-year fiscal mismatch" gate pattern as the operating_cash_flow sibling above.
+
+        FIX 2026-09-02 (quality_row_db anchor-year investigation): _get_no_recent_free_cash_
+        flow_symbols()'s own docstring already documented this residual ("the rest have FCF in
+        an off-anchor year instead, deliberately NOT fixed this pass") but never wired a
+        label-only fix - free_cash_flow/fcf_to_net_income both fell to generic
+        "missing_sec_data" for this population. Does NOT cover fcf_margin - that field already
+        has its own dedicated cross-year fallback (fcf_margin_free_cash_flow, computed
+        separately above) unaffected by this bug. Cached for the life of this loader instance;
+        this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_free_cash_flow_available_elsewhere_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_cash_flow
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(free_cash_flow) >= 1
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._free_cash_flow_available_elsewhere_symbols_cache = result
+        return result
+
     def _get_no_recent_capex_symbols(self) -> frozenset[str]:
         """Symbols that have real operating_cash_flow but NOT capex in any of their 3 most
         recent fiscal years (in a row not itself flagged data_unavailable) - a genuine
@@ -5651,6 +5713,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # fallback.
                     else "no_recent_operating_cash_flow_reported"
                     if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_operating_cash_flow_available_elsewhere_symbols()'s docstring, a
+                    # residual _get_no_recent_operating_cash_flow_symbols() itself already
+                    # documented as unfixed): operating_cash_flow is None here purely because
+                    # the balance-sheet anchor year's own cash-flow row is unavailable, not
+                    # because the symbol lacks real OCF - the windowed gate above already
+                    # ruled that out. Label-only, no value recomputed.
+                    else "operating_cash_flow_absent_from_anchor_year"
+                    if operating_cash_flow is None
+                    and symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if accruals_ratio is None
@@ -6084,6 +6156,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # "missing_sec_data" rows are symbols where free_cash_flow is also missing.
                     "no_recent_free_cash_flow_reported"
                     if free_cash_flow is None and symbol in self._get_no_recent_free_cash_flow_symbols()
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_free_cash_flow_available_elsewhere_symbols()'s docstring). Label-
+                    # only, no value recomputed.
+                    else "free_cash_flow_absent_from_anchor_year"
+                    if free_cash_flow is None and symbol in self._get_free_cash_flow_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "fcf_to_net_income" in failed_metrics
@@ -6101,6 +6178,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # operating_cash_flow is also missing.
                     "no_recent_operating_cash_flow_reported"
                     if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_operating_cash_flow_available_elsewhere_symbols()'s docstring).
+                    # Label-only, no value recomputed.
+                    else "operating_cash_flow_absent_from_anchor_year"
+                    if operating_cash_flow is None
+                    and symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "ocf_to_net_income" in failed_metrics
@@ -6116,6 +6199,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # (see _get_no_recent_free_cash_flow_symbols()'s docstring for why).
                     "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_free_cash_flow_available_elsewhere_symbols()'s docstring, the exact
+                    # residual this reason's own comment above flagged as deliberately not
+                    # chased). Label-only, no value recomputed.
+                    else "free_cash_flow_absent_from_anchor_year"
+                    if symbol in self._get_free_cash_flow_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "free_cash_flow" in failed_metrics
@@ -6130,6 +6219,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # (see _get_no_recent_operating_cash_flow_symbols()'s docstring for why).
                     "no_recent_operating_cash_flow_reported"
                     if symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_operating_cash_flow_available_elsewhere_symbols()'s docstring, the
+                    # exact residual this reason's own comment above flagged as deliberately
+                    # not chased). Label-only, no value recomputed.
+                    else "operating_cash_flow_absent_from_anchor_year"
+                    if symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "operating_cash_flow" in failed_metrics

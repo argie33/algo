@@ -107,3 +107,16 @@ def test_capex_never_tagged_in_recent_filings_categorizes_as_missing_sec_xbrl():
 
 def test_net_income_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
     assert scores_mod._categorize_reason("net_income_absent_from_anchor_year") == "Missing SEC/XBRL data"
+
+
+# ADDED 2026-09-02 (same goal session, continuation of the anchor-year sweep): operating_
+# cash_flow/free_cash_flow siblings - same bug class, affecting accruals_ratio/
+# fcf_to_net_income/ocf_to_net_income/operating_cash_flow/free_cash_flow_unavailable_reason.
+
+
+def test_operating_cash_flow_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("operating_cash_flow_absent_from_anchor_year") == "Missing SEC/XBRL data"
+
+
+def test_free_cash_flow_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("free_cash_flow_absent_from_anchor_year") == "Missing SEC/XBRL data"

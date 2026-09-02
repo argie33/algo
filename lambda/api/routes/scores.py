@@ -2185,6 +2185,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # sibling - see roe/roa/net_margin/sustainable_growth_rate's own reason blocks in
             # load_value_quality_growth_metrics.py.
             "net_income_absent_from_anchor_year",
+            # ADDED 2026-09-02 (same sweep, quality_row_db anchor-year investigation):
+            # operating_cash_flow/free_cash_flow siblings of net_income_absent_from_anchor_
+            # year above - _get_no_recent_operating_cash_flow_symbols()/_get_no_recent_free_
+            # cash_flow_symbols()'s own docstrings already documented this exact residual
+            # ("the rest have OCF/FCF in an off-anchor year ... deliberately NOT fixed this
+            # pass") but neither reason string existed until now. Affects
+            # operating_cash_flow/free_cash_flow/accruals_ratio/fcf_to_net_income/
+            # ocf_to_net_income_unavailable_reason in load_value_quality_growth_metrics.py.
+            "operating_cash_flow_absent_from_anchor_year",
+            "free_cash_flow_absent_from_anchor_year",
             # ADDED 2026-09-02 (same sweep): loaders/helpers/sec_base.py writes this when a
             # full unfiltered SEC refetch no longer reproduces a fiscal year the DB
             # currently marks available - that year's data is retracted/no longer backed by
