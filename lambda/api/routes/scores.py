@@ -2442,6 +2442,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         "Ownership data unresolved",
         {
             "no_resolved_13f_holdings",
+            # ADDED 2026-09-02 (same sweep, static grep of load_institutional_holdings_13f.py):
+            # fetch_incremental()'s own "no row (or a row with institutional_ownership_pct
+            # still NULL) found in institutional_holdings_13f for this symbol" fallback marker
+            # (~line 316/360) - same "no 13F coverage" fact as no_resolved_13f_holdings above,
+            # just written from the per-symbol incremental lookup path instead of the bulk
+            # fetch_global() batch writer. Currently 0 live rows (fetch_global appears to be
+            # the path that actually runs in production) but real, reachable code.
+            "not_found_in_institutional_holdings_13f",
             "institutional_data_not_available",
             "shares_outstanding_unavailable",
             "shares_outstanding_unavailable_for_pct_calc",

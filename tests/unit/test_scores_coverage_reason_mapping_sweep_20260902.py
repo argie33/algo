@@ -225,3 +225,7 @@ def test_invalid_shares_outstanding_categorizes_as_missing_sec_xbrl():
 
 def test_invalid_price_categorizes_as_other_not_missing_sec_xbrl():
     assert scores_mod._categorize_reason("invalid_price") == "Other (errors / excluded)"
+
+
+def test_not_found_in_institutional_holdings_13f_categorizes_as_ownership_unresolved():
+    assert scores_mod._categorize_reason("not_found_in_institutional_holdings_13f") == "Ownership data unresolved"
