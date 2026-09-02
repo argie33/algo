@@ -4089,6 +4089,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # "Legitimate / not applicable" in scores.py) rather than inventing a new string.
                 if stockholders_equity is not None and stockholders_equity <= 0:
                     sgr_reason = "negative_book_value"
+                # FIX 2026-09-02 (goal: "no SEC data" audit continuation): the remaining
+                # "missing_sec_data" case here is stockholders_equity is None, or (rarely)
+                # stockholders_equity > 0 but net_income is None - reuse the same
+                # stockholders_equity_not_reported/net_income_not_reported gates roe/roa/
+                # debt_to_equity already wired above. Live-confirmed 62 of 181 universe
+                # sustainable_growth_rate "missing_sec_data" rows (34%).
+                elif stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols():
+                    sgr_reason = "stockholders_equity_not_reported"
+                elif net_income is None and symbol in self._get_no_recent_net_income_symbols():
+                    sgr_reason = "net_income_not_reported"
                 else:
                     sgr_reason = "missing_sec_data"
 
@@ -4303,7 +4313,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     "current_ratio",
                 ]
             ):
-                return self._unavailable_marker("quality_metrics", symbol)
+                # FIX 2026-09-02 (goal: "no SEC data" audit continuation - the root cause of
+                # why the per-field gates just added above for debt_to_equity/roe/roa/
+                # debt_to_assets/etc. weren't reflected in most of their live "missing_sec_data"
+                # counts): this early return fires BEFORE any of those per-field reason blocks
+                # (all much further below in this function) ever run, discarding every
+                # specific reason this function would otherwise have computed and stamping
+                # every single *_unavailable_reason column with a blanket "missing_sec_data"
+                # via _unavailable_marker's own default. Live-confirmed exactly 68 universe
+                # symbols hit this path with `data_unavailable=True, reason='missing_sec_data'`
+                # - of those, 44 (65%) have zero stockholders_equity/total_assets/
+                # total_liabilities across all 3 recent fiscal years simultaneously (the same
+                # FPI/IFRS-taxonomy population _get_no_recent_stockholders_equity_symbols() etc.
+                # already identify elsewhere) - reusing that gate here propagates a real reason
+                # to every downstream field at once, not just the 7 checked above.
+                row_level_reason = (
+                    "no_recent_balance_sheet_data_reported"
+                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    else None
+                )
+                return self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
 
             # Compute composite quality_score from available metrics
             # Score is average of available metrics (0-100 scale)
@@ -5143,7 +5172,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["net_margin_unavailable_reason"] = (
-                ("implausible_ratio" if "net_margin" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "net_margin" in implausible_ratio_metrics
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): net_margin fails
+                    # whenever net_income is None (or, rarely, both revenue and total_assets are
+                    # None) - reuse the same net_income_not_reported gate already wired into
+                    # roe/roa above. Live-confirmed 28 of 111 universe net_margin missing_sec_data
+                    # rows (25%) are this case.
+                    else "net_income_not_reported"
+                    if net_income is None and symbol in self._get_no_recent_net_income_symbols()
+                    else "missing_sec_data"
+                )
                 if "net_margin" in failed_metrics
                 else None
             )
