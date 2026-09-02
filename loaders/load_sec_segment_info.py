@@ -145,19 +145,22 @@ class SecSegmentInfoLoader(SecLoaderBase):
             if not segment_data or not segment_data.get("data_available"):
                 logger.info(f"[{symbol}] No segment data in companyfacts, trying raw XBRL XML")
                 try:
-                    # Get latest annual filing (10-K, or 20-F/40-F for foreign filers)
+                    # Get candidate annual filings (10-K, or 20-F/40-F for foreign filers),
+                    # most recent first. Try each in turn rather than only the single latest
+                    # one - see _find_annual_filing_candidates' docstring (live-confirmed
+                    # AMRC: latest 10-K accession has zero XBRL files at all in its directory,
+                    # a real SEC-side filing anomaly, while the prior year's 10-K has a
+                    # complete instance document with real, usable segment data).
                     submissions = self.sec_client.get_submissions(cik)
-                    latest_annual_filing = self._find_latest_annual_filing(submissions)
-
-                    if latest_annual_filing:
+                    for candidate_filing in self._find_annual_filing_candidates(submissions):
                         # get_filing_xml/_get_primary_document match against SEC's
                         # dashed accessionNumber list - the stripped 'accession' key
                         # never matches, silently falling through to the except below
                         # on every call. Confirmed live: get_filing_xml requires the
                         # dashed form.
-                        accession = latest_annual_filing["accession_formatted"]
+                        accession = candidate_filing["accession_formatted"]
                         try:
-                            xml_content = self.sec_client.get_filing_xml(cik, accession, latest_annual_filing["form"])
+                            xml_content = self.sec_client.get_filing_xml(cik, accession, candidate_filing["form"])
                             logger.debug(f"[{symbol}] Fetched raw XBRL XML for {accession}")
                             segment_data = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, symbol)
                             # CRITICAL: Validate type before chaining .get() - extract might return non-dict
@@ -168,9 +171,13 @@ class SecSegmentInfoLoader(SecLoaderBase):
                                 )
                                 segment_data = None
                             elif segment_data and segment_data.get("data_available"):
-                                logger.info(f"[{symbol}] Segment data found in raw XBRL XML")
+                                logger.info(f"[{symbol}] Segment data found in raw XBRL XML ({accession})")
+                                latest_annual_filing = candidate_filing
+                                break
                         except (FileNotFoundError, RuntimeError) as e:
-                            logger.debug(f"[{symbol}] Failed to fetch/parse raw XBRL: {e}")
+                            logger.debug(
+                                f"[{symbol}] Failed to fetch/parse raw XBRL ({accession}): {e} - trying next candidate"
+                            )
                 except Exception as e:
                     logger.debug(f"[{symbol}] Error trying raw XBRL approach: {e}")
 
@@ -313,6 +320,65 @@ class SecSegmentInfoLoader(SecLoaderBase):
     # BASE (non-amendment) subset - see _find_latest_annual_filing's amendment-preference
     # fix below for why these are tried first.
     _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
+
+    def _find_annual_filing_candidates(self, submissions: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
+        """Same base-form-preferred scan as _find_latest_annual_filing, but returns up to
+        `limit` candidates (most recent first) instead of stopping at the first match.
+
+        FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification):
+        a filer's LATEST annual filing can genuinely have no machine-readable XBRL instance
+        document in its accession directory at all - live-confirmed against Ameresco's (AMRC,
+        CIK 1488139) real FY2025 10-K (accession 0001628280-26-013574, filed 2026-03-03):
+        the directory contains only the primary .htm document and exhibits, zero .xml files
+        of any kind (no instance, no schema, no linkbases, no R-files) - a real SEC-side filing
+        anomaly, not a parser bug (self.sec_client.get_filing_xml correctly raises
+        FileNotFoundError since there's genuinely nothing to fetch). The single-candidate
+        version of this function only ever returns the ONE latest filing, so this permanently
+        blocks the raw-XML tier for AMRC even though its PRIOR year's 10-K (accession
+        0001488139-25-000018, filed 2025-02-28) has a complete, real 3.9MB instance document
+        that parses cleanly into 5 real segments (North America $878.8M, US Federal $372.5M,
+        Europe $250.6M, Renewable Fuels $173.3M, All Other $94.6M - a plausible real
+        breakdown). One fiscal year older is real, verifiable data - strictly better than
+        permanently reporting unavailable. Callers should try each candidate in order and
+        stop at the first that yields usable data.
+        """
+        base_candidates: list[dict[str, Any]] = []
+        amendment_candidates: list[dict[str, Any]] = []
+
+        filings_container = submissions.get("filings")
+        filings = filings_container.get("recent") if isinstance(filings_container, dict) else None
+        forms = filings.get("form", []) if isinstance(filings, dict) else None
+        accessions = filings.get("accessionNumber", []) if isinstance(filings, dict) else None
+        report_dates = filings.get("reportDate", []) if isinstance(filings, dict) else None
+        filing_dates = filings.get("filingDate", []) if isinstance(filings, dict) else None
+
+        # A malformed/unexpected submissions structure (any of the 5 fields above missing
+        # its expected type) leaves `forms` as None here - no candidates to scan, same
+        # honest "nothing found" outcome _find_latest_annual_filing's own guard clauses
+        # return, just consolidated into one check instead of 5 separate early returns.
+        if (
+            isinstance(forms, list)
+            and isinstance(accessions, list)
+            and isinstance(report_dates, list)
+            and isinstance(filing_dates, list)
+        ):
+            for i, form in enumerate(forms):
+                if form not in self._ANNUAL_FILING_FORMS or i >= len(accessions):
+                    continue
+                candidate = {
+                    "form": form,
+                    "accession_formatted": accessions[i],
+                    "report_date": self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
+                    "filing_date": self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
+                }
+                if form in self._BASE_ANNUAL_FILING_FORMS:
+                    base_candidates.append(candidate)
+                else:
+                    amendment_candidates.append(candidate)
+                if len(base_candidates) >= limit:
+                    break
+
+        return (base_candidates or amendment_candidates)[:limit]
 
     def _find_latest_annual_filing(self, submissions: dict[str, Any]) -> dict[str, Any] | None:
         """Find the most recent annual-report filing (10-K, or 20-F/40-F for foreign

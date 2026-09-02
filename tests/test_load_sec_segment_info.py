@@ -187,6 +187,45 @@ def test_uses_10k_report_date_not_todays_date() -> None:
     assert record["filing_date"] != date.today()
 
 
+def test_falls_back_to_prior_year_10k_when_latest_has_no_xbrl_instance() -> None:
+    """FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification):
+    live-confirmed against Ameresco's (AMRC, CIK 1488139) real FY2025 10-K (accession
+    0001628280-26-013574, filed 2026-03-03) - the filing's accession directory contains only
+    the primary .htm document and exhibits, zero XBRL files of any kind (a real SEC-side
+    filing anomaly, not a parser bug), so get_filing_xml correctly raises FileNotFoundError
+    for it. The old single-candidate lookup gave up entirely at that point, even though
+    AMRC's prior year's 10-K (accession 0001488139-25-000018, filed 2025-02-28) has a
+    complete, real instance document that parses into 5 real segments. Must fall back to
+    the next-most-recent annual filing instead of reporting permanently unavailable."""
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["10-K", "10-K"],
+                "accessionNumber": ["0001628280-26-013574", "0001488139-25-000018"],
+                "reportDate": ["2025-12-31", "2024-12-31"],
+                "filingDate": ["2026-03-03", "2025-02-28"],
+            }
+        }
+    }
+    loader.sec_client.get_filing_xml.side_effect = [
+        FileNotFoundError("no XBRL instance document in accession 0001628280-26-013574"),
+        _XML_WITH_SEGMENTS,
+    ]
+    ctx, cur = _fake_db_context()
+
+    with patch("loaders.load_sec_segment_info.DatabaseContext", return_value=ctx):
+        records = loader.fetch_incremental("AMRC", since=None)
+
+    assert len(records) == 3  # 1 aggregate + 2 segments
+    assert all(r["data_unavailable"] is False for r in records)
+    # Attributed to the prior year's filing (the one that actually succeeded), not the
+    # latest one that had no usable XBRL.
+    assert all(r["filing_date"] == date(2024, 12, 31) for r in records)
+    assert all(r["fiscal_year"] == 2024 for r in records)
+    assert loader.sec_client.get_filing_xml.call_count == 2
+
+
 _XML_WITH_GEOGRAPHIC_SEGMENTS = """<?xml version="1.0"?>
 <xbrl xmlns:us-gaap="http://fasb.org/us-gaap/2024" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
   <context id="c1">
