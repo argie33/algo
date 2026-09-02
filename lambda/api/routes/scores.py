@@ -2212,6 +2212,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # reported above (both from load_value_quality_growth_metrics.py's OCF/FCF
             # windowed gates) - only the FCF one was ever added.
             "no_recent_operating_cash_flow_reported",
+            # ADDED 2026-09-02 (static sweep continuation, quality_row_db anchor-year
+            # investigation follow-up): total_cash/cash_per_share/ebitda_unavailable_reason's
+            # own "sec_valuations has no row at all for this symbol" fact (see
+            # load_value_quality_growth_metrics.py's ~line 6303/6316/6341, commits 1547b826c/
+            # 37fc38252) - same "the SEC data we have can't be used" class as the other reasons
+            # here. Never mapped despite landing 2026-09-02 08:20 CDT; caught by a full static
+            # grep of every reason-string literal actually assigned in the loader's
+            # `_unavailable_reason` ternary blocks vs this list, not live DB counts (which
+            # currently show 0 live rows for this exact string - sec_valuations coverage may
+            # have since improved for the originally-affected symbols - but the string is real,
+            # reachable code, and must still resolve to a real category when it does fire).
+            "no_sec_valuations_row",
             # entity_name_not_found/submissions_not_found_404/submissions_empty/
             # no_submissions: load_company_info_sec.py/load_earnings_calendar_sec.py/
             # load_current_reports_8k.py's own "SEC submissions.json has nothing for this

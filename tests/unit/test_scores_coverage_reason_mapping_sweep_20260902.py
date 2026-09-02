@@ -187,3 +187,14 @@ def test_filing_date_unavailable_categorizes_as_missing_sec_xbrl():
 
 def test_segment_data_unavailable_categorizes_as_missing_sec_xbrl():
     assert scores_mod._categorize_reason("segment_data_unavailable") == "Missing SEC/XBRL data"
+
+
+# ADDED 2026-09-02 (same goal session, static sweep continuation restricted to strings
+# actually assigned inside a "*_unavailable_reason" ternary block in the loader, not just any
+# quoted snake_case literal): no_sec_valuations_row - total_cash/cash_per_share/ebitda's own
+# "sec_valuations has no row at all for this symbol" fact, landed 2026-09-02 08:20 CDT
+# (commits 1547b826c/37fc38252) but never wired into this map.
+
+
+def test_no_sec_valuations_row_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("no_sec_valuations_row") == "Missing SEC/XBRL data"
