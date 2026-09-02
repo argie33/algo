@@ -1609,6 +1609,61 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     _accn = _e.get("accn")
                     if _accn:
                         _short_span_val_by_accn.setdefault(_accn, set()).add(_e.get("val"))
+            # BUG FOUND 2026-09-01 (goal session: "understand our data gaps" audit,
+            # 52/53-week-fiscal-year phantom-year follow-up): the Jan-1-10-crossing
+            # correction just below trusts entry['fy'] to detect and correct a 52/53-week
+            # fiscal year whose end date lands in early January. That works for a fact's
+            # own home filing (a 10-K correctly tags fy=<the fiscal year it's labeled>),
+            # but breaks for TWO kinds of same-concept echo of that same fact appearing in
+            # a later filing:
+            #   (a) a DEF 14A proxy restating prior years for its compensation-discussion
+            #       table - live-confirmed via FLO's and EXPO's proxies - carries
+            #       fy=None/fp=None (no SEC period label at all).
+            #   (b) a LATER 10-K's own prior-year comparative column for the same fact -
+            #       live-confirmed via EXPO's FY2025 10-K (accn 0001193125-26-082508):
+            #       its FY2024 comparative entry (start=2023-12-30, end=2025-01-03,
+            #       val=$109,002,000 - identical to FY2024's own 10-K figure) carries
+            #       fy=2025, NOT 2024 - SEC's "fy tags the FILING's own year, not each
+            #       fact's true period" behavior (already documented above for the
+            #       plain non-crossing case) applies just as much inside the Jan-crossing
+            #       window. Unlike case (a), this entry's fy IS a plausible-looking int,
+            #       so it doesn't even reach a "fy is missing" check - it just silently
+            #       fails the `fy == period_year - 1` test (2025 != 2024) and keeps its
+            #       naive, one-year-too-late period_year.
+            # Case (a) leaves an fy-less entry with no correction at all - a phantom
+            # bucket one year ahead of the real one, seeded with only whatever concept(s)
+            # the proxy restates (usually just NetIncomeLoss, not EPS/shares) while the
+            # real fiscal year's own complete row sits one bucket back - live-confirmed
+            # FLO (phantom fiscal_year=2026 has only net_income_loss) and EXPO (same
+            # shape). Case (b) is worse: it collides INTO the real next fiscal year's own
+            # bucket (same period_year, same "FY" key, same form/filed date as the real
+            # current-year fact, since both come from the same 10-K) and can silently win
+            # or lose the existing tiebreak by iteration order alone - live-confirmed via
+            # EXPO: with only fix (a) applied, this comparative echo (FY2024's real
+            # $109,002,000) overwrote FY2025's own real value ($106,009,000) in the
+            # fiscal_year=2025 bucket.
+            #
+            # Fix: for any entry landing in this Jan-crossing window, resolve fy from
+            # whichever entry for this SAME concept+(start, end, val) - i.e. a genuine
+            # duplicate/echo of the identical real-world fact - was FILED EARLIEST, not
+            # from the entry's own bare fy field. A fact's earliest-filed appearance is
+            # always its own home filing (10-K/20-F/etc., correctly fy-tagged for its own
+            # period); every later echo (a subsequent 10-K's comparative column, a DEF
+            # 14A's restated table) inherits that echoing filing's own fy/no-fy instead,
+            # which this proves is not trustworthy. Applied unconditionally (not just
+            # when the entry's own fy is missing) so case (b)'s misleading-but-present fy
+            # is overridden too, not just case (a)'s absent one. Falls back to the
+            # pre-fix behavior (no correction) when no earlier-filed corroborating entry
+            # exists at all.
+            _fy_by_start_end_val: dict[tuple[str, str, Any], tuple[int, str]] = {}
+            for _e in entries:
+                _e_fy = _e.get("fy")
+                _e_filed = _e.get("filed")
+                if isinstance(_e_fy, int) and _e.get("start") and _e.get("end") and _e_filed:
+                    _key = (_e["start"], _e["end"], _e.get("val"))
+                    _existing = _fy_by_start_end_val.get(_key)
+                    if _existing is None or _e_filed < _existing[1]:
+                        _fy_by_start_end_val[_key] = (_e_fy, _e_filed)
             for entry in entries:
                 # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
                 # whatever share unit the local filing uses - domestic 10-K/10-Q filers
@@ -1818,6 +1873,10 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 # is left alone.
                 if period == "annual" and end_date and len(end_date) >= 10 and end_date[5:10] <= "01-10":
                     fy = entry.get("fy")
+                    if start_date:
+                        _corroborated = _fy_by_start_end_val.get((start_date, end_date, entry.get("val")))
+                        if _corroborated is not None:
+                            fy = _corroborated[0]
                     if isinstance(fy, int) and fy == period_year - 1:
                         period_year = fy
 
