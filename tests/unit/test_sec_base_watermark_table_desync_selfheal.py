@@ -89,7 +89,17 @@ class TestWatermarkTableDesyncSelfHeal:
         ]
 
         with patch("utils.db.context.DatabaseContext") as mock_ctx:
+            mock_cur = mock_ctx.return_value.__enter__.return_value
+            mock_cur.fetchone.return_value = None
+            mock_cur.fetchall.return_value = []  # dual-class-EPS security_name lookup
             rows = loader.fetch_incremental("NEWCO", since=None)
 
-        mock_ctx.assert_not_called()
+        # The watermark/table-desync self-heal check itself must still be skipped when
+        # since=None - the only DatabaseContext use here is the unrelated (2026-09-02)
+        # dual-class-EPS security_name bulk lookup, cached once per loader run regardless
+        # of `since`, never the "SELECT 1 FROM {table} WHERE symbol=..." desync check.
+        executed_queries = [c.args[0] for c in mock_cur.execute.call_args_list]
+        assert not any(q.startswith("SELECT 1 FROM") for q in executed_queries), (
+            "the watermark/table-desync self-heal check must still be skipped when since=None"
+        )
         assert len(rows) == 1

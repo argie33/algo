@@ -32,8 +32,12 @@ def _make_loader() -> ConsolidatedFinancialStatementsLoader:
 
 
 def _fake_db_context(has_rows_for_symbol: bool, unavailable_years: list):
-    """Dispatches by query text: the desync-guard's `SELECT 1 ... LIMIT 1` (fetchone) vs.
-    the new `SELECT fiscal_year ... WHERE data_unavailable = TRUE` (fetchall)."""
+    """Dispatches by query text: the desync-guard's `SELECT 1 ... LIMIT 1` (fetchone), the
+    `SELECT fiscal_year ... WHERE data_unavailable = TRUE` retry query (fetchall), and the
+    unrelated (2026-09-02) dual-class-EPS `SELECT symbol, security_name FROM stock_symbols`
+    bulk lookup (fetchall, but shaped 2-per-row) - all share one cursor within a single
+    fetch_incremental() call, so fetchall's return shape must actually depend on which query
+    was executed, not just return the same fixed shape regardless."""
 
     def factory(mode, **kwargs):
         ctx = MagicMock()
@@ -46,6 +50,8 @@ def _fake_db_context(has_rows_for_symbol: bool, unavailable_years: list):
             return (1,) if has_rows_for_symbol else None
 
         def fetchall():
+            if "stock_symbols" in cur._query:
+                return []  # no dual-class security_name matches in these fixtures
             return [(y,) for y in unavailable_years]
 
         cur.execute.side_effect = execute
@@ -103,7 +109,15 @@ class TestRetriesUnavailableYearsPastWatermark:
         ]
 
         with patch("utils.db.context.DatabaseContext") as mock_ctx:
+            mock_cur = mock_ctx.return_value.__enter__.return_value
+            mock_cur.fetchall.return_value = []  # dual-class-EPS security_name lookup
             rows = loader.fetch_incremental("NEWCO", since=None)
 
-        mock_ctx.assert_not_called()
+        # The unavailable-years retry query itself must still be skipped when since=None -
+        # the only DatabaseContext use here is the unrelated (2026-09-02) dual-class-EPS
+        # security_name bulk lookup, cached once per loader run regardless of `since`.
+        executed_queries = [c.args[0] for c in mock_cur.execute.call_args_list]
+        assert not any("data_unavailable" in q for q in executed_queries), (
+            "the unavailable-years retry query must still be skipped when since=None"
+        )
         assert len(rows) == 1

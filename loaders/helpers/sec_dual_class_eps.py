@@ -11,10 +11,11 @@ instead of debt). A multi-class filer that reports EPS/share-count once per clas
 others - has ZERO undimensioned entries for EarningsPerShareBasic/Diluted or
 WeightedAverageNumberOfShares*, indistinguishable via companyfacts from "this filer never
 reports EPS at all". See [[eps_shares_annual_income_statement_gap_scoped_20260901]] for the
-~53-symbol gap this was scoped from (this module closes the dot-suffix-resolvable subset;
-bare-ticker siblings like GEF/SENEA/SENEB whose class is only stated in security_name, and
-ambiguous cases like Visa's A/B/C structure, are deliberately left open - see
-resolve_class_letter's docstring).
+~53-symbol gap this was scoped from - this module closes the dot-suffix-resolvable subset
+directly, and the bare-ticker subset (GEF, SENEA, SENEB, ...) when a caller passes
+`security_name` (see `resolve_class_letter`'s docstring). Ambiguous cases like Visa's A/B/C
+structure (no "Class {LETTER}" text in its `security_name` at all) stay unresolved by design -
+this module never guesses.
 
 Live-verified against BRK's real instance XML: EarningsPerShareBasic tagged once per
 (class, fiscal year) under a single-member us-gaap:StatementClassOfStockAxis context -
@@ -58,10 +59,15 @@ _CLASS_OF_STOCK_AXES = frozenset({"us-gaap:StatementClassOfStockAxis"})
 _CLASS_LETTER_FROM_MEMBER_RE = re.compile(r"Class([A-Z])(?:Member)?\b")
 
 # A dot-suffix ticker (BRK.A, CRD.B, GTN.A, ...) already encodes its own class letter directly
-# in the internal symbol convention - the only source this module trusts. A bare ticker with a
-# dual-class sibling (GEF, SENEA/SENEB) would need a security_name lookup (DB access) to
-# resolve safely, which this module deliberately does not do - see module docstring's SCOPE.
+# in the internal symbol convention - trusted with no further check. A bare ticker with a dual-
+# class sibling (GEF, SENEA/SENEB) needs its `stock_symbols.security_name` to state the class
+# explicitly (e.g. "Greif Inc. Class A Common Stock") - only trusted when that exact "Class
+# {LETTER}" text is present, never inferred from context (same convention already proven correct
+# in load_company_info_sec.py's `_target_class_letter`/`_CLASS_LETTER_FROM_SECURITY_NAME_RE`).
+# This module stays DB-free itself - callers with DB access (loaders/helpers/sec_base.py) pass
+# security_name in.
 _DOT_SUFFIX_RE = re.compile(r"\.([A-Za-z])$")
+_CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
 
 _EPS_BASIC_CONCEPT = "EarningsPerShareBasic"
 _EPS_DILUTED_CONCEPT = "EarningsPerShareDiluted"
@@ -69,15 +75,25 @@ _SHARES_BASIC_CONCEPT = "WeightedAverageNumberOfSharesOutstandingBasic"
 _SHARES_DILUTED_CONCEPT = "WeightedAverageNumberOfDilutedSharesOutstanding"
 
 
-def resolve_class_letter(symbol: str) -> str | None:
-    """This symbol's own share-class letter, if determinable from its ticker alone.
+def resolve_class_letter(symbol: str, security_name: str | None = None) -> str | None:
+    """This symbol's own share-class letter, if determinable with confidence.
 
-    Only a single-letter dot suffix (BRK.A -> "A", CRD.B -> "B") is trusted - conservative by
-    design, same as load_company_info_sec.py's `_target_class_letter` dot-suffix branch.
+    Two sources, both conservative (return None rather than guess) - same two-source design as
+    load_company_info_sec.py's `_target_class_letter`:
+    1. A single-letter dot suffix (BRK.A -> "A", CRD.B -> "B") - the internal symbol convention
+       already encodes the class directly, no further check needed.
+    2. For a BARE ticker (no dot), `security_name` sometimes states the class explicitly
+       (e.g. "Greif Inc. Class A Common Stock") - only trusted when that exact "Class {LETTER}"
+       text is present. `security_name` is optional so this module stays DB-free; a caller with
+       no DB access (or that hasn't looked it up) simply gets the dot-suffix-only behavior.
     """
     m = _DOT_SUFFIX_RE.search(symbol)
     if m and len(m.group(1)) == 1:
         return m.group(1).upper()
+    if security_name:
+        name_m = _CLASS_LETTER_FROM_SECURITY_NAME_RE.search(security_name)
+        if name_m:
+            return name_m.group(1).upper()
     return None
 
 

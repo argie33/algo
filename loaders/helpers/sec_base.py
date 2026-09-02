@@ -466,6 +466,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
         self._reit_symbols: frozenset[str] | None = None
         self._depository_institution_symbols: frozenset[str] | None = None
         self._insurance_symbols: frozenset[str] | None = None
+        self._dual_class_security_names: dict[str, str] | None = None
 
         super().__init__()
         self._sec_client = sec_client if sec_client is not None else SecEdgarClient()
@@ -490,6 +491,25 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 cur.execute("SELECT symbol FROM company_info_sec WHERE sic_code = 6798")
                 self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
         return self._reit_symbols
+
+    def _get_dual_class_security_names(self) -> dict[str, str]:
+        """Bulk-fetch security_name for symbols whose name mentions "Class" once per loader
+        run, not per-row - the source utils/external/sec_statements.py's dual-class EPS/shares
+        dimensional fallback needs to resolve a BARE-ticker dual-class symbol's own share
+        class (e.g. "Greif Inc. Class A Common Stock" for GEF) - see that module's
+        resolve_class_letter docstring. Restricted to "%Class%" names to keep this a small,
+        cheap query instead of pulling security_name for the whole universe; a dot-suffix
+        ticker (BRK.A, CRD.B, ...) resolves without this lookup at all.
+        """
+        cached: dict[str, str] | None = getattr(self, "_dual_class_security_names", None)
+        if cached is None:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol, security_name FROM stock_symbols WHERE security_name ILIKE '%Class%'")
+                cached = {row[0]: row[1] for row in cur.fetchall()}
+            self._dual_class_security_names = cached
+        return cached
 
     def _get_insurance_symbols(self) -> frozenset[str]:
         """Bulk-fetch insurance-carrier symbols (SIC 6311/6321/6331/6351/6361/6399) once per
@@ -722,8 +742,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
             )
         getter_method = getattr(self._sec_client, method_name)
 
+        # Only "income" ever consumes security_name (dual-class EPS/shares dimensional
+        # fallback) - see sec_edgar_client.get_income_statement's docstring. Gated here
+        # (not just accept-and-ignore in get_balance_sheet/get_cash_flow) so a balance/
+        # cashflow loader run never pays for the bulk DB lookup at all, not just the SEC
+        # fetch it would have been discarded from anyway.
+        security_name = self._get_dual_class_security_names().get(symbol) if self.statement_type == "income" else None
+
         try:
-            rows = getter_method(symbol, period=self.period)
+            rows = getter_method(symbol, period=self.period, security_name=security_name)
         except ValueError as e:
             # utils/external/sec_statements.py raises ValueError (prefixed "[SEC_EDGAR]")
             # for the legitimate "no facts under any taxonomy" case, with an explicit

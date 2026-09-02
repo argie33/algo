@@ -709,10 +709,17 @@ def _fill_earnings_per_share_from_continuing_discontinued_split(rows: list[dict[
             row["earnings_per_share_basic"] = row["earnings_per_share_diluted"]
 
 
-def _fill_eps_shares_from_dual_class_dimensional_facts(rows: list[dict[str, Any]], client: Any, symbol: str) -> None:
+def _fill_eps_shares_from_dual_class_dimensional_facts(
+    rows: list[dict[str, Any]], client: Any, symbol: str, security_name: str | None = None
+) -> None:
     """Last-resort fallback: recover EPS/weighted-average-share facts tagged only under a
     us-gaap:StatementClassOfStockAxis dimensional context, for symbols whose own share class
-    is determinable from a dot-suffix ticker (BRK.A/BRK.B, CRD.A/CRD.B, GTN.A, GEF.B, ...).
+    is determinable either from a dot-suffix ticker (BRK.A/BRK.B, CRD.A/CRD.B, GTN.A, GEF.B,
+    ...) or, for a bare ticker, from `security_name` stating the class explicitly (e.g. "Greif
+    Inc. Class A Common Stock" for GEF) - see resolve_class_letter's docstring. `security_name`
+    is optional and defaults to None (dot-suffix-only resolution) so this stays callable with
+    no DB access; loaders/helpers/sec_base.py (which already does per-run bulk DB lookups like
+    _get_reit_symbols) is the intended source when it's available.
 
     See loaders/helpers/sec_dual_class_eps.py's module docstring (Berkshire live-confirmed
     2026-09-02) for why no concept alias can ever close this gap - same root cause family as
@@ -726,7 +733,7 @@ def _fill_eps_shares_from_dual_class_dimensional_facts(rows: list[dict[str, Any]
     from loaders.helpers.sec_dual_class_eps import extract_dual_class_eps_shares, resolve_class_letter
     from loaders.helpers.sec_segment_debt import find_10k_for_fiscal_year
 
-    class_letter = resolve_class_letter(symbol)
+    class_letter = resolve_class_letter(symbol, security_name)
     if class_letter is None:
         return
 
@@ -812,13 +819,20 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
         row["long_term_debt"] = noncurrent + (current or 0)
 
 
-def get_income_statement(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
+def get_income_statement(
+    client: Any, symbol: str, period: str = "annual", security_name: str | None = None
+) -> list[dict[str, Any]]:
     """Aggregate income statement rows from key concepts.
 
     Args:
         client: SecEdgarClient instance
         symbol: Stock ticker
         period: "annual" or "quarterly"
+        security_name: Optional stock_symbols.security_name, used only by the dual-class
+            EPS/shares fallback (see _fill_eps_shares_from_dual_class_dimensional_facts) to
+            resolve a bare-ticker dual-class symbol's own share class (e.g. "Greif Inc.
+            Class A Common Stock" for GEF). Callers with no DB access can omit it - a
+            dot-suffix ticker (BRK.A, CRD.B, ...) still resolves without it.
 
     Returns:
         List of dicts with income statement data keyed by fiscal year/period
@@ -1185,7 +1199,7 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
     )
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     if period == "annual":
-        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol)
+        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows
 
 

@@ -111,9 +111,9 @@ class TestResolveClassLetter:
         assert resolve_class_letter("CRD.A") == "A"
         assert resolve_class_letter("GTN.A") == "A"
 
-    def test_bare_ticker_stays_unresolved(self) -> None:
+    def test_bare_ticker_stays_unresolved_without_security_name(self) -> None:
         # Deliberately conservative - a bare ticker (V, GEF, GTN, SENEA) needs a
-        # security_name lookup this module doesn't do, per its own SCOPE docstring.
+        # security_name lookup to resolve at all.
         assert resolve_class_letter("V") is None
         assert resolve_class_letter("GEF") is None
         assert resolve_class_letter("GTN") is None
@@ -123,3 +123,21 @@ class TestResolveClassLetter:
         # Not a real class-letter convention (e.g. a preferred-share ticker suffix) -
         # only a genuine single letter is trusted.
         assert resolve_class_letter("WRB.PRE") is None
+
+    def test_bare_ticker_resolves_via_security_name_class_text(self) -> None:
+        # Real stock_symbols.security_name values, live-verified 2026-09-02.
+        assert resolve_class_letter("GEF", "Greif Inc. Class A Common Stock") == "A"
+        assert resolve_class_letter("SENEA", "Seneca Foods Corp. - Class A Common Stock") == "A"
+        assert resolve_class_letter("SENEB", "Seneca Foods Corp. - Class B Common Stock") == "B"
+
+    def test_bare_ticker_without_class_text_stays_unresolved(self) -> None:
+        # Real values, live-verified 2026-09-02 - GTN's own security_name has no class text
+        # (only its dot-suffix sibling GTN.A does), and V's has none at all. Must not guess.
+        assert resolve_class_letter("GTN", "Gray Media, Inc. Common Stock") is None
+        assert resolve_class_letter("V", "Visa Inc.") is None
+
+    def test_dot_suffix_wins_over_security_name_when_both_present(self) -> None:
+        # The dot suffix is the more direct/trusted signal - checked first regardless of
+        # what security_name says (even a contradictory one, which shouldn't occur in
+        # practice but must not cause ambiguity).
+        assert resolve_class_letter("BRK.A", "Berkshire Hathaway Inc. Common Stock") == "A"

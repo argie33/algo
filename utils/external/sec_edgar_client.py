@@ -787,14 +787,32 @@ class SecEdgarClient:
 
     # ----- Financial statements (balance sheet, income statement, cash flow) -----
 
-    def get_balance_sheet(self, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
-        """Aggregate balance sheet rows from key concepts."""
+    def get_balance_sheet(
+        self, symbol: str, period: str = "annual", security_name: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Aggregate balance sheet rows from key concepts.
+
+        security_name accepted (and ignored) for a uniform signature with get_income_statement -
+        loaders/helpers/sec_base.py's fetch_incremental dispatches all three statement types
+        through the same getattr(self._sec_client, method_name)(symbol, period=..., ...) call.
+        """
         return sec_statements.get_balance_sheet(self, symbol, period)
 
-    def get_income_statement(self, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
-        """Aggregate income statement rows from key concepts."""
-        return sec_statements.get_income_statement(self, symbol, period)
+    def get_income_statement(
+        self, symbol: str, period: str = "annual", security_name: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Aggregate income statement rows from key concepts.
 
-    def get_cash_flow(self, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
-        """Aggregate cash flow rows from key concepts."""
+        security_name: optional stock_symbols.security_name, forwarded to the dual-class
+        EPS/shares dimensional fallback - see sec_statements.get_income_statement's docstring.
+        """
+        return sec_statements.get_income_statement(self, symbol, period, security_name)
+
+    def get_cash_flow(
+        self, symbol: str, period: str = "annual", security_name: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Aggregate cash flow rows from key concepts.
+
+        security_name accepted (and ignored) - see get_balance_sheet's identical note.
+        """
         return sec_statements.get_cash_flow(self, symbol, period)
