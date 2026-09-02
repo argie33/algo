@@ -19,6 +19,13 @@ EXTENDED 2026-09-02 (same goal, continuation session): operating_margin fails on
 where `no_operating_income_concept` is computed) but was the one sibling left generically
 labeled - live-confirmed 89/205 (43%) of the universe's operating_margin `missing_sec_data`
 rows (AGNC/ARE/EGP/HR and more) are this exact REIT/no-tax-concept case.
+
+EXTENDED 2026-09-02 (same session, second pass): ebitda/ebitda_margin are sourced from
+`ev_metrics[2]` (load_sec_valuations.py's own `EBITDA = OperatingIncome + D&A`, which stays
+None whenever operating_income is absent - the identical REIT/tonnage-tax-exempt structural
+fact, computed in a different loader/table but gated on the same underlying SEC concept).
+Live-confirmed 97/187 (52%) of ebitda's and 75/281 (27%) of ebitda_margin's `missing_sec_data`
+rows (STAG/AMH/EGP and more) are this exact case.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -122,6 +129,8 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics.get("roce_pct") is None
         assert metrics.get("interest_coverage") is None
         assert metrics.get("operating_margin") is None
+        assert metrics.get("ebitda") is None
+        assert metrics.get("ebitda_margin") is None
 
         # But the label changes from "fixable XBRL gap" to "structural, not applicable".
         assert metrics["operating_profitability_unavailable_reason"] == "reit_special_entity"
@@ -129,6 +138,8 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics["roce_pct_unavailable_reason"] == "reit_special_entity"
         assert metrics["interest_coverage_unavailable_reason"] == "reit_special_entity"
         assert metrics["operating_margin_unavailable_reason"] == "reit_special_entity"
+        assert metrics["ebitda_unavailable_reason"] == "reit_special_entity"
+        assert metrics["ebitda_margin_unavailable_reason"] == "reit_special_entity"
 
     def test_symbol_not_in_structural_set_still_reports_missing_sec_data(self, monkeypatch):
         # Control: identical missing operating_income/pretax_income/income_tax_expense inputs,
@@ -152,3 +163,5 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics["roce_pct_unavailable_reason"] == "missing_sec_data"
         assert metrics["interest_coverage_unavailable_reason"] == "missing_sec_data"
         assert metrics["operating_margin_unavailable_reason"] == "missing_sec_data"
+        assert metrics["ebitda_unavailable_reason"] == "missing_sec_data"
+        assert metrics["ebitda_margin_unavailable_reason"] == "missing_sec_data"

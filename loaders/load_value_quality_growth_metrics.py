@@ -4897,6 +4897,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (
                     "implausible_ratio"
                     if "ebitda_margin" in implausible_ratio_metrics
+                    # FIXED 2026-09-02 (goal: "Missing SEC/XBRL data" reduction, same fix/pattern as
+                    # operating_margin above): load_sec_valuations.py's own EBITDA computation
+                    # (`EBITDA = OperatingIncome + D&A`) requires operating_income and stays None
+                    # when it's absent - the same REIT/tonnage-tax-exempt "never tags
+                    # OperatingIncomeLoss" population `no_operating_income_concept` already
+                    # identifies, cascading into `ebitda_ev is None` here. Live-confirmed 75/281
+                    # (27%) of ebitda_margin's missing_sec_data rows (STAG/AMH/EGP and more) are
+                    # this exact case.
+                    else "reit_special_entity"
+                    if no_operating_income_concept
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols() or symbol in self._get_blank_check_symbols()
                     else "missing_sec_data"
@@ -4965,7 +4975,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if "cash_per_share" in failed_metrics
                 else None
             )
-            metrics["ebitda_unavailable_reason"] = "missing_sec_data" if "ebitda" in failed_metrics else None
+            metrics["ebitda_unavailable_reason"] = (
+                (
+                    # FIXED 2026-09-02 (same fix/pattern as ebitda_margin/operating_margin above):
+                    # ebitda is the same load_sec_valuations.py-derived absolute-dollar value
+                    # ebitda_margin's numerator uses, and fails structurally for the same
+                    # REIT/tonnage-tax-exempt population. Live-confirmed 97/187 (52%) of ebitda's
+                    # missing_sec_data rows are this exact case.
+                    "reit_special_entity" if no_operating_income_concept else "missing_sec_data"
+                )
+                if "ebitda" in failed_metrics
+                else None
+            )
             metrics["earnings_growth_yoy_unavailable_reason"] = (
                 (
                     "implausible_ratio"
