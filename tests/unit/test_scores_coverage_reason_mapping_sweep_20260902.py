@@ -62,3 +62,28 @@ def test_negative_enterprise_value_categorizes_as_legitimate_not_applicable():
 
 def test_zero_revenue_reported_this_period_categorizes_as_legitimate_not_applicable():
     assert scores_mod._categorize_reason("zero_revenue_reported_this_period") == "Legitimate / not applicable"
+
+
+# ADDED 2026-09-02 (same goal session, later same-day sweep): a second live cross-check
+# (scripts/audit_unavailable_reasons.py --min-count 10) found four MORE unmapped reasons
+# falling to "Other (errors / excluded)" - all four were themselves added by earlier fixes
+# in this same session (roe/roa/net_margin/sustainable_growth_rate/asset_turnover/pe_ratio/
+# peg_ratio/fcf_yield's "never tagged in any recent filing" gates) but never wired into this
+# map, so the 286 live rows using them got the exact same "Other" fate this whole file is
+# about - see _COVERAGE_CATEGORY_RULES's own comment on these four for the full context.
+
+
+def test_net_income_not_reported_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("net_income_not_reported") == "Missing SEC/XBRL data"
+
+
+def test_no_recent_total_assets_reported_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("no_recent_total_assets_reported") == "Missing SEC/XBRL data"
+
+
+def test_eps_never_tagged_in_filings_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("eps_never_tagged_in_filings") == "Missing SEC/XBRL data"
+
+
+def test_capex_never_tagged_in_recent_filings_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("capex_never_tagged_in_recent_filings") == "Missing SEC/XBRL data"

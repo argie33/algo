@@ -2249,6 +2249,23 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # represents a real "SEC data not currently available" fact and was falling
             # through to "Other (errors / excluded)" (61 live rows) for lack of a mapping.
             "currency_conversion_bug_remediation_20260819",
+            # ADDED 2026-09-02 (goal session: "keep the missing-data number going down" SEC/
+            # XBRL sweep, cross-checking today's own earlier fixes in this same session
+            # against this map): load_value_quality_growth_metrics.py wired these four
+            # "never tagged in any recent filing" gates (net_income_not_reported,
+            # no_recent_total_assets_reported, eps_never_tagged_in_filings,
+            # capex_never_tagged_in_recent_filings - see roe/roa/net_margin/sustainable_
+            # growth_rate/asset_turnover/pe_ratio/peg_ratio/fcf_yield's own reason blocks)
+            # earlier today to split a real "SEC never tagged this concept for this filer"
+            # fact out of the generic missing_sec_data bucket, the same class as
+            # total_debt_not_itemized/interest_expense_not_itemized/stockholders_equity_
+            # not_reported already above - but none of the four were ever added here, so
+            # all 286 live rows using them fell straight through to "Other (errors /
+            # excluded)" instead, undoing the whole point of giving them an honest label.
+            "net_income_not_reported",
+            "no_recent_total_assets_reported",
+            "eps_never_tagged_in_filings",
+            "capex_never_tagged_in_recent_filings",
         },
     ),
     (
