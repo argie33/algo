@@ -2163,6 +2163,19 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # through to "Other (errors / excluded)" for all 44 affected symbols across
             # every quality_metrics column derived from the balance sheet.
             "no_recent_balance_sheet_data_reported",
+            # ADDED 2026-09-02 (same sweep): load_value_quality_growth_metrics.py's sibling
+            # reason for fcf_yield/fcf_margin/fcf_to_net_income/free_cash_flow when the
+            # symbol has no free cash flow reported across recent fiscal years (real OCF/
+            # capex gap, not a computation error) - same unmapped-fallthrough bug as
+            # no_recent_balance_sheet_data_reported above.
+            "no_recent_free_cash_flow_reported",
+            # ADDED 2026-09-02 (same sweep): loaders/helpers/sec_base.py writes this when a
+            # full unfiltered SEC refetch no longer reproduces a fiscal year the DB
+            # currently marks available - that year's data is retracted/no longer backed by
+            # any live SEC filing, the same "SEC data we have can't be trusted" class as
+            # incomplete_sec_filing_* above. Was unmapped (73 live rows,
+            # quarterly_income_statement.reason).
+            "stale_fiscal_year_not_confirmed_by_full_sec_refetch",
             # ADDED 2026-08-20: earnings_calendar_sec's genuine "no SEC filings exist for
             # this symbol" case (the old false-positive version of this reason - foreign
             # private issuers filing 20-F/6-K instead of 10-K/10-Q - was already fixed
@@ -2343,6 +2356,11 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             #   bound while every site setting it had already switched to the 2000% one).
             "implausible_dcf_result",
             "garbage_metric_value_implausible_growth_rate",
+            # ADDED 2026-09-02 (SEC/XBRL missing-data sweep): sibling of
+            # garbage_metric_value_implausible_growth_rate above for non-growth-rate fields
+            # (forward_eps_growth_current_fy and others, load_value_quality_growth_metrics.py)
+            # - same implausible-value rejection, just missing from this set.
+            "garbage_metric_value_implausible_ratio",
             # ADDED 2026-08-20 (goal session: missing-data root-cause audit): load_sec_valuations.py's
             # _sanity_check_pe_ratio (>10x vs yfinance) rejects a mis-scaled ttm_eps the same way
             # _sanity_check_market_cap rejects a mis-scaled shares_outstanding just above - same
@@ -2618,6 +2636,14 @@ def _categorize_reason(reason: str) -> str:
     # same "not enough history" fact as the insufficient_history/insufficient_* reasons in
     # "Insufficient history" below, just phrased as a sentence instead of a code.
     if reason.startswith("Insufficient historical data:"):
+        return "Insufficient history"
+    # ADDED 2026-09-02 (SEC/XBRL missing-data sweep): loaders/load_risk_metrics_daily.py
+    # builds momentum_metrics.reason as a ";"-joined "momentum_{period}:insufficient_
+    # price_history" list per missing period (e.g. "momentum_3m:insufficient_price_history;
+    # momentum_6m:insufficient_price_history") - `base` (split on the first ":") comes out
+    # as "momentum_3m", which never matches a set literal below. Same "not enough history"
+    # fact as the other Insufficient history members, just phrased per-period.
+    if "insufficient_price_history" in reason:
         return "Insufficient history"
     # ADDED 2026-08-20: loaders/helpers/sec_base.py builds this reason dynamically as
     # f"no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity" (6 period x
