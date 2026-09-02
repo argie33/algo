@@ -4277,9 +4277,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # with the anchor year's net_income) and fcf_growth_yoy (paired with
             # prior_year_free_cash_flow) - overwriting them with a different fiscal year's value
             # would silently break both of those already-correct, year-aligned calculations.
+            #
+            # FIXED 2026-09-01 (goal session, user-flagged "tons of things saying missing data,
+            # I think it's XBRL issues"): the trigger above only fired when the ANCHOR year's
+            # free_cash_flow was None - but quality_row's anchor is chosen for BALANCE-SHEET
+            # freshness first (the 2026-08-19 fetch_incremental fix, see that query's own
+            # docstring), which can legitimately land on a fiscal year where the cash-flow
+            # statement is already filed (free_cash_flow present) but the income statement's
+            # revenue hasn't been extracted yet (revenue NULL) - not an XBRL tagging bug, a
+            # same-year statement-completeness mismatch. When that happens the trigger below
+            # never fired, so fcf_margin fell straight to "missing_sec_data" even though a
+            # jointly-valid (free_cash_flow, revenue) pair existed in an earlier fiscal year -
+            # live-confirmed 128 of 598 current missing_sec_data symbols (e.g. AEMD, ACHV) have
+            # exactly this: a real free_cash_flow on the anchor year, real revenue>0 on a prior
+            # year, same fallback query already correctly finds the pair once asked. Same
+            # asymmetric-fallback-trigger bug class as
+            # quality_metrics_fallback_queries_missing_data_unavailable_filter_fixed_20260901 -
+            # here it's the None-check being one-sided (checks the numerator's own None-ness,
+            # not the denominator's) rather than a missing filter.
             fcf_margin_free_cash_flow = free_cash_flow
             fcf_margin_revenue = revenue
-            if fcf_margin_free_cash_flow is None:
+            if fcf_margin_free_cash_flow is None or fcf_margin_revenue is None or fcf_margin_revenue <= 0:
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         """
