@@ -17,6 +17,15 @@
  * cheap `?meta=1` call for the group list, then one `?group=<name>` call per group (bounded
  * concurrency), merged client-side - so every individual request stays well under both limits.
  * Manual-refresh only - not polled on an interval.
+ *
+ * ADDED 2026-09-02 (goal session: "is this classifying things right, especially for
+ * valuation stuff"): each factor now also carries a `scored` flag (scores.py's
+ * _UNSCORED_FACTORS) - some tracked fields (EV/EBITDA, PEG, margin of safety, several
+ * growth trend/YoY siblings, a couple of stability variants) are computed/stored for
+ * display elsewhere but excluded from the live composite formula entirely, so a 100%
+ * gap on one of them can never move a stock's score. Surfaced as a "not scored" badge
+ * plus a "Hide display-only (unscored) factors" filter, same pattern as the existing
+ * "Hide legitimate-only rows" toggle for "Legitimate / not applicable" reasons.
  */
 import React, { useMemo, useState } from "react";
 import { RefreshCw, ChevronRight, Search } from "lucide-react";
@@ -167,6 +176,7 @@ export default function ScoresDataCoverage({ active }) {
   const [sourceFilter, setSourceFilter] = useState("All");
   const [sortMode, setSortMode] = useState("pct_desc");
   const [hideLegit, setHideLegit] = useState(false);
+  const [hideUnscored, setHideUnscored] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
 
   const factors = data?.factors || [];
@@ -198,6 +208,15 @@ export default function ScoresDataCoverage({ active }) {
     [factors]
   );
 
+  // A factor's own `scored` flag is missing (older cached response, or a group that
+  // hasn't reported yet) means "assume scored" - don't silently mislabel a factor as
+  // display-only just because its flag hasn't loaded.
+  const isScored = (f) => f.scored !== false;
+  const nonLegitCount = (f) =>
+    Object.entries(f.categories || {})
+      .filter(([c]) => c !== "Legitimate / not applicable")
+      .reduce((s, [, v]) => s + v, 0);
+
   const kpis = useMemo(() => {
     if (!summary) return null;
     const over50 = factors.filter((f) => (f.pct_missing ?? 0) >= 50).length;
@@ -208,7 +227,14 @@ export default function ScoresDataCoverage({ active }) {
     const topCause = Object.entries(summary.category_totals || {})
       .filter(([c]) => c !== "Legitimate / not applicable")
       .sort((a, b) => b[1] - a[1])[0];
-    return { over50, over20, gapTotal, topCause };
+    // How much of gapTotal above comes from factors the live composite score never
+    // reads at all (e.g. EV/EBITDA, PEG, margin of safety - computed for the Deep Value
+    // page only) - see scores.py's _UNSCORED_FACTORS. These are real, trackable gaps in
+    // what's stored, just not gaps that fixing would ever move a stock's score.
+    const unscoredGapTotal = factors
+      .filter((f) => !isScored(f))
+      .reduce((s, f) => s + nonLegitCount(f), 0);
+    return { over50, over20, gapTotal, topCause, unscoredGapTotal };
   }, [summary, factors]);
 
   const rows = useMemo(() => {
@@ -227,12 +253,8 @@ export default function ScoresDataCoverage({ active }) {
         )
       )
         return false;
-      if (hideLegit) {
-        const nonLegit = Object.entries(f.categories || {})
-          .filter(([c]) => c !== "Legitimate / not applicable")
-          .reduce((s, [, v]) => s + v, 0);
-        if (nonLegit === 0) return false;
-      }
+      if (hideLegit && nonLegitCount(f) === 0) return false;
+      if (hideUnscored && !isScored(f)) return false;
       return true;
     });
     out = out.slice().sort((a, b) => {
@@ -245,7 +267,7 @@ export default function ScoresDataCoverage({ active }) {
       return 0;
     });
     return out;
-  }, [factors, group, sourceFilter, search, hideLegit, sortMode]);
+  }, [factors, group, sourceFilter, search, hideLegit, hideUnscored, sortMode]);
 
   const toggleExpanded = (key) => {
     setExpanded((prev) => {
@@ -322,7 +344,11 @@ export default function ScoresDataCoverage({ active }) {
             <div className="stile">
               <div className="stile-label">Real Gap Instances</div>
               <div className="stile-value">{fmtInt(kpis.gapTotal)}</div>
-              <div className="stile-sub">excludes legitimate / N/A</div>
+              <div className="stile-sub">
+                excludes legitimate / N/A
+                {kpis.unscoredGapTotal > 0 &&
+                  ` · ${fmtInt(kpis.unscoredGapTotal)} on display-only (unscored) factors`}
+              </div>
             </div>
             <div className="stile">
               <div className="stile-label">Biggest Cause</div>
@@ -508,6 +534,17 @@ export default function ScoresDataCoverage({ active }) {
             >
               <input
                 type="checkbox"
+                checked={hideUnscored}
+                onChange={(e) => setHideUnscored(e.target.checked)}
+              />
+              Hide display-only (unscored) factors
+            </label>
+            <label
+              className="flex items-center gap-2 t-sm muted"
+              style={{ cursor: "pointer" }}
+            >
+              <input
+                type="checkbox"
                 checked={hideLegit}
                 onChange={(e) => setHideLegit(e.target.checked)}
               />
@@ -605,6 +642,20 @@ export default function ScoresDataCoverage({ active }) {
                                 >
                                   {f.group}
                                 </span>
+                                {!isScored(f) && (
+                                  <span
+                                    className="badge"
+                                    title="Computed and displayed elsewhere (e.g. Deep Value page) but not read by the live composite scoring formula - a gap here can't move a stock's score."
+                                    style={{
+                                      fontSize: "var(--t-2xs)",
+                                      marginLeft: 4,
+                                      color: "var(--text-faint)",
+                                      border: "1px solid var(--border-soft)",
+                                    }}
+                                  >
+                                    not scored
+                                  </span>
+                                )}
                               </span>
                             </div>
                           </td>
@@ -805,8 +856,11 @@ export default function ScoresDataCoverage({ active }) {
             "% missing" is count / distinct symbols in that factor's own table —
             tables have slightly different populations, so this is coverage
             within each factor's table, not always the full universe. Rows with
-            no denominator (market-wide tables) show a raw row count instead.
-            The Sources column reads each table's own{" "}
+            no denominator (market-wide tables) show a raw row count instead. A
+            "not scored" badge means the field is computed and shown elsewhere
+            (e.g. the Deep Value page) but the live composite scoring formula
+            doesn't read it — closing that gap can't move a stock's score. The
+            Sources column reads each table's own{" "}
             <code className="mono t-2xs">data_source</code>
             {" / "}
             <code className="mono t-2xs">source_tracking</code> column where

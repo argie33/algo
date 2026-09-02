@@ -2458,6 +2458,67 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
 ]
 _COVERAGE_CATEGORY_ORDER = [name for name, _ in _COVERAGE_CATEGORY_RULES]
 
+# ADDED 2026-09-02 (goal session: "is this report classifying things right, especially
+# valuation stuff"). This report's whole framing - the tab's own name, its tagline, the
+# "Real Gap Instances" KPI - is "which SCORING factors are missing data". But a fair number
+# of tracked *_unavailable_reason columns belong to fields loaders/load_stock_scores.py's
+# live _score_value/_score_growth/_score_risk formulas do NOT read at all - they're kept
+# computed/stored for the Deep Value page or historical/display purposes only (see each
+# field's own "computed-but-unscored"/"REMOVED FROM SCORING" comment in that file). A
+# 100%-missing ev_ebitda row was showing with the exact same visual weight as a
+# 100%-missing pe_ratio row even though only pe_ratio can ever move stock_scores -
+# live-confirmed via a fresh read of every current _score_* function body (not memory/
+# docstrings, which the codebase's own fama_macbeth_composite_weights_stale_vs_live_pillar_
+# formulas finding warns can drift from what's actually live). Deliberately keyed by
+# (table, factor_name) rather than factor_name alone - a couple of these names could in
+# principle collide with an unrelated, actually-scored field on a different table.
+#
+# Quality is NOT represented here: _score_quality reads only the single pre-computed
+# quality_score field, but every quality_metrics per-field column (roe, roa,
+# gross_profitability, ...) is a genuine upstream INPUT to that same quality_score,
+# computed one stage earlier by load_value_quality_growth_metrics.py - a different pipeline
+# stage, not a dead end - so none of those belong in this "has zero path to any score" set.
+# Momentum has no entry either: none of its scored (momentum_3m, mom_12_1, rsi_14, macd,
+# price_vs_sma_50/200) or unscored (momentum_6m) fields have their own tracked
+# *_unavailable_reason column in this report at all (momentum_metrics only exposes a
+# single bare `reason` column, and it isn't in `bare_reason_tables` below), so there's
+# nothing to tag on that pillar.
+_UNSCORED_FACTORS: set[tuple[str, str]] = {
+    # Value: _score_value's live formula is pe_ratio(27%) + pb_ratio(27%) + ps_ratio(27%)
+    # + forward_pe(9%) + dividend_yield(10%) only - these six are computed/stored (Deep
+    # Value page, PEG/margin-of-safety screens) but excluded from scoring entirely.
+    ("value_metrics", "peg_ratio"),
+    ("value_metrics", "ev_ebitda"),
+    ("value_metrics", "ev_revenue"),
+    ("value_metrics", "margin_of_safety"),
+    ("value_metrics", "intrinsic_value"),
+    ("value_metrics", "net_payout_yield"),
+    ("value_metrics", "fcf_yield"),
+    # Growth: _score_growth equal-weights the 12 GROWTH_SCORE_FIELDS; these 12 are computed
+    # trend/YoY siblings explicitly removed from that field list (still shown on the scores
+    # page as info rows per this repo's own "convert removed UI fields to info rows"
+    # convention).
+    ("growth_metrics", "book_value_growth"),
+    ("growth_metrics", "net_income_growth_yoy"),
+    ("growth_metrics", "operating_income_growth_yoy"),
+    ("growth_metrics", "ocf_growth_yoy"),
+    ("growth_metrics", "asset_growth_yoy"),
+    ("growth_metrics", "fcf_growth_yoy"),
+    ("growth_metrics", "eps_growth_stability"),
+    ("growth_metrics", "eps_estimate_revision_90d_pct"),
+    ("growth_metrics", "gross_margin_trend"),
+    ("growth_metrics", "operating_margin_trend"),
+    ("growth_metrics", "net_margin_trend"),
+    ("growth_metrics", "roe_trend"),
+    # Risk: _score_risk uses volatility_60d/252d + beta + max_drawdown_1y + avg_dollar_volume_20d
+    # only - the 30d volatility variant and all three downside-deviation variants are computed/
+    # stored but never read by that function.
+    ("stability_metrics", "volatility_30d"),
+    ("stability_metrics", "downside_volatility_252d"),
+    ("stability_metrics", "downside_volatility_60d"),
+    ("stability_metrics", "downside_volatility_30d"),
+}
+
 _TABLE_GROUP = {
     "quality_metrics": "Quality",
     "growth_metrics": "Growth",
@@ -3146,6 +3207,9 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
                     "sources": _resolve_factor_sources(
                         table_source_cache, table_source_tracking_cache, table, factor_name
                     ),
+                    # ADDED 2026-09-02: see _UNSCORED_FACTORS's own comment above - a gap here
+                    # can never move stock_scores, unlike every other factor on this page.
+                    "scored": (table, factor_name) not in _UNSCORED_FACTORS,
                 }
             )
 
