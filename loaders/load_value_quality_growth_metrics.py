@@ -701,7 +701,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            (SELECT interest_expense FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_interest_expense,
                            (SELECT gross_profit FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_gross_profit
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_gross_profit,
+                           (SELECT dividends_paid FROM annual_cash_flow
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_dividends_paid
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -744,6 +746,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     LIMIT 1
                     """,
                     (
+                        symbol,
                         symbol,
                         symbol,
                         symbol,
@@ -2518,6 +2521,37 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             prior_year_gross_profit = self._nan_to_none(
                 safe_float(quality_row[33], f"{symbol}.prior_year_gross_profit", allow_none=True)
             )
+            # FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit):
+            # dividends_paid's own same-year "unavailable row" rescue above (2026-08-18 fix)
+            # only recovers a value trapped behind acf.data_unavailable=TRUE - it does nothing
+            # when the anchor fiscal year's dividends_paid was genuinely never extracted at
+            # all (as opposed to extracted-but-masked). Live-confirmed BLK/CCL/CMS - all
+            # confirmed real, current dividend payers via dividend_data - have real net_income/
+            # stockholders_equity for their anchor fiscal year but dividends_paid itself is
+            # NULL that year, so payout_ratio_reason/sgr_reason both fell to "missing_sec_data"
+            # even though the company obviously has a real dividend policy. Appended as the
+            # LAST column (index 34, defensively bounds-checked rather than accessed bare) -
+            # see the Net Debt Issuance comment just below for why an earlier attempt to add a
+            # column here was deferred instead (broke 79 fixed-length test fixtures); the
+            # len() guard here means an old 34-column fixture harmlessly reads None instead of
+            # raising IndexError, so this doesn't reopen that problem.
+            prior_year_dividends_paid = self._nan_to_none(
+                safe_float(
+                    quality_row[34] if len(quality_row) > 34 else None,
+                    f"{symbol}.prior_year_dividends_paid",
+                    allow_none=True,
+                )
+            )
+            # A genuine non-payer has no dividends_paid in EITHER year, so this only ever
+            # substitutes a real, one-year-old figure for a confirmed-recent payer's current-
+            # year extraction gap - never fabricates a dividend for a symbol with no history.
+            # No new DB call added (this function's tests mock the cursor with a fixed,
+            # position-matched sequence of canned results - see the Net Debt Issuance comment
+            # just below for what happens when that assumption is broken), so this stays a
+            # pure in-memory fallback over already-fetched data.
+            dividends_paid_with_prior_year_fallback = dividends_paid
+            if dividends_paid_with_prior_year_fallback is None and prior_year_dividends_paid is not None:
+                dividends_paid_with_prior_year_fallback = prior_year_dividends_paid
             # Net Debt Issuance (Bradshaw/Richardson/Sloan 2006) DEFERRED 2026-08-26: needs
             # prior-year long_term_debt, which isn't in quality_row above (appending a column
             # there broke 79 existing unit tests that construct fixed-length mock rows) and
@@ -3473,8 +3507,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # in the hundred-thousands of percent is exactly as meaningless as an implausible margin.
             MAX_PAYOUT_RATIO_ABS_PCT = 1000.0  # noqa: N806
             payout_ratio_reason = None
-            if dividends_paid is not None and net_income is not None and net_income > 0:
-                payout_ratio_pct = (dividends_paid / net_income) * 100
+            if dividends_paid_with_prior_year_fallback is not None and net_income is not None and net_income > 0:
+                payout_ratio_pct = (dividends_paid_with_prior_year_fallback / net_income) * 100
                 if abs(payout_ratio_pct) <= MAX_PAYOUT_RATIO_ABS_PCT:
                     metrics["payout_ratio"] = float(payout_ratio_pct)
                 else:
@@ -3482,7 +3516,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     payout_ratio_reason = "implausible_ratio"
             else:
                 failed_metrics.append("payout_ratio")
-                if dividends_paid is not None and net_income is not None and net_income <= 0:
+                if dividends_paid_with_prior_year_fallback is not None and net_income is not None and net_income <= 0:
                     payout_ratio_reason = "unprofitable_stock"
                 else:
                     # FIXED 2026-08-18: same "ever, not recently" gap as dividend_yield_reason
@@ -3772,7 +3806,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # earnings retained). Live-verified: 3212 of 3423 universe-wide dividends_paid-
             # blocked SGR NULLs are confirmed non-payers via that same marker.
             sgr_reason = None
-            sgr_dividends_paid = dividends_paid
+            # FIXED 2026-09-02: same prior-year fallback as payout_ratio above - reuses
+            # dividends_paid_with_prior_year_fallback instead of the raw current-year value so
+            # a confirmed-recent payer's current-year extraction gap doesn't fall through to
+            # the has_real_dividend_history detour below and get stuck on "missing_sec_data"
+            # when a perfectly good one-year-old figure is already sitting in quality_row.
+            sgr_dividends_paid = dividends_paid_with_prior_year_fallback
             if (
                 sgr_dividends_paid is None
                 and stockholders_equity is not None
