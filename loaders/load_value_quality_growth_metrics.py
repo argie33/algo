@@ -4204,6 +4204,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # fixed for gross_profitability's total_assets denominator and fcf_margin's revenue
             # denominator). Guarded the same way: reject to implausible_ratio rather than persist
             # a value with 2+ extra orders of magnitude past any real percentage.
+            # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" root-cause audit): a negative or
+            # zero stockholders_equity denominator (real, common for large mature buyback-heavy
+            # filers - live-confirmed AAL/ABBV, both with genuine multi-year negative book
+            # equity on file) made this ratio mathematically undefined and fell through to the
+            # generic "missing_sec_data" below, exactly the same "real business-state fact, not
+            # an absent SEC concept" case pb_ratio/roic_pct/roce_pct already carve out via
+            # negative_book_value/negative_invested_capital/negative_capital_employed. Live
+            # sample of the 583 universe symbols marked operating_profitability missing_sec_data:
+            # 325 (56%) hit this exact negative/zero-equity shape - the single largest component
+            # of this field's missing_sec_data bucket, and (via the heavy cross-factor overlap
+            # documented in MEMORY.md) a meaningful slice of the whole "Missing SEC/XBRL data"
+            # dashboard total. Reuses "negative_book_value" (already used for pb_ratio/
+            # sustainable_growth_rate elsewhere in this file) rather than inventing a new string.
+            operating_profitability_negative_equity = stockholders_equity is not None and stockholders_equity <= 0
             operating_profitability = None
             if operating_income_for_margin is not None and stockholders_equity is not None and stockholders_equity > 0:
                 computed_operating_profitability = (
@@ -4718,6 +4732,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (
                     "implausible_ratio"
                     if "operating_profitability" in implausible_ratio_metrics
+                    else "negative_book_value"
+                    if operating_profitability_negative_equity
                     else "reit_special_entity"
                     if no_operating_income_concept
                     else "missing_sec_data"
