@@ -183,7 +183,21 @@ _LEGAL_ENTITY_AXIS = "LegalEntityAxis"
 # Resource Industries $12.474B + Power Energy $32.201B + Financial Products
 # $4.220B) - counting it as a peer "segment" alongside its own components would
 # roughly double the true total and corrupt every HHI/concentration figure.
-_NON_SEGMENT_SUBTOTAL_MEMBERS = ("ReportableSegmentAggregationBeforeOtherOperatingSegmentMember",)
+# FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification):
+# "ReportableSegmentsMember" is the standard ASU 2023-07 taxonomy member for the SAME
+# "subtotal before All Other" shape as ReportableSegmentAggregationBeforeOtherOperatingSegmentMember
+# above - live-confirmed against Corning's (GLW) real FY2025 10-K instance document: this
+# member's tagged NetSalesOfReportableSegmentsAndAllOther value ($14.948B) exactly equals
+# the sum of GLW's 5 real reportable segments (Optical Communications $6.274B + Display
+# $3.697B + Specialty Materials $2.211B + Automotive $1.794B + Life Science $0.972B),
+# excluding its 6th "All Other" segment (Hemlock and Emerging Growth Businesses, $1.460B) -
+# same double-counting risk as the CAT case if left uncaught, and (unlike the
+# GLW-specific NetSalesOfReportableSegmentsAndAllOther concept added alongside this) a
+# standard taxonomy member name, so this generalizes to any other ASU 2023-07 filer using it.
+_NON_SEGMENT_SUBTOTAL_MEMBERS = (
+    "ReportableSegmentAggregationBeforeOtherOperatingSegmentMember",
+    "ReportableSegmentsMember",
+)
 
 # Revenue concepts to try, in preference order. Segment revenue is tagged using
 # the SAME concept as consolidated revenue - just against a dimensioned context -
@@ -264,6 +278,22 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # us-gaap/IFRS concept above has already been tried and failed to match.
     "RevenueFromContractsWithCustomers",
     "Revenue",
+    # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification):
+    # Corning's (GLW, CIK 24741) own filer-specific extension concept for segment-level net
+    # sales - live-confirmed against GLW's real FY2023 10-K instance document
+    # (glw-20251231_htm.xml, tagged under the glw: namespace, matched here by local name
+    # only per this file's existing namespace-agnostic convention): Optical Communications
+    # $4.012B, Display $3.532B, Specialty Materials $1.865B, Automotive $1.893B, Life
+    # Science $0.959B, summing with the filing's own "Hemlock and Emerging Growth
+    # Businesses" line ($1.319B) to its own tagged "ReportableSegmentsMember"+"All Other"
+    # subtotal of $13.580B - internally consistent, real per-segment sales, not a
+    # coincidence. Same low-collision-risk rationale as the existing BAC-specific
+    # RevenuesNetOfInterestExpenseFullTaxEquivalentBasis entry above: a private filer
+    # extension name only that one filer would plausibly define, safe to trust unreconciled
+    # like the rest of this list. Before this fix GLW fell through to
+    # "no_segment_revenue_in_xbrl_xml" despite having complete real segment revenue on
+    # file, purely because this concept wasn't in the recognized set.
+    "NetSalesOfReportableSegmentsAndAllOther",
 )
 
 # `ifrs-full:GrossProfit` is deliberately NOT in _REVENUE_CONCEPT_LOCAL_NAMES above, even
@@ -600,6 +630,62 @@ class XBRLSegmentParser:
         return context_segment
 
     @staticmethod
+    def _dedupe_member_facts(facts: list[tuple[str, float, bool]], symbol: str, concept: str) -> dict[str, float]:
+        """Collapse duplicate (member, value, is_boilerplate_paired) facts for the same
+        member down to one value per member, instead of summing them.
+
+        FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR
+        verification): a filer can tag the SAME real segment/period fact via more than
+        one qualifying context - most commonly a plain single-axis context AND a
+        ConsolidationItemsAxis=OperatingSegmentsMember-paired one (see this file's
+        Caterpillar/JNJ comments on extract_segment_revenue_from_xbrl_xml's own primary
+        revenue-selection path, which already handles this correctly - this generalizes
+        that same fix to every OTHER per-member accumulation in this file, which were
+        blindly summing instead). Live-confirmed via Truist Financial's (TFC, CIK 92230)
+        real FY2025 10-K instance document: InterestIncomeExpenseNet is tagged BOTH as a
+        plain StatementBusinessSegmentsAxis=ConsumerAndSmallBusinessBankingMember context
+        ($6,120,000,000) AND, separately, paired with ConsolidationItemsAxis=
+        OperatingSegmentsMember for the identical segment/period ($9,584,000,000, a
+        different real value, not a duplicate tagging of the same fact) -
+        _extract_component_sum_segment_revenue's old blind `+=` accumulation summed both,
+        producing a segment total 71% over TFC's own consolidated
+        InterestIncomeExpenseNet+NoninterestIncome anchor ($34.7B vs the real $20.3B),
+        which failed reconciliation and fell through to "no_segment_revenue_in_xbrl_xml"
+        despite TFC having complete, real, reconcilable segment data on file. Deduping
+        first (dropping to just the plain, non-boilerplate-paired value per member, the
+        same "prefer plain on disagreement" rule the primary path already uses) makes the
+        segment total reconcile EXACTLY to TFC's real $20,319,000,000 consolidated figure.
+        Same accumulation shape is used for operating_income_by_member/assets_by_member
+        via _extract_segment_member_values below, so this also fixes silently-inflated
+        (not just missing) operating-income/assets figures for any filer with this same
+        dual-tagging pattern under those concepts, not just bank revenue.
+        """
+        values: dict[str, float] = {}
+        is_boilerplate_by_member: dict[str, bool] = {}
+        for member, value, is_boilerplate in facts:
+            if member not in values:
+                values[member] = value
+                is_boilerplate_by_member[member] = is_boilerplate
+                continue
+            if abs(values[member] - value) <= max(1.0, abs(values[member]) * 0.001):
+                continue  # same fact tagged twice, nothing to reconcile
+            if is_boilerplate_by_member[member] and not is_boilerplate:
+                logger.warning(
+                    f"[{symbol}] {concept}: segment '{member}' tagged with disagreeing "
+                    f"values across contexts ({values[member]} vs {value}) for the same "
+                    "period - preferring the plain (non-OperatingSegmentsMember-paired) value."
+                )
+                values[member] = value
+                is_boilerplate_by_member[member] = is_boilerplate
+            else:
+                logger.warning(
+                    f"[{symbol}] {concept}: segment '{member}' tagged with disagreeing "
+                    f"values across contexts ({values[member]} vs {value}) for the same "
+                    "period - keeping the first value seen."
+                )
+        return values
+
+    @staticmethod
     def _extract_segment_member_values(
         root: ET.Element,
         context_segment: dict[str, tuple[str, str, str, str | None, bool]],
@@ -607,6 +693,7 @@ class XBRLSegmentParser:
         concept_local_names: tuple[str, ...],
         target_end: str,
         match_duration_days: int | None,
+        symbol: str = "",
     ) -> dict[str, float]:
         """Extract member -> value for a concept, restricted to the same fiscal
         period already selected for segment revenue (target_end, and for
@@ -625,14 +712,14 @@ class XBRLSegmentParser:
         """
         values: dict[str, float] = {}
         for concept in concept_local_names:
-            found = False
+            facts: list[tuple[str, float, bool]] = []
             for elem in root.iter():
                 if _local_name(elem.tag) != concept:
                     continue
                 info = context_segment.get(elem.get("contextRef", ""))
                 if not info or info[0] != axis_to_use:
                     continue
-                _axis, member, end_str, start_str, _is_boilerplate = info
+                _axis, member, end_str, start_str, is_boilerplate = info
                 if end_str != target_end:
                     continue
                 if match_duration_days is not None:
@@ -652,11 +739,11 @@ class XBRLSegmentParser:
                 if value is None:
                     continue
                 try:
-                    values[member] = values.get(member, 0.0) + float(value.strip())
+                    facts.append((member, float(value.strip()), is_boilerplate))
                 except ValueError:
                     continue
-                found = True
-            if found:
+            if facts:
+                values = XBRLSegmentParser._dedupe_member_facts(facts, symbol, concept)
                 break
         return values
 
@@ -891,14 +978,14 @@ class XBRLSegmentParser:
         """
         anchor_concept, secondary_concept = _BANK_REVENUE_COMPONENT_CONCEPTS
 
-        candidate_facts: list[tuple[str, str, int, float]] = []
+        candidate_facts: list[tuple[str, str, int, float, bool]] = []
         for elem in root.iter():
             if _local_name(elem.tag) != anchor_concept:
                 continue
             info = context_segment.get(elem.get("contextRef", ""))
             if not info or info[0] != axis_to_use:
                 continue
-            _axis, member, end_str, start_str, _is_boilerplate = info
+            _axis, member, end_str, start_str, is_boilerplate = info
             value = elem.text
             if value is None:
                 continue
@@ -912,7 +999,7 @@ class XBRLSegmentParser:
                     duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
                 except ValueError:
                     duration_days = 0
-            candidate_facts.append((member, end_str, duration_days, revenue))
+            candidate_facts.append((member, end_str, duration_days, revenue, is_boilerplate))
 
         if not candidate_facts:
             return None
@@ -922,12 +1009,20 @@ class XBRLSegmentParser:
         max_duration = max(f[2] for f in same_end)
         latest_facts = [f for f in same_end if f[2] == max_duration]
 
-        nii_by_member: dict[str, float] = {}
-        for member, _end, _duration, nii_value in latest_facts:
-            nii_by_member[member] = nii_by_member.get(member, 0.0) + nii_value
+        # FIXED 2026-09-02: was blindly summing every matching context per member (see
+        # _dedupe_member_facts' docstring for the live TFC evidence) - dedupe the same
+        # way _extract_segment_member_values below now does.
+        nii_by_member = XBRLSegmentParser._dedupe_member_facts(
+            [
+                (member, nii_value, is_boilerplate)
+                for member, _end, _duration, nii_value, is_boilerplate in latest_facts
+            ],
+            symbol,
+            anchor_concept,
+        )
 
         noninterest_by_member = XBRLSegmentParser._extract_segment_member_values(
-            root, context_segment, axis_to_use, (secondary_concept,), max_end, max_duration
+            root, context_segment, axis_to_use, (secondary_concept,), max_end, max_duration, symbol
         )
 
         combined = {member: nii_by_member[member] + noninterest_by_member.get(member, 0.0) for member in nii_by_member}
@@ -1273,9 +1368,10 @@ class XBRLSegmentParser:
                             _OPERATING_INCOME_CONCEPT_LOCAL_NAMES,
                             single_end,
                             single_duration,
+                            symbol,
                         ).get(member_key)
                         assets = XBRLSegmentParser._extract_segment_member_values(
-                            root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, single_end, None
+                            root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, single_end, None, symbol
                         ).get(member_key)
                     return XBRLSegmentParser._single_segment_result(
                         name=name,
@@ -1385,10 +1481,10 @@ class XBRLSegmentParser:
             }
 
         operating_income_by_member = XBRLSegmentParser._extract_segment_member_values(
-            root, context_segment, axis_to_use, _OPERATING_INCOME_CONCEPT_LOCAL_NAMES, max_end, max_duration
+            root, context_segment, axis_to_use, _OPERATING_INCOME_CONCEPT_LOCAL_NAMES, max_end, max_duration, symbol
         )
         assets_by_member = XBRLSegmentParser._extract_segment_member_values(
-            root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, max_end, None
+            root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, max_end, None, symbol
         )
 
         segment_list = sorted(

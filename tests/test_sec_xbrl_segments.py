@@ -871,6 +871,100 @@ class TestExtractSegmentRevenueFromXbrlXml:
         }
         assert result["segment_count"] == 2
 
+    def test_reportable_segments_member_subtotal_excluded_from_concentration_math(self) -> None:
+        """FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit): the ASU 2023-07
+        taxonomy's OTHER standard "subtotal before All Other" member name,
+        us-gaap:ReportableSegmentsMember - live-confirmed against Corning's (GLW) real
+        FY2025 10-K instance: this member's tagged NetSalesOfReportableSegmentsAndAllOther
+        value ($14.948B) exactly equals the sum of GLW's 5 real reportable segments,
+        excluding its 6th "All Other" segment (Hemlock and Emerging Growth Businesses).
+        Same double-counting risk as ReportableSegmentAggregationBeforeOtherOperatingSegmentMember
+        (CAT) above, different member name - a distinct filer/taxonomy-revision convention,
+        not a duplicate of that fix."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "OpticalCommunicationsMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "DisplayMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "ReportableSegmentsMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <glw:NetSalesOfReportableSegmentsAndAllOther contextRef="c1">6274000000</glw:NetSalesOfReportableSegmentsAndAllOther>
+        <glw:NetSalesOfReportableSegmentsAndAllOther contextRef="c2">3697000000</glw:NetSalesOfReportableSegmentsAndAllOther>
+        <glw:NetSalesOfReportableSegmentsAndAllOther contextRef="c3">9971000000</glw:NetSalesOfReportableSegmentsAndAllOther>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:glw="http://www.corning.com/20251231" xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "OpticalCommunicationsMember": 6_274_000_000.0,
+            "DisplayMember": 3_697_000_000.0,
+        }
+        assert result["segment_count"] == 2
+
+    def test_filer_specific_net_sales_of_reportable_segments_concept_recognized(self) -> None:
+        """FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR
+        verification): Corning's (GLW) own filer-specific extension concept for
+        segment-level net sales, glw:NetSalesOfReportableSegmentsAndAllOther, wasn't in
+        the recognized revenue-concept list at all - live-confirmed real per-segment
+        values from GLW's FY2025 10-K (Optical Communications $6.274B, Display $3.697B,
+        Specialty Materials $2.211B). Before this fix GLW fell through to
+        "no_segment_revenue_in_xbrl_xml" despite having complete, real segment revenue
+        on file for every one of its 6 segments."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "OpticalCommunicationsMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "DisplayMember", "2025-01-01", "2025-12-31")
+            + _context("c3", "StatementBusinessSegmentsAxis", "SpecialtyMaterialsMember", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <glw:NetSalesOfReportableSegmentsAndAllOther contextRef="c1">6274000000</glw:NetSalesOfReportableSegmentsAndAllOther>
+        <glw:NetSalesOfReportableSegmentsAndAllOther contextRef="c2">3697000000</glw:NetSalesOfReportableSegmentsAndAllOther>
+        <glw:NetSalesOfReportableSegmentsAndAllOther contextRef="c3">2211000000</glw:NetSalesOfReportableSegmentsAndAllOther>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:glw="http://www.corning.com/20251231" xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "OpticalCommunicationsMember": 6_274_000_000.0,
+            "DisplayMember": 3_697_000_000.0,
+            "SpecialtyMaterialsMember": 2_211_000_000.0,
+        }
+
     def test_gross_boilerplate_paired_value_overridden_by_disagreeing_plain_value(self) -> None:
         """Real filer shape (verified live against Caterpillar's FY2025 10-K instance):
         Power & Energy's ConsolidationItemsAxis=OperatingSegmentsMember-paired context
@@ -1676,6 +1770,55 @@ class TestComponentSumSegmentRevenueFallback:
         assert result["data_available"] is True
         revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
         assert revenues == {"AlphaMember": 60_000_000.0, "BetaMember": 40_000_000.0}
+
+    def test_component_sum_dedupes_plain_and_boilerplate_paired_duplicate_instead_of_summing(self) -> None:
+        """FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR
+        verification): Truist Financial's (TFC, CIK 92230) real FY2025 10-K instance
+        tags InterestIncomeExpenseNet for the SAME segment/period via BOTH a plain
+        single-dimension context ($6.120B) AND, separately, a
+        ConsolidationItemsAxis=OperatingSegmentsMember-paired context ($9.584B, a
+        genuinely different real value, not a duplicate tagging of the same fact) -
+        the old blind `+=` accumulation summed both ($15.704B), inflating TFC's total
+        segment revenue 71% over its own real consolidated
+        InterestIncomeExpenseNet+NoninterestIncome anchor and failing reconciliation
+        entirely (falling through to "no_segment_revenue_in_xbrl_xml" despite complete
+        real data on file). Deduping first - preferring the plain, non-boilerplate-
+        paired value on disagreement, same rule the primary revenue-concept path
+        already applies (see test_gross_boilerplate_paired_value_overridden_by_disagreeing_plain_value
+        above) - makes the segment total reconcile correctly."""
+        contexts = (
+            _context("c1_plain", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1_paired",
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "AlphaMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_noninterest", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestIncomeExpenseNet contextRef="c1_plain">61200000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:InterestIncomeExpenseNet contextRef="c1_paired">95840000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c1_plain">20730000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="c2">78060000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="c2">41640000</us-gaap:NoninterestIncome>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">139260000</us-gaap:InterestIncomeExpenseNet>
+        <us-gaap:NoninterestIncome contextRef="anchor_noninterest">62370000</us-gaap:NoninterestIncome>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        # AlphaMember = plain NII (61.2M, NOT summed with the 95.84M paired duplicate) + NonInterestIncome (20.73M)
+        assert revenues == {"AlphaMember": 81_930_000.0, "BetaMember": 119_700_000.0}
 
 
 class TestSingleReportableSegmentFallback:
