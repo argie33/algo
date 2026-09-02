@@ -4399,9 +4399,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # stockholders_equity_not_reported/net_income_not_reported gates roe/roa/
                 # debt_to_equity already wired above. Live-confirmed 62 of 181 universe
                 # sustainable_growth_rate "missing_sec_data" rows (34%).
-                elif stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols():
+                elif stockholders_equity is None and (
+                    symbol in self._get_no_recent_stockholders_equity_symbols()
+                    or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                ):
                     sgr_reason = "stockholders_equity_not_reported"
-                elif net_income is None and symbol in self._get_no_recent_net_income_symbols():
+                elif net_income is None and (
+                    symbol in self._get_no_recent_net_income_symbols()
+                    or symbol in self._get_never_tagged_net_income_symbols()
+                ):
                     sgr_reason = "net_income_not_reported"
                 else:
                     sgr_reason = "missing_sec_data"
@@ -4633,7 +4639,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # to every downstream field at once, not just the 7 checked above.
                 row_level_reason = (
                     "no_recent_balance_sheet_data_reported"
-                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    if stockholders_equity is None
+                    and (
+                        symbol in self._get_no_recent_stockholders_equity_symbols()
+                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                    )
                     else None
                 )
                 return self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
@@ -5402,6 +5412,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if symbol in self._get_no_recent_revenue_symbols()
                     else "no_recent_total_assets_reported"
                     if symbol in self._get_no_recent_total_assets_symbols()
+                    or symbol in self._get_never_tagged_total_assets_symbols()
                     else "missing_sec_data"
                 )
                 if asset_turnover is None
@@ -5506,7 +5517,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # roe/roa above. Live-confirmed 28 of 111 universe net_margin missing_sec_data
                     # rows (25%) are this case.
                     else "net_income_not_reported"
-                    if net_income is None and symbol in self._get_no_recent_net_income_symbols()
+                    if net_income is None
+                    and (
+                        symbol in self._get_no_recent_net_income_symbols()
+                        or symbol in self._get_never_tagged_net_income_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "net_margin" in failed_metrics
@@ -5517,7 +5532,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     "implausible_ratio"
                     if "debt_to_equity" in implausible_ratio_metrics
                     else "stockholders_equity_not_reported"
-                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    if stockholders_equity is None
+                    and (
+                        symbol in self._get_no_recent_stockholders_equity_symbols()
+                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                    )
                     # FIX 2026-09-02 (goal: "no SEC data" audit continuation): debt_to_equity's
                     # failure branch above (line ~3468) fails whenever EITHER
                     # roic_stockholders_equity OR debt_for_roic is None - but this reason block
@@ -5658,7 +5677,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "total_debt_not_itemized"
                     if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
                     else "stockholders_equity_not_reported"
-                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    if stockholders_equity is None
+                    and (
+                        symbol in self._get_no_recent_stockholders_equity_symbols()
+                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
@@ -5683,7 +5706,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "total_debt_not_itemized"
                     if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
                     else "stockholders_equity_not_reported"
-                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    if stockholders_equity is None
+                    and (
+                        symbol in self._get_no_recent_stockholders_equity_symbols()
+                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "roce_pct" in failed_metrics
