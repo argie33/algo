@@ -162,3 +162,28 @@ def test_insufficient_year_over_year_quarterly_history_categorizes_as_insufficie
 
 def test_implausibly_low_forward_pe_categorizes_as_implausible():
     assert scores_mod._categorize_reason("implausibly_low_forward_pe") == "Implausible / rejected value"
+
+
+# ADDED 2026-09-02 (same goal session, broader suffix-pattern sweep): 5 more genuinely
+# unmapped strings found via a wider net (any quoted string ending in a "reason-like" suffix
+# like _unavailable/_missing/_not_found, not just the narrower first-pass pattern).
+
+
+def test_filings_key_missing_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("filings_key_missing") == "Missing SEC/XBRL data"
+
+
+def test_recent_filings_key_missing_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("recent_filings_key_missing") == "Missing SEC/XBRL data"
+
+
+def test_sec_form345_bulk_data_unavailable_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("sec_form345_bulk_data_unavailable") == "Missing SEC/XBRL data"
+
+
+def test_filing_date_unavailable_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("filing_date_unavailable") == "Missing SEC/XBRL data"
+
+
+def test_segment_data_unavailable_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("segment_data_unavailable") == "Missing SEC/XBRL data"

@@ -2217,6 +2217,23 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # reported/total_debt_not_itemized already above.
             "stockholders_equity_never_tagged_in_filings",
             "total_liabilities_not_reported",
+            # filings_key_missing/recent_filings_key_missing: load_earnings_calendar_sec.py's
+            # sibling to submissions_not_found_404/submissions_empty above - SEC submissions
+            # response came back but was missing the expected "filings" key structure.
+            "filings_key_missing",
+            "recent_filings_key_missing",
+            # sec_form345_bulk_data_unavailable: load_insider_transaction_velocity.py's SEC
+            # Form 3/4/5 bulk-data feed absence, same class as no_form345_filings_in_lookback_
+            # window in "Ownership data unresolved" below but for the bulk-feed-itself-down
+            # case rather than a per-symbol lookback gap.
+            "sec_form345_bulk_data_unavailable",
+            # filing_date_unavailable/segment_data_unavailable: load_sec_segment_info.py/
+            # load_sec_segment_metrics.py's own "SEC segment XBRL data isn't there" facts,
+            # same class as the other segment-data reasons already above. These two tables
+            # are display-only/unscored (_UNSCORED_TABLES) but the coverage report still
+            # categorizes their reasons, so they should read honestly too.
+            "filing_date_unavailable",
+            "segment_data_unavailable",
             # ADDED 2026-09-02 (same sweep): loaders/helpers/sec_base.py writes this when a
             # full unfiltered SEC refetch no longer reproduces a fiscal year the DB
             # currently marks available - that year's data is retracted/no longer backed by
