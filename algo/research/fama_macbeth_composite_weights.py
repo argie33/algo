@@ -541,8 +541,24 @@ def build_pillar_proxy_records(
             records_complete.append((month, complete))
 
         partial = raw.copy()
+        # coverage_count ADDED 2026-09-01 (goal session follow-up to
+        # fm_risk_partial_sample_missing_data_selection_artifact_20260901 in memory): counted
+        # from `raw` BEFORE the 0-imputation below overwrites the missingness pattern this is
+        # meant to capture - how many of the 5 pillars this symbol-month actually had real data
+        # for, not the post-imputation all-present appearance. Z-scored like every other
+        # regressor in this script so its coefficient is on the same comparable scale.
+        partial["coverage_count"] = raw[PILLAR_COLS].notna().sum(axis=1).astype(float)
         for col in PILLAR_COLS:
             partial[col] = _zwinsor(partial[col]).fillna(0.0)
+        partial["coverage_count"] = _zwinsor(partial["coverage_count"])
+        # Interaction terms ADDED 2026-09-01 (same-day follow-up: the additive coverage_count
+        # control above did NOT explain stability_proxy's partial-vs-complete disagreement
+        # (t=5.67->5.76, essentially unchanged) - ruling out a simple ADDITIVE confound. A
+        # pillar x coverage_count interaction tests the different hypothesis that thin- and
+        # thick-coverage stocks have a genuinely DIFFERENT pillar-return relationship (not just
+        # a level shift) - the mechanism the coverage-count control alone cannot see.
+        for col in PILLAR_COLS:
+            partial[f"{col}_x_coverage"] = partial[col] * partial["coverage_count"]
         records_partial.append((month, partial))
 
     if not records_partial:
@@ -615,6 +631,78 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
             " and the strict-complete-case regime) should be treated as evidence for a"
             " BASE_PILLAR_WEIGHTS change. 'same-sign'-only or DISAGREE means the imputed sample's"
             " larger size is likely doing the work, not a real relationship."
+        )
+
+        # ADDED 2026-09-01 (goal session, direct follow-up to this session's
+        # fm_risk_partial_sample_missing_data_selection_artifact_20260901 finding: stocks
+        # missing other pillars are ~1 std deviation riskier, so partial-availability's
+        # 0-imputation can make a pillar's coefficient partly/wholly a coverage-completeness
+        # proxy rather than a real effect). Adds coverage_count (how many of the 5 pillars this
+        # symbol-month had real, non-imputed data for) as an explicit control regressor - if a
+        # pillar's t-stat collapses once this is controlled for, its apparent partial-
+        # availability signal was substantially laundered through data-completeness, not a
+        # genuine pillar effect.
+        multi_controlled = _fama_macbeth(records_partial, [*PILLAR_COLS, "coverage_count"])
+        print(
+            "\n########## COVERAGE-CONTROLLED: how much of each pillar's partial-sample t-stat is coverage_count? ##########"
+        )
+        print(f"{'pillar':18s} {'t (no ctrl)':>12s} {'t (w/ ctrl)':>12s} {'shrinkage':>10s}")
+        for c in PILLAR_COLS:
+            t_before = multi_partial[c][1]
+            t_after = multi_controlled[c][1]
+            print(f"{c:18s} {t_before:12.2f} {t_after:12.2f} {t_before - t_after:10.2f}")
+        cc_mean, cc_t = multi_controlled["coverage_count"]
+        print(f"{'coverage_count':18s} {cc_mean:12.5f} {cc_t:12.2f}   (own coefficient/t-stat)")
+        print(
+            "\ncoverage_count itself significant (|t|>2) means data-completeness independently"
+            " predicts forward returns in this sample - the more a pillar's own t-stat shrinks"
+            " once this is controlled for, the more that pillar's partial-availability signal was"
+            " really a coverage-completeness proxy, not evidence for that pillar."
+        )
+
+        # ADDED 2026-09-01 (same-day follow-up to the coverage_count control above, which did
+        # NOT explain stability_proxy's disagreement - ruling out a simple additive confound).
+        # Tests the different hypothesis that thin-/thick-coverage stocks have a genuinely
+        # DIFFERENT pillar-return relationship (an interaction, not a level shift).
+        interaction_cols = [f"{c}_x_coverage" for c in PILLAR_COLS]
+        multi_interaction = _fama_macbeth(records_partial, [*PILLAR_COLS, "coverage_count", *interaction_cols])
+        print("\n########## INTERACTION TEST: does each pillar behave differently by coverage level? ##########")
+        print(f"{'pillar':18s} {'t (main, no ix)':>15s} {'t (main, w/ ix)':>15s} {'t (interaction)':>16s}")
+        for c in PILLAR_COLS:
+            t_main_before = multi_controlled[c][1]
+            t_main_after = multi_interaction[c][1]
+            t_ix = multi_interaction[f"{c}_x_coverage"][1]
+            flag = "  <-- interaction significant" if abs(t_ix) > 2.0 else ""
+            print(f"{c:18s} {t_main_before:15.2f} {t_main_after:15.2f} {t_ix:16.2f}{flag}")
+        print(
+            "\nA significant (|t|>2) interaction term means that pillar's return-relationship"
+            " genuinely differs between thin- and thick-coverage stocks - not proof the pillar is"
+            " fake, but a real reason its single pooled coefficient is unstable/regime-dependent."
+            " Main effect shrinking toward zero once its own interaction is included means the"
+            " pooled coefficient was mostly/entirely driven by one coverage subpopulation."
+        )
+
+        # ADDED 2026-09-01 (held to this file's own standing bar - see the AGREEMENT CHECK
+        # section above and its "must be same-signed AND significant in both halves" rule -
+        # applied here to the interaction terms too, not just the raw pillar coefficients.
+        # growth_proxy_x_coverage came back significant (t=2.97) pooled; a single pooled
+        # coefficient is not enough evidence on its own by this project's own standard).
+        ix_split_idx = len(records_partial) // 2
+        ix_first_half, ix_second_half = records_partial[:ix_split_idx], records_partial[ix_split_idx:]
+        print("\n########## INTERACTION ERA-ROBUSTNESS: same bar as every other finding in this file ##########")
+        print(f"{'interaction':22s} {'t (pooled)':>11s} {'t (1st half)':>13s} {'t (2nd half)':>13s} {'verdict':>10s}")
+        for c in PILLAR_COLS:
+            ix_col = f"{c}_x_coverage"
+            t_pooled = multi_interaction[ix_col][1]
+            t_h1 = _fama_macbeth(ix_first_half, [*PILLAR_COLS, "coverage_count", *interaction_cols])[ix_col][1]
+            t_h2 = _fama_macbeth(ix_second_half, [*PILLAR_COLS, "coverage_count", *interaction_cols])[ix_col][1]
+            same_sign = (t_h1 > 0) == (t_h2 > 0)
+            both_sig = abs(t_h1) > 2.0 and abs(t_h2) > 2.0
+            verdict = "ROBUST" if (same_sign and both_sig) else ("same-sign" if same_sign else "DISAGREE")
+            print(f"{ix_col:22s} {t_pooled:11.2f} {t_h1:13.2f} {t_h2:13.2f} {verdict:>10s}")
+        print(
+            "\nOnly ROBUST here would clear this file's own bar for treating an interaction as a"
+            " real, actionable finding rather than a single-sample artifact."
         )
     else:
         print("\n(No complete-case comparison available - see warning above.)")
