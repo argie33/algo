@@ -76,6 +76,8 @@ class TestOperatingCashFlowAccrualsRatioReasonGate:
         assert metrics["operating_cash_flow_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
         assert metrics["accruals_ratio"] is None
         assert metrics["accruals_ratio_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
+        assert metrics["ocf_to_net_income"] is None
+        assert metrics["ocf_to_net_income_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
 
     def test_symbol_not_in_gate_keeps_generic_reason(self, monkeypatch):
         loader = _make_loader(monkeypatch, no_recent_ocf_symbols=frozenset({"NOOCF"}))
@@ -87,6 +89,8 @@ class TestOperatingCashFlowAccrualsRatioReasonGate:
         assert metrics["operating_cash_flow_unavailable_reason"] == "missing_sec_data"
         assert metrics["accruals_ratio"] is None
         assert metrics["accruals_ratio_unavailable_reason"] == "missing_sec_data"
+        assert metrics["ocf_to_net_income"] is None
+        assert metrics["ocf_to_net_income_unavailable_reason"] == "missing_sec_data"
 
     def test_real_ocf_still_computes_normally(self, monkeypatch):
         loader = _make_loader(monkeypatch)
@@ -98,3 +102,5 @@ class TestOperatingCashFlowAccrualsRatioReasonGate:
         assert metrics.get("operating_cash_flow_unavailable_reason") is None
         assert metrics["accruals_ratio"] is not None
         assert metrics.get("accruals_ratio_unavailable_reason") is None
+        assert metrics["ocf_to_net_income"] is not None
+        assert metrics.get("ocf_to_net_income_unavailable_reason") is None

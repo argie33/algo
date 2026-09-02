@@ -5327,7 +5327,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["ocf_to_net_income_unavailable_reason"] = (
-                "missing_sec_data" if "ocf_to_net_income" in failed_metrics else None
+                (
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): ocf_to_net_income
+                    # = operating_cash_flow / net_income, so it fails whenever operating_cash_flow
+                    # is None - reuse the same genuinely-no-OCF gate wired into
+                    # operating_cash_flow_unavailable_reason/accruals_ratio_unavailable_reason
+                    # above (sibling to the fcf_to_net_income fix just above; overlooked in the
+                    # earlier operating_cash_flow/accruals_ratio commit). Live-confirmed 43 of
+                    # 165 universe ocf_to_net_income "missing_sec_data" rows are symbols where
+                    # operating_cash_flow is also missing.
+                    "no_recent_operating_cash_flow_reported"
+                    if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    else "missing_sec_data"
+                )
+                if "ocf_to_net_income" in failed_metrics
+                else None
             )
             metrics["payout_ratio_unavailable_reason"] = payout_ratio_reason
             metrics["free_cash_flow_unavailable_reason"] = (
