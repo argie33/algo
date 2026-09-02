@@ -2483,6 +2483,16 @@ _COVERAGE_CATEGORY_ORDER = [name for name, _ in _COVERAGE_CATEGORY_RULES]
 # *_unavailable_reason column in this report at all (momentum_metrics only exposes a
 # single bare `reason` column, and it isn't in `bare_reason_tables` below), so there's
 # nothing to tag on that pillar.
+#
+# Positioning is handled as a whole TABLE, not a per-field set below (_UNSCORED_TABLES):
+# _score_positioning was fully retired 2026-08-27 (Positioning pillar removed entirely -
+# no method body remains in load_stock_scores.py, only a comment documenting the removal
+# and the evidence trail) - every positioning_metrics/short_interest_finra field (A/D
+# rating, institutional ownership, short interest and its % change) is display-only now
+# (surfaced via the scores API's informational positioning_inputs field), not just a
+# specific subset the way Value/Growth/Risk have a mix of scored and unscored fields.
+_UNSCORED_TABLES: set[str] = {"positioning_metrics", "short_interest_finra"}
+
 _UNSCORED_FACTORS: set[tuple[str, str]] = {
     # Value: _score_value's live formula is pe_ratio(27%) + pb_ratio(27%) + ps_ratio(27%)
     # + forward_pe(9%) + dividend_yield(10%) only - these six are computed/stored (Deep
@@ -2494,6 +2504,15 @@ _UNSCORED_FACTORS: set[tuple[str, str]] = {
     ("value_metrics", "intrinsic_value"),
     ("value_metrics", "net_payout_yield"),
     ("value_metrics", "fcf_yield"),
+    # market_cap: was the Size pillar's sole input, but _score_size/_score_positioning were
+    # fully retired 2026-08-28/29 (no method body remains anywhere in load_stock_scores.py) -
+    # market_cap itself stayed computed/stored (that file's own line ~3014 comment: "market_cap
+    # is not scored anywhere"), just with nothing left to score it into.
+    ("value_metrics", "market_cap"),
+    # held_percent_institutions: zero references anywhere in load_stock_scores.py (verified via
+    # repo-wide grep) - display-only (StockDetail.jsx / financials.py), never fed into any
+    # pillar formula.
+    ("value_metrics", "held_percent_institutions"),
     # Growth: _score_growth equal-weights the 12 GROWTH_SCORE_FIELDS; these 12 are computed
     # trend/YoY siblings explicitly removed from that field list (still shown on the scores
     # page as info rows per this repo's own "convert removed UI fields to info rows"
@@ -2510,6 +2529,14 @@ _UNSCORED_FACTORS: set[tuple[str, str]] = {
     ("growth_metrics", "operating_margin_trend"),
     ("growth_metrics", "net_margin_trend"),
     ("growth_metrics", "roe_trend"),
+    # earnings_beat_rate/earnings_surprise_avg: mislabeled proxies, confirmed dead code with
+    # no scoring path/caller anywhere (memory: earnings_beat_rate/earnings_surprise_avg
+    # mislabeled proxies finding). consecutive_positive_quarters: same - zero references in
+    # load_stock_scores.py. All three were missed in this set's first pass (verified via
+    # live API cross-check against GROWTH_SCORE_FIELDS, not assumed).
+    ("growth_metrics", "earnings_beat_rate"),
+    ("growth_metrics", "earnings_surprise_avg"),
+    ("growth_metrics", "consecutive_positive_quarters"),
     # Risk: _score_risk uses volatility_60d/252d + beta + max_drawdown_1y + avg_dollar_volume_20d
     # only - the 30d volatility variant and all three downside-deviation variants are computed/
     # stored but never read by that function.
@@ -3207,9 +3234,10 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
                     "sources": _resolve_factor_sources(
                         table_source_cache, table_source_tracking_cache, table, factor_name
                     ),
-                    # ADDED 2026-09-02: see _UNSCORED_FACTORS's own comment above - a gap here
-                    # can never move stock_scores, unlike every other factor on this page.
-                    "scored": (table, factor_name) not in _UNSCORED_FACTORS,
+                    # ADDED 2026-09-02: see _UNSCORED_FACTORS/_UNSCORED_TABLES's own comments
+                    # above - a gap here can never move stock_scores, unlike every other
+                    # factor on this page.
+                    "scored": table not in _UNSCORED_TABLES and (table, factor_name) not in _UNSCORED_FACTORS,
                 }
             )
 

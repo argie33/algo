@@ -216,26 +216,64 @@ export default function ScoresDataCoverage({ active }) {
     Object.entries(f.categories || {})
       .filter(([c]) => c !== "Legitimate / not applicable")
       .reduce((s, [, v]) => s + v, 0);
+  // The number this whole page leads with, per factor: how many symbols have a GENUINE
+  // gap, excluding "Legitimate / not applicable" (data known, ratio doesn't apply - e.g.
+  // no P/E for a loss-making stock, no PEG for shrinking earnings) from both the count and
+  // the percentage entirely. User directive (2026-09-02, the "PEG 78% missing, I'm
+  // freaking out" conversation): a row must never LOOK like a big gap when most of it is
+  // actually "we know, it just doesn't apply" - that story stays available on expand (the
+  // full reasons list below still itemizes every legitimate-N/A reason with its own %), it
+  // just isn't allowed to inflate the headline number anymore.
+  const realGapCount = (f) => nonLegitCount(f);
+  const realGapPct = (f) =>
+    f.denom ? Math.round((1000 * realGapCount(f)) / f.denom) / 10 : null;
+
+  // Category totals recomputed here from the merged per-factor `factors` array, scoped to
+  // SCORED factors only - deliberately NOT the backend's summary.category_totals, which
+  // rolls up every tracked factor regardless of scoring role. A gap on a display-only field
+  // (EV/EBITDA, PEG, margin of safety, several growth trend/YoY siblings, a couple of
+  // volatility variants - see scores.py's _UNSCORED_FACTORS) can never move a stock's score,
+  // so it's excluded from "Real Gap Instances" / "Top Causes" / the ≥50%/≥20% counts the
+  // same way "Legitimate / not applicable" already is - otherwise the headline numbers on a
+  // tab titled "Scores Data Coverage" keep looking alarming for reasons that have zero
+  // scoring impact, which is exactly the "so many missing, is this misleading" confusion
+  // this addition exists to fix.
+  const scoredCategoryTotals = useMemo(() => {
+    const totals = {};
+    for (const f of factors) {
+      if (!isScored(f)) continue;
+      for (const [cat, v] of Object.entries(f.categories || {})) {
+        totals[cat] = (totals[cat] || 0) + v;
+      }
+    }
+    return totals;
+  }, [factors]);
 
   const kpis = useMemo(() => {
     if (!summary) return null;
-    const over50 = factors.filter((f) => (f.pct_missing ?? 0) >= 50).length;
-    const over20 = factors.filter((f) => (f.pct_missing ?? 0) >= 20).length;
-    const gapTotal = Object.entries(summary.category_totals || {})
+    const over50 = factors.filter(
+      (f) => isScored(f) && (realGapPct(f) ?? 0) >= 50
+    ).length;
+    const over20 = factors.filter(
+      (f) => isScored(f) && (realGapPct(f) ?? 0) >= 20
+    ).length;
+    const gapTotal = Object.entries(scoredCategoryTotals)
       .filter(([c]) => c !== "Legitimate / not applicable")
       .reduce((s, [, v]) => s + v, 0);
-    const topCause = Object.entries(summary.category_totals || {})
+    const topCause = Object.entries(scoredCategoryTotals)
       .filter(([c]) => c !== "Legitimate / not applicable")
       .sort((a, b) => b[1] - a[1])[0];
-    // How much of gapTotal above comes from factors the live composite score never
-    // reads at all (e.g. EV/EBITDA, PEG, margin of safety - computed for the Deep Value
-    // page only) - see scores.py's _UNSCORED_FACTORS. These are real, trackable gaps in
-    // what's stored, just not gaps that fixing would ever move a stock's score.
+    // How many display-only (unscored) factors ALSO cross the same thresholds, and how
+    // much of the full (scored + unscored) universe of gaps they carry - shown as
+    // supplementary context, not folded into the headline numbers above.
+    const unscoredOver50 = factors.filter(
+      (f) => !isScored(f) && (realGapPct(f) ?? 0) >= 50
+    ).length;
     const unscoredGapTotal = factors
       .filter((f) => !isScored(f))
       .reduce((s, f) => s + nonLegitCount(f), 0);
-    return { over50, over20, gapTotal, topCause, unscoredGapTotal };
-  }, [summary, factors]);
+    return { over50, over20, gapTotal, topCause, unscoredGapTotal, unscoredOver50 };
+  }, [summary, factors, scoredCategoryTotals]);
 
   const rows = useMemo(() => {
     let out = factors.filter((f) => {
@@ -259,10 +297,10 @@ export default function ScoresDataCoverage({ active }) {
     });
     out = out.slice().sort((a, b) => {
       if (sortMode === "pct_desc")
-        return (b.pct_missing ?? -1) - (a.pct_missing ?? -1);
+        return (realGapPct(b) ?? -1) - (realGapPct(a) ?? -1);
       if (sortMode === "pct_asc")
-        return (a.pct_missing ?? 999) - (b.pct_missing ?? 999);
-      if (sortMode === "count_desc") return b.total_missing - a.total_missing;
+        return (realGapPct(a) ?? 999) - (realGapPct(b) ?? 999);
+      if (sortMode === "count_desc") return realGapCount(b) - realGapCount(a);
       if (sortMode === "name") return a.factor.localeCompare(b.factor);
       return 0;
     });
@@ -333,21 +371,23 @@ export default function ScoresDataCoverage({ active }) {
               <div className="stile-sub">across {groups.length} categories</div>
             </div>
             <div className="stile">
-              <div className="stile-label">≥50% Missing</div>
+              <div className="stile-label">≥50% Data Gap (scored factors)</div>
               <div className={`stile-value ${kpis.over50 > 0 ? "down" : "up"}`}>
                 {kpis.over50}
               </div>
               <div className="stile-sub">
-                {kpis.over20} factors ≥ 20% missing
+                {kpis.over20} factors ≥ 20% data gap
+                {kpis.unscoredOver50 > 0 &&
+                  ` · +${kpis.unscoredOver50} unscored`}
               </div>
             </div>
             <div className="stile">
               <div className="stile-label">Real Gap Instances</div>
               <div className="stile-value">{fmtInt(kpis.gapTotal)}</div>
               <div className="stile-sub">
-                excludes legitimate / N/A
+                scored factors, excludes legitimate / N/A
                 {kpis.unscoredGapTotal > 0 &&
-                  ` · ${fmtInt(kpis.unscoredGapTotal)} on display-only (unscored) factors`}
+                  ` · ${fmtInt(kpis.unscoredGapTotal)} more on display-only (unscored) factors, not counted here`}
               </div>
             </div>
             <div className="stile">
@@ -370,12 +410,13 @@ export default function ScoresDataCoverage({ active }) {
                 <div className="card-title">Top Causes of Missing Data</div>
                 <div className="card-sub">
                   Total symbol-factor gaps attributed to each root cause, summed
-                  across all tracked factors
+                  across scored factors only (excludes display-only/unscored fields
+                  - see the "not scored" badge below)
                 </div>
               </div>
             </div>
             <div className="card-body">
-              {Object.entries(summary.category_totals || {})
+              {Object.entries(scoredCategoryTotals)
                 .sort((a, b) => b[1] - a[1])
                 .map(([cat, val], i, arr) => {
                   const max = arr[0][1] || 1;
@@ -523,8 +564,8 @@ export default function ScoresDataCoverage({ active }) {
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value)}
             >
-              <option value="pct_desc">Sort: % missing (worst first)</option>
-              <option value="pct_asc">Sort: % missing (best first)</option>
+              <option value="pct_desc">Sort: data gap % (worst first)</option>
+              <option value="pct_asc">Sort: data gap % (best first)</option>
               <option value="count_desc">Sort: symbol count</option>
               <option value="name">Sort: factor name</option>
             </select>
@@ -606,7 +647,7 @@ export default function ScoresDataCoverage({ active }) {
                   <tr>
                     <th style={{ width: 24 }}></th>
                     <th>Factor</th>
-                    <th style={{ width: 160 }}>Missing</th>
+                    <th style={{ width: 160 }}>Data Gap</th>
                     <th style={{ width: 160 }}>Sources</th>
                     <th>Reason composition</th>
                   </tr>
@@ -662,21 +703,21 @@ export default function ScoresDataCoverage({ active }) {
                           <td>
                             <div className="dbl">
                               <span className="dbl-main mono">
-                                {f.pct_missing != null
-                                  ? `${f.pct_missing}%`
+                                {realGapPct(f) != null
+                                  ? `${realGapPct(f)}%`
                                   : "—"}
                               </span>
                               <span className="dbl-sub mono">
-                                {f.pct_missing != null
-                                  ? `${fmtInt(f.total_missing)}/${fmtInt(f.denom)}`
-                                  : `${fmtInt(f.total_missing)} rows`}
+                                {realGapPct(f) != null
+                                  ? `${fmtInt(realGapCount(f))}/${fmtInt(f.denom)}`
+                                  : `${fmtInt(realGapCount(f))} rows`}
                               </span>
                             </div>
                             <div className="bar" style={{ marginTop: 4 }}>
                               <div
                                 className="bar-fill"
                                 style={{
-                                  width: `${f.pct_missing != null ? f.pct_missing : Math.min(100, f.total_missing / 20)}%`,
+                                  width: `${realGapPct(f) != null ? realGapPct(f) : Math.min(100, realGapCount(f) / 20)}%`,
                                 }}
                               />
                             </div>
@@ -710,30 +751,40 @@ export default function ScoresDataCoverage({ active }) {
                             )}
                           </td>
                           <td>
-                            <div
-                              style={{
-                                display: "flex",
-                                height: 18,
-                                borderRadius: "var(--r-xs)",
-                                overflow: "hidden",
-                                background: "var(--surface-3)",
-                              }}
-                            >
-                              {catOrder.map((cat) => {
-                                const v = f.categories?.[cat];
-                                if (!v) return null;
-                                return (
-                                  <div
-                                    key={cat}
-                                    title={`${cat}: ${fmtInt(v)}`}
-                                    style={{
-                                      width: `${(100 * v) / f.total_missing}%`,
-                                      background: catColor(cat),
-                                    }}
-                                  />
-                                );
-                              })}
-                            </div>
+                            {realGapCount(f) > 0 ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  height: 18,
+                                  borderRadius: "var(--r-xs)",
+                                  overflow: "hidden",
+                                  background: "var(--surface-3)",
+                                }}
+                              >
+                                {catOrder
+                                  .filter((cat) => cat !== "Legitimate / not applicable")
+                                  .map((cat) => {
+                                    const v = f.categories?.[cat];
+                                    if (!v) return null;
+                                    return (
+                                      <div
+                                        key={cat}
+                                        title={`${cat}: ${fmtInt(v)}`}
+                                        style={{
+                                          width: `${(100 * v) / realGapCount(f)}%`,
+                                          background: catColor(cat),
+                                        }}
+                                      />
+                                    );
+                                  })}
+                              </div>
+                            ) : (
+                              <span className="t-2xs faint">
+                                {(f.categories?.["Legitimate / not applicable"] ?? 0) > 0
+                                  ? "N/A only (see expand)"
+                                  : "—"}
+                              </span>
+                            )}
                           </td>
                         </tr>
                         {isOpen && (
@@ -853,14 +904,22 @@ export default function ScoresDataCoverage({ active }) {
             className="t-2xs faint"
             style={{ marginTop: "var(--space-3)", lineHeight: 1.6 }}
           >
-            "% missing" is count / distinct symbols in that factor's own table —
-            tables have slightly different populations, so this is coverage
-            within each factor's table, not always the full universe. Rows with
-            no denominator (market-wide tables) show a raw row count instead. A
-            "not scored" badge means the field is computed and shown elsewhere
-            (e.g. the Deep Value page) but the live composite scoring formula
-            doesn't read it — closing that gap can't move a stock's score. The
-            Sources column reads each table's own{" "}
+            "Data Gap %" is genuinely-missing count / distinct symbols in that
+            factor's own table — it deliberately EXCLUDES "Legitimate / not
+            applicable" cases (the underlying data is known and real, e.g. a
+            company's actual negative EPS, but the ratio itself doesn't exist
+            for that company - same idea as a stock having no dividend yield
+            because it pays no dividend). Those aren't a gap in what we know,
+            so they no longer count toward this number or the reason
+            composition bar — expand a row to see them itemized in the full
+            reasons list, each with its own share of the table. Tables have
+            slightly different populations, so this is coverage within each
+            factor's own table, not always the full universe; rows with no
+            denominator (market-wide tables) show a raw row count instead. A
+            "not scored" badge means the field is computed and shown
+            elsewhere (e.g. the Deep Value page) but the live composite scoring
+            formula doesn't read it — closing that gap can't move a stock's
+            score. The Sources column reads each table's own{" "}
             <code className="mono t-2xs">data_source</code>
             {" / "}
             <code className="mono t-2xs">source_tracking</code> column where
