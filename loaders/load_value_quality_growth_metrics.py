@@ -5474,7 +5474,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # ebitda_margin's numerator uses, and fails structurally for the same
                     # REIT/tonnage-tax-exempt population. Live-confirmed 97/187 (52%) of ebitda's
                     # missing_sec_data rows are this exact case.
-                    "reit_special_entity" if no_operating_income_concept else "missing_sec_data"
+                    "reit_special_entity"
+                    if no_operating_income_concept
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same pattern as
+                    # total_cash/cash_per_share above): ebitda_ev comes from the exact same
+                    # ev_metrics tuple as total_cash_ev, so reuse the same sec_valuations `reason`
+                    # column and no_sec_valuations_row fallback instead of a generic label.
+                    # Live-confirmed 78 of 119 (66%) of the remaining ebitda missing_sec_data
+                    # rows have a sec_valuations row with a real reason; 27 more have no
+                    # sec_valuations row at all.
+                    else "no_sec_valuations_row"
+                    if ev_metrics is None
+                    else sec_valuations_reason
+                    if sec_valuations_reason
+                    else "missing_sec_data"
                 )
                 if "ebitda" in failed_metrics
                 else None

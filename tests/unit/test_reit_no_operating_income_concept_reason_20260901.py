@@ -163,5 +163,9 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics["roce_pct_unavailable_reason"] == "missing_sec_data"
         assert metrics["interest_coverage_unavailable_reason"] == "missing_sec_data"
         assert metrics["operating_margin_unavailable_reason"] == "missing_sec_data"
-        assert metrics["ebitda_unavailable_reason"] == "missing_sec_data"
+        # FIXED 2026-09-02 (test_ebitda_sec_valuations_reason_20260902.py): ev_metrics=None
+        # (no sec_valuations row at all for this symbol) now gets the more specific
+        # "no_sec_valuations_row" label, same convention total_cash/cash_per_share already use -
+        # not a regression, just a more accurate reason than the generic fallback.
+        assert metrics["ebitda_unavailable_reason"] == "no_sec_valuations_row"
         assert metrics["ebitda_margin_unavailable_reason"] == "missing_sec_data"
