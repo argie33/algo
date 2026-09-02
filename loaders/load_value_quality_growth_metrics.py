@@ -2332,6 +2332,33 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_total_assets_symbols_cache = result
         return result
 
+    def _get_never_tagged_total_assets_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_total_assets_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern. Same
+        "real, positive value" requirement as the windowed gate (a real $0 total_assets isn't
+        meaningful either). Live-verified 10 of roa's 70 universe "missing_sec_data" rows
+        match this alone (28 combined with _get_never_tagged_net_income_symbols() above), and
+        11 of debt_to_assets' 31 combined with _get_never_tagged_total_liabilities_symbols().
+        Cached for the life of this loader instance; this query runs once per pipeline run,
+        not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_total_assets_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE total_assets IS NOT NULL AND total_assets > 0) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_total_assets_symbols_cache = result
+        return result
+
     def _get_no_recent_net_income_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported net_income in any of their 3 most recent fiscal
         years - i.e. roe/roa are structurally None for them, not a loader gap.
@@ -2369,6 +2396,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_net_income_symbols_cache = result
         return result
 
+    def _get_never_tagged_net_income_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_net_income_symbols() above - symbols with at
+        least one real annual_income_statement row, none of which ever carry a real net_income
+        value, regardless of how many real fiscal years they have on file.
+
+        FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL audit,
+        continuation of [[interest_coverage_and_pe_ratio_reason_gates_fixed_20260902]]'s
+        never-tagged-full-history pattern, applied here to net_income): the windowed gate
+        above requires exactly 3 real fiscal years, missing recent IPOs/SPAC-mergers with only
+        1-2 real years on file where net_income is nonetheless genuinely never reported. Live-
+        confirmed this, OR'd with _get_never_tagged_stockholders_equity_symbols()/
+        _get_never_tagged_total_assets_symbols() below, roughly triples roe/roa's residual
+        "missing_sec_data" recovery versus either gate alone (roe 9->27 of 68, roa 10->28 of
+        70, live-verified against quality_metrics directly). Cached for the life of this
+        loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_net_income_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1 AND COUNT(net_income) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_net_income_symbols_cache = result
+        return result
+
     def _get_no_recent_total_liabilities_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported total_liabilities in any of their 3 most recent
         fiscal years - i.e. debt_to_assets is structurally None for them, not a loader gap.
@@ -2399,6 +2458,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._no_recent_total_liabilities_symbols_cache = result
+        return result
+
+    def _get_never_tagged_total_liabilities_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_total_liabilities_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern (windowed
+        gate requires exactly 3 real fiscal years, missing recent IPOs/SPAC-mergers with fewer
+        real years where total_liabilities is nonetheless genuinely never reported). Live-
+        verified 11 of debt_to_assets' 31 universe "missing_sec_data" rows match this OR'd with
+        _get_never_tagged_total_assets_symbols() below. Cached for the life of this loader
+        instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_total_liabilities_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1 AND COUNT(total_liabilities) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_total_liabilities_symbols_cache = result
         return result
 
     def _get_no_recent_operating_cash_flow_symbols(self) -> frozenset[str]:
@@ -2602,6 +2686,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._no_recent_stockholders_equity_symbols_cache = result
+        return result
+
+    def _get_never_tagged_stockholders_equity_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_stockholders_equity_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern. Live-
+        verified 9 of roe's 68 universe "missing_sec_data" rows match this alone (27 combined
+        with _get_never_tagged_net_income_symbols() above). Cached for the life of this loader
+        instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_stockholders_equity_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1 AND COUNT(stockholders_equity) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_stockholders_equity_symbols_cache = result
         return result
 
     def _compute_margin_volatility(self, income_rows: list[Any]) -> tuple[float | None, str | None]:
@@ -5323,10 +5430,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # whenever net_income or stockholders_equity is None, but this reason had no
                     # gating at all. Live-confirmed 62 of 133 universe roe "missing_sec_data"
                     # rows (47%) split between the two structural gates.
+                    # FIX 2026-09-02 (goal: "keep the missing-data number going down" audit
+                    # continuation): OR'd with _get_never_tagged_stockholders_equity_symbols()
+                    # - see that method's docstring - to also catch recent IPOs/SPAC-mergers
+                    # with fewer than the windowed gate's required 3 real fiscal years.
                     else "stockholders_equity_not_reported"
-                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    if stockholders_equity is None
+                    and (
+                        symbol in self._get_no_recent_stockholders_equity_symbols()
+                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                    )
                     else "net_income_not_reported"
-                    if net_income is None and symbol in self._get_no_recent_net_income_symbols()
+                    if net_income is None
+                    and (
+                        symbol in self._get_no_recent_net_income_symbols()
+                        or symbol in self._get_never_tagged_net_income_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "roe" in failed_metrics
@@ -5338,11 +5457,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "roa" in implausible_ratio_metrics
                     # FIX 2026-09-02: same fix as roe just above - roa fails whenever
                     # net_income or total_assets is None. Live-confirmed 54 of 124 universe
-                    # roa "missing_sec_data" rows (44%).
+                    # roa "missing_sec_data" rows (44%). OR'd with the never-tagged full-
+                    # history siblings for the same recent-IPO reason as roe above.
                     else "no_recent_total_assets_reported"
-                    if total_assets is None and symbol in self._get_no_recent_total_assets_symbols()
+                    if total_assets is None
+                    and (
+                        symbol in self._get_no_recent_total_assets_symbols()
+                        or symbol in self._get_never_tagged_total_assets_symbols()
+                    )
                     else "net_income_not_reported"
-                    if net_income is None and symbol in self._get_no_recent_net_income_symbols()
+                    if net_income is None
+                    and (
+                        symbol in self._get_no_recent_net_income_symbols()
+                        or symbol in self._get_never_tagged_net_income_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "roa" in failed_metrics
@@ -5452,10 +5580,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # genuine-gap class as roe/roa above): debt_to_assets fails whenever
                     # total_liabilities or total_assets is None. Live-confirmed 57 of 88
                     # universe debt_to_assets "missing_sec_data" rows (65%).
+                    # FIX 2026-09-02 (goal: "keep the missing-data number going down" audit
+                    # continuation): OR'd with the never-tagged full-history siblings - see
+                    # _get_never_tagged_total_assets_symbols()'s docstring - for the same
+                    # recent-IPO reason as roe/roa above.
                     else "no_recent_total_assets_reported"
-                    if total_assets is None and symbol in self._get_no_recent_total_assets_symbols()
+                    if total_assets is None
+                    and (
+                        symbol in self._get_no_recent_total_assets_symbols()
+                        or symbol in self._get_never_tagged_total_assets_symbols()
+                    )
                     else "total_liabilities_not_reported"
-                    if total_liabilities is None and symbol in self._get_no_recent_total_liabilities_symbols()
+                    if total_liabilities is None
+                    and (
+                        symbol in self._get_no_recent_total_liabilities_symbols()
+                        or symbol in self._get_never_tagged_total_liabilities_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "debt_to_assets" in failed_metrics
