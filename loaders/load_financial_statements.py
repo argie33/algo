@@ -87,6 +87,17 @@ def get_all_statement_configs() -> list[tuple[str, str]]:
 # < tax-inclusive ASC-606 tag < tax-exclusive ASC-606 tag (the standard net-revenue
 # measure). See sec_statements.py's concept-list ordering comment for why the
 # tax-inclusive concept must be mapped too, not just the exclusive one.
+# REQUIRED metric fields per statement type - a row with all of these NULL has no usable
+# data regardless of what optional fields it carries. Shared between transform() (governs
+# freshly-fetched rows) and post_run()'s force-null flag sync (governs rows whose values
+# were wiped by _reject_stale_fpi_currency_data/_reject_implausible_* without going back
+# through transform() - see post_run() for why that sync is necessary).
+_REQUIRED_STATEMENT_FIELDS = {
+    "income": {"revenue", "net_income"},
+    "balance": {"total_assets", "stockholders_equity"},
+    "cashflow": {"operating_cash_flow"},
+}
+
 # data_unavailable/reason must pass through so marker rows keep their flags.
 _MARKER_FIELDS = {
     "data_unavailable": "data_unavailable",
@@ -1839,28 +1850,81 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
 
     def post_run(self) -> None:
         """Force-null every cell _reject_implausible_shares_outstanding()/
-        _reject_implausible_eps() rejected this run, directly via UPDATE - the normal
-        bulk_insert() path already ran and, per this file's __init__ comment, silently
-        preserved the stale bad value for any row that already existed. This is the only
-        point in the run where the actual rejection can take effect against pre-existing
-        rows.
+        _reject_implausible_eps()/_reject_stale_fpi_currency_data() rejected this run,
+        directly via UPDATE - the normal bulk_insert() path already ran and, per this
+        file's __init__ comment, silently preserved the stale bad value for any row that
+        already existed. This is the only point in the run where the actual rejection can
+        take effect against pre-existing rows.
         """
         if self._explicit_null_rejections:
             pk_cols = list(self._bulk_insert_mgr.primary_key)
+            required_by_type = _REQUIRED_STATEMENT_FIELDS.get(self.statement_type, set())
             seen: set[tuple[Any, ...]] = set()
+            # Only rows where a REQUIRED field itself got force-nulled can possibly end up
+            # with every required field NULL - tracking just these (rather than every
+            # touched pk) skips a pointless extra query for the far more common eps/
+            # shares_outstanding rejections below, which never null a required field.
+            pks_needing_flag_check: set[tuple[Any, ...]] = set()
             forced = 0
             with DatabaseContext("write") as cur:
                 for pk_values, field in self._explicit_null_rejections:
-                    key = (*[pk_values[c] for c in pk_cols], field)
+                    pk_key = tuple(pk_values[c] for c in pk_cols)
+                    key = (*pk_key, field)
                     if key in seen or any(v is None for v in pk_values.values()):
                         continue
                     seen.add(key)
                     where_clause = " AND ".join(f"{c} = %s" for c in pk_cols)
                     cur.execute(
                         f"UPDATE {self.table_name} SET {field} = NULL WHERE {where_clause} AND {field} IS NOT NULL",
-                        tuple(pk_values[c] for c in pk_cols),
+                        pk_key,
                     )
-                    forced += cur.rowcount
+                    if cur.rowcount:
+                        forced += cur.rowcount
+                        if field in required_by_type:
+                            pks_needing_flag_check.add(pk_key)
+
+                # FIXED 2026-09-02 (goal: SEC/XBRL missing-data sweep): the force-null UPDATE
+                # above only ever touches the value columns it's told to - it never revisits
+                # data_unavailable/reason, which stay at whatever a PRIOR successful run last
+                # wrote (often data_unavailable=FALSE/reason=NULL, from when the row genuinely
+                # had real data). A row whose required field(s) this loop just wiped therefore
+                # lands in the DB looking like an available-but-empty row forever, unless some
+                # LATER run happens to re-fetch and re-transform() that exact fiscal year
+                # (transform() has its own, correct required-field check - see
+                # _REQUIRED_STATEMENT_FIELDS - but only runs against rows THIS run's fetch
+                # actually returned). Live-confirmed: BMA/LOMA/CEPU self-corrected to
+                # data_unavailable=TRUE/'incomplete_sec_filing_balance' after a later run
+                # revisited them, but CIG/GGB/STNE/XP/SUZ/ABEV/VIV/PAGS and ~50 more FPI
+                # symbols (510 annual_balance_sheet rows total, live-queried) stayed stuck at
+                # data_unavailable=FALSE/reason=NULL with every column NULL - a strictly worse
+                # state than "missing" (any downstream query filtering `WHERE data_unavailable
+                # = FALSE` silently gets NULLs instead of skipping the row). Sync the flags for
+                # exactly the rows this run's force-null loop wiped a required field on,
+                # instead of hoping a future run's transform() happens to revisit the same
+                # fiscal year.
+                if pks_needing_flag_check:
+                    where_clause = " AND ".join(f"{c} = %s" for c in pk_cols)
+                    required_null_clause = " AND ".join(f"{f} IS NULL" for f in sorted(required_by_type))
+                    flagged = 0
+                    for pk_key in pks_needing_flag_check:
+                        cur.execute(
+                            f"""
+                            UPDATE {self.table_name}
+                               SET data_unavailable = TRUE,
+                                   reason = 'fpi_currency_data_rejected'
+                             WHERE {where_clause}
+                               AND data_unavailable = FALSE
+                               AND {required_null_clause}
+                            """,
+                            pk_key,
+                        )
+                        flagged += cur.rowcount
+                    if flagged:
+                        logger.warning(
+                            f"[{self.table_name}] post_run(): flagged {flagged} force-nulled "
+                            "row(s) as data_unavailable=TRUE (were left looking available-but-"
+                            "empty after their required fields were force-nulled)."
+                        )
             if forced:
                 logger.warning(
                     f"[{self.table_name}] post_run(): force-nulled {forced} previously-stored "
@@ -2236,17 +2300,9 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
 
-        # Define REQUIRED metric fields (must have at least one non-NULL value) vs OPTIONAL fields
-        # REQUIRED fields: core SEC metrics that should always be present for real filings
-        # OPTIONAL fields: companies-specific (amortization only for acquistive firms, inventory only for retailers, etc)
-        required_metrics = {
-            "income": {"revenue", "net_income"},  # Must have revenue or net_income for real filing
-            "balance": {"total_assets", "stockholders_equity"},  # Must have assets/equity
-            "cashflow": {"operating_cash_flow"},  # Must have operating cash flow
-        }
-
-        # Get REQUIRED metrics for current statement type
-        required_by_type = required_metrics.get(self.statement_type, set())
+        # Get REQUIRED metrics for current statement type (see module-level
+        # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).
+        required_by_type = _REQUIRED_STATEMENT_FIELDS.get(self.statement_type, set())
 
         # BUG FOUND 2026-08-20 (goal session: coverage root-cause audit): the required-metrics
         # check below runs against THIS run's freshly-fetched `row` dict only - but revenue/

@@ -2146,6 +2146,23 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "incomplete_sec_filing_income",
             "incomplete_sec_filing_balance",
             "incomplete_sec_filing_cashflow",
+            # ADDED 2026-09-02 (goal session: SEC/XBRL missing-data sweep, financial-
+            # statements post_run() flag-sync fix): same "the SEC data we have can't be
+            # trusted/converted" class as incomplete_sec_filing_* above.
+            # 'fpi_currency_data_rejected' is the new reason loaders/load_financial_
+            # statements.py's post_run() now writes when it force-nulls a foreign private
+            # issuer's stale home-currency values (see _reject_stale_fpi_currency_data).
+            # 'raw_unconverted_currency_stale_value_20260829' is migration 1250's one-off
+            # cleanup of the same bug class for BAK/BSAC/EDN/GGAL/HEPS/SUPV/TEO/TGS/TKC/TV -
+            # both were falling through to "Other (errors / excluded)" for lack of a mapping.
+            "fpi_currency_data_rejected",
+            "raw_unconverted_currency_stale_value_20260829",
+            # ADDED 2026-09-02 (same sweep): load_value_quality_growth_metrics.py's row-level
+            # early-return reason when the symbol's annual_balance_sheet row itself is
+            # unavailable/empty (see that file's ~line 4528) - was also unmapped, falling
+            # through to "Other (errors / excluded)" for all 44 affected symbols across
+            # every quality_metrics column derived from the balance sheet.
+            "no_recent_balance_sheet_data_reported",
             # ADDED 2026-08-20: earnings_calendar_sec's genuine "no SEC filings exist for
             # this symbol" case (the old false-positive version of this reason - foreign
             # private issuers filing 20-F/6-K instead of 10-K/10-Q - was already fixed
