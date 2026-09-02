@@ -598,9 +598,36 @@ def _fill_long_term_debt_from_segment_dimensional_facts(rows: list[dict[str, Any
     """
     from loaders.helpers.sec_segment_debt import find_10k_for_fiscal_year, sum_segment_dimensional_debt
 
-    missing_years = [row["fiscal_year"] for row in rows if row.get("long_term_debt") is None and row.get("fiscal_year")]
-    if not missing_years:
+    all_missing_years = [
+        row["fiscal_year"] for row in rows if row.get("long_term_debt") is None and row.get("fiscal_year")
+    ]
+    if not all_missing_years:
         return
+
+    # BUG FOUND 2026-09-01 (goal session: "understand our data gaps" - live-caught mid-run,
+    # not theorized): this loop had no cap on how many fiscal years it would attempt per
+    # symbol - a genuinely debt-free filer (real, not a data gap) has long_term_debt=None for
+    # EVERY fiscal year in `rows` (this fallback can never find a debt fact that doesn't
+    # exist), so every one of those years - live-confirmed some annual histories run 15-18
+    # years deep (FLO: 18) - triggered its own submissions-fetch-then-XML-fetch-then-parse
+    # round trip, unconditionally, on every single loader run. Caught live via a `py-spy dump`
+    # (safe, read-only) on a genuinely stalled `load_financial_statements.py` process: the
+    # per-symbol 30s timeout (LOADER_PER_SYMBOL_TIMEOUT_SECONDS) in `_run_symbol_pass` bounds
+    # the *reported* time per symbol, but the underlying worker thread is daemon=True and
+    # gets abandoned, not killed, when it times out - so a symbol stuck mid-way through a
+    # dozen-plus sequential SEC fetches keeps running in the background indefinitely,
+    # competing for the same shared `RateLimiter(2)` (2 req/sec, global) every other
+    # in-flight and future thread needs. Over a multi-thousand-symbol run, this accumulates:
+    # more and more abandoned zombie threads pile onto the same rate limiter, degrading
+    # throughput for every symbol after them - a real, previously-undocumented resource-
+    # contention bug, distinct from the already-fixed 2026-08-22 single-symbol-hang case.
+    # Fix: only attempt the most recent 3 missing fiscal years per symbol. Live scoring only
+    # ever reads the latest 1-2 annual rows (see load_stock_scores.py/load_sec_valuations.py),
+    # so recovering a stale 2010-era debt figure this fallback was previously chasing has no
+    # scoring value - bounding to recent years turns an unbounded (up to ~18) worst-case
+    # HTTP-round-trip count into a small, fixed one, without changing behavior for the common
+    # case (a symbol missing only its 1-3 most recent years, which this cap doesn't touch).
+    missing_years = sorted(all_missing_years, reverse=True)[:3]
 
     try:
         cik = client.symbol_to_cik(symbol)
