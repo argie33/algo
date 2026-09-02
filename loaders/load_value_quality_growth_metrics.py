@@ -2630,6 +2630,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "gross_margin": None,
                 "ebitda_margin": None,
                 "roic_pct": None,
+                # roce_pct was ADDED 2026-08-26 (see its own computation comment below) without
+                # a matching default here, unlike every sibling ratio - the key was simply
+                # absent from `metrics` on failure instead of None (harmless in production since
+                # the INSERT path reads it via `.get()`, but inconsistent with roic_pct right
+                # above and every other field in this dict).
+                "roce_pct": None,
                 "fcf_to_net_income": None,
                 "ocf_to_net_income": None,
                 "payout_ratio": None,
@@ -5036,6 +5042,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if symbol in self._get_blank_check_symbols()
                     else "reit_special_entity"
                     if no_operating_income_concept_roic
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same fix as
+                    # debt_to_equity_unavailable_reason above): invested_capital (this field's
+                    # own denominator input) comes back None whenever debt_for_roic OR
+                    # roic_stockholders_equity is None - the negative_invested_capital branch
+                    # above only catches a computed non-None value <= 0, not a missing input.
+                    # Live-confirmed 264 of 350 universe roic_pct "missing_sec_data" rows (75%)
+                    # split between the same two gates just wired into debt_to_equity.
+                    else "total_debt_not_itemized"
+                    if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
+                    else "stockholders_equity_not_reported"
+                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
                     else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
@@ -5052,6 +5069,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # already-tested gate.
                     else "reit_special_entity"
                     if no_operating_income_concept_roic
+                    # FIX 2026-09-02: same debt/equity gates as roic_pct just above -
+                    # capital_employed (this field's own denominator) comes back None whenever
+                    # debt_for_roic OR roic_stockholders_equity is None, which
+                    # negative_capital_employed's <= 0 check doesn't catch. Live-confirmed 328
+                    # of 394 universe roce_pct "missing_sec_data" rows (83%).
+                    else "total_debt_not_itemized"
+                    if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
+                    else "stockholders_equity_not_reported"
+                    if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
                     else "missing_sec_data"
                 )
                 if "roce_pct" in failed_metrics
