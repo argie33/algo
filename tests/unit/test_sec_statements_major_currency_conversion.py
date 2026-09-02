@@ -107,6 +107,20 @@ class TestFxRateCache:
         assert rate == 17.78
         assert session.calls == 1
 
+    def test_dkk_is_a_major_currency_and_converts_via_historical_rate(self):
+        # FIX 2026-09-02: DKK added - see fx_rates.py's module docstring for the live-
+        # verification (Novo Nordisk/NVO's real income statement + balance sheet, tagged
+        # exclusively in DKK, unlocking non-None revenue/net_income/stockholders_equity
+        # for the first time) behind this. Frankfurter covers it and its year-over-year
+        # moves (+6.19%/-3.26%/+6.43%, 2021-2024 live-checked) are comparable to CNY's/
+        # ZAR's band, both already on this list - DKK is also ERM II-pegged to EUR within
+        # a tight +/-2.25% band, structurally one of the most stable currencies here.
+        session = _FakeSession(rate=7.1786)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("DKK", "2024-12-31")
+        assert rate == 7.1786
+        assert session.calls == 1
+
     def test_missing_historical_rate_fails_closed(self):
         session = _FakeSession(rate=None)  # simulates a 404 - date outside range
         cache = _isolated_cache(session)

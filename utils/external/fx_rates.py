@@ -126,6 +126,19 @@ real FY2024 revenue (PHP 216.833B) at its own fiscal-year-end rate produces ~$3.
 PLDT's known real public revenue (Philippines' largest telecom, consistently $3.5-4B/year) - no
 magnitude red flag. Only 1 symbol in this repo's universe affected (PHI) - a small, single-
 symbol fix, but the same live-verification discipline applies regardless of population size.
+
+FIXED 2026-09-02 (goal: SEC/XBRL missing-data sweep): DKK added. Found via NVO (Novo Nordisk)
+and GMAB (Genmab) - both real, large, actively-traded Danish 20-F filers with a stock_scores
+`missing_sec_data` gap on every quality/growth ratio - live-confirmed via real companyfacts
+JSON (CIK 0000353278/0001434265): both tag `ifrs-full:Revenue`/`ifrs-full:ProfitLoss` every
+fiscal year, NVO exclusively under unit="DKK" (no USD-tagged alternative at all), so this
+guard was silently zeroing out `get_income_statement()`'s entire return for NVO - not just
+one field, every concept, since every candidate fact failed the currency check the same way.
+Frankfurter serves DKK (live-confirmed: `GET /2024-12-31?from=USD&to=DKK` returns a real
+rate). Year-end DKK/USD moves: +6.19% (2021->2022), -3.26% (2022->2023), +6.43% (2023->2024)
+- same developed-market band as EUR/GBP/CHF (DKK is ERM II-pegged to EUR within a tight
++/-2.25% band, one of the most stable currencies in Frankfurter's coverage, arguably safer
+than several currencies already on this list), well inside PHP's already-accepted ceiling.
 """
 
 import json
@@ -143,7 +156,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP"})
+MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK"})
 
 
 class FxRateCache:
