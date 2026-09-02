@@ -390,6 +390,19 @@ class CompanyInfoSECLoader(SecLoaderBase):
     _CLASS_LETTER_FROM_MEMBER_RE = re.compile(r"Class([A-Z])(?:Member)?\b")
     _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
 
+    # ADDED 2026-09-02 (goal: SEC/XBRL missing-data sweep). multi_ticker_cik below exists to
+    # detect genuine multi-COMMON-class ambiguity (BRK-A/BRK-B, HEI/HEI-A), but was counting
+    # EVERY registered ticker on the CIK - including preferred-stock series, which use the
+    # standard exchange convention BASE-P<letter> (e.g. F-PB/F-PC/F-PD, AGM-PD..PI, AMH-PG/PH,
+    # SF-PB/PC/PD) and never carry their own dei:EntityCommonStockSharesOutstanding fact
+    # competing with the common ticker's. Live-confirmed this falsely triggered the "cannot
+    # determine which class" reject for F and AMH even though each has exactly one real common
+    # class in the filing text (F: us-gaap:CommonStockMember 3,918,623,149 vs the non-traded
+    # us-gaap:CommonClassBMember 70,852,076 - the existing "take the max" logic already handles
+    # that correctly once the false ambiguity signal is removed) - both live-verified against
+    # their actual, current 10-K inline XBRL and submissions.json ticker lists.
+    _PREFERRED_TICKER_SUFFIX_RE = re.compile(r"-P[A-Z]+$", re.IGNORECASE)
+
     @staticmethod
     def _latest_shares_value(fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False) -> int | None:
         """Extract the most-recent-end-date share count from one XBRL fact's
@@ -764,7 +777,10 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # filing text itself has multiple plausible values (an untracked closely-held class),
         # so max() stays correct there. Kept the dot-suffix check as a defensive OR in case
         # `tickers` is ever missing/malformed in a submissions payload.
-        multi_ticker_cik = len(submissions.get("tickers") or []) > 1
+        common_tickers = [
+            t for t in (submissions.get("tickers") or []) if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+        ]
+        multi_ticker_cik = len(common_tickers) > 1
         if len(plausible) > 1 and (multi_ticker_cik or "." in symbol):
             logger.warning(
                 f"[{symbol}] {len(plausible)} plausible shares_outstanding values found in "
