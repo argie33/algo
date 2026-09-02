@@ -2508,7 +2508,20 @@ _COVERAGE_CATEGORY_ORDER = [name for name, _ in _COVERAGE_CATEGORY_RULES]
 # rating, institutional ownership, short interest and its % change) is display-only now
 # (surfaced via the scores API's informational positioning_inputs field), not just a
 # specific subset the way Value/Growth/Risk have a mix of scored and unscored fields.
-_UNSCORED_TABLES: set[str] = {"positioning_metrics", "short_interest_finra"}
+#
+# ADDED 2026-09-02 (goal session: SEC/XBRL missing-data sweep): sec_segment_info/
+# sec_segment_metrics are ALSO a whole-table display-only case - grepped repo-wide across
+# every scoring loader (load_value_quality_growth_metrics.py, load_enhanced_quality_
+# growth_metrics.py, algo/scoring/, algo/orchestrator/phase7*) and found zero references;
+# the only consumers are lambda/api/routes/market.py and financials.py (both informational
+# display endpoints) plus this file's own coverage report. Segment revenue/count data has
+# no path to any pillar score, same as Positioning - it just never got a whole-table entry
+# here because the 317f7b60c/5c74a48e8 unscored-factor passes were scoped to fields that
+# WERE recently scored and got retired, not tables that were never scored at all. These two
+# tables alone account for 494 no_segment_dimension_contexts_in_xbrl_xml + 345
+# no_segment_revenue_in_xbrl_xml (839 raw rows, scripts/audit_unavailable_reasons.py) that
+# were inflating the "Missing SEC/XBRL data" headline for gaps that can never move a score.
+_UNSCORED_TABLES: set[str] = {"positioning_metrics", "short_interest_finra", "sec_segment_info", "sec_segment_metrics"}
 
 _UNSCORED_FACTORS: set[tuple[str, str]] = {
     # Value: _score_value's live formula is pe_ratio(27%) + pb_ratio(27%) + ps_ratio(27%)
