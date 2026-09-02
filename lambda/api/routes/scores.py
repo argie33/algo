@@ -2202,7 +2202,7 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # same-year EBIT approximation), never a different fiscal year, unlike its
             # net_income/revenue siblings. See
             # _get_operating_income_available_elsewhere_symbols()'s docstring in
-            # load_value_quality_growth_metrics.py (361 active-universe symbols).
+            # load_value_quality_growth_metrics.py (39 active-universe symbols).
             "operating_income_absent_from_anchor_year",
             # ADDED 2026-09-02 (same sweep, static cross-check of every reason-string literal
             # in the SEC/XBRL loader files against this map - not just live DB counts, which

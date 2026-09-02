@@ -2722,11 +2722,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         own operating_income, falling back within THAT SAME fiscal year to the EBIT
         approximation (pretax_income + interest_expense) - unlike net_income/revenue/OCF/FCF,
         it never searches a different fiscal year for a real operating_income value. Live-
-        confirmed 361 active-universe symbols have operating_income NULL AND pretax_income
-        NULL in their anchor fiscal year (so operating_income_for_margin comes back None) yet
-        have a real operating_income value in some other annual_income_statement fiscal year -
-        the same class of gap already fixed for net_income/revenue. Cached for the life of
-        this loader instance; this query runs once per pipeline run, not once per symbol.
+        confirmed 39 active-universe (quality_metrics) symbols have operating_income NULL AND
+        pretax_income NULL in their anchor fiscal year (so operating_income_for_margin comes
+        back None) yet have a real operating_income value in some other annual_income_statement
+        fiscal year - the same class of gap already fixed for net_income/revenue, just a much
+        smaller residual for this field. Cached for the life of this loader instance; this
+        query runs once per pipeline run, not once per symbol.
         """
         cached: frozenset[str] | None = getattr(self, "_operating_income_available_elsewhere_symbols_cache", None)
         if cached is not None:
