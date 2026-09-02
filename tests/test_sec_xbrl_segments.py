@@ -635,6 +635,48 @@ class TestExtractSegmentRevenueFromXbrlXml:
         assert result["segment_count"] == 1
         assert result["segments"][0]["revenue"] == 43_626_000_000.0
 
+    def test_ifrs_geographical_areas_axis_recognized_for_20f_filers_with_no_business_segments(
+        self,
+    ) -> None:
+        """Real filer shape (verified live against AstraZeneca's FY2025 20-F instance, CIK
+        901832): AZN tags NEITHER ifrs-full:SegmentsAxis NOR StatementBusinessSegmentsAxis
+        anywhere in its filing (confirmed live: zero occurrences of either), but reports
+        real, machine-readable per-country revenue under ifrs-full:GeographicalAreasAxis
+        with the plain "Revenue" concept - US $23.970B, China $6.636B, Japan $3.556B FY2025
+        (real values). Pre-fix this axis wasn't recognized at all, so AZN fell through to
+        no_segment_dimension_contexts_in_xbrl_xml despite having rich real segment data on
+        file - not a structural absence like ARGX's genuine single-segment case."""
+        contexts = (
+            _context("c1", "GeographicalAreasAxis", "country:US", "2025-01-01", "2025-12-31")
+            + _context("c2", "GeographicalAreasAxis", "country:CN", "2025-01-01", "2025-12-31")
+            + _context("c3", "GeographicalAreasAxis", "country:JP", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <ifrs-full:Revenue contextRef="c1">23970000000</ifrs-full:Revenue>
+        <ifrs-full:Revenue contextRef="c2">6636000000</ifrs-full:Revenue>
+        <ifrs-full:Revenue contextRef="c3">3556000000</ifrs-full:Revenue>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_type"] == "geographic"
+        assert result["segment_count"] == 3
+        # "country:US" is itself a namespace-qualified qname (the ISO country-code
+        # taxonomy) - _qname_local strips the prefix the same way it does for any
+        # other member, same as every other axis in this file.
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "US": 23_970_000_000.0,
+            "CN": 6_636_000_000.0,
+            "JP": 3_556_000_000.0,
+        }
+
     def test_ifrs_scenario_axis_actual_currency_stripped_as_boilerplate(self) -> None:
         """Real filer shape (verified live against SAP SE's FY2025 20-F instance, CIK
         1000184, accession 0001104659-26-020058): every real segment-total context
