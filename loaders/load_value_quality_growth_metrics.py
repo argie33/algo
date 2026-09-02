@@ -2120,6 +2120,54 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_interest_expense_symbols_cache = result
         return result
 
+    def _get_never_tagged_interest_expense_symbols(self) -> frozenset[str]:
+        """Symbols with at least one real (non-data_unavailable) annual_income_statement row,
+        none of which ever carry a real nonzero interest_expense (either NULL, or a real
+        reported $0) - a broader, full-history sibling of
+        _get_no_recent_interest_expense_symbols() above for filers too recently IPO'd/listed
+        to have accumulated the 3 consecutive real fiscal years that gate requires.
+
+        FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL audit,
+        continuation of [[fcf_yield_capex_never_tagged_reason_fixed_20260902]]). Of
+        quality_metrics.interest_coverage's 167-row universe "missing_sec_data" residual, 145
+        genuinely have no fiscal year, anywhere in their filing history, with both a real
+        interest_expense and a real operating_income/pretax_income together. Live-sampled a
+        chunk of those and found 96 have interest_expense NULL in every real row they have (not
+        just their 3 most recent - many are recent IPOs/SPAC-mergers with only 1-2 real fiscal
+        years on file, e.g. AARD, ADVB, AMBQ, BIOT - the exact same "too new for a 3-year
+        window" gap already called out in _get_blank_check_symbols()'s own docstring, applied
+        here to a different gate), plus another 14 that report a real $0 (same "treat a real
+        zero the same as NULL - it means the same real-world fact" precedent already applied to
+        _get_no_recent_revenue_symbols()'s 2026-08-19 fix). 87 of the 167 residual rows matched
+        this broader, unified check when live-verified directly against quality_metrics.
+
+        Deliberately additive, not a replacement for _get_no_recent_interest_expense_symbols()
+        above (only one call site uses either gate; combined with `or` there) - keeps that
+        gate's existing, already-tested 3-consecutive-year confidence bar for the symbols that
+        do have enough history, while this one only fires for symbols that plainly never report
+        a real interest expense across everything currently on file, an even stronger signal
+        precisely because the window isn't fixed-length. Live spot-checked against known
+        heavily-indebted borrowers (AAPL, TSLA, T, VZ, F, GE) - none matched. Cached for the
+        life of this loader instance; this query runs once per pipeline run, not once per
+        symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_interest_expense_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE interest_expense IS NOT NULL AND interest_expense != 0) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_interest_expense_symbols_cache = result
+        return result
+
     def _get_no_recent_debt_components_symbols(self) -> frozenset[str]:
         """Symbols with NO debt component (long_term_debt, short_term_debt,
         operating_lease_liability, finance_lease_liability) reported in any of their 3 most
@@ -3144,8 +3192,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # unclassified_balance_sheet above, applied to interest_expense: a company that
             # hasn't itemized it in years (debt-free, or netted into other income/expense -
             # live-confirmed on AAPL since FY2024) isn't a current data gap.
-            no_recent_interest_expense = (
-                interest_expense is None and symbol in self._get_no_recent_interest_expense_symbols()
+            no_recent_interest_expense = interest_expense is None and (
+                symbol in self._get_no_recent_interest_expense_symbols()
+                # See _get_never_tagged_interest_expense_symbols()'s own docstring - broader
+                # full-history sibling check for filers too recently listed to have 3
+                # consecutive real fiscal years yet.
+                or symbol in self._get_never_tagged_interest_expense_symbols()
             )
             # FIXED 2026-09-01 (same fix/pattern as no_operating_income_concept above):
             # ARE/AMH-class REITs with real interest_expense (mortgage debt) but no
