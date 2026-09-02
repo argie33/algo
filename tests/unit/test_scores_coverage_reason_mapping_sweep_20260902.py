@@ -91,3 +91,19 @@ def test_eps_never_tagged_in_filings_categorizes_as_missing_sec_xbrl():
 
 def test_capex_never_tagged_in_recent_filings_categorizes_as_missing_sec_xbrl():
     assert scores_mod._categorize_reason("capex_never_tagged_in_recent_filings") == "Missing SEC/XBRL data"
+
+
+# ADDED 2026-09-02 (same goal session, quality_row_db anchor-year investigation): the
+# balance-sheet-anchored quality_row_db query joins its current-year income-statement
+# columns via an EXACT fiscal_year match - when that specific anchor year's own
+# annual_income_statement row is unavailable (e.g. a current in-progress fiscal-year
+# placeholder) but the symbol has real net_income in a nearby year, roe/roa/net_margin/
+# sustainable_growth_rate all fell to generic "missing_sec_data" even though neither
+# no-recent nor never-tagged net_income gate applied (both correctly see the real
+# nearby-year data). New net_income_absent_from_anchor_year reason (sibling of the
+# revenue_absent_from_anchor_year fix landed earlier this session) makes that honest -
+# live-confirmed OBX/FTW/XLAB and 342 active-universe symbols total.
+
+
+def test_net_income_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("net_income_absent_from_anchor_year") == "Missing SEC/XBRL data"

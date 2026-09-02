@@ -2176,6 +2176,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # _get_revenue_absent_from_anchor_year_symbols()'s docstring) - same "the SEC data
             # we have can't be used for this specific period" class as the other reasons here.
             "revenue_absent_from_anchor_year",
+            # ADDED 2026-09-02 (same sweep, quality_row_db anchor-year investigation):
+            # net_income sibling of revenue_absent_from_anchor_year above - the balance-sheet
+            # anchor fiscal year quality_row_db picks has no matching income-statement row,
+            # even though the symbol has real net_income in a nearby fiscal year (live-
+            # confirmed OBX/FTW/XLAB and 342 active-universe symbols total). Deliberately NOT
+            # computed from the mismatched-year figure, same discipline as the revenue
+            # sibling - see roe/roa/net_margin/sustainable_growth_rate's own reason blocks in
+            # load_value_quality_growth_metrics.py.
+            "net_income_absent_from_anchor_year",
             # ADDED 2026-09-02 (same sweep): loaders/helpers/sec_base.py writes this when a
             # full unfiltered SEC refetch no longer reproduces a fiscal year the DB
             # currently marks available - that year's data is retracted/no longer backed by

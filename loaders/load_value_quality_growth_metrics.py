@@ -2639,6 +2639,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._never_tagged_net_income_symbols_cache = result
         return result
 
+    def _get_net_income_available_elsewhere_symbols(self) -> frozenset[str]:
+        """Symbols with a real (non-NULL) net_income in at least one available
+        annual_income_statement fiscal year - the direct positive counterpart to
+        _get_never_tagged_net_income_symbols() above, not its logical negation.
+
+        FIX 2026-09-02 (quality_row_db anchor-year investigation, goal: "keep the missing-
+        data number going down"): roe/roa/net_margin/sustainable_growth_rate's reason blocks
+        used to infer "net_income exists somewhere, just not for this specific anchor year"
+        from "symbol is in neither _get_no_recent_net_income_symbols() nor
+        _get_never_tagged_net_income_symbols()" - but that inference is wrong for a symbol
+        with ZERO available annual_income_statement rows at all (both of those gates require
+        COUNT(*) >= 1/3 real rows to fire, so a symbol with none slips through un-flagged by
+        either while genuinely having no net_income data anywhere, not an anchor-year
+        mismatch). Caught by test_quality_metrics_never_tagged_full_history_reason_sweep_
+        20260902.py's test_symbols_not_in_any_gate_keep_generic_reason regression test. This
+        gate answers the actual question directly instead of inferring it. Cached for the
+        life of this loader instance; this query runs once per pipeline run, not once per
+        symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_net_income_available_elsewhere_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(net_income) >= 1
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._net_income_available_elsewhere_symbols_cache = result
+        return result
+
     def _get_no_recent_total_liabilities_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported total_liabilities in any of their 3 most recent
         fiscal years - i.e. debt_to_assets is structurally None for them, not a loader gap.
@@ -4620,6 +4655,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     or symbol in self._get_never_tagged_net_income_symbols()
                 ):
                     sgr_reason = "net_income_not_reported"
+                # FIX 2026-09-02 (goal: "keep the missing-data number going down" audit,
+                # quality_row_db anchor-year investigation): quality_row_db's current-year
+                # income-statement columns come from a LEFT JOIN requiring an EXACT
+                # fiscal_year match to the balance-sheet anchor row (~line 716) - when that
+                # specific anchor year's own annual_income_statement row is unavailable (e.g.
+                # a current in-progress fiscal year placeholder) but the symbol has real
+                # net_income in a nearby fiscal year, net_income comes back None here even
+                # though neither "no recent"/"never tagged" gate above fires (both correctly
+                # see the real nearby-year data and exclude the symbol). Live-confirmed OBX/
+                # FTW/XLAB and 342 active-universe symbols total hit exactly this: a real
+                # balance sheet for the anchor year, a still-in-progress income statement for
+                # that same year, and complete real income-statement data 1-2 years back.
+                # Deliberately does NOT recompute sustainable_growth_rate from the
+                # mismatched-year net_income (the same "don't compute a number from data
+                # likely to be wrong" discipline as revenue_absent_from_anchor_year/
+                # implausible_dcf_result elsewhere in this file) - label-only, so operators
+                # can tell "the SEC data isn't there" apart from "the SEC data exists but for
+                # a different year than this anchor".
+                elif net_income is None and symbol in self._get_net_income_available_elsewhere_symbols():
+                    sgr_reason = "net_income_absent_from_anchor_year"
                 else:
                     sgr_reason = "missing_sec_data"
 
@@ -5668,6 +5723,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol in self._get_no_recent_net_income_symbols()
                         or symbol in self._get_never_tagged_net_income_symbols()
                     )
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # sustainable_growth_rate's identical fix above for the full live
+                    # evidence, OBX/FTW/XLAB/342 symbols): net_income is None here purely
+                    # because the balance-sheet anchor year's own income-statement row is
+                    # unavailable, not because the symbol lacks real net_income - both gates
+                    # above already ruled that out. Label-only, no value recomputed.
+                    else "net_income_absent_from_anchor_year"
+                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "roe" in failed_metrics
@@ -5693,6 +5756,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol in self._get_no_recent_net_income_symbols()
                         or symbol in self._get_never_tagged_net_income_symbols()
                     )
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # sustainable_growth_rate's identical fix above for the full live
+                    # evidence, OBX/FTW/XLAB/342 symbols): net_income is None here purely
+                    # because the balance-sheet anchor year's own income-statement row is
+                    # unavailable, not because the symbol lacks real net_income - both gates
+                    # above already ruled that out. Label-only, no value recomputed.
+                    else "net_income_absent_from_anchor_year"
+                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "roa" in failed_metrics
@@ -5733,6 +5804,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol in self._get_no_recent_net_income_symbols()
                         or symbol in self._get_never_tagged_net_income_symbols()
                     )
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # sustainable_growth_rate's identical fix above for the full live
+                    # evidence, OBX/FTW/XLAB/342 symbols): net_income is None here purely
+                    # because the balance-sheet anchor year's own income-statement row is
+                    # unavailable, not because the symbol lacks real net_income - both gates
+                    # above already ruled that out. Label-only, no value recomputed.
+                    else "net_income_absent_from_anchor_year"
+                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "net_margin" in failed_metrics
