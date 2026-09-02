@@ -560,6 +560,42 @@ class SecEdgarStatementLoader(SecLoaderBase):
             self._insurance_symbols = cached
         return cached
 
+    def _get_ppe_net_by_symbol_year(self) -> dict[str, dict[int, float]]:
+        """Bulk-fetch annual_balance_sheet.ppe_net keyed by (symbol, fiscal_year), once per
+        loader run, not per-row - feeds the capex-derivation fallback in transform() below
+        (Capex ~= delta Net PP&E + Depreciation) for filers who stop tagging a discrete
+        capex concept in recent years (see that fallback's own comment for the live VSAT
+        evidence)."""
+        cached: dict[str, dict[int, float]] | None = getattr(self, "_ppe_net_by_symbol_year", None)
+        if cached is None:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol, fiscal_year, ppe_net FROM annual_balance_sheet WHERE ppe_net IS NOT NULL")
+                cached = {}
+                for symbol, fiscal_year, ppe_net in cur.fetchall():
+                    cached.setdefault(symbol, {})[fiscal_year] = float(ppe_net)
+            self._ppe_net_by_symbol_year = cached
+        return cached
+
+    def _get_depreciation_expense_by_symbol_year(self) -> dict[str, dict[int, float]]:
+        """Bulk-fetch annual_income_statement.depreciation_expense keyed by (symbol,
+        fiscal_year), once per loader run - see _get_ppe_net_by_symbol_year's docstring."""
+        cached: dict[str, dict[int, float]] | None = getattr(self, "_depreciation_expense_by_symbol_year", None)
+        if cached is None:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT symbol, fiscal_year, depreciation_expense FROM annual_income_statement "
+                    "WHERE depreciation_expense IS NOT NULL"
+                )
+                cached = {}
+                for symbol, fiscal_year, depreciation_expense in cur.fetchall():
+                    cached.setdefault(symbol, {})[fiscal_year] = float(depreciation_expense)
+            self._depreciation_expense_by_symbol_year = cached
+        return cached
+
     # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable" audit):
     # a small, individually-verified allowlist of insurers confirmed to have ZERO capex-
     # related XBRL concept (PP&E family, REIT family, or the insurer investment-real-estate
@@ -1227,6 +1263,51 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     or r.get("symbol") in self._INSURANCE_CAPEX_EXEMPT_SYMBOLS
                 ):
                     capex = 0
+                # FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit,
+                # live SEC ground-truth check): confirmed via real sec.gov companyfacts that
+                # some filers genuinely stop tagging a discrete PP&E-capex concept in recent
+                # 10-Ks - VSAT (Viasat)'s last PaymentsToAcquirePropertyPlantAndEquipment
+                # fact is FY2023 (filed 2023-05-22), nothing for FY2024/2025/2026, despite
+                # gross PP&E visibly growing ~$800M+/year (real capex is happening, just no
+                # longer disclosed as a discrete cash-flow line). Cross-checked KO and PG the
+                # same day - both still tag capex normally through FY2025/2026 - so this is a
+                # scattered, filer-specific disclosure change, not a systemic extraction gap
+                # another concept alias could close (this table already carries ~15 capex
+                # concept aliases - see utils/external/sec_statements.py's get_cash_flow()).
+                # Falls back to the standard indirect estimate analysts use when a filer
+                # doesn't break out capex: Capex ~= (Ending Net PP&E - Beginning Net PP&E) +
+                # Depreciation Expense. Annual only (self.table_name gate) - quarterly PP&E
+                # deltas are far noisier and depreciation isn't cleanly quarterly-only for
+                # every filer. Guarded against the proxy's two known failure modes rather
+                # than trusted blindly: a disposal/impairment-dominated year can make net
+                # PP&E shrink by more than depreciation alone explains (rejected via the
+                # derived_capex > 0 floor - same "not a trustworthy read, fall through to
+                # missing" principle as every other implausible-value guard in this file),
+                # and a business combination can inflate PP&E in one year without being
+                # organic capex (rejected via the <= 10x-depreciation ceiling). Live-verified
+                # against VSAT's own real depreciation_expense (FY2025 $1.036B) and ppe_net
+                # (FY2025 $7.406B, FY2024 $7.557B): derives to ~$885M, squarely in line with
+                # VSAT's own real historical capex ($827M-$1.077B FY2021-2023) before this
+                # filer stopped tagging it. Marked with a distinct data_source so it's never
+                # confused with a directly-reported figure.
+                if capex is None and self.table_name == "annual_cash_flow":
+                    symbol = row.get("symbol")
+                    fiscal_year = row.get("fiscal_year")
+                    if symbol and fiscal_year is not None:
+                        curr_ppe = self._get_ppe_net_by_symbol_year().get(symbol, {}).get(fiscal_year)
+                        prior_ppe = self._get_ppe_net_by_symbol_year().get(symbol, {}).get(fiscal_year - 1)
+                        depreciation = self._get_depreciation_expense_by_symbol_year().get(symbol, {}).get(fiscal_year)
+                        if (
+                            curr_ppe is not None
+                            and prior_ppe is not None
+                            and depreciation is not None
+                            and depreciation > 0
+                        ):
+                            derived_capex = (curr_ppe - prior_ppe) + depreciation
+                            if 0 < derived_capex <= depreciation * 10:
+                                capex = derived_capex
+                                row["capex"] = capex
+                                row["data_source"] = "derived_ppe_delta"
                 if ocf is not None and capex is not None:
                     row["free_cash_flow"] = ocf - capex
 
