@@ -121,6 +121,29 @@ class TestFxRateCache:
         assert rate == 7.1786
         assert session.calls == 1
 
+    def test_hkd_is_a_major_currency_and_converts_via_historical_rate(self):
+        # FIX 2026-09-02: HKD added - see fx_rates.py's module docstring for the live-
+        # verification (TDIC, a small HK-listed 20-F filer, unlocking non-None revenue/
+        # net_income for the first time) behind this. Frankfurter covers it and its
+        # year-over-year moves (<=~0.6%, 2021-2024 live-checked) are the tightest of any
+        # currency on this list - Hong Kong's currency board has pegged HKD to USD within
+        # a ~7.75-7.85 band since 1983.
+        session = _FakeSession(rate=7.7665)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("HKD", "2024-12-31")
+        assert rate == 7.7665
+        assert session.calls == 1
+
+    def test_sek_stays_excluded_too_volatile(self):
+        # SEK was checked as a DKK/HKD-adjacent candidate (Ericsson reports in SEK, same
+        # zeroed-statement shape) and does NOT clear the bar - see fx_rates.py's module
+        # docstring: -12.07%/+15.22% year-over-year moves exceed every currency already
+        # accepted here (INR's 11.1% was the prior ceiling). Stays excluded, not a bug.
+        session = _FakeSession(rate=11.03)
+        cache = _isolated_cache(session)
+        assert cache.get_usd_rate("SEK", "2024-12-31") is None
+        assert session.calls == 0
+
     def test_missing_historical_rate_fails_closed(self):
         session = _FakeSession(rate=None)  # simulates a 404 - date outside range
         cache = _isolated_cache(session)

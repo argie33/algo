@@ -139,6 +139,19 @@ rate). Year-end DKK/USD moves: +6.19% (2021->2022), -3.26% (2022->2023), +6.43% 
 - same developed-market band as EUR/GBP/CHF (DKK is ERM II-pegged to EUR within a tight
 +/-2.25% band, one of the most stable currencies in Frankfurter's coverage, arguably safer
 than several currencies already on this list), well inside PHP's already-accepted ceiling.
+
+Same pass also found ERIC (Ericsson, Swedish, reports in SEK) with the identical zeroed-
+statement shape - checked SEK as a candidate and it does NOT clear the bar: year-over-year
+moves included -12.07% (2019->2020), +15.22% (2021->2022), a wider and higher band than
+every currency already accepted here (INR's 11.1% was the prior ceiling) - a genuine,
+freely-floating developed-market currency, but more volatile than this list's judgment
+threshold tolerates. Stays excluded, same discipline as the BRL/MXN rejections above, not
+a bug - re-verify with a longer window before reconsidering.
+
+HKD, found via TDIC (a small HK-listed 20-F filer, same zeroed-statement shape), DOES clear
+the bar trivially: year-over-year moves +/-0.6% or less (2021-2024, live-checked) - Hong
+Kong's currency board has pegged HKD to USD within a ~7.75-7.85 band since 1983, making it
+structurally more stable than every currency already on this list, JPY/CHF included. Added.
 """
 
 import json
@@ -156,7 +169,9 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
-MAJOR_CURRENCIES = frozenset({"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK"})
+MAJOR_CURRENCIES = frozenset(
+    {"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK", "HKD"}
+)
 
 
 class FxRateCache:
