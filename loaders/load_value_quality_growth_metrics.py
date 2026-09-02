@@ -604,9 +604,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 sec_val_row = cur.fetchone()
 
                 # Also fetch EV metrics by column name to avoid index confusion
+                # FIXED 2026-09-02 (goal: "no SEC data" audit continuation, same mislabeled-
+                # genuine-gap class as debt_to_equity/roe/roa above): `reason` added as a 4th
+                # column so total_cash/cash_per_share's own reason block (below) can reuse the
+                # specific cause load_sec_valuations.py already computed for this exact row
+                # (e.g. "income_statement_revenue_and_eps_null", "no_income_statement") instead
+                # of a generic "missing_sec_data" - same propagation _compute_value_metrics_
+                # from_sec already does for value_metrics, just never extended here. Appended
+                # last so the existing positional ev_metrics[0..2] reads stay unchanged.
                 if sec_val_row:
                     cur.execute(
-                        "SELECT total_debt, total_cash, ebitda FROM sec_valuations WHERE symbol = %s",
+                        "SELECT total_debt, total_cash, ebitda, reason FROM sec_valuations WHERE symbol = %s",
                         (symbol,),
                     )
                     ev_metrics = cur.fetchone()
@@ -2415,7 +2423,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     ) -> dict[str, Any]:
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
-        ev_metrics: tuple of (total_debt, total_cash, ebitda) from sec_valuations
+        ev_metrics: tuple of (total_debt, total_cash, ebitda[, reason]) from sec_valuations -
+        the 4th element (sec_valuations.reason) is optional for backward compatibility with
+        callers/tests still passing a 3-tuple.
         margin_volatility: trailing-3yr net_margin stdev, precomputed by the caller (see
         _compute_margin_volatility) from multi-year income_rows this function doesn't have.
         """
@@ -2995,6 +3005,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             total_debt_ev = None
             total_cash_ev = None
             ebitda_ev = None
+            # FIX 2026-09-02 (goal: "no SEC data" audit continuation): sec_valuations' own
+            # `reason` column - real, specific cause load_sec_valuations.py already computed
+            # for this row (e.g. "income_statement_revenue_and_eps_null") - was fetched by the
+            # ev_metrics query above but never surfaced here, so total_cash/cash_per_share fell
+            # to generic "missing_sec_data" even when a real reason was sitting one column away.
+            # `len(ev_metrics) > 3` guards callers/tests still passing the older 3-tuple shape.
+            sec_valuations_reason = ev_metrics[3] if ev_metrics and len(ev_metrics) > 3 else None
             if ev_metrics:
                 total_debt_ev = self._nan_to_none(safe_float(ev_metrics[0], f"{symbol}.total_debt", allow_none=True))
                 total_cash_ev = self._nan_to_none(safe_float(ev_metrics[1], f"{symbol}.total_cash", allow_none=True))
@@ -5210,9 +5227,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if "total_debt" in failed_metrics
                 else None
             )
-            metrics["total_cash_unavailable_reason"] = "missing_sec_data" if "total_cash" in failed_metrics else None
+            # FIX 2026-09-02 (goal: "no SEC data" audit continuation): total_cash_ev is None
+            # whenever either sec_valuations has no row at all for this symbol, or has a row
+            # but load_sec_valuations.py itself already recorded why total_cash came back
+            # NULL there - both real, sitting one join away, never surfaced here before.
+            # Live-confirmed 135 of 167 universe total_cash "missing_sec_data" rows have a
+            # sec_valuations row; of those, 81 (60%) carry a real, specific `reason` this now
+            # reuses instead of a generic "missing_sec_data".
+            metrics["total_cash_unavailable_reason"] = (
+                (
+                    "no_sec_valuations_row"
+                    if ev_metrics is None
+                    else sec_valuations_reason
+                    if sec_valuations_reason
+                    else "missing_sec_data"
+                )
+                if "total_cash" in failed_metrics
+                else None
+            )
             metrics["cash_per_share_unavailable_reason"] = (
-                ("shares_outstanding_unavailable" if cash_per_share_shares_missing else "missing_sec_data")
+                (
+                    "shares_outstanding_unavailable"
+                    if cash_per_share_shares_missing
+                    else "no_sec_valuations_row"
+                    if ev_metrics is None
+                    else sec_valuations_reason
+                    if sec_valuations_reason
+                    else "missing_sec_data"
+                )
                 if "cash_per_share" in failed_metrics
                 else None
             )
