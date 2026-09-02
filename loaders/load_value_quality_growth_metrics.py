@@ -1197,8 +1197,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             intrinsic_value_reason_from_fcf_yield(fcf_yield) if intrinsic_value_per_share is None else None
         )
         if margin_of_safety_pct is None:
+            # FIX 2026-09-02 (goal: "no SEC data" audit continuation): load_sec_valuations.py's
+            # _compute_dcf_intrinsic_value computes intrinsic_per_share and margin_of_safety_pct
+            # together and returns them as a pair - the ONLY code path that returns a real
+            # intrinsic_per_share alongside a None margin_of_safety_pct is the explicit
+            # `-1000 <= margin_of_safety_pct <= 1000` bounds rejection (implausible DCF result,
+            # e.g. intrinsic value wildly divergent from current price) - not a missing-data
+            # case at all. 100% precise, not a probabilistic gate (there is no other way to
+            # reach this combination). Live-confirmed this covers every universe row where
+            # intrinsic_value_per_share is present but margin_of_safety_pct is
+            # "missing_sec_data" (VRNS/SLNG/SMTC and more).
             margin_of_safety_reason = (
-                intrinsic_value_reason if intrinsic_value_per_share is None else "missing_sec_data"
+                intrinsic_value_reason if intrinsic_value_per_share is None else "implausible_dcf_result"
             )
         else:
             margin_of_safety_reason = None
