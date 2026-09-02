@@ -53,8 +53,9 @@ def _make_balance_loader() -> ConsolidatedFinancialStatementsLoader:
 
 def _fake_db_context(has_rows_for_symbol: bool, unavailable_years: list, incomplete_years: list):
     """Dispatches by query text: the desync-guard's `SELECT 1 ... LIMIT 1`, the
-    data_unavailable=TRUE retry query, and the new data_unavailable=FALSE + core-field-
-    NULL retry query each return a different fixed result."""
+    data_unavailable=TRUE retry query, the data_unavailable=FALSE + core-field-NULL retry
+    query, and the unrelated (2026-09-02) dual-class-EPS `stock_symbols` security_name bulk
+    lookup (income statement_type only) each return a different fixed result."""
 
     def factory(mode, **kwargs):
         ctx = MagicMock()
@@ -68,6 +69,8 @@ def _fake_db_context(has_rows_for_symbol: bool, unavailable_years: list, incompl
             return (1,) if has_rows_for_symbol else None
 
         def fetchall():
+            if "stock_symbols" in state["query"]:
+                return []  # no dual-class security_name matches in these fixtures
             if "data_unavailable = TRUE" in state["query"]:
                 return [(y,) for y in unavailable_years]
             if "data_unavailable = FALSE" in state["query"]:
@@ -173,6 +176,54 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
             loader.fetch_incremental("XYZ", since=date(2024, 12, 31))
 
         assert any("net_income IS NULL" in q for q in captured_queries)
+        # ADDED 2026-09-02: revenue is now ALSO a retry-trigger field for income - see
+        # test_retries_amzn_style_stub_row_with_net_income_but_null_revenue below.
+        assert any("revenue IS NULL" in q for q in captured_queries)
+
+    def test_retries_amzn_style_stub_row_with_net_income_but_null_revenue(self):
+        """2026-09-02 fix: income's core-field retry now ALSO fires on `revenue` alone, not
+        just `net_income` - see _CORE_FIELD_BY_STATEMENT_TYPE's comment (same bug shape as
+        the 2026-08-29 cashflow/capex fix above). Live-confirmed for AMZN: a TTM 10-Q
+        duration fact (commit 42d24bbdb) could clobber a fiscal year's real
+        revenue/operating_income/pretax_income while `net_income` stayed non-NULL (a
+        DIFFERENT fact happened to land there) - AMZN's FY2026 stub row
+        (net_income=$135,281,000,000, revenue/operating_income/pretax_income all NULL,
+        data_unavailable=FALSE) was permanently unreachable by the old net_income-only
+        retry check, so the already-fixed 42d24bbdb correction could never actually reach
+        the row despite the code fix being live."""
+        from loaders.load_financial_statements import get_income_statement_config
+
+        loader = ConsolidatedFinancialStatementsLoader.__new__(ConsolidatedFinancialStatementsLoader)
+        config = get_income_statement_config("annual")
+        loader.table_name = config["table_name"]
+        loader.period = "annual"
+        loader.statement_type = "income"
+        loader.is_symbol_based = True
+        loader._schema_cols = config["schema_cols"]
+        loader._field_mapping = config["field_mapping"]
+        loader._sec_client = MagicMock()
+        loader._sec_client.symbol_to_cik.return_value = "0001234567"
+        loader._sec_client.get_income_statement.return_value = [
+            # The real AMZN shape: net_income populated (from the TTM fact that clobbered
+            # this bucket), revenue left None (the field the clobber actually broke).
+            {"symbol": "AMZN", "fiscal_year": 2026, "net_income": 135_281_000_000, "revenue": None},
+            {"symbol": "AMZN", "fiscal_year": 2025, "net_income": 70_623_000_000, "revenue": 716_924_000_000},
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            # since_year=2026 excludes FY2026 from the normal "fiscal_year > since_year"
+            # path entirely (the real AMZN watermark is stuck exactly this way) - only the
+            # revenue-IS-NULL retry query (incomplete_years=[2026]) can rescue it.
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[2026]),
+        ):
+            rows = loader.fetch_incremental("AMZN", since=date(2026, 12, 31))
+
+        # Without the fix, FY2026's stub row (net_income present, revenue NULL) would never
+        # qualify for retry (only net_income IS NULL was checked) and, with since_year=2026
+        # excluding it from the normal path too, would be permanently unreachable - exactly
+        # AMZN's real state even after 42d24bbdb's parser-level fix landed on main.
+        assert {r["fiscal_year"] for r in rows} == {2026}
 
     def test_retries_fiscal_year_with_operating_cash_flow_populated_but_capex_null(self):
         """2026-08-29 fix: cashflow's core-field retry now also fires on `capex` alone,

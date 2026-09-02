@@ -393,10 +393,26 @@ class SecEdgarStatementLoader(SecLoaderBase):
     # every affected symbol. `capex` added as a second retry-trigger field for cashflow - a
     # real, widely-scored value (feeds free_cash_flow/fcf_yield/intrinsic_value_per_share),
     # not cosmetic, so it deserves the same "keep retrying until a real value lands"
-    # treatment as the statement's primary field. income/balance left as single-field
-    # tuples (unchanged behavior) - no equivalent secondary-field gap found for them yet.
+    # treatment as the statement's primary field. balance left as a single-field tuple
+    # (unchanged behavior) - no equivalent secondary-field gap found for it yet.
+    #
+    # ADDED 2026-09-02 (goal session: "understand our XBRL data gaps", AMZN live-confirmed):
+    # `revenue` added as income's second retry-trigger field, same exact bug shape as
+    # cashflow's capex addition above. See
+    # [[amzn_style_current_year_stub_row_anomaly_open_needs_live_xbrl_20260901]] (memory) /
+    # commit 42d24bbdb: a TTM 10-Q duration fact could clobber a fiscal year's correct 10-K
+    # revenue/operating_income/pretax_income while leaving `net_income` non-NULL (a
+    # DIFFERENT, also-real fact happened to land there) - live-confirmed AMZN FY2026
+    # (`net_income=$135,281,000,000`, `revenue`/`operating_income`/`pretax_income` all NULL,
+    # `data_unavailable=FALSE`). Because the retry-candidate query above only ever checked
+    # `net_income IS NULL`, and AMZN's watermark (`financial_statements_income_annual`) was
+    # stuck future-dated at 2026-12-31 (so `fiscal_year > since.year` excludes FY2026
+    # outright), this row was PERMANENTLY unreachable by any subsequent pipeline run even
+    # after 42d24bbdb's fix landed on main - the corrected value was sitting in every fresh
+    # `get_income_statement()` fetch already made, just never written. ~51-57 symbols
+    # identified with this same shape in that memory's SQL scan.
     _CORE_FIELD_BY_STATEMENT_TYPE: dict[str, tuple[str, ...]] = {
-        "income": ("net_income",),
+        "income": ("net_income", "revenue"),
         "balance": ("stockholders_equity",),
         "cashflow": ("operating_cash_flow", "capex"),
     }
