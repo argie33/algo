@@ -2244,6 +2244,45 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_debt_components_symbols_cache = result
         return result
 
+    def _get_never_tagged_debt_components_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_debt_components_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern (windowed
+        gate requires exactly 3 real fiscal years, missing recent IPOs/SPAC-mergers with fewer
+        real years where no debt component is nonetheless genuinely ever reported).
+
+        FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL audit): unlike
+        the other never-tagged siblings added earlier this session (each recovering a modest
+        double-digit slice), this one is the single largest win found this session - the debt-
+        components gate turns out to be the dominant blocker for several fields at once.
+        Live-verified against quality_metrics/value_metrics: debt_to_equity 115 of 132 (87%),
+        roce_pct 115 of 198 (58%), roic_pct 97 of 215 (45%), total_debt 33 of 49 (67%) of their
+        respective "missing_sec_data" residual rows recovered. Deliberately NOT wired into
+        ev_revenue_unavailable_reason/ev_ebitda_unavailable_reason (value_metrics) despite also
+        calling _get_no_recent_debt_components_symbols() - live-checked and only 14 of 232 /
+        1 of 49 rows there overlap this gate, consistent with load_sec_valuations.py's own EV
+        computation treating a missing total_debt as 0 rather than blocking (see
+        [[interest_coverage_and_pe_ratio_reason_gates_fixed_20260902]] for the fuller trace of
+        why EV's real blocker is elsewhere and not yet safely diagnosed). Cached for the life
+        of this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_debt_components_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(long_term_debt) = 0 AND COUNT(short_term_debt) = 0
+                   AND COUNT(operating_lease_liability) = 0 AND COUNT(finance_lease_liability) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_debt_components_symbols_cache = result
+        return result
+
     def _get_no_recent_revenue_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported revenue in any of their 3 most recent fiscal years -
         i.e. structurally pre-revenue, not a loader gap.
@@ -5550,7 +5589,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # mislabeled-genuine-gap bug class as the REIT/no-tax-concept fixes for
                     # ebitda_margin/operating_margin/roic_pct/roce_pct above.
                     else "total_debt_not_itemized"
-                    if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
+                    if debt_for_roic is None
+                    and (
+                        symbol in self._get_no_recent_debt_components_symbols()
+                        or symbol in self._get_never_tagged_debt_components_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "debt_to_equity" in failed_metrics
@@ -5675,7 +5718,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Live-confirmed 264 of 350 universe roic_pct "missing_sec_data" rows (75%)
                     # split between the same two gates just wired into debt_to_equity.
                     else "total_debt_not_itemized"
-                    if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
+                    if debt_for_roic is None
+                    and (
+                        symbol in self._get_no_recent_debt_components_symbols()
+                        or symbol in self._get_never_tagged_debt_components_symbols()
+                    )
                     else "stockholders_equity_not_reported"
                     if stockholders_equity is None
                     and (
@@ -5704,7 +5751,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # negative_capital_employed's <= 0 check doesn't catch. Live-confirmed 328
                     # of 394 universe roce_pct "missing_sec_data" rows (83%).
                     else "total_debt_not_itemized"
-                    if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
+                    if debt_for_roic is None
+                    and (
+                        symbol in self._get_no_recent_debt_components_symbols()
+                        or symbol in self._get_never_tagged_debt_components_symbols()
+                    )
                     else "stockholders_equity_not_reported"
                     if stockholders_equity is None
                     and (
@@ -5780,6 +5831,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (
                     "total_debt_not_itemized"
                     if symbol in self._get_no_recent_debt_components_symbols()
+                    or symbol in self._get_never_tagged_debt_components_symbols()
                     else "missing_sec_data"
                 )
                 if "total_debt" in failed_metrics
