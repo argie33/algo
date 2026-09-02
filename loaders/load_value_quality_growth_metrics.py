@@ -4804,7 +4804,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["operating_margin_unavailable_reason"] = (
-                ("implausible_ratio" if "operating_margin" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "operating_margin" in implausible_ratio_metrics
+                    # FIXED 2026-09-02 (goal: "Missing SEC/XBRL data" reduction): operating_margin
+                    # fails on the exact same `operating_income_for_margin is None` condition as
+                    # operating_profitability/interest_coverage/roic_pct/roce_pct just below/above,
+                    # which already reuse `no_operating_income_concept` (tonnage-tax shipping cos +
+                    # REITs that structurally never tag pretax_income/income_tax_expense, see
+                    # _get_no_tax_concept_symbols) to recategorize this as "reit_special_entity"
+                    # instead of "missing_sec_data" - operating_margin was the one sibling left on
+                    # the generic label. Live-confirmed 89/205 operating_margin missing_sec_data
+                    # rows (AGNC/ARE/EGP/HR and more) are this exact REIT/no-tax-concept case.
+                    else "reit_special_entity"
+                    if no_operating_income_concept
+                    else "missing_sec_data"
+                )
                 if "operating_margin" in failed_metrics
                 else None
             )

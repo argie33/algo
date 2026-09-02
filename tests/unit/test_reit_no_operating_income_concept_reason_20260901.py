@@ -13,6 +13,12 @@ reusing that same already-tested helper to recategorize these fields to "reit_sp
 once their EBIT-chain input is confirmed unrecoverable - the raw values stay None either way
 (no fabricated numbers), only the label changes from "fixable XBRL gap" to "structural, not
 applicable".
+
+EXTENDED 2026-09-02 (same goal, continuation session): operating_margin fails on the exact same
+`operating_income_for_margin is None` condition (same variable, same gate, immediately below
+where `no_operating_income_concept` is computed) but was the one sibling left generically
+labeled - live-confirmed 89/205 (43%) of the universe's operating_margin `missing_sec_data`
+rows (AGNC/ARE/EGP/HR and more) are this exact REIT/no-tax-concept case.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -115,12 +121,14 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics.get("roic_pct") is None
         assert metrics.get("roce_pct") is None
         assert metrics.get("interest_coverage") is None
+        assert metrics.get("operating_margin") is None
 
         # But the label changes from "fixable XBRL gap" to "structural, not applicable".
         assert metrics["operating_profitability_unavailable_reason"] == "reit_special_entity"
         assert metrics["roic_pct_unavailable_reason"] == "reit_special_entity"
         assert metrics["roce_pct_unavailable_reason"] == "reit_special_entity"
         assert metrics["interest_coverage_unavailable_reason"] == "reit_special_entity"
+        assert metrics["operating_margin_unavailable_reason"] == "reit_special_entity"
 
     def test_symbol_not_in_structural_set_still_reports_missing_sec_data(self, monkeypatch):
         # Control: identical missing operating_income/pretax_income/income_tax_expense inputs,
@@ -143,3 +151,4 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics["roic_pct_unavailable_reason"] == "missing_sec_data"
         assert metrics["roce_pct_unavailable_reason"] == "missing_sec_data"
         assert metrics["interest_coverage_unavailable_reason"] == "missing_sec_data"
+        assert metrics["operating_margin_unavailable_reason"] == "missing_sec_data"
