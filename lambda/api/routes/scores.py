@@ -2169,6 +2169,13 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # capex gap, not a computation error) - same unmapped-fallthrough bug as
             # no_recent_balance_sheet_data_reported above.
             "no_recent_free_cash_flow_reported",
+            # ADDED 2026-09-02 (same sweep, ev_revenue/ps_ratio anchor-year trace): load_value_
+            # quality_growth_metrics.py's reason when a symbol's SEC-selected anchor fiscal
+            # year has no tagged revenue even though a real, nonzero revenue exists in an
+            # earlier year (deliberately NOT computed from that stale figure - see
+            # _get_revenue_absent_from_anchor_year_symbols()'s docstring) - same "the SEC data
+            # we have can't be used for this specific period" class as the other reasons here.
+            "revenue_absent_from_anchor_year",
             # ADDED 2026-09-02 (same sweep): loaders/helpers/sec_base.py writes this when a
             # full unfiltered SEC refetch no longer reproduces a fiscal year the DB
             # currently marks available - that year's data is retracted/no longer backed by

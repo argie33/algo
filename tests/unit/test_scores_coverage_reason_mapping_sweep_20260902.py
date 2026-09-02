@@ -64,6 +64,10 @@ def test_zero_revenue_reported_this_period_categorizes_as_legitimate_not_applica
     assert scores_mod._categorize_reason("zero_revenue_reported_this_period") == "Legitimate / not applicable"
 
 
+def test_revenue_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("revenue_absent_from_anchor_year") == "Missing SEC/XBRL data"
+
+
 # ADDED 2026-09-02 (same goal session, later same-day sweep): a second live cross-check
 # (scripts/audit_unavailable_reasons.py --min-count 10) found four MORE unmapped reasons
 # falling to "Other (errors / excluded)" - all four were themselves added by earlier fixes

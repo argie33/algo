@@ -1583,10 +1583,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (
                     "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     # Real $0 anchor-year revenue, distinct from "never any revenue in 3
                     # years" above - see _get_zero_revenue_anchor_symbols()'s own docstring.
                     else "zero_revenue_reported_this_period"
                     if symbol in self._get_zero_revenue_anchor_symbols()
+                    # Real revenue exists in an earlier year, just not the current anchor
+                    # year - see _get_revenue_absent_from_anchor_year_symbols()'s docstring.
+                    else "revenue_absent_from_anchor_year"
+                    if symbol in self._get_revenue_absent_from_anchor_year_symbols()
                     else "missing_sec_data"
                 )
                 if ps is None
@@ -1622,6 +1627,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 (
                     "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same fix as
                     # ev_ebitda_reason above): enterprise_value = market_cap + total_debt -
                     # total_cash, so it fails whenever total_debt can't be itemized even when
@@ -1640,6 +1646,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Live-confirmed 47/259 (18%) of ev_revenue's residual rows are this case.
                     else "zero_revenue_reported_this_period"
                     if symbol in self._get_zero_revenue_anchor_symbols()
+                    # Real revenue exists in an earlier year, just not the current anchor
+                    # year - see _get_revenue_absent_from_anchor_year_symbols()'s docstring.
+                    # Live-confirmed 54/98 (55%) of the post-backfill residual is this case.
+                    else "revenue_absent_from_anchor_year"
+                    if symbol in self._get_revenue_absent_from_anchor_year_symbols()
                     else "missing_sec_data"
                 )
                 if ev_revenue is None
@@ -2410,6 +2421,86 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._zero_revenue_anchor_symbols_cache = result
+        return result
+
+    def _get_never_tagged_revenue_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_revenue_symbols() above - same recent-IPO/
+        SPAC-merger/thin-history blind spot already fixed for stockholders_equity/net_income/
+        total_assets/debt_components elsewhere in this file (the windowed gate requires exactly
+        3 real fiscal years; a symbol with fewer real years that has genuinely never reported a
+        real, nonzero revenue anywhere in its (shorter) history falls through it).
+
+        FIX 2026-09-02 (goal: "get all the data we need" audit continuation, live trace of the
+        ev_revenue/ps_ratio residual after the negative_enterprise_value/zero_revenue_anchor
+        fixes above): of 98 universe ev_revenue "missing_sec_data" residual rows post-backfill,
+        44 (45%) genuinely have zero real revenue anywhere in annual_income_statement (thin
+        filing history, mostly recent IPOs/SPAC-mergers/pre-revenue biotech) - the exact same
+        "no revenue reported" fact _get_no_recent_revenue_symbols() already labels, just not
+        caught by its exactly-3-years requirement. Reuses that same "no_revenue_reported"
+        reason string rather than inventing a new one - it's the identical underlying fact,
+        just a broader detection window. Cached for the life of this loader instance; this
+        query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_revenue_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable IS NOT TRUE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE revenue IS NOT NULL AND revenue != 0) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_revenue_symbols_cache = result
+        return result
+
+    def _get_revenue_absent_from_anchor_year_symbols(self) -> frozenset[str]:
+        """Symbols whose SEC-selected anchor fiscal year (same tier/fiscal_year-DESC ordering
+        as _get_zero_revenue_anchor_symbols() above) has NULL revenue - never tagged that
+        specific year - even though a real, nonzero revenue value exists somewhere else in the
+        symbol's history. Distinct from _get_zero_revenue_anchor_symbols() (a real $0.00 anchor
+        value) and from _get_never_tagged_revenue_symbols() (no real revenue anywhere, ever).
+
+        FIX 2026-09-02 (goal: "get all the data we need" audit continuation): live-confirmed 54
+        of 98 universe ev_revenue residual rows are this case - mostly clinical-stage biotechs
+        (ABOS, MTNB, PVLA, ...) whose "revenue" is lumpy licensing/collaboration income, real in
+        some years and genuinely untagged (not a real $0, just absent) in others, including the
+        current anchor year. Deliberately does NOT fall back to computing ev_revenue/ps_ratio
+        from that older revenue figure - a 2+-year-stale collaboration payment would produce a
+        misleading current-period ratio, the same "don't compute a number from data likely to be
+        wrong" discipline as every other reason in this file. Label-only: this changes which
+        REASON a null ev_revenue/ps_ratio gets, never what VALUE they get. Cached for the life
+        of this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_revenue_absent_from_anchor_year_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM (
+                    SELECT DISTINCT ON (symbol) symbol, revenue
+                    FROM annual_income_statement
+                    WHERE data_unavailable IS NOT TRUE
+                    ORDER BY symbol,
+                             (CASE WHEN revenue IS NOT NULL OR earnings_per_share IS NOT NULL
+                                        OR net_income IS NOT NULL THEN 0 ELSE 1 END),
+                             fiscal_year DESC
+                ) anchor
+                WHERE anchor.revenue IS NULL
+                  AND anchor.symbol IN (
+                      SELECT symbol FROM annual_income_statement
+                      WHERE data_unavailable IS NOT TRUE AND revenue IS NOT NULL AND revenue != 0
+                      GROUP BY symbol
+                  )
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._revenue_absent_from_anchor_year_symbols_cache = result
         return result
 
     def _get_no_recent_total_assets_symbols(self) -> frozenset[str]:
