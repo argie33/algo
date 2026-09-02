@@ -1541,6 +1541,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # "missing_sec_data" rows (49%) are this exact case.
                     "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): see
+                    # _get_no_recent_capex_symbols()'s own docstring - real OCF, capex never
+                    # tagged in any recent fiscal year, distinct from (and not overlapping)
+                    # the no-FCF-at-all gate just above.
+                    else "capex_never_tagged_in_recent_filings"
+                    if symbol in self._get_no_recent_capex_symbols()
                     else "missing_sec_data"
                 )
                 if fcf_yield is None
@@ -2388,6 +2394,66 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._no_recent_free_cash_flow_symbols_cache = result
+        return result
+
+    def _get_no_recent_capex_symbols(self) -> frozenset[str]:
+        """Symbols that have real operating_cash_flow but NOT capex in any of their 3 most
+        recent fiscal years (in a row not itself flagged data_unavailable) - a genuine
+        structural gap, not a loader gap.
+
+        FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL audit,
+        same bug class as the free_cash_flow/operating_cash_flow gates above, different root
+        cause). value_metrics.fcf_yield's 261-row "missing_sec_data" bucket did NOT overlap
+        with `_get_no_recent_free_cash_flow_symbols()` for a distinct reason: THIS file's
+        loader (load_financial_statements.py) already treats a NULL capex as 0 when writing
+        annual_cash_flow.free_cash_flow (so free_cash_flow ends up == operating_cash_flow,
+        never NULL), but load_sec_valuations.py's OWN fcf computation for fcf_yield
+        deliberately does NOT make that substitution (`fcf = ocf - capex - sbc if ... capex
+        is not None else None`) unless the symbol is on the is_capex_exempt allowlist (banks/
+        a hand-verified insurer list) - see that file's DEPOSITORY_INSTITUTION_SIC_CODES/
+        INSURANCE_CAPEX_EXEMPT_SYMBOLS comments for why treating an unknown capex as 0 is
+        only safe for entity types confirmed to have near-zero real capex.
+
+        Live-verified via direct SEC companyfacts JSON for a same-industry-diverse sample
+        (MS, PSX, NEE, CAR, IBKR, SYF, WTM, RGLD, VNOM, MSGE, CWT) that this is NOT an
+        extraction bug this file's own capex concept-fallback list (see sec_statements.py's
+        very long PaymentsToAcquire*/PaymentsForCapitalImprovements chain) could close: these
+        real, large, capex-heavy filers (NextEra alone reports ~$12-13B/yr in real capex per
+        public disclosure) simply never tag ANY capex-shaped us-gaap concept in their XBRL at
+        all, across every fiscal year on file - the companyfacts convenience API structurally
+        has nothing to extract, same "SEC XBRL just doesn't expose this" class already
+        established for segment revenue elsewhere in this codebase. Unlike is_capex_exempt's
+        near-zero-capex entities, these filers' REAL capex is far from zero - silently
+        treating it as 0 here would materially overstate fcf_yield, so this gate is
+        deliberately label-only (an honest, specific reason instead of generic
+        "missing_sec_data"), not a "treat capex as 0" fix. 198 of 261 universe fcf_yield
+        "missing_sec_data" rows matched this exact pattern (real OCF, capex NULL in all 3
+        recent years) - a mix of these companyfacts-gap large caps, BDCs/closed-end funds
+        (BBDC, ARI, BGT, MAIN, ...), and pre-revenue biotech/SPAC-adjacent names, all sharing
+        the same "capex was never tagged" structural fact regardless of the underlying reason.
+        Cached for the life of this loader instance; this query runs once per pipeline run,
+        not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_capex_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, operating_cash_flow, capex,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_cash_flow
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(capex) = 0 AND COUNT(operating_cash_flow) > 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_capex_symbols_cache = result
         return result
 
     def _get_blank_check_symbols(self) -> frozenset[str]:
