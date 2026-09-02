@@ -2224,6 +2224,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # have since improved for the originally-affected symbols - but the string is real,
             # reachable code, and must still resolve to a real category when it does fire).
             "no_sec_valuations_row",
+            # ADDED 2026-09-02 (same sweep, restricted to load_sec_valuations.py):
+            # invalid_shares_outstanding - _compute_valuations()'s final "no valid
+            # shares_outstanding from any SEC/DEI-derived tier" fact (all upstream tiers
+            # - reported_shares_outstanding, DEI dei:EntityCommonStockSharesOutstanding,
+            # dual-class/FPI fallbacks, etc. - come up empty, ~line 2143). Reachable via the
+            # main _compute_valuations() call site (line 1447), currently 0 live rows (data
+            # happens to be clean right now) but a real unmapped string that would silently
+            # fall to "Other" the moment it next fires. NOTE: its sibling "invalid_price"
+            # (~line 2135, current_price <= 0) is deliberately NOT added here - that one is a
+            # price_daily/prices-table gap, not a SEC/XBRL fact, so it correctly belongs in
+            # "Other (errors / excluded)" below, same reasoning as stale_price_data there.
+            "invalid_shares_outstanding",
             # entity_name_not_found/submissions_not_found_404/submissions_empty/
             # no_submissions: load_company_info_sec.py/load_earnings_calendar_sec.py/
             # load_current_reports_8k.py's own "SEC submissions.json has nothing for this
@@ -2506,6 +2518,28 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "missing_price_data",
             "excluded_by_naming_pattern",
             "no_recent_price",
+            # ADDED 2026-09-02 (SEC/XBRL missing-data sweep, live audit_unavailable_reasons.py
+            # cross-check): loaders/load_risk_metrics_daily.py writes this literal (see the
+            # STALE_PRICE FIX 2026-09-01 comment at its write site, ~line 411) onto
+            # stability_metrics' beta/volatility/downside_volatility/max_drawdown_1y columns
+            # when the symbol's price_daily feed has stopped updating (last close older than
+            # STALE_PRICE_TRADING_DAYS_THRESHOLD) - deliberately not computing risk figures
+            # from a frozen window. This isn't a SEC/XBRL gap (price_daily/yfinance is a
+            # different data source entirely) and it isn't "missing" so much as "known-broken
+            # for this symbol right now" - the same operational-error class as
+            # no_recent_price/missing_price_data already in this bucket, just for a stopped
+            # feed instead of an absent one. Was unmapped and falling through to the same
+            # bucket anyway via the default, but silently (240 live rows, 30 symbols x 8
+            # stability_metrics columns) - making it explicit here documents the fact instead
+            # of leaving it looking like an unaccounted-for error.
+            "stale_price_data",
+            # ADDED 2026-09-02 (same sweep): load_sec_valuations.py's _compute_valuations()
+            # current_price <= 0 gate (~line 2135) - sibling of no_recent_price/
+            # missing_price_data already in this bucket. Deliberately NOT "Missing SEC/XBRL
+            # data": current_price here is read from the prices table, a different data
+            # source entirely, same reasoning as stale_price_data above. Currently 0 live
+            # rows but reachable from the main _compute_valuations() call site.
+            "invalid_price",
         },
     ),
     (

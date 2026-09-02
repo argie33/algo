@@ -198,3 +198,30 @@ def test_segment_data_unavailable_categorizes_as_missing_sec_xbrl():
 
 def test_no_sec_valuations_row_categorizes_as_missing_sec_xbrl():
     assert scores_mod._categorize_reason("no_sec_valuations_row") == "Missing SEC/XBRL data"
+
+
+# ADDED 2026-09-02 (same goal session, live audit_unavailable_reasons.py cross-check of every
+# in-scope table/column, not just the previously-checked >=20-count threshold): stability_
+# metrics' stale_price_data (loaders/load_risk_metrics_daily.py's STALE_PRICE FIX) was the
+# only genuinely in-scope unmapped reason remaining (240 live rows across beta/volatility/
+# downside_volatility/max_drawdown_1y) - not a SEC/XBRL gap (price_daily/yfinance-sourced),
+# so mapped to "Other (errors / excluded)" alongside the sibling no_recent_price/
+# missing_price_data reasons rather than "Missing SEC/XBRL data".
+
+
+def test_stale_price_data_categorizes_as_other_errors_excluded():
+    assert scores_mod._categorize_reason("stale_price_data") == "Other (errors / excluded)"
+
+
+# ADDED 2026-09-02 (same goal session, static sweep extended beyond load_value_quality_
+# growth_metrics.py to load_sec_valuations.py): invalid_shares_outstanding (a real SEC/DEI
+# shares_outstanding gap propagating via sec_valuations_reason) and its sibling invalid_price
+# (a prices-table gap, NOT SEC/XBRL - deliberately categorized differently) were both unmapped.
+
+
+def test_invalid_shares_outstanding_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("invalid_shares_outstanding") == "Missing SEC/XBRL data"
+
+
+def test_invalid_price_categorizes_as_other_not_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("invalid_price") == "Other (errors / excluded)"
