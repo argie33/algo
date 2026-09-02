@@ -1580,7 +1580,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "pe_ratio_unavailable_reason": pe_ratio_reason,
             "pb_ratio_unavailable_reason": pb_ratio_reason,
             "ps_ratio_unavailable_reason": (
-                ("no_revenue_reported" if symbol in self._get_no_recent_revenue_symbols() else "missing_sec_data")
+                (
+                    "no_revenue_reported"
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    # Real $0 anchor-year revenue, distinct from "never any revenue in 3
+                    # years" above - see _get_zero_revenue_anchor_symbols()'s own docstring.
+                    else "zero_revenue_reported_this_period"
+                    if symbol in self._get_zero_revenue_anchor_symbols()
+                    else "missing_sec_data"
+                )
                 if ps is None
                 else None
             ),
@@ -1627,6 +1635,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # ev_revenue's residual "missing_sec_data" rows are this exact case.
                     else "negative_enterprise_value"
                     if _computed_ev_for_reason is not None and _computed_ev_for_reason <= 0
+                    # Real $0 anchor-year revenue, distinct from "never any revenue in 3
+                    # years" above - see _get_zero_revenue_anchor_symbols()'s own docstring.
+                    # Live-confirmed 47/259 (18%) of ev_revenue's residual rows are this case.
+                    else "zero_revenue_reported_this_period"
+                    if symbol in self._get_zero_revenue_anchor_symbols()
                     else "missing_sec_data"
                 )
                 if ev_revenue is None
@@ -2355,6 +2368,48 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._no_recent_revenue_symbols_cache = result
+        return result
+
+    def _get_zero_revenue_anchor_symbols(self) -> frozenset[str]:
+        """Symbols whose SEC-selected anchor fiscal year (same tier/fiscal_year-DESC ordering
+        load_sec_valuations.py's own income-statement query uses: prefer a row with revenue OR
+        earnings_per_share OR net_income present, then most recent fiscal_year) reports a real
+        $0.00 revenue for THAT specific year - distinct from _get_no_recent_revenue_symbols()
+        above, which requires zero/null revenue across all 3 most recent years. A company can
+        have real revenue in prior years yet a genuine $0 anchor year (e.g. a one-off wind-down
+        period, a pre-revenue clinical-stage company between commercial products); EV/Revenue
+        and P/S are undefined for that period regardless of other years' history, same "not a
+        meaningful ratio" class as ev_ebitda's unprofitable_stock treatment of ebitda <= 0.
+
+        FIX 2026-09-02 (goal: "no SEC data" audit continuation, same session as the
+        negative_enterprise_value fix above): load_sec_valuations.py's ttm_revenue is exactly
+        this anchor row's revenue (its own one-row-back fallback only fires when revenue is
+        NULL, never when it's a real 0, so it never rescues this case) - live-confirmed 47 of
+        259 (18%) universe ev_revenue "missing_sec_data" residual rows are this exact case
+        (e.g. AREC: 2025 anchor revenue=$0.00 despite $11.8M and $34K in the two prior years).
+        Cached for the life of this loader instance; this query runs once per pipeline run,
+        not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_zero_revenue_anchor_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM (
+                    SELECT DISTINCT ON (symbol) symbol, revenue
+                    FROM annual_income_statement
+                    WHERE data_unavailable IS NOT TRUE
+                    ORDER BY symbol,
+                             (CASE WHEN revenue IS NOT NULL OR earnings_per_share IS NOT NULL
+                                        OR net_income IS NOT NULL THEN 0 ELSE 1 END),
+                             fiscal_year DESC
+                ) anchor
+                WHERE revenue = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._zero_revenue_anchor_symbols_cache = result
         return result
 
     def _get_no_recent_total_assets_symbols(self) -> frozenset[str]:
