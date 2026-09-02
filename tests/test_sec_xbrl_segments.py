@@ -965,6 +965,37 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "SpecialtyMaterialsMember": 2_211_000_000.0,
         }
 
+    def test_single_segment_filer_specific_core_revenues_concept_recognized(self) -> None:
+        """FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR
+        verification): American Homes 4 Rent's (AMH, CIK 1562401) own extension concept,
+        amh:CoreRevenues, is the ONLY revenue-shaped fact anywhere in its real FY2025 10-K
+        instance document - AMH tags NumberOfReportableSegments=1 and never tags a plain,
+        non-dimensioned "Revenues" fact for _extract_single_segment_revenue's fallback to
+        find, only the dimensioned CoreRevenues fact under
+        StatementBusinessSegmentsAxis=ReportableSegmentMember (the standard ASU 2023-07
+        generic single-segment member name). Before this fix AMH fell through to
+        "no_segment_revenue_in_xbrl_xml" despite having its one real segment's revenue
+        ($1.609B, matching AMH's real known revenue scale) sitting right there in the
+        filing."""
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "ReportableSegmentMember", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <amh:CoreRevenues contextRef="c1">1609010000</amh:CoreRevenues>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:amh="http://www.americanhomes4rent.com/20251231" xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        assert result["segment_count"] == 1
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"ReportableSegmentMember": 1_609_010_000.0}
+
     def test_gross_boilerplate_paired_value_overridden_by_disagreeing_plain_value(self) -> None:
         """Real filer shape (verified live against Caterpillar's FY2025 10-K instance):
         Power & Energy's ConsolidationItemsAxis=OperatingSegmentsMember-paired context

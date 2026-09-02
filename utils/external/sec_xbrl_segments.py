@@ -294,6 +294,19 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # "no_segment_revenue_in_xbrl_xml" despite having complete real segment revenue on
     # file, purely because this concept wasn't in the recognized set.
     "NetSalesOfReportableSegmentsAndAllOther",
+    # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification):
+    # American Homes 4 Rent's (AMH, CIK 1562401) own extension concept for its single
+    # reportable segment's revenue - live-confirmed against AMH's real FY2025 10-K instance
+    # document: tags NumberOfReportableSegments=1 and its ONLY revenue-shaped fact anywhere
+    # in the filing is amh:CoreRevenues, dimensioned under
+    # StatementBusinessSegmentsAxis=ReportableSegmentMember (the standard ASU 2023-07 generic
+    # single-segment member name) - no plain, non-dimensioned "Revenues"/
+    # "RevenueFromContractWithCustomerExcludingAssessedTax" fact exists anywhere in the
+    # filing for _extract_single_segment_revenue's fallback to find either. Values ($1.609B
+    # FY2025, $1.507B FY2024, $1.408B FY2023 - a plausible, consistent ~7%/yr growth trend)
+    # match AMH's real, publicly known revenue scale. Same low-collision-risk filer-extension
+    # rationale as the GLW/BAC entries above.
+    "CoreRevenues",
 )
 
 # `ifrs-full:GrossProfit` is deliberately NOT in _REVENUE_CONCEPT_LOCAL_NAMES above, even
