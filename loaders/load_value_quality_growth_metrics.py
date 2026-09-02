@@ -2381,6 +2381,42 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_revenue_symbols_cache = result
         return result
 
+    def _get_revenue_available_elsewhere_symbols(self) -> frozenset[str]:
+        """Symbols with a real (non-NULL, non-zero) revenue in at least one available
+        annual_income_statement fiscal year - the direct positive counterpart to
+        _get_no_recent_revenue_symbols() above, not its logical negation. Same "anchor-year
+        fiscal mismatch" gate pattern as _get_net_income_available_elsewhere_symbols().
+
+        FIX 2026-09-02 (quality_row_db anchor-year investigation, goal: "keep the missing-
+        data number going down"): _get_no_recent_revenue_symbols()'s own docstring already
+        documented this exact residual back on 2026-08-18 ("~440 [ebitda_margin symbols] have
+        real revenue on file in a different fiscal year than the one quality_row's
+        balance-sheet anchor selected ... a distinct fiscal-year-anchor-selection gap ...
+        deliberately NOT covered by this windowed check") but never wired a fix for it -
+        ebitda_margin/gross_margin/asset_turnover all fell to generic "missing_sec_data" for
+        this population ever since. Same root cause as net_income's anchor-year mismatch:
+        quality_row_db's revenue column is joined to annual_income_statement via an EXACT
+        fiscal_year match to the balance-sheet anchor row, so a real revenue value one year
+        off from that anchor is invisible to it even though the symbol clearly has one.
+        Cached for the life of this loader instance; this query runs once per pipeline run,
+        not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_revenue_available_elsewhere_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) FILTER (WHERE revenue IS NOT NULL AND revenue != 0) >= 1
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._revenue_available_elsewhere_symbols_cache = result
+        return result
+
     def _get_zero_revenue_anchor_symbols(self) -> frozenset[str]:
         """Symbols whose SEC-selected anchor fiscal year (same tier/fiscal_year-DESC ordering
         load_sec_valuations.py's own income-statement query uses: prefer a row with revenue OR
@@ -5677,8 +5713,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
                     else "no_recent_total_assets_reported"
-                    if symbol in self._get_no_recent_total_assets_symbols()
-                    or symbol in self._get_never_tagged_total_assets_symbols()
+                    if total_assets is None
+                    and (
+                        symbol in self._get_no_recent_total_assets_symbols()
+                        or symbol in self._get_never_tagged_total_assets_symbols()
+                    )
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_revenue_available_elsewhere_symbols()'s docstring for the full live
+                    # evidence, a residual _get_no_recent_revenue_symbols() itself already
+                    # flagged as unfixed back on 2026-08-18): revenue is None here purely
+                    # because the balance-sheet anchor year's own income-statement row is
+                    # unavailable, not because the symbol lacks real revenue - the windowed
+                    # gate above already ruled that out. Label-only, no value recomputed.
+                    else "revenue_absent_from_anchor_year"
+                    if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if asset_turnover is None
@@ -5944,6 +5992,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if no_operating_income_concept
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols() or symbol in self._get_blank_check_symbols()
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_revenue_available_elsewhere_symbols()'s docstring for the full live
+                    # evidence): this is the exact "~440 [ebitda_margin symbols] have real
+                    # revenue on file in a different fiscal year than the one quality_row's
+                    # balance-sheet anchor selected" residual _get_no_recent_revenue_symbols()'s
+                    # own docstring flagged as unfixed back on 2026-08-18. Label-only, no value
+                    # recomputed.
+                    else "revenue_absent_from_anchor_year"
+                    if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "ebitda_margin" in failed_metrics
