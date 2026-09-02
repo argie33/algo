@@ -424,7 +424,17 @@ class SecValuationsLoader(OptimalLoader):
                 # income_rows[0]/[1]'s selection is unchanged.
                 income_rows = cur.fetchall()
                 if not income_rows:
-                    return [self._unavailable_marker(symbol, "no_income_statement")]
+                    # FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit):
+                    # total_cash/total_debt are pure balance-sheet facts with no income-
+                    # statement dependency - see _get_total_cash_and_debt's own docstring for
+                    # the live-confirmed AADX evidence this was silently losing both to this
+                    # exact early return.
+                    total_cash, total_debt = self._get_total_cash_and_debt(cur, symbol)
+                    return [
+                        self._unavailable_marker(
+                            symbol, "no_income_statement", total_cash=total_cash, total_debt=total_debt
+                        )
+                    ]
 
                 # len() guard: pre-existing tests mock income_rows as plain 10-element
                 # tuples (this method's own pre-2026-08-19 shape) - default to False
@@ -592,19 +602,6 @@ class SecValuationsLoader(OptimalLoader):
                 # 'incomplete_sec_filing_balance' rows can carry a non-NULL but unreliable
                 # cash_and_equivalents; live-confirmed 253 universe symbols with a valid
                 # current_price were picking one up as "the" cash figure.
-                cur.execute(
-                    """
-                    SELECT cash_and_equivalents
-                    FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
-                    ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                cash_row2 = cur.fetchone()
-                total_cash = cash_row2[0] if cash_row2 else None
-
                 # Debt = long_term_debt + short_term_debt + operating/finance lease liabilities
                 # (S&P/Moody's "adjusted debt" convention; NOT total_liabilities, which
                 # overstates debt ~3x by including accounts payable/deferred revenue/pensions -
@@ -639,41 +636,7 @@ class SecValuationsLoader(OptimalLoader):
                 # existing tiers for companies that never report long_term_debt at all (genuinely
                 # short-term-debt-only or lease-only capital structures aren't penalized - they
                 # simply never populate tier 0, same as before this fix).
-                cur.execute(
-                    """
-                    SELECT
-                        long_term_debt,
-                        short_term_debt,
-                        operating_lease_liability,
-                        finance_lease_liability
-                    FROM annual_balance_sheet
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
-                    ORDER BY (CASE
-                                WHEN long_term_debt IS NOT NULL
-                                THEN 0
-                                WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
-                                     + COALESCE(operating_lease_liability, 0)
-                                     + COALESCE(finance_lease_liability, 0) != 0
-                                THEN 1
-                                WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
-                                     OR operating_lease_liability IS NOT NULL
-                                     OR finance_lease_liability IS NOT NULL
-                                THEN 2
-                                ELSE 3
-                              END), fiscal_year DESC
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                debt_row = cur.fetchone()
-                if debt_row:
-                    debt_components = debt_row
-                    if all(c is None for c in debt_components):
-                        total_debt = None
-                    else:
-                        total_debt = sum(c or 0 for c in debt_components)
-                else:
-                    total_debt = None
+                total_cash, total_debt = self._get_total_cash_and_debt(cur, symbol)
 
                 # EBITDA = Operating Income + Depreciation + Amortization (Session 398)
                 ebitda = None
@@ -2768,6 +2731,74 @@ class SecValuationsLoader(OptimalLoader):
         key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
         if all(m is None for m in key_metrics):
             result["data_unavailable"] = True
+
+    def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]:
+        """Pure balance-sheet total_cash/total_debt lookup - no income-statement dependency,
+        so callable even before annual_income_statement has any usable row.
+
+        FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit): extracted
+        from fetch_incremental's main flow so the "no_income_statement" early-return
+        (immediately below the income_rows fetch) can reuse these exact same queries instead
+        of losing both pure balance-sheet facts to an accidental control-flow gap - live-
+        confirmed AADX has a real, current, non-flagged cash_and_equivalents ($18.1M FY2026)
+        but zero usable annual_income_statement rows, so total_cash/total_debt were nulled out
+        purely because the "no income statement" exit ran first, not because the balance-sheet
+        data was actually missing. Same "these two don't need X" principle the 2026-08-19
+        total_debt/total_cash/ebitda-before-every-gate fix already established for the
+        shares_outstanding/price gates below (see fetch_incremental's own "MOVED 2026-08-19"
+        comment) - this closes the identical gap at the one gate that fix's own docstring
+        explicitly (and, it turns out, incorrectly) assumed had "no balance-sheet query even
+        run yet". ebitda is NOT included here - it genuinely needs operating_income/
+        depreciation/amortization from the income statement, so it correctly stays NULL when
+        income_rows is empty.
+        """
+        cur.execute(
+            """
+            SELECT cash_and_equivalents
+            FROM annual_balance_sheet
+            WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+            ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+            LIMIT 1
+            """,
+            (symbol,),
+        )
+        cash_row2 = cur.fetchone()
+        total_cash = cash_row2[0] if cash_row2 else None
+
+        cur.execute(
+            """
+            SELECT
+                long_term_debt,
+                short_term_debt,
+                operating_lease_liability,
+                finance_lease_liability
+            FROM annual_balance_sheet
+            WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+            ORDER BY (CASE
+                        WHEN long_term_debt IS NOT NULL
+                        THEN 0
+                        WHEN COALESCE(long_term_debt, 0) + COALESCE(short_term_debt, 0)
+                             + COALESCE(operating_lease_liability, 0)
+                             + COALESCE(finance_lease_liability, 0) != 0
+                        THEN 1
+                        WHEN long_term_debt IS NOT NULL OR short_term_debt IS NOT NULL
+                             OR operating_lease_liability IS NOT NULL
+                             OR finance_lease_liability IS NOT NULL
+                        THEN 2
+                        ELSE 3
+                      END), fiscal_year DESC
+            LIMIT 1
+            """,
+            (symbol,),
+        )
+        debt_row = cur.fetchone()
+        if debt_row:
+            debt_components = debt_row
+            total_debt = None if all(c is None for c in debt_components) else sum(c or 0 for c in debt_components)
+        else:
+            total_debt = None
+
+        return total_cash, total_debt
 
     def _unavailable_marker(
         self,
