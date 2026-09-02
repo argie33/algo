@@ -2195,6 +2195,28 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # ocf_to_net_income_unavailable_reason in load_value_quality_growth_metrics.py.
             "operating_cash_flow_absent_from_anchor_year",
             "free_cash_flow_absent_from_anchor_year",
+            # ADDED 2026-09-02 (same sweep, static cross-check of every reason-string literal
+            # in the SEC/XBRL loader files against this map - not just live DB counts, which
+            # can't see a reason string that hasn't fired yet in the current data): 7 more
+            # genuinely unmapped "the SEC data isn't there" facts found this way.
+            # no_recent_operating_cash_flow_reported: sibling of no_recent_free_cash_flow_
+            # reported above (both from load_value_quality_growth_metrics.py's OCF/FCF
+            # windowed gates) - only the FCF one was ever added.
+            "no_recent_operating_cash_flow_reported",
+            # entity_name_not_found/submissions_not_found_404/submissions_empty/
+            # no_submissions: load_company_info_sec.py/load_earnings_calendar_sec.py/
+            # load_current_reports_8k.py's own "SEC submissions.json has nothing for this
+            # symbol/CIK" facts - same class as cik_not_found already above.
+            "entity_name_not_found",
+            "submissions_not_found_404",
+            "submissions_empty",
+            "no_submissions",
+            # stockholders_equity_never_tagged_in_filings/total_liabilities_not_reported:
+            # pb_ratio/debt_to_assets's own "never tagged this concept, full history" gates in
+            # load_value_quality_growth_metrics.py - same class as stockholders_equity_not_
+            # reported/total_debt_not_itemized already above.
+            "stockholders_equity_never_tagged_in_filings",
+            "total_liabilities_not_reported",
             # ADDED 2026-09-02 (same sweep): loaders/helpers/sec_base.py writes this when a
             # full unfiltered SEC refetch no longer reproduces a fiscal year the DB
             # currently marks available - that year's data is retracted/no longer backed by
@@ -2335,6 +2357,13 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # computed value" class as the other reasons in this bucket, just phrased around
             # "completeness" instead of "history". Was unmapped (179 live rows).
             "insufficient_completeness",
+            # ADDED 2026-09-02 (same sweep, static cross-check): earnings_growth_4q_avg/
+            # eps_growth_stability/quarterly_growth_momentum's own "found fewer than 8
+            # quarters of history with a same-quarter-prior-year match" case
+            # (load_value_quality_growth_metrics.py) - same "not enough history yet" class as
+            # insufficient_quarterly_history two lines above, just a more precise label for
+            # the year-over-year-matching sub-case.
+            "insufficient_year_over_year_quarterly_history",
         },
     ),
     (
@@ -2415,6 +2444,12 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # |beta| > 10 as a numerically degenerate regression result (near-zero SPY
             # variance denominator, not a real risk figure) - same class as implausible_ratio.
             "extreme_beta",
+            # ADDED 2026-09-02 (same sweep, static cross-check): load_value_quality_growth_
+            # metrics.py's forward_pe_reason - a real forward EPS estimate is on file, but the
+            # resulting forward_pe fell below MIN_PLAUSIBLE_FORWARD_PE_RATIO (a near-zero-EPS
+            # artifact, not a real valuation), rejected the same way implausible_ratio/
+            # extreme_beta are rather than persisting a single extreme outlier value.
+            "implausibly_low_forward_pe",
         },
     ),
     (

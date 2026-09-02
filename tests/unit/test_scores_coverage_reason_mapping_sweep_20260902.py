@@ -120,3 +120,45 @@ def test_operating_cash_flow_absent_from_anchor_year_categorizes_as_missing_sec_
 
 def test_free_cash_flow_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
     assert scores_mod._categorize_reason("free_cash_flow_absent_from_anchor_year") == "Missing SEC/XBRL data"
+
+
+# ADDED 2026-09-02 (same goal session, static sweep): cross-checked every reason-string
+# literal in the SEC/XBRL loader files against this map (not just live DB counts, which
+# can't see a reason string that hasn't fired yet) and found 9 more genuinely unmapped
+# strings falling to "Other (errors / excluded)".
+
+
+def test_no_recent_operating_cash_flow_reported_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("no_recent_operating_cash_flow_reported") == "Missing SEC/XBRL data"
+
+
+def test_entity_name_not_found_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("entity_name_not_found") == "Missing SEC/XBRL data"
+
+
+def test_submissions_not_found_404_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("submissions_not_found_404") == "Missing SEC/XBRL data"
+
+
+def test_submissions_empty_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("submissions_empty") == "Missing SEC/XBRL data"
+
+
+def test_no_submissions_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("no_submissions") == "Missing SEC/XBRL data"
+
+
+def test_stockholders_equity_never_tagged_in_filings_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("stockholders_equity_never_tagged_in_filings") == "Missing SEC/XBRL data"
+
+
+def test_total_liabilities_not_reported_categorizes_as_missing_sec_xbrl():
+    assert scores_mod._categorize_reason("total_liabilities_not_reported") == "Missing SEC/XBRL data"
+
+
+def test_insufficient_year_over_year_quarterly_history_categorizes_as_insufficient_history():
+    assert scores_mod._categorize_reason("insufficient_year_over_year_quarterly_history") == "Insufficient history"
+
+
+def test_implausibly_low_forward_pe_categorizes_as_implausible():
+    assert scores_mod._categorize_reason("implausibly_low_forward_pe") == "Implausible / rejected value"
