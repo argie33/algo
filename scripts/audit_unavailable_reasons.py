@@ -162,10 +162,44 @@ def main() -> None:
                     else ""
                 )
                 if "symbol" in cols and order_col:
+                    # FIXED 2026-09-02 (goal session: "keep the missing-data number going
+                    # down" SEC/XBRL audit): this plain "latest fiscal_year row's reason"
+                    # query massively overcounted for annual_income_statement/annual_cash_flow/
+                    # quarterly_* (the fiscal_year-keyed tables using the bare reason/
+                    # data_unavailable convention) - live-confirmed 3305/3345 (99%) of
+                    # annual_income_statement's "incomplete_sec_filing_income" and 2489/2532
+                    # (98%) of annual_cash_flow's "incomplete_sec_filing_cashflow" were just
+                    # the CURRENT in-progress fiscal year (FY2026, since today is 2026-09-02)
+                    # - every calendar-year filer gets this placeholder row because no 10-K
+                    # can exist yet for a fiscal year that hasn't ended, not because of any
+                    # real gap. NEM/DLX/RMBS/MARA/CYTK all have complete real revenue/
+                    # net_income back through FY2008-2011 sitting right there in the same
+                    # table; downstream scoring already correctly falls back to the latest
+                    # REAL fiscal year via load_financial_statements.py's own year-selection
+                    # logic. lambda/api/routes/scores.py's _get_scores_coverage already
+                    # solved this exact overcounting for its production dashboard number via
+                    # a "never_available" CTE (2026-09-01 rewrite) - this script never got
+                    # the same fix, so it kept reporting a number nobody else in the codebase
+                    # trusts. Ported the same CTE here (no value_col cross-check, since this
+                    # diagnostic script never tracked one per-table - see scores.py's own
+                    # value_col comment for why that matters there): a symbol only counts as
+                    # "missing" if EVERY row it has is unavailable, not just its highest
+                    # fiscal_year row.
                     query = f"""
+                        WITH candidates AS (
+                            SELECT DISTINCT {table}.symbol FROM {table}{active_join}
+                            WHERE {table}.{column} IS NOT NULL
+                        ),
+                        never_available AS (
+                            SELECT c.symbol FROM candidates c
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM {table} t2 WHERE t2.symbol = c.symbol AND t2.{column} IS NULL
+                            )
+                        )
                         SELECT reason_val, COUNT(*) FROM (
                             SELECT DISTINCT ON ({table}.symbol) {table}.symbol, {table}.{column} AS reason_val
-                            FROM {table}{active_join}
+                            FROM {table}
+                            JOIN never_available na ON na.symbol = {table}.symbol
                             ORDER BY {table}.symbol, {table}.{order_col} DESC
                         ) latest
                         WHERE reason_val IS NOT NULL
