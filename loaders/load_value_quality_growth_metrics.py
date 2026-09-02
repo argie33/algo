@@ -1513,7 +1513,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             ),
             "peg_ratio_unavailable_reason": peg_ratio_reason,
             "dividend_yield_unavailable_reason": dividend_yield_reason,
-            "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
+            "fcf_yield_unavailable_reason": (
+                (
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): sec_valuations
+                    # derives fcf as ocf - capex - sbc (with a cross-year avg_fcf_fallback), the
+                    # same underlying "does this filer report free cash flow at all" business
+                    # fact quality_metrics.free_cash_flow_unavailable_reason already gates via
+                    # _get_no_recent_free_cash_flow_symbols() - reusing it here instead of a
+                    # generic label. Live-confirmed 207 of 421 universe fcf_yield
+                    # "missing_sec_data" rows (49%) are this exact case.
+                    "no_recent_free_cash_flow_reported"
+                    if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    else "missing_sec_data"
+                )
+                if fcf_yield is None
+                else None
+            ),
             "forward_pe_unavailable_reason": forward_pe_reason if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": (
