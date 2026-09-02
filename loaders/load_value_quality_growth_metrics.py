@@ -1174,6 +1174,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # (real negative/zero-EBITDA companies, for which EV/EBITDA is not a meaningful ratio,
         # same "not applicable" class as non_dividend_paying_stock) rather than any missing data.
         ebitda_raw = row_dict.get("ebitda")
+        # NEGATIVE ENTERPRISE VALUE (FIX 2026-09-02, goal: "no SEC data" audit continuation):
+        # load_sec_valuations.py only ever persists enterprise_value when market_cap +
+        # total_debt - total_cash comes out > 0 (see that computation's own bounds check) - a
+        # real net-cash-rich filer (cash alone exceeds market_cap + debt) computes a
+        # negative/zero EV there, which is a genuine "not a meaningful ratio" case (EV/EBITDA
+        # and EV/Revenue are undefined for a company effectively worth less than its own cash
+        # pile), same "not applicable" class as unprofitable_stock/non_dividend_paying_stock,
+        # not a data gap. Approximates load_sec_valuations.py's own entity-wide EV formula
+        # with the plain (per-class) market_cap already persisted here - same
+        # educated-inference-from-an-adjacent-field precedent as every other reason in this
+        # block; used only for labeling, never for a computed VALUE. Live-confirmed 120/259
+        # (46%) of ev_revenue and 42/76 (55%) of ev_ebitda's residual "missing_sec_data" rows
+        # are this exact case.
+        _computed_ev_for_reason = (
+            market_cap + (row_dict.get("total_debt") or 0) - (row_dict.get("total_cash") or 0)
+            if market_cap is not None
+            else None
+        )
         if ebitda_raw is not None and ebitda_raw <= 0:
             ev_ebitda_reason = "unprofitable_stock"
         elif ebitda_raw is None:
@@ -1185,6 +1203,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # Live-confirmed 28 of 83 (34%) universe ev_ebitda missing_sec_data rows are this case.
         elif symbol in self._get_no_recent_debt_components_symbols():
             ev_ebitda_reason = "total_debt_not_itemized"
+        elif _computed_ev_for_reason is not None and _computed_ev_for_reason <= 0:
+            ev_ebitda_reason = "negative_enterprise_value"
         else:
             ev_ebitda_reason = "missing_sec_data"
 
@@ -1601,6 +1621,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # missing_sec_data rows are this case.
                     else "total_debt_not_itemized"
                     if symbol in self._get_no_recent_debt_components_symbols()
+                    # Same negative-enterprise-value case as ev_ebitda_reason above (net cash
+                    # exceeds market_cap + total_debt) - see _computed_ev_for_reason's own
+                    # comment for the full rationale. Live-confirmed 120/259 (46%) of
+                    # ev_revenue's residual "missing_sec_data" rows are this exact case.
+                    else "negative_enterprise_value"
+                    if _computed_ev_for_reason is not None and _computed_ev_for_reason <= 0
                     else "missing_sec_data"
                 )
                 if ev_revenue is None
