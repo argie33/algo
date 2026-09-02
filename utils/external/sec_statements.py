@@ -709,6 +709,87 @@ def _fill_earnings_per_share_from_continuing_discontinued_split(rows: list[dict[
             row["earnings_per_share_basic"] = row["earnings_per_share_diluted"]
 
 
+def _fill_eps_shares_from_dual_class_dimensional_facts(rows: list[dict[str, Any]], client: Any, symbol: str) -> None:
+    """Last-resort fallback: recover EPS/weighted-average-share facts tagged only under a
+    us-gaap:StatementClassOfStockAxis dimensional context, for symbols whose own share class
+    is determinable from a dot-suffix ticker (BRK.A/BRK.B, CRD.A/CRD.B, GTN.A, GEF.B, ...).
+
+    See loaders/helpers/sec_dual_class_eps.py's module docstring (Berkshire live-confirmed
+    2026-09-02) for why no concept alias can ever close this gap - same root cause family as
+    _fill_long_term_debt_from_segment_dimensional_facts above, different axis/concepts. Only
+    fires for a fiscal year still missing ANY of the 4 target fields after every tier above;
+    never overwrites a real value. Bounded to the most recent 3 missing fiscal years per
+    symbol, same rationale as the debt fallback's identical cap (live scoring only reads the
+    latest 1-2 annual rows; an unbounded scan of a symbol's full history risks the same
+    zombie-thread/rate-limiter contention already found and fixed there).
+    """
+    from loaders.helpers.sec_dual_class_eps import extract_dual_class_eps_shares, resolve_class_letter
+    from loaders.helpers.sec_segment_debt import find_10k_for_fiscal_year
+
+    class_letter = resolve_class_letter(symbol)
+    if class_letter is None:
+        return
+
+    target_fields = (
+        "earnings_per_share_basic",
+        "earnings_per_share_diluted",
+        "weighted_average_number_of_shares_outstanding_basic",
+        "weighted_average_number_of_diluted_shares_outstanding",
+    )
+    all_missing_years = [
+        row["fiscal_year"] for row in rows if row.get("fiscal_year") and any(row.get(f) is None for f in target_fields)
+    ]
+    if not all_missing_years:
+        return
+    missing_years = sorted(set(all_missing_years), reverse=True)[:3]
+
+    try:
+        cik = client.symbol_to_cik(symbol)
+        submissions = client.get_submissions(cik)
+    except Exception:
+        logger.debug(
+            f"[DUAL_CLASS_EPS] {symbol}: could not fetch submissions for dual-class EPS fallback", exc_info=True
+        )
+        return
+
+    field_map = {
+        "eps_basic": "earnings_per_share_basic",
+        "eps_diluted": "earnings_per_share_diluted",
+        "shares_basic": "weighted_average_number_of_shares_outstanding_basic",
+        "shares_diluted": "weighted_average_number_of_diluted_shares_outstanding",
+    }
+
+    for row in rows:
+        if row.get("fiscal_year") not in missing_years or not any(row.get(f) is None for f in target_fields):
+            continue
+        located = find_10k_for_fiscal_year(submissions, int(row["fiscal_year"]))
+        if located is None:
+            continue
+        accession, period_end = located
+        try:
+            xml_text = client.get_filing_xml(cik, accession, "10-K")
+        except Exception:
+            logger.debug(
+                f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: could not fetch instance XML "
+                f"({accession}) for dual-class EPS fallback",
+                exc_info=True,
+            )
+            continue
+        result = extract_dual_class_eps_shares(xml_text, class_letter, period_end)
+        if not result:
+            continue
+        filled = []
+        for src_key, dest_key in field_map.items():
+            if row.get(dest_key) is None and src_key in result:
+                row[dest_key] = result[src_key]
+                filled.append(dest_key)
+        if filled:
+            logger.info(
+                f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: recovered {filled} via class "
+                f"'{class_letter}' StatementClassOfStockAxis dimensional match ({accession})"
+            )
+
+
 def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: long_term_debt = LongTermDebtNoncurrent + LongTermDebtCurrent.
 
@@ -1103,6 +1184,8 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
+    if period == "annual":
+        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol)
     return rows
 
 
