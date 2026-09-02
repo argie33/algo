@@ -6142,6 +6142,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         *,
         min_abs_target: float = 0.0,
         immaterial_base_metrics: set[str] | None = None,
+        implausible_growth_metrics: set[str] | None = None,
     ) -> None:
         """Compute growth for a single period (nominally 1y, 3y, or 5y).
 
@@ -6236,6 +6237,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         growth = self._cagr(latest_val, target_val, actual_years)
         if growth is not None and abs(growth) < MAX_PLAUSIBLE_GROWTH_PCT:
             metrics[metric_key] = float(round(growth, 2))
+        elif growth is not None:
+            # FIX 2026-09-02 (goal: "no SEC data" audit continuation): a real, computed CAGR
+            # that's just too extreme to be meaningful (e.g. a small-base ramp-up company going
+            # from $22.7M to $829M revenue in a year = 3652%) was indistinguishable from
+            # genuinely-too-few-datapoints below - both landed in failed_metrics, so
+            # _growth_reason() below reported "insufficient_history" even though history was
+            # never the problem. Same "garbage_metric_value_implausible_growth_rate" label this
+            # file's earnings_growth_4q_avg/eps_growth_stability/quarterly_growth_momentum
+            # blocks already use for the identical bound rejection - reusing it here instead of
+            # inventing a fourth name for the same fact. Live-confirmed 79 rows across the 6
+            # revenue_growth_*/eps_growth_* periods hit this exact case (e.g. ARWR
+            # revenue_growth_1y: $22.72M -> $829.45M).
+            failed_metrics.append(metric_key)
+            if implausible_growth_metrics is not None:
+                implausible_growth_metrics.add(metric_key)
         else:
             failed_metrics.append(metric_key)
 
@@ -6330,8 +6346,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         sign_change_metrics: set[str] = set()
         split_discontinuity_metrics: set[str] = set()
         immaterial_base_metrics: set[str] = set()
+        # Real CAGR computed but beyond MAX_PLAUSIBLE_GROWTH_PCT (2000%) - see
+        # _compute_period_growth's own comment on this branch for the full rationale.
+        implausible_growth_metrics: set[str] = set()
         self._compute_period_growth(
-            symbol, revenues, 1, "revenue_growth_1y", metrics, failed_metrics, sign_change_metrics
+            symbol,
+            revenues,
+            1,
+            "revenue_growth_1y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
         self._compute_period_growth(
             symbol,
@@ -6345,6 +6371,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             shares_by_year,
             min_abs_target=0.10,
             immaterial_base_metrics=immaterial_base_metrics,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
         # book_value_growth: same split-guard as EPS (shares_by_year) since BVPS is equally
         # sensitive to a stock-split changing the per-share denominator across the two CAGR
@@ -6359,9 +6386,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             sign_change_metrics,
             split_discontinuity_metrics,
             shares_by_year,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
         self._compute_period_growth(
-            symbol, revenues, 3, "revenue_growth_3y", metrics, failed_metrics, sign_change_metrics
+            symbol,
+            revenues,
+            3,
+            "revenue_growth_3y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
         self._compute_period_growth(
             symbol,
@@ -6375,9 +6410,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             shares_by_year,
             min_abs_target=0.10,
             immaterial_base_metrics=immaterial_base_metrics,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
         self._compute_period_growth(
-            symbol, revenues, 5, "revenue_growth_5y", metrics, failed_metrics, sign_change_metrics
+            symbol,
+            revenues,
+            5,
+            "revenue_growth_5y",
+            metrics,
+            failed_metrics,
+            sign_change_metrics,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
         self._compute_period_growth(
             symbol,
@@ -6391,6 +6434,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             shares_by_year,
             min_abs_target=0.10,
             immaterial_base_metrics=immaterial_base_metrics,
+            implausible_growth_metrics=implausible_growth_metrics,
         )
 
         if not revenues and not eps_values and not bvps_values:
@@ -6403,6 +6447,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 return "growth_undefined_share_count_discontinuity"
             if metric_key in immaterial_base_metrics:
                 return "immaterial_prior_year_base"
+            if metric_key in implausible_growth_metrics:
+                return "garbage_metric_value_implausible_growth_rate"
             if metric_key in failed_metrics:
                 return "insufficient_history"
             return None
