@@ -103,9 +103,12 @@ class TestPeRatioUnavailableReasonExcludesIncompleteFilingRow:
         assert metrics["pe_ratio"] is None
         assert metrics["pe_ratio_unavailable_reason"] == "unprofitable_stock"
 
-    def test_genuinely_missing_eps_still_reports_missing_sec_data(self):
-        """Control: a symbol with no usable EPS row at all (real data gap) must keep the
-        generic "missing_sec_data" reason, not be swept into "unprofitable_stock"."""
+    def test_genuinely_missing_eps_reports_eps_never_tagged(self):
+        """A symbol with NO usable EPS row anywhere in its full filing history (query has no
+        fiscal-year window) gets the specific "eps_never_tagged_in_filings" reason - see
+        test_pe_ratio_never_tagged_eps_reason_20260902.py for the dedicated regression test
+        this label was added by. Not be swept into "unprofitable_stock", and no longer the
+        generic "missing_sec_data" either."""
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = _EpsQueryCursor(eps_row=None)
@@ -117,7 +120,7 @@ class TestPeRatioUnavailableReasonExcludesIncompleteFilingRow:
             )
 
         assert metrics["pe_ratio"] is None
-        assert metrics["pe_ratio_unavailable_reason"] == "missing_sec_data"
+        assert metrics["pe_ratio_unavailable_reason"] == "eps_never_tagged_in_filings"
 
     def test_profitable_company_with_real_pe_is_unaffected(self):
         """Control: a symbol with a real, computed pe_ratio never triggers this query path at

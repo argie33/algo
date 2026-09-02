@@ -1415,7 +1415,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 eps_row = cur.fetchone()
             latest_eps = eps_row[0] if eps_row else None
-            pe_ratio_reason = "unprofitable_stock" if latest_eps is not None and latest_eps <= 0 else "missing_sec_data"
+            pe_ratio_reason = (
+                "unprofitable_stock"
+                if latest_eps is not None and latest_eps <= 0
+                # FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL
+                # audit): `eps_row is None` means this exact full-history query (no fiscal-year
+                # window - it already searches ALL of a symbol's real, non-unavailable rows)
+                # found ZERO fiscal years with a real earnings_per_share value - a distinct,
+                # verifiable fact from "found a value but pe still came out null for some other
+                # reason" (price/ttm-anchor mismatch, the genuinely ambiguous remainder that
+                # correctly stays "missing_sec_data"). Live-verified 39 of the universe's 128
+                # pe_ratio "missing_sec_data" rows are this exact case - real net_income present
+                # every year (BP, FMX, AMTD, JG, CRGY, HESM spot-checked directly), but no
+                # earnings_per_share concept ever tagged: foreign 20-F/IFRS filers (BP, FMX,
+                # AMTD, JG) and an MLP/unit-structure filer (HESM, "net income per unit" instead
+                # of a standard EPS concept) among the sample - same "real business, different
+                # tagging convention" class as _get_no_tax_concept_symbols() elsewhere in this
+                # file, just for EPS instead of tax concepts.
+                else "eps_never_tagged_in_filings"
+                if eps_row is None
+                else "missing_sec_data"
+            )
 
         peg_ratio_reason: str | None
         if peg is None and pe is not None:
