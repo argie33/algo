@@ -76,8 +76,23 @@ def handle(
         # *_unavailable_reason columns are missing data, why, and how much. Mirrors
         # scripts/audit_unavailable_reasons.py's methodology (latest row per symbol,
         # deduplicated) but served live for the ServiceHealth "Scores Data Coverage" tab.
+        #
+        # FIXED 2026-09-01 (goal session: this single request ran ~100+ sequential
+        # per-table queries in one HTTP call, taking 15-20s+ end to end - close enough to
+        # the frontend axios client's 28s hard timeout (set deliberately below API
+        # Gateway/Lambda's own 30s hard cutoff, see api.js) that it timed out in practice
+        # under any real load, even though a one-off psql/script run of the same queries
+        # "worked". Bumping the client timeout doesn't fix this: in production Lambda
+        # kills the function at 30s regardless of what the client is willing to wait, so
+        # the actual fix is to break the ~100+ queries into per-group chunks the frontend
+        # fetches separately (ScoresDataCoverage.jsx), each cheap enough to finish well
+        # under either limit. `?meta=1` returns just the group list (two fast
+        # information_schema queries, no per-table scans) so the frontend knows what to
+        # fetch; `?group=<name>` scopes the normal per-table loop to one group at a time.
         if path in ["/api/scores/coverage", "/api/algo/scores/coverage"]:
-            return _get_scores_coverage(cur)
+            if extract_param(params, "meta") == "1":
+                return _get_scores_coverage(cur, meta_only=True)
+            return _get_scores_coverage(cur, group_filter=extract_param(params, "group"))
 
         if path in [
             "/api/scores",
@@ -2638,21 +2653,41 @@ def _prettify_source(raw: str) -> str:
 
 
 def _fetch_table_source_breakdown(
-    cur: cursor, table: str, cols: set[str], has_symbol: bool, order_col: str, active_join: str
+    cur: cursor, table: str, cols: set[str], has_symbol: bool, order_col: str
 ) -> list[dict[str, Any]] | None:
     """Latest-row-per-symbol breakdown of a table's `data_source` column, or None if the
     table has no such column (or isn't per-symbol). See _get_scores_coverage's call site
-    comment for why this is computed once per table rather than per factor."""
+    comment for why this is computed once per table rather than per factor.
+
+    REWRITTEN 2026-09-01 (goal session: "this one timing out") - unlike the sparse
+    *_unavailable_reason columns this loop otherwise deals with, `data_source` is dense
+    (populated on essentially every row), so the "candidates" trick in the main query above
+    doesn't apply here - genuinely needs each active symbol's actual latest-row source.
+    The original `DISTINCT ON (symbol) ... ORDER BY symbol, order_col DESC` form forces
+    Postgres to sort every one of the table's rows per symbol before picking the top one -
+    live-confirmed this cost price_daily.data_source ~8s alone (26.2M rows across ~5,100
+    active symbols), on top of the main query's own cost. A `LATERAL ... ORDER BY order_col
+    DESC LIMIT 1` per active symbol instead lets Postgres walk the existing (symbol, date DESC)
+    index straight to each symbol's one latest row without materializing or sorting the rest -
+    live-verified byte-identical output, ~0.5s (16x faster) on price_daily, and
+    indistinguishable on every smaller table tested.
+    """
     if not (has_symbol and order_col and "data_source" in cols):
         return None
     try:
         cur.execute(
             f"""
             SELECT source_val, COUNT(*) FROM (
-                SELECT DISTINCT ON ({table}.symbol) {table}.symbol,
-                       {table}.data_source AS source_val
-                FROM {table}{active_join}
-                ORDER BY {table}.symbol, {table}.{order_col} DESC
+                SELECT pd.data_source AS source_val
+                FROM stock_symbols _su
+                CROSS JOIN LATERAL (
+                    SELECT {table}.data_source
+                    FROM {table}
+                    WHERE {table}.symbol = _su.symbol
+                    ORDER BY {table}.{order_col} DESC
+                    LIMIT 1
+                ) pd (data_source)
+                WHERE _su.active = true
             ) latest
             GROUP BY source_val
             ORDER BY COUNT(*) DESC
@@ -2675,21 +2710,31 @@ def _fetch_table_source_breakdown(
 
 
 def _fetch_table_source_tracking(
-    cur: cursor, table: str, cols: set[str], has_symbol: bool, order_col: str, active_join: str
+    cur: cursor, table: str, cols: set[str], has_symbol: bool, order_col: str
 ) -> dict[str, list[dict[str, Any]]] | None:
     """Latest-row-per-symbol breakdown of a table's `source_tracking` JSONB column (per-field
     provenance, e.g. positioning_metrics' short_interest/institutional/insider), keyed by field
-    name. None if the table has no such column."""
+    name. None if the table has no such column.
+
+    Same LATERAL-per-symbol rewrite as _fetch_table_source_breakdown above, for the same
+    reason - see that function's docstring.
+    """
     if not (has_symbol and order_col and "source_tracking" in cols):
         return None
     try:
         cur.execute(
             f"""
             SELECT kv.field_key, kv.source_val, COUNT(*) FROM (
-                SELECT DISTINCT ON ({table}.symbol) {table}.symbol,
-                       {table}.source_tracking AS st
-                FROM {table}{active_join}
-                ORDER BY {table}.symbol, {table}.{order_col} DESC
+                SELECT pd.source_tracking AS st
+                FROM stock_symbols _su
+                CROSS JOIN LATERAL (
+                    SELECT {table}.source_tracking
+                    FROM {table}
+                    WHERE {table}.symbol = _su.symbol
+                    ORDER BY {table}.{order_col} DESC
+                    LIMIT 1
+                ) pd (source_tracking)
+                WHERE _su.active = true
             ) latest, LATERAL jsonb_each_text(COALESCE(latest.st, '{{}}'::jsonb)) AS kv(field_key, source_val)
             GROUP BY kv.field_key, kv.source_val
             ORDER BY kv.field_key, COUNT(*) DESC
@@ -2753,7 +2798,32 @@ def _resolve_factor_sources(
     return table_source_cache.get(table)
 
 
-def _get_scores_coverage(cur: cursor) -> Any:
+def _resolve_factor_value_col(
+    cur: cursor, table: str, column: str, table_all_cols_cache: dict[str, set[str]]
+) -> tuple[str, str | None]:
+    """Derives the factor name from a `*_unavailable_reason` column and, if a same-named
+    value column exists on `table`, returns it too - see _get_scores_coverage's own
+    2026-09-01 call-site comment for why: some loaders deliberately keep a real value (e.g.
+    dividend_yield=0.0 for a confirmed non-payer) alongside a non-NULL reason "for
+    transparency", so the reason column alone isn't sufficient to infer "missing". Returns
+    (factor_name, None) when no matching value column exists (the bare_reason_tables case,
+    where "reason" describes the whole row rather than one specific field) - callers fall
+    back to reason-only behavior in that case. `table_all_cols_cache` is populated lazily,
+    once per table, and shared across every factor column on that table."""
+    factor_name_candidate = re.sub(r"_?unavailable_reason$", "", column).rstrip("_")
+    if not factor_name_candidate or factor_name_candidate in ("data", "reason"):
+        return factor_name_candidate, None
+    if table not in table_all_cols_cache:
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",
+            (table,),
+        )
+        table_all_cols_cache[table] = {r[0] for r in cur.fetchall()}
+    value_col = factor_name_candidate if factor_name_candidate in table_all_cols_cache[table] else None
+    return factor_name_candidate, value_col
+
+
+def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only: bool = False) -> Any:
     """Factor-level data coverage report: which *_unavailable_reason columns are
     missing data across the universe, how much, and why - aggregated by root cause.
 
@@ -2761,6 +2831,12 @@ def _get_scores_coverage(cur: cursor) -> Any:
     grouped-count queries (one per *_unavailable_reason column found in the schema) -
     not meant to be polled on a tight interval, hence no data_freshness auto-refresh
     wiring; the frontend refetches on manual click only.
+
+    `group_filter` scopes the (expensive) per-table loop below to a single
+    `_TABLE_GROUP` value, so one HTTP call covers a handful of tables instead of all
+    ~20 - see the 2026-09-01 fix note at this function's call site for why. `meta_only`
+    short-circuits before any per-table query runs at all, returning just the group
+    list the frontend chunks its requests by.
     """
     try:
         cur.execute(
@@ -2847,8 +2923,16 @@ def _get_scores_coverage(cur: cursor) -> Any:
         )
         reason_columns.extend((r[0], r[1]) for r in cur.fetchall())
 
+        if meta_only:
+            groups = sorted({_TABLE_GROUP.get(t, t) for t, _ in reason_columns})
+            return json_response(200, {"groups": groups, "factor_count": len(reason_columns)})
+
+        if group_filter:
+            reason_columns = [(t, c) for t, c in reason_columns if _TABLE_GROUP.get(t, t) == group_filter]
+
         denom_cache: dict[str, int | None] = {}
         table_cols_cache: dict[str, set[str]] = {}
+        table_all_cols_cache: dict[str, set[str]] = {}
         # Per-table (not per-factor) source breakdown caches - `data_source`/`source_tracking`
         # are table-level columns shared by every *_unavailable_reason factor on that table, so
         # they're computed once per table and attached to each of that table's factor rows below,
@@ -2872,6 +2956,26 @@ def _get_scores_coverage(cur: cursor) -> Any:
             cols = table_cols_cache[table]
             has_symbol = "symbol" in cols
             order_col = _coverage_order_col(cur, table, cols)
+
+            # FIXED 2026-09-01 (goal: "are these gaps real" audit, live-caught via
+            # value_metrics.dividend_yield): this report used to infer "missing" purely from
+            # the *_unavailable_reason column being non-NULL, on the unstated assumption that
+            # every loader nulls the reason out the moment it fills the real value. That's true
+            # almost everywhere but not universal - load_value_quality_growth_metrics.py
+            # deliberately sets dividend_yield=0.0 (a real, correct value) for confirmed
+            # non-payers while KEEPING dividend_yield_unavailable_reason='non_dividend_paying_stock'
+            # "for transparency" (see that file's 2026-08-05 fix comment) - live-confirmed 2,771
+            # rows carry a real non-NULL value alongside a non-NULL reason, inflating
+            # dividend_yield's reported gap from a real ~5.6% to a shown 59.6%. Resolving the
+            # matching value column (same name as the factor, e.g. "dividend_yield" for
+            # "dividend_yield_unavailable_reason") and requiring it be NULL too closes this for
+            # every factor at once rather than special-casing dividend_yield - live-audited via a
+            # full-schema scan and found only 3 other, negligible (1-8 row) instances of the same
+            # pattern (company_info_sec.shares_outstanding, quality_metrics.
+            # estimate_momentum_60d/90d), so this generalizes cleanly. Falls back to the old
+            # reason-only behavior when no matching value column exists (the bare_reason_tables
+            # case, where "reason" describes the whole row rather than one specific field).
+            factor_name_candidate, value_col = _resolve_factor_value_col(cur, table, column, table_all_cols_cache)
 
             # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): every
             # query below used to scan {table} directly with no active-universe filter, so
@@ -2911,11 +3015,9 @@ def _get_scores_coverage(cur: cursor) -> Any:
             # `data_source` column. Split into helpers above to keep this loop's own complexity
             # in check.
             if table not in table_source_cache:
-                table_source_cache[table] = _fetch_table_source_breakdown(
-                    cur, table, cols, has_symbol, order_col, active_join
-                )
+                table_source_cache[table] = _fetch_table_source_breakdown(cur, table, cols, has_symbol, order_col)
                 table_source_tracking_cache[table] = _fetch_table_source_tracking(
-                    cur, table, cols, has_symbol, order_col, active_join
+                    cur, table, cols, has_symbol, order_col
                 )
 
             try:
@@ -2934,17 +3036,57 @@ def _get_scores_coverage(cur: cursor) -> Any:
                     # current, not-yet-filed fiscal year) while an older row for the same symbol
                     # has real, usable data - live-confirmed on annual_income_statement (3,076
                     # symbols) via stocks.py's identical bug in the deep-value screener CTEs,
-                    # fixed alongside this. Ordering by "(reason_val IS NULL) DESC" first prefers
-                    # a row where this factor is genuinely available, regardless of its
-                    # fiscal_year/date, before falling back to order_col DESC among rows where
-                    # it's never been available - same "once real, always real" rule
+                    # fixed alongside this. A symbol only counts as "missing" here if it has
+                    # NEVER once had a row where this factor was available, regardless of
+                    # fiscal_year/date - same "once real, always real" rule
                     # load_value_quality_growth_metrics.py's own "latest row" helpers already
                     # apply when computing ratios from these same tables.
+                    #
+                    # REWRITTEN 2026-09-01 (goal session: "this one timing out") - the original
+                    # form of this query (`DISTINCT ON (symbol) ... ORDER BY symbol, (reason_val
+                    # IS NULL) DESC, order_col DESC`) computed the exact same "once real, always
+                    # real" result but by sorting EVERY row of the table per symbol, which is
+                    # what a plain per-symbol DISTINCT ON always costs regardless of how rare the
+                    # non-null reason values actually are - live-confirmed price_daily.
+                    # data_unavailable_reason (26.2M rows, only 15 ever non-null) alone cost
+                    # ~27s this way, the dominant cost in the whole report and enough on its own
+                    # to exceed the frontend's 28s client timeout even after the per-group
+                    # chunking added alongside this (ScoresDataCoverage.jsx's header comment).
+                    # This form is mathematically the same computation, just reordered to do the
+                    # cheap, selective part first: `candidates` finds the (usually tiny) set of
+                    # symbols that have EVER had a non-null reason row - a single filtered scan,
+                    # not a per-symbol sort - and `never_available` then keeps only the ones that
+                    # NEVER had a null-reason row either, which is exactly "missing" under the
+                    # same rule as before. Only that (typically tiny) survivor set ever reaches
+                    # the DISTINCT ON, so its per-symbol sort is now bounded by how many symbols
+                    # are actually missing, not by the table's total size - live-verified to
+                    # return byte-identical results to the original query on every table tested
+                    # (quality_metrics, growth_metrics, stability_metrics, value_metrics,
+                    # price_weekly, price_daily), 12-25x faster on the two price_* tables and
+                    # indistinguishable on the smaller ones.
+                    # value_col cross-check (see this loop's own 2026-09-01 comment above): a
+                    # symbol only belongs in `candidates`/`never_available` when the real value
+                    # column is ALSO null, not just the reason column - otherwise a factor like
+                    # dividend_yield (real 0.0 kept alongside its reason "for transparency")
+                    # gets double-counted as missing on top of its genuinely-null rows.
+                    value_is_null = f" AND {table}.{value_col} IS NULL" if value_col else ""
+                    never_exists_clause = f"t2.{value_col} IS NOT NULL" if value_col else f"t2.{column} IS NULL"
                     query = f"""
+                        WITH candidates AS (
+                            SELECT DISTINCT {table}.symbol FROM {table}{active_join}
+                            WHERE {table}.{column} IS NOT NULL{value_is_null}
+                        ),
+                        never_available AS (
+                            SELECT c.symbol FROM candidates c
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM {table} t2 WHERE t2.symbol = c.symbol AND {never_exists_clause}
+                            )
+                        )
                         SELECT reason_val, COUNT(*) FROM (
                             SELECT DISTINCT ON ({table}.symbol) {table}.symbol, {table}.{column} AS reason_val
-                            FROM {table}{active_join}
-                            ORDER BY {table}.symbol, ({table}.{column} IS NULL) DESC, {table}.{order_col} DESC
+                            FROM {table}
+                            JOIN never_available na ON na.symbol = {table}.symbol
+                            ORDER BY {table}.symbol, {table}.{order_col} DESC
                         ) latest
                         WHERE reason_val IS NOT NULL
                         GROUP BY reason_val
@@ -2954,10 +3096,12 @@ def _get_scores_coverage(cur: cursor) -> Any:
                     # Same active-universe scoping as the has_symbol branch above, for the
                     # rarer has_symbol-but-no-order_col case (a market-wide/no-symbol table
                     # skips the join entirely since active_join is "" when not has_symbol).
+                    # Same value_col cross-check as the branch above.
+                    value_is_null = f" AND {table}.{value_col} IS NULL" if value_col else ""
                     query = f"""
                         SELECT {table}.{column} AS reason_val, COUNT(*)
                         FROM {table}{active_join}
-                        WHERE {table}.{column} IS NOT NULL
+                        WHERE {table}.{column} IS NOT NULL{value_is_null}
                         GROUP BY {table}.{column}
                         ORDER BY COUNT(*) DESC
                     """
@@ -2981,7 +3125,7 @@ def _get_scores_coverage(cur: cursor) -> Any:
                 categories[cat] = categories.get(cat, 0) + int(count)
                 reasons_out.append({"reason": str(reason_val), "count": int(count), "category": cat})
 
-            factor_name = re.sub(r"_?unavailable_reason$", "", column).rstrip("_")
+            factor_name = factor_name_candidate
             # A bare "reason" column (the bare_reason_tables case above) doesn't match the
             # unavailable_reason suffix at all and would otherwise show the unhelpful
             # literal "reason" as the factor name - same fallback as the "data"/empty case.

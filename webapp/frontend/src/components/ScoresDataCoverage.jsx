@@ -6,13 +6,103 @@
  *
  * Backed by GET /api/algo/scores/coverage (lambda/api/routes/scores.py::_get_scores_coverage),
  * which aggregates every *_unavailable_reason column in the schema (~100+ small grouped-count
- * queries, ~15-20s) plus each table's `data_source`/`source_tracking` columns for the source
- * breakdown. Manual-refresh only - not polled on an interval.
+ * queries) plus each table's `data_source`/`source_tracking` columns for the source breakdown.
+ *
+ * FIXED 2026-09-01 (goal session: "this one timing out"): the whole ~100+ query aggregation
+ * used to run as one HTTP call, taking 15-20s+ end to end - close enough to api.js's 28s
+ * client-side timeout (itself set below API Gateway/Lambda's 30s hard cutoff) that it timed
+ * out in practice, even though a one-off script run of the same queries "worked" outside that
+ * window. Raising the client timeout doesn't fix this: production Lambda kills the function at
+ * 30s regardless of what the client is willing to wait. Fetched here in chunks instead - one
+ * cheap `?meta=1` call for the group list, then one `?group=<name>` call per group (bounded
+ * concurrency), merged client-side - so every individual request stays well under both limits.
+ * Manual-refresh only - not polled on an interval.
  */
 import React, { useMemo, useState } from "react";
 import { RefreshCw, ChevronRight, Search } from "lucide-react";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { api } from "../services/api";
+import { extractData } from "../utils/responseNormalizer";
+
+const COVERAGE_URL = "/api/algo/scores/coverage";
+const COVERAGE_FETCH_CONCURRENCY = 4;
+
+// Merges the per-group {summary, factors} responses fetched by fetchScoresCoverageChunked
+// below into the same single-response shape the rest of this component (and the schema this
+// endpoint used to return in one call) expects.
+function mergeCoverageChunks(chunks) {
+  const factors = [];
+  const category_totals = {};
+  const source_totals = {};
+  const source_labels = {};
+  let category_order = [];
+  let universe_estimate = 0;
+
+  for (const chunk of chunks) {
+    if (!chunk) continue; // a failed group is skipped, not fatal to the whole report
+    factors.push(...(chunk.factors || []));
+    const s = chunk.summary || {};
+    if (s.category_order?.length) category_order = s.category_order;
+    for (const [cat, v] of Object.entries(s.category_totals || {})) {
+      category_totals[cat] = (category_totals[cat] || 0) + v;
+    }
+    for (const [label, v] of Object.entries(s.source_totals || {})) {
+      source_totals[label] = (source_totals[label] || 0) + v;
+    }
+    Object.assign(source_labels, s.source_labels || {});
+    if (s.universe_estimate) {
+      universe_estimate = Math.max(universe_estimate, s.universe_estimate);
+    }
+  }
+
+  factors.sort((a, b) => (b.pct_missing ?? -1) - (a.pct_missing ?? -1));
+  const source_order = Object.keys(source_totals).sort(
+    (a, b) => source_totals[b] - source_totals[a]
+  );
+
+  return {
+    summary: {
+      universe_estimate,
+      factor_count: factors.length,
+      category_order,
+      category_totals,
+      source_order,
+      source_totals,
+      source_labels,
+    },
+    factors,
+  };
+}
+
+// Fetches the coverage report in per-group chunks instead of one long-running call - see the
+// file header comment for why. A bounded worker pool (not Promise.all over every group at
+// once) caps how many concurrent connections this puts on the DB.
+async function fetchScoresCoverageChunked() {
+  const metaResp = await api.get(COVERAGE_URL, { params: { meta: "1" } });
+  const { groups = [] } = extractData(metaResp).data || {};
+  if (groups.length === 0) return { statusCode: 200, summary: null, factors: [] };
+
+  const chunks = new Array(groups.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < groups.length) {
+      const i = next++;
+      const group = groups[i];
+      try {
+        const resp = await api.get(COVERAGE_URL, { params: { group } });
+        chunks[i] = extractData(resp).data;
+      } catch (err) {
+        console.warn(`[ScoresDataCoverage] group "${group}" failed:`, err.message);
+        chunks[i] = null;
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(COVERAGE_FETCH_CONCURRENCY, groups.length) }, worker)
+  );
+
+  return { statusCode: 200, ...mergeCoverageChunks(chunks) };
+}
 
 // Fixed color per root-cause category - order must match the backend's category_order
 // (lambda/api/routes/scores.py::_COVERAGE_CATEGORY_ORDER). Neutral gray for "legitimate /
@@ -68,8 +158,8 @@ const fmtInt = (n) => Number(n || 0).toLocaleString("en-US");
 export default function ScoresDataCoverage({ active }) {
   const { data, loading, error, isFetching, refetch } = useApiQuery(
     ["scores-coverage"],
-    () => api.get("/api/algo/scores/coverage"),
-    { enabled: active, timeout: 45000, retry: 1 }
+    fetchScoresCoverageChunked,
+    { enabled: active, timeout: 60000, retry: 1 }
   );
 
   const [search, setSearch] = useState("");
@@ -204,7 +294,7 @@ export default function ScoresDataCoverage({ active }) {
       {loading ? (
         <Empty
           title="Loading coverage report…"
-          desc="Scanning ~100+ factor columns, this can take 15–20s."
+          desc="Fetching ~100+ factor columns in per-group chunks."
         />
       ) : !summary ? (
         <Empty title="No coverage data" />
