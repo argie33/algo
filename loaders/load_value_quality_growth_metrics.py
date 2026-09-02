@@ -2308,6 +2308,45 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_operating_cash_flow_symbols_cache = result
         return result
 
+    def _get_no_recent_free_cash_flow_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported free_cash_flow in any of their 3 most recent fiscal
+        years (in a row not itself flagged data_unavailable) - a genuine structural gap, not a
+        loader gap.
+
+        Live audit 2026-09-02 (goal: "no SEC data" audit continuation, same bug class as
+        _get_no_recent_operating_cash_flow_symbols() just above): free_cash_flow is read
+        directly off the anchor row `fetch_incremental()` selects (quality_row[14]), with NO
+        cross-year fallback attempted - same anchor-only read as operating_cash_flow. Live-
+        confirmed 228 of 424 universe free_cash_flow "missing_sec_data" rows (54%) are symbols
+        with genuinely no FCF anywhere in their 3 most recent fiscal years; the rest have FCF in
+        an off-anchor year instead (deliberately NOT fixed this pass, same anchor-row-selection
+        reasoning as OCF's gate above). Also reused by fcf_to_net_income (which divides by
+        free_cash_flow) and fcf_margin (which divides free_cash_flow by revenue - see
+        fcf_margin_unavailable_reason for the revenue-side companion gate). Cached for the life
+        of this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_free_cash_flow_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, free_cash_flow,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_cash_flow
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(free_cash_flow) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_free_cash_flow_symbols_cache = result
+        return result
+
     def _get_blank_check_symbols(self) -> frozenset[str]:
         """Symbols SEC-classified as SIC 6770 "Blank Checks" - pre-merger SPAC shells.
 
@@ -4994,7 +5033,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # this list.
             metrics["fcf_margin"] = fcf_margin
             metrics["fcf_margin_unavailable_reason"] = (
-                ("implausible_ratio" if "fcf_margin" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "fcf_margin" in implausible_ratio_metrics
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): fcf_margin's own
+                    # cross-year fallback (fcf_margin_free_cash_flow/fcf_margin_revenue above)
+                    # already looks past the anchor row, so a remaining None here means BOTH
+                    # inputs are genuinely absent across recent fiscal years, not just off the
+                    # anchor. Live-confirmed 359 of 552 universe fcf_margin "missing_sec_data"
+                    # rows (65%) covered by either gate.
+                    else "no_recent_free_cash_flow_reported"
+                    if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    else "no_revenue_reported"
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    else "missing_sec_data"
+                )
                 if fcf_margin is None
                 else None
             )
@@ -5260,14 +5313,36 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else None
             )
             metrics["fcf_to_net_income_unavailable_reason"] = (
-                "missing_sec_data" if "fcf_to_net_income" in failed_metrics else None
+                (
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): fcf_to_net_income
+                    # = free_cash_flow / net_income, so it fails whenever free_cash_flow is None -
+                    # reuse the same genuinely-no-FCF gate wired into free_cash_flow_unavailable_
+                    # reason below. Live-confirmed 228 of 462 universe fcf_to_net_income
+                    # "missing_sec_data" rows are symbols where free_cash_flow is also missing.
+                    "no_recent_free_cash_flow_reported"
+                    if free_cash_flow is None and symbol in self._get_no_recent_free_cash_flow_symbols()
+                    else "missing_sec_data"
+                )
+                if "fcf_to_net_income" in failed_metrics
+                else None
             )
             metrics["ocf_to_net_income_unavailable_reason"] = (
                 "missing_sec_data" if "ocf_to_net_income" in failed_metrics else None
             )
             metrics["payout_ratio_unavailable_reason"] = payout_ratio_reason
             metrics["free_cash_flow_unavailable_reason"] = (
-                "missing_sec_data" if "free_cash_flow" in failed_metrics else None
+                (
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): only covers the
+                    # unambiguous "genuinely no FCF in the 3 most recent fiscal years" slice -
+                    # 228 of 424 universe rows (54%). The rest have FCF in an off-anchor year, a
+                    # separate anchor-row-selection question deliberately not chased this pass
+                    # (see _get_no_recent_free_cash_flow_symbols()'s docstring for why).
+                    "no_recent_free_cash_flow_reported"
+                    if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    else "missing_sec_data"
+                )
+                if "free_cash_flow" in failed_metrics
+                else None
             )
             metrics["operating_cash_flow_unavailable_reason"] = (
                 (
