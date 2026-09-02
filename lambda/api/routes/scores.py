@@ -2195,6 +2195,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # ocf_to_net_income_unavailable_reason in load_value_quality_growth_metrics.py.
             "operating_cash_flow_absent_from_anchor_year",
             "free_cash_flow_absent_from_anchor_year",
+            # ADDED 2026-09-02 (same sweep, quality_row_db anchor-year investigation
+            # follow-up): operating_income sibling of net_income/revenue/OCF/FCF's anchor-
+            # year-mismatch reasons above - operating_margin/operating_profitability's
+            # operating_income_for_margin only ever checked the anchor fiscal year (plus a
+            # same-year EBIT approximation), never a different fiscal year, unlike its
+            # net_income/revenue siblings. See
+            # _get_operating_income_available_elsewhere_symbols()'s docstring in
+            # load_value_quality_growth_metrics.py (361 active-universe symbols).
+            "operating_income_absent_from_anchor_year",
             # ADDED 2026-09-02 (same sweep, static cross-check of every reason-string literal
             # in the SEC/XBRL loader files against this map - not just live DB counts, which
             # can't see a reason string that hasn't fired yet in the current data): 7 more

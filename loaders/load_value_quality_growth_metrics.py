@@ -2710,6 +2710,40 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._net_income_available_elsewhere_symbols_cache = result
         return result
 
+    def _get_operating_income_available_elsewhere_symbols(self) -> frozenset[str]:
+        """Symbols with a real (non-NULL) operating_income in at least one available
+        annual_income_statement fiscal year - same "anchor-year fiscal mismatch" gate
+        pattern as _get_net_income_available_elsewhere_symbols()/
+        _get_revenue_available_elsewhere_symbols().
+
+        FIX 2026-09-02 (quality_row_db anchor-year investigation, goal: "keep the missing-
+        data number going down" - the "still OPEN" residual flagged in that investigation's
+        own memory note): operating_income_for_margin only ever looks at the anchor row's
+        own operating_income, falling back within THAT SAME fiscal year to the EBIT
+        approximation (pretax_income + interest_expense) - unlike net_income/revenue/OCF/FCF,
+        it never searches a different fiscal year for a real operating_income value. Live-
+        confirmed 361 active-universe symbols have operating_income NULL AND pretax_income
+        NULL in their anchor fiscal year (so operating_income_for_margin comes back None) yet
+        have a real operating_income value in some other annual_income_statement fiscal year -
+        the same class of gap already fixed for net_income/revenue. Cached for the life of
+        this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_operating_income_available_elsewhere_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(operating_income) >= 1
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._operating_income_available_elsewhere_symbols_cache = result
+        return result
+
     def _get_no_recent_total_liabilities_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported total_liabilities in any of their 3 most recent
         fiscal years - i.e. debt_to_assets is structurally None for them, not a loader gap.
@@ -5693,6 +5727,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if operating_profitability_negative_equity
                     else "reit_special_entity"
                     if no_operating_income_concept
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_operating_income_available_elsewhere_symbols()'s docstring): the
+                    # anchor year's operating_income (and EBIT-approximation fallback) are
+                    # both None purely because that specific fiscal year's income statement
+                    # lacks them, not because the symbol lacks real operating_income anywhere.
+                    # Label-only, no value recomputed.
+                    else "operating_income_absent_from_anchor_year"
+                    if operating_income_for_margin is None
+                    and symbol in self._get_operating_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if operating_profitability is None
@@ -5904,6 +5947,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # rows (AGNC/ARE/EGP/HR and more) are this exact REIT/no-tax-concept case.
                     else "reit_special_entity"
                     if no_operating_income_concept
+                    # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
+                    # _get_operating_income_available_elsewhere_symbols()'s docstring, same
+                    # fix as operating_profitability_unavailable_reason above). Label-only,
+                    # no value recomputed.
+                    else "operating_income_absent_from_anchor_year"
+                    if operating_income_for_margin is None
+                    and symbol in self._get_operating_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "operating_margin" in failed_metrics
