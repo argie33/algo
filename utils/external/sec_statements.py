@@ -1687,6 +1687,72 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     _fye_month = int(_e["end"][5:7])
                     break
             has_december_fiscal_year_end = _fye_month == 12
+            # RESTORED 2026-09-02 (goal session: "missing SEC/XBRL data" audit) - this block
+            # was part of `fd1c8a99f` (OFRM comparative-fp-aliasing fix) but that commit only
+            # ever landed on the unmerged `growth-factor-realignment` branch; main picked up
+            # the OTHER half of that same commit (the span-gated derived_fp override a few
+            # dozen lines below, "not start_date" removed + 80-100 day duration-span gate
+            # added) via a later commit, but not this block - a partial-hunk loss, not a
+            # deliberate removal (confirmed via `git log -S` finding only fd1c8a99f ever
+            # touched this exact line, and `git merge-base --is-ancestor fd1c8a99f HEAD`
+            # returning false). Live re-verified the regression directly: calling
+            # get_income_statement(client, 'OFRM', period='quarterly') against real SEC data
+            # right now reproduces the original bug exactly - fiscal_year=2026 net_income_loss
+            # is -$15,811,000 for BOTH Q1 and Q2 (Q1's real value silently overwriting Q2's),
+            # instead of Q2's real -$4,950,000 per the original commit message.
+            #
+            # The instant-fact check above can never fire for an income-statement/cash-flow
+            # concept (NetIncomeLoss, Revenues, ...) - those are always duration facts, so
+            # "not _e.get('start')" never matches, and a company with < 1 year of public
+            # history (e.g. OFRM, IPO'd Feb 2026) has no 10-K at all yet for ANY concept to
+            # borrow a fiscal-year-end signal from. Fall back to a self-consistency check on
+            # this concept's own duration facts: a genuine (non-comparative-echo) quarterly
+            # fact's own fp tag agrees with the calendar quarter its own end-date month
+            # implies under a December fiscal year end (Q1->03, Q2->06, Q3->09, Q4->12) - a
+            # coincidence only possible for a company whose fiscal quarters actually do end
+            # in Mar/Jun/Sep/Dec in that exact Q1-Q4 order, i.e. a genuine December fiscal
+            # year end. Live-confirmed via OFRM's real NetIncomeLoss facts: its own Q1-2026
+            # 10-Q reports start=2026-01-01/end=2026-03-31 under fp="Q1" - self-consistent -
+            # even though OFRM has filed zero 10-Ks to date.
+            #
+            # NARROWED vs. the original fd1c8a99f version: only accept a match whose span is
+            # a genuine single quarter (80-100 days), same gate already used a few dozen
+            # lines below for the override itself. Found and live-confirmed why this matters
+            # via DXC (a March-fiscal-year-end filer, one quarter offset from calendar): its
+            # cash-flow concepts have exactly 2 "matches" under the original unqualified
+            # check, both ~183/364-day CUMULATIVE comparative facts that happen to land on a
+            # calendar-quarter-end month purely by coincidence (e.g. a 6-month-cumulative
+            # fact spanning 2017-04-01 to 2017-09-30, re-tagged with the filing's own fp='Q3'
+            # - an aliased comparative echo, not genuine self-consistency evidence). Without
+            # this gate, restoring the block would wrongly mark DXC has_december_fiscal_year_
+            # end=True and corrupt its real Q1 (a genuine 90-91 day fact) into the Q2 bucket
+            # via the override below - live-confirmed via
+            # utils.external.sec_statements.get_cash_flow(client, 'DXC', period='quarterly')
+            # matching real SEC values ($-66M/$1.585B/$2.062B for Q1/Q2/Q3 FY2019) only
+            # WITHOUT this block; a plain restoration of the original unqualified check
+            # reproduces the exact Q1==Q2 collision found live in quarterly_cash_flow for 250
+            # symbols (768 collision rows) that motivated this investigation. A genuine
+            # single-quarter self-consistency match (like OFRM's, span=89) is unaffected by
+            # this narrowing.
+            if not has_december_fiscal_year_end:
+                _q_from_month = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}
+                for _e in entries:
+                    _e_fp = _e.get("fp")
+                    _e_start = _e.get("start")
+                    _e_end = _e.get("end")
+                    if _e_fp not in ("Q1", "Q2", "Q3", "Q4") or not _e_end or len(_e_end) < 7:
+                        continue
+                    if _q_from_month.get(_e_end[5:7]) != _e_fp:
+                        continue
+                    if _e_start:
+                        try:
+                            _e_span = (datetime.date.fromisoformat(_e_end) - datetime.date.fromisoformat(_e_start)).days
+                        except ValueError:
+                            continue
+                        if not (80 <= _e_span <= 100):
+                            continue
+                    has_december_fiscal_year_end = True
+                    break
             # BUG FOUND 2026-08-22 (goal session: quarterly balance-sheet comparative-period
             # contamination): a single filing (one accession number, "accn") typically tags
             # an instant concept's value TWICE - once for its own current reporting period,
@@ -1956,7 +2022,6 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     fp = derived_fp
                 elif (
                     period == "quarterly"
-                    and not start_date
                     and has_december_fiscal_year_end
                     and entry.get("end")
                     and len(entry["end"]) >= 7
@@ -1987,9 +2052,47 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                     # end-date-derived quarter, this is a no-op; when it doesn't, the derived
                     # quarter is the fact's real period, and the key it produces will
                     # correctly collide with (not overwrite) the genuine same-period fact.
-                    derived_fp = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}.get(entry["end"][5:7])
-                    if derived_fp is not None:
-                        fp = derived_fp
+                    #
+                    # EXTENDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit,
+                    # restoring the duration-fact half of `fd1c8a99f`, which - like the
+                    # self-consistency block above - only ever landed on the unmerged
+                    # `growth-factor-realignment` branch, not main). Live-confirmed via OFRM
+                    # why "not start_date" (instant-only) isn't enough on its own: even with
+                    # the self-consistency block above correctly setting
+                    # has_december_fiscal_year_end=True and the existing shorter-span-wins
+                    # tiebreak below (2026-08-29, META fix), OFRM's real Q2-2026 NetIncomeLoss
+                    # bucket has THREE competing duration facts - a genuine H1 cumulative
+                    # (~180 days), the real discrete Q2 (Apr-Jun, 90 days), and a Q1
+                    # comparative mistagged with the filing's own fp='Q2' (Jan-Mar, 89 days,
+                    # same accn as the H1 fact). The shorter-span heuristic correctly prefers
+                    # a genuine quarter over a cumulative echo, but is not a meaningful
+                    # tiebreak between TWO genuine single-quarter spans - Jan-Mar's 89 days
+                    # happens to be one day shorter than Apr-Jun's 90 (February is short), so
+                    # the mistagged comparative silently won over the real value purely by
+                    # calendar-month coincidence (live-confirmed: net_income_loss stored
+                    # -$15,811,000 for both Q1 and Q2 2026, when Q2's real value is
+                    # -$4,950,000). The fix is to remove the mistagged entry from the Q2
+                    # bucket entirely rather than out-tiebreak it: applying this same
+                    # end-date-derived fp correction to a duration fact - narrowly gated to a
+                    # genuine single-quarter span (80-100 days) so real cumulative (H1/9mo)
+                    # facts are untouched and still resolved by the shorter-span tiebreak once
+                    # co-located with their quarter's real discrete fact via this same
+                    # derivation - relocates Jan-Mar's comparative echo to Q1 (where it
+                    # harmlessly duplicates the real Q1 value already there), leaving Q2's
+                    # bucket with only the real discrete fact and the H1 cumulative, which the
+                    # existing tiebreak already resolves correctly.
+                    _duration_span_days: int | None = None
+                    if start_date:
+                        try:
+                            _duration_span_days = (
+                                datetime.date.fromisoformat(entry["end"]) - datetime.date.fromisoformat(start_date)
+                            ).days
+                        except ValueError:
+                            _duration_span_days = None
+                    if not start_date or (_duration_span_days is not None and 80 <= _duration_span_days <= 100):
+                        derived_fp = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}.get(entry["end"][5:7])
+                        if derived_fp is not None:
+                            fp = derived_fp
 
                 # Use period end year as the fiscal year key, not SEC's fy field.
                 # SEC tags ALL periods in a 10-K with fy=FILING_YEAR - so prior-year
