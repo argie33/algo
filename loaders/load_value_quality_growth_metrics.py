@@ -1178,8 +1178,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             ev_ebitda_reason = "unprofitable_stock"
         elif ebitda_raw is None:
             ev_ebitda_reason = "ebitda_not_extracted"
+        # ebitda>0 present, enterprise_value missing or out of bounds. FIX 2026-09-02 (goal:
+        # "no SEC data" audit continuation): enterprise_value = market_cap + total_debt -
+        # total_cash, so it fails whenever total_debt can't be itemized - reuse the same
+        # _get_no_recent_debt_components_symbols() gate quality_metrics.total_debt already uses.
+        # Live-confirmed 28 of 83 (34%) universe ev_ebitda missing_sec_data rows are this case.
+        elif symbol in self._get_no_recent_debt_components_symbols():
+            ev_ebitda_reason = "total_debt_not_itemized"
         else:
-            ev_ebitda_reason = "missing_sec_data"  # ebitda>0 present, enterprise_value missing or out of bounds
+            ev_ebitda_reason = "missing_sec_data"
 
         # intrinsic_value_per_share reason: sec_valuations doesn't persist raw OCF/CapEx, only
         # the fcf_yield ratio derived from them - reuse it as the same "is FCF usable" signal
@@ -1532,7 +1539,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "forward_pe_unavailable_reason": forward_pe_reason if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": (
-                ("no_revenue_reported" if symbol in self._get_no_recent_revenue_symbols() else "missing_sec_data")
+                (
+                    "no_revenue_reported"
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same fix as
+                    # ev_ebitda_reason above): enterprise_value = market_cap + total_debt -
+                    # total_cash, so it fails whenever total_debt can't be itemized even when
+                    # revenue is present. Live-confirmed 56 of 291 (19%) universe ev_revenue
+                    # missing_sec_data rows are this case.
+                    else "total_debt_not_itemized"
+                    if symbol in self._get_no_recent_debt_components_symbols()
+                    else "missing_sec_data"
+                )
                 if ev_revenue is None
                 else None
             ),
