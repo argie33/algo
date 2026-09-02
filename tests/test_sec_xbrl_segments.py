@@ -635,6 +635,74 @@ class TestExtractSegmentRevenueFromXbrlXml:
         assert result["segment_count"] == 1
         assert result["segments"][0]["revenue"] == 43_626_000_000.0
 
+    def test_ifrs_scenario_axis_actual_currency_stripped_as_boilerplate(self) -> None:
+        """Real filer shape (verified live against SAP SE's FY2025 20-F instance, CIK
+        1000184, accession 0001104659-26-020058): every real segment-total context
+        carries a THIRD dimension beyond SegmentsAxis+SegmentConsolidationItemsAxis -
+        sap:IfrsScenarioAxis=ActualCurrencyMember - so pre-fix these 3-dimension
+        contexts failed the single-non-boilerplate-dimension check and SAP fell
+        through to no_segment_revenue_in_xbrl_xml despite having real segment data.
+        A parallel ConstantCurrencyMember context (using prior-year FX rates for the
+        same fact) is deliberately included here too and must NOT be picked up -
+        only ActualCurrencyMember is boilerplate-stripped, so the 2-dimension-after-
+        stripping ConstantCurrency contexts stay excluded, avoiding a wrong-basis
+        duplicate. Values match SAP's own reported FY2025 segment revenue exactly:
+        Applications, Technology & Support EUR32.847B, Core Services EUR3.953B,
+        summing to SAP's real consolidated Total revenue EUR36.800B."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [
+                    ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("SegmentsAxis", "ApplicationsTechnologyAndSupportMember"),
+                    ("IfrsScenarioAxis", "ActualCurrencyMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [
+                    ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("SegmentsAxis", "CoreServicesMember"),
+                    ("IfrsScenarioAxis", "ActualCurrencyMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [
+                    ("SegmentConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("SegmentsAxis", "ApplicationsTechnologyAndSupportMember"),
+                    ("IfrsScenarioAxis", "ConstantCurrencyMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <ifrs-full:Revenue contextRef="c1">32847000000</ifrs-full:Revenue>
+        <ifrs-full:Revenue contextRef="c2">3953000000</ifrs-full:Revenue>
+        <ifrs-full:Revenue contextRef="c3">33500000000</ifrs-full:Revenue>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full" '
+            'xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 2
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "ApplicationsTechnologyAndSupportMember": 32_847_000_000.0,
+            "CoreServicesMember": 3_953_000_000.0,
+        }
+        assert sum(revenues.values()) == 36_800_000_000.0
+
     def test_legal_entity_axis_stripped_when_matching_segment_member(self) -> None:
         """Real filer shape (verified live against NextEra Energy's FY2025 10-K
         instance): combined parent+subsidiary co-registrant filings tag the

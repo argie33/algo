@@ -56,6 +56,21 @@ logger = logging.getLogger(__name__)
 # for filers whose only reportable segments are geographic.
 _BUSINESS_SEGMENT_AXIS = "StatementBusinessSegmentsAxis"
 _GEOGRAPHIC_SEGMENT_AXIS = "StatementGeographicalAxis"
+# ifrs-full's equivalent of StatementGeographicalAxis - confirmed live against AstraZeneca's
+# (AZN, CIK 901832) real FY2025 20-F instance document: AZN tags NONE of the axes below
+# (no SegmentsAxis, no StatementBusinessSegmentsAxis, no filer-specific extension) anywhere in
+# its filing, but reports real per-country/region revenue (US $23.970B, China $6.636B, Japan
+# $3.556B FY2025, ...) under this axis with the plain "Revenue" concept (already in
+# _REVENUE_CONCEPT_LOCAL_NAMES below) - summing "OutsideUnitedKingdomMember" ($54.380B) +
+# country:GB ($4.359B) = $58.739B, consistent with AZN's real known consolidated revenue scale.
+# Real segment-level operating income (ProfitLossFromOperatingActivities) is tagged the same
+# way. Before this fix AZN fell through to "no_segment_dimension_contexts_in_xbrl_xml" despite
+# having rich, real, machine-readable geographic segment data on file - not a structural
+# absence like ARGX (see _IFRS_SEGMENTS_AXIS's comment). SAP's own gap
+# (azn_sap_segment_fix_claimed_live_confirmed_but_not_reproducing_20260901 in memory) is
+# unrelated - SAP DOES tag SegmentsAxis, its issue is a missing revenue concept, not axis
+# recognition.
+_IFRS_GEOGRAPHIC_SEGMENT_AXIS = "GeographicalAreasAxis"
 # ifrs-full's equivalent of StatementBusinessSegmentsAxis, used by foreign
 # private issuers filing 20-F under IFRS 8 rather than 10-K under ASC 280.
 # Confirmed live against BP's FY2025 20-F (CIK 313807): real segment revenue
@@ -91,6 +106,7 @@ _SEGMENT_AXIS_LOCAL_NAMES = (
     _BUSINESS_SEGMENT_AXIS,
     _IFRS_SEGMENTS_AXIS,
     _GEOGRAPHIC_SEGMENT_AXIS,
+    _IFRS_GEOGRAPHIC_SEGMENT_AXIS,
     _FILER_SPECIFIC_INCOME_SEGMENT_AXIS,
 )
 
@@ -115,6 +131,36 @@ _CONSOLIDATION_ITEMS_AXIS = "ConsolidationItemsAxis"
 _IFRS_SEGMENT_CONSOLIDATION_ITEMS_AXIS = "SegmentConsolidationItemsAxis"
 _CONSOLIDATION_ITEMS_AXIS_NAMES = (_CONSOLIDATION_ITEMS_AXIS, _IFRS_SEGMENT_CONSOLIDATION_ITEMS_AXIS)
 _OPERATING_SEGMENTS_MEMBER = "OperatingSegmentsMember"
+
+# FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification of the
+# azn_sap_segment_fix memory's SAP "no_segment_revenue_in_xbrl_xml" discrepancy). SAP's own
+# custom extension axis (confirmed live: SAP SE's FY2025 20-F, CIK 1000184, accession
+# 0001104659-26-020058, raw XBRL instance sap-20251231x20f_htm.xml) tags every real
+# segment-total context with a THIRD dimension beyond SegmentsAxis+SegmentConsolidationItemsAxis:
+# sap:IfrsScenarioAxis=sap:ActualCurrencyMember (vs. a parallel, non-additive
+# ConstantCurrencyMember variant using prior-year FX rates for the same fact - deliberately
+# NOT stripped here, so those 3-dimension-after-stripping contexts still fail the len==1 check
+# below and are correctly excluded, avoiding a duplicate/wrong-basis value for the same
+# segment/period). Like OperatingSegmentsMember, this doesn't narrow the fact to a finer
+# sub-breakdown of the segment - it's a reporting-basis marker - so it's stripped the same way
+# before judging dimension count. Verified: with this axis-pair also treated as boilerplate,
+# ifrs-full:Revenue at SegmentsAxis=sap:ApplicationsTechnologyAndSupportMember (Actual
+# Currency, FY2025) = EUR32.847B and at SegmentsAxis=sap:CoreServicesMember (Actual Currency,
+# FY2025) = EUR3.953B, summing to EUR36.800B - exactly SAP's own reported consolidated "Total
+# revenue" for FY2025 (R119.htm "Results of Segments (Details)"). Matched by local name only,
+# consistent with this file's namespace-agnostic convention elsewhere - low false-match risk
+# since "IfrsScenarioAxis" is a non-standard extension axis name, not part of the ifrs-full
+# taxonomy, that only an actual/constant-currency-reporting filer would plausibly define.
+_IFRS_SCENARIO_AXIS = "IfrsScenarioAxis"
+_ACTUAL_CURRENCY_MEMBER = "ActualCurrencyMember"
+
+# General list of (axis-name-candidates, member-name) pairs that mark "this is the segment's
+# own reportable total under some reporting convention", not a further breakdown - stripped
+# before judging whether a context is single-dimension (see _index_segment_contexts).
+_BOILERPLATE_AXIS_MEMBER_PAIRS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (_CONSOLIDATION_ITEMS_AXIS_NAMES, _OPERATING_SEGMENTS_MEMBER),
+    ((_IFRS_SCENARIO_AXIS,), _ACTUAL_CURRENCY_MEMBER),
+)
 
 # Combined parent+subsidiary co-registrant filings (e.g. NextEra Energy/Florida
 # Power & Light, both SEC registrants sharing one 10-K) tag facts belonging to
@@ -520,17 +566,16 @@ class XBRLSegmentParser:
                 elif loc == "instant":
                     end_str = (child.text or "").strip() or None
 
-            # Drop the boilerplate "this is a real operating segment, not the
-            # eliminations line" marker before judging dimension count - it
-            # doesn't narrow the fact to a sub-breakdown of the segment.
-            is_boilerplate_paired = any(
-                m[0] in _CONSOLIDATION_ITEMS_AXIS_NAMES and m[1] == _OPERATING_SEGMENTS_MEMBER for m in explicit_members
-            )
-            non_boilerplate = [
-                m
-                for m in explicit_members
-                if not (m[0] in _CONSOLIDATION_ITEMS_AXIS_NAMES and m[1] == _OPERATING_SEGMENTS_MEMBER)
-            ]
+            # Drop boilerplate reporting-convention markers (e.g. "this is a real
+            # operating segment, not the eliminations line"; SAP's "this is the
+            # actual-currency figure, not the constant-currency one" - see
+            # _BOILERPLATE_AXIS_MEMBER_PAIRS) before judging dimension count - none
+            # of these narrow the fact to a sub-breakdown of the segment.
+            def _is_boilerplate_pair(m: tuple[str, str]) -> bool:
+                return any(m[0] in axes and m[1] == member for axes, member in _BOILERPLATE_AXIS_MEMBER_PAIRS)
+
+            is_boilerplate_paired = any(_is_boilerplate_pair(m) for m in explicit_members)
+            non_boilerplate = [m for m in explicit_members if not _is_boilerplate_pair(m)]
             # Also drop a co-registrant LegalEntityAxis dimension whose member is
             # IDENTICAL to a segment-axis member already present in this same
             # context - that's the subsidiary's own registrant identity, not a
