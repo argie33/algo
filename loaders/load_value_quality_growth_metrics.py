@@ -2268,6 +2268,46 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_total_liabilities_symbols_cache = result
         return result
 
+    def _get_no_recent_operating_cash_flow_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported operating_cash_flow in any of their 3 most recent
+        fiscal years (in a row not itself flagged data_unavailable) - a genuine structural gap,
+        not a loader gap.
+
+        Live audit 2026-09-02 (goal: "no SEC data" audit continuation): operating_cash_flow is
+        read directly off the anchor row `fetch_incremental()` selects, with NO cross-year
+        fallback attempted (deliberately - see the dividends_paid same-year-only rescue comment
+        above: "operating_cash_flow/free_cash_flow correctly stay None either way since those
+        fields really are NULL in that row"). Only 43 of 125 universe operating_cash_flow
+        "missing_sec_data" rows (34%) are symbols with genuinely no OCF anywhere in their 3 most
+        recent fiscal years - the majority of the remaining rows have OCF in an off-anchor year
+        instead (a real anchor-row-selection gap, deliberately NOT fixed this pass - see
+        [[debt_to_equity_asset_turnover_missing_sec_data_mislabel_fixed_20260902]] for why: fixing
+        that would change computed VALUES via cross-year mixing, not just relabel). This gate
+        only covers the smaller, unambiguous "genuinely no OCF at all" slice. Cached for the
+        life of this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_operating_cash_flow_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, operating_cash_flow,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_cash_flow
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(operating_cash_flow) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_operating_cash_flow_symbols_cache = result
+        return result
+
     def _get_blank_check_symbols(self) -> frozenset[str]:
         """Symbols SEC-classified as SIC 6770 "Blank Checks" - pre-merger SPAC shells.
 
@@ -4914,7 +4954,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             metrics["accruals_ratio"] = accruals_ratio
             metrics["accruals_ratio_unavailable_reason"] = (
-                ("implausible_ratio" if "accruals_ratio" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "accruals_ratio" in implausible_ratio_metrics
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): accruals_ratio =
+                    # (net_income - operating_cash_flow) / total_assets, so it fails whenever
+                    # operating_cash_flow is None - reuse the same genuinely-no-OCF gate just
+                    # wired into operating_cash_flow_unavailable_reason below. Live-confirmed
+                    # 125 of 175 universe accruals_ratio "missing_sec_data" rows are symbols
+                    # where operating_cash_flow is also missing_sec_data; of those, the ones
+                    # covered by this gate get the same specific label instead of the generic
+                    # fallback.
+                    else "no_recent_operating_cash_flow_reported"
+                    if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    else "missing_sec_data"
+                )
                 if accruals_ratio is None
                 else None
             )
@@ -5216,7 +5270,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "missing_sec_data" if "free_cash_flow" in failed_metrics else None
             )
             metrics["operating_cash_flow_unavailable_reason"] = (
-                "missing_sec_data" if "operating_cash_flow" in failed_metrics else None
+                (
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): only covers the
+                    # unambiguous "genuinely no OCF in the 3 most recent fiscal years" slice -
+                    # 43 of 125 universe rows (34%). The rest have OCF in an off-anchor year, a
+                    # separate anchor-row-selection question deliberately not chased this pass
+                    # (see _get_no_recent_operating_cash_flow_symbols()'s docstring for why).
+                    "no_recent_operating_cash_flow_reported"
+                    if symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    else "missing_sec_data"
+                )
+                if "operating_cash_flow" in failed_metrics
+                else None
             )
             metrics["total_debt_unavailable_reason"] = (
                 (
