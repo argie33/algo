@@ -2151,6 +2151,46 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_revenue_symbols_cache = result
         return result
 
+    def _get_no_recent_total_assets_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported a real (non-NULL, positive) total_assets in any of
+        their 3 most recent fiscal years - i.e. asset_turnover is structurally None for them,
+        not a loader gap.
+
+        Live audit 2026-09-02 (goal: "no SEC data" audit continuation, asset_turnover follow-up
+        to the debt_to_equity/total_debt mislabeled-genuine-gap fixes): 53 of 294 universe
+        asset_turnover "missing_sec_data" rows are this case. Sampled live: overwhelmingly
+        foreign private issuers filing 20-F under IFRS (ABEV, AZUL, BBD/BBDO, BBAR, CCU, CIG,
+        CRESY, EC, ERIC, GGB, SBS, SUZ, TIMB) - the same "SEC companyfacts convenience API
+        doesn't expose this concept the way our extraction expects for non-US-GAAP filers"
+        pattern already established for foreign_private_issuer_shares_unavailable/
+        foreign_private_issuer_no_quarterly_filings elsewhere in this file, just never given
+        its own gate for total_assets specifically. Same "3 most recent years, not all-time
+        history" windowing as the sibling checks above. Cached for the life of this loader
+        instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_total_assets_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, total_assets,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(*) FILTER (WHERE total_assets IS NOT NULL AND total_assets > 0) = 0
+                   AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_total_assets_symbols_cache = result
+        return result
+
     def _get_blank_check_symbols(self) -> frozenset[str]:
         """Symbols SEC-classified as SIC 6770 "Blank Checks" - pre-merger SPAC shells.
 
@@ -4814,7 +4854,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             metrics["asset_turnover"] = asset_turnover
             metrics["asset_turnover_unavailable_reason"] = (
-                ("implausible_ratio" if "asset_turnover" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "asset_turnover" in implausible_ratio_metrics
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same mislabeled-
+                    # genuine-gap bug class as the debt_to_equity fix above): asset_turnover
+                    # fails whenever revenue or total_assets is None, but this reason never
+                    # checked either against the structural gates already used elsewhere in
+                    # this file for the identical inputs. Live-confirmed 206 of 294 universe
+                    # asset_turnover "missing_sec_data" rows (70%) split between genuinely
+                    # revenue-less filers (153, same _get_no_recent_revenue_symbols() gate as
+                    # ebitda_margin/gross_margin above) and FPIs with no extractable
+                    # total_assets concept (53, see _get_no_recent_total_assets_symbols()).
+                    else "no_revenue_reported"
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    else "no_recent_total_assets_reported"
+                    if symbol in self._get_no_recent_total_assets_symbols()
+                    else "missing_sec_data"
+                )
                 if asset_turnover is None
                 else None
             )
@@ -4873,6 +4930,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "debt_to_equity" in implausible_ratio_metrics
                     else "stockholders_equity_not_reported"
                     if stockholders_equity is None and symbol in self._get_no_recent_stockholders_equity_symbols()
+                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): debt_to_equity's
+                    # failure branch above (line ~3468) fails whenever EITHER
+                    # roic_stockholders_equity OR debt_for_roic is None - but this reason block
+                    # only ever checked the equity side, via _get_no_recent_stockholders_equity_
+                    # symbols(). total_debt_unavailable_reason already has a matching gate for
+                    # the debt side (_get_no_recent_debt_components_symbols(), "total_debt_not_
+                    # itemized") a few hundred lines below, just never wired in here. Live-
+                    # confirmed 265 of 319 universe debt_to_equity "missing_sec_data" rows
+                    # (83%) are this exact debt-side gap - a genuinely debt-free filer or one
+                    # that stopped itemizing debt components, not a real extraction gap. Same
+                    # mislabeled-genuine-gap bug class as the REIT/no-tax-concept fixes for
+                    # ebitda_margin/operating_margin/roic_pct/roce_pct above.
+                    else "total_debt_not_itemized"
+                    if debt_for_roic is None and symbol in self._get_no_recent_debt_components_symbols()
                     else "missing_sec_data"
                 )
                 if "debt_to_equity" in failed_metrics
