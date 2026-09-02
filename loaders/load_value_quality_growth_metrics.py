@@ -2644,6 +2644,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             operating_income_for_margin = operating_income
             if operating_income_for_margin is None and pretax_income is not None:
                 operating_income_for_margin = pretax_income + (interest_expense or 0)
+            # FIXED 2026-09-01 (goal session: "missing SEC/XBRL data" audit): AGNC/ARE/AMH-
+            # class REITs and Marine Shipping tonnage-tax filers never tag OperatingIncomeLoss
+            # OR pretax_income/income_tax_expense (live-confirmed: AGNC/ARE/AMH all have
+            # operating_income, pretax_income, AND income_tax_expense NULL across every fiscal
+            # year 2020-2025, on real complete filed 10-Ks) - same structural "different
+            # accounting model, not a data gap" class as unclassified_balance_sheet/
+            # no_gross_profit_concept above, using the SAME already-tested
+            # _get_no_tax_concept_symbols() 3-consecutive-year confirmation this file already
+            # relies on for roic_pct's effective_tax_rate=0.0 branch. Was generically labeled
+            # "missing_sec_data" everywhere operating_income_for_margin (or its sibling
+            # roic_operating_income, shared by roic_pct/roce_pct - see those reason blocks
+            # below) is None, mischaracterizing several hundred active symbols' worth of
+            # operating_profitability/interest_coverage/roic_pct/roce_pct gaps as an XBRL
+            # extraction failure rather than the permanent business-structural fact it is.
+            # sustainable_growth_rate is unaffected (its ROE input only needs net_income+
+            # equity, both present for this REIT class). Deliberately does NOT attempt to
+            # reconstruct a numeric operating_income_for_margin value here (see
+            # reit_pretax_operating_income_gap_confirmed_structural_not_fixable_blind_20260901
+            # in memory for why net_income-based reconstruction was tried and rejected
+            # elsewhere in this file - 25% deviation across 50,261 rows) - only recategorizes
+            # the label from "missing_sec_data" to "reit_special_entity" once
+            # operating_income_for_margin is confirmed unrecoverable.
+            no_operating_income_concept = (
+                operating_income_for_margin is None and symbol in self._get_no_tax_concept_symbols()
+            )
             if operating_income_for_margin is not None and operating_income_for_margin != 0:
                 if revenue is not None and revenue != 0:
                     computed_operating_margin = (operating_income_for_margin / revenue) * 100
@@ -2774,6 +2799,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # live-confirmed on AAPL since FY2024) isn't a current data gap.
             no_recent_interest_expense = (
                 interest_expense is None and symbol in self._get_no_recent_interest_expense_symbols()
+            )
+            # FIXED 2026-09-01 (same fix/pattern as no_operating_income_concept above):
+            # ARE/AMH-class REITs with real interest_expense (mortgage debt) but no
+            # operating_income/pretax_income concept ever tagged fail interest_coverage on
+            # interest_coverage_operating_income alone, not on interest_expense - distinct
+            # from no_recent_interest_expense above (that's for filers with NO interest
+            # expense at all, e.g. debt-free AAPL). Same structural-not-missing distinction,
+            # same already-tested _get_no_tax_concept_symbols() gate. Computed unconditionally
+            # here (mirroring no_recent_interest_expense/unclassified_balance_sheet's own
+            # style) since interest_coverage_operating_income's fallback query above may or
+            # may not have run depending on interest_expense's initial value.
+            no_operating_income_concept_ic = (
+                interest_coverage_operating_income is None and symbol in self._get_no_tax_concept_symbols()
             )
 
             # Interest Coverage = Operating Income / Interest Expense. Higher is better
@@ -3324,6 +3362,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # hit this exact negative/zero-invested-capital shape - the single largest
             # component of the whole missing_sec_data bucket for this field.
             roic_pct_negative_invested_capital = invested_capital is not None and invested_capital <= 0
+            # FIXED 2026-09-01 (same fix/pattern as no_operating_income_concept above): the
+            # effective_tax_rate=0.0 branch above already handles AGNC/ARE/AMH-class REITs'
+            # missing tax concept, but roic_operating_income (NOPAT's OTHER input) still comes
+            # back None for these same symbols - no operating_income, no pretax_income, no
+            # EBIT approximation possible - so roic_pct still fell to "missing_sec_data" via
+            # this separate input, not the tax-rate one already fixed. Same structural-not-
+            # missing distinction, same already-tested _get_no_tax_concept_symbols() gate.
+            no_operating_income_concept_roic = (
+                roic_operating_income is None and symbol in self._get_no_tax_concept_symbols()
+            )
 
             if (
                 effective_tax_rate is not None
@@ -4667,7 +4715,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             metrics["operating_profitability"] = operating_profitability
             metrics["operating_profitability_unavailable_reason"] = (
-                ("implausible_ratio" if "operating_profitability" in implausible_ratio_metrics else "missing_sec_data")
+                (
+                    "implausible_ratio"
+                    if "operating_profitability" in implausible_ratio_metrics
+                    else "reit_special_entity"
+                    if no_operating_income_concept
+                    else "missing_sec_data"
+                )
                 if operating_profitability is None
                 else None
             )
@@ -4782,6 +4836,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "interest_coverage" in implausible_ratio_metrics
                     else "interest_expense_not_itemized"
                     if no_recent_interest_expense
+                    else "reit_special_entity"
+                    if no_operating_income_concept_ic
                     else "missing_sec_data"
                 )
                 if "interest_coverage" in failed_metrics
@@ -4827,6 +4883,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if roic_pct_negative_invested_capital
                     else "no_revenue_reported"
                     if symbol in self._get_blank_check_symbols()
+                    else "reit_special_entity"
+                    if no_operating_income_concept_roic
                     else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
@@ -4838,6 +4896,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "roce_pct" in implausible_ratio_metrics
                     else "negative_capital_employed"
                     if roce_pct_negative_capital_employed
+                    # FIXED 2026-09-01: roce_pct shares roic_operating_income (EBIT numerator)
+                    # with roic_pct above - same AGNC/ARE/AMH-class REIT structural gap, same
+                    # already-tested gate.
+                    else "reit_special_entity"
+                    if no_operating_income_concept_roic
                     else "missing_sec_data"
                 )
                 if "roce_pct" in failed_metrics
