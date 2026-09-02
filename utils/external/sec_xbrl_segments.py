@@ -325,6 +325,26 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # volumes, correctly excluded by _index_segment_contexts' multi-axis filter) - this
     # extension concept is the real, complete, ASC 280-reportable segment total.
     "RevenuesAndRealizedGainsLossesOnDerivativeInstruments",
+    # FIXED 2026-09-02 (goal: "SEC/XBRL missing data" audit, live SEC EDGAR verification,
+    # systematic scan of the no_segment_revenue_in_xbrl_xml bucket following the APA fix
+    # above): JBG SMITH Properties' (JBGS, CIK 1689796) own extension concept
+    # (jbgsmith.com: namespace) for segment-level property revenue. Live-confirmed against
+    # JBGS's real FY2025 10-K instance document, tagged directly under
+    # StatementBusinessSegmentsAxis (paired only with the standard ConsolidationItemsAxis
+    # boilerplate) - sums EXACTLY to JBGS's own plain consolidated PropertyRevenue for all 3
+    # fiscal years on file: FY2025 $433.180M (MultiFamily $205.937M + Commercial $227.243M),
+    # FY2024 $465.664M, FY2023 $517.887M - 0% reconciliation error. Before this fix JBGS fell
+    # through to "no_segment_revenue_in_xbrl_xml" despite having complete, real segment
+    # revenue on file.
+    "PropertyRevenue",
+    # FIXED 2026-09-02 (same scan as JBGS above): Tredegar Corporation's (TG, CIK 850429) own
+    # extension concept (tredegar.com: namespace) for segment-level net sales. Live-confirmed
+    # against TG's real FY2025 10-K instance document, tagged directly under
+    # StatementBusinessSegmentsAxis (paired only with the standard ConsolidationItemsAxis
+    # boilerplate) - sums EXACTLY to TG's own plain consolidated NetSales for all 3 fiscal
+    # years on file: FY2025 $698.731M (Aluminum Extrusions $598.975M + PE Films $99.756M),
+    # FY2024 $577.014M, FY2023 $551.566M - 0% reconciliation error.
+    "NetSales",
 )
 
 # `ifrs-full:GrossProfit` is deliberately NOT in _REVENUE_CONCEPT_LOCAL_NAMES above, even
