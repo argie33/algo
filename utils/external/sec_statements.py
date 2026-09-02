@@ -1185,16 +1185,40 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # $3.47M respectively). None of these filers report under any PP&E-family concept at
         # all - this was a genuine unextracted-data gap, not a structural absence, for 134
         # SIC-6798 symbols found with intrinsic_value_unavailable_reason=
-        # 'missing_cash_flow_data'. Excluded "PaymentsToAcquireCommercialRealEstate" (AAT
-        # tags it too, but at $0 the one year checked - and "PaymentsToAcquireBusinesses*"
-        # M&A-style concepts stay excluded here same as for industrials above) pending
-        # separate verification. Pure agency-mortgage REITs with no real estate at all
-        # (e.g. AGNC, which only tags MBS-purchase concepts) will still correctly end up
-        # with capex=None after this - a real structural gap for that subclass, not fixed
-        # here.
+        # 'missing_cash_flow_data'. Excluded "PaymentsToAcquireCommercialRealEstate" at the
+        # time (AAT tags it too, but at $0 the one year checked - and
+        # "PaymentsToAcquireBusinesses*" M&A-style concepts stay excluded here same as for
+        # industrials above) pending separate verification - see that concept's own entry
+        # below (added 2026-09-02) for the live verification that resolved the pending
+        # exclusion. Pure agency-mortgage REITs with no real estate at all (e.g. AGNC, which
+        # only tags MBS-purchase concepts) will still correctly end up with capex=None after
+        # this - a real structural gap for that subclass, not fixed here.
         "PaymentsToAcquireAndDevelopRealEstate",
         "PaymentsToAcquireRealEstate",
         "PaymentsForCapitalImprovements",
+        # FIXED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, live SEC EDGAR
+        # verification of the 2026-08-24 fix's "pending separate verification" exclusion
+        # above). Live-confirmed via SL Green's (SLG, CIK 1040971) real companyfacts JSON:
+        # SLG re-tagged its real-estate-acquisition capex under THIS concept starting with
+        # its FY2020 10-K (accn 0001040971-21-000007) - its last "PaymentsToAcquireRealEstate"
+        # entry is FY2019 ($262,591,000), and "PaymentsToAcquireCommercialRealEstate"'s
+        # FY2019 entry carries the IDENTICAL value ($262,591,000, filed same accession) -
+        # a straight relabel, not a new/different line item. Continues with real, varied,
+        # non-placeholder annual values every year since: FY2020 $86.846M, FY2021 $152.791M,
+        # FY2022 $64.491M, FY2023 $0 (genuine - no acquisitions that year, matches slow
+        # 2023 commercial real estate market), FY2024 $0, FY2025 $271.649M (accn
+        # 0001628280-26-008669) - real economic zeros mixed with real nonzero years, not a
+        # placeholder/broken tag. The 2026-08-24 exclusion cited AAT tagging this same
+        # concept at $0 "the one year checked" as grounds for suspicion; SLG's 8-year,
+        # clearly-varying history (including genuine zeros) shows a single $0 observation
+        # is not itself evidence of unreliability - REITs legitimately have zero-acquisition
+        # years. DLR (Digital Realty) and REG (Regency Centers), by contrast, do NOT tag
+        # this concept at all and have no other candidate concept in their real companyfacts
+        # JSON for capex after ~2019/2021 either (checked live, all remaining PP&E/
+        # RealEstate/Capital/Construction-family concepts scanned) - a genuine SEC/XBRL
+        # granularity gap for those two specifically, correctly left as missing_sec_data,
+        # not something this concept addition can fix.
+        "PaymentsToAcquireCommercialRealEstate",
         # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurers (SIC
         # 6311/6321/6331/6351/6361/6399) hold investment real estate as part of their
         # portfolio, tagged under these two insurer-specific concepts rather than any

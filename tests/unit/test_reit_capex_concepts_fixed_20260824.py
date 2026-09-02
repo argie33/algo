@@ -53,6 +53,31 @@ class TestReitCapexConceptsFixed:
         assert "PaymentsToAcquireAndDevelopRealEstate" in source
 
 
+class TestReitCommercialRealEstateCapexConceptFixed:
+    """Regression test for the 2026-09-02 fix: live SEC EDGAR verification of the 2026-08-24
+    fix's "pending separate verification" exclusion of "PaymentsToAcquireCommercialRealEstate".
+
+    Live-confirmed via real companyfacts JSON: SL Green (SLG, CIK 1040971) re-tagged its
+    real-estate-acquisition capex under this concept starting with its FY2020 10-K - its last
+    "PaymentsToAcquireRealEstate" entry is FY2019 ($262,591,000), and this concept's FY2019
+    entry carries the identical value (a straight relabel). Continues with real, varying,
+    non-placeholder annual values every year since (FY2020 $86.846M ... FY2025 $271.649M,
+    including genuine $0 years for 2023/2024 - a real REIT acquisition slowdown, not a broken
+    tag). DLR (Digital Realty) and REG (Regency Centers) do NOT tag this concept and have no
+    other candidate concept for capex after ~2019/2021 either - a genuine SEC/XBRL granularity
+    gap for those two, not something this concept addition can fix.
+    """
+
+    def test_payments_to_acquire_commercial_real_estate_maps_to_capex(self):
+        target_key = _to_snake("PaymentsToAcquireCommercialRealEstate")
+        assert target_key == "payments_to_acquire_commercial_real_estate"
+        assert _CASHFLOW_FIELD_MAPPING[target_key] == "capex"
+
+    def test_reit_commercial_real_estate_capex_concept_is_fetched(self):
+        source = inspect.getsource(sec_statements.get_cash_flow)
+        assert "PaymentsToAcquireCommercialRealEstate" in source
+
+
 class TestInsurerInvestmentRealEstateCapexConceptsFixed:
     """Insurers hold investment real estate as part of their portfolio, tagged under two
     insurer-specific concepts distinct from both the PP&E family and the REIT family above.

@@ -629,6 +629,12 @@ _CASHFLOW_FIELD_MAPPING = {
     "payments_to_acquire_and_develop_real_estate": "capex",
     "payments_to_acquire_real_estate": "capex",
     "payments_for_capital_improvements": "capex",
+    # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification of
+    # the 2026-08-24 fix's "pending separate verification" exclusion) - see sec_statements.py's
+    # get_cash_flow() comment for the live SLG (SL Green) evidence: 8 straight years of real,
+    # varying (including genuine $0) values under this concept since it replaced
+    # "payments_to_acquire_real_estate" in SLG's FY2020 10-K.
+    "payments_to_acquire_commercial_real_estate": "capex",
     # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurer investment-
     # real-estate capex concepts - see sec_statements.py's get_cash_flow() comment for the
     # live MET/RGA/BHF/PFG/TRV/WRB evidence.
