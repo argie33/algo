@@ -567,6 +567,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # (BRK.A/BRK.B live evidence) - must never win over a real value the normal
         # concept-list extraction already found.
         "custom_extension_total_debt",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "NotesPayable" (AFL/MAA live evidence) - must never win over a real,
+        # more complete LongTermDebt/SeniorNotes value.
+        "notes_payable",
     }
 )
 
@@ -699,6 +703,11 @@ _BALANCE_FIELD_MAPPING = {
     # plain-mapping convention as commercial_paper/short_term_borrowings above.
     "senior_notes": "long_term_debt",
     "senior_notes_current": "short_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): AFL/MAA
+    # real debt concept - see sec_statements.py's get_balance_sheet() comment on
+    # "NotesPayable" for the live evidence. Same either/or-alternative, plain-mapping
+    # convention as senior_notes above.
+    "notes_payable": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's

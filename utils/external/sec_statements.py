@@ -589,6 +589,22 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # SeniorNotesCurrent was $299,800,000 FY2024, $0 FY2025 (fully refinanced to
         # noncurrent that year) - a real, moving figure, not a placeholder.
         "SeniorNotesCurrent",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # total_debt_not_itemized investigation): AFL (Aflac) and MAA (Mid-America
+        # Apartment Communities) both tag their entire real debt load under plain
+        # "NotesPayable" instead of any LongTermDebt*/SeniorNotes*/DebtInstrument* concept
+        # above - live-confirmed via real companyfacts JSON: AFL NotesPayable FY2025
+        # $8,330,000,000, a real, continuously growing figure back to FY2008 ($1.721B),
+        # consistent with Aflac's real, publicly known ~$8B debt scale; MAA NotesPayable
+        # FY2025 $5,405,372,000, continuous back to FY2009 ($1.4B), consistent with a large
+        # apartment REIT's real mortgage/unsecured debt load. Neither filer has a
+        # "NotesPayableCurrent" sibling concept (no current/noncurrent split in the source
+        # data, same as SeniorNotes above), so this is a single-figure fallback targeting
+        # long_term_debt only, same convention as SeniorNotes/CommercialPaper. Fallback-only
+        # (see _DEBT_FALLBACK_ONLY_FIELDS) since "NotesPayable" is a generic enough concept
+        # name that a filer reporting a real, more complete LongTermDebt/SeniorNotes figure
+        # must always keep that value instead.
+        "NotesPayable",
         # FIXED 2026-08-17 (migration 1205): post-ASC 842 (2019+) capitalized lease
         # liabilities - a real, separate liability from long_term_debt/short_term_debt
         # above (AAPL's LongTermDebt does not include either). Using the COMBINED tags
