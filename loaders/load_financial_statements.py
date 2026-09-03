@@ -1755,6 +1755,12 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         # real UPDATE (not routed through bulk_insert_manager) - the only way to actually
         # overwrite a stale bad value that COALESCE would otherwise protect.
         self._explicit_null_rejections: list[tuple[dict[str, Any], str]] = []
+        # Side channel keyed by (pk_key_tuple, field), populated alongside
+        # _explicit_null_rejections - kept separate (rather than widening that list's tuple
+        # shape) so the many existing tests asserting 2-tuples in _explicit_null_rejections
+        # don't all need updating for a label-only fix. See _record_explicit_null_rejection's
+        # 2026-09-03 fix comment.
+        self._rejection_reasons: dict[tuple[Any, ...], str] = {}
         self._fpi_symbol_cache: dict[str, bool] = {}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
@@ -1822,6 +1828,47 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         has_real_data = any(not r.get("data_unavailable") for r in rows)
         if rows and not has_real_data and self._backfill_days >= 3650 and self._is_foreign_private_issuer(symbol):
             self._reject_stale_fpi_currency_data(symbol)
+
+        # FIXED 2026-09-01 (goal session: "how does a brand-new IPO have so many growth
+        # metrics" - live-confirmed via OFRM/Once Upon a Farm, PBC): sec_statements.py's
+        # period=="annual" extraction correctly rejects a short-duration (e.g. ~90-day
+        # Q1) fact via its 330-day span guard, but the REJECTION ITSELF is invisible to
+        # this loader - `get_income_statement()` just omits the field, producing a row
+        # like {"fiscal_year": 2026, "fiscal_quarter": None, "revenue": None,
+        # "net_income": None} that is non-empty (so `if not rows:` above never fires,
+        # never triggering the yfinance fallback) and whose all-None value fields get
+        # silently preserved (COALESCEd away) by preserve_on_missing_fields instead of
+        # overwriting whatever was there before - the exact "correctly rejects now, but
+        # the stale pre-fix value survives forever" bug class this file's own 2026-08-23
+        # and 2026-08-17 fix comments above already describe for other trigger conditions,
+        # never extended to this one. Live-confirmed: OFRM's annual_income_statement had
+        # FY2025 revenue=$50,603,000 and FY2026 revenue=$72,720,000 - both exactly equal
+        # to that fiscal year's real Q1-only quarterly figure (SEC's own companyfacts
+        # JSON has no ~365-day revenue entry for OFRM at all, only quarterly/6-month-
+        # cumulative ones) - a quarterly duration fact that was once accepted (before or
+        # around this symbol's data first loaded) into the annual bucket, now correctly
+        # rejected by a fresh fetch, but never actually cleared from the DB because the
+        # fresh fetch's all-None row was silently absorbed by COALESCE rather than
+        # explicitly nulling the stale cell. Guard: a row where EVERY preserve_on_missing_
+        # fields column is None is never a legitimate "found real data for most fields,
+        # missing one optional concept" case (that always leaves at least one field
+        # populated) - it specifically means "found nothing usable at all for this
+        # fiscal_year," so any existing DB value for that (symbol, fiscal_year) is
+        # unconfirmed and should be force-nulled the same way _reject_stale_fpi_currency_
+        # data already does for the FPI-currency case, not preserved indefinitely.
+        # getattr guard: some tests construct this loader via __new__ + a handful of
+        # manually-set attributes (bypassing __init__ entirely, e.g.
+        # test_financial_statements_custom_extension_capex_fallback.py) and never set
+        # _bulk_insert_mgr - harmless to skip this guard for those, since they don't
+        # exercise the real upsert path this guard protects anyway.
+        bulk_insert_mgr = getattr(self, "_bulk_insert_mgr", None)
+        if self.period == "annual" and bulk_insert_mgr is not None:
+            for row in rows:
+                if row.get("data_unavailable"):
+                    continue
+                if any(row.get(field) is not None for field in bulk_insert_mgr.preserve_on_missing_fields):
+                    continue  # Real data present for at least one field - not the all-None case
+                self._reject_stale_all_none_annual_row(symbol, row)
         return rows
 
     def _is_foreign_private_issuer(self, symbol: str) -> bool:
@@ -1856,19 +1903,46 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         for existing in existing_rows:
             pk_row = dict(zip(pk_cols, existing, strict=True))
             for field in self._bulk_insert_mgr.preserve_on_missing_fields:
-                self._record_explicit_null_rejection(pk_row, field)
+                self._record_explicit_null_rejection(pk_row, field, "fpi_currency_data_rejected")
         logger.warning(
             f"[{self.table_name}] {symbol}: full-history SEC extraction returned zero usable rows "
             f"(foreign private issuer, backfill_days={self._backfill_days}) - queued "
             f"{len(existing_rows)} existing row(s) for stale foreign-currency-value force-null in post_run()."
         )
 
-    def _record_explicit_null_rejection(self, row: dict[str, Any], field: str) -> None:
+    def _reject_stale_all_none_annual_row(self, symbol: str, row: dict[str, Any]) -> None:
+        """Queue a force-null for every preserve_on_missing_fields column on this exact
+        (symbol, fiscal_year) - see the 2026-09-01 fix comment in fetch_incremental for
+        the full OFRM-verified evidence and mechanism. Scoped to a single fiscal_year
+        (unlike _reject_stale_fpi_currency_data, which force-nulls a symbol's ENTIRE
+        history) - a fresh fetch finding nothing usable for ONE year says nothing about
+        whether other years' already-stored values are still good.
+        """
+        pk_cols = list(self._bulk_insert_mgr.primary_key)
+        pk_row = {pk: (symbol if pk == "symbol" else row.get(pk)) for pk in pk_cols}
+        if any(v is None for v in pk_row.values()):
+            return  # Can't target an UPDATE without a complete primary key
+        for field in self._bulk_insert_mgr.preserve_on_missing_fields:
+            self._record_explicit_null_rejection(pk_row, field, "no_usable_annual_duration_fact")
+
+    def _record_explicit_null_rejection(self, row: dict[str, Any], field: str, reason: str) -> None:
         """Record that `field` was deliberately nulled on this row so post_run() can force
         it to NULL in the DB directly, bypassing preserve_on_missing_fields' COALESCE (see
-        the 2026-08-23 fix comment in __init__ for why that's necessary)."""
-        pk_values = {pk: row.get(pk) for pk in self._bulk_insert_mgr.primary_key}
+        the 2026-08-23 fix comment in __init__ for why that's necessary).
+
+        FIXED 2026-09-03 (goal session: SEC/XBRL missing-data sweep): `reason` is required,
+        not defaulted, and carried through to post_run()'s data_unavailable flag-sync. Before
+        this fix every rejection - regardless of actual cause - got hardcoded to
+        'fpi_currency_data_rejected' there, so e.g. _reject_stale_all_none_annual_row's
+        Q1-mislabeled-as-annual rows (a genuinely different failure) were mislabeled with the
+        FPI-currency reason once their required fields got force-nulled. Same "reason string
+        doesn't match the real cause" bug class as the rest of this sweep, just introduced
+        by two independently-correct fixes combining rather than by a single call site.
+        """
+        pk_cols = list(self._bulk_insert_mgr.primary_key)
+        pk_values = {pk: row.get(pk) for pk in pk_cols}
         self._explicit_null_rejections.append((pk_values, field))
+        self._rejection_reasons[(tuple(pk_values[c] for c in pk_cols), field)] = reason
 
     def post_run(self) -> None:
         """Force-null every cell _reject_implausible_shares_outstanding()/
@@ -1886,7 +1960,11 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             # with every required field NULL - tracking just these (rather than every
             # touched pk) skips a pointless extra query for the far more common eps/
             # shares_outstanding rejections below, which never null a required field.
-            pks_needing_flag_check: set[tuple[Any, ...]] = set()
+            # FIXED 2026-09-03 (goal: SEC/XBRL missing-data sweep): tracks the reason that
+            # actually caused each pk's required-field force-null, instead of a bare set -
+            # see _record_explicit_null_rejection's 2026-09-03 fix comment for why a single
+            # hardcoded reason across every rejection cause was itself a mislabeling bug.
+            pks_needing_flag_check: dict[tuple[Any, ...], str] = {}
             forced = 0
             with DatabaseContext("write") as cur:
                 for pk_values, field in self._explicit_null_rejections:
@@ -1903,7 +1981,14 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     if cur.rowcount:
                         forced += cur.rowcount
                         if field in required_by_type:
-                            pks_needing_flag_check.add(pk_key)
+                            # .get(..., fallback): a test that pre-seeds
+                            # _explicit_null_rejections directly (bypassing
+                            # _record_explicit_null_rejection - several existing tests do
+                            # this) won't have populated _rejection_reasons; fall back to
+                            # the pre-2026-09-03 behavior rather than mislabeling or raising.
+                            pks_needing_flag_check[pk_key] = self._rejection_reasons.get(
+                                (pk_key, field), "fpi_currency_data_rejected"
+                            )
 
                 # FIXED 2026-09-02 (goal: SEC/XBRL missing-data sweep): the force-null UPDATE
                 # above only ever touches the value columns it's told to - it never revisits
@@ -1928,17 +2013,17 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     where_clause = " AND ".join(f"{c} = %s" for c in pk_cols)
                     required_null_clause = " AND ".join(f"{f} IS NULL" for f in sorted(required_by_type))
                     flagged = 0
-                    for pk_key in pks_needing_flag_check:
+                    for pk_key, pk_reason in pks_needing_flag_check.items():
                         cur.execute(
                             f"""
                             UPDATE {self.table_name}
                                SET data_unavailable = TRUE,
-                                   reason = 'fpi_currency_data_rejected'
+                                   reason = %s
                              WHERE {where_clause}
                                AND data_unavailable = FALSE
                                AND {required_null_clause}
                             """,
-                            pk_key,
+                            (pk_reason, *pk_key),
                         )
                         flagged += cur.rowcount
                     if flagged:
@@ -2051,7 +2136,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         "confidently-wrong share count."
                     )
                     row[field] = None
-                    self._record_explicit_null_rejection(row, field)
+                    self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
 
         shares_check_symbols = sorted({str(row.get("symbol")) for row in transformed if row.get("symbol")})
         reference_shares: dict[str, float] = {}
@@ -2099,7 +2184,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         "catch. Rejecting rather than storing a confidently-wrong share count."
                     )
                     row[field] = None
-                    self._record_explicit_null_rejection(row, field)
+                    self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
 
     def _fill_derived_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Fill earnings_per_share when the filer never tagged EarningsPerShareBasic/Diluted
@@ -2274,7 +2359,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                             "storing a confidently-wrong per-share value."
                         )
                         row[field] = None
-                        self._record_explicit_null_rejection(row, field)
+                        self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
                         continue
                 if abs(float(eps)) > max_plausible_abs_eps:
                     logger.warning(
@@ -2288,7 +2373,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         "value or letting it hit the raw column-overflow guard downstream."
                     )
                     row[field] = None
-                    self._record_explicit_null_rejection(row, field)
+                    self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.

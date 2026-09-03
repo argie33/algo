@@ -35,6 +35,10 @@ def _make_loader() -> ConsolidatedFinancialStatementsLoader:
     # __new__()-based lightweight fixture bypasses.
     loader._bulk_insert_mgr = BulkInsertManager(config["table_name"], config["primary_key"])
     loader._explicit_null_rejections = []
+    # FIXED 2026-09-03: _record_explicit_null_rejection also writes to _rejection_reasons
+    # now (see that method's 2026-09-03 fix comment) - this __new__()-based fixture must
+    # set it too, same as _explicit_null_rejections above.
+    loader._rejection_reasons = {}
     return loader
 
 

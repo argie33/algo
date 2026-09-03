@@ -2157,6 +2157,12 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # both were falling through to "Other (errors / excluded)" for lack of a mapping.
             "fpi_currency_data_rejected",
             "raw_unconverted_currency_stale_value_20260829",
+            # ADDED 2026-09-03 (same sweep, stranded-fix recovery): load_financial_statements.py's
+            # _reject_stale_all_none_annual_row reason (Q1-mislabeled-as-annual force-null, e.g.
+            # OFRM) - post_run()'s flag-sync previously hardcoded 'fpi_currency_data_rejected' for
+            # every required-field force-null regardless of cause; now each rejection carries its
+            # real reason (see that file's 2026-09-03 fix comment on _record_explicit_null_rejection).
+            "no_usable_annual_duration_fact",
             # ADDED 2026-09-02 (same sweep): load_value_quality_growth_metrics.py's row-level
             # early-return reason when the symbol's annual_balance_sheet row itself is
             # unavailable/empty (see that file's ~line 4528) - was also unmapped, falling

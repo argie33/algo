@@ -75,11 +75,17 @@ class TestPostRunFlagsRequiredFieldForceNulls:
         assert len(fake_cur.execute_calls) == 3
         flag_query, flag_params = fake_cur.execute_calls[2]
         assert "data_unavailable = TRUE" in flag_query
-        assert "reason = 'fpi_currency_data_rejected'" in flag_query
+        # FIXED 2026-09-03: reason is now a bound parameter, not a hardcoded literal, so
+        # every rejection cause gets its own real reason instead of always
+        # 'fpi_currency_data_rejected' (see _record_explicit_null_rejection). These tests
+        # pre-seed _explicit_null_rejections directly, bypassing _rejection_reasons, so
+        # post_run() falls back to 'fpi_currency_data_rejected' - same value as before,
+        # just passed as a parameter now.
+        assert "reason = %s" in flag_query
         assert "total_assets IS NULL" in flag_query
         assert "stockholders_equity IS NULL" in flag_query
         assert "data_unavailable = FALSE" in flag_query
-        assert flag_params == ("GGB", 2024)
+        assert flag_params == ("fpi_currency_data_rejected", "GGB", 2024)
 
     def test_optional_field_only_rejection_never_triggers_flag_sync(self) -> None:
         """eps/shares_outstanding rejections (income/other optional fields) must not trigger
@@ -113,7 +119,7 @@ class TestPostRunFlagsRequiredFieldForceNulls:
         flag_query, flag_params = fake_cur.execute_calls[1]
         assert "revenue IS NULL" in flag_query
         assert "net_income IS NULL" in flag_query
-        assert flag_params == ("PARTIAL", 2023)
+        assert flag_params == ("fpi_currency_data_rejected", "PARTIAL", 2023)
 
     def test_force_null_no_rows_matched_skips_flag_sync(self) -> None:
         """If the force-null UPDATE itself matched zero rows (field was already NULL), the
