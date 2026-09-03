@@ -2891,6 +2891,20 @@ def _categorize_reason(reason: str) -> str:
     # "Insufficient history" below, just phrased as a sentence instead of a code.
     if reason.startswith("Insufficient historical data:"):
         return "Insufficient history"
+    # ADDED 2026-09-03 (SEC/XBRL missing-data sweep, static unmapped-reason sweep): sibling of
+    # "Insufficient historical data:" above - load_value_quality_growth_metrics.py's PARTIAL
+    # growth-period-failure branch (1-5 of 6 periods failed, data_unavailable stays False so
+    # the real partial values aren't discarded) builds `growth_metrics.reason` as
+    # f"Incomplete growth metrics: {failed_fields} failed to compute (insufficient history or
+    # invalid data)" - same "not enough history yet" fact as the ALL-6-periods-failed sibling
+    # just above, just phrased differently and for the partial case. Never matched any set
+    # literal below (a full sentence, not a snake_case code), so 3,467 live rows were sitting
+    # in "Other (errors / excluded)" - the second-largest contributor there after the already-
+    # fixed sentence-shaped reasons - looking like unexplained errors instead of the same
+    # ordinary "too few fiscal years on file yet" fact already correctly bucketed for every
+    # other insufficient-history case.
+    if reason.startswith("Incomplete growth metrics:"):
+        return "Insufficient history"
     # ADDED 2026-09-02 (SEC/XBRL missing-data sweep): loaders/load_risk_metrics_daily.py
     # builds momentum_metrics.reason as a ";"-joined "momentum_{period}:insufficient_
     # price_history" list per missing period (e.g. "momentum_3m:insufficient_price_history;
