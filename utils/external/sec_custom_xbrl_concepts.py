@@ -270,7 +270,7 @@ _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
 def _fetch_custom_concept(
     symbol: str,
     sec_client: Any,
-    registry: dict[str, list[tuple[str, str]]],
+    registry: dict[str, Any],
     extractor: Any,
 ) -> dict[int, float]:
     """Fetch and parse `symbol`'s latest annual filing for its known custom concept(s)
@@ -341,3 +341,142 @@ def fetch_custom_revenue(symbol: str, sec_client: Any) -> dict[int, float]:
     data", not raise.
     """
     return _fetch_custom_concept(symbol, sec_client, CUSTOM_REVENUE_CONCEPTS, extract_custom_revenue_from_xbrl_xml)
+
+
+# FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, total_debt_not_
+# itemized investigation): BRK.A/BRK.B (Berkshire Hathaway, CIK 0001067983) have real, huge
+# ($45.8B + $83.3B = ~$129B FY2025) debt on file, but long_term_debt/short_term_debt were
+# NULL for every fiscal year - Berkshire's consolidated balance sheet has no single "total
+# debt" line at all (by design: it presents assets/liabilities split into two entity-level
+# columns, "Insurance and Other" and "Railroad, Utilities and Energy", not one consolidated
+# column). Real value on file: both segments tag "us-gaap:DebtAndCapitalLeaseObligations",
+# labeled "Notes payable and other borrowings" in the rendered statement - live-confirmed
+# against Berkshire's own real FY2025 10-K (accession 0001193125-26-083899,
+# brka-20251231_htm.xml) reconstructed XBRL instance document: Insurance and Other
+# $45,763,000,000 FY2025/$44,885,000,000 FY2024, Railroad Utilities and Energy
+# $83,318,000,000 FY2025/$79,877,000,000 FY2024 - both real, additive (distinct entity-level
+# totals, not a duplicate), summed total matches Berkshire's real, publicly reported ~$129B
+# debt scale. NOT the same shape as CUSTOM_CAPEX_CONCEPTS/CUSTOM_REVENUE_CONCEPTS above
+# (a concept never exposed via companyfacts at all): this concept name IS a standard
+# us-gaap concept and IS present in companyfacts, but only under a NON-USD unit
+# (EUR/GBP/JPY, an unrelated currency-risk footnote disclosure using this same concept name)
+# - the USD, entity-level facts are structurally dropped by companyfacts because there is no
+# single non-dimensioned USD fact for this concept/period (only two same-period,
+# axis-dimensioned USD facts), and companyfacts's aggregation appears to require a
+# non-dimensioned representative to surface a unit at all. So this still needs the raw
+# instance document like the concepts above, just via SUM-BY-DIMENSION-MEMBER instead of the
+# "exclude every dimensioned context" rule _extract_values_for_concepts uses for capex/
+# revenue - Berkshire's own debt footnote also tags DOZENS of sub-entity/individual-bond
+# breakdowns under this exact same concept name (dimensioned by
+# srt:ConsolidatedEntitiesAxis/dei:LegalEntityAxis/srt:CurrencyAxis members ON TOP OF the
+# ProductOrServiceAxis segment member) that are components OF the two segment totals, not
+# additional debt - live-confirmed by context inspection that only the 4 real contexts
+# needed here (2 segments x FY2025/FY2024) have EXACTLY ONE dimension member total; every
+# sub-entity breakdown fact has 2 or 3. _extract_dimensioned_sum_from_xbrl_xml's "exactly one
+# explicitMember, and it's in the target set" filter is what correctly isolates the 4 real
+# segment-total facts from the dozens of sub-entity duplicates - do not loosen that filter
+# without re-verifying against the raw instance document, a double-count here would badly
+# overstate one of the most widely-held stocks' total_debt.
+CUSTOM_DEBT_CONCEPTS: dict[str, tuple[str, frozenset[str]]] = {
+    "BRK.A": (
+        "DebtAndCapitalLeaseObligations",
+        frozenset({"InsuranceAndOtherMember", "RailroadUtilitiesAndEnergyMember"}),
+    ),
+    "BRK.B": (
+        "DebtAndCapitalLeaseObligations",
+        frozenset({"InsuranceAndOtherMember", "RailroadUtilitiesAndEnergyMember"}),
+    ),
+}
+
+
+def _extract_dimensioned_sum_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known
+    CUSTOM_DEBT_CONCEPTS-registered concept, summing only the facts tagged in a context
+    dimensioned by EXACTLY ONE explicitMember drawn from the registered member set (e.g.
+    Berkshire's two entity-level segments) - returns {fiscal_year: summed_value}.
+
+    This is the inverse filter of _extract_values_for_concepts above (which EXCLUDES every
+    dimensioned context to find a single consolidated total): here there is no consolidated,
+    non-dimensioned total at all, only N segment-level totals that must be summed, while
+    still excluding every MORE-dimensioned sub-entity/sub-bond breakdown fact tagged under
+    the identical concept name in the same document (see CUSTOM_DEBT_CONCEPTS's module
+    comment for the live evidence this distinction matters). "Exactly one member, and it's
+    in the target set" is what makes that distinction safely - a context with 2+ dimensions
+    is always a narrower sub-breakdown of one of the N segment totals, never itself a
+    segment total, in every real case checked so far.
+
+    Only meaningful for symbols in CUSTOM_DEBT_CONCEPTS - returns {} immediately otherwise
+    (never guesses at unregistered concept/member names). A fiscal year is only returned once
+    ALL registered members were found for it, so a filer dropping one segment's tag in a
+    future filing understates nothing silently - it just stops returning that year at all.
+    """
+    spec = CUSTOM_DEBT_CONCEPTS.get(symbol)
+    if not spec:
+        # Not an error - no candidates registered for this symbol at all, so there is
+        # nothing to search the XML for (never guesses at unregistered concept/member
+        # names).
+        return {}
+    concept_local_name, member_local_names = spec
+
+    root = ET.fromstring(xml_content)
+
+    context_members: dict[str, tuple[str, str]] = {}
+    for ctx in root.iter():
+        if _local_name(ctx.tag) != "context":
+            continue
+        ctx_id = ctx.get("id")
+        if not ctx_id:
+            continue
+        period = next((c for c in ctx if _local_name(c.tag) == "period"), None)
+        if period is None:
+            continue
+        instant_el = next((c for c in period if _local_name(c.tag) == "instant"), None)
+        if instant_el is None or not instant_el.text:
+            continue  # Duration context, not an instant balance-sheet snapshot - not usable here.
+        members = [
+            el.text.strip().rsplit(":", 1)[-1]
+            for el in ctx.iter()
+            if _local_name(el.tag) == "explicitMember" and el.text
+        ]
+        if len(members) != 1 or members[0] not in member_local_names:
+            continue  # Not one of our target segment totals - see module comment above.
+        context_members[ctx_id] = (instant_el.text.strip(), members[0])
+
+    values_by_year: dict[int, float] = {}
+    members_seen_by_year: dict[int, set[str]] = {}
+    for el in root.iter():
+        if _local_name(el.tag) != concept_local_name:
+            continue
+        ctx_ref = el.get("contextRef")
+        if ctx_ref not in context_members:
+            continue
+        instant_str, member = context_members[ctx_ref]
+        try:
+            instant_date = date.fromisoformat(instant_str)
+        except ValueError:
+            continue
+        if el.text is None:
+            continue
+        try:
+            value = float(el.text.strip())
+        except ValueError:
+            continue
+        fiscal_year = instant_date.year
+        seen = members_seen_by_year.setdefault(fiscal_year, set())
+        if member in seen:
+            continue  # Duplicate fact for a member/year already summed - never double-count.
+        seen.add(member)
+        values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
+
+    return {
+        year: total for year, total in values_by_year.items() if members_seen_by_year[year] == set(member_local_names)
+    }
+
+
+def fetch_custom_debt(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known CUSTOM_DEBT_CONCEPTS
+    dimensioned-sum concept. Returns {} if symbol isn't registered, the filing can't be
+    found, or the XML can't be parsed - callers should treat that as "no fallback data",
+    not raise.
+    """
+    return _fetch_custom_concept(symbol, sec_client, CUSTOM_DEBT_CONCEPTS, _extract_dimensioned_sum_from_xbrl_xml)

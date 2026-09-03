@@ -45,8 +45,10 @@ from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     CUSTOM_CAPEX_CONCEPTS,
+    CUSTOM_DEBT_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     fetch_custom_capex,
+    fetch_custom_debt,
     fetch_custom_revenue,
 )
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
@@ -560,6 +562,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # both are present for the same fiscal year - same "IncludingPortion" vs.
         # parent-only precedence convention as the StockholdersEquity pair above.
         "partners_capital_including_portion_attributable_to_noncontrolling_interest",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): see
+        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment
+        # (BRK.A/BRK.B live evidence) - must never win over a real value the normal
+        # concept-list extraction already found.
+        "custom_extension_total_debt",
     }
 )
 
@@ -669,6 +676,16 @@ _BALANCE_FIELD_MAPPING = {
     # comment above (ADC/net-lease-REIT live evidence - taxonomy switch mid-history, not
     # a genuine debt-free filer).
     "debt_instrument_carrying_amount": "long_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): BRK.A/BRK.B
+    # (Berkshire Hathaway) real, ~$129B combined debt - see
+    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment for
+    # the live evidence (two entity-level segment totals, no single consolidated "total
+    # debt" line exists at all, structurally invisible to companyfacts). No current/
+    # noncurrent split in the source data (Berkshire's balance sheet is unclassified), so
+    # this maps to long_term_debt only, same convention as the other single-figure debt
+    # fallbacks above. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS below) so it never
+    # overwrites a real value the normal concept-list extraction already found.
+    "custom_extension_total_debt": "long_term_debt",
     # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
     # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
     # alone (the only debt concept fetched before this fix) misses commercial paper/short-term
@@ -1898,6 +1915,20 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 fiscal_year = row.get("fiscal_year")
                 if fiscal_year in custom_revenue_by_year:
                     row["custom_extension_revenue"] = custom_revenue_by_year[fiscal_year]
+
+        # FIX 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # total_debt_not_itemized bucket): same structural gap as the capex/revenue blocks
+        # above, for BRK.A/BRK.B's total debt - see
+        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment
+        # for the live evidence (Berkshire's two entity-level segment totals, dimensioned-
+        # sum extraction, no single consolidated total exists to fetch normally). Cheap
+        # no-op for every other symbol (dict lookup miss, zero extra network calls).
+        if self.statement_type == "balance" and symbol in CUSTOM_DEBT_CONCEPTS:
+            custom_debt_by_year = fetch_custom_debt(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_debt_by_year:
+                    row["custom_extension_total_debt"] = custom_debt_by_year[fiscal_year]
 
         # FIX 2026-09-03 (goal session: "get the missing-XBRL number down the right way" -
         # quality_metrics.interest_coverage's "interest_expense_not_itemized" bucket):

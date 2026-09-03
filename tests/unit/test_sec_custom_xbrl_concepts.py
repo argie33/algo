@@ -11,10 +11,13 @@ from unittest.mock import MagicMock
 
 from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_CAPEX_CONCEPTS,
+    CUSTOM_DEBT_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
+    _extract_dimensioned_sum_from_xbrl_xml,
     extract_custom_capex_from_xbrl_xml,
     extract_custom_revenue_from_xbrl_xml,
     fetch_custom_capex,
+    fetch_custom_debt,
     fetch_custom_revenue,
 )
 
@@ -396,3 +399,147 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_psx_returns_its_own_concept(self):
         result = extract_custom_capex_from_xbrl_xml(_PSX_XML, "PSX")
         assert result[2025] == 4_466_000_000.0
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual
+# filed FY2025 10-K raw XBRL instance document (accession 0001193125-26-083899,
+# brka-20251231_htm.xml): the two entity-level segment totals (exactly one explicitMember
+# each, both required to be summed), a multi-dimensioned sub-entity/sub-bond breakdown fact
+# under the identical concept name that must be excluded (2 explicitMembers), and a
+# non-USD currency-risk-footnote fact under the same concept name using an unrelated
+# CurrencyAxis dimension that must also be excluded.
+_BRK_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:us-gaap="http://fasb.org/us-gaap/2025"
+      xmlns:srt="http://fasb.org/srt/2025"
+      xmlns:dei="http://xbrl.sec.gov/dei/2025"
+      xmlns:brka="http://berkshirehathaway.com/20251231">
+  <context id="C_insurance_2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001067983</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ProductOrServiceAxis">brka:InsuranceAndOtherMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2025-12-31</instant></period>
+  </context>
+  <context id="C_insurance_2024">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001067983</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ProductOrServiceAxis">brka:InsuranceAndOtherMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2024-12-31</instant></period>
+  </context>
+  <context id="C_rue_2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001067983</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ProductOrServiceAxis">brka:RailroadUtilitiesAndEnergyMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2025-12-31</instant></period>
+  </context>
+  <context id="C_subentity_2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001067983</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidatedEntitiesAxis">srt:SubsidiariesMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="srt:ProductOrServiceAxis">brka:RailroadUtilitiesAndEnergyMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2025-12-31</instant></period>
+  </context>
+  <context id="C_currency_footnote_2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001067983</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:CurrencyAxis">currency:EUR</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2025-12-31</instant></period>
+  </context>
+  <us-gaap:DebtAndCapitalLeaseObligations contextRef="C_insurance_2025" unitRef="U_USD" decimals="-6">45763000000</us-gaap:DebtAndCapitalLeaseObligations>
+  <us-gaap:DebtAndCapitalLeaseObligations contextRef="C_insurance_2024" unitRef="U_USD" decimals="-6">44885000000</us-gaap:DebtAndCapitalLeaseObligations>
+  <us-gaap:DebtAndCapitalLeaseObligations contextRef="C_rue_2025" unitRef="U_USD" decimals="-6">83318000000</us-gaap:DebtAndCapitalLeaseObligations>
+  <us-gaap:DebtAndCapitalLeaseObligations contextRef="C_subentity_2025" unitRef="U_USD" decimals="-6">14914000000</us-gaap:DebtAndCapitalLeaseObligations>
+  <us-gaap:DebtAndCapitalLeaseObligations contextRef="C_currency_footnote_2025" unitRef="U_EUR" decimals="-6">6850000000</us-gaap:DebtAndCapitalLeaseObligations>
+</xbrl>
+"""
+
+
+class TestExtractDimensionedSumFromXbrlXml:
+    def test_brk_sums_the_two_segment_totals_for_2025(self) -> None:
+        result = _extract_dimensioned_sum_from_xbrl_xml(_BRK_XML, "BRK.B")
+        # 45,763,000,000 (Insurance and Other) + 83,318,000,000 (Railroad, Utilities and Energy)
+        assert result[2025] == 129_081_000_000.0
+
+    def test_brk_2024_missing_one_segment_is_not_returned(self) -> None:
+        # The fixture only has an Insurance-and-Other fact for 2024 (no Railroad/
+        # Utilities/Energy comparative-year fact) - mirrors a real filer dropping one
+        # segment's tag for an older comparative year. Must NOT be returned as a
+        # (silently understated) total rather than the real combined figure.
+        result = _extract_dimensioned_sum_from_xbrl_xml(_BRK_XML, "BRK.B")
+        assert 2024 not in result
+
+    def test_brk_excludes_multi_dimensioned_sub_entity_fact(self) -> None:
+        result = _extract_dimensioned_sum_from_xbrl_xml(_BRK_XML, "BRK.B")
+        # The $14,914,000,000 sub-entity breakdown fact (2 explicitMembers: Subsidiaries +
+        # RailroadUtilitiesAndEnergy) is a component OF the $83,318M segment total, not
+        # additional debt - summing it in would double-count.
+        assert result[2025] == 129_081_000_000.0
+
+    def test_brk_excludes_non_usd_currency_footnote_fact(self) -> None:
+        result = _extract_dimensioned_sum_from_xbrl_xml(_BRK_XML, "BRK.B")
+        # The EUR 6,850,000,000 currency-risk-footnote fact uses an unrelated CurrencyAxis
+        # dimension (not one of our target ProductOrServiceAxis members) and must be
+        # excluded regardless of unit.
+        assert result[2025] == 129_081_000_000.0
+
+    def test_unregistered_symbol_returns_empty_without_parsing(self) -> None:
+        assert _extract_dimensioned_sum_from_xbrl_xml(_BRK_XML, "SOME_OTHER_SYMBOL") == {}
+
+    def test_brk_a_shares_the_same_registration_as_brk_b(self) -> None:
+        result = _extract_dimensioned_sum_from_xbrl_xml(_BRK_XML, "BRK.A")
+        assert result[2025] == 129_081_000_000.0
+
+
+class TestFetchCustomDebt:
+    def test_unregistered_symbol_never_calls_sec_client(self) -> None:
+        sec_client = MagicMock()
+        result = fetch_custom_debt("AAPL", sec_client)
+        assert result == {}
+        sec_client.symbol_to_cik.assert_not_called()
+
+    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self) -> None:
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0001067983"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["8-K", "10-K", "10-K"],
+                    "accessionNumber": ["0000000000-26-000001", "0001193125-26-083899", "0001193125-25-000009"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _BRK_XML
+
+        result = fetch_custom_debt("BRK.B", sec_client)
+
+        assert result[2025] == 129_081_000_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0001067983", "0001193125-26-083899", "10-K")
+
+    def test_sec_client_failure_returns_empty_not_raise(self) -> None:
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.side_effect = RuntimeError("network error")
+        assert fetch_custom_debt("BRK.B", sec_client) == {}
+
+
+def test_custom_debt_concepts_registry_is_well_formed() -> None:
+    assert "BRK.A" in CUSTOM_DEBT_CONCEPTS
+    assert "BRK.B" in CUSTOM_DEBT_CONCEPTS
+    for symbol, (concept_local_name, member_local_names) in CUSTOM_DEBT_CONCEPTS.items():
+        assert concept_local_name, f"{symbol} has an empty concept name"
+        assert member_local_names, f"{symbol} has an empty member set"
