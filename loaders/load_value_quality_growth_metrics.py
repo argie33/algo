@@ -5816,6 +5816,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "operating_income_absent_from_anchor_year"
                     if operating_income_for_margin is None
                     and symbol in self._get_operating_income_available_elsewhere_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, denominator-gate-
+                    # left-behind bug class - same shape as accruals_ratio's total_assets gate
+                    # just wired in `10f8edb1a`): operating_profitability_negative_equity above
+                    # only fires when stockholders_equity is a real value <=0 - it stays False
+                    # (silently) when equity is None, so a genuinely never-tagged/no-recent
+                    # equity denominator fell straight through to the generic fallback instead
+                    # of the same stockholders_equity_not_reported reason roic_pct/roce_pct/sgr/
+                    # debt_to_equity already use for the identical cause. Live-confirmed 19 of
+                    # 108 universe operating_profitability "missing_sec_data" rows (e.g. NRP,
+                    # GLDM, AAAU, PAC, HESM, BK) have stockholders_equity in one of these two
+                    # gate sets.
+                    else "stockholders_equity_not_reported"
+                    if stockholders_equity is None
+                    and (
+                        symbol in self._get_no_recent_stockholders_equity_symbols()
+                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if operating_profitability is None
@@ -6328,6 +6345,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # only, no value recomputed.
                     else "free_cash_flow_absent_from_anchor_year"
                     if free_cash_flow is None and symbol in self._get_free_cash_flow_available_elsewhere_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, denominator-gate-
+                    # left-behind bug class - same shape as roe's net_income_not_reported gate
+                    # above): fcf_to_net_income = free_cash_flow / net_income, but this reason
+                    # chain only ever checked the numerator's (FCF) gates, never net_income's -
+                    # the same denominator this ratio divides by. Live-confirmed 19 of 176
+                    # universe fcf_to_net_income "missing_sec_data" rows (e.g. ESOA, AVLN, ELMT,
+                    # PARK, OFRM) have net_income in one of these two gate sets.
+                    else "net_income_not_reported"
+                    if net_income is None
+                    and (
+                        symbol in self._get_no_recent_net_income_symbols()
+                        or symbol in self._get_never_tagged_net_income_symbols()
+                    )
+                    else "net_income_absent_from_anchor_year"
+                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "fcf_to_net_income" in failed_metrics
@@ -6351,6 +6383,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "operating_cash_flow_absent_from_anchor_year"
                     if operating_cash_flow is None
                     and symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, same denominator-
+                    # gate-left-behind class as fcf_to_net_income's net_income fix just above -
+                    # ocf_to_net_income = operating_cash_flow / net_income, this chain only ever
+                    # checked the OCF numerator, never the net_income denominator. Live-confirmed
+                    # 19 of 96 universe ocf_to_net_income "missing_sec_data" rows (same symbols
+                    # as fcf_to_net_income's - both share the denominator) have net_income in one
+                    # of these two gate sets.
+                    else "net_income_not_reported"
+                    if net_income is None
+                    and (
+                        symbol in self._get_no_recent_net_income_symbols()
+                        or symbol in self._get_never_tagged_net_income_symbols()
+                    )
+                    else "net_income_absent_from_anchor_year"
+                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "ocf_to_net_income" in failed_metrics
