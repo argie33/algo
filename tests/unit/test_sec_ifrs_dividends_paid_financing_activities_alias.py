@@ -11,6 +11,15 @@ ifrs-full:DividendsPaidClassifiedAsFinancingActivities every fiscal year through
 dividend line. AEM ALSO reports a sibling concept, ifrs-full:DividendsPaidOrdinaryShares
 ($802.9M FY2025) - a different, larger figure (not the cash-flow-statement line) -
 deliberately NOT aliased, so this test also guards against ever conflating the two.
+
+FIXED 2026-09-03 (same sweep): KGC (Kinross Gold, another real 40-F Canadian dividend
+payer) reports neither "DividendsPaid" nor "DividendsPaidClassifiedAsFinancingActivities" -
+its real concept is the more granular
+"DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities" (splits the combined
+concept above into parent-equity-holders vs. noncontrolling-interest portions). Verified
+exact against KGC's own DividendsPaidOrdinaryShares sibling for FY2021 ($151.1M both)
+before adding - unlike AEM's DividendsPaidOrdinaryShares, KGC's IS the same figure, so this
+is a genuinely different filer-specific case, not a re-litigation of the AEM decision above.
 """
 
 from typing import Any
@@ -49,6 +58,40 @@ class TestIfrsDividendsPaidFinancingActivitiesAlias:
         by_year = {r["fiscal_year"]: r for r in rows}
 
         assert by_year[2025]["payments_of_dividends"] == 728_077_000.0
+
+    def test_dividends_paid_to_equity_holders_of_parent_maps_to_payments_of_dividends(self) -> None:
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities": {
+                    "units": {"USD": [_entry(2021, 151_100_000.0, "2022-03-01")]},
+                },
+            },
+        }
+        client = _FakeClient(facts)
+
+        rows = get_cash_flow(client, "KGC", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        assert by_year[2021]["payments_of_dividends"] == 151_100_000.0
+
+    def test_dividends_paid_to_noncontrolling_interests_is_not_aliased(self) -> None:
+        """KGC also separately reports the NCI-only portion under a sibling concept - a
+        different, smaller figure, not part of this column. Must stay unmapped."""
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "DividendsPaidToNoncontrollingInterestsClassifiedAsFinancingActivities": {
+                    "units": {"USD": [_entry(2021, 5_000_000.0, "2022-03-01")]},
+                },
+            },
+        }
+        client = _FakeClient(facts)
+
+        rows = get_cash_flow(client, "KGC", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        assert 2021 not in by_year or by_year[2021].get("payments_of_dividends") is None
 
     def test_sibling_dividends_paid_ordinary_shares_concept_is_not_aliased(self) -> None:
         """DividendsPaidOrdinaryShares is a real, different figure AEM also reports - not

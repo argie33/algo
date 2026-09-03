@@ -367,6 +367,20 @@ _CASHFLOW_IFRS_ALIASES = [
     # a different, larger figure - $802.9M FY2025 - not the cash-flow-statement line, so
     # deliberately not aliased here to avoid conflating the two).
     ("DividendsPaidClassifiedAsFinancingActivities", "payments_of_dividends"),
+    # FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction): KGC (Kinross
+    # Gold, a real, well-known dividend-paying 40-F Canadian FPI) reports neither
+    # "DividendsPaid" nor "DividendsPaidClassifiedAsFinancingActivities" - live-confirmed
+    # via real companyfacts JSON its actual financing-activities dividend line is this
+    # more granular taxonomy variant, which splits the combined concept above into
+    # parent-equity-holders vs. noncontrolling-interest portions (KGC also separately
+    # reports "DividendsPaidToNoncontrollingInterestsClassifiedAsFinancingActivities",
+    # deliberately NOT aliased here - a different, smaller NCI-only figure, not part of
+    # this column). Values verified exact against KGC's own DividendsPaidOrdinaryShares
+    # sibling concept for FY2021 ($151.1M both) before adding - same "cash-flow-statement
+    # financing line" semantics as DividendsPaidClassifiedAsFinancingActivities above, not
+    # AEM's rejected DividendsPaidOrdinaryShares (a different, larger figure for AEM
+    # specifically - see that concept's own comment above for why it stays unaliased).
+    ("DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities", "payments_of_dividends"),
     # ("DepreciationExpense", "depreciation") REMOVED 2026-07-28 - see get_cash_flow()'s
     # comment: no destination column exists for cash-flow-context depreciation.
     # FIXED 2026-08-17 (loader-review goal continuation, migration 1206 follow-up): the
