@@ -69,6 +69,26 @@ _CLASS_LETTER_FROM_MEMBER_RE = re.compile(r"Class([A-Z])(?:Member)?\b")
 _DOT_SUFFIX_RE = re.compile(r"\.([A-Za-z])$")
 _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
 
+# Explicit, human-verified overrides for symbols neither auto-resolution source reaches: no
+# dot suffix, and `security_name` never states a class (Visa's is literally just "Visa Inc.").
+# Not a guess - each entry is a public, unambiguous fact confirmed against the filer's own real
+# XBRL instance document, same evidentiary bar as the dot-suffix/security_name paths above.
+# FIXED 2026-09-03 (goal: "missing SEC/XBRL data" sweep, eps_never_tagged_in_filings follow-up):
+# Visa's ticker V trades exclusively as Class A common stock (Visa Inc.'s Class B and Class C
+# common stock are not publicly listed) - live-confirmed via Visa's real FY2025 10-K instance
+# XML (CIK 0001403161, accession 0001403161-25-000089): EarningsPerShareBasic is tagged once per
+# fiscal year under us-gaap:StatementClassOfStockAxis with member us-gaap:CommonClassAMember
+# (FY2025 = $10.22, context start=2024-10-01/end=2025-09-30, a clean 364-day annual span) -
+# exactly the single-member/annual-span shape extract_dual_class_eps_shares already handles,
+# never reached before this fix because V had no automatic way to resolve to "A". Visa's
+# companyfacts convenience API has zero undimensioned EarningsPerShareBasic/Diluted or
+# WeightedAverageNumberOfShares* facts at all (live-confirmed same session), so every fiscal
+# year's eps/diluted_eps/shares_outstanding_basic/shares_outstanding_diluted was NULL for one
+# of the largest S&P 500 constituents before this override.
+_CLASS_LETTER_OVERRIDES: dict[str, str] = {
+    "V": "A",
+}
+
 _EPS_BASIC_CONCEPT = "EarningsPerShareBasic"
 _EPS_DILUTED_CONCEPT = "EarningsPerShareDiluted"
 _SHARES_BASIC_CONCEPT = "WeightedAverageNumberOfSharesOutstandingBasic"
@@ -78,14 +98,16 @@ _SHARES_DILUTED_CONCEPT = "WeightedAverageNumberOfDilutedSharesOutstanding"
 def resolve_class_letter(symbol: str, security_name: str | None = None) -> str | None:
     """This symbol's own share-class letter, if determinable with confidence.
 
-    Two sources, both conservative (return None rather than guess) - same two-source design as
-    load_company_info_sec.py's `_target_class_letter`:
+    Three sources, all conservative (return None rather than guess) - same two-source design as
+    load_company_info_sec.py's `_target_class_letter`, plus a small explicit override table:
     1. A single-letter dot suffix (BRK.A -> "A", CRD.B -> "B") - the internal symbol convention
        already encodes the class directly, no further check needed.
     2. For a BARE ticker (no dot), `security_name` sometimes states the class explicitly
        (e.g. "Greif Inc. Class A Common Stock") - only trusted when that exact "Class {LETTER}"
        text is present. `security_name` is optional so this module stays DB-free; a caller with
        no DB access (or that hasn't looked it up) simply gets the dot-suffix-only behavior.
+    3. `_CLASS_LETTER_OVERRIDES` - a handful of tickers neither source above reaches, each a
+       human-verified fact (see that table's own docstring), not an inference.
     """
     m = _DOT_SUFFIX_RE.search(symbol)
     if m and len(m.group(1)) == 1:
@@ -94,7 +116,7 @@ def resolve_class_letter(symbol: str, security_name: str | None = None) -> str |
         name_m = _CLASS_LETTER_FROM_SECURITY_NAME_RE.search(security_name)
         if name_m:
             return name_m.group(1).upper()
-    return None
+    return _CLASS_LETTER_OVERRIDES.get(symbol)
 
 
 def _parse_duration_contexts(xml_text: str) -> dict[str, dict[str, Any]]:

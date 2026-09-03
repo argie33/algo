@@ -112,9 +112,9 @@ class TestResolveClassLetter:
         assert resolve_class_letter("GTN.A") == "A"
 
     def test_bare_ticker_stays_unresolved_without_security_name(self) -> None:
-        # Deliberately conservative - a bare ticker (V, GEF, GTN, SENEA) needs a
-        # security_name lookup to resolve at all.
-        assert resolve_class_letter("V") is None
+        # Deliberately conservative - a bare ticker (GEF, GTN, SENEA) needs a
+        # security_name lookup to resolve at all. V is excluded here - see
+        # test_explicit_override_resolves_without_security_name below.
         assert resolve_class_letter("GEF") is None
         assert resolve_class_letter("GTN") is None
         assert resolve_class_letter("SENEA") is None
@@ -132,9 +132,17 @@ class TestResolveClassLetter:
 
     def test_bare_ticker_without_class_text_stays_unresolved(self) -> None:
         # Real values, live-verified 2026-09-02 - GTN's own security_name has no class text
-        # (only its dot-suffix sibling GTN.A does), and V's has none at all. Must not guess.
+        # (only its dot-suffix sibling GTN.A does). Must not guess.
         assert resolve_class_letter("GTN", "Gray Media, Inc. Common Stock") is None
-        assert resolve_class_letter("V", "Visa Inc.") is None
+
+    def test_explicit_override_resolves_without_security_name(self) -> None:
+        # FIXED 2026-09-03: V (Visa) trades exclusively as Class A common stock - neither the
+        # dot-suffix nor security_name path can reach this (security_name is plain "Visa
+        # Inc."), so it's covered by the explicit, human-verified override table instead. Live-
+        # confirmed against Visa's real FY2025 10-K instance XML (CIK 0001403161): EPS is tagged
+        # under us-gaap:StatementClassOfStockAxis with member us-gaap:CommonClassAMember.
+        assert resolve_class_letter("V") == "A"
+        assert resolve_class_letter("V", "Visa Inc.") == "A"
 
     def test_dot_suffix_wins_over_security_name_when_both_present(self) -> None:
         # The dot suffix is the more direct/trusted signal - checked first regardless of

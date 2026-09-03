@@ -88,13 +88,38 @@ class TestDualClassEpsFallbackIntegration:
         assert rows[0]["weighted_average_number_of_shares_outstanding_basic"] == 2157335139.0
 
     def test_unresolvable_symbol_makes_no_network_calls(self) -> None:
+        # GTN (bare ticker, no security_name passed) - genuinely unresolvable: no dot suffix,
+        # no security_name class text, and not in the explicit override table (unlike "V",
+        # see test_explicit_override_symbol_fills_gap below).
         rows = [{"fiscal_year": 2025, **dict.fromkeys(_TARGET_FIELDS)}]
         client = _FakeClient()
 
-        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, "V")
+        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, "GTN")
 
         assert client.get_filing_xml_calls == []
         assert rows[0]["earnings_per_share_basic"] is None
+
+    def test_explicit_override_symbol_fills_gap(self) -> None:
+        # FIXED 2026-09-03: V (Visa) has no dot suffix and no class text in security_name, but
+        # is covered by sec_dual_class_eps.py's explicit _CLASS_LETTER_OVERRIDES table (live-
+        # verified against Visa's real FY2025 10-K: EPS tagged under CommonClassAMember). Reuse
+        # the class-B fixture template's shape via a class-A variant to prove the override
+        # actually reaches the network-fetch path, not just resolve_class_letter in isolation.
+        class _FakeClassAClient(_FakeClient):
+            def get_filing_xml(self, cik: str, accession_number: str, form_type: str) -> str:
+                self.get_filing_xml_calls.append((cik, accession_number, form_type))
+                year = accession_number.split("-")[-1]
+                return _FIXTURE_XML_TEMPLATE.format(year=year).replace(
+                    "us-gaap:CommonClassBMember", "us-gaap:CommonClassAMember"
+                )
+
+        rows = [{"fiscal_year": 2025, **dict.fromkeys(_TARGET_FIELDS)}]
+        client = _FakeClassAClient()
+
+        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, "V")
+
+        assert client.get_filing_xml_calls != []
+        assert rows[0]["earnings_per_share_basic"] == 31.04
 
     def test_fully_populated_row_makes_no_network_calls(self) -> None:
         rows = [{"fiscal_year": 2025, **dict.fromkeys(_TARGET_FIELDS, 1.0)}]
