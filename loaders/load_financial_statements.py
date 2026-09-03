@@ -713,6 +713,11 @@ _CASHFLOW_FIELD_MAPPING = {
     # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the
     # normal SEC extraction already found.
     "custom_extension_vessel_capex": "capex",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data" sweep) - see
+    # sec_statements.py's get_cash_flow() comment for the live CWT (water utility)
+    # evidence. Same "capex" target column as the other sector-specific PP&E-family
+    # concepts above.
+    "payments_to_acquire_water_and_waste_water_systems": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but

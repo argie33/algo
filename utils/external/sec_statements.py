@@ -1390,6 +1390,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # separately-defined us-gaap concepts. Listed last (highest priority) since it was
         # the only concept with real current data for both filers checked.
         "PaymentsToAcquireOilAndGasPropertyAndEquipment",
+        # FIXED 2026-09-03 (goal session: "get missing SEC/XBRL data under 7k" sweep,
+        # capex_never_tagged_in_recent_filings investigation): water utilities (SIC 4941)
+        # tag capex under this sector-specific concept instead of any PP&E-family concept
+        # above - live-confirmed via CWT (California Water Service Group, CIK 1035201)
+        # real companyfacts JSON: FY2025 $516,991,000 / FY2024 $470,800,000 / FY2023
+        # $383,747,000, all full-year 10-K entries, growing year over year (plausible for
+        # a capital-intensive regulated utility, not a placeholder). CWT tags zero
+        # PP&E-family concepts anywhere in its companyfacts JSON - a genuine unextracted-
+        # data gap, not a structural absence, same bug class as the REIT/insurance/oil-gas
+        # sector capex fixes above. 13 SIC-4941 symbols in the universe (YORW, HTO, MSEX,
+        # CWCO, CWT, SBS, ARTNA, AWK, AWR, CDZI, GWRS, PCYO, WTRG) - only CWT verified live
+        # this session, but the concept is standard (not filer-specific), so this should
+        # recover the whole sector wherever it applies.
+        "PaymentsToAcquireWaterAndWasteWaterSystems",
         # RESTORED 2026-08-29 (worktree growth-multi-input-blend reconciliation): main's commit
         # 3152939f7 (SIC 700/7200 mapping fix) accidentally dropped these 3 lines - a
         # concurrent-editing collision, not an intentional removal (its own commit message never
