@@ -5857,8 +5857,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # rows (65%) covered by either gate.
                     else "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - see bf82fc6d0/total_debt): ps_ratio/ev_revenue's own
+                    # no_revenue_reported gate already ORs in _get_never_tagged_revenue_symbols()
+                    # (the thin-filing-history sibling of _get_no_recent_revenue_symbols(), see its
+                    # docstring) - fcf_margin was left off that OR when the never-tagged gate was
+                    # added, so 73 universe rows with genuinely zero revenue anywhere in a short
+                    # filing history fell through to generic missing_sec_data instead of the real
+                    # no_revenue_reported cause its siblings already show.
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     else "missing_sec_data"
                 )
                 if fcf_margin is None
@@ -5878,8 +5887,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # revenue-less filers (153, same _get_no_recent_revenue_symbols() gate as
                     # ebitda_margin/gross_margin above) and FPIs with no extractable
                     # total_assets concept (53, see _get_no_recent_total_assets_symbols()).
+                    # FIX 2026-09-03 (same sibling-left-behind bug as ebitda_margin/fcf_margin
+                    # above): missing the _get_never_tagged_revenue_symbols() OR-branch.
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     else "no_recent_total_assets_reported"
                     if total_assets is None
                     and (
@@ -6165,8 +6177,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # this exact case.
                     else "reit_special_entity"
                     if no_operating_income_concept
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - see bf82fc6d0/total_debt and the fcf_margin fix just above):
+                    # missing _get_never_tagged_revenue_symbols() from this OR left 73 universe
+                    # rows (thin-filing-history, genuinely zero revenue ever) mislabeled generic
+                    # missing_sec_data instead of no_revenue_reported, same as ps_ratio/ev_revenue
+                    # already correctly show for the identical symbols.
                     else "no_revenue_reported"
-                    if symbol in self._get_no_recent_revenue_symbols() or symbol in self._get_blank_check_symbols()
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
+                    or symbol in self._get_blank_check_symbols()
                     # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
                     # _get_revenue_available_elsewhere_symbols()'s docstring for the full live
                     # evidence): this is the exact "~440 [ebitda_margin symbols] have real
