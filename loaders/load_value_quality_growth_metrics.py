@@ -1981,7 +1981,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         eps_growth_rates.append(quarter_eps_growth)
                 curr_rev, prev_rev = q["revenue"], prior["revenue"]
                 if curr_rev is not None and prev_rev is not None and prev_rev != 0:
-                    revenue_yoy_growth_rates.append(((curr_rev - prev_rev) / abs(prev_rev)) * 100)
+                    quarter_rev_growth = ((curr_rev - prev_rev) / abs(prev_rev)) * 100
+                    # FIXED 2026-09-03: same dilution bug as eps_growth_rates just above,
+                    # for the revenue side feeding quarterly_growth_momentum - a single
+                    # quarter's near-zero-prior-revenue ratio could dilute under the
+                    # aggregate 2000% cap the same way. Same fix, same reused constant.
+                    if abs(quarter_rev_growth) < MAX_PLAUSIBLE_GROWTH_PCT:
+                        revenue_yoy_growth_rates.append(quarter_rev_growth)
 
             if eps_growth_rates:
                 earnings_growth_4q_avg = sum(eps_growth_rates) / len(eps_growth_rates)

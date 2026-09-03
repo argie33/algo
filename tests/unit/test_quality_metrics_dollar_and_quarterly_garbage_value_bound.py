@@ -160,9 +160,12 @@ class TestQuarterlyGrowthMomentumGarbageBound:
         ]
         return current + prior
 
-    def test_near_zero_prior_quarter_revenue_marked_unavailable(self, monkeypatch):
-        # A near-zero (but nonzero) same-quarter-prior-year revenue makes the YoY growth
-        # rate - and therefore the 4-quarter average - mathematically enormous.
+    def test_near_zero_prior_quarter_revenue_excluded_not_diluting_average(self, monkeypatch):
+        # FIXED 2026-09-03: same "bound each quarter before averaging" fix as
+        # eps_growth_rates above, applied to the revenue side - a near-zero (but nonzero)
+        # same-quarter-prior-year revenue used to make one quarter's ratio mathematically
+        # enormous and get diluted, un-excluded, into the 4-quarter average. Now that
+        # quarter is excluded before averaging, leaving the 3 genuinely-0%-growth quarters.
         rows = self._quarters(
             [100_000_000.0, 100_000_000.0, 100_000_000.0, 100_000_000.0],
             prior_revenues=[100_000_000.0, 0.01, 100_000_000.0, 100_000_000.0],
@@ -171,11 +174,36 @@ class TestQuarterlyGrowthMomentumGarbageBound:
 
         metrics = loader._compute_quarterly_metrics("DUO")
 
-        assert metrics.get("quarterly_growth_momentum") is None
-        assert (
-            metrics.get("quarterly_growth_momentum_unavailable_reason")
-            == "garbage_metric_value_implausible_growth_rate"
+        assert metrics.get("quarterly_growth_momentum") == 0.0
+        assert metrics.get("quarterly_growth_momentum_unavailable_reason") is None
+
+    def test_single_garbage_revenue_quarter_diluted_average_now_excluded(self, monkeypatch):
+        # Mixed case (mirrors the AFL-style EPS test above): 3 quarters with real, moderate
+        # revenue growth plus 1 quarter whose prior-year revenue was implausibly tiny - the
+        # bad quarter must be excluded, not averaged in with the 3 real ones.
+        rows = self._quarters(
+            [110_000_000.0, 120_000_000.0, 105_000_000.0, 115_000_000.0],
+            prior_revenues=[100_000_000.0, 20.0, 100_000_000.0, 100_000_000.0],
         )
+        loader = _make_loader(monkeypatch, quarterly_rows=rows)
+
+        metrics = loader._compute_quarterly_metrics("DUOLIKE")
+
+        # Only the 3 quarters with a real $100M prior-year base contribute: growth rates
+        # 10%, 5%, 15% -> average 10%. The $20-based quarter must be excluded.
+        assert metrics.get("quarterly_growth_momentum") == pytest.approx(10.0, abs=1e-2)
+        assert metrics.get("quarterly_growth_momentum_unavailable_reason") is None
+
+    def test_all_quarters_implausible_revenue_still_marked_unavailable(self, monkeypatch):
+        rows = self._quarters(
+            [100_000_000.0, 100_000_000.0, 100_000_000.0, 100_000_000.0],
+            prior_revenues=[20.0, 20.0, 20.0, 20.0],
+        )
+        loader = _make_loader(monkeypatch, quarterly_rows=rows)
+
+        metrics = loader._compute_quarterly_metrics("ALLGARBAGEREVCO")
+
+        assert metrics.get("quarterly_growth_momentum") is None
 
     def test_near_zero_prior_quarter_eps_excluded_not_diluting_average(self, monkeypatch):
         # FIXED 2026-09-03 (goal session: "implausible values" investigation, AFL live
