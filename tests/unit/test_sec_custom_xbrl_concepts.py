@@ -11,8 +11,11 @@ from unittest.mock import MagicMock
 
 from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_CAPEX_CONCEPTS,
+    CUSTOM_REVENUE_CONCEPTS,
     extract_custom_capex_from_xbrl_xml,
+    extract_custom_revenue_from_xbrl_xml,
     fetch_custom_capex,
+    fetch_custom_revenue,
 )
 
 _DHT_XML = """<?xml version="1.0" encoding="utf-8"?>
@@ -55,6 +58,43 @@ _CMRE_XML = """<?xml version="1.0" encoding="utf-8"?>
     <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
   </context>
   <cmre:PaymentsToAcquireVessels contextRef="c20250101to20251231" unitRef="U002" decimals="-3">68971000</cmre:PaymentsToAcquireVessels>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-02 against APA Corporation's actual
+# filed FY2025 10-K reconstructed XBRL instance document (accession
+# 0001841666-26-000015): context "c-1" (plain, no segment/scenario dimension) carries
+# the real consolidated total revenue; "c-450"/"c-451"/"c-452" are the US/Egypt/North
+# Sea segment-scoped facts that must NOT be summed into the consolidated figure.
+_APA_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:apa="http://www.apachecorp.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001841666</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-1-prior">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001841666</identifier></entity>
+    <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
+  </context>
+  <context id="c-450">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001841666</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">apa:SegmentUnitedStatesMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-q4-2025">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001841666</identifier></entity>
+    <period><startDate>2025-10-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-1" unitRef="usd" decimals="-6">8951000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
+  <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-1-prior" unitRef="usd" decimals="-6">9739000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
+  <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-450" unitRef="usd" decimals="-6">5541000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
+  <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-q4-2025" unitRef="usd" decimals="-6">2200000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
 </xbrl>
 """
 
@@ -173,6 +213,70 @@ def test_custom_capex_concepts_registry_is_well_formed():
     assert "ANNA" in CUSTOM_CAPEX_CONCEPTS
     assert "EPSN" in CUSTOM_CAPEX_CONCEPTS
     for symbol, concepts in CUSTOM_CAPEX_CONCEPTS.items():
+        assert concepts, f"{symbol} has an empty concept list"
+        for prefix, local_name in concepts:
+            assert prefix and local_name
+
+
+class TestExtractCustomRevenueFromXbrlXml:
+    def test_apa_returns_the_consolidated_total_not_the_segment_or_quarterly_facts(self):
+        result = extract_custom_revenue_from_xbrl_xml(_APA_XML, "APA")
+        assert result[2025] == 8_951_000_000.0
+        assert result[2024] == 9_739_000_000.0
+
+    def test_apa_excludes_dimensionally_scoped_segment_fact(self):
+        result = extract_custom_revenue_from_xbrl_xml(_APA_XML, "APA")
+        # The $5.541B US-segment value must never be summed into the consolidated total.
+        assert result[2025] == 8_951_000_000.0
+
+    def test_apa_excludes_non_annual_duration_context(self):
+        result = extract_custom_revenue_from_xbrl_xml(_APA_XML, "APA")
+        # The $2.2B Q4-only (92-day) value must not be counted into the FY2025 bucket.
+        assert result[2025] == 8_951_000_000.0
+
+    def test_unregistered_symbol_returns_empty_without_parsing(self):
+        assert extract_custom_revenue_from_xbrl_xml(_APA_XML, "SOME_OTHER_SYMBOL") == {}
+
+    def test_malformed_xml_does_not_match_wrong_symbol_data(self):
+        assert extract_custom_revenue_from_xbrl_xml(_DHT_XML, "APA") == {}
+
+
+class TestFetchCustomRevenue:
+    def test_unregistered_symbol_never_calls_sec_client(self):
+        sec_client = MagicMock()
+        result = fetch_custom_revenue("AAPL", sec_client)
+        assert result == {}
+        sec_client.symbol_to_cik.assert_not_called()
+
+    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self):
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0001841666"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["8-K", "10-K", "10-K"],
+                    "accessionNumber": ["0000000000-26-000001", "0001841666-26-000015", "0002040266-25-000007"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _APA_XML
+
+        result = fetch_custom_revenue("APA", sec_client)
+
+        assert result[2025] == 8_951_000_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0001841666", "0001841666-26-000015", "10-K")
+
+    def test_sec_client_failure_returns_empty_not_raise(self):
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.side_effect = RuntimeError("network error")
+        assert fetch_custom_revenue("APA", sec_client) == {}
+
+
+def test_custom_revenue_concepts_registry_is_well_formed():
+    """Every registered symbol must map to at least one (prefix, local_name) tuple - a
+    guard against an accidental empty-list entry that would silently resolve to no data."""
+    assert "APA" in CUSTOM_REVENUE_CONCEPTS
+    for symbol, concepts in CUSTOM_REVENUE_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
             assert prefix and local_name

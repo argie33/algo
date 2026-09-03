@@ -96,31 +96,52 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
 }
 
 
+# FOUND 2026-09-02 (goal: "SEC/XBRL missing data" audit, investigating the
+# `no_revenue_reported` bucket): annual_income_statement.revenue was NULL for APA
+# Corporation (CIK 1841666, a real, large oil & gas major with billions in real
+# revenue) despite APA filing real, current 10-Ks every year - the SAME structural gap
+# as CUSTOM_CAPEX_CONCEPTS above, just for the top-line revenue figure instead of
+# capex: APA tags its consolidated total revenue under its own extension concept
+# apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments (oil/gas sales revenue plus
+# realized hedging gains/losses, APA's own presentation of its income-statement top
+# line), invisible to sec_statements.py's get_income_statement() us-gaap-only concept
+# list and to SEC's companyfacts/companyconcept APIs (same "custom extension concepts
+# excluded from both convenience APIs entirely" limitation CUSTOM_CAPEX_CONCEPTS'
+# module docstring already documents for DHT/CMRE). Live-verified against APA's real
+# FY2025 10-K (accession 0001841666-26-000015) reconstructed XBRL instance document:
+# context "c-1" (plain, no segment/scenario dimension, full FY2025 duration) carries
+# apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments=8,951,000,000 - exactly the
+# consolidated total that the segment-revenue fix (commit 9ca9feb75) already confirmed
+# equals the sum of APA's US ($5.541B) + Egypt ($2.637B) + North Sea ($0.773B) segment
+# revenues with 0% reconciliation error for FY2023-2025.
+CUSTOM_REVENUE_CONCEPTS: dict[str, list[tuple[str, str]]] = {
+    "APA": [("apa", "RevenuesAndRealizedGainsLossesOnDerivativeInstruments")],
+}
+
+
 def _local_name(tag: str) -> str:
     """Strip the Clark-notation namespace from an ElementTree tag."""
     return tag.rsplit("}", 1)[-1]
 
 
-def extract_custom_capex_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
-    """Parse a filing's raw XBRL instance document for `symbol`'s known custom capex
-    concept(s) (see CUSTOM_CAPEX_CONCEPTS), returning {fiscal_year: summed_value}.
-
-    Only meaningful for symbols in CUSTOM_CAPEX_CONCEPTS - returns {} immediately for any
-    other symbol (never guesses at unregistered concept names).
+def _extract_values_for_concepts(xml_content: str, concepts: list[tuple[str, str]] | None) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for the given (namespace_prefix,
+    local_name) concept(s), returning {fiscal_year: summed_value}. Shared core of
+    extract_custom_capex_from_xbrl_xml and extract_custom_revenue_from_xbrl_xml - see
+    either for the per-field registry it's called with.
 
     Excludes any context with a <segment>/<scenario> dimensional qualifier - a
     dimensionally-scoped fact is a specific business segment or member, not the
-    consolidated entity-wide total this codebase's other capex figures represent
-    (same governance as sec_xbrl_segments.py's own context handling). Also excludes
-    non-annual-duration contexts (anything not ~350-380 days) so a quarterly/interim fact
-    can't get misattributed to the wrong annual bucket.
+    consolidated entity-wide total this codebase's other figures represent (same
+    governance as sec_xbrl_segments.py's own context handling - see the FIXED comment
+    just below on why this scans the full context subtree, not just direct children).
+    Also excludes non-annual-duration contexts (anything not ~350-380 days) so a
+    quarterly/interim fact can't get misattributed to the wrong annual bucket.
     """
-    concepts = CUSTOM_CAPEX_CONCEPTS.get(symbol)
     if not concepts:
-        # Not an error - no candidates registered for this symbol at all, so there is
-        # nothing to search the XML for. This is an optional supplemental data source
-        # (see module docstring); an unregistered symbol simply gets no supplement, the
-        # same as if this module didn't exist for it.
+        # Not an error - no candidates registered for this symbol/field at all, so
+        # there is nothing to search the XML for (never guesses at unregistered concept
+        # names).
         return {}
     wanted_local_names = {local_name for _prefix, local_name in concepts}
 
@@ -133,7 +154,20 @@ def extract_custom_capex_from_xbrl_xml(xml_content: str, symbol: str) -> dict[in
         ctx_id = ctx.get("id")
         if not ctx_id:
             continue
-        if any(_local_name(child.tag) in ("segment", "scenario") for child in ctx):
+        # FIXED 2026-09-02 (found while adding CUSTOM_REVENUE_CONCEPTS/APA): this used
+        # to check only ctx's DIRECT children for segment/scenario, which happened to
+        # match the DHT/CMRE/EGY/ANNA/EPSN test fixtures (they model <segment> as a
+        # sibling of <entity>) but not real XBRL - live-confirmed APA's actual filed
+        # FY2025 10-K reconstructed instance document (accession 0001841666-26-000015)
+        # nests <segment> INSIDE <entity> (<context><entity><identifier/><segment>...
+        # </segment></entity><period>...</period></context>), the structure the XBRL
+        # spec actually requires and sec_xbrl_segments.py's own context indexer already
+        # handles correctly via ctx.iter() (see e.g. its _index_segment_contexts). The
+        # direct-children-only check would have silently treated every real
+        # dimensionally-scoped context as the consolidated total for any filer using
+        # spec-correct nesting - now scans the full context subtree like that sibling
+        # module does.
+        if any(_local_name(child.tag) in ("segment", "scenario") for child in ctx.iter() if child is not ctx):
             continue  # Dimensionally-scoped context - not the consolidated total
         period = next((c for c in ctx if _local_name(c.tag) == "period"), None)
         if period is None:
@@ -173,16 +207,42 @@ def extract_custom_capex_from_xbrl_xml(xml_content: str, symbol: str) -> dict[in
     return values_by_year
 
 
+def extract_custom_capex_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known custom capex
+    concept(s) (see CUSTOM_CAPEX_CONCEPTS), returning {fiscal_year: summed_value}.
+
+    Only meaningful for symbols in CUSTOM_CAPEX_CONCEPTS - returns {} immediately for any
+    other symbol (never guesses at unregistered concept names).
+    """
+    return _extract_values_for_concepts(xml_content, CUSTOM_CAPEX_CONCEPTS.get(symbol))
+
+
+def extract_custom_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known custom revenue
+    concept(s) (see CUSTOM_REVENUE_CONCEPTS), returning {fiscal_year: summed_value}.
+
+    Only meaningful for symbols in CUSTOM_REVENUE_CONCEPTS - returns {} immediately for
+    any other symbol (never guesses at unregistered concept names).
+    """
+    return _extract_values_for_concepts(xml_content, CUSTOM_REVENUE_CONCEPTS.get(symbol))
+
+
 _ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
-# BASE (non-amendment) forms only - tried first. See fetch_custom_capex's docstring.
+# BASE (non-amendment) forms only - tried first. See _fetch_custom_concept's docstring.
 _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
 
 
-def fetch_custom_capex(symbol: str, sec_client: Any) -> dict[int, float]:
-    """Fetch and parse `symbol`'s latest annual filing for its known custom capex
-    concept(s). Returns {} if symbol isn't in CUSTOM_CAPEX_CONCEPTS, the filing can't be
-    found, or the XML can't be parsed - callers should treat that as "no fallback data",
-    not raise.
+def _fetch_custom_concept(
+    symbol: str,
+    sec_client: Any,
+    registry: dict[str, list[tuple[str, str]]],
+    extractor: Any,
+) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known custom concept(s)
+    registered in `registry`, via `extractor(xml_content, symbol)`. Returns {} if symbol
+    isn't in `registry`, the filing can't be found, or the XML can't be parsed - callers
+    should treat that as "no fallback data", not raise. Shared core of fetch_custom_capex
+    and fetch_custom_revenue.
 
     LIVE-REPRODUCED 2026-08-29 while validating this exact function: a naive
     "most-recent annual-form filing" scan picked EGY's 10-K/A (a Part-III-only amendment,
@@ -197,7 +257,7 @@ def fetch_custom_capex(symbol: str, sec_client: Any) -> dict[int, float]:
     (not imported from that loader) to keep this module dependency-free of the loader
     layer.
     """
-    if symbol not in CUSTOM_CAPEX_CONCEPTS:
+    if symbol not in registry:
         # Not an error - no candidates registered for this symbol, nothing to fetch.
         return {}
     try:
@@ -212,19 +272,37 @@ def fetch_custom_capex(symbol: str, sec_client: Any) -> dict[int, float]:
             accession = recent["accessionNumber"][i]
             if form in _BASE_ANNUAL_FILING_FORMS:
                 xml_content = sec_client.get_filing_xml(cik, accession, form)
-                return extract_custom_capex_from_xbrl_xml(xml_content, symbol)
+                return extractor(xml_content, symbol)  # type: ignore[no-any-return]
             if fallback_amendment is None:
                 fallback_amendment = (accession, form)
         if fallback_amendment is not None:
             accession, form = fallback_amendment
             xml_content = sec_client.get_filing_xml(cik, accession, form)
-            return extract_custom_capex_from_xbrl_xml(xml_content, symbol)
+            return extractor(xml_content, symbol)  # type: ignore[no-any-return]
     except Exception:
         # Not an error for THIS optional fallback - a fetch/parse failure here just means
-        # no supplemental capex value is available this run; the symbol keeps whatever
-        # the normal SEC concept-list extraction already found (possibly still NULL, same
-        # as before this module existed). Same soft-fail contract as this codebase's
-        # other optional-fallback sources (e.g. sec_base.py's _try_yfinance_fallback).
+        # no supplemental value is available this run; the symbol keeps whatever the
+        # normal SEC concept-list extraction already found (possibly still NULL, same as
+        # before this module existed). Same soft-fail contract as this codebase's other
+        # optional-fallback sources (e.g. sec_base.py's _try_yfinance_fallback).
         return {}
     # Not an error - no candidates at all: the filing history had no 10-K/20-F/40-F to check.
     return {}
+
+
+def fetch_custom_capex(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known custom capex
+    concept(s). Returns {} if symbol isn't in CUSTOM_CAPEX_CONCEPTS, the filing can't be
+    found, or the XML can't be parsed - callers should treat that as "no fallback data",
+    not raise.
+    """
+    return _fetch_custom_concept(symbol, sec_client, CUSTOM_CAPEX_CONCEPTS, extract_custom_capex_from_xbrl_xml)
+
+
+def fetch_custom_revenue(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known custom revenue
+    concept(s). Returns {} if symbol isn't in CUSTOM_REVENUE_CONCEPTS, the filing can't
+    be found, or the XML can't be parsed - callers should treat that as "no fallback
+    data", not raise.
+    """
+    return _fetch_custom_concept(symbol, sec_client, CUSTOM_REVENUE_CONCEPTS, extract_custom_revenue_from_xbrl_xml)

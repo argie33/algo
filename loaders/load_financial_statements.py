@@ -43,7 +43,12 @@ from typing import Any  # noqa: E402
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
-from utils.external.sec_custom_xbrl_concepts import CUSTOM_CAPEX_CONCEPTS, fetch_custom_capex  # noqa: E402
+from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
+    CUSTOM_CAPEX_CONCEPTS,
+    CUSTOM_REVENUE_CONCEPTS,
+    fetch_custom_capex,
+    fetch_custom_revenue,
+)
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
 from utils.loaders.enum_validator import validate_period, validate_statement_type  # noqa: E402
 
@@ -189,6 +194,15 @@ _INCOME_FIELD_MAPPING = {
     # continuing to file real, current 10-Ks).
     "regulated_operating_revenue": "revenue",
     "regulated_and_unregulated_operating_revenue": "revenue",
+    # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): identity key
+    # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
+    # symbols in utils/external/sec_custom_xbrl_concepts.py's CUSTOM_REVENUE_CONCEPTS -
+    # see that module's docstring for why (real revenue tagged under a filer-specific
+    # custom XBRL extension taxonomy, structurally invisible to the companyfacts API this
+    # file's normal concept-list extraction depends on). fallback_only (see
+    # _REVENUE_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the normal
+    # SEC extraction already found.
+    "custom_extension_revenue": "revenue",
     "cost_of_revenue": "cost_of_revenue",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
     # added to sec_statements.py's get_income_statement() concepts list - see that file's
@@ -400,6 +414,12 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # the safe convention this file uses everywhere else.
         "interest_and_debt_expense",
         "interest_paid_net",
+        # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): same "fills only an
+        # already-empty db_field" reasoning as this set's other entries - see
+        # _INCOME_FIELD_MAPPING's comment on "custom_extension_revenue" above. Only ever
+        # populated for CUSTOM_REVENUE_CONCEPTS-registered symbols in the first place, so
+        # this is a defensive-in-depth guard rather than a live-confirmed clobber risk.
+        "custom_extension_revenue",
     }
 )
 
@@ -1779,6 +1799,20 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 fiscal_year = row.get("fiscal_year")
                 if fiscal_year in custom_capex_by_year:
                     row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
+
+        # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit, no_revenue_reported bucket):
+        # same structural gap as the capex block above, for the top-line revenue figure -
+        # see utils/external/sec_custom_xbrl_concepts.py's CUSTOM_REVENUE_CONCEPTS
+        # docstring for the live-verified APA evidence (real $8.951B FY2025 consolidated
+        # revenue tagged only under its own apachecorp.com extension concept, invisible to
+        # the companyfacts-API-driven normal extraction). Cheap no-op for every other
+        # symbol (dict lookup miss, zero extra network calls).
+        if self.statement_type == "income" and symbol in CUSTOM_REVENUE_CONCEPTS:
+            custom_revenue_by_year = fetch_custom_revenue(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_revenue_by_year:
+                    row["custom_extension_revenue"] = custom_revenue_by_year[fiscal_year]
 
         # FIXED 2026-08-31 (goal session: "VCIG tops the scores, dig in" investigation -
         # traced to BMA/LOMA/CEPU/CIG and other Argentine/Brazilian FPIs sitting at
