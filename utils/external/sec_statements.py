@@ -548,6 +548,20 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # Both fallback-only, same convention as the rest of this block.
         "LongTermDebtNoncurrent",
         "LongTermDebtAndCapitalLeaseObligations",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): the
+        # SAME "wiring half-landed" bug the comment immediately above this one already
+        # describes and fixed once - the 2026-08-18 ADC/net-lease-REIT fix added
+        # "debt_instrument_carrying_amount" to load_financial_statements.py's
+        # _BALANCE_FIELD_MAPPING/_DEBT_FALLBACK_ONLY_FIELDS but never added the matching
+        # concept string HERE, so SecEdgarClient never actually fetched it from SEC -
+        # live-reverified 2026-09-03 that ADC itself (the symbol this fallback was written
+        # for) is still NULL for long_term_debt every fiscal year 2023-2025 despite real
+        # DebtInstrumentCarryingAmount values in its companyfacts JSON ($1.96B-$3.32B), and
+        # DLR (Digital Realty, another net-lease/data-center REIT) is NULL for its entire
+        # history despite a real, undimensioned $17,537,652,000 FY2023 fact under this same
+        # concept. Confirms this fallback has never fired for any symbol since it was
+        # written - the mapping-only "fix" silently did nothing for over 2 weeks.
+        "DebtInstrumentCarryingAmount",
         # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM (the largest US bank by assets)
         # stopped tagging the plain "LongTermDebt" concept after FY2013 - live-confirmed
         # via its real companyfacts JSON, last "LongTermDebt" fact is 2013-12-31, every
