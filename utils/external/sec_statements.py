@@ -1243,6 +1243,18 @@ def get_income_statement(
         # was already correct and just never received a matching concept to receive.
         "Depreciation",
         "DepreciationAndAmortization",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # ebitda_not_extracted investigation): several large, well-known filers (PG, WM,
+        # ULTA, WSM, CP live-confirmed via real companyfacts JSON) stopped tagging plain
+        # "DepreciationAndAmortization" and switched to this combined depreciation +
+        # depletion + amortization concept instead - PG FY2026 $3,160,000,000, WM FY2025
+        # $2,863,000,000, ULTA FY2025 (period ended 2026-01-31) $300,772,000, all real,
+        # current, growing figures with zero data under the concept above for recent
+        # years. Same target column ("amortization_expense") as DepreciationAndAmortization
+        # above per this file's "last-listed wins" convention - not a new column, matching
+        # that concept's existing "combined D&A total, not a separate depreciation-only
+        # figure" semantics.
+        "DepreciationDepletionAndAmortization",
         "AmortizationOfIntangibles",
         # For roic_pct (quality_metrics) = EBIT*(1-effective_tax_rate)/invested_capital.
         # Live-confirmed against AAPL/MSFT companyfacts (2026-08-03): both real GAAP

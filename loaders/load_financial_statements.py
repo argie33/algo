@@ -319,6 +319,11 @@ _INCOME_FIELD_MAPPING = {
     # before that fix. See that module's comment for the full story.
     "depreciation": "depreciation_expense",  # Session 398: EBITDA extraction
     "depreciation_and_amortization": "amortization_expense",  # Fallback if separate D/A not available
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): combined
+    # D&A taxonomy-transition concept - see sec_statements.py's get_income_statement()
+    # comment on DepreciationDepletionAndAmortization for the live-verified PG/WM/ULTA/
+    # WSM/CP evidence. Same target column as depreciation_and_amortization above.
+    "depreciation_depletion_and_amortization": "amortization_expense",
     "amortization_of_intangibles": "amortization_expense",  # Alt source for amortization
     # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
     # above these concepts for the live-verification note).
