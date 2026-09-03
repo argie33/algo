@@ -541,6 +541,12 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # this key only exists for symbols where that extraction structurally can't work
         # at all (see _CASHFLOW_FIELD_MAPPING's comment on this same key).
         "custom_extension_vessel_capex",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): ED's
+        # narrower "construction work in progress" concept - see this dict's own comment
+        # on "payments_for_construction_in_process" above and sec_statements.py's
+        # get_cash_flow() comment for the live evidence it must never overwrite a real
+        # standard-concept capex value.
+        "payments_for_construction_in_process",
         # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): see sec_statements.py's
         # get_cash_flow() comment on "NetCashProvidedByUsedInOperatingActivities
         # ContinuingOperations" (ASH/Ashland live-confirmed: zero entries under the plain
@@ -725,6 +731,19 @@ _CASHFLOW_FIELD_MAPPING = {
     # evidence. Same "capex" target column as the other sector-specific PP&E-family
     # concepts above.
     "payments_to_acquire_water_and_waste_water_systems": "capex",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, capex_never_
+    # tagged_in_recent_filings continuation): see sec_statements.py's get_cash_flow()
+    # comment on this concept - D (Dominion Energy) live-confirmed, a pure taxonomy
+    # relabeling of the same real capex line, not fallback-only (value-identical to the
+    # standard concept in every year both are present).
+    "payments_for_proceeds_from_productive_assets": "capex",
+    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_cash_flow() comment on
+    # this concept - ED (Consolidated Edison) live-confirmed. Fallback-only (added to
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below): unlike the concept above, this is a
+    # narrower "construction work in progress" sub-line that reports a genuinely smaller
+    # figure than the standard concept in years both are present, so it must never
+    # overwrite a real standard-concept value.
+    "payments_for_construction_in_process": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but

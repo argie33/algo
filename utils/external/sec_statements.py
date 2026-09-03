@@ -1417,6 +1417,33 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # this session, but the concept is standard (not filer-specific), so this should
         # recover the whole sector wherever it applies.
         "PaymentsToAcquireWaterAndWasteWaterSystems",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # capex_never_tagged_in_recent_filings continuation): D (Dominion Energy, CIK
+        # 715957) stopped tagging "PaymentsToAcquirePropertyPlantAndEquipment" after its
+        # FY2019 10-K - live-confirmed via real companyfacts JSON that this concept's
+        # values for FY2015-2019 (e.g. FY2017 $5,909,000,000, FY2016 $6,125,000,000)
+        # exactly match this concept's values for the SAME fiscal years (both tagged in
+        # parallel during the transition), then this concept continues alone with real,
+        # growing values through FY2025 ($6,331M/$6,061M/$7,758M/$10,235M/$12,427M/
+        # $12,653M for FY2020-2025) while the old concept goes silent - a pure taxonomy
+        # relabeling of the identical real capex line, not a different/narrower figure.
+        # Plain (non-fallback) concept, same convention as
+        # PaymentsToAcquireWaterAndWasteWaterSystems above - safe because the two
+        # concepts are value-identical in every year both are present.
+        "PaymentsForProceedsFromProductiveAssets",
+        # FIXED 2026-09-03 (same sweep): ED (Consolidated Edison, CIK 1047862) stopped
+        # tagging "PaymentsToAcquirePropertyPlantAndEquipment" after its FY2022 10-K -
+        # live-confirmed via real companyfacts JSON that this concept continues with real
+        # values through FY2025 ($4,353M/$4,770M/$4,764M for FY2023-2025). Unlike the
+        # PaymentsForProceedsFromProductiveAssets/D case above, this is NOT a pure
+        # relabeling: ED tags this concept continuously back to FY2009 IN PARALLEL with
+        # the standard concept, and the two report genuinely DIFFERENT values in years
+        # both are present (FY2020: $3,326M this concept vs. $4,085M standard concept) -
+        # a narrower "construction work in progress" sub-line, not the full capex total.
+        # Fallback-only (see load_financial_statements.py's field_mapping comment) so it
+        # only fills FY2023+ (where the standard concept is genuinely absent) and never
+        # overwrites the standard concept's more complete figure in years both exist.
+        "PaymentsForConstructionInProcess",
         # RESTORED 2026-08-29 (worktree growth-multi-input-blend reconciliation): main's commit
         # 3152939f7 (SIC 700/7200 mapping fix) accidentally dropped these 3 lines - a
         # concurrent-editing collision, not an intentional removal (its own commit message never
