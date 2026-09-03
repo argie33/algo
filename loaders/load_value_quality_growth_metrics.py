@@ -2633,6 +2633,110 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._never_tagged_total_assets_symbols_cache = result
         return result
 
+    def _get_no_recent_current_assets_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported a real (non-NULL, positive) current_assets in any of
+        their 3 most recent fiscal years - i.e. current_ratio/quick_ratio are structurally None
+        for them, not a loader gap. Same shape as _get_no_recent_total_assets_symbols() above,
+        for current_ratio/quick_ratio's own current_assets input instead of total_assets.
+
+        FIX 2026-09-03 (SEC/XBRL missing-data sweep): current_ratio/quick_ratio's reason chains
+        never checked either of their two structural inputs (current_assets/current_liabilities)
+        against a no-data gate at all, unlike every other ratio in this file - a genuine "never
+        wired up" gap, not a left-behind sibling asymmetry. Live-confirmed 33 of 64 universe
+        current_ratio/quick_ratio "missing_sec_data" rows have current_assets or
+        current_liabilities in one of the 4 new gates this fix adds.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_current_assets_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, current_assets,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(*) FILTER (WHERE current_assets IS NOT NULL AND current_assets > 0) = 0
+                   AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_current_assets_symbols_cache = result
+        return result
+
+    def _get_never_tagged_current_assets_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_current_assets_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern."""
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_current_assets_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE current_assets IS NOT NULL AND current_assets > 0) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_current_assets_symbols_cache = result
+        return result
+
+    def _get_no_recent_current_liabilities_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported a real (non-NULL, positive) current_liabilities in any
+        of their 3 most recent fiscal years - sibling of
+        _get_no_recent_current_assets_symbols() above for current_ratio/quick_ratio's other
+        structural input."""
+        cached: frozenset[str] | None = getattr(self, "_no_recent_current_liabilities_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, current_liabilities,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(*) FILTER (WHERE current_liabilities IS NOT NULL AND current_liabilities > 0) = 0
+                   AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_current_liabilities_symbols_cache = result
+        return result
+
+    def _get_never_tagged_current_liabilities_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_current_liabilities_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern."""
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_current_liabilities_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE current_liabilities IS NOT NULL AND current_liabilities > 0) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_current_liabilities_symbols_cache = result
+        return result
+
     def _get_no_recent_net_income_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported net_income in any of their 3 most recent fiscal
         years - i.e. roe/roa are structurally None for them, not a loader gap.
@@ -6152,6 +6256,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "current_ratio" in implausible_ratio_metrics
                     else "reit_special_entity"
                     if unclassified_balance_sheet
+                    # FIX 2026-09-03 (SEC/XBRL missing-data sweep): current_ratio/quick_ratio
+                    # never checked either structural input (current_assets/current_liabilities)
+                    # against a no-data gate at all - see
+                    # _get_no_recent_current_assets_symbols()'s docstring for the live evidence.
+                    else "no_recent_current_assets_reported"
+                    if current_assets is None
+                    and (
+                        symbol in self._get_no_recent_current_assets_symbols()
+                        or symbol in self._get_never_tagged_current_assets_symbols()
+                    )
+                    else "no_recent_current_liabilities_reported"
+                    if current_liabilities is None
+                    and (
+                        symbol in self._get_no_recent_current_liabilities_symbols()
+                        or symbol in self._get_never_tagged_current_liabilities_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "current_ratio" in failed_metrics
@@ -6163,6 +6283,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "quick_ratio" in implausible_ratio_metrics
                     else "reit_special_entity"
                     if unclassified_balance_sheet
+                    # FIX 2026-09-03 (SEC/XBRL missing-data sweep): same fix as
+                    # current_ratio_unavailable_reason above - quick_ratio shares both
+                    # structural inputs (current_assets/current_liabilities; inventory is
+                    # subtracted from current_assets but its own absence is a normal "not a
+                    # goods business" fact, not a data gap, so it's deliberately not gated).
+                    else "no_recent_current_assets_reported"
+                    if current_assets is None
+                    and (
+                        symbol in self._get_no_recent_current_assets_symbols()
+                        or symbol in self._get_never_tagged_current_assets_symbols()
+                    )
+                    else "no_recent_current_liabilities_reported"
+                    if current_liabilities is None
+                    and (
+                        symbol in self._get_no_recent_current_liabilities_symbols()
+                        or symbol in self._get_never_tagged_current_liabilities_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "quick_ratio" in failed_metrics

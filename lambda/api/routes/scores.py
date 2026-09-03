@@ -2390,6 +2390,13 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "no_recent_total_assets_reported",
             "eps_never_tagged_in_filings",
             "capex_never_tagged_in_recent_filings",
+            # ADDED 2026-09-03 (SEC/XBRL missing-data sweep): current_ratio/quick_ratio's own
+            # new no-data gates - see load_value_quality_growth_metrics.py's
+            # _get_no_recent_current_assets_symbols() docstring for the live evidence (33 of 64
+            # universe rows). Same "never tagged this concept for this filer" class as the four
+            # reasons just above.
+            "no_recent_current_assets_reported",
+            "no_recent_current_liabilities_reported",
             # MOVED 2026-09-02 (SEC/XBRL missing-data sweep, live audit of the "Other" bucket):
             # "symbol_not_found" was sitting in "Other (errors / excluded)" as a bare set
             # literal with no explanation. Repo-wide grep of every write site (only two:
