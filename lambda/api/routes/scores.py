@@ -2133,6 +2133,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "all_valuation_metrics_null",
             "no_income_statement",
             "finra_data_unavailable",
+            # ADDED 2026-09-03 (positioning_metrics short_interest_pct reason-propagation
+            # fix): load_short_interest_finra.py's own sibling reason to
+            # finra_data_unavailable directly above - same function, same "genuinely no
+            # usable FINRA settlement row" fact, just the transient-API-failure branch
+            # instead of the no-report-this-period branch. Was reachable but unmapped
+            # (would have fallen to "Other (errors / excluded)") the moment
+            # load_positioning_metrics.py started propagating short_interest_finra.reason
+            # instead of collapsing everything to the generic missing_finra_data below.
+            "finra_api_unreachable",
             # ADDED 2026-08-20 (goal session: coverage-categorization audit): these three
             # (load_sec_valuations.py, load_value_quality_growth_metrics.py) mean the
             # filer's own SEC filing section is incomplete/inconsistent (not merely

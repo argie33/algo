@@ -158,6 +158,7 @@ class PositioningMetricsLoader(OptimalLoader):
         short_interest_pct_change = None
         short_ratio = None
         short_percent_of_float = None
+        short_interest_pct_source_reason = None
         # Tracks whether FINRA even reported a short_shares figure this symbol could be
         # divided by shares_outstanding - see short_percent_of_float_unavailable_reason
         # below for why this needs to be distinguished from a missing shares_outstanding.
@@ -194,7 +195,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 # state worth keeping on file, not a spurious marker to suppress writing.
                 cur.execute(
                     """
-                    SELECT short_pct, short_shares, settlement_date, days_to_cover, avg_daily_volume
+                    SELECT short_pct, short_shares, settlement_date, days_to_cover, avg_daily_volume, reason
                     FROM short_interest_finra
                     WHERE symbol = %s
                     ORDER BY (CASE WHEN short_pct IS NOT NULL THEN 0 ELSE 1 END), settlement_date DESC
@@ -212,6 +213,20 @@ class PositioningMetricsLoader(OptimalLoader):
                     short_ratio = float(short_rows[0][3])
             else:
                 short_interest_source = "unavailable"
+            # FIX 2026-09-03 (SEC/XBRL missing-data sweep, reason-propagation gap - same
+            # shape as institutional_reason below in this same file): short_interest_finra's
+            # own fetch_incremental already diagnoses WHY short_pct is None (short_shares is
+            # real but shares_outstanding is not - "foreign_private_issuer_shares_unavailable"/
+            # "shares_outstanding_unavailable", both permanent/structural, already mapped to
+            # "Legitimate / not applicable"/"Ownership data unresolved" in scores.py's
+            # categorization) vs genuinely "finra_data_unavailable" (no settlement report at
+            # all). Live-confirmed 43 of 88 "has real short_interest_finra row but short_pct
+            # NULL" positioning_metrics symbols (e.g. ERIC/GGAL/TEO/STNE/AFYA) carry one of the
+            # two specific reasons - was discarded here, collapsing all of them into the
+            # generic "missing_finra_data" (mapped to "Missing SEC/XBRL data") below.
+            short_interest_pct_source_reason = (
+                short_rows[0][5] if short_rows and short_rows[0][0] is None and short_rows[0][5] else None
+            )
 
             if len(short_rows) >= 2:
                 shares_short_prior_month = short_rows[1][1]
@@ -347,7 +362,9 @@ class PositioningMetricsLoader(OptimalLoader):
                 "institutional_ownership_pct_unavailable_reason": (
                     (institutional_reason or "missing_sec_data") if institutional_pct is None else None
                 ),
-                "short_interest_pct_unavailable_reason": "missing_finra_data" if short_interest_pct is None else None,
+                "short_interest_pct_unavailable_reason": (
+                    (short_interest_pct_source_reason or "missing_finra_data") if short_interest_pct is None else None
+                ),
                 "shares_short_prior_month_unavailable_reason": (
                     "insufficient_history" if shares_short_prior_month is None else None
                 ),
