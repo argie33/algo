@@ -19,6 +19,8 @@ def _quality_row(
     total_assets=700_000_000.0,
     total_liabilities=200_000_000.0,
     revenue=None,
+    cost_of_revenue=None,
+    gross_profit=None,
 ):
     row = [None] * 34
     row[0] = stockholders_equity
@@ -29,6 +31,8 @@ def _quality_row(
     row[7] = 100_000_000.0  # current_liabilities
     row[8] = 2025  # fiscal_year
     row[4] = revenue
+    row[12] = cost_of_revenue
+    row[19] = gross_profit
     return row
 
 
@@ -103,6 +107,30 @@ def test_ebitda_margin_absent_from_anchor_year_when_real_revenue_exists_elsewher
     # take priority depending on the fixture's other None fields; the key regression guard
     # is that "missing_sec_data" never wins once real revenue is known to exist elsewhere.
     assert metrics["ebitda_margin_unavailable_reason"] != "missing_sec_data"
+
+
+def test_gross_margin_absent_from_anchor_year_when_real_revenue_exists_elsewhere(monkeypatch):
+    """FIX 2026-09-03: gross_margin was documented (in this same gate's own docstring) as part
+    of the 2026-09-02 anchor-year fix alongside ebitda_margin/asset_turnover, but the branch was
+    never actually wired for it - it kept falling to generic "missing_sec_data" ever since."""
+    loader = _make_loader(monkeypatch, revenue_available_elsewhere=frozenset({"OBX"}))
+    # Real gross_profit present (so no_gross_profit_concept is False / not reit_special_entity),
+    # revenue absent from the anchor row (so gross_profit_revenue can't resolve).
+    row = _quality_row(revenue=None, cost_of_revenue=40_000_000.0, gross_profit=60_000_000.0)
+
+    metrics = loader._compute_quality_metrics("OBX", row, ev_metrics=None)
+
+    assert metrics["gross_margin"] is None
+    assert metrics["gross_margin_unavailable_reason"] == "revenue_absent_from_anchor_year"
+
+
+def test_gross_margin_stays_generic_missing_sec_data_when_not_in_positive_gate(monkeypatch):
+    loader = _make_loader(monkeypatch, revenue_available_elsewhere=frozenset())
+    row = _quality_row(revenue=None, cost_of_revenue=40_000_000.0, gross_profit=60_000_000.0)
+
+    metrics = loader._compute_quality_metrics("NODATA", row, ev_metrics=None)
+
+    assert metrics["gross_margin_unavailable_reason"] == "missing_sec_data"
 
 
 def test_asset_turnover_stays_generic_missing_sec_data_when_not_in_positive_gate(monkeypatch):

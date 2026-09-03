@@ -6412,6 +6412,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if symbol in self._get_blank_check_symbols()
                     or symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, quality_row_db
+                    # anchor-year investigation - see _get_revenue_available_elsewhere_symbols()'s
+                    # own docstring, which already documented gross_margin as part of this exact
+                    # gap back on 2026-09-02 but never actually wired the branch here, unlike its
+                    # ebitda_margin/asset_turnover siblings just below/above which both got it):
+                    # gross_profit_revenue (this field's own denominator, read from the SAME
+                    # balance-sheet-anchor-joined row as `revenue`) is None purely because that
+                    # anchor fiscal year's own income-statement row lacks it, not because the
+                    # symbol lacks real revenue anywhere. Live-confirmed 24 of 61 (39%) universe
+                    # gross_margin "missing_sec_data" rows are this exact case. Label-only, no
+                    # value recomputed.
+                    else "revenue_absent_from_anchor_year"
+                    if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if "gross_margin" in failed_metrics
