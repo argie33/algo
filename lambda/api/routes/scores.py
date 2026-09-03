@@ -2260,6 +2260,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # window in "Ownership data unresolved" below but for the bulk-feed-itself-down
             # case rather than a per-symbol lookback gap.
             "sec_form345_bulk_data_unavailable",
+            # ADDED 2026-09-02 (SEC/XBRL missing-data sweep): utils/external/sec_form345_
+            # transaction_velocity_cached.py's CachedForm345Aggregator.get_velocity_metrics
+            # writes this directly (bypassing load_insider_transaction_velocity.py's own
+            # except-TimeoutError handler, which produces sec_form345_bulk_data_unavailable
+            # above) when the caller's own wait_for_download blocks past timeout_seconds
+            # (1080s) waiting on the shared background Form 3/4/5 bulk download - same "the
+            # SEC bulk feed didn't come back in time" fact, just a different code path to the
+            # same outcome. Still live-firing today (17 rows, most recent within the last
+            # day), not stale debris - was falling through to "Other (errors / excluded)".
+            "Form345_download_timeout",
             # filing_date_unavailable/segment_data_unavailable: load_sec_segment_info.py/
             # load_sec_segment_metrics.py's own "SEC segment XBRL data isn't there" facts,
             # same class as the other segment-data reasons already above. These two tables
