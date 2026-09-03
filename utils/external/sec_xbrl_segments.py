@@ -416,6 +416,44 @@ _CROSS_TAB_RECONCILIATION_TOLERANCE = 0.03
 # all, the second is looked up only for members the anchor already found.
 _BANK_REVENUE_COMPONENT_CONCEPTS = ("InterestIncomeExpenseNet", "NoninterestIncome")
 
+# FIXED 2026-09-03 (goal: SEC/XBRL missing-data sweep, "sec_segment_info" biggest-bucket
+# investigation): alternative asset managers (confirmed live: Blackstone's real FY2025
+# 10-K instance, CIK 1393818) tag segment revenue as FOUR separate custom-namespace
+# fee-line concepts instead of any us-gaap Revenues-family concept - real segment
+# reporting (49 genuine StatementBusinessSegmentsAxis-dimensioned contexts for
+# Blackstone's 4 real segments: RealEstateSegmentMember/PrivateEquitySegmentMember/
+# CreditAndInsuranceMember/MultiAssetInvestingMember), just under filer-specific
+# extension concepts, not a missing-data gap. Verified EXACT (to the dollar) against
+# Blackstone's own published "Total Segment Revenues" footnote in its real FY2025 10-K
+# (R115.htm/R116.htm renderings, both fetched directly from sec.gov): live raw-XBRL
+# fact values for FY2025 (in raw dollars) - ManagementAndAdvisoryFeesNet=8,016,049,000
+# + FeeRelatedPerformanceRevenues=1,825,428,000 + PerformanceRevenueRealized=
+# 2,815,529,000 + RealizedPrincipalInvestmentIncomeLoss=419,743,000 = 13,076,749,000,
+# matching Blackstone's own reported "Total Segment Revenues" for Operating Segments
+# to the dollar - not an approximation.
+#
+# Unlike _BANK_REVENUE_COMPONENT_CONCEPTS (universal us-gaap concepts any bank can tag),
+# these are Blackstone's own custom-namespace extension concepts - non-transferable to
+# other alternative asset managers (Ares/Apollo/KKR/Carlyle each use their own custom
+# namespace and, potentially, a different component breakdown, none verified here) -
+# this list intentionally stays scoped to the concepts actually verified against a
+# real filing, not generalized from Blackstone's shape alone.
+_ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS = (
+    "ManagementAndAdvisoryFeesNet",
+    "FeeRelatedPerformanceRevenues",
+    "PerformanceRevenueRealized",
+    "RealizedPrincipalInvestmentIncomeLoss",
+)
+
+# The dimension/member Blackstone uses for its own "Operating Segments" (pre-
+# consolidation-adjustment) aggregate - live-confirmed in the raw XBRL instance as a
+# context with EXACTLY this one explicitMember (no StatementBusinessSegmentsAxis) - the
+# coarser anchor _extract_alt_asset_manager_segment_revenue reconciles the summed
+# per-segment total against, since no truly plain (zero-dimension) fact exists for any
+# of the four concepts above.
+_OPERATING_SEGMENTS_AGGREGATE_DIMENSION = "ConsolidationItemsAxis"
+_OPERATING_SEGMENTS_AGGREGATE_MEMBER = "OperatingSegmentsMember"
+
 # ASC 280 also requires segment operating income and assets "if regularly
 # provided to the CODM" - unlike revenue, not every filer discloses these by
 # segment (verified live: MSFT and AAPL tag OperatingIncomeLoss per segment but
@@ -1149,6 +1187,169 @@ class XBRLSegmentParser:
         return combined, max_end, max_duration
 
     @staticmethod
+    def _extract_alt_asset_manager_segment_revenue(
+        root: ET.Element,
+        context_segment: dict[str, tuple[str, str, str, str | None, bool]],
+        axis_to_use: str,
+        symbol: str,
+    ) -> tuple[dict[str, float], str, int] | None:
+        """Fallback for alternative asset managers (confirmed live: Blackstone, CIK
+        1393818) that tag segment revenue as multiple custom-namespace fee-line
+        concepts instead of any us-gaap Revenues-family concept - see
+        _ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS's module-level comment for the
+        live evidence and exact-dollar reconciliation this fix was built from.
+
+        Same discover-then-reconcile discipline as _extract_component_sum_segment_revenue,
+        generalized to N components - a member missing one of the secondary concepts
+        defaults to 0 for it (e.g. Blackstone's Multi-Asset Investing segment reports
+        FeeRelatedPerformanceRevenues=0 every year, a real fact, not a gap), not
+        excluded outright. Reconciles against the filer's OWN "Operating Segments"
+        aggregate context (dimensioned only on ConsolidationItemsAxis=
+        OperatingSegmentsMember, without the business-segment axis) rather than a
+        truly plain/undimensioned fact, since no such plain fact exists for any of
+        these concepts - _extract_component_sum_segment_revenue's `_plain_value`
+        helper can't be reused here for that reason.
+
+        Returns (member -> combined revenue, end_date, duration_days), or None if the
+        anchor concept isn't tagged under axis_to_use at all, or the combined total
+        doesn't reconcile against the Operating Segments aggregate.
+        """
+        anchor_concept, *secondary_concepts = _ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS
+
+        candidate_facts: list[tuple[str, str, int, float, bool]] = []
+        for elem in root.iter():
+            if _local_name(elem.tag) != anchor_concept:
+                continue
+            info = context_segment.get(elem.get("contextRef", ""))
+            if not info or info[0] != axis_to_use:
+                continue
+            _axis, member, end_str, start_str, is_boilerplate = info
+            value = elem.text
+            if value is None:
+                continue
+            try:
+                revenue = float(value.strip())
+            except ValueError:
+                continue
+            duration_days = 0
+            if start_str and end_str:
+                try:
+                    duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                except ValueError:
+                    duration_days = 0
+            candidate_facts.append((member, end_str, duration_days, revenue, is_boilerplate))
+
+        if not candidate_facts:
+            return None
+
+        max_end = max(f[1] for f in candidate_facts)
+        same_end = [f for f in candidate_facts if f[1] == max_end]
+        max_duration = max(f[2] for f in same_end)
+        latest_facts = [f for f in same_end if f[2] == max_duration]
+
+        combined = dict(
+            XBRLSegmentParser._dedupe_member_facts(
+                [(member, value, is_boilerplate) for member, _end, _duration, value, is_boilerplate in latest_facts],
+                symbol,
+                anchor_concept,
+            )
+        )
+
+        for concept in secondary_concepts:
+            by_member = XBRLSegmentParser._extract_segment_member_values(
+                root, context_segment, axis_to_use, (concept,), max_end, max_duration, symbol
+            )
+            for member in combined:
+                combined[member] += by_member.get(member, 0.0)
+
+        aggregate = XBRLSegmentParser._operating_segments_aggregate_value(
+            root, _ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS, max_end, max_duration
+        )
+        if aggregate is None:
+            logger.info(
+                f"[{symbol}] Alt-asset-manager component-sum segment revenue found candidates "
+                "but no Operating Segments aggregate to reconcile against - not trusting."
+            )
+            return None
+        if aggregate == 0:
+            return None
+
+        total = sum(combined.values())
+        error = abs(total - aggregate) / abs(aggregate)
+        if error > _CROSS_TAB_RECONCILIATION_TOLERANCE:
+            logger.info(
+                f"[{symbol}] Alt-asset-manager component-sum segment revenue reconciliation "
+                f"failed: segment total {total:,.0f} off by {error * 100:.1f}% vs Operating "
+                f"Segments aggregate {aggregate:,.0f} - not trusting."
+            )
+            return None
+
+        return combined, max_end, max_duration
+
+    @staticmethod
+    def _operating_segments_aggregate_value(
+        root: ET.Element, concepts: tuple[str, ...], target_end: str, match_duration_days: int
+    ) -> float | None:
+        """Sum `concepts` under the filer's own "Operating Segments" aggregate context -
+        dimensioned ONLY on ConsolidationItemsAxis=OperatingSegmentsMember, without the
+        business-segment axis - for the given period.
+
+        Returns None if that context doesn't exist at all, or none of `concepts` has a
+        fact under it - never 0.0 for "not found", so the caller's `aggregate == 0`
+        no-op guard can't be fooled into treating "nothing to reconcile against" as a
+        genuine zero-revenue result.
+        """
+        aggregate_context_ids: set[str] = set()
+        for ctx in root.iter():
+            if _local_name(ctx.tag) != "context":
+                continue
+            ctx_id = ctx.get("id")
+            if not ctx_id:
+                continue
+            members: list[tuple[str, str]] = []
+            start_str: str | None = None
+            end_str: str | None = None
+            for child in ctx.iter():
+                loc = _local_name(child.tag)
+                if loc == "explicitMember":
+                    members.append((_qname_local(child.get("dimension")), _qname_local(child.text)))
+                elif loc == "startDate":
+                    start_str = (child.text or "").strip() or None
+                elif loc in ("endDate", "instant"):
+                    end_str = (child.text or "").strip() or None
+            if end_str != target_end or len(members) != 1:
+                continue
+            if members[0] != (_OPERATING_SEGMENTS_AGGREGATE_DIMENSION, _OPERATING_SEGMENTS_AGGREGATE_MEMBER):
+                continue
+            if start_str:
+                try:
+                    duration = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                except ValueError:
+                    continue
+                if duration != match_duration_days:
+                    continue
+            aggregate_context_ids.add(ctx_id)
+
+        if not aggregate_context_ids:
+            return None
+
+        total = 0.0
+        found_any = False
+        for concept in concepts:
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept or elem.get("contextRef") not in aggregate_context_ids:
+                    continue
+                if elem.text is None:
+                    continue
+                try:
+                    total += float(elem.text.strip())
+                except ValueError:
+                    continue
+                found_any = True
+                break
+        return total if found_any else None
+
+    @staticmethod
     def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str, float, str, int] | None:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Fallback for filers that disclose exactly one reportable segment.
 
@@ -1394,7 +1595,12 @@ class XBRLSegmentParser:
                 if cross_tab is None
                 else None
             )
-            if cross_tab is None and component_sum is None:
+            alt_asset_manager_sum = (
+                XBRLSegmentParser._extract_alt_asset_manager_segment_revenue(root, context_segment, axis_to_use, symbol)
+                if cross_tab is None and component_sum is None
+                else None
+            )
+            if cross_tab is None and component_sum is None and alt_asset_manager_sum is None:
                 single = XBRLSegmentParser._extract_single_segment_revenue(root, symbol)
                 if single is not None:
                     _concept, revenue, single_end, single_duration = single
@@ -1451,6 +1657,12 @@ class XBRLSegmentParser:
                 logger.debug(
                     f"[{symbol}] Segment revenue matched via component-sum "
                     f"({' + '.join(_BANK_REVENUE_COMPONENT_CONCEPTS)}) on {axis_to_use}"
+                )
+            elif alt_asset_manager_sum is not None:
+                segments, max_end, max_duration = alt_asset_manager_sum
+                logger.debug(
+                    f"[{symbol}] Segment revenue matched via alt-asset-manager component-sum "
+                    f"({' + '.join(_ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS)}) on {axis_to_use}"
                 )
             else:
                 raise AssertionError("unreachable: single-segment fallback branch above already handled this case")

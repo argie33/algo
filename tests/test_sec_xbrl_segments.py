@@ -1852,6 +1852,145 @@ class TestComponentSumSegmentRevenueFallback:
         assert revenues == {"AlphaMember": 81_930_000.0, "BetaMember": 119_700_000.0}
 
 
+class TestAltAssetManagerComponentSumSegmentRevenueFallback:
+    """Real gap found live against Blackstone's (BX, CIK 1393818) real FY2025 10-K
+    instance: segment revenue is real (49 genuine StatementBusinessSegmentsAxis-
+    dimensioned contexts for its 4 real segments) but tagged as FOUR separate
+    custom-namespace fee-line concepts instead of any us-gaap Revenues-family
+    concept, and no plain (zero-dimension) fact exists for any of them to
+    reconcile against the way _extract_component_sum_segment_revenue does -
+    Blackstone's own equivalent aggregate is itself dimensioned (just on a
+    different, coarser axis: ConsolidationItemsAxis=OperatingSegmentsMember,
+    without the business-segment axis). Verified EXACT (to the dollar) against
+    Blackstone's own published FY2025 "Total Segment Revenues" footnote:
+    ManagementAndAdvisoryFeesNet ($8,016,049,000) + FeeRelatedPerformanceRevenues
+    ($1,825,428,000) + PerformanceRevenueRealized ($2,815,529,000) +
+    RealizedPrincipalInvestmentIncomeLoss ($419,743,000) = $13,076,749,000.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:bx="http://www.blackstone.com/20251231"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_alt_asset_manager_component_sum_used_when_four_concepts_tagged(self) -> None:
+        contexts = (
+            _context("re", "StatementBusinessSegmentsAxis", "RealEstateSegmentMember", "2025-01-01", "2025-12-31")
+            + _context("pe", "StatementBusinessSegmentsAxis", "PrivateEquitySegmentMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "agg", [("ConsolidationItemsAxis", "OperatingSegmentsMember")], "2025-01-01", "2025-12-31"
+            )
+        )
+        facts = """
+        <bx:ManagementAndAdvisoryFeesNet contextRef="re">2781924000</bx:ManagementAndAdvisoryFeesNet>
+        <bx:FeeRelatedPerformanceRevenues contextRef="re">489648000</bx:FeeRelatedPerformanceRevenues>
+        <bx:PerformanceRevenueRealized contextRef="re">268773000</bx:PerformanceRevenueRealized>
+        <bx:RealizedPrincipalInvestmentIncomeLoss contextRef="re">10689000</bx:RealizedPrincipalInvestmentIncomeLoss>
+        <bx:ManagementAndAdvisoryFeesNet contextRef="pe">2771609000</bx:ManagementAndAdvisoryFeesNet>
+        <bx:FeeRelatedPerformanceRevenues contextRef="pe">547985000</bx:FeeRelatedPerformanceRevenues>
+        <bx:PerformanceRevenueRealized contextRef="pe">1670108000</bx:PerformanceRevenueRealized>
+        <bx:RealizedPrincipalInvestmentIncomeLoss contextRef="pe">66495000</bx:RealizedPrincipalInvestmentIncomeLoss>
+        <bx:ManagementAndAdvisoryFeesNet contextRef="agg">5553533000</bx:ManagementAndAdvisoryFeesNet>
+        <bx:FeeRelatedPerformanceRevenues contextRef="agg">1037633000</bx:FeeRelatedPerformanceRevenues>
+        <bx:PerformanceRevenueRealized contextRef="agg">1938881000</bx:PerformanceRevenueRealized>
+        <bx:RealizedPrincipalInvestmentIncomeLoss contextRef="agg">77184000</bx:RealizedPrincipalInvestmentIncomeLoss>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        assert result["segment_count"] == 2
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"RealEstateSegmentMember": 3_551_034_000.0, "PrivateEquitySegmentMember": 5_056_197_000.0}
+
+    def test_alt_asset_manager_sum_treats_missing_component_as_zero(self) -> None:
+        """Multi-Asset Investing's real FeeRelatedPerformanceRevenues is 0 every
+        year (a real fact, not a gap) - a member missing one of the 3 secondary
+        concepts must still be counted at its anchor value, not excluded."""
+        contexts = _context(
+            "ma", "StatementBusinessSegmentsAxis", "MultiAssetsInvestingMember", "2025-01-01", "2025-12-31"
+        ) + _multi_dim_context(
+            "agg", [("ConsolidationItemsAxis", "OperatingSegmentsMember")], "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <bx:ManagementAndAdvisoryFeesNet contextRef="ma">532924000</bx:ManagementAndAdvisoryFeesNet>
+        <bx:PerformanceRevenueRealized contextRef="ma">489919000</bx:PerformanceRevenueRealized>
+        <bx:RealizedPrincipalInvestmentIncomeLoss contextRef="ma">6689000</bx:RealizedPrincipalInvestmentIncomeLoss>
+        <bx:ManagementAndAdvisoryFeesNet contextRef="agg">532924000</bx:ManagementAndAdvisoryFeesNet>
+        <bx:PerformanceRevenueRealized contextRef="agg">489919000</bx:PerformanceRevenueRealized>
+        <bx:RealizedPrincipalInvestmentIncomeLoss contextRef="agg">6689000</bx:RealizedPrincipalInvestmentIncomeLoss>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"MultiAssetsInvestingMember": 1_029_532_000.0}
+
+    def test_alt_asset_manager_sum_fails_closed_when_no_aggregate_to_reconcile_against(self) -> None:
+        """No ConsolidationItemsAxis=OperatingSegmentsMember aggregate context at
+        all - must stay honestly unavailable, never report an unreconciled sum."""
+        contexts = _context(
+            "re", "StatementBusinessSegmentsAxis", "RealEstateSegmentMember", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <bx:ManagementAndAdvisoryFeesNet contextRef="re">2781924000</bx:ManagementAndAdvisoryFeesNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+    def test_alt_asset_manager_sum_fails_closed_when_reconciliation_off(self) -> None:
+        """Segment total genuinely doesn't match the Operating Segments aggregate -
+        same fail-closed discipline as the bank component-sum fallback."""
+        contexts = _context(
+            "re", "StatementBusinessSegmentsAxis", "RealEstateSegmentMember", "2025-01-01", "2025-12-31"
+        ) + _multi_dim_context(
+            "agg", [("ConsolidationItemsAxis", "OperatingSegmentsMember")], "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <bx:ManagementAndAdvisoryFeesNet contextRef="re">2781924000</bx:ManagementAndAdvisoryFeesNet>
+        <bx:ManagementAndAdvisoryFeesNet contextRef="agg">9000000000</bx:ManagementAndAdvisoryFeesNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+    def test_alt_asset_manager_sum_not_reached_when_primary_concept_already_matches(self) -> None:
+        """A filer that DOES tag a plain revenue-shaped concept per segment must
+        never fall through to this fallback - same precedence rule the bank
+        component-sum fallback already carries."""
+        contexts = _context(
+            "re", "StatementBusinessSegmentsAxis", "RealEstateSegmentMember", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="re">2781924000</us-gaap:Revenues>
+        <bx:ManagementAndAdvisoryFeesNet contextRef="re">999999999</bx:ManagementAndAdvisoryFeesNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"RealEstateSegmentMember": 2_781_924_000.0}
+
+
 class TestSingleReportableSegmentFallback:
     """Real gap found live: Gilead Sciences, Regeneron, United Airlines Holdings,
     and Realty Income all disclose exactly one reportable segment via the
