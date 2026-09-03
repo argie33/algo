@@ -302,6 +302,46 @@ class CompanyInfoSECLoader(SecLoaderBase):
             if shares_outstanding is None:
                 shares_outstanding = self._fetch_shares_outstanding_from_filing_text(symbol, cik, submissions)
 
+            # ADDED 2026-09-02 (SEC/XBRL missing-data sweep): us-gaap:WeightedAverageNumber
+            # OfSharesOutstandingBasic as a genuine last-resort SOURCE - not just the
+            # staleness-override comparator _weighted_average_shares_override uses above -
+            # when this filer tags NEITHER dei:EntityCommonStockSharesOutstanding NOR
+            # us-gaap:CommonStockSharesOutstanding at all (so the two tiers above never even
+            # produce a candidate to override), AND the raw-filing-text fallback just above
+            # also found nothing. Live-confirmed real, previously-unrecovered gap via AMRC
+            # (Ameresco) and MWH: both have zero entries for either instant concept in their
+            # entire companyfacts history, but a fresh, real WeightedAverageNumberOfShares
+            # OutstandingBasic exists every quarter - a DURATION concept every filer needs for
+            # its own EPS calc, so it's tagged far more reliably than the instant concepts
+            # (same reasoning _weighted_average_shares_override's own docstring already
+            # documents for FUBO/AMRN, just applied here as a primary source instead of an
+            # override). Only trusted when this CIK has exactly one non-preferred registered
+            # ticker (same ambiguity guard _fetch_shares_outstanding_from_filing_text's
+            # multi_ticker_cik check above already uses) - a dual/multi-class filer's combined
+            # total can't be safely assigned to one specific class without per-class
+            # dimensional data, which companyfacts doesn't expose (see that function's own
+            # BRK.A/BRK.B/HEI comment) - live-confirmed this correctly still excludes MKC/MKC.V,
+            # TR, DDS, RUM, and every other dual-class symbol checked, leaving them on the
+            # existing conservative "cannot determine which class" behavior, unchanged.
+            if shares_outstanding is None and isinstance(facts_obj, dict):
+                common_tickers = [
+                    t for t in (submissions.get("tickers") or []) if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+                ]
+                if len(common_tickers) <= 1:
+                    gaap_facts = facts_obj.get("us-gaap")
+                    if isinstance(gaap_facts, dict):
+                        wavg_entry = self._latest_shares_entry(
+                            gaap_facts.get("WeightedAverageNumberOfSharesOutstandingBasic"),
+                            restrict_to_domestic_forms=True,
+                        )
+                        if wavg_entry:
+                            shares_outstanding = wavg_entry["rounded_val"]
+                            logger.info(
+                                f"[{symbol}] Recovered shares_outstanding={shares_outstanding:,} from "
+                                "WeightedAverageNumberOfSharesOutstandingBasic - neither dei nor "
+                                "us-gaap instant concept nor filing text had a usable value"
+                            )
+
             shares_outstanding_unavailable_reason = None
             if shares_outstanding is None:
                 # Live audit (goal session, "Ownership data unresolved" bucket
