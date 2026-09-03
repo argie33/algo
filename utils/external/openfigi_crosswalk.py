@@ -498,6 +498,28 @@ class EntityNameIndex:
         ever auto-resolve, so that case must still fall through to "ambiguous".
         Requiring >=2 tokens keeps this override scoped to genuinely distinctive,
         multi-word exact matches like AWK's, not generic one-word coincidences.
+
+        FIXED 2026-09-03 (goal: SEC/XBRL missing-data sweep, "no_resolved_13f_holdings"
+        investigation): the >=2 guard above only checked candidate_tokens' length, not
+        the LOCAL (already-tracked) side's own token count - live-confirmed this let
+        the exact "single shared generic word" failure mode the guard exists to
+        prevent recur on the LOCAL side instead of the candidate side. TBBK's real SEC entity_name
+        ("Bancorp, Inc.") strips to the single token {BANCORPORATION} - a trivial
+        ratio==1.0 "perfect" match against ANY other tracked "...Bancorp..."-named
+        company's resolved_name, since ratio is computed against min(candidate_tokens,
+        local_tokens) and TBBK's local side has only 1 token. This silently poisoned
+        the tie-break for every other genuinely distinctive "Bancorp" match: ONB (real
+        local name "OLD NATIONAL BANCORP /IN/", resolved via OpenFIGI's CUSIP
+        680033107 to raw ticker "ON1") and WAL (local "WESTERN ALLIANCE
+        BANCORPORATION", CUSIP 957638109 resolving to raw ticker "WEA") both tokenize
+        to real, unique, >=3-token perfect matches on their own, but `find()` counted
+        TBBK's degenerate 1-token match as a second "perfect" candidate, making
+        len(perfect) == 2 and forcing the ambiguous-refusal fallthrough - live-
+        confirmed both stuck at "no_resolved_13f_holdings" despite real, resolvable
+        13F data. Also requiring the matched LOCAL name to have >=2 tokens excludes
+        TBBK-style degenerate matches from ever counting as tie-break evidence,
+        restoring ONB/WAL (and any other tracked company colliding with the same
+        single-generic-word local name) as the sole qualifying perfect match.
         """
         candidate_tokens = name_tokens(resolved_name)
         if not candidate_tokens:
@@ -521,7 +543,7 @@ class EntityNameIndex:
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1 and len(candidate_tokens) >= 2:
-            perfect = [s for s in matches if ratios[s] == 1.0]
+            perfect = [s for s in matches if ratios[s] == 1.0 and len(self._local_tokens[s]) >= 2]
             if len(perfect) == 1:
                 return perfect[0]
         return None

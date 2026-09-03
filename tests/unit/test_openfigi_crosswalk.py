@@ -434,3 +434,33 @@ class TestEntityNameIndex:
             }
         )
         assert index.find("GLOBAL HOLDINGS GROUP CORP") is None
+
+    def test_degenerate_single_token_local_name_does_not_poison_a_real_perfect_match(self):
+        """FIXED 2026-09-03: live-confirmed real-world collision - TBBK's real SEC
+        entity_name ("Bancorp, Inc.") strips to the single generic token
+        {BANCORPORATION}, which trivially hits ratio==1.0 against ANY OTHER tracked
+        "...Bancorp..."-named company (ratio is computed against
+        min(candidate_tokens, local_tokens), and TBBK's local side has only 1 token).
+        This used to make ONB (real local name "OLD NATIONAL BANCORP /IN/", a
+        genuine 3-token exact match) tie with TBBK's degenerate match, forcing the
+        ambiguous-refusal fallthrough even though ONB is the only genuinely
+        distinctive match. The perfect-tiebreak must ignore <2-token local names."""
+        index = EntityNameIndex(
+            {
+                "ONB": "OLD NATIONAL BANCORP /IN/",
+                "TBBK": "Bancorp, Inc.",
+            }
+        )
+        assert index.find("OLD NATIONAL BANCORP") == "ONB"
+
+    def test_two_genuinely_distinctive_perfect_matches_still_refuse(self):
+        """The new >=2-token local-name requirement must not weaken the original
+        ambiguity guard when BOTH tied candidates are genuinely distinctive (not a
+        TBBK-style degenerate one) - still refuse rather than guess."""
+        index = EntityNameIndex(
+            {
+                "AAA": "GLOBAL HOLDINGS GROUP INC",
+                "BBB": "GLOBAL HOLDINGS GROUP LLC",
+            }
+        )
+        assert index.find("GLOBAL HOLDINGS GROUP") is None
