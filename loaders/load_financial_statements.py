@@ -590,6 +590,12 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # any of the standard debt concepts already fetched above.
         "subordinated_debt",
         "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "DebtCurrent" (DE live evidence) - a generic enough concept name
+        # that a filer reporting a more specific standard concept (CommercialPaper/
+        # ShortTermBorrowings/SeniorNotesCurrent/...) must always keep that value; this
+        # only fills the gap when nothing else populated short_term_debt.
+        "debt_current",
     }
 )
 
@@ -724,6 +730,12 @@ _BALANCE_FIELD_MAPPING = {
     # (was reading total_liabilities, not any debt concept at all).
     "commercial_paper": "short_term_debt",
     "short_term_borrowings": "short_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): DE (Deere &
+    # Company) real short-term debt - see sec_statements.py's get_balance_sheet() comment
+    # on "DebtCurrent" for the live evidence and why its smaller sibling "SecuredDebt" is
+    # deliberately NOT also mapped here (no summing mechanism exists for two concepts on
+    # one target column - see that comment for the full reasoning).
+    "debt_current": "short_term_debt",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): VRSN
     # (VeriSign) real debt concept - see sec_statements.py's get_balance_sheet() comment
     # on SeniorNotes/SeniorNotesCurrent for the live evidence. Same either/or-alternative,

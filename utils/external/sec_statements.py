@@ -588,6 +588,25 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # collision case).
         "CommercialPaper",
         "ShortTermBorrowings",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, DE debt
+        # gap investigation): Deere & Company (CIK 0000315189) tags its primary real
+        # current debt under this plain, standard us-gaap concept - live-confirmed via
+        # real companyfacts JSON and the rendered FY2025 10-K consolidated balance sheet
+        # ("Short-term borrowings" $13,796,000,000 FY2025/$13,533,000,000 FY2024, real and
+        # continuous back to FY2020; DE never tags CommercialPaper/ShortTermBorrowings/
+        # SeniorNotesCurrent, so no overwrite collision with the concepts above for this
+        # filer). DELIBERATELY excludes DE's smaller sibling concept "SecuredDebt"
+        # ("Short-term securitization borrowings", $6,596,000,000 FY2025) - this loader's
+        # transform() has no summing mechanism for two concepts mapped to the same target
+        # column (confirmed by reading loaders/helpers/sec_base.py's transform(): plain
+        # `row[db_field] = value` overwrite, last-processed-wins, not additive - same as
+        # the CommercialPaper/ShortTermBorrowings pair above already documents as a known,
+        # accepted limitation), so adding both here would silently DROP one of the two
+        # real figures rather than capture both. Capturing DebtCurrent alone (the larger,
+        # ~68% of DE's true current debt) is strictly better than the current NULL and
+        # carries no risk of a wrong/incomplete-looking "complete" figure since it's not
+        # claimed to include the securitization piece.
+        "DebtCurrent",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # no_recent_debt_components_symbols investigation): VRSN (VeriSign) tags its real,
         # current debt exclusively under "SeniorNotes"/"SeniorNotesCurrent" - live-

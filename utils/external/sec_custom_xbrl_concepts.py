@@ -574,6 +574,19 @@ def fetch_custom_debt(symbol: str, sec_client: Any) -> dict[int, float]:
 # senior_notes_current elsewhere in this codebase.
 CUSTOM_DEBT_LONGTERM_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "AES": [("aes", "RecourseDebtNonCurrent"), ("aes", "NonRecourseDebtNonCurrent")],
+    # Deere & Company (CIK 0000315189) - verified live 2026-09-03 against its real filed
+    # FY2025 10-K raw XBRL instance document (accession 0001104659-25-122321,
+    # de-20251102x10k_htm.xml): de:LongTermDebtAndFinanceLeasesNoncurrent
+    # $43,544,000,000 FY2025 / $43,229,000,000 FY2024, tagged "Long-term borrowings" on
+    # the face of the consolidated balance sheet - a filer-specific extension concept
+    # (DE's own standard LongTermDebtNoncurrent concept, already mapped in
+    # sec_statements.py, stopped after FY2021 with no us-gaap/ifrs successor - same
+    # structural companyfacts-invisibility as AES above, confirmed absent from DE's real
+    # companyfacts JSON). Each fact appears twice in the raw document with the identical
+    # value (once inline, once in a footnote table) - the shared dedup-by-(contextRef,
+    # concept) logic in _extract_instant_values_for_concepts already handles this
+    # correctly, same as it does for AES.
+    "DE": [("de", "LongTermDebtAndFinanceLeasesNoncurrent")],
 }
 CUSTOM_DEBT_SHORTTERM_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "AES": [("aes", "RecourseDebtCurrent"), ("aes", "NonRecourseDebtCurrent")],

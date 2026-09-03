@@ -663,6 +663,7 @@ class TestFetchCustomDebtLongtermShortterm:
 def test_custom_debt_longterm_shortterm_registries_are_well_formed() -> None:
     assert "AES" in CUSTOM_DEBT_LONGTERM_CONCEPTS
     assert "AES" in CUSTOM_DEBT_SHORTTERM_CONCEPTS
+    assert "DE" in CUSTOM_DEBT_LONGTERM_CONCEPTS
     for symbol, concepts in CUSTOM_DEBT_LONGTERM_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
@@ -671,3 +672,39 @@ def test_custom_debt_longterm_shortterm_registries_are_well_formed() -> None:
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
             assert prefix and local_name
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against Deere & Company's actual
+# filed FY2025 10-K raw XBRL instance document (accession 0001104659-25-122321,
+# de-20251102x10k_htm.xml): a plain, non-dimensioned instant concept, duplicate-tagged
+# (identical value appears twice under the same contextRef, same as AES) - both years'
+# facts must be recovered and deduplicated correctly.
+_DE_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:de="http://deere.com/20251102">
+  <context id="c-2025">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000315189</identifier></entity>
+    <period><instant>2025-11-02</instant></period>
+  </context>
+  <context id="c-2024">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000315189</identifier></entity>
+    <period><instant>2024-10-27</instant></period>
+  </context>
+  <de:LongTermDebtAndFinanceLeasesNoncurrent contextRef="c-2025" unitRef="usd" decimals="-6">43544000000</de:LongTermDebtAndFinanceLeasesNoncurrent>
+  <de:LongTermDebtAndFinanceLeasesNoncurrent contextRef="c-2025" unitRef="usd" decimals="-6">43544000000</de:LongTermDebtAndFinanceLeasesNoncurrent>
+  <de:LongTermDebtAndFinanceLeasesNoncurrent contextRef="c-2024" unitRef="usd" decimals="-6">43229000000</de:LongTermDebtAndFinanceLeasesNoncurrent>
+</xbrl>
+"""
+
+
+class TestExtractCustomDebtDeere:
+    def test_de_recovers_both_years(self) -> None:
+        result = extract_custom_debt_longterm_from_xbrl_xml(_DE_XML, "DE")
+        assert result[2025] == 43_544_000_000.0
+        assert result[2024] == 43_229_000_000.0
+
+    def test_de_deduplicates_the_twice_tagged_2025_fact(self) -> None:
+        # The 2025 fact appears twice under contextRef="c-2025" with the identical value -
+        # must be counted once, not doubled to 87,088,000,000.
+        result = extract_custom_debt_longterm_from_xbrl_xml(_DE_XML, "DE")
+        assert result[2025] == 43_544_000_000.0
