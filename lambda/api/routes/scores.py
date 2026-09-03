@@ -2491,6 +2491,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "shares_outstanding_unavailable_for_pct_calc",
             "no_form345_filings_in_lookback_window",
             "no_insider_transactions_in_lookback",
+            # ADDED 2026-09-03 (synchronous static sweep): load_insider_transaction_velocity.py's
+            # fetch_incremental() - `reason = metrics.reason or "no_data"` - fires when the
+            # velocity aggregator marks data_unavailable=True but supplies no specific reason
+            # string. Same "no insider-transaction coverage for this symbol" fact as
+            # no_insider_transactions_in_lookback directly above, just the generic fallback
+            # case instead of the specific one. Currently 0 live rows but real, reachable code
+            # on the same table/column as its sibling - was falling through to "Other (errors /
+            # excluded)" for lack of a mapping.
+            "no_data",
         },
     ),
     (
