@@ -527,6 +527,17 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # trade-only figure.
         "ReceivablesNetCurrent",
         "AccountsReceivableNetCurrent",
+        # FIXED 2026-09-03 (same sweep): long-term-contract manufacturers (aerospace/defense
+        # primes with real physical inventory) tag it under this concept instead of the
+        # plain one below. Live-confirmed via real companyfacts JSON: BA/Boeing ($78.8B
+        # FY2021 through $84.7B FY2025, continuous) has ZERO facts ever under `InventoryNet`
+        # despite having a real, huge inventory balance; HII/Huntington Ingalls has both
+        # concepts defined in its taxonomy but `InventoryNet` itself has zero actual facts
+        # filed ($183M-$219M FY2022-2025 all under this concept instead) - confirms it's a
+        # real, reused standard element for this filer shape, not a one-off. Fallback-only,
+        # listed before the standard concept so a filer reporting both (like HII) keeps
+        # whichever one actually has real facts via last-wins overwrite.
+        "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings",
         "InventoryNet",
         # FIXED 2026-09-03 (same sweep): regulated utilities (ES/Eversource live-confirmed
         # via real companyfacts JSON: $39.499B FY2023 / $40.987B FY2024 / $45.931B FY2025,

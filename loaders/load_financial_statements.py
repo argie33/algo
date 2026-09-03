@@ -609,6 +609,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence).
         "receivables_net_current",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings"
+        # (BA/Boeing, HII/Huntington Ingalls live evidence).
+        "inventory_net_of_allowances_customer_advances_and_progress_billings",
     }
 )
 
@@ -702,6 +706,10 @@ _BALANCE_FIELD_MAPPING = {
     "receivables_net_current": "accounts_receivable",
     "accounts_receivable_net_current": "accounts_receivable",
     "inventory_net": "inventory",
+    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
+    # on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings" - fallback-only
+    # (see _DEBT_FALLBACK_ONLY_FIELDS above), must never win over the standard concept.
+    "inventory_net_of_allowances_customer_advances_and_progress_billings": "inventory",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments
     # on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
     # "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciation
