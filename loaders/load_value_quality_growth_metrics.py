@@ -6443,8 +6443,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if roic_pct_unprofitable
                     else "negative_invested_capital"
                     if roic_pct_negative_invested_capital
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same fix as gross_margin just above): only checked
+                    # _get_blank_check_symbols() (SIC-code pre-merger SPACs), never the broader
+                    # _get_no_recent_revenue_symbols()/_get_never_tagged_revenue_symbols() gate.
+                    # Live-confirmed 39 of 217 universe roic_pct "missing_sec_data" rows are
+                    # non-blank-check, genuinely-no-revenue symbols - dominated by commodity/
+                    # crypto trusts (GLD, GLDM, GLTR, IAUM, AAAU, BTCO) that structurally report
+                    # no revenue by their trust/ETF nature, same "no operating business" fact
+                    # blank-check SPACs represent, just not SIC-classified as one.
                     else "no_revenue_reported"
                     if symbol in self._get_blank_check_symbols()
+                    or symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     else "reit_special_entity"
                     if no_operating_income_concept_roic
                     # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same fix as
@@ -6477,6 +6488,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "roce_pct" in implausible_ratio_metrics
                     else "negative_capital_employed"
                     if roce_pct_negative_capital_employed
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, same fix/rationale
+                    # as roic_pct just above - roce_pct never had this branch at all). Live-
+                    # confirmed 26 of 189 universe roce_pct "missing_sec_data" rows are the same
+                    # commodity/crypto-trust population (GLD, GLDM, GLTR, IAUM, AAAU, BTCO) as
+                    # roic_pct's identical fix.
+                    else "no_revenue_reported"
+                    if symbol in self._get_blank_check_symbols()
+                    or symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     # FIXED 2026-09-01: roce_pct shares roic_operating_income (EBIT numerator)
                     # with roic_pct above - same AGNC/ARE/AMH-class REIT structural gap, same
                     # already-tested gate.
