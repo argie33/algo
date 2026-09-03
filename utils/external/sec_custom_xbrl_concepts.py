@@ -158,6 +158,21 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # 18,275,000,000) FY2026 - a real, sharply accelerating capex ramp plausible against
     # Alibaba's own publicly reported AI/cloud-infrastructure buildout, not a placeholder.
     "BABA": [("baba", "PaymentsToAcquireLandUseRightsPropertyAndEquipment")],
+    # Cigna Group (CIK 0001739940, $114.8B market cap health insurer) - verified live
+    # 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL instance
+    # document (accession 0001739940-26-000006, ci-20251231_htm.xml). companyfacts JSON
+    # has zero us-gaap PP&E-family concept with any value since FY2022 - real capex
+    # continues under ci:PaymentsForProceedsFromPropertyPlantAndEquipment, plain
+    # non-dimensioned annual contexts, immediately adjacent to
+    # PaymentsToAcquireOtherInvestments/PaymentsToAcquireBusinessesNetOfCashAcquired on
+    # the investing-activities cash flow line: $1,212,000,000 FY2025 / $1,406,000,000
+    # FY2024 / $1,573,000,000 FY2023 - plausible, full-sized figures for Cigna's real
+    # capex scale (not a small residual the way PaymentsForProceedsFromProductiveAssets
+    # turned out to be for COP above - no separate, larger PP&E-purchase concept exists
+    # anywhere in Cigna's companyfacts to be the "real" primary line instead). Despite the
+    # "...ProceedsFrom..." naming (usually a net-of-disposals pattern), this reads as
+    # Cigna's own single combined cash-flow-statement PP&E line, the only one it reports.
+    "CI": [("ci", "PaymentsForProceedsFromPropertyPlantAndEquipment")],
 }
 
 

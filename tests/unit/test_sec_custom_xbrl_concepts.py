@@ -423,6 +423,20 @@ _BABA_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors the real structure confirmed live 2026-09-03 against Cigna's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0001739940-26-000006): a single
+# concept covers Cigna's whole capex line, plain non-dimensioned context.
+_CI_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:ci="http://cigna.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001739940</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <ci:PaymentsForProceedsFromPropertyPlantAndEquipment contextRef="c-1" unitRef="usd" decimals="-6">1212000000</ci:PaymentsForProceedsFromPropertyPlantAndEquipment>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_nee_sums_the_three_additive_concepts(self):
@@ -451,6 +465,10 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
         # this codebase's own annual_cash_flow.fiscal_year convention for BABA - not
         # FY2025 (the year the period started in).
         assert result[2026] == 18_275_000_000.0
+
+    def test_ci_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_CI_XML, "CI")
+        assert result[2025] == 1_212_000_000.0
 
 
 # Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual
