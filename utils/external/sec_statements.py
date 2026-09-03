@@ -1599,6 +1599,21 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # always keeps that value - these only fill the gap when the standard concept is
         # absent for that fiscal year, never overwrite it.
         "AllocatedShareBasedCompensationExpense",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # stock_based_compensation generic-gap investigation): CVX (Chevron, CIK
+        # 0000093410) never tags "ShareBasedCompensation" or
+        # "AllocatedShareBasedCompensationExpense" at all - live-confirmed real, continuous,
+        # plausible-magnitude values under this legacy-named concept instead every year
+        # FY2008-2025 ($168M FY2008 declining to $60-90M range FY2021-2025, consistent
+        # with a large, mature filer's real non-cash stock comp scale). Semantically
+        # narrower-sounding ("option plan") than the standard concepts but functions as
+        # Chevron's actual full SBC add-back line, same "closest real proxy this filer
+        # reports" precedent as this file's other legacy-naming fallbacks. Listed even
+        # more fallback than AllocatedShareBasedCompensationExpense (least-preferred
+        # position) and marked fallback-only in load_financial_statements.py's
+        # field_mapping (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS) so a filer reporting either
+        # standard concept always keeps that value.
+        "StockOptionPlanExpense",
         "ShareBasedCompensation",
         "PaymentsForRepurchaseOfEquity",
         "PaymentsForRepurchaseOfCommonStock",

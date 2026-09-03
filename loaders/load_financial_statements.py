@@ -573,6 +573,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
 _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "allocated_share_based_compensation_expense",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): see
+        # sec_statements.py's get_cash_flow() comment on StockOptionPlanExpense (CVX
+        # live-confirmed) - must never win over a real ShareBasedCompensation/
+        # AllocatedShareBasedCompensationExpense value.
+        "stock_option_plan_expense",
         "payments_for_repurchase_of_equity",
         # FIXED 2026-08-29 (shipping-sector custom-XBRL-concept capex fallback): must
         # never win over a real value the normal concept-list extraction already found -
@@ -800,6 +805,11 @@ _CASHFLOW_FIELD_MAPPING = {
     # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS comment above.
     "allocated_share_based_compensation_expense": "stock_based_compensation",
     "payments_for_repurchase_of_equity": "common_stock_repurchased",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): CVX
+    # (Chevron) live-confirmed - see sec_statements.py's get_cash_flow() comment on this
+    # concept. Fallback-only (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below), least
+    # preferred of the three SBC concepts.
+    "stock_option_plan_expense": "stock_based_compensation",
     # FIXED 2026-08-03: real dividend-payment concepts some filers use INSTEAD of plain
     # "PaymentsOfDividends" - see sec_statements.py's comment above these concepts.
     "payments_of_dividends_common_stock": "dividends_paid",

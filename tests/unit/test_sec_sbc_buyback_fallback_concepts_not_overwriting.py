@@ -24,6 +24,8 @@ class TestSbcBuybackFallbackConceptMappings:
         assert _CASHFLOW_FIELD_MAPPING[_to_snake("PaymentsForRepurchaseOfEquity")] == "common_stock_repurchased"
         assert _to_snake("AllocatedShareBasedCompensationExpense") in _SBC_BUYBACK_FALLBACK_ONLY_FIELDS
         assert _to_snake("PaymentsForRepurchaseOfEquity") in _SBC_BUYBACK_FALLBACK_ONLY_FIELDS
+        assert _CASHFLOW_FIELD_MAPPING[_to_snake("StockOptionPlanExpense")] == "stock_based_compensation"
+        assert _to_snake("StockOptionPlanExpense") in _SBC_BUYBACK_FALLBACK_ONLY_FIELDS
 
     def test_standard_concepts_still_map_directly_and_are_not_fallback_only(self) -> None:
         assert _CASHFLOW_FIELD_MAPPING["share_based_compensation"] == "stock_based_compensation"
@@ -51,6 +53,7 @@ class TestSbcBuybackFallbackNotOverwritingRealValue:
         loader._field_mapping = {
             "share_based_compensation": "stock_based_compensation",
             "allocated_share_based_compensation_expense": "stock_based_compensation",
+            "stock_option_plan_expense": "stock_based_compensation",
             "payments_for_repurchase_of_common_stock": "common_stock_repurchased",
             "payments_for_repurchase_of_equity": "common_stock_repurchased",
             "data_unavailable": "data_unavailable",
@@ -87,6 +90,34 @@ class TestSbcBuybackFallbackNotOverwritingRealValue:
         transformed = loader.transform([row])
 
         assert transformed[0]["stock_based_compensation"] == 11_076_000.0
+
+    def test_stock_option_plan_expense_populates_sbc_when_standard_concepts_absent(self) -> None:
+        # CVX-style filer: never tags "ShareBasedCompensation" or
+        # "AllocatedShareBasedCompensationExpense", only "StockOptionPlanExpense" -
+        # previously silently dropped.
+        loader = self._make_loader()
+        row = {
+            "symbol": "CVX",
+            "fiscal_year": 2025,
+            "stock_option_plan_expense": 73_000_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["stock_based_compensation"] == 73_000_000.0
+
+    def test_real_sbc_not_overwritten_by_stock_option_plan_expense(self) -> None:
+        loader = self._make_loader()
+        row = {
+            "symbol": "AAPL",
+            "fiscal_year": 2025,
+            "share_based_compensation": 12_500_000_000.0,
+            "stock_option_plan_expense": 1.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["stock_based_compensation"] == 12_500_000_000.0
 
     def test_fallback_concept_populates_buyback_when_standard_concept_absent(self) -> None:
         # SPWH-style filer: never tags "PaymentsForRepurchaseOfCommonStock", only
