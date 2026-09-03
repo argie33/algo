@@ -45,11 +45,13 @@ from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     CUSTOM_CAPEX_CONCEPTS,
+    CUSTOM_CAPEX_DIMENSIONED_CONCEPTS,
     CUSTOM_DEBT_CONCEPTS,
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     fetch_custom_capex,
+    fetch_custom_capex_dimensioned_sum,
     fetch_custom_debt,
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
@@ -772,6 +774,11 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # this key only exists for symbols where that extraction structurally can't work
         # at all (see _CASHFLOW_FIELD_MAPPING's comment on this same key).
         "custom_extension_vessel_capex",
+        # FIXED 2026-09-03 (same sweep): NJR's dimensioned-sum capex - same "never win
+        # over a real value the normal concept-list extraction already found" reasoning
+        # as custom_extension_vessel_capex above (see CUSTOM_CAPEX_DIMENSIONED_CONCEPTS's
+        # docstring in sec_custom_xbrl_concepts.py).
+        "custom_extension_capex_dimensioned_sum",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): ED's
         # narrower "construction work in progress" concept - see this dict's own comment
         # on "payments_for_construction_in_process" above and sec_statements.py's
@@ -1032,6 +1039,7 @@ _CASHFLOW_FIELD_MAPPING = {
     # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the
     # normal SEC extraction already found.
     "custom_extension_vessel_capex": "capex",
+    "custom_extension_capex_dimensioned_sum": "capex",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data" sweep) - see
     # sec_statements.py's get_cash_flow() comment for the live CWT (water utility)
     # evidence. Same "capex" target column as the other sector-specific PP&E-family
@@ -2144,6 +2152,21 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 fiscal_year = row.get("fiscal_year")
                 if fiscal_year in custom_capex_by_year:
                     row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
+
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # no_recent_free_cash_flow_reported continuation): same structural gap as the block
+        # above, for filers whose real capex is a standard concept but never tagged as a
+        # single total - only split across N PropertyPlantAndEquipmentByTypeAxis (or
+        # similar) members, which the normal concept-list extraction's "exclude every
+        # dimensioned context" rule can never see. See
+        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_CAPEX_DIMENSIONED_CONCEPTS
+        # docstring for the live-verified NJR evidence. Cheap no-op for every other symbol.
+        if self.statement_type == "cashflow" and symbol in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS:
+            dimensioned_capex_by_year = fetch_custom_capex_dimensioned_sum(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in dimensioned_capex_by_year:
+                    row["custom_extension_capex_dimensioned_sum"] = dimensioned_capex_by_year[fiscal_year]
 
         # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit, no_revenue_reported bucket):
         # same structural gap as the capex block above, for the top-line revenue figure -

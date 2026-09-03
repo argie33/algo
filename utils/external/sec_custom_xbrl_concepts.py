@@ -779,3 +779,130 @@ def fetch_custom_debt_shortterm(symbol: str, sec_client: Any) -> dict[int, float
     return _fetch_custom_concept(
         symbol, sec_client, CUSTOM_DEBT_SHORTTERM_CONCEPTS, extract_custom_debt_shortterm_from_xbrl_xml
     )
+
+
+# FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+# no_recent_free_cash_flow_reported continuation): New Jersey Resources (CIK 0000356309,
+# $5.4B market cap regulated gas utility, FYE September 30) has real, growing capex on
+# file every year, but never as a single total - live-confirmed against its real filed
+# FY2025 10-K raw XBRL instance document (accession 0000356309-25-000093,
+# njr-20250930_htm.xml): the STANDARD us-gaap:PaymentsToAcquirePropertyPlantAndEquipment
+# concept (already fetched by sec_statements.py's plain concept list) is tagged only under
+# 3 real, additive PropertyPlantAndEquipmentByTypeAxis members - njr:UtilityPlantMember
+# ($391,906,000 FY2025 / $372,019,000 FY2024 / $350,304,000 FY2023),
+# njr:SolarEquipmentMember ($238,185,000 / $104,287,000 / $107,303,000),
+# njr:StorageAndTransportationAndOtherMember ($29,957,000 / $46,628,000 / $42,757,000) -
+# summing to $660,048,000 / $522,934,000 / $500,364,000, exactly matching NJR's real,
+# publicly reported capex scale. Confirmed exactly 9 total occurrences of this concept in
+# the filing (3 members x 3 years), every one single-dimension - no more-dimensioned
+# sub-breakdown duplicates to guard against, unlike CUSTOM_DEBT_CONCEPTS's Berkshire case.
+# This is CUSTOM_DEBT_CONCEPTS's exact "sum facts with exactly one explicitMember drawn
+# from a registered set" shape, just for a DURATION (cash-flow-statement) fact instead of
+# an INSTANT (balance-sheet) one - _extract_dimensioned_sum_from_xbrl_xml above only
+# handles instant facts (see its own `period/instant` check), so this needed the duration
+# counterpart below rather than reusing it directly, the same relationship
+# _extract_instant_values_for_concepts already has to _extract_values_for_concepts for the
+# exclude-dimensions case.
+CUSTOM_CAPEX_DIMENSIONED_CONCEPTS: dict[str, tuple[str, frozenset[str]]] = {
+    "NJR": (
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+        frozenset({"UtilityPlantMember", "SolarEquipmentMember", "StorageAndTransportationAndOtherMember"}),
+    ),
+}
+
+
+def _extract_duration_dimensioned_sum_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known
+    CUSTOM_CAPEX_DIMENSIONED_CONCEPTS-registered concept, summing only the DURATION facts
+    tagged in a context dimensioned by EXACTLY ONE explicitMember drawn from the registered
+    member set - returns {fiscal_year: summed_value}.
+
+    The duration counterpart of _extract_dimensioned_sum_from_xbrl_xml (built for
+    Berkshire's INSTANT balance-sheet debt figures) - same "exactly one member, and it's in
+    the target set" safety filter, but period-matching and fiscal-year derivation follow
+    _extract_values_for_concepts's duration convention (350-380 day startDate/endDate span,
+    fiscal_year = end_date.year) instead of _fiscal_year_for_instant's point-in-time one.
+
+    Only meaningful for symbols in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS - returns {}
+    immediately otherwise (never guesses at unregistered concept/member names). A fiscal
+    year is only returned once ALL registered members were found for it, so a filer
+    dropping one type's tag in a future filing understates nothing silently - it just stops
+    returning that year at all.
+    """
+    spec = CUSTOM_CAPEX_DIMENSIONED_CONCEPTS.get(symbol)
+    if not spec:
+        # Not an error - no candidates registered for this symbol at all, so there is
+        # nothing to search the XML for (never guesses at unregistered concept/member
+        # names).
+        return {}
+    concept_local_name, member_local_names = spec
+
+    root = ET.fromstring(xml_content)
+
+    context_info: dict[str, tuple[str, str, str]] = {}
+    for ctx in root.iter():
+        if _local_name(ctx.tag) != "context":
+            continue
+        ctx_id = ctx.get("id")
+        if not ctx_id:
+            continue
+        period = next((c for c in ctx if _local_name(c.tag) == "period"), None)
+        if period is None:
+            continue
+        start_el = next((c for c in period if _local_name(c.tag) == "startDate"), None)
+        end_el = next((c for c in period if _local_name(c.tag) == "endDate"), None)
+        if start_el is None or end_el is None or not start_el.text or not end_el.text:
+            continue  # Instant context, not a duration one - not usable here.
+        members = [
+            el.text.strip().rsplit(":", 1)[-1]
+            for el in ctx.iter()
+            if _local_name(el.tag) == "explicitMember" and el.text
+        ]
+        if len(members) != 1 or members[0] not in member_local_names:
+            continue  # Not one of our target type totals - see module comment above.
+        context_info[ctx_id] = (start_el.text.strip(), end_el.text.strip(), members[0])
+
+    values_by_year: dict[int, float] = {}
+    members_seen_by_year: dict[int, set[str]] = {}
+    for el in root.iter():
+        if _local_name(el.tag) != concept_local_name:
+            continue
+        ctx_ref = el.get("contextRef")
+        if ctx_ref not in context_info:
+            continue
+        start_str, end_str, member = context_info[ctx_ref]
+        try:
+            start_date = date.fromisoformat(start_str)
+            end_date = date.fromisoformat(end_str)
+        except ValueError:
+            continue
+        duration_days = (end_date - start_date).days
+        if not (350 <= duration_days <= 380):
+            continue  # Not a full-year duration - skip quarterly/interim facts.
+        if el.text is None:
+            continue
+        try:
+            value = float(el.text.strip())
+        except ValueError:
+            continue
+        fiscal_year = end_date.year
+        seen = members_seen_by_year.setdefault(fiscal_year, set())
+        if member in seen:
+            continue  # Duplicate fact for a member/year already summed - never double-count.
+        seen.add(member)
+        values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
+
+    return {
+        year: total for year, total in values_by_year.items() if members_seen_by_year[year] == set(member_local_names)
+    }
+
+
+def fetch_custom_capex_dimensioned_sum(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known
+    CUSTOM_CAPEX_DIMENSIONED_CONCEPTS dimensioned-sum concept. Returns {} if symbol isn't
+    registered, the filing can't be found, or the XML can't be parsed - callers should
+    treat that as "no fallback data", not raise.
+    """
+    return _fetch_custom_concept(
+        symbol, sec_client, CUSTOM_CAPEX_DIMENSIONED_CONCEPTS, _extract_duration_dimensioned_sum_from_xbrl_xml
+    )

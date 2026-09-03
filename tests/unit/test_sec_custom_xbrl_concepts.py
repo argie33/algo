@@ -12,11 +12,13 @@ from unittest.mock import MagicMock
 
 from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_CAPEX_CONCEPTS,
+    CUSTOM_CAPEX_DIMENSIONED_CONCEPTS,
     CUSTOM_DEBT_CONCEPTS,
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     _extract_dimensioned_sum_from_xbrl_xml,
+    _extract_duration_dimensioned_sum_from_xbrl_xml,
     _extract_instant_values_for_concepts,
     _fiscal_year_for_instant,
     extract_custom_capex_from_xbrl_xml,
@@ -24,6 +26,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     extract_custom_debt_shortterm_from_xbrl_xml,
     extract_custom_revenue_from_xbrl_xml,
     fetch_custom_capex,
+    fetch_custom_capex_dimensioned_sum,
     fetch_custom_debt,
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
@@ -1020,3 +1023,105 @@ class TestExtractCustomDebtTextron:
         assert "TXT" in CUSTOM_DEBT_CONCEPTS
         concept_local_name, member_local_names = CUSTOM_DEBT_CONCEPTS["TXT"]
         assert concept_local_name and member_local_names
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against New Jersey Resources'
+# actual filed FY2025 10-K raw XBRL instance document (accession 0000356309-25-000093,
+# fiscal year ends September 30): the standard PaymentsToAcquirePropertyPlantAndEquipment
+# concept split across 3 PropertyPlantAndEquipmentByTypeAxis members, no consolidated
+# total anywhere. Includes a 4th member (a hypothetical 2-dimension sub-breakdown fact)
+# to verify the multi-dimension exclusion the same way TestExtractDimensionedSumFromXbrlXml
+# does for Berkshire's instant-fact case.
+_NJR_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:us-gaap="http://fasb.org/us-gaap/2025"
+      xmlns:njr="http://njresources.com/20250930">
+  <context id="c-utility-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000356309</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:PropertyPlantAndEquipmentByTypeAxis">njr:UtilityPlantMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2024-10-01</startDate><endDate>2025-09-30</endDate></period>
+  </context>
+  <context id="c-solar-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000356309</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:PropertyPlantAndEquipmentByTypeAxis">njr:SolarEquipmentMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2024-10-01</startDate><endDate>2025-09-30</endDate></period>
+  </context>
+  <context id="c-storage-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000356309</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:PropertyPlantAndEquipmentByTypeAxis">njr:StorageAndTransportationAndOtherMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2024-10-01</startDate><endDate>2025-09-30</endDate></period>
+  </context>
+  <context id="c-utility-fy2024-only">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000356309</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:PropertyPlantAndEquipmentByTypeAxis">njr:UtilityPlantMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2023-10-01</startDate><endDate>2024-09-30</endDate></period>
+  </context>
+  <context id="c-multi-dimension-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000356309</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:PropertyPlantAndEquipmentByTypeAxis">njr:UtilityPlantMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">njr:NaturalGasDistributionMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2024-10-01</startDate><endDate>2025-09-30</endDate></period>
+  </context>
+  <us-gaap:PaymentsToAcquirePropertyPlantAndEquipment contextRef="c-utility-fy2025" unitRef="usd" decimals="-3">391906000</us-gaap:PaymentsToAcquirePropertyPlantAndEquipment>
+  <us-gaap:PaymentsToAcquirePropertyPlantAndEquipment contextRef="c-solar-fy2025" unitRef="usd" decimals="-3">238185000</us-gaap:PaymentsToAcquirePropertyPlantAndEquipment>
+  <us-gaap:PaymentsToAcquirePropertyPlantAndEquipment contextRef="c-storage-fy2025" unitRef="usd" decimals="-3">29957000</us-gaap:PaymentsToAcquirePropertyPlantAndEquipment>
+  <us-gaap:PaymentsToAcquirePropertyPlantAndEquipment contextRef="c-utility-fy2024-only" unitRef="usd" decimals="-3">372019000</us-gaap:PaymentsToAcquirePropertyPlantAndEquipment>
+  <us-gaap:PaymentsToAcquirePropertyPlantAndEquipment contextRef="c-multi-dimension-fy2025" unitRef="usd" decimals="-3">150000000</us-gaap:PaymentsToAcquirePropertyPlantAndEquipment>
+</xbrl>
+"""
+
+
+class TestExtractDurationDimensionedSumFromXbrlXml:
+    def test_njr_sums_all_three_registered_members(self) -> None:
+        result = _extract_duration_dimensioned_sum_from_xbrl_xml(_NJR_XML, "NJR")
+        # 391,906,000 (Utility) + 238,185,000 (Solar) + 29,957,000 (Storage/Other)
+        assert result[2025] == 660_048_000.0
+
+    def test_njr_2024_missing_two_members_is_not_returned(self) -> None:
+        # The fixture only has a UtilityPlant fact for FY2024 (no Solar/Storage
+        # comparative-year facts) - must NOT be returned as a silently understated total.
+        result = _extract_duration_dimensioned_sum_from_xbrl_xml(_NJR_XML, "NJR")
+        assert 2024 not in result
+
+    def test_njr_excludes_multi_dimensioned_sub_breakdown_fact(self) -> None:
+        result = _extract_duration_dimensioned_sum_from_xbrl_xml(_NJR_XML, "NJR")
+        # The 150,000,000 fact carries 2 explicitMembers (type axis + a hypothetical
+        # segment axis) - not a plain single-member type total, must be excluded.
+        assert result[2025] == 660_048_000.0
+
+    def test_unregistered_symbol_returns_empty_without_parsing(self) -> None:
+        assert _extract_duration_dimensioned_sum_from_xbrl_xml(_NJR_XML, "SOME_OTHER_SYMBOL") == {}
+
+    def test_custom_capex_dimensioned_concepts_registry_includes_njr(self) -> None:
+        assert "NJR" in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS
+        concept_local_name, member_local_names = CUSTOM_CAPEX_DIMENSIONED_CONCEPTS["NJR"]
+        assert concept_local_name and member_local_names
+
+
+class TestFetchCustomCapexDimensionedSum:
+    def test_unregistered_symbol_never_calls_sec_client(self) -> None:
+        sec_client = MagicMock()
+        result = fetch_custom_capex_dimensioned_sum("AAPL", sec_client)
+        assert result == {}
+        sec_client.symbol_to_cik.assert_not_called()
