@@ -98,7 +98,7 @@ def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
     return "missing_sec_data"
 
 
-def intrinsic_value_reason_from_fcf_yield(fcf_yield: float | None) -> str:
+def intrinsic_value_reason_from_fcf_yield(fcf_yield: float | None, fcf_yield_reason: str | None = None) -> str:
     """Decide why intrinsic_value_per_share (the DCF result) is unavailable when it's NULL.
 
     FIXED 2026-08-18 (goal session, value_metrics audit): this was collapsed to
@@ -115,9 +115,20 @@ def intrinsic_value_reason_from_fcf_yield(fcf_yield: float | None) -> str:
         fcf_yield: sec_valuations.fcf_yield for this symbol (same sign as the FCF that fed
             the DCF, since both derive from the same ocf - capex over the same positive
             market_cap).
+        fcf_yield_reason: the already-computed fcf_yield_unavailable_reason for this symbol
+            (e.g. "capex_never_tagged_in_recent_filings", "no_recent_free_cash_flow_reported")
+            when fcf_yield is None. FIX 2026-09-03 (SEC/XBRL sweep): this branch used to
+            collapse every fcf_yield-is-None cause to the single generic "missing_cash_flow_data"
+            label, discarding the specific reason fcf_yield_unavailable_reason itself already
+            distinguishes (same "sibling reason propagation" bug class as total_debt's
+            sec_valuations-reason fix). Live audit: 388 universe rows split
+            missing_sec_data 148 / no_recent_free_cash_flow_reported 131 /
+            capex_never_tagged_in_recent_filings 109 - all real, already-categorized causes
+            sitting one field over, just never passed through. Falls back to the old generic
+            label only when no specific reason is available (e.g. direct callers/tests).
     """
     if fcf_yield is None:
-        return "missing_cash_flow_data"
+        return fcf_yield_reason or "missing_cash_flow_data"
     if fcf_yield <= 0:
         return "negative_free_cash_flow"
     return "implausible_dcf_result"
@@ -1208,13 +1219,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         else:
             ev_ebitda_reason = "missing_sec_data"
 
+        # fcf_yield's own specific reason, computed once here so both fcf_yield_unavailable_reason
+        # below and intrinsic_value_reason_from_fcf_yield() (which used to discard it in favor of
+        # a generic "missing_cash_flow_data" - see that function's docstring) show the same
+        # real, already-categorized cause instead of two different labels for one fact.
+        fcf_yield_reason_str = (
+            (
+                "no_recent_free_cash_flow_reported"
+                if symbol in self._get_no_recent_free_cash_flow_symbols()
+                else "capex_never_tagged_in_recent_filings"
+                if symbol in self._get_no_recent_capex_symbols()
+                else "missing_sec_data"
+            )
+            if fcf_yield is None
+            else None
+        )
+
         # intrinsic_value_per_share reason: sec_valuations doesn't persist raw OCF/CapEx, only
         # the fcf_yield ratio derived from them - reuse it as the same "is FCF usable" signal
         # load_sec_valuations.py's DCF itself gates on, same educated-inference-from-an-
         # adjacent-field pattern as ev_ebitda_reason above. See
         # intrinsic_value_reason_from_fcf_yield() for the 2026-08-18 fix history.
         intrinsic_value_reason = (
-            intrinsic_value_reason_from_fcf_yield(fcf_yield) if intrinsic_value_per_share is None else None
+            intrinsic_value_reason_from_fcf_yield(fcf_yield, fcf_yield_reason_str)
+            if intrinsic_value_per_share is None
+            else None
         )
         if margin_of_safety_pct is None:
             # FIX 2026-09-02 (goal: "no SEC data" audit continuation): load_sec_valuations.py's
@@ -1599,28 +1628,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             ),
             "peg_ratio_unavailable_reason": peg_ratio_reason,
             "dividend_yield_unavailable_reason": dividend_yield_reason,
-            "fcf_yield_unavailable_reason": (
-                (
-                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): sec_valuations
-                    # derives fcf as ocf - capex - sbc (with a cross-year avg_fcf_fallback), the
-                    # same underlying "does this filer report free cash flow at all" business
-                    # fact quality_metrics.free_cash_flow_unavailable_reason already gates via
-                    # _get_no_recent_free_cash_flow_symbols() - reusing it here instead of a
-                    # generic label. Live-confirmed 207 of 421 universe fcf_yield
-                    # "missing_sec_data" rows (49%) are this exact case.
-                    "no_recent_free_cash_flow_reported"
-                    if symbol in self._get_no_recent_free_cash_flow_symbols()
-                    # FIX 2026-09-02 (goal: "no SEC data" audit continuation): see
-                    # _get_no_recent_capex_symbols()'s own docstring - real OCF, capex never
-                    # tagged in any recent fiscal year, distinct from (and not overlapping)
-                    # the no-FCF-at-all gate just above.
-                    else "capex_never_tagged_in_recent_filings"
-                    if symbol in self._get_no_recent_capex_symbols()
-                    else "missing_sec_data"
-                )
-                if fcf_yield is None
-                else None
-            ),
+            # Computed once above (fcf_yield_reason_str) so this and intrinsic_value_reason
+            # show the same specific cause - see intrinsic_value_reason_from_fcf_yield()'s
+            # docstring for the 2026-09-03 fix history. Original per-case rationale (FIX
+            # 2026-09-02, "no SEC data" audit continuation): "no_recent_free_cash_flow_reported"
+            # reuses quality_metrics.free_cash_flow_unavailable_reason's own gate
+            # (_get_no_recent_free_cash_flow_symbols(), 207/421 live "missing_sec_data" fcf_yield
+            # rows were this case); "capex_never_tagged_in_recent_filings" is real OCF with capex
+            # never tagged in any recent fiscal year, distinct from the no-FCF-at-all gate above.
+            "fcf_yield_unavailable_reason": fcf_yield_reason_str,
             "forward_pe_unavailable_reason": forward_pe_reason if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": (

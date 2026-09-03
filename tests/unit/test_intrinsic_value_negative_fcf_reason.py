@@ -30,3 +30,26 @@ def test_positive_fcf_yield_reports_implausible_dcf_result() -> None:
 
 def test_missing_fcf_yield_reports_missing_cash_flow_data() -> None:
     assert intrinsic_value_reason_from_fcf_yield(None) == "missing_cash_flow_data"
+
+
+# Regression (found 2026-09-03, SEC/XBRL sweep): fcf_yield is None used to always collapse to
+# the generic "missing_cash_flow_data" label, discarding fcf_yield_unavailable_reason's own
+# already-specific cause (same "sibling reason propagation" bug class as total_debt's
+# sec_valuations-reason fix, bf82fc6d0) - 388 live universe rows split across 3 real reasons
+# that were all being reported identically.
+def test_missing_fcf_yield_propagates_specific_reason_when_given() -> None:
+    assert (
+        intrinsic_value_reason_from_fcf_yield(None, "capex_never_tagged_in_recent_filings")
+        == "capex_never_tagged_in_recent_filings"
+    )
+    assert (
+        intrinsic_value_reason_from_fcf_yield(None, "no_recent_free_cash_flow_reported")
+        == "no_recent_free_cash_flow_reported"
+    )
+    assert intrinsic_value_reason_from_fcf_yield(None, "missing_sec_data") == "missing_sec_data"
+
+
+def test_missing_fcf_yield_falls_back_to_generic_label_when_no_reason_given() -> None:
+    # Direct callers that don't have fcf_yield_unavailable_reason on hand (e.g. tests, or a
+    # future caller with no adjacent reason field) still get a real string, not None.
+    assert intrinsic_value_reason_from_fcf_yield(None, None) == "missing_cash_flow_data"
