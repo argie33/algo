@@ -2124,7 +2124,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, current_assets,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2234,6 +2234,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         _get_unclassified_balance_sheet_symbols() above, for the same reason: a company can
         permanently change what it itemizes partway through its filing history. Cached for the
         life of this loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism and the NGG evidence this bug class was first found on, same fix applied
+        identically here): `WHERE data_unavailable = FALSE` made a symbol whose 3 most recent
+        fiscal years are ALL explicitly marked unavailable invisible to this "genuinely no
+        recent X" gate. `fiscal_year > 0` keeps the ranking free of `_unavailable_marker`
+        sentinel rows (456 confirmed live) while including real-fiscal-year unavailable ones.
+        Label-only - never feeds a computed VALUE, only a reason string.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_interest_expense_symbols_cache", None)
         if cached is not None:
@@ -2245,7 +2254,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, interest_expense,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2319,6 +2328,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         different accounting model for a specific entity type. Same "3 most recent years, not
         all-time history" windowing as the sibling checks above. Cached for the life of this
         loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_debt_components_symbols_cache", None)
         if cached is not None:
@@ -2331,7 +2346,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            operating_lease_liability, finance_lease_liability,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2409,6 +2424,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         nothing is missing. Live-confirmed 245 universe symbols hit this exact zero-vs-null gap
         (same bug class as the total_debt/roic_pct genuine-zero fixes elsewhere in this file).
         Now treats NULL and real 0 as equivalent "no revenue" for this windowed check.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_revenue_symbols_cache", None)
         if cached is not None:
@@ -2420,7 +2441,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, revenue,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2606,6 +2627,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         its own gate for total_assets specifically. Same "3 most recent years, not all-time
         history" windowing as the sibling checks above. Cached for the life of this loader
         instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_total_assets_symbols_cache", None)
         if cached is not None:
@@ -2617,7 +2644,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, total_assets,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2669,6 +2696,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         wired up" gap, not a left-behind sibling asymmetry. Live-confirmed 33 of 64 universe
         current_ratio/quick_ratio "missing_sec_data" rows have current_assets or
         current_liabilities in one of the 4 new gates this fix adds.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_current_assets_symbols_cache", None)
         if cached is not None:
@@ -2680,7 +2713,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, current_assets,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2717,7 +2750,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         """Symbols that have NOT reported a real (non-NULL, positive) current_liabilities in any
         of their 3 most recent fiscal years - sibling of
         _get_no_recent_current_assets_symbols() above for current_ratio/quick_ratio's other
-        structural input."""
+        structural input.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
+        """
         cached: frozenset[str] | None = getattr(self, "_no_recent_current_liabilities_symbols_cache", None)
         if cached is not None:
             return cached
@@ -2728,7 +2768,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, current_liabilities,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2775,6 +2815,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         assume this set is large. Same "3 most recent years, not all-time history" windowing
         as the sibling checks above. Cached for the life of this loader instance; this query
         runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_net_income_symbols_cache", None)
         if cached is not None:
@@ -2786,7 +2832,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, net_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2909,6 +2955,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         with no reason gating at all before this fix. Same "3 most recent years, not all-time
         history" windowing as the sibling checks above. Cached for the life of this loader
         instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_total_liabilities_symbols_cache", None)
         if cached is not None:
@@ -2920,7 +2972,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, total_liabilities,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2974,6 +3026,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         that would change computed VALUES via cross-year mixing, not just relabel). This gate
         only covers the smaller, unambiguous "genuinely no OCF at all" slice. Cached for the
         life of this loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction): live-confirmed NGG
+        (National Grid plc, $58B market cap utility) has real net_income/total_assets every
+        recent year but ALL 3 of its most recent annual_cash_flow rows are explicitly
+        `data_unavailable = TRUE, reason = 'incomplete_sec_filing_cashflow'` - the old `WHERE
+        data_unavailable = FALSE` filter meant such a symbol contributes ZERO rows to `recent`,
+        can never satisfy `COUNT(*) = 3`, and was invisible to this gate despite the true cause
+        already being known and stored right there in annual_cash_flow.reason (same "reason
+        already computed upstream but discarded" bug class as
+        [[short_interest_pct_reason_propagation_fixed_20260903]]). "Explicitly marked
+        unavailable" is at least as strong a "no OCF reported" signal as "reported but the
+        column happened to be NULL", so filtering out only the `fiscal_year = 0` sentinel-
+        marker rows (`_unavailable_marker`'s own convention - 456 such rows confirmed live)
+        instead of every unavailable row keeps the ranking uncorrupted by placeholders while
+        including real-fiscal-year unavailable ones. Live-confirmed zero rows lost from the old
+        gate's result set, 25+ newly recovered. Label-only (this helper never feeds a computed
+        VALUE, only a reason string) - the broader inclusion carries no risk of a wrong number.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_operating_cash_flow_symbols_cache", None)
         if cached is not None:
@@ -2985,7 +3054,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, operating_cash_flow,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_cash_flow
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -3013,6 +3082,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         free_cash_flow) and fcf_margin (which divides free_cash_flow by revenue - see
         fcf_margin_unavailable_reason for the revenue-side companion gate). Cached for the life
         of this loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction, following the
+        accruals_ratio/NGG investigation - see _get_no_recent_operating_cash_flow_symbols'
+        sibling fix comment just below for the full mechanism, identical bug here): the old
+        `WHERE data_unavailable = FALSE` filter meant a symbol whose 3 most recent
+        annual_cash_flow rows are ALL explicitly `data_unavailable = TRUE` (e.g. NGG's
+        `incomplete_sec_filing_cashflow` every year 2022-2025) contributed ZERO rows to
+        `recent`, so it could never satisfy `COUNT(*) = 3` and was invisible to this gate -
+        even though "explicitly marked unavailable" is at least as strong a "no FCF reported"
+        signal as "reported but the column happened to be NULL". Filtering out only the
+        `fiscal_year = 0` sentinel-marker rows (`_unavailable_marker`'s own convention -
+        confirmed live: 456 such rows exist in this table) instead keeps the ranking
+        uncorrupted by placeholder rows while including real-fiscal-year unavailable rows.
+        Live-confirmed zero rows lost from the old gate's result set, 25+ newly recovered.
+        Label-only (this helper never feeds a computed VALUE, only a reason string), so the
+        broader inclusion carries no risk of a wrong number.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_free_cash_flow_symbols_cache", None)
         if cached is not None:
@@ -3024,7 +3109,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, free_cash_flow,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_cash_flow
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -3178,6 +3263,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         the same "capex was never tagged" structural fact regardless of the underlying reason.
         Cached for the life of this loader instance; this query runs once per pipeline run,
         not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE`. Live-verified the 7 symbols this changed (GLNG, TFIN,
+        XRTX, EWBC, EMAT, PPCB, CYCN) were previously matching this gate only by reaching
+        back to stale, 4+-year-old real OCF data while ignoring that their true 3 most
+        recent fiscal years are ALL explicitly unavailable - the fix correctly re-routes
+        them to the more accurate no_recent_operating_cash_flow_reported gate instead
+        (fixed identically, same table) rather than mislabeling them as "real recent OCF,
+        capex specifically missing". Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_capex_symbols_cache", None)
         if cached is not None:
@@ -3189,7 +3285,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, operating_cash_flow, capex,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_cash_flow
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -3242,6 +3338,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         string rather than reit_special_entity. Same "3 most recent years, not all-time
         history" windowing as the sibling checks above. Cached for the life of this loader
         instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - see
+        _get_no_recent_operating_cash_flow_symbols' 2026-09-03 fix comment for the full
+        mechanism, same fix applied identically here): `fiscal_year > 0` replaces
+        `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
+        explicitly marked unavailable isn't invisible to this gate. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_recent_stockholders_equity_symbols_cache", None)
         if cached is not None:
@@ -3253,7 +3355,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, stockholders_equity,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
