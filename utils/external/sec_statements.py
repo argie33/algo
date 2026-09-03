@@ -670,6 +670,22 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # field_mapping fallback (load_financial_statements.py's _DEBT_FALLBACK_ONLY_FIELDS),
         # which only ever sees "long_term_debt_noncurrent" if this function is bypassed.
         "LongTermDebtCurrent",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # total_debt_not_itemized investigation): small/mid-cap bank and thrift holding
+        # companies (IBOC/International Bancshares, HBT/HBT Financial live-confirmed via
+        # real companyfacts JSON) carry no conventional LongTermDebt/NotesPayable/
+        # SeniorNotes at all - their only real debt instruments are trust-preferred
+        # securities. IBOC: real $108.868M "JuniorSubordinatedDebentureOwedTo
+        # UnconsolidatedSubsidiaryTrust" balance, continuous through FY2025-2026, never
+        # tagged under any concept already fetched above. Listed after "SubordinatedDebt"
+        # below (both fallback-only, first-populated-wins): a filer reporting both
+        # instruments in the same fiscal year (HBT: real $84.026M SubordinatedDebt +
+        # $52.939M JuniorSubordinatedDebenture as of 2026-Q2, two genuinely distinct real
+        # instruments) only gets the larger/first-listed one, understating true combined
+        # debt - accepted as strictly better than the current "not itemized" NULL, same
+        # single-figure-not-perfect-sum convention as NotesPayable/SeniorNotes above.
+        "SubordinatedDebt",
+        "JuniorSubordinatedDebentureOwedToUnconsolidatedSubsidiaryTrust",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

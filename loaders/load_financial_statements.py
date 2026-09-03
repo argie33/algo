@@ -584,6 +584,12 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # comment on "DebtLongtermAndShorttermCombinedAmount" (PGR live evidence) - must
         # never win over a real LongTermDebt value from an earlier fiscal year.
         "debt_longterm_and_shortterm_combined_amount",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "SubordinatedDebt"/"JuniorSubordinatedDebentureOwedTo
+        # UnconsolidatedSubsidiaryTrust" (IBOC/HBT live evidence) - must never win over
+        # any of the standard debt concepts already fetched above.
+        "subordinated_debt",
+        "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust",
     }
 )
 
@@ -734,6 +740,14 @@ _BALANCE_FIELD_MAPPING = {
     # comment on "DebtLongtermAndShorttermCombinedAmount" for the live evidence. Same
     # fallback-only, single-figure convention as notes_payable above.
     "debt_longterm_and_shortterm_combined_amount": "long_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): IBOC/HBT
+    # real trust-preferred/subordinated-debenture debt - see sec_statements.py's
+    # get_balance_sheet() comment on "SubordinatedDebt"/"JuniorSubordinatedDebentureOwedTo
+    # UnconsolidatedSubsidiaryTrust" for the live evidence. Same fallback-only,
+    # single-figure convention as notes_payable/debt_longterm_and_shortterm_combined_
+    # amount above.
+    "subordinated_debt": "long_term_debt",
+    "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's
