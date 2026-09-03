@@ -1447,6 +1447,16 @@ def get_income_statement(
         # interest), so this is intentionally the lowest-priority, last-resort fallback -
         # listed last so any filer with a real accrual-basis concept above keeps that value.
         "InterestPaidNet",
+        # FIXED 2026-09-03 (same sweep, same reasoning as InterestPaidNet just above): ARW
+        # (Arrow Electronics, $37B revenue) tags NEITHER InterestPaidNet nor any
+        # InterestExpense* concept above - live-confirmed via real companyfacts JSON its
+        # only interest-on-debt fact anywhere is plain "InterestPaid" (FY2021 $113.1M,
+        # FY2022 $175.6M, FY2023 $274.1M - a real, growing, plausible figure for a large
+        # distributor with real debt). Same "cash paid, not accrued expense" imprecision as
+        # InterestPaidNet, so kept at the same lowest-priority fallback tier, listed right
+        # after it so any filer with the more complete "Net" variant keeps that value
+        # instead.
+        "InterestPaid",
         # Session 398: For EBITDA calculation = OperatingIncomeLoss + Depreciation + Amortization
         # FIXED 2026-07-28: was "DepreciationExpense", which is not a real us-gaap XBRL
         # concept at all (live-confirmed absent from both AAPL's and MSFT's companyfacts) -

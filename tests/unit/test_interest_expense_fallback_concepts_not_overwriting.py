@@ -12,6 +12,11 @@ Both added as fallback-only fields: live-confirmed TRV reports BOTH a real "Inte
 ($425M FY2025) AND "InterestPaidNet" ($393M FY2025, a different, less precise cash-paid
 figure) for the same fiscal year, so a plain always-overwrite mapping would have silently
 downgraded TRV's real interest_expense on every filer that reports both.
+
+FIXED 2026-09-03 (same sweep): ARW (Arrow Electronics, $37B revenue) tags neither
+InterestPaidNet nor any InterestExpense-family concept above, only plain "InterestPaid"
+(FY2023 $274.1M) - the same "cash paid, not accrued expense" concept family as
+InterestPaidNet, added at the same lowest-priority fallback tier.
 """
 
 from loaders.helpers.sec_base import SecEdgarStatementLoader
@@ -21,7 +26,7 @@ from utils.external.sec_statements import _to_snake
 
 class TestInterestExpenseFallbackConceptMappings:
     def test_fallback_concepts_map_to_interest_expense_and_are_fallback_only(self) -> None:
-        for concept in ("InterestAndDebtExpense", "InterestPaidNet"):
+        for concept in ("InterestAndDebtExpense", "InterestPaidNet", "InterestPaid"):
             target_key = _to_snake(concept)
             assert target_key in _REVENUE_FALLBACK_ONLY_FIELDS
 
@@ -39,6 +44,7 @@ class TestInterestExpenseFallbackNotOverwritingRealInterestExpense:
             "interest_expense_debt": "interest_expense",
             "interest_and_debt_expense": "interest_expense",
             "interest_paid_net": "interest_expense",
+            "interest_paid": "interest_expense",
             "data_unavailable": "data_unavailable",
             "reason": "reason",
         }
@@ -89,3 +95,34 @@ class TestInterestExpenseFallbackNotOverwritingRealInterestExpense:
         transformed = loader.transform([row])
 
         assert transformed[0]["interest_expense"] == 3_501_000_000.0
+
+    def test_interest_paid_fallback_populates_when_no_other_concept_present(self) -> None:
+        # ARW-style filer: no InterestExpense-family concept and no InterestPaidNet, only
+        # the plain "InterestPaid" cash-flow-statement supplemental disclosure.
+        loader = self._make_loader()
+        row = {
+            "symbol": "ARW",
+            "fiscal_year": 2023,
+            "interest_paid": 274_100_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["interest_expense"] == 274_100_000.0
+
+    def test_interest_paid_net_wins_over_interest_paid_when_both_present(self) -> None:
+        # interest_paid_net is listed before interest_paid in sec_statements.py's concept
+        # list (a more complete/net figure preferred over the plainer one) - the field
+        # mapping/fallback-only wiring must not let interest_paid clobber it if a filer
+        # somehow reports both.
+        loader = self._make_loader()
+        row = {
+            "symbol": "HYPOTHETICAL",
+            "fiscal_year": 2025,
+            "interest_paid_net": 100_000_000.0,
+            "interest_paid": 999_000_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["interest_expense"] == 100_000_000.0

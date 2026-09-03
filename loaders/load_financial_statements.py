@@ -316,6 +316,9 @@ _INCOME_FIELD_MAPPING = {
     # config) so it never overwrites InterestAndDebtExpense's rare real value for EPAC.
     "financing_interest_expense": "interest_expense",
     "interest_paid_net": "interest_expense",
+    # FIXED 2026-09-03 (same "cash paid" fallback tier as interest_paid_net above - see
+    # sec_statements.py's get_income_statement() comment on "InterestPaid", ARW).
+    "interest_paid": "interest_expense",
     # This mapping key was always correct - the bug was in sec_statements.py's
     # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
     # us-gaap XBRL concept - live-confirmed absent from both AAPL's and MSFT's
@@ -458,6 +461,9 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # it.
         "financing_interest_expense",
         "interest_paid_net",
+        # FIXED 2026-09-03 (same reasoning as interest_paid_net just above - see
+        # _INCOME_FIELD_MAPPING's comment on "interest_paid" above, ARW live-verified).
+        "interest_paid",
         # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): same "fills only an
         # already-empty db_field" reasoning as this set's other entries - see
         # _INCOME_FIELD_MAPPING's comment on "custom_extension_revenue" above. Only ever
