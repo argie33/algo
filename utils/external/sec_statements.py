@@ -926,6 +926,27 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
         row["long_term_debt"] = noncurrent + (current or 0)
 
 
+def _fill_income_tax_expense_from_current_deferred_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: income_tax_expense = CurrentIncomeTaxExpenseBenefit +
+    DeferredIncomeTaxExpenseBenefit.
+
+    Only fires when the primary "income_tax_expense" column (from the plain
+    "IncomeTaxExpenseBenefit" concept, fetched above) is still empty for that fiscal year -
+    never overwrites a real value. Unlike the long_term_debt Noncurrent/Current split above,
+    BOTH components must be present to fire (a filer with only one half tagged genuinely
+    hasn't reported its total tax provision that way, unlike LongTermDebtCurrent's "0 if
+    absent" convention - a missing current-or-deferred component is not safely assumed to be
+    zero the way an untagged current-debt-maturity often genuinely is). Mutates rows in
+    place and always strips both raw keys.
+    """
+    for row in rows:
+        current = row.pop("current_income_tax_expense_benefit", None)
+        deferred = row.pop("deferred_income_tax_expense_benefit", None)
+        if row.get("income_tax_expense") is not None or current is None or deferred is None:
+            continue
+        row["income_tax_expense"] = current + deferred
+
+
 def get_income_statement(
     client: Any, symbol: str, period: str = "annual", security_name: str | None = None
 ) -> list[dict[str, Any]]:
@@ -1327,6 +1348,23 @@ def get_income_statement(
         # was correctly rejected as synthetic data, see load_value_quality_growth_metrics.py's
         # prior "CRITICAL FIX" comment - this replaces that gap with the real reported figure).
         "IncomeTaxExpenseBenefit",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # income_tax_expense investigation): CNS (Cohen & Steers) stopped tagging plain
+        # "IncomeTaxExpenseBenefit" after FY2024 (last real fact 2024-12-31, $46,749,000) -
+        # live-confirmed via real companyfacts JSON that FY2025 instead splits the same
+        # total across "CurrentIncomeTaxExpenseBenefit" ($46,671,000) +
+        # "DeferredIncomeTaxExpenseBenefit" ($561,000) = $47,232,000, consistent with
+        # FY2024's total and each individually a completely standard ASC 740 tax-note
+        # concept (not a guess or reconstruction - current + deferred tax provision sums
+        # to total tax expense by definition). Not fetched via field_mapping directly -
+        # _fill_income_tax_expense_from_current_deferred_split() below sums both into
+        # "income_tax_expense" as a post-processing step (same "genuinely different
+        # aggregation than last-value-wins" pattern as
+        # _fill_long_term_debt_from_noncurrent_current_split above) and pops both raw
+        # keys, so this fallback only fires when the plain concept above is absent for
+        # that fiscal year - never overwrites a real value.
+        "CurrentIncomeTaxExpenseBenefit",
+        "DeferredIncomeTaxExpenseBenefit",
         # Pretax income: the taxonomy migrated concepts over time (older filings/filers use
         # the MinorityInterest variant, current filers use the ExtraordinaryItems variant -
         # live-confirmed AAPL/MSFT both report ONLY the newer variant for fiscal years after
@@ -1355,6 +1393,7 @@ def get_income_statement(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
+    _fill_income_tax_expense_from_current_deferred_split(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows
