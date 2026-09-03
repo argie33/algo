@@ -94,14 +94,24 @@ class TestFetchAnalystActions:
         with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(df)):
             assert fetch_analyst_actions("AAPL") is None
 
-    def test_actions_older_than_lookback_are_excluded(self, _patch_circuit_breaker):
+    def test_old_actions_are_kept_not_treated_as_no_coverage(self, _patch_circuit_breaker):
+        """FIXED 2026-09-03: a >2-year-old real row used to be silently discarded, and
+        None returned (indistinguishable from "never covered"). Live-confirmed this broke
+        real mega-caps (MUFG, Santander) whose yfinance-tracked ADR rating history is real
+        but not recent - see fetch_analyst_actions's own fix docstring. The consumer
+        (_analyst_score) already applies its own 90-day recency window at read time, so
+        this fetch-time cutoff had no scoring benefit and only destroyed real data."""
         old_date = datetime.now(timezone.utc).date() - timedelta(days=800)
         df = pd.DataFrame(
             {"Firm": ["Old Firm"], "ToGrade": ["Buy"], "FromGrade": ["Hold"], "Action": ["up"]},
             index=pd.to_datetime([old_date.isoformat()]),
         )
         with patch(_WORKER_PATCH_TARGET, return_value=_mock_ticker_with_df(df)):
-            assert fetch_analyst_actions("AAPL", lookback_days=730) is None
+            rows = fetch_analyst_actions("AAPL")
+        assert rows is not None
+        assert len(rows) == 1
+        assert rows[0]["firm"] == "Old Firm"
+        assert rows[0]["action_date"] == old_date
 
     def test_unrecognized_action_value_maps_to_none_not_dropped(self, _patch_circuit_breaker):
         today = datetime.now(timezone.utc).date()

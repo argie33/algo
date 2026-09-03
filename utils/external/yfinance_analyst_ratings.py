@@ -47,7 +47,7 @@ import logging
 import multiprocessing
 import queue
 import threading
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
@@ -295,8 +295,8 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
     return result
 
 
-def fetch_analyst_actions(symbol: str, lookback_days: int = 730) -> list[dict[str, Any]] | None:
-    """Fetch recent analyst rating actions for one symbol from yfinance.
+def fetch_analyst_actions(symbol: str) -> list[dict[str, Any]] | None:
+    """Fetch all available analyst rating actions for one symbol from yfinance.
 
     Returns:
         List of row dicts (symbol, action_date, firm, old_rating, new_rating, action,
@@ -307,6 +307,22 @@ def fetch_analyst_actions(symbol: str, lookback_days: int = 730) -> list[dict[st
         RuntimeError: on a real fetch failure (network, rate limit, parse error) - the
         caller is expected to record this as data_unavailable, not silently skip it,
         per this codebase's fail-explicit governance.
+
+    FIXED 2026-09-03 (goal: SEC/XBRL missing-data sweep, "why so many missing analyst
+    data" follow-up): this used to drop any row older than a 730-day `lookback_days`
+    cutoff before returning, and returned None (indistinguishable from "never covered")
+    when EVERY real row fell outside that window. Live-confirmed this wrongly
+    miscategorized real, current mega-caps as having zero analyst coverage ever: MUFG
+    ($263B market cap, real B of A/Jefferies actions on file, latest 2022-01-27) and
+    Santander ($214B, real actions through 2024-03-25) both write a fresh
+    "no_analyst_coverage" marker on every single daily run - permanently discarding the
+    real historical rows yfinance actually returns, purely because the ADR ticker's
+    yfinance-tracked rating-action history is thinner/less current than the underlying
+    company's real coverage. algo/signals/advanced_filters.py::_analyst_score() already
+    applies its own tight 90-day window at READ time (interval_90d), so this fetch-time
+    cutoff bought no scoring benefit - it only ever threw away real data and manufactured
+    a false "no coverage" signal. Removed entirely: store every real row yfinance
+    returns, let the consumer's own recency window decide what's "current."
     """
     try:
         df = _fetch_with_circuit_breaker(symbol, "upgrades_downgrades")
@@ -318,7 +334,6 @@ def fetch_analyst_actions(symbol: str, lookback_days: int = 730) -> list[dict[st
     if df is None or df.empty:
         return None
 
-    cutoff = datetime.now(timezone.utc).date().toordinal() - lookback_days
     # (action_date, firm) -> row. GradeDate carries a real timestamp but analyst_upgrade_downgrade
     # only stores a DATE, and the same firm occasionally issues more than one action for the same
     # symbol on the same calendar date (e.g. a price-target-only update same day as a rating
@@ -330,8 +345,6 @@ def fetch_analyst_actions(symbol: str, lookback_days: int = 730) -> list[dict[st
         try:
             action_date: date = grade_date.date() if hasattr(grade_date, "date") else grade_date
         except (AttributeError, ValueError):
-            continue
-        if action_date.toordinal() < cutoff:
             continue
 
         firm = row.get("Firm") if "Firm" in row else None
