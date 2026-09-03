@@ -1659,6 +1659,34 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
             # only available annual data, same fallback-of-last-resort precedent as
             # _PRIMARY_STATEMENT_FORMS above.
             has_annual_report_form = any(e.get("form") in _ANNUAL_REPORT_FORMS for e in entries)
+            # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, WEC live-
+            # confirmed): the has_annual_report_form gate below (2026-08-18 GM/DIS fix)
+            # blanket-skips every non-10-K-form instant fact once a concept has ANY real
+            # 10-K history, on the assumption a 10-Q-sourced instant fact is always a
+            # premature mid-year snapshot for a not-yet-filed fiscal year. That's true for
+            # the CURRENT in-progress year (the case it was built for) but wrongly also
+            # drops a PAST fiscal year-end that a filer's own 10-K genuinely never tagged
+            # this exact concept for - live-confirmed via WEC's real companyfacts JSON:
+            # StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest has
+            # 10-K-form entries for FY2019-2025 but NONE for FY2018 (WEC's real FY2018
+            # 10-K apparently didn't tag this concept at all that year), while three
+            # FY2019 10-Qs each cite the real FY2018-end comparative value ($9.8427B,
+            # end=2018-12-31) - the ONLY source for that fiscal year, silently dropped by
+            # the blanket rule, leaving annual_balance_sheet.stockholders_equity NULL for
+            # FY2018 despite total_assets/current_liabilities/etc. all being populated
+            # (211 symbols / 1,144 rows share this "data_unavailable=FALSE but core field
+            # NULL" shape live). Track the latest end date this concept's own confirmed
+            # 10-K/20-F/40-F history actually reaches - only a fact BEYOND that boundary
+            # is a genuine premature snapshot; one at or before it is a legitimate past
+            # fiscal year-end the annual filing itself just never re-tagged.
+            _max_annual_report_end = max(
+                (
+                    e["end"]
+                    for e in entries
+                    if e.get("form") in _ANNUAL_REPORT_FORMS and not e.get("start") and e.get("end")
+                ),
+                default=None,
+            )
             # FIXED 2026-08-22 (goal session: real-money-readiness audit, quarterly_balance_
             # sheet residual-contamination follow-up): some filers mistag EVERY 10-Q's fp as
             # "FY" instead of "Q1"/"Q2"/"Q3" for a specific fiscal year (a filer-side XBRL
@@ -1991,14 +2019,22 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                 # FIXED 2026-08-18 (no-SEC-data audit continuation): see the
                 # has_annual_report_form comment above this loop. An instant fact sourced
                 # from a 10-Q/6-K must not seed the annual bucket when this concept has
-                # real 10-K/20-F/40-F history - it's a genuine mid-year snapshot, not a
-                # fiscal-year-end position, and the fiscal year it falls in (derived from
-                # its own end date below) usually has no 10-K filed yet at all.
+                # real 10-K/20-F/40-F history and the fact is BEYOND that history's own
+                # reach - it's a genuine mid-year snapshot, not a fiscal-year-end position,
+                # and the fiscal year it falls in (derived from its own end date below)
+                # usually has no 10-K filed yet at all.
+                # NARROWED 2026-09-02 (see _max_annual_report_end comment above this loop,
+                # WEC live-confirmed): only skip when this fact's end date is genuinely
+                # AFTER the concept's own latest confirmed 10-K/20-F/40-F end date - a
+                # fact at or before that boundary is a past fiscal year-end the annual
+                # filing itself simply never re-tagged (recoverable from a later filing's
+                # comparative column), not a premature current-year snapshot.
                 if (
                     period == "annual"
                     and not start_date
                     and has_annual_report_form
                     and entry.get("form") not in _ANNUAL_REPORT_FORMS
+                    and (_max_annual_report_end is None or (entry.get("end") or "") > _max_annual_report_end)
                 ):
                     continue
 
