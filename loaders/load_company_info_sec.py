@@ -841,7 +841,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
         return result
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
-        """Helper to create a data_unavailable record."""
+        """Helper to create a data_unavailable record.
+
+        FIXED 2026-09-02 (SEC/XBRL missing-data sweep, live-caught via FRBA/GV/HIFS/HOS/
+        NBN/NUTR/PAAI/QMMM/RCBC/SSBI/TOWN/YFOR all showing shares_outstanding IS NULL with
+        shares_outstanding_unavailable_reason ALSO NULL in the active universe): this
+        whole-row-failure marker (cik_not_found/submissions_not_found_404/submissions_empty/
+        entity_name_not_found - the only 4 call sites) never set shares_outstanding_
+        unavailable_reason at all, unlike fetch_incremental's own success-path partial-miss
+        branch a few hundred lines up, which always assigns one of its 3 reason buckets
+        whenever shares_outstanding comes back None. On a symbol's first-ever load (nothing
+        for preserve_on_missing_fields - see __init__'s 2026-08-21 fix - to preserve) that
+        left the column permanently NULL: invisible to the coverage dashboard's per-field
+        shares_outstanding_unavailable_reason breakdown (a NULL reason never reaches
+        _categorize_reason at all, unlike an actual mapped string) even though the row is
+        indisputably missing the data. Reusing the same top-level `reason` here is correct,
+        not just convenient - every one of these 4 reasons already means "we don't even know
+        who this filer is", which subsumes "so we obviously don't know its share count
+        either", and all 4 are already mapped to "Missing SEC/XBRL data" in scores.py's
+        _COVERAGE_CATEGORY_RULES.
+        """
         return [
             {
                 "symbol": symbol,
@@ -851,6 +870,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 "sic_description": None,
                 "entity_type": None,
                 "shares_outstanding": None,
+                "shares_outstanding_unavailable_reason": reason,
                 "has_annual_report_filing": None,
                 "data_unavailable": True,
                 "reason": reason,

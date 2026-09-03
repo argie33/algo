@@ -91,6 +91,25 @@ class TestSharesOutstandingUnavailableReason:
         assert result["shares_outstanding"] is None
         assert result["shares_outstanding_unavailable_reason"] == "shares_outstanding_not_in_xbrl_or_filing_text"
 
+    def test_cik_not_found_also_sets_shares_outstanding_reason(self):
+        """FIXED 2026-09-02 (SEC/XBRL missing-data sweep): a whole-row failure via
+        _unavailable_record() (cik_not_found/submissions_not_found_404/submissions_empty/
+        entity_name_not_found) must ALSO populate shares_outstanding_unavailable_reason,
+        not just the bare top-level `reason` - live-caught via FRBA/GV/HIFS/HOS/NBN/NUTR/
+        PAAI/QMMM/RCBC/SSBI/TOWN/YFOR all sitting with shares_outstanding NULL and
+        shares_outstanding_unavailable_reason ALSO NULL (invisible to the coverage
+        dashboard's per-field breakdown) despite data_unavailable=True making the gap
+        obvious at the row level."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.side_effect = ValueError("not in ticker cache")
+
+        result = loader.fetch_incremental("FRBA", None)[0]
+
+        assert result["data_unavailable"] is True
+        assert result["reason"] == "cik_not_found"
+        assert result["shares_outstanding"] is None
+        assert result["shares_outstanding_unavailable_reason"] == "cik_not_found"
+
     def test_reason_is_none_when_shares_outstanding_resolved(self):
         """Companion case: a real domestic 10-K filer whose dei fact resolves normally must
         not have any unavailable_reason attached - this only fires on a genuine gap."""
