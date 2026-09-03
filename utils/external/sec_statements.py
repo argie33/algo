@@ -1170,6 +1170,17 @@ def get_income_statement(
         # leaving it unmapped means those symbols correctly get interest_coverage=NULL
         # instead of a wrong number.
         "InterestExpense",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # interest_expense_not_itemized investigation): JKHY (Jack Henry & Associates)
+        # stopped tagging plain "InterestExpense" after its FY2023 10-K - live-confirmed
+        # via real companyfacts JSON that both concepts report the IDENTICAL value for
+        # the same fiscal year (FY2023, period 2022-07-01 to 2023-06-30: $15,073,000
+        # under either concept), then this concept continues alone with real values
+        # through FY2026 ($16,384,000/$10,438,000/$5,387,000 for FY2024-2026) - a pure
+        # taxonomy relabeling, not a different/narrower figure. Plain (non-fallback)
+        # concept, same convention as the PaymentsForProceedsFromProductiveAssets/D capex
+        # fix (identical-value-on-overlap pattern).
+        "InterestExpenseOperating",
         # FIXED 2026-08-03: interest_expense was NULL for 83.5% of latest annual rows -
         # live-confirmed against real filers (not a coverage limit, a concept-list gap):
         # WMT never reports plain "InterestExpense" at all, only "InterestExpenseDebt" (real
@@ -1187,6 +1198,16 @@ def get_income_statement(
         # "InterestExpenseNonoperating", or "InterestExpenseDebt" above. Listed after those
         # per this file's "last-listed wins on overwrite" convention.
         "InterestAndDebtExpense",
+        # FIXED 2026-09-03 (same sweep): EPAC (Enerpac Tool Group) has tagged real,
+        # continuous, non-zero interest expense under this concept for its ENTIRE filing
+        # history (FY2009-2025, e.g. FY2025 $9,911,000) - live-confirmed via real
+        # companyfacts JSON EPAC has no fact under "InterestExpense" at all, and its rare
+        # "InterestAndDebtExpense" entries are mostly $0 except one real but SMALLER
+        # FY2012 value ($16,830,000 vs. this concept's $29,561,000 the same year) -
+        # a genuinely different, smaller line item, not a duplicate/relabeling. Fallback-
+        # only (see load_financial_statements.py's field_mapping) so it only fills years
+        # where InterestAndDebtExpense didn't already report EPAC's (rare) real value.
+        "FinancingInterestExpense",
         # FIXED 2026-08-18 (same audit): CAT (Caterpillar) and NEE (NextEra Energy) tag
         # NEITHER "InterestAndDebtExpense" nor any InterestExpense* concept above -
         # live-confirmed their only interest-on-debt fact anywhere in companyfacts is this

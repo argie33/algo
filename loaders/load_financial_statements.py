@@ -282,6 +282,13 @@ _INCOME_FIELD_MAPPING = {
     # weighted-average count, so sharing a column risks a silent downgrade).
     "entity_common_stock_shares_outstanding": "shares_outstanding_dei",
     "interest_expense": "interest_expense",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): JKHY (Jack
+    # Henry & Associates) taxonomy-relabeled concept - see sec_statements.py's
+    # get_income_statement() comment on InterestExpenseOperating for the live evidence
+    # (identical value to plain InterestExpense in the one overlap year). Not fallback-
+    # only, same "plain relabel" convention as interest_expense_nonoperating/
+    # interest_expense_debt below.
+    "interest_expense_operating": "interest_expense",
     # FIXED 2026-08-03: real, live-confirmed concepts some filers use INSTEAD of plain
     # "InterestExpense" - see sec_statements.py's comment above these concepts. WMT never
     # reports "InterestExpense" at all (only "InterestExpenseDebt"); JNJ's taxonomy migrated
@@ -292,6 +299,16 @@ _INCOME_FIELD_MAPPING = {
     # get_income_statement() comment for the live evidence (TXN/BA use
     # InterestAndDebtExpense; NEE uses the cash-basis InterestPaidNet as a last resort).
     "interest_and_debt_expense": "interest_expense",
+    # FIXED 2026-09-03 (same sweep): EPAC (Enerpac Tool Group) has tagged real,
+    # continuous, non-zero interest expense under this concept for its entire filing
+    # history - see sec_statements.py's get_income_statement() comment on
+    # FinancingInterestExpense for the live evidence (EPAC has no "InterestExpense" at
+    # all, and its rare "InterestAndDebtExpense" entries are a genuinely different,
+    # smaller line item, not a duplicate). Fallback-only (added to
+    # _REVENUE_FALLBACK_ONLY_FIELDS below, which despite its name is this file's shared
+    # "only fills an already-empty db_field" bucket for the whole income-statement
+    # config) so it never overwrites InterestAndDebtExpense's rare real value for EPAC.
+    "financing_interest_expense": "interest_expense",
     "interest_paid_net": "interest_expense",
     # This mapping key was always correct - the bug was in sec_statements.py's
     # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
@@ -422,6 +439,13 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # specifically - not exhaustively checked across the universe, so defaulting to
         # the safe convention this file uses everywhere else.
         "interest_and_debt_expense",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): same
+        # "fills only an already-empty db_field" reasoning - see
+        # _INCOME_FIELD_MAPPING's comment on "financing_interest_expense" above (EPAC
+        # live-verified). Listed after interest_and_debt_expense in sec_statements.py's
+        # concept list, so a filer with a rare real interest_and_debt_expense value keeps
+        # it.
+        "financing_interest_expense",
         "interest_paid_net",
         # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): same "fills only an
         # already-empty db_field" reasoning as this set's other entries - see
