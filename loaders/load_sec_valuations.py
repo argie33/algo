@@ -2752,12 +2752,37 @@ class SecValuationsLoader(OptimalLoader):
         depreciation/amortization from the income statement, so it correctly stays NULL when
         income_rows is empty.
         """
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # total_cash "missing_sec_data" investigation): the ORDER BY below used to only
+        # distinguish NULL from non-NULL, treating an explicit 0 the same as a real
+        # positive balance - live-confirmed via AM (Antero Midstream, $10.8B mkt cap) and
+        # AR (Antero Resources, $12.3B): each has a real, current, non-flagged
+        # cash_and_equivalents=$180,435,000/$210,000,000 for its most recent completed
+        # fiscal year, but a NEWER (partial/interim-derived) fiscal_year row exists with
+        # cash_and_equivalents=0 (while that same row's total_assets/current_liabilities/
+        # etc are real, non-zero - not a stub row, just missing this one field for the
+        # most recent period) - the plain "fiscal_year DESC, prefer non-NULL" ordering
+        # picked that $0 row over the real $180M/$210M one, exactly the "current-year stub
+        # clobbers a real prior value" bug class already fixed elsewhere this session (see
+        # the AMZN 10-Q TTM stub-row fix). DB-wide scan found 12 symbols with this exact
+        # shape (most recent fiscal_year row has cash=0 while an earlier one has a real
+        # non-zero value): AKTX/AM/AR/BGR/CDIO/INDO/LEGO/MAIA/NGS/ROC/SOAR/VLOS. Same
+        # non-NULL-vs-real-nonzero tiering the debt query just below already uses (that one
+        # was correct from the start) - preferring a real nonzero balance over a same-or-
+        # later-year explicit zero, but still falling back to a genuine zero (a company
+        # that really holds no cash, which does happen) when no nonzero year exists at all.
         cur.execute(
             """
             SELECT cash_and_equivalents
             FROM annual_balance_sheet
             WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
-            ORDER BY (CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+            ORDER BY (CASE
+                        WHEN cash_and_equivalents IS NOT NULL AND cash_and_equivalents != 0
+                        THEN 0
+                        WHEN cash_and_equivalents IS NOT NULL
+                        THEN 1
+                        ELSE 2
+                      END), fiscal_year DESC
             LIMIT 1
             """,
             (symbol,),

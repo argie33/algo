@@ -15,6 +15,15 @@ Fixed with the same CASE-based prioritization as the sibling queries: prefer a f
 a real reported value, only falling back to the bare latest year (still correctly NULL) for
 companies with no balance sheet history at all.
 
+FURTHER FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): the original
+2-tier CASE only distinguished NULL from non-NULL, treating an explicit 0 the same as a real
+positive balance - live-confirmed via AM (Antero Midstream) and AR (Antero Resources): each has
+a real cash_and_equivalents=$180.4M/$210M for its most recent COMPLETED fiscal year, but a NEWER
+(partial/interim-derived) fiscal_year row exists with cash_and_equivalents=0 (not NULL, and not
+a stub row either - that row's other balance-sheet fields are real) - the 2-tier CASE picked
+that $0 row over the real one. Extended to a 3-tier CASE: prefer a real NONZERO balance, then
+any non-NULL value (including a genuine zero-cash company), then NULL last.
+
 A mocked cursor can't exercise Postgres's real ORDER BY evaluation, so this test asserts the
 query text itself still contains the prioritization clause - a regression guard against someone
 reverting to a plain `ORDER BY fiscal_year DESC` in a future edit.
@@ -105,5 +114,10 @@ class TestCashQueryPrefersPopulatedFiscalYear:
         ]
         assert len(cash_queries) == 1
         cash_sql = cash_queries[0]
-        assert "CASE WHEN cash_and_equivalents IS NOT NULL THEN 0 ELSE 1 END" in cash_sql
+        # 3-tier: real nonzero balance first, then any non-NULL (including a genuine
+        # zero), NULL last - see this file's module docstring for the 2026-09-03 fix this
+        # asserts (AM/AR's real-prior-value-vs-newer-zero-row evidence).
+        assert "WHEN cash_and_equivalents IS NOT NULL AND cash_and_equivalents != 0" in cash_sql
+        assert "THEN 0" in cash_sql
+        assert "WHEN cash_and_equivalents IS NOT NULL" in cash_sql
         assert "fiscal_year DESC" in cash_sql
