@@ -1662,6 +1662,22 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "PaymentsToAcquireAndDevelopRealEstate",
         "PaymentsToAcquireRealEstate",
         "PaymentsForCapitalImprovements",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # no_recent_free_cash_flow_reported investigation): a standard (not filer-specific)
+        # us-gaap concept for real-estate development spend, never in this fetch list at
+        # all - live-confirmed via two REITs' real raw XBRL instance documents. DLR
+        # (Digital Realty Trust, $62.4B mkt cap, CIK 1297996): $3,525,598,000 FY2023
+        # (accession 0001558370-24-001575) / $2,831,740,000 FY2024 (accession
+        # 0001558370-25-001424) / $3,181,179,000 FY2025 (accession 0001104659-26-015365) -
+        # matches DLR's real data-center buildout scale, zero overlap with
+        # PaymentsToAcquireRealEstate/PaymentsForDepositsOnRealEstateAcquisitions (both
+        # already fetched above, both genuinely zero for DLR in these years). REG (Regency
+        # Centers, $13.9B mkt cap): $435,112,000 FY2025 (accession 0001193125-26-051668) /
+        # $343,368,000 FY2024 / $232,855,000 FY2023 - real, growing development spend for
+        # a shopping-center REIT of REG's size. Plain (non-fallback) concept, same
+        # convention as the other REIT concepts immediately above - a standard taxonomy
+        # element, not filer-specific, so likely benefits other REITs beyond these two.
+        "PaymentsToDevelopRealEstateAssets",
         # FIXED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, live SEC EDGAR
         # verification of the 2026-08-24 fix's "pending separate verification" exclusion
         # above). Live-confirmed via SL Green's (SLG, CIK 1040971) real companyfacts JSON:

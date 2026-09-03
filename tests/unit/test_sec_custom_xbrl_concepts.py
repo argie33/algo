@@ -437,6 +437,46 @@ _CI_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors the real structure confirmed live 2026-09-03 against Diageo's actual filed
+# FY2026 20-F raw XBRL instance document (fiscal year ends June 30).
+_DEO_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:deo="http://diageo.com/20260630">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000835403</identifier></entity>
+    <period><startDate>2025-07-01</startDate><endDate>2026-06-30</endDate></period>
+  </context>
+  <deo:PurchaseOfPropertyPlantAndEquipmentAndComputerSoftware contextRef="c-1" unitRef="gbp" decimals="-6">1197000000</deo:PurchaseOfPropertyPlantAndEquipmentAndComputerSoftware>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Infosys's actual filed
+# FY2026 20-F raw XBRL instance document (accession 0001193125-26-270520, fiscal year
+# ends March 31).
+_INFY_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:infy="http://infosys.com/20260331">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001067491</identifier></entity>
+    <period><startDate>2025-04-01</startDate><endDate>2026-03-31</endDate></period>
+  </context>
+  <infy:PurchaseOfPropertyPlantAndEquipmentAndIntangiblesClassifiedAsInvestingActivities contextRef="c-1" unitRef="usd" decimals="-6">306000000</infy:PurchaseOfPropertyPlantAndEquipmentAndIntangiblesClassifiedAsInvestingActivities>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Equitable Holdings' actual
+# filed FY2025 10-K raw XBRL instance document (accession 0001333986-26-000012).
+_EQH_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:eqh="http://equitableholdings.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001333986</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <eqh:InvestmentInCapitalizedSoftwareLeaseholdImprovementsAndEDPEquipment contextRef="c-1" unitRef="usd" decimals="-6">34000000</eqh:InvestmentInCapitalizedSoftwareLeaseholdImprovementsAndEDPEquipment>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_nee_sums_the_three_additive_concepts(self):
@@ -469,6 +509,19 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_ci_returns_its_own_concept(self):
         result = extract_custom_capex_from_xbrl_xml(_CI_XML, "CI")
         assert result[2025] == 1_212_000_000.0
+
+    def test_deo_fiscal_year_matches_june_period_end(self):
+        result = extract_custom_capex_from_xbrl_xml(_DEO_XML, "DEO")
+        # Fiscal year ended 2026-06-30 must bucket as FY2026 (end_date.year).
+        assert result[2026] == 1_197_000_000.0
+
+    def test_infy_fiscal_year_matches_march_period_end(self):
+        result = extract_custom_capex_from_xbrl_xml(_INFY_XML, "INFY")
+        assert result[2026] == 306_000_000.0
+
+    def test_eqh_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_EQH_XML, "EQH")
+        assert result[2025] == 34_000_000.0
 
 
 # Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual

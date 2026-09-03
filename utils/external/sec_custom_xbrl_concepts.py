@@ -173,6 +173,33 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # "...ProceedsFrom..." naming (usually a net-of-disposals pattern), this reads as
     # Cigna's own single combined cash-flow-statement PP&E line, the only one it reports.
     "CI": [("ci", "PaymentsForProceedsFromPropertyPlantAndEquipment")],
+    # Diageo plc (CIK 0000835403, $50.7B market cap 20-F filer, fiscal year ends June 30) -
+    # verified live 2026-09-03 (same sweep) against the real filed FY2026 20-F raw XBRL
+    # instance document (deo-20260630_htm.xml). Real capex tagged under
+    # deo:PurchaseOfPropertyPlantAndEquipmentAndComputerSoftware, plain non-dimensioned
+    # annual contexts: GBP 1,197,000,000 FY2026 (period 2025-07-01 to 2026-06-30) /
+    # 1,612,000,000 FY2025 / 1,510,000,000 FY2024 - plausible vs. Diageo's real,
+    # publicly reported capex scale.
+    "DEO": [("deo", "PurchaseOfPropertyPlantAndEquipmentAndComputerSoftware")],
+    # Infosys Ltd (CIK 0001067491, $48.5B market cap 20-F filer, fiscal year ends March
+    # 31) - verified live 2026-09-03 (same sweep) against the real filed FY2026 20-F raw
+    # XBRL instance document (accession 0001193125-26-270520, infy-20260331_htm.xml).
+    # Real capex tagged under infy:PurchaseOfPropertyPlantAndEquipmentAndIntangibles
+    # ClassifiedAsInvestingActivities (USD-denominated fact), plain non-dimensioned
+    # annual contexts: $306,000,000 FY2026 (period 2025-04-01 to 2026-03-31) /
+    # $263,000,000 FY2025 / $266,000,000 FY2024 - plausible vs. Infosys's real,
+    # publicly reported capex scale.
+    "INFY": [("infy", "PurchaseOfPropertyPlantAndEquipmentAndIntangiblesClassifiedAsInvestingActivities")],
+    # Equitable Holdings Inc (CIK 0001333986, $15.4B market cap life insurer) - verified
+    # live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL instance
+    # document (accession 0001333986-26-000012, eqh-20251231_htm.xml). Real capex tagged
+    # under eqh:InvestmentInCapitalizedSoftwareLeaseholdImprovementsAndEDPEquipment,
+    # sitting directly in the investing-activities section of the cash flow statement
+    # (between PaymentsForProceedsFromDerivativeInstrumentInvestingActivities and
+    # PaymentsForProceedsFromOtherInvestingActivities - not an unrelated disclosure),
+    # plain non-dimensioned annual contexts: $34,000,000 FY2025 / $153,000,000 FY2024 /
+    # $117,000,000 FY2023.
+    "EQH": [("eqh", "InvestmentInCapitalizedSoftwareLeaseholdImprovementsAndEDPEquipment")],
 }
 
 
