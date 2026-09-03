@@ -6338,6 +6338,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     "total_debt_not_itemized"
                     if symbol in self._get_no_recent_debt_components_symbols()
                     or symbol in self._get_never_tagged_debt_components_symbols()
+                    # FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL
+                    # audit): total_debt_ev comes from the exact same ev_metrics tuple as
+                    # total_cash_ev/ebitda_ev just below - but `1547b826c` (which wired
+                    # no_sec_valuations_row/sec_valuations_reason into total_cash_unavailable_
+                    # reason/cash_per_share_unavailable_reason/ebitda_unavailable_reason) left
+                    # this block, one field above in the same tuple, untouched. Every symbol
+                    # with no sec_valuations row at all, or a row carrying a real specific
+                    # reason (e.g. "income_statement_revenue_and_eps_null"), fell straight to
+                    # generic "missing_sec_data" for total_debt while total_cash/ebitda on the
+                    # identical row already surfaced the real cause. Checked after the debt-
+                    # components gate above (existing, largest, best-tested population).
+                    else "no_sec_valuations_row"
+                    if ev_metrics is None
+                    else sec_valuations_reason
+                    if sec_valuations_reason
                     else "missing_sec_data"
                 )
                 if "total_debt" in failed_metrics

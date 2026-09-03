@@ -80,13 +80,31 @@ class TestTotalDebtNotItemizedReason:
         assert metrics["total_debt"] is None
         assert metrics["total_debt_unavailable_reason"] == "total_debt_not_itemized"
 
-    def test_symbol_not_in_no_recent_set_keeps_generic_reason(self, monkeypatch):
-        # total_debt is None for this fiscal year, but the symbol reported debt recently
-        # (real one-year extraction/timing gap) - must stay the generic "missing_sec_data".
+    def test_symbol_not_in_no_recent_set_with_no_sec_valuations_row(self, monkeypatch):
+        # total_debt is None for this fiscal year, the symbol reported debt recently (real
+        # one-year extraction/timing gap, not "not itemized"), and there's no sec_valuations
+        # row at all for it.
+        # UPDATED 2026-09-02 (test_total_debt_sec_valuations_reason_20260902.py): previously
+        # asserted the generic "missing_sec_data" fallback here, but that was itself the bug -
+        # total_debt discarded the "no_sec_valuations_row"/sec_valuations.reason propagation
+        # its sibling fields (total_cash/cash_per_share/ebitda) already got in `1547b826c`.
+        # ev_metrics=None now correctly yields the more specific "no_sec_valuations_row".
         loader = _make_loader(monkeypatch, no_recent_debt_symbols=frozenset({"SPAC1"}))
         row = _quality_row()
 
         metrics = loader._compute_quality_metrics("NORMALCO", row, ev_metrics=None)
+
+        assert metrics["total_debt"] is None
+        assert metrics["total_debt_unavailable_reason"] == "no_sec_valuations_row"
+
+    def test_symbol_not_in_no_recent_set_with_sec_valuations_row_but_no_reason_keeps_generic(self, monkeypatch):
+        # A real sec_valuations row exists, total_debt is NULL on it, and load_sec_valuations.py
+        # recorded no specific reason - this is the true remaining generic "missing_sec_data"
+        # case, distinct from the no-row case above.
+        loader = _make_loader(monkeypatch, no_recent_debt_symbols=frozenset({"SPAC1"}))
+        row = _quality_row()
+
+        metrics = loader._compute_quality_metrics("NORMALCO", row, ev_metrics=(None, 10_000_000.0, 25_000_000.0, None))
 
         assert metrics["total_debt"] is None
         assert metrics["total_debt_unavailable_reason"] == "missing_sec_data"
