@@ -6378,8 +6378,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if no_gross_profit_concept
                     else "implausible_ratio"
                     if "gross_margin" in implausible_ratio_metrics
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - see bf82fc6d0/total_debt and the fcf_margin/ebitda_margin/
+                    # asset_turnover fixes elsewhere in this file): gross_margin's no_revenue_reported
+                    # only checked _get_blank_check_symbols() (SIC-code pre-merger SPACs), never the
+                    # broader _get_no_recent_revenue_symbols()/_get_never_tagged_revenue_symbols() OR
+                    # every sibling margin/ratio field in this file already uses for the identical
+                    # "genuinely no revenue reported" fact. Live-confirmed 23/61 (38%) of universe
+                    # gross_margin "missing_sec_data" rows are non-blank-check symbols (GNPX, CLRB,
+                    # BOBS, PARK, OFRM, etc - pre-revenue biotech/thin-filing-history/recent listings)
+                    # that were already in the broader revenue gate, just not OR'd in here.
                     else "no_revenue_reported"
                     if symbol in self._get_blank_check_symbols()
+                    or symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     else "missing_sec_data"
                 )
                 if "gross_margin" in failed_metrics
