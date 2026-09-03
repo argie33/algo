@@ -2249,6 +2249,37 @@ def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not intr
                         )
                         continue
 
+                # FIX 2026-09-03 (goal: SEC/XBRL missing-data audit, BTCS live-verified via
+                # real SEC companyfacts JSON): the annual branch above already rejects a too-
+                # SHORT duration from its own bucket (span_days < 330 -> skip, "Real single-
+                # quarter/partial-year data - not annual"), but quarterly had no mirror-image
+                # guard against a too-LONG one. A fact whose OWN fp tag already equals Q1-Q4
+                # skips the derived_fp relocation logic above entirely (that only fires when fp
+                # does NOT already match a real quarter) and was accepted at face value with no
+                # span check at all. Live-confirmed via BTCS: its 2012 Q1/Q2/Q3 10-Qs (and 2014
+                # 10-Q/A amendments) each independently mistagged the SAME full FY2010 annual
+                # total (start=2010-01-01, end=2010-12-31, 365 days) as that quarter's own
+                # "prior year" comparative figure - fp="Q1" in the Q1 10-Q, fp="Q2" in the Q2
+                # 10-Q, fp="Q3" in the Q3 10-Q, four separate genuine filer-side tagging errors
+                # across four filings, not one mis-relocated comparative like the OFRM/DXC case
+                # `b8c37c0bc` fixed. With no genuine discrete quarterly fact ever filed for
+                # FY2010 to tiebreak against, each mistagged annual total became the sole
+                # occupant of its (2010, Q1/Q2/Q3) bucket - reproduced exactly via
+                # get_income_statement(client, 'BTCS', period='quarterly'): FY2010 Q1/Q2/Q3
+                # revenue/net_income all equalled the FY2010 annual total. Same 330-day
+                # threshold as the annual branch's own span_days<330 guard, applied
+                # symmetrically: no genuine quarterly-bucket fact (even a 9-month YTD
+                # cumulative, the longest legitimate one) should ever approach a full year.
+                if period == "quarterly" and start_date and fp in ("Q1", "Q2", "Q3", "Q4") and end_date:
+                    try:
+                        _q_span_days = (
+                            datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)
+                        ).days
+                    except ValueError:
+                        _q_span_days = None
+                    if _q_span_days is not None and _q_span_days >= 330:
+                        continue
+
                 key = (
                     period_year,
                     fp if period == "quarterly" else "FY",
