@@ -1814,6 +1814,38 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 if fiscal_year in custom_revenue_by_year:
                     row["custom_extension_revenue"] = custom_revenue_by_year[fiscal_year]
 
+        # FIX 2026-09-03 (goal session: "get the missing-XBRL number down the right way" -
+        # quality_metrics.interest_coverage's "interest_expense_not_itemized" bucket):
+        # live-confirmed 301 of 373 universe symbols hitting this reason (e.g. PKG/Packaging
+        # Corp $4.39B debt, GIL/Gildan $4.18B, ARW/Arrow Electronics $3.35B) have real,
+        # substantial total_debt already on file, contradicting
+        # _get_no_recent_interest_expense_symbols()'s "genuinely debt-free" explanation for
+        # most of this bucket - these are real borrowers, not shell companies. Live-checked
+        # PKG's actual companyfacts JSON (CIK 75677): no "InterestExpense"/
+        # "InterestExpenseNonoperating"/"InterestExpenseDebt"/"InterestAndDebtExpense" fact
+        # exists anywhere, but "InterestIncomeExpenseNet" (aliased for nonoperating filers as
+        # "InterestIncomeExpenseNonoperatingNet") has real values every year (FY2023 -$53.3M,
+        # FY2024 -$41.4M, FY2025 -$79.1M) - PKG nets interest income against interest expense
+        # into one line instead of itemizing it, same reporting choice already documented for
+        # AAPL (FY2024+) in _get_no_recent_interest_expense_symbols()'s own docstring, just
+        # not wired to a fallback. Not handled by simply adding these concepts to
+        # sec_statements.py's normal concept list like InterestExpenseNonoperating/
+        # InterestExpenseDebt were: those are always-positive "Expense" concepts, but this is
+        # a NET line that goes POSITIVE for a cash-rich filer with more interest income than
+        # expense (e.g. a normal ratio consumer would then divide by a negative number,
+        # producing a nonsensical negative or inverted interest_coverage) - deliberately only
+        # used when negative (net expense dominates, the safe/unambiguous case), same
+        # "don't guess when the sign is ambiguous" discipline as sec_statements.py's own
+        # documented refusal to alias IFRS FinanceCosts (too broad) to InterestExpense.
+        # Scoped to only run when at least one row is still missing interest_expense after
+        # the normal extraction (the overwhelming majority of symbols never reach this),
+        # and get_company_facts(cik) is an in-memory LRU cache hit here (super().
+        # fetch_incremental() already fetched and cached this exact CIK's companyfacts JSON
+        # a few lines above), so this adds no extra network calls for symbols where the
+        # normal concept list already found a value.
+        if self.statement_type == "income" and self.period == "annual":
+            self._backfill_interest_expense_from_net_concept(symbol, rows)
+
         # FIXED 2026-08-31 (goal session: "VCIG tops the scores, dig in" investigation -
         # traced to BMA/LOMA/CEPU/CIG and other Argentine/Brazilian FPIs sitting at
         # value_score=100.00 for the same reason: pb_ratio/ps_ratio computed against a
@@ -1904,6 +1936,64 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     continue  # Real data present for at least one field - not the all-None case
                 self._reject_stale_all_none_annual_row(symbol, row)
         return rows
+
+    _INTEREST_EXPENSE_NET_CONCEPTS = ("InterestIncomeExpenseNet", "InterestIncomeExpenseNonoperatingNet")
+
+    def _backfill_interest_expense_from_net_concept(self, symbol: str, rows: list[dict[str, Any]]) -> None:
+        """Fill interest_expense for rows the normal concept list left None, from a real net
+        interest income/expense fact, when the sign unambiguously means "expense dominates".
+        See the fetch_incremental() call site's 2026-09-03 fix comment for the full PKG-
+        verified evidence and why this can't just be added to sec_statements.py's normal
+        always-positive concept list.
+        """
+        target_rows = [r for r in rows if r.get("interest_expense") is None and not r.get("data_unavailable")]
+        if not target_rows:
+            return
+        try:
+            cik = self._sec_client.symbol_to_cik(symbol)
+            facts = self._sec_client.get_company_facts(cik)
+        except Exception:
+            return
+        us_gaap = (facts.get("facts") or {}).get("us-gaap") or {}
+        net_by_fiscal_year: dict[int, float] = {}
+        for concept in self._INTEREST_EXPENSE_NET_CONCEPTS:
+            node = us_gaap.get(concept)
+            if not node:
+                continue
+            for entry in (node.get("units") or {}).get("USD", []):
+                form = entry.get("form")
+                if entry.get("fp") != "FY" or form is None or not str(form).startswith("10-K"):
+                    continue
+                fiscal_year, val, start, end = (
+                    entry.get("fy"),
+                    entry.get("val"),
+                    entry.get("start"),
+                    entry.get("end"),
+                )
+                if fiscal_year is None or val is None or not start or not end:
+                    continue
+                # Same ~330-day annual-duration span guard as _aggregate_concepts uses
+                # elsewhere in this codebase (see the OFRM/e9704b11c fix in
+                # sec_statements.py) - this helper bypasses that shared function entirely,
+                # so it needs its own guard against a short-duration fact mislabeled fp="FY".
+                try:
+                    span_days = (date.fromisoformat(end) - date.fromisoformat(start)).days
+                except ValueError:
+                    continue
+                if span_days < 330:
+                    continue
+                # last-listed concept / latest-filed entry wins, same overwrite convention
+                # as sec_statements.py's normal concept-list extraction.
+                net_by_fiscal_year[fiscal_year] = val
+        for row in target_rows:
+            row_fiscal_year = row.get("fiscal_year")
+            if row_fiscal_year is None:
+                continue
+            val = net_by_fiscal_year.get(row_fiscal_year)
+            # Only the unambiguous "net expense dominates" sign - see this method's
+            # docstring for why a positive (net interest income) value is left alone.
+            if val is not None and val < 0:
+                row["interest_expense"] = abs(val)
 
     def _is_foreign_private_issuer(self, symbol: str) -> bool:
         if symbol not in self._fpi_symbol_cache:

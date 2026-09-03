@@ -2109,7 +2109,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         {
             "missing_sec_data",
             "missing_cash_flow_data",
-            "no_revenue_reported",
             "total_debt_not_itemized",
             "interest_expense_not_itemized",
             "stockholders_equity_not_reported",
@@ -2629,6 +2628,20 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # point of giving them an honest label in the first place.
             "negative_enterprise_value",
             "zero_revenue_reported_this_period",
+            # ADDED 2026-09-03 (goal session: "get the missing-XBRL number down the right
+            # way" sweep): no_revenue_reported was sitting in "Missing SEC/XBRL data" even
+            # though _get_no_recent_revenue_symbols()/_get_never_tagged_revenue_symbols()'s
+            # own docstrings already call it "structurally pre-revenue, not a loader gap"
+            # (dominated by SPACs and pre-revenue clinical-stage biotech/pharma, live-
+            # confirmed via company_profile.currency_code - all 322 sampled ebitda_margin
+            # symbols are USD filers, not an FPI/currency-conversion population). Same
+            # "mathematically undefined for real business reasons, not a data gap" class as
+            # zero_revenue_reported_this_period one line above and unprofitable_stock two
+            # lines below - the SEC filing IS complete, the company genuinely has no revenue
+            # to divide by. Was inflating the headline by 1,339 rows (fcf_margin/
+            # ebitda_margin/ev_revenue/ps_ratio/asset_turnover) for gaps that no re-fetch or
+            # extraction fix could ever close, since there is no revenue fact to find.
+            "no_revenue_reported",
             # ADDED 2026-08-29 (goal session: signal_quality_scores bare_reason_tables
             # addition): the backfill marker [[signal_quality_scores_historical_reason_backfill_20260829]]
             # applied to 53,567 pre-2026-08-29 rows that predate this table's reason-tracking
