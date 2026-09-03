@@ -218,6 +218,28 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # $29,900,000 FY2025 / $21,800,000 FY2024 / $21,300,000 FY2023 - plausible small-cap
     # industrial capex scale.
     "ZWS": [("zws", "PaymentsToAcquirePropertyPlantAndEquipmentIncludingDiscontinuedOperations")],
+    # Ensign Group Inc (CIK 0001125376, $9.9B market cap skilled-nursing operator) -
+    # verified live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL
+    # instance document (accession 0001125376-26-000007). Real capex tagged under
+    # ensg:PaymentsToAcquirePropertyAndEquipment, plain non-dimensioned annual contexts:
+    # $193,557,000 FY2025 / $158,240,000 FY2024 / $106,180,000 FY2023 - growing, plausible
+    # vs. Ensign's real facility-expansion capex scale.
+    "ENSG": [("ensg", "PaymentsToAcquirePropertyAndEquipment")],
+    # B2Gold Corp (CIK 0001429937, $7.1B market cap gold miner, 40-F/IFRS filer) -
+    # verified live 2026-09-03 (same sweep) against the real filed FY2025 40-F raw XBRL
+    # instance document (accession 0001104659-26-026310). Real mine-development capex
+    # tagged under btg:PaymentsForCapitalExpenditures - confirmed the CONSOLIDATED total
+    # context (no <segment>/<scenario>) is distinct from ~7 sibling per-mine-dimensioned
+    # contexts (e.g. FekolaMineMember) that sum to the same total - not double-counted:
+    # $863,069,000 FY2025 / $919,703,000 FY2024.
+    "BTG": [("btg", "PaymentsForCapitalExpenditures")],
+    # Lyft Inc (CIK 0001759509, $7.1B market cap rideshare) - verified live 2026-09-03
+    # (same sweep) against the real filed FY2025 10-K raw XBRL instance document
+    # (accession 0001628280-26-006960). Real capex tagged under
+    # lyft:PaymentsToAcquirePropertyAndEquipmentAndScooterFleet, plain non-dimensioned
+    # annual contexts: $52,822,000 FY2025 / $83,470,000 FY2024 / $149,819,000 FY2023 -
+    # declining, consistent with Lyft's real publicly reported cost-cutting.
+    "LYFT": [("lyft", "PaymentsToAcquirePropertyAndEquipmentAndScooterFleet")],
 }
 
 

@@ -503,6 +503,59 @@ _ZWS_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors the real structure confirmed live 2026-09-03 against Ensign Group's actual
+# filed FY2025 10-K raw XBRL instance document (accession 0001125376-26-000007).
+_ENSG_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:ensg="http://ensigngroup.net/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001125376</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <ensg:PaymentsToAcquirePropertyAndEquipment contextRef="c-1" unitRef="usd" decimals="-6">193557000</ensg:PaymentsToAcquirePropertyAndEquipment>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against B2Gold's actual filed
+# FY2025 40-F raw XBRL instance document (accession 0001104659-26-026310): the
+# consolidated (non-dimensioned) total plus a per-mine-dimensioned sibling context for
+# the same concept, which must be excluded (StatementBusinessSegmentsAxis-scoped, not
+# the consolidated figure).
+_BTG_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:btg="http://b2gold.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001429937</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-2-fekola-mine">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001429937</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">btg:FekolaMineMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <btg:PaymentsForCapitalExpenditures contextRef="c-1" unitRef="usd" decimals="-6">863069000</btg:PaymentsForCapitalExpenditures>
+  <btg:PaymentsForCapitalExpenditures contextRef="c-2-fekola-mine" unitRef="usd" decimals="-6">312000000</btg:PaymentsForCapitalExpenditures>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Lyft's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0001628280-26-006960).
+_LYFT_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:lyft="http://lyft.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001759509</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <lyft:PaymentsToAcquirePropertyAndEquipmentAndScooterFleet contextRef="c-1" unitRef="usd" decimals="-6">52822000</lyft:PaymentsToAcquirePropertyAndEquipmentAndScooterFleet>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_nee_sums_the_three_additive_concepts(self):
@@ -556,6 +609,20 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_zws_returns_its_own_concept(self):
         result = extract_custom_capex_from_xbrl_xml(_ZWS_XML, "ZWS")
         assert result[2025] == 29_900_000.0
+
+    def test_ensg_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_ENSG_XML, "ENSG")
+        assert result[2025] == 193_557_000.0
+
+    def test_btg_excludes_per_mine_dimensioned_duplicates(self):
+        result = extract_custom_capex_from_xbrl_xml(_BTG_XML, "BTG")
+        # Must use only the consolidated (non-dimensioned) total, not double-count
+        # against the per-mine-dimensioned sibling contexts for the same concept.
+        assert result[2025] == 863_069_000.0
+
+    def test_lyft_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_LYFT_XML, "LYFT")
+        assert result[2025] == 52_822_000.0
 
 
 # Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual

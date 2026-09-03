@@ -858,6 +858,10 @@ _CASHFLOW_FIELD_MAPPING = {
     # LLY/ADP tag it ONLY under "OtherPropertyPlantAndEquipment" (same failure shape).
     "payments_to_acquire_other_productive_assets": "capex",
     "payments_to_acquire_other_property_plant_and_equipment": "capex",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep) - see
+    # sec_statements.py's get_cash_flow() comment for the live CTOS evidence: a standard
+    # (not filer-specific) equipment-rental-fleet capex concept, never fetched at all.
+    "payments_to_acquire_equipment_on_lease": "capex",
     # FIXED 2026-08-24 (goal: "Margin of Safety (DCF)" cash-flow-coverage audit): REIT-sector
     # capex concepts - see sec_statements.py's get_cash_flow() comment for the live AAT/AHT/
     # AHR/ABR evidence. Same "capex" target column as the PP&E-family concepts above.

@@ -1640,6 +1640,24 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # for a payroll/HR-services company with light physical footprint) - both
         # confirmed via direct live SEC companyfacts lookup, not guessed.
         "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # no_recent_free_cash_flow_reported continuation): equipment-rental filers' rental
+        # fleet purchases - a standard (not filer-specific) us-gaap concept, never in this
+        # fetch list at all. Live-confirmed via CTOS (Custom Truck One Source, $2.0B mkt
+        # cap, CIK 1709682): $456,984,000 FY2025 / $398,317,000 FY2024 / $364,190,000
+        # FY2023 (accession 0001709682-26-000008), plain non-dimensioned annual contexts -
+        # the real, dominant capex line for a rental-fleet business model, plausible vs.
+        # CTOS's known scale. A standard taxonomy element, likely generalizes to other
+        # equipment-rental filers, not just CTOS. NOTE: CTOS also tags a smaller
+        # (~$32-42M/yr) custom "ctos:PurchaseOfNonRentalPropertyAndCloudComputingArrangements"
+        # concept, additive to this one - deliberately NOT added, since
+        # CUSTOM_CAPEX_CONCEPTS entries are fallback-only (see
+        # `_DEBT_FALLBACK_ONLY_FIELDS`'s "custom_extension_vessel_capex" entry in
+        # load_financial_statements.py) and would be silently dropped once this plain
+        # concept already populates "capex" -
+        # summing across the two independent extraction paths would need a new mechanism,
+        # not worth building for a ~7-9% single-symbol undercount.
+        "PaymentsToAcquireEquipmentOnLease",
         # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable"
         # audit): REITs (SIC 6798) never tag any of the PP&E-family concepts above - their
         # capex is real property investment, tagged under a completely different concept
