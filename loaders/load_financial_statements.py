@@ -63,6 +63,135 @@ logger = logging.getLogger(__name__)
 # Configure socket timeout to prevent indefinite hangs
 configure_socket_timeout(30)
 
+# FIXED 2026-09-03 (goal session: "implausible values" audit, following up
+# [[etn_etf_trust_shared_cik_implausible_financials_found_not_fixed_20260903]]): every
+# `etf_symbols` ticker below shares its resolved SEC CIK with at least one OTHER
+# `etf_symbols` ticker - an ETN issued under its issuing bank's own CIK (AMJB/VYLD ->
+# JPMorgan, CIK 19617), or a series within a multi-fund umbrella-trust CIK (ProShares
+# Trust II, Teucrium Commodity Trust, US Commodity Funds Trust, etc). A shared CIK means
+# every companyfacts fetch under it returns the SAME JSON for every ticker mapped to it -
+# there is no way to attribute that data to one specific fund/note series, so treating it
+# as this symbol's own financials is a real, live-confirmed data-quality bug, not a
+# hypothetical.
+#
+# Live-verified 2026-09-03 via a full `etf_symbols` x SEC `company_tickers.json`
+# cross-reference (11 shared-CIK groups found among ~700 ETF tickers, this list = every
+# member of every group) AND a direct DB check: every group with any overlapping-
+# fiscal-year `annual_balance_sheet` data on file shows FULLY IDENTICAL total_assets/
+# total_liabilities/stockholders_equity across every ticker in the group for every shared
+# year, zero genuine divergence found anywhere - including CPER/USCI, which the memory
+# file above had earlier (and wrongly) spot-checked as "distinct, plausible figures";
+# a fuller live query here shows they share CIK 0001479247 and are byte-identical every
+# fiscal year 2016-2019. The other 5 groups below (GBUG/TAPR, YSAG/YSAU, the 28-symbol
+# Direxion leveraged-ETF-family CIK, BDCX/CEFD/HDLB/IFED/MLPR/MVRL) currently have zero
+# overlapping fiscal-year data fetched at all (nothing wrong stored yet), but are the
+# same structural shape and included pre-emptively so a future fetch can't silently
+# reproduce this bug for them.
+#
+# Restricting the signal to "shares a CIK with ANOTHER member of etf_symbols" (never
+# "shares a CIK with any ticker at all") is what keeps this list safe against the
+# dual-class-share false-positive risk the memory file above originally flagged:
+# legitimate one-company-two-tickers cases (GOOG/GOOGL, BRK.A/BRK.B) are never
+# `etf_symbols` members, and this same cross-reference confirmed every genuinely-scored
+# physical-commodity ETF this repo relies on (GLD/SLV/IAU/GLDM/AAAU/SGOL/PPLT/PALL/SIVR/
+# GLTR/BNO/OUNZ/FGDL/IAUM) resolves to its own exclusive CIK - none of them appear here.
+#
+# A static, manually-verified registry (same convention as CUSTOM_DEBT_CONCEPTS/
+# CUSTOM_CAPEX_CONCEPTS below) rather than a live per-run DB+SEC-API computation: this
+# loader's fetch_incremental() runs for every symbol in the universe, and several existing
+# unit tests construct it via __new__ (bypassing __init__) - a mandatory extra DB query in
+# the hot path would both add real per-run cost across the whole universe for a check that
+# only ever matters for ~70 known symbols, and break every test's fixed DatabaseContext
+# mock sequence. Re-verify against a fresh company_tickers.json + DB cross-reference
+# before adding new entries, same "verify before fix" discipline as the rest of this file.
+SHARED_ISSUER_OR_TRUST_CIK_SYMBOLS: frozenset[str] = frozenset(
+    {
+        # CIK 0000019617 (JPMorgan Chase & Co) - ETNs issued under the issuing bank's own CIK
+        "AMJB",
+        "VYLD",
+        # CIK 0001415311 (ProShares Trust II) - 16 separate leveraged/inverse fund series
+        "AGQ",
+        "BOIL",
+        "EUO",
+        "GLL",
+        "KOLD",
+        "SCO",
+        "SVXY",
+        "UCO",
+        "UGL",
+        "ULE",
+        "UVXY",
+        "VIXM",
+        "VIXY",
+        "YCL",
+        "YCS",
+        "ZSL",
+        # CIK 0001053092 (UBS ETRACS covered-call notes umbrella)
+        "GLDI",
+        "SLVO",
+        "USOI",
+        # CIK 0001610940 (Volatility Shares / futures umbrella)
+        "BDRY",
+        "BWET",
+        # CIK 0001471824 (Teucrium Commodity Trust) - single-commodity fund series
+        "BTCK",
+        "CANE",
+        "CORN",
+        "SOYB",
+        "TAGS",
+        "WEAT",
+        # CIK 0001479247 (US Commodity Funds Trust)
+        "CPER",
+        "USCI",
+        # CIK 0001793497 (volatility-linked notes umbrella)
+        "SVIX",
+        "UVIX",
+        # CIK 0000312070
+        "GBUG",
+        "TAPR",
+        # CIK 0002087989
+        "YSAG",
+        "YSAU",
+        # CIK 0001114446
+        "BDCX",
+        "CEFD",
+        "HDLB",
+        "IFED",
+        "MLPR",
+        "MVRL",
+        # CIK 0000927971 (Direxion leveraged/inverse single-stock ETF family)
+        "AIQD",
+        "AIQU",
+        "BERZ",
+        "BNKD",
+        "BNKU",
+        "BULZ",
+        "CARD",
+        "CARU",
+        "DULL",
+        "FLYD",
+        "FLYU",
+        "FNGS",
+        "FNGU",
+        "GDXD",
+        "GDXU",
+        "HYGD",
+        "HYGU",
+        "JETD",
+        "JETU",
+        "LQDD",
+        "LQDU",
+        "NRGD",
+        "NRGU",
+        "OILD",
+        "OILU",
+        "SHNY",
+        "SMHU",
+        "WTID",
+        "WTIU",
+    }
+)
+
 
 def get_all_statement_configs() -> list[tuple[str, str]]:
     """Enumerate all statement/period combinations for 'all' mode.
@@ -1997,6 +2126,9 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         self._fpi_symbol_cache: dict[str, bool] = {}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
+        if symbol in SHARED_ISSUER_OR_TRUST_CIK_SYMBOLS:
+            self._reject_shared_etf_cik_data(symbol)
+            return [self._unavailable_marker(symbol, "shared_issuer_or_trust_cik_not_attributable")]
         rows = super().fetch_incremental(symbol, since)
         # FIXED 2026-08-29 (goal: "full data" audit continuation, shipping-sector capex
         # follow-up): CUSTOM_CAPEX_CONCEPTS-registered symbols have their real capex
@@ -2255,6 +2387,32 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 row = cur.fetchone()
             self._fpi_symbol_cache[symbol] = bool(row[0]) if row else False
         return self._fpi_symbol_cache[symbol]
+
+    def _reject_shared_etf_cik_data(self, symbol: str) -> None:
+        """Force-null every preserved-monetary-field cell already stored for `symbol`,
+        same force-null mechanism as _reject_stale_fpi_currency_data - see
+        _get_shared_etf_cik_symbols' docstring for why any existing data here is another
+        entity's (issuer bank's, or umbrella trust's) financials, not `symbol`'s own, and
+        must not be preserved by preserve_on_missing_fields' COALESCE.
+        """
+        pk_cols = list(self.primary_key)
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                f"SELECT {', '.join(pk_cols)} FROM {self.table_name} WHERE symbol = %s",
+                (symbol,),
+            )
+            existing_rows = cur.fetchall()
+        if not existing_rows:
+            return
+        for existing in existing_rows:
+            pk_row = dict(zip(pk_cols, existing, strict=True))
+            for field in self._bulk_insert_mgr.preserve_on_missing_fields:
+                self._record_explicit_null_rejection(pk_row, field, "shared_issuer_or_trust_cik_not_attributable")
+        logger.warning(
+            f"[{self.table_name}] {symbol}: shares its SEC CIK with another etf_symbols "
+            f"ticker - queued {len(existing_rows)} existing row(s) for force-null "
+            f"(not attributable to this symbol specifically)."
+        )
 
     def _reject_stale_fpi_currency_data(self, symbol: str) -> None:
         """Force-null every preserved-monetary-field cell this table already holds for
