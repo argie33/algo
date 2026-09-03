@@ -242,6 +242,32 @@ def _extract_values_for_concepts(xml_content: str, concepts: list[tuple[str, str
     return values_by_year
 
 
+def _fiscal_year_for_instant(instant_date: date) -> int:
+    """Resolve the fiscal year a balance-sheet instant fact belongs to, correcting for a
+    52/53-week fiscal calendar whose year-end lands in early January (e.g. TXT/Textron's
+    real period end "2026-01-03", which Textron itself labels fiscal 2025, not 2026).
+
+    FOUND 2026-09-03 (adding TXT to CUSTOM_DEBT_CONCEPTS): plain `instant_date.year` -
+    what this module used unconditionally before this fix - put TXT's real Jan-2026-dated
+    debt facts in the DB's fiscal_year=2026 bucket, while every other TXT field (via the
+    main `get_balance_sheet`/`_aggregate_concepts` pipeline, which trusts SEC's own `fy`
+    metadata field on each fact rather than a bare date calculation - see
+    `_aggregate_concepts`'s own "BUG FOUND 2026-09-01... 52/53-week-fiscal-year phantom-
+    year" comment for the full mechanism) already lands in fiscal_year=2025 for the
+    identical real period end. Raw XBRL instance documents (what this module parses)
+    don't carry SEC's derived `fy` field at all - only the shared duration-fact extractor
+    above and the main companyfacts-driven pipeline have access to it - so this uses the
+    same "Jan 1-10 crossing window" heuristic that pipeline's own comment documents as the
+    real-world shape of a 52/53-week fiscal year-end, not a guessed threshold: subtract one
+    year for an instant landing in the first 10 days of January. A no-op for every symbol
+    with a normal fiscal year end (AES/DE/BRK.A/BRK.B all end in November/December,
+    outside this window) - safe to apply unconditionally, not gated per-symbol.
+    """
+    if instant_date.month == 1 and instant_date.day <= 10:
+        return instant_date.year - 1
+    return instant_date.year
+
+
 def _extract_instant_values_for_concepts(xml_content: str, concepts: list[tuple[str, str]] | None) -> dict[int, float]:
     """Instant-fact counterpart of _extract_values_for_concepts above, for balance-sheet
     (point-in-time) custom concepts like AES's real debt tags - see CUSTOM_DEBT_LONGTERM_
@@ -307,7 +333,7 @@ def _extract_instant_values_for_concepts(xml_content: str, concepts: list[tuple[
             value = float(el.text.strip())
         except ValueError:
             continue
-        fiscal_year = instant_date.year
+        fiscal_year = _fiscal_year_for_instant(instant_date)
         values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
 
     return values_by_year
@@ -457,6 +483,20 @@ CUSTOM_DEBT_CONCEPTS: dict[str, tuple[str, frozenset[str]]] = {
         "DebtAndCapitalLeaseObligations",
         frozenset({"InsuranceAndOtherMember", "RailroadUtilitiesAndEnergyMember"}),
     ),
+    # Textron Inc (CIK 0000217346) - verified live 2026-09-03 against its real filed
+    # FY2025 10-K raw XBRL instance document (accession 0000217346-26-000006,
+    # txt-20260103_htm.xml): same "no single consolidated total" shape as Berkshire above
+    # - Textron presents its balance sheet split into "Manufacturing group" and "Finance
+    # group" segments, each tagging the full (current+noncurrent combined) us-gaap:
+    # LongTermDebt concept separately: Manufacturing $3,539,000,000 FY2025/$3,247,000,000
+    # FY2024, Finance $339,000,000/$341,000,000 - combined ~$3.878B/$3.588B, plausible
+    # against Textron's real, publicly known ~$3.6-3.9B debt scale. Confirmed absent from
+    # companyfacts under this concept for this CIK (structural API limitation, not an
+    # unchecked concept name). Textron's real fiscal year end lands in early January
+    # (period end "2026-01-03" for what Textron itself calls fiscal 2025) - see
+    # _fiscal_year_for_instant's docstring for why this needed a dedicated Jan-crossing
+    # fix before being safe to add, not just a registry entry.
+    "TXT": ("LongTermDebt", frozenset({"ManufacturingGroupMember", "FinanceGroupMember"})),
 }
 
 
@@ -532,7 +572,7 @@ def _extract_dimensioned_sum_from_xbrl_xml(xml_content: str, symbol: str) -> dic
             value = float(el.text.strip())
         except ValueError:
             continue
-        fiscal_year = instant_date.year
+        fiscal_year = _fiscal_year_for_instant(instant_date)
         seen = members_seen_by_year.setdefault(fiscal_year, set())
         if member in seen:
             continue  # Duplicate fact for a member/year already summed - never double-count.

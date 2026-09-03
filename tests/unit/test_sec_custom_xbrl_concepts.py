@@ -7,6 +7,7 @@ Holdings' and Costamare's actual filed XBRL instance documents (accessions
 identical to the real filings for a meaningful regression test.
 """
 
+from datetime import date
 from unittest.mock import MagicMock
 
 from utils.external.sec_custom_xbrl_concepts import (
@@ -17,6 +18,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_REVENUE_CONCEPTS,
     _extract_dimensioned_sum_from_xbrl_xml,
     _extract_instant_values_for_concepts,
+    _fiscal_year_for_instant,
     extract_custom_capex_from_xbrl_xml,
     extract_custom_debt_longterm_from_xbrl_xml,
     extract_custom_debt_shortterm_from_xbrl_xml,
@@ -708,3 +710,98 @@ class TestExtractCustomDebtDeere:
         # must be counted once, not doubled to 87,088,000,000.
         result = extract_custom_debt_longterm_from_xbrl_xml(_DE_XML, "DE")
         assert result[2025] == 43_544_000_000.0
+
+
+class TestFiscalYearForInstant:
+    """FOUND 2026-09-03 (adding TXT to CUSTOM_DEBT_CONCEPTS): TXT's real fiscal year end
+    lands in early January (52/53-week fiscal calendar) - see _fiscal_year_for_instant's
+    own docstring for the live evidence this needed a dedicated fix, not a guessed
+    threshold."""
+
+    def test_early_january_instant_is_the_prior_calendar_year(self) -> None:
+        assert _fiscal_year_for_instant(date(2026, 1, 3)) == 2025
+        assert _fiscal_year_for_instant(date(2026, 1, 1)) == 2025
+        assert _fiscal_year_for_instant(date(2026, 1, 10)) == 2025
+
+    def test_normal_fiscal_year_end_is_unaffected(self) -> None:
+        # AES (December), DE (early November), BRK (December) - all safely outside the
+        # Jan 1-10 crossing window, must be a no-op.
+        assert _fiscal_year_for_instant(date(2025, 12, 31)) == 2025
+        assert _fiscal_year_for_instant(date(2025, 11, 2)) == 2025
+        assert _fiscal_year_for_instant(date(2026, 1, 11)) == 2026
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against Textron Inc's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0000217346-26-000006,
+# txt-20260103_htm.xml): same dimensioned-sum shape as Berkshire (single concept, two
+# entity-segment members, sum them), PLUS a real period end in the Jan 1-10 crossing
+# window (2026-01-03, Textron's own "fiscal 2025") - the Finance group fact is also
+# duplicate-tagged, same as AES/DE.
+_TXT_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:us-gaap="http://fasb.org/us-gaap/2025"
+      xmlns:srt="http://fasb.org/srt/2025"
+      xmlns:txt="http://textron.com/20260103">
+  <context id="c-21">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000217346</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidatedEntitiesAxis">txt:ManufacturingGroupMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2026-01-03</instant></period>
+  </context>
+  <context id="c-22">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000217346</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidatedEntitiesAxis">txt:ManufacturingGroupMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2024-12-28</instant></period>
+  </context>
+  <context id="c-23">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000217346</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidatedEntitiesAxis">txt:FinanceGroupMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2026-01-03</instant></period>
+  </context>
+  <context id="c-24">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000217346</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidatedEntitiesAxis">txt:FinanceGroupMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2024-12-28</instant></period>
+  </context>
+  <us-gaap:LongTermDebt contextRef="c-21" unitRef="usd" decimals="-6">3539000000</us-gaap:LongTermDebt>
+  <us-gaap:LongTermDebt contextRef="c-22" unitRef="usd" decimals="-6">3247000000</us-gaap:LongTermDebt>
+  <us-gaap:LongTermDebt contextRef="c-23" unitRef="usd" decimals="-6">339000000</us-gaap:LongTermDebt>
+  <us-gaap:LongTermDebt contextRef="c-23" unitRef="usd" decimals="-6">339000000</us-gaap:LongTermDebt>
+  <us-gaap:LongTermDebt contextRef="c-24" unitRef="usd" decimals="-6">341000000</us-gaap:LongTermDebt>
+</xbrl>
+"""
+
+
+class TestExtractCustomDebtTextron:
+    def test_txt_sums_manufacturing_and_finance_group_with_jan_crossing_correction(self) -> None:
+        result = _extract_dimensioned_sum_from_xbrl_xml(_TXT_XML, "TXT")
+        # 3,539,000,000 (Manufacturing) + 339,000,000 (Finance), bucketed as fiscal 2025
+        # despite the raw instant date being 2026-01-03 (Jan-crossing correction).
+        assert result[2025] == 3_878_000_000.0
+        assert result[2024] == 3_588_000_000.0
+        assert 2026 not in result
+
+    def test_txt_deduplicates_the_twice_tagged_finance_group_fact(self) -> None:
+        result = _extract_dimensioned_sum_from_xbrl_xml(_TXT_XML, "TXT")
+        assert result[2025] == 3_878_000_000.0
+
+    def test_custom_debt_concepts_registry_includes_txt(self) -> None:
+        assert "TXT" in CUSTOM_DEBT_CONCEPTS
+        concept_local_name, member_local_names = CUSTOM_DEBT_CONCEPTS["TXT"]
+        assert concept_local_name and member_local_names
