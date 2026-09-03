@@ -187,6 +187,12 @@ _INCOME_FIELD_MAPPING = {
     # a real total, not a partial line item. Same target column as every revenue fallback
     # above.
     "investment_income_interest_and_dividend": "revenue",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): BDCs'
+    # gross-investment-income top line - see sec_statements.py's comment on
+    # GrossInvestmentIncomeOperating for the live-verified CSWC/PFLT/ICMB evidence.
+    # Fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS below), same convention as every
+    # other revenue proxy above.
+    "gross_investment_income_operating": "revenue",
     # FIXED 2026-08-19: regulated electric/gas utilities' post-ASC-606 revenue tags - see
     # sec_statements.py's comments on RegulatedOperatingRevenue/
     # RegulatedAndUnregulatedOperatingRevenue for the live-verified XEL/DTE/OGS cases this
@@ -346,6 +352,9 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # operating just above - see sec_statements.py's comment on
         # InvestmentIncomeInterestAndDividend and this dict's own comment on that key.
         "investment_income_interest_and_dividend",
+        # FIXED 2026-09-03: BDC gross-investment-income fallback - see
+        # _INCOME_FIELD_MAPPING's comment on "gross_investment_income_operating" above.
+        "gross_investment_income_operating",
         # FIXED 2026-08-22 (goal session: "Insufficient history"/revenue-gap audit): IFRS 7
         # requires ALL filers with financial instruments (not just banks with no other
         # revenue tag) to disclose interest revenue/expense, so a filer that already reports

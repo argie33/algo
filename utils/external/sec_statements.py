@@ -1015,6 +1015,23 @@ def get_income_statement(
         # tag - that's a structurally different, harder problem (would need a per-filer-
         # verified summation, not a single concept alias) and is NOT fixed here.
         "InvestmentIncomeInterestAndDividend",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # no_recent_revenue_symbols investigation): BDCs (business development companies,
+        # regulated as closed-end investment companies) report neither any concept above
+        # nor a standard revenue tag - their top-line revenue-equivalent is total gross
+        # investment income before fund-level operating expenses. Live-confirmed via real
+        # SEC companyfacts JSON: CSWC (Capital Southwest) FY2026 (period ended 2026-03-31)
+        # $232,105,000, PFLT (PennantPark Floating Rate Capital) FY2025 $261,427,000, ICMB
+        # (Investcorp Credit Management BDC) FY2025 $17,396,235 - all real, current,
+        # growing figures with zero "Revenues"/other-fallback concepts anywhere in their
+        # filing history. Deliberately NOT "NetInvestmentIncome" (AFTER fund operating
+        # expenses are deducted - CSWC FY2026 $136,588,000 vs. this gross figure's
+        # $232,105,000, ~59% of gross, confirming real expenses are being netted out,
+        # not a duplicate tag) - same "gross, not net" top-line convention as
+        # InterestIncomeOperating's mortgage-REIT fix above. Listed last in this revenue
+        # group (fallback-only, see load_financial_statements.py's
+        # _REVENUE_FALLBACK_ONLY_FIELDS) so it only wins for filers with nothing else.
+        "GrossInvestmentIncomeOperating",
         "CostOfRevenue",
         # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" is the
         # standard us-gaap tag product/retail companies use for cost of goods sold - it was
