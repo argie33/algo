@@ -95,6 +95,18 @@ _BALANCE_IFRS_ALIASES = [
     # doesn't separate the two anyway - the combined total lands intact either way.
     # Foreign filers previously got NULL lease liabilities entirely.
     ("LeaseLiabilities", "operating_lease_liability"),
+    # FIXED 2026-09-03 (same sweep): Altman Z''-Score's Retained Earnings/Total Assets
+    # term (see get_balance_sheet()'s "RetainedEarningsAccumulatedDeficit" comment - that
+    # concept is us-gaap only, and its own comment's "no known taxonomy-variant fallback
+    # needed" claim was wrong) went universally NULL for every IFRS filer - live-confirmed
+    # 7/9 checked (AZN/SHEL/NVO/BHP/SAP/RY/HSBC; NVS/TTE genuinely don't tag it) via real
+    # companyfacts JSON, e.g. TSM: ifrs-full "RetainedEarnings" reports both a TWD-unit and
+    # a directly-usable USD-unit series, USD 118.1145B as of FY2024, continuous 2018-2024.
+    # Target key routes into load_financial_statements.py's _ANNUAL_BALANCE_EXTRA (the
+    # same "retained_earnings_accumulated_deficit" -> "retained_earnings" mapping the real
+    # us-gaap concept already uses), not a new key - IFRS's single combined retained-
+    # earnings/accumulated-deficit line is the same concept the GAAP tag represents.
+    ("RetainedEarnings", "retained_earnings_accumulated_deficit"),
 ]
 
 _INCOME_IFRS_ALIASES = [
@@ -716,8 +728,10 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with
-        # a statement of stockholders' equity reports it, no known taxonomy-variant fallback
-        # needed the way LongTermDebt/InterestExpense above required.
+        # a statement of stockholders' equity reports it.
+        # CORRECTION 2026-09-03: this WAS missing a taxonomy-variant fallback after all -
+        # IFRS filers report the equivalent under ifrs-full "RetainedEarnings" instead, went
+        # universally NULL for every one of them until _BALANCE_IFRS_ALIASES added it above.
         "RetainedEarningsAccumulatedDeficit",
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
