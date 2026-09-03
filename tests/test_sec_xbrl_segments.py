@@ -1991,6 +1991,186 @@ class TestAltAssetManagerComponentSumSegmentRevenueFallback:
         assert revenues == {"RealEstateSegmentMember": 2_781_924_000.0}
 
 
+class TestAresStyleComponentSumSegmentRevenueFallback:
+    """Real gap found live against Ares Management's (ARES, CIK 1176948) real FY2025
+    10-K instance: segment revenue is tagged as the STANDARD
+    `RevenueFromContractWithCustomerExcludingAssessedTax` concept (already recognized
+    elsewhere in this file) cross-tabbed by ProductOrServiceAxis (3 fee types), plus a
+    separate additive concept (PerformanceFeesRealizedRevenue) - both carrying
+    ConsolidatedEntitiesAxis=ParentCompanyMember alongside the already-recognized
+    ConsolidationItemsAxis=OperatingSegmentsMember boilerplate marker, which is why
+    neither the primary path nor the generic cross-tab fallback finds it (the extra
+    ConsolidatedEntitiesAxis dimension isn't stripped as boilerplate - deliberately not
+    generalized into the shared list, see this fix's own memory/commit for why).
+
+    Live bug caught building this fix: the first version's reconciliation checked only
+    the axis NAME set, not the actual member values - Ares also discloses the same fee
+    concepts at a DIFFERENT consolidation basis (ConsolidationItemsAxis=
+    ReportableLegalEntitiesMember, an "Ares Management L.P." view, not the Operating
+    Segments view), which wrongly matched too and inflated the reconciliation anchor
+    ~3.2x. Also caught the filing tagging the identical (concept, contextRef) fact
+    twice (a real inline-XBRL rendering duplicate) - both are exercised below.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:ares="http://www.aresmgmt.com/20251231"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_ares_style_cross_tab_plus_additive_component_used(self) -> None:
+        contexts = (
+            # A plain single-axis context elsewhere in the filing (e.g. a Goodwill-
+            # by-segment footnote, the real shape Ares's own 10-K has) - needed so
+            # `context_segment` isn't empty and the fallback chain is even reached;
+            # matches the real filing, not an artifact of this test.
+            _context(
+                "goodwill-ctx", "StatementBusinessSegmentsAxis", "CreditGroupSegmentMember", "2025-01-01", "2025-12-31"
+            )
+            + _multi_dim_context(
+                "credit-mgmt",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("ProductOrServiceAxis", "ManagementServiceMember"),
+                    ("StatementBusinessSegmentsAxis", "CreditGroupSegmentMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "credit-perf",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "CreditGroupSegmentMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "agg-mgmt",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("ProductOrServiceAxis", "ManagementServiceMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "agg-perf",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:GoodwillAcquiredDuringPeriod contextRef="goodwill-ctx">0</us-gaap:GoodwillAcquiredDuringPeriod>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="credit-mgmt">2529312000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <ares:PerformanceFeesRealizedRevenue contextRef="credit-perf">383892000</ares:PerformanceFeesRealizedRevenue>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="agg-mgmt">2529312000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <ares:PerformanceFeesRealizedRevenue contextRef="agg-perf">383892000</ares:PerformanceFeesRealizedRevenue>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"CreditGroupSegmentMember": 2_913_204_000.0}
+
+    def test_ares_style_ignores_different_consolidation_basis_and_dedupes_duplicate_tag(self) -> None:
+        """Regression for the live-caught bug: a DIFFERENT ConsolidationItemsAxis
+        member (ReportableLegalEntitiesMember, not OperatingSegmentsMember) sharing
+        the same axis NAME must never count toward the reconciliation anchor, and a
+        duplicate-tagged aggregate fact must not be double-counted."""
+        contexts = (
+            _context(
+                "goodwill-ctx", "StatementBusinessSegmentsAxis", "CreditGroupSegmentMember", "2025-01-01", "2025-12-31"
+            )
+            + _multi_dim_context(
+                "credit-mgmt",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("ProductOrServiceAxis", "ManagementServiceMember"),
+                    ("StatementBusinessSegmentsAxis", "CreditGroupSegmentMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "agg-mgmt-1",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("ProductOrServiceAxis", "ManagementServiceMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "agg-mgmt-2",
+                [
+                    ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                    ("ConsolidationItemsAxis", "ReportableLegalEntitiesMember"),
+                    ("ProductOrServiceAxis", "ManagementServiceMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:GoodwillAcquiredDuringPeriod contextRef="goodwill-ctx">0</us-gaap:GoodwillAcquiredDuringPeriod>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="credit-mgmt">2529312000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="agg-mgmt-1">2529312000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="agg-mgmt-1">2529312000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="agg-mgmt-2">3725239000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"CreditGroupSegmentMember": 2_529_312_000.0}
+
+    def test_ares_style_fails_closed_when_no_aggregate_to_reconcile_against(self) -> None:
+        contexts = _context(
+            "goodwill-ctx", "StatementBusinessSegmentsAxis", "CreditGroupSegmentMember", "2025-01-01", "2025-12-31"
+        ) + _multi_dim_context(
+            "credit-mgmt",
+            [
+                ("ConsolidatedEntitiesAxis", "ParentCompanyMember"),
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("ProductOrServiceAxis", "ManagementServiceMember"),
+                ("StatementBusinessSegmentsAxis", "CreditGroupSegmentMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <us-gaap:GoodwillAcquiredDuringPeriod contextRef="goodwill-ctx">0</us-gaap:GoodwillAcquiredDuringPeriod>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="credit-mgmt">2529312000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+
 class TestSingleReportableSegmentFallback:
     """Real gap found live: Gilead Sciences, Regeneron, United Airlines Holdings,
     and Realty Income all disclose exactly one reportable segment via the
