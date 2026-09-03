@@ -46,9 +46,13 @@ from utils.db.context import DatabaseContext  # noqa: E402
 from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     CUSTOM_CAPEX_CONCEPTS,
     CUSTOM_DEBT_CONCEPTS,
+    CUSTOM_DEBT_LONGTERM_CONCEPTS,
+    CUSTOM_DEBT_SHORTTERM_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     fetch_custom_capex,
     fetch_custom_debt,
+    fetch_custom_debt_longterm,
+    fetch_custom_debt_shortterm,
     fetch_custom_revenue,
 )
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
@@ -567,6 +571,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # (BRK.A/BRK.B live evidence) - must never win over a real value the normal
         # concept-list extraction already found.
         "custom_extension_total_debt",
+        # FIXED 2026-09-03 (same sweep): see
+        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_SHORTTERM_CONCEPTS
+        # module comment (AES live evidence) - must never win over a real value the normal
+        # concept-list extraction already found.
+        "custom_extension_total_debt_current",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "NotesPayable" (AFL/MAA live evidence) - must never win over a real,
         # more complete LongTermDebt/SeniorNotes value.
@@ -694,6 +703,14 @@ _BALANCE_FIELD_MAPPING = {
     # fallbacks above. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS below) so it never
     # overwrites a real value the normal concept-list extraction already found.
     "custom_extension_total_debt": "long_term_debt",
+    # FIXED 2026-09-03 (same sweep): AES Corporation's real, ~$29.9B combined debt - see
+    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_LONGTERM_CONCEPTS/
+    # CUSTOM_DEBT_SHORTTERM_CONCEPTS module comment for the live evidence (filer-specific
+    # recourse/non-recourse debt tags, structurally invisible to companyfacts, same class as
+    # CUSTOM_CAPEX_CONCEPTS's DHT/CMRE - not the Berkshire dimensioned-sum case above).
+    # AES's source data DOES have a real current/noncurrent split (unlike Berkshire), so
+    # this is a separate short_term_debt target, distinct from custom_extension_total_debt.
+    "custom_extension_total_debt_current": "short_term_debt",
     # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
     # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
     # alone (the only debt concept fetched before this fix) misses commercial paper/short-term
@@ -1934,19 +1951,8 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 if fiscal_year in custom_revenue_by_year:
                     row["custom_extension_revenue"] = custom_revenue_by_year[fiscal_year]
 
-        # FIX 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
-        # total_debt_not_itemized bucket): same structural gap as the capex/revenue blocks
-        # above, for BRK.A/BRK.B's total debt - see
-        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment
-        # for the live evidence (Berkshire's two entity-level segment totals, dimensioned-
-        # sum extraction, no single consolidated total exists to fetch normally). Cheap
-        # no-op for every other symbol (dict lookup miss, zero extra network calls).
-        if self.statement_type == "balance" and symbol in CUSTOM_DEBT_CONCEPTS:
-            custom_debt_by_year = fetch_custom_debt(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_debt_by_year:
-                    row["custom_extension_total_debt"] = custom_debt_by_year[fiscal_year]
+        if self.statement_type == "balance":
+            self._apply_custom_debt_extensions(symbol, rows)
 
         # FIX 2026-09-03 (goal session: "get the missing-XBRL number down the right way" -
         # quality_metrics.interest_coverage's "interest_expense_not_itemized" bucket):
@@ -2070,6 +2076,43 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     continue  # Real data present for at least one field - not the all-None case
                 self._reject_stale_all_none_annual_row(symbol, row)
         return rows
+
+    def _apply_custom_debt_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
+        """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension
+        debt fallbacks, for symbols where the normal companyfacts-driven concept-list
+        extraction structurally can't reach the real figure. Extracted out of
+        fetch_incremental() to keep its own cyclomatic complexity in check (ruff C901) -
+        purely a call-site split, no behavior change.
+
+        - CUSTOM_DEBT_CONCEPTS (BRK.A/BRK.B): dimensioned-sum extraction, single combined
+          figure -> custom_extension_total_debt (long_term_debt). See
+          utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment.
+        - CUSTOM_DEBT_LONGTERM_CONCEPTS/CUSTOM_DEBT_SHORTTERM_CONCEPTS (AES): plain
+          filer-extension concepts, real current/noncurrent split preserved ->
+          custom_extension_total_debt (long_term_debt) / custom_extension_total_debt_current
+          (short_term_debt). See that module's CUSTOM_DEBT_LONGTERM_CONCEPTS comment.
+
+        Cheap no-op for every symbol in none of these registries (dict lookup miss, zero
+        extra network calls) - only called when self.statement_type == "balance".
+        """
+        if symbol in CUSTOM_DEBT_CONCEPTS:
+            custom_debt_by_year = fetch_custom_debt(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_debt_by_year:
+                    row["custom_extension_total_debt"] = custom_debt_by_year[fiscal_year]
+        if symbol in CUSTOM_DEBT_LONGTERM_CONCEPTS:
+            custom_debt_lt_by_year = fetch_custom_debt_longterm(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_debt_lt_by_year:
+                    row["custom_extension_total_debt"] = custom_debt_lt_by_year[fiscal_year]
+        if symbol in CUSTOM_DEBT_SHORTTERM_CONCEPTS:
+            custom_debt_st_by_year = fetch_custom_debt_shortterm(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_debt_st_by_year:
+                    row["custom_extension_total_debt_current"] = custom_debt_st_by_year[fiscal_year]
 
     _INTEREST_EXPENSE_NET_CONCEPTS = ("InterestIncomeExpenseNet", "InterestIncomeExpenseNonoperatingNet")
 

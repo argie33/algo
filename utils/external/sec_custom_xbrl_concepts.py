@@ -242,6 +242,77 @@ def _extract_values_for_concepts(xml_content: str, concepts: list[tuple[str, str
     return values_by_year
 
 
+def _extract_instant_values_for_concepts(xml_content: str, concepts: list[tuple[str, str]] | None) -> dict[int, float]:
+    """Instant-fact counterpart of _extract_values_for_concepts above, for balance-sheet
+    (point-in-time) custom concepts like AES's real debt tags - see CUSTOM_DEBT_LONGTERM_
+    CONCEPTS/CUSTOM_DEBT_SHORTTERM_CONCEPTS's module comment for the live evidence.
+
+    Same "exclude any dimensioned context" consolidated-total governance as
+    _extract_values_for_concepts, just matched against <instant> instead of <startDate>/
+    <endDate> - a balance-sheet fact has no duration to filter on.
+
+    LIVE-CONFIRMED 2026-09-03 (AES/RecourseDebtNonCurrent, adding CUSTOM_DEBT_LONGTERM_
+    CONCEPTS): the identical (contextRef, concept) fact can appear MORE THAN ONCE in a real
+    filing's raw instance document with the exact same value (e.g. once inline in the
+    primary balance-sheet statement's XBRL, once again in a footnote/schedule table that
+    happens to reuse the same context) - summing every occurrence would silently double (or
+    more) the real figure. Deduplicates by (contextRef, concept) before accumulating, same
+    governance as the Berkshire dimensioned-sum extractor's members_seen_by_year set.
+    """
+    if not concepts:
+        # Not an error - no candidates registered for this symbol/field at all, so there
+        # is nothing to search the XML for (never guesses at unregistered concept names).
+        return {}
+    wanted_local_names = {local_name for _prefix, local_name in concepts}
+
+    root = ET.fromstring(xml_content)
+
+    context_instants: dict[str, str] = {}
+    for ctx in root.iter():
+        if _local_name(ctx.tag) != "context":
+            continue
+        ctx_id = ctx.get("id")
+        if not ctx_id:
+            continue
+        if any(_local_name(child.tag) in ("segment", "scenario") for child in ctx.iter() if child is not ctx):
+            continue  # Dimensionally-scoped context - not the consolidated total
+        period = next((c for c in ctx if _local_name(c.tag) == "period"), None)
+        if period is None:
+            continue
+        instant_el = next((c for c in period if _local_name(c.tag) == "instant"), None)
+        if instant_el is None or not instant_el.text:
+            continue  # Duration context, not an instant balance-sheet snapshot.
+        context_instants[ctx_id] = instant_el.text.strip()
+
+    values_by_year: dict[int, float] = {}
+    seen_context_concepts: set[tuple[str, str]] = set()
+    for el in root.iter():
+        local_name = _local_name(el.tag)
+        if local_name not in wanted_local_names:
+            continue
+        ctx_ref = el.get("contextRef")
+        if ctx_ref not in context_instants:
+            continue
+        dedup_key = (ctx_ref, local_name)
+        if dedup_key in seen_context_concepts:
+            continue  # Same fact re-tagged elsewhere in the document - count it once.
+        seen_context_concepts.add(dedup_key)
+        try:
+            instant_date = date.fromisoformat(context_instants[ctx_ref])
+        except ValueError:
+            continue
+        if el.text is None:
+            continue
+        try:
+            value = float(el.text.strip())
+        except ValueError:
+            continue
+        fiscal_year = instant_date.year
+        values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
+
+    return values_by_year
+
+
 def extract_custom_capex_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
     """Parse a filing's raw XBRL instance document for `symbol`'s known custom capex
     concept(s) (see CUSTOM_CAPEX_CONCEPTS), returning {fiscal_year: summed_value}.
@@ -480,3 +551,66 @@ def fetch_custom_debt(symbol: str, sec_client: Any) -> dict[int, float]:
     not raise.
     """
     return _fetch_custom_concept(symbol, sec_client, CUSTOM_DEBT_CONCEPTS, _extract_dimensioned_sum_from_xbrl_xml)
+
+
+# FOUND 2026-09-03 (same sweep, "no debt" cross-check follow-up): AES Corporation (CIK
+# 0000874761, independent power producer) tags its entire real debt load (~$29.9B FY2025)
+# under filer-specific custom extension concepts split by recourse status - real, current,
+# additive figures, live-confirmed against AES's own real FY2025 10-K raw XBRL instance
+# document (accession 0000874761-26-000063, aes-20251231_htm.xml): noncurrent
+# aes:RecourseDebtNonCurrent $5,105,000,000 + aes:NonRecourseDebtNonCurrent
+# $21,681,000,000 = $26,786,000,000 FY2025 ($4,805,000,000 + $20,626,000,000 =
+# $25,431,000,000 FY2024); current aes:RecourseDebtCurrent $879,000,000 +
+# aes:NonRecourseDebtCurrent $2,232,000,000 = $3,111,000,000 FY2025 - both plausible
+# against AES's real, publicly known ~$28-30B debt scale (AES structures most of its
+# generation-project debt as non-recourse to the parent, hence the recourse/non-recourse
+# split instead of a plain LongTermDebt tag). No standard us-gaap concept anywhere in AES's
+# companyfacts covers this - same structural "custom filer-extension concept, invisible to
+# companyfacts" limitation as CUSTOM_CAPEX_CONCEPTS's DHT/CMRE, not the Berkshire dimensioned-
+# sum case above (these are plain, non-dimensioned facts - just filer-namespaced instead of
+# a standard concept name). Split into separate long-term/short-term registries (unlike
+# CUSTOM_DEBT_CONCEPTS's single combined figure for Berkshire) since AES's source data
+# genuinely has a current/noncurrent split to preserve, same distinction as senior_notes/
+# senior_notes_current elsewhere in this codebase.
+CUSTOM_DEBT_LONGTERM_CONCEPTS: dict[str, list[tuple[str, str]]] = {
+    "AES": [("aes", "RecourseDebtNonCurrent"), ("aes", "NonRecourseDebtNonCurrent")],
+}
+CUSTOM_DEBT_SHORTTERM_CONCEPTS: dict[str, list[tuple[str, str]]] = {
+    "AES": [("aes", "RecourseDebtCurrent"), ("aes", "NonRecourseDebtCurrent")],
+}
+
+
+def extract_custom_debt_longterm_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known noncurrent custom
+    debt concept(s) (see CUSTOM_DEBT_LONGTERM_CONCEPTS), returning
+    {fiscal_year: summed_value}. Returns {} for any unregistered symbol.
+    """
+    return _extract_instant_values_for_concepts(xml_content, CUSTOM_DEBT_LONGTERM_CONCEPTS.get(symbol))
+
+
+def extract_custom_debt_shortterm_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known current custom debt
+    concept(s) (see CUSTOM_DEBT_SHORTTERM_CONCEPTS), returning {fiscal_year: summed_value}.
+    Returns {} for any unregistered symbol.
+    """
+    return _extract_instant_values_for_concepts(xml_content, CUSTOM_DEBT_SHORTTERM_CONCEPTS.get(symbol))
+
+
+def fetch_custom_debt_longterm(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known CUSTOM_DEBT_LONGTERM_
+    CONCEPTS. Returns {} if symbol isn't registered, the filing can't be found, or the XML
+    can't be parsed - callers should treat that as "no fallback data", not raise.
+    """
+    return _fetch_custom_concept(
+        symbol, sec_client, CUSTOM_DEBT_LONGTERM_CONCEPTS, extract_custom_debt_longterm_from_xbrl_xml
+    )
+
+
+def fetch_custom_debt_shortterm(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known CUSTOM_DEBT_SHORTTERM_
+    CONCEPTS. Returns {} if symbol isn't registered, the filing can't be found, or the XML
+    can't be parsed - callers should treat that as "no fallback data", not raise.
+    """
+    return _fetch_custom_concept(
+        symbol, sec_client, CUSTOM_DEBT_SHORTTERM_CONCEPTS, extract_custom_debt_shortterm_from_xbrl_xml
+    )

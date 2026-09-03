@@ -12,12 +12,19 @@ from unittest.mock import MagicMock
 from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_CAPEX_CONCEPTS,
     CUSTOM_DEBT_CONCEPTS,
+    CUSTOM_DEBT_LONGTERM_CONCEPTS,
+    CUSTOM_DEBT_SHORTTERM_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     _extract_dimensioned_sum_from_xbrl_xml,
+    _extract_instant_values_for_concepts,
     extract_custom_capex_from_xbrl_xml,
+    extract_custom_debt_longterm_from_xbrl_xml,
+    extract_custom_debt_shortterm_from_xbrl_xml,
     extract_custom_revenue_from_xbrl_xml,
     fetch_custom_capex,
     fetch_custom_debt,
+    fetch_custom_debt_longterm,
+    fetch_custom_debt_shortterm,
     fetch_custom_revenue,
 )
 
@@ -543,3 +550,124 @@ def test_custom_debt_concepts_registry_is_well_formed() -> None:
     for symbol, (concept_local_name, member_local_names) in CUSTOM_DEBT_CONCEPTS.items():
         assert concept_local_name, f"{symbol} has an empty concept name"
         assert member_local_names, f"{symbol} has an empty member set"
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against AES Corporation's actual
+# filed FY2025 10-K raw XBRL instance document (accession 0000874761-26-000063,
+# aes-20251231_htm.xml): plain, non-dimensioned instant contexts for the current and prior
+# fiscal year, a duplicate-tagged fact (the identical (contextRef, concept) pair appearing
+# twice with the same value - a real, harmless authoring pattern that must be deduplicated
+# rather than summed twice), and a dimensioned decoy context (fair-value disclosure) under
+# the same concept name that must be excluded.
+_AES_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:us-gaap="http://fasb.org/us-gaap/2025"
+      xmlns:aes="http://aes.com/20251231">
+  <context id="c-3">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000874761</identifier></entity>
+    <period><instant>2025-12-31</instant></period>
+  </context>
+  <context id="c-5">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000874761</identifier></entity>
+    <period><instant>2024-12-31</instant></period>
+  </context>
+  <context id="c-332">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000874761</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:FairValueByMeasurementBasisAxis">us-gaap:CarryingReportedAmountFairValueDisclosureMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><instant>2025-12-31</instant></period>
+  </context>
+  <aes:RecourseDebtNonCurrent contextRef="c-3" unitRef="usd" decimals="-6">5105000000</aes:RecourseDebtNonCurrent>
+  <aes:RecourseDebtNonCurrent contextRef="c-3" unitRef="usd" decimals="-6">5105000000</aes:RecourseDebtNonCurrent>
+  <aes:RecourseDebtNonCurrent contextRef="c-5" unitRef="usd" decimals="-6">4805000000</aes:RecourseDebtNonCurrent>
+  <aes:NonRecourseDebtNonCurrent contextRef="c-3" unitRef="usd" decimals="-6">21681000000</aes:NonRecourseDebtNonCurrent>
+  <aes:NonRecourseDebtNonCurrent contextRef="c-5" unitRef="usd" decimals="-6">20626000000</aes:NonRecourseDebtNonCurrent>
+  <aes:NonRecourseDebtNonCurrent contextRef="c-332" unitRef="usd" decimals="-6">99999999999</aes:NonRecourseDebtNonCurrent>
+  <aes:RecourseDebtCurrent contextRef="c-3" unitRef="usd" decimals="-6">879000000</aes:RecourseDebtCurrent>
+  <aes:RecourseDebtCurrent contextRef="c-5" unitRef="usd" decimals="-6">899000000</aes:RecourseDebtCurrent>
+  <aes:NonRecourseDebtCurrent contextRef="c-3" unitRef="usd" decimals="-6">2232000000</aes:NonRecourseDebtCurrent>
+  <aes:NonRecourseDebtCurrent contextRef="c-5" unitRef="usd" decimals="-6">2688000000</aes:NonRecourseDebtCurrent>
+</xbrl>
+"""
+
+
+class TestExtractInstantValuesForConcepts:
+    def test_aes_sums_recourse_and_nonrecourse_noncurrent_debt(self) -> None:
+        result = extract_custom_debt_longterm_from_xbrl_xml(_AES_XML, "AES")
+        # 5,105,000,000 (Recourse) + 21,681,000,000 (Non-recourse)
+        assert result[2025] == 26_786_000_000.0
+        assert result[2024] == 25_431_000_000.0
+
+    def test_aes_deduplicates_a_fact_tagged_twice_with_the_same_contextref(self) -> None:
+        # RecourseDebtNonCurrent/c-3 appears twice in the fixture (same value both times,
+        # mirroring the real filing) - must be counted once, not doubled.
+        result = extract_custom_debt_longterm_from_xbrl_xml(_AES_XML, "AES")
+        assert result[2025] == 26_786_000_000.0
+
+    def test_aes_excludes_dimensioned_fair_value_decoy_fact(self) -> None:
+        result = extract_custom_debt_longterm_from_xbrl_xml(_AES_XML, "AES")
+        # The absurd 99,999,999,999 fair-value-disclosure decoy (dimensioned context) must
+        # never be summed into the real consolidated total.
+        assert result[2025] == 26_786_000_000.0
+
+    def test_aes_sums_recourse_and_nonrecourse_current_debt(self) -> None:
+        result = extract_custom_debt_shortterm_from_xbrl_xml(_AES_XML, "AES")
+        # 879,000,000 (Recourse) + 2,232,000,000 (Non-recourse)
+        assert result[2025] == 3_111_000_000.0
+        assert result[2024] == 3_587_000_000.0
+
+    def test_unregistered_symbol_returns_empty_without_parsing(self) -> None:
+        assert extract_custom_debt_longterm_from_xbrl_xml(_AES_XML, "SOME_OTHER_SYMBOL") == {}
+        assert extract_custom_debt_shortterm_from_xbrl_xml(_AES_XML, "SOME_OTHER_SYMBOL") == {}
+
+    def test_none_concepts_returns_empty(self) -> None:
+        assert _extract_instant_values_for_concepts(_AES_XML, None) == {}
+
+
+class TestFetchCustomDebtLongtermShortterm:
+    def test_unregistered_symbol_never_calls_sec_client(self) -> None:
+        sec_client = MagicMock()
+        assert fetch_custom_debt_longterm("AAPL", sec_client) == {}
+        assert fetch_custom_debt_shortterm("AAPL", sec_client) == {}
+        sec_client.symbol_to_cik.assert_not_called()
+
+    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self) -> None:
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0000874761"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["8-K", "10-K", "10-K"],
+                    "accessionNumber": ["0000000000-26-000001", "0000874761-26-000063", "0000874761-25-000009"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _AES_XML
+
+        result = fetch_custom_debt_longterm("AES", sec_client)
+
+        assert result[2025] == 26_786_000_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0000874761", "0000874761-26-000063", "10-K")
+
+    def test_sec_client_failure_returns_empty_not_raise(self) -> None:
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.side_effect = RuntimeError("network error")
+        assert fetch_custom_debt_longterm("AES", sec_client) == {}
+        assert fetch_custom_debt_shortterm("AES", sec_client) == {}
+
+
+def test_custom_debt_longterm_shortterm_registries_are_well_formed() -> None:
+    assert "AES" in CUSTOM_DEBT_LONGTERM_CONCEPTS
+    assert "AES" in CUSTOM_DEBT_SHORTTERM_CONCEPTS
+    for symbol, concepts in CUSTOM_DEBT_LONGTERM_CONCEPTS.items():
+        assert concepts, f"{symbol} has an empty concept list"
+        for prefix, local_name in concepts:
+            assert prefix and local_name
+    for symbol, concepts in CUSTOM_DEBT_SHORTTERM_CONCEPTS.items():
+        assert concepts, f"{symbol} has an empty concept list"
+        for prefix, local_name in concepts:
+            assert prefix and local_name

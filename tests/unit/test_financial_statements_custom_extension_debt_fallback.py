@@ -96,3 +96,66 @@ class TestCustomExtensionDebtFieldMappingFallbackOnly:
         this."""
         loader = _make_balance_loader()
         assert "custom_extension_total_debt" in loader._fallback_only_fields
+
+
+class TestCustomExtensionDebtLongtermShorttermFallback:
+    """AES Corporation (recourse/non-recourse debt split, CUSTOM_DEBT_LONGTERM_CONCEPTS/
+    CUSTOM_DEBT_SHORTTERM_CONCEPTS) - a separate registry/extraction mechanism from
+    CUSTOM_DEBT_CONCEPTS above (plain filer-extension concepts, not a dimensioned-sum
+    case), writing to custom_extension_total_debt (shared with the Berkshire mechanism,
+    same target column) and a new custom_extension_total_debt_current key for the real
+    current-portion split Berkshire's data doesn't have."""
+
+    def test_registered_symbol_gets_both_longterm_and_shortterm_injected(self):
+        loader = _make_balance_loader()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[
+                    {"symbol": "AES", "fiscal_year": 2025, "total_assets": 54_238_000_000},
+                    {"symbol": "AES", "fiscal_year": 2024, "total_assets": 50_000_000_000},
+                ],
+            ),
+            patch(
+                "loaders.load_financial_statements.fetch_custom_debt_longterm",
+                return_value={2025: 26_786_000_000.0},
+            ) as mock_fetch_lt,
+            patch(
+                "loaders.load_financial_statements.fetch_custom_debt_shortterm",
+                return_value={2025: 3_111_000_000.0},
+            ) as mock_fetch_st,
+        ):
+            rows = loader.fetch_incremental("AES", since=None)
+
+        mock_fetch_lt.assert_called_once_with("AES", loader._sec_client)
+        mock_fetch_st.assert_called_once_with("AES", loader._sec_client)
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["custom_extension_total_debt"] == 26_786_000_000.0
+        assert by_year[2025]["custom_extension_total_debt_current"] == 3_111_000_000.0
+        assert "custom_extension_total_debt" not in by_year[2024]
+        assert "custom_extension_total_debt_current" not in by_year[2024]
+
+    def test_unregistered_symbol_never_calls_either_fetch(self):
+        loader = _make_balance_loader()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "total_assets": 1}],
+            ),
+            patch("loaders.load_financial_statements.fetch_custom_debt_longterm") as mock_lt,
+            patch("loaders.load_financial_statements.fetch_custom_debt_shortterm") as mock_st,
+        ):
+            loader.fetch_incremental("AAPL", since=None)
+
+        mock_lt.assert_not_called()
+        mock_st.assert_not_called()
+
+    def test_custom_extension_total_debt_current_field_maps_to_short_term_debt_column(self):
+        config = get_balance_sheet_config("annual")
+        assert config["field_mapping"]["custom_extension_total_debt_current"] == "short_term_debt"
+
+    def test_custom_extension_total_debt_current_is_fallback_only(self):
+        loader = _make_balance_loader()
+        assert "custom_extension_total_debt_current" in loader._fallback_only_fields
