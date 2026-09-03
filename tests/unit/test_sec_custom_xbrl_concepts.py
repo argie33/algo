@@ -1125,3 +1125,63 @@ class TestFetchCustomCapexDimensionedSum:
         result = fetch_custom_capex_dimensioned_sum("AAPL", sec_client)
         assert result == {}
         sec_client.symbol_to_cik.assert_not_called()
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against McEwen Inc's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0001104659-26-028705): a
+# single-target-member registration, where the target member (OperatingSegmentsMember)
+# appears BOTH alone (the filer's own pre-summed consolidated total, the one we want) and
+# paired with a second, unregistered region member (a component of that total, which must
+# be excluded since it carries 2 explicitMembers, not exactly 1).
+_MUX_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:mux="http://mcewenmining.com/20251231">
+  <context id="c-us-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000314203</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">mux:UnitedStatesReportableSegmentMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-canada-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000314203</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">mux:CanadaReportableSegmentMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-total-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000314203</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets contextRef="c-us-fy2025" unitRef="usd" decimals="-3">11306000</mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets>
+  <mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets contextRef="c-canada-fy2025" unitRef="usd" decimals="-3">36581000</mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets>
+  <mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets contextRef="c-total-fy2025" unitRef="usd" decimals="-3">48087000</mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets>
+</xbrl>
+"""
+
+
+class TestExtractDurationDimensionedSumSingleMemberSubtotal:
+    def test_mux_picks_the_single_member_subtotal_not_the_regional_components(self) -> None:
+        result = _extract_duration_dimensioned_sum_from_xbrl_xml(_MUX_XML, "MUX")
+        # Must return the filer's own pre-summed total (c-total-fy2025's 48,087,000), NOT
+        # the 2-dimension regional components (11,306,000 / 36,581,000, which sum to a
+        # DIFFERENT, deliberately-distinct 47,887,000 in this fixture) - a bug that summed
+        # the 2-dimension contexts instead of picking the single-dimension one would fail
+        # this exact assertion.
+        assert result[2025] == 48_087_000.0
+
+    def test_custom_capex_dimensioned_concepts_registry_includes_mux(self) -> None:
+        assert "MUX" in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS

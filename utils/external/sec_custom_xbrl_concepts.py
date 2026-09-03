@@ -808,6 +808,28 @@ CUSTOM_CAPEX_DIMENSIONED_CONCEPTS: dict[str, tuple[str, frozenset[str]]] = {
         "PaymentsToAcquirePropertyPlantAndEquipment",
         frozenset({"UtilityPlantMember", "SolarEquipmentMember", "StorageAndTransportationAndOtherMember"}),
     ),
+    # McEwen Inc (CIK 0000314203, $1.09B market cap gold/silver/copper miner) - verified
+    # live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL instance
+    # document (accession 0001104659-26-028705, mux-20251231x10k_htm.xml). Real capex
+    # tagged under a custom mux:PaymentsToAcquirePropertyPlantAndEquipmentAndAcquire
+    # MiningAssets concept, but every occurrence is dimensioned by
+    # srt:ConsolidationItemsAxis=OperatingSegmentsMember, paired with a per-region
+    # StatementBusinessSegmentsAxis member (US/Canada/Mexico, +McewenCopper in FY2023) in
+    # most contexts - EXCEPT one context per year carrying ONLY the
+    # ConsolidationItemsAxis=OperatingSegmentsMember dimension (no region member), whose
+    # value exactly equals the sum of that year's regional facts every year checked:
+    # FY2025 $11,306,000 (US) + $36,581,000 (Canada) + $200,000 (Mexico) = $48,087,000;
+    # FY2024 $17,789,000 + $23,288,000 + $2,018,000 = $43,095,000; FY2023 $9,028,000 +
+    # $9,131,000 + $1,258,000 + $6,781,000 (McewenCopper) = $26,198,000 - confirming that
+    # single-member context is the filer's own pre-summed consolidated total (same
+    # "OperatingSegmentsMember marks the real total, not a further breakdown" convention
+    # documented in sec_xbrl_segments.py's _OPERATING_SEGMENTS_MEMBER comment), not a 4th
+    # independent segment. Registered as a single-member target set (not 3+ region
+    # members to sum) specifically BECAUSE the region count varies year to year (3 in
+    # FY2024/2025, 4 in FY2023) - summing named regional members directly would need a
+    # different registered set every year; picking out the filer's own already-summed
+    # subtotal context instead sidesteps that entirely.
+    "MUX": ("PaymentsToAcquirePropertyPlantAndEquipmentAndAcquireMiningAssets", frozenset({"OperatingSegmentsMember"})),
 }
 
 
