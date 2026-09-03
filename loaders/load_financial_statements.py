@@ -596,6 +596,9 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # ShortTermBorrowings/SeniorNotesCurrent/...) must always keep that value; this
         # only fills the gap when nothing else populated short_term_debt.
         "debt_current",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "ShortTermBankLoansAndNotesPayable" (EXPD live evidence).
+        "short_term_bank_loans_and_notes_payable",
     }
 )
 
@@ -736,6 +739,10 @@ _BALANCE_FIELD_MAPPING = {
     # deliberately NOT also mapped here (no summing mechanism exists for two concepts on
     # one target column - see that comment for the full reasoning).
     "debt_current": "short_term_debt",
+    # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) real short-term
+    # debt - see sec_statements.py's get_balance_sheet() comment on
+    # "ShortTermBankLoansAndNotesPayable" for the live evidence.
+    "short_term_bank_loans_and_notes_payable": "short_term_debt",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): VRSN
     # (VeriSign) real debt concept - see sec_statements.py's get_balance_sheet() comment
     # on SeniorNotes/SeniorNotesCurrent for the live evidence. Same either/or-alternative,

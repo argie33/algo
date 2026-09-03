@@ -73,3 +73,60 @@ class TestDeDebtCurrentFixed:
         transformed = loader.transform([row])
 
         assert transformed[0]["short_term_debt"] == 7_980_000_000.0
+
+
+class TestExpdShortTermBankLoansAndNotesPayableFixed:
+    """EXPD (Expeditors International) tags its entire real (small, genuine - asset-light
+    freight forwarder) short-term debt under "ShortTermBankLoansAndNotesPayable" - live-
+    confirmed $53,068,000 FY2023/$30,660,000 FY2024/$30,263,000 FY2025, no other debt
+    concept tagged anywhere in EXPD's companyfacts."""
+
+    def _make_loader(self) -> SecEdgarStatementLoader:
+        loader = SecEdgarStatementLoader.__new__(SecEdgarStatementLoader)
+        loader.table_name = "annual_balance_sheet"
+        loader.period = "annual"
+        loader.statement_type = "balance"
+        loader._schema_cols = frozenset(
+            {"symbol", "fiscal_year", "long_term_debt", "short_term_debt", "data_unavailable", "reason"}
+        )
+        loader._field_mapping = {
+            "short_term_debt": "short_term_debt",
+            "commercial_paper": "short_term_debt",
+            "short_term_bank_loans_and_notes_payable": "short_term_debt",
+            "data_unavailable": "data_unavailable",
+            "reason": "reason",
+        }
+        loader._fallback_only_fields = frozenset({"short_term_bank_loans_and_notes_payable"})
+        loader._reit_only_fallback_fields = frozenset()
+        loader._reit_symbols = frozenset()
+        loader._insurance_symbols = frozenset()
+        return loader
+
+    def test_field_mapping_wires_short_term_bank_loans_and_notes_payable(self) -> None:
+        assert _BALANCE_FIELD_MAPPING["short_term_bank_loans_and_notes_payable"] == "short_term_debt"
+        assert "short_term_bank_loans_and_notes_payable" in _DEBT_FALLBACK_ONLY_FIELDS
+
+    def test_expd_style_short_term_debt_recovered_when_no_other_concept_present(self) -> None:
+        loader = self._make_loader()
+        row = {
+            "symbol": "EXPD",
+            "fiscal_year": 2025,
+            "short_term_bank_loans_and_notes_payable": 30_263_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["short_term_debt"] == 30_263_000.0
+
+    def test_never_overwrites_a_real_short_term_debt_value(self) -> None:
+        loader = self._make_loader()
+        row = {
+            "symbol": "AAPL",
+            "fiscal_year": 2025,
+            "commercial_paper": 7_980_000_000.0,
+            "short_term_bank_loans_and_notes_payable": 1.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["short_term_debt"] == 7_980_000_000.0

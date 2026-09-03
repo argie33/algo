@@ -607,6 +607,14 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # carries no risk of a wrong/incomplete-looking "complete" figure since it's not
         # claimed to include the securitization piece.
         "DebtCurrent",
+        # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) tags its entire
+        # real short-term debt under this concept - live-confirmed via real companyfacts
+        # JSON: $53,068,000 FY2023 / $30,660,000 FY2024 / $30,263,000 FY2025, small but
+        # real and continuous (a genuinely low-debt, asset-light freight-forwarding
+        # business - EXPD has no other debt concept tagged anywhere in its companyfacts,
+        # consistent with the real figure being this small, not a coverage gap masking a
+        # larger number). Fallback-only, same generic-name caution as DebtCurrent above.
+        "ShortTermBankLoansAndNotesPayable",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # no_recent_debt_components_symbols investigation): VRSN (VeriSign) tags its real,
         # current debt exclusively under "SeniorNotes"/"SeniorNotesCurrent" - live-
