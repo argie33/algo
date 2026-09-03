@@ -2881,6 +2881,49 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._no_recent_free_cash_flow_symbols_cache = result
         return result
 
+    def _get_last_known_zero_dividends_symbols(self) -> frozenset[str]:
+        """Symbols whose most recently-tagged (non-NULL) `dividends_paid` fact, however many
+        fiscal years back, was exactly $0 - a distinct, narrower gap than
+        `prior_year_dividends_paid`'s single-year-back fallback above.
+
+        FIXED 2026-09-02 (goal: "Missing SEC/XBRL data" reduction, following up on
+        [[dividends_paid_prior_year_fallback_added_20260902]]'s note that CCL/CMS both did NOT
+        recover because their gap spans 3+ consecutive fiscal years, not just the anchor year).
+        Live-verified against real SEC companyfacts for both: CCL's `PaymentsOfDividends` was
+        tagged $0 for FY2021/FY2022 (dividend suspended, matches its known real 2020 COVID
+        suspension) and then simply never tagged again for FY2023-2025 - a common preparer
+        pattern of omitting an immaterial/zero line item from XBRL entirely once it stays zero,
+        not a real change of fact. CMS's most recent tag was a real NON-zero $546M (FY2022,
+        `PaymentsOfOrdinaryDividends`) with nothing tagged since - a materially different shape
+        (a real dividend payer whose tag vanished, not a zero carried forward) that stays
+        correctly excluded here and left as a genuine open gap; carrying a stale non-zero
+        multi-year-old figure forward risks materially overstating a since-changed dividend, an
+        asymmetric risk $0 doesn't share (there's no "understating a payout" failure mode when
+        the last known fact was already zero).
+
+        Universe scan: 348 distinct symbols fit this exact shape. Cached for the life of this
+        loader instance, same one-query-per-run pattern as
+        `_get_no_recent_free_cash_flow_symbols()` above.
+        """
+        cached: frozenset[str] | None = getattr(self, "_last_known_zero_dividends_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH ranked AS (
+                    SELECT symbol, dividends_paid,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_cash_flow
+                    WHERE data_unavailable = FALSE AND dividends_paid IS NOT NULL
+                )
+                SELECT symbol FROM ranked WHERE rn = 1 AND dividends_paid = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._last_known_zero_dividends_symbols_cache = result
+        return result
+
     def _get_operating_cash_flow_available_elsewhere_symbols(self) -> frozenset[str]:
         """Symbols with a real (non-NULL) operating_cash_flow in at least one available
         annual_cash_flow fiscal year - the direct positive counterpart to
@@ -3429,6 +3472,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             dividends_paid_with_prior_year_fallback = dividends_paid
             if dividends_paid_with_prior_year_fallback is None and prior_year_dividends_paid is not None:
                 dividends_paid_with_prior_year_fallback = prior_year_dividends_paid
+            # FIXED 2026-09-02: prior_year_dividends_paid only reaches back one fiscal year, so
+            # a gap spanning 3+ consecutive years (CCL/CMS-style) still falls through to None -
+            # see _get_last_known_zero_dividends_symbols()'s docstring for why only the "last
+            # known value was exactly $0" subset is safe to carry forward indefinitely.
+            if (
+                dividends_paid_with_prior_year_fallback is None
+                and symbol in self._get_last_known_zero_dividends_symbols()
+            ):
+                dividends_paid_with_prior_year_fallback = 0.0
             # Net Debt Issuance (Bradshaw/Richardson/Sloan 2006) DEFERRED 2026-08-26: needs
             # prior-year long_term_debt, which isn't in quality_row above (appending a column
             # there broke 79 existing unit tests that construct fixed-length mock rows) and
