@@ -93,6 +93,41 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
         ("epsn", "PaymentsToAcquireProvedOilAndGasProperty"),
         ("epsn", "PaymentsToAcquireUnprovedOilAndGasProperty"),
     ],
+    # NextEra Energy Inc (CIK 0000753308, regulated electric utility) - verified live
+    # 2026-09-03 (goal session: "missing SEC/XBRL data" sweep, capex_never_tagged_in_
+    # recent_filings investigation) against the real filed FY2025 10-K raw XBRL instance
+    # document (accession 0000753308-26-000015, nee-20251231_htm.xml), via this module's
+    # own _extract_values_for_concepts function, not just the rendered R-file. Three real,
+    # additive, dimension-free concepts on the consolidated cash flow statement:
+    # nee:CapitalExpendituresOfFPL (FPL segment) $8,719,000,000 FY2025 / $7,992,000,000
+    # FY2024 / $9,302,000,000 FY2023, nee:IndependentPowerInvestments (NEER segment)
+    # $15,332,000,000 / $16,215,000,000 / $15,565,000,000, nee:OtherCapitalExpenditures
+    # (small residual line) $2,000,000 / $123,000,000 / $61,000,000 - summed total capex
+    # $24,053,000,000 FY2025 / $24,330,000,000 FY2024 / $24,928,000,000 FY2023 (plausible
+    # vs. NextEra's real, publicly reported capital spending scale). Deliberately excludes
+    # nee:CapitalExpendituresOfPublicUtility, which the extraction function correctly
+    # returns empty for - that concept only appears in a LegalEntityAxis-dimensioned
+    # context representing FPL's own standalone co-registrant statement within the same
+    # filing (same $8,719M/$7,992M/$9,302M values as CapitalExpendituresOfFPL, a pure
+    # duplicate under a different tag, not additional spend). NEE's companyfacts JSON has
+    # zero entries under any PP&E-family/standard concept for any of these three - the
+    # only path to this data is the raw instance document, same structural limitation as
+    # every other symbol in this registry.
+    "NEE": [
+        ("nee", "CapitalExpendituresOfFPL"),
+        ("nee", "IndependentPowerInvestments"),
+        ("nee", "OtherCapitalExpenditures"),
+    ],
+    # Phillips 66 (CIK 0001534701, integrated refiner) - verified live 2026-09-03 (same
+    # sweep) against the real filed FY2025 10-K raw XBRL instance document (accession
+    # 0001534701-26-000006, psx-20251231_htm.xml) via this module's own
+    # _extract_values_for_concepts function. Single concept covers PSX's whole capex line
+    # ("Capital expenditures and investments" on the consolidated cash flow statement):
+    # psx:CapitalExpendituresAndInvestments $4,466,000,000 FY2025 / $3,718,000,000 FY2024
+    # / $4,310,000,000 FY2023 - plausible vs. Phillips 66's real, publicly reported capex
+    # scale. PSX's companyfacts JSON has zero entries under any PP&E-family/standard
+    # concept for any fiscal year.
+    "PSX": [("psx", "CapitalExpendituresAndInvestments")],
 }
 
 

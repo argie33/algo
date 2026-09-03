@@ -333,3 +333,66 @@ class TestExtractCustomCapexAdditionalFilers:
         result = extract_custom_capex_from_xbrl_xml(_EPSN_XML, "EPSN")
         # Must NOT include the ambiguous/negative LandBuildings concept (-270,488).
         assert result[2025] == 14_929_678.0
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against NextEra Energy's actual
+# filed FY2025 10-K raw XBRL instance document (accession 0000753308-26-000015): three
+# real, additive, dimension-free concepts, plus the FPL co-registrant's own standalone
+# statement re-tagging the same FPL figure under a distinct, LegalEntityAxis-dimensioned
+# concept that must be excluded, not summed as if it were additional spend.
+_NEE_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:nee="http://nexteraenergy.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000753308</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-2-fpl-entity">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0000753308</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:LegalEntityAxis">nee:FloridaPowerAndLightCoMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <nee:CapitalExpendituresOfFPL contextRef="c-1" unitRef="usd" decimals="-6">8719000000</nee:CapitalExpendituresOfFPL>
+  <nee:IndependentPowerInvestments contextRef="c-1" unitRef="usd" decimals="-6">15332000000</nee:IndependentPowerInvestments>
+  <nee:OtherCapitalExpenditures contextRef="c-1" unitRef="usd" decimals="-6">2000000</nee:OtherCapitalExpenditures>
+  <nee:CapitalExpendituresOfPublicUtility contextRef="c-2-fpl-entity" unitRef="usd" decimals="-6">8719000000</nee:CapitalExpendituresOfPublicUtility>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Phillips 66's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0001534701-26-000006): a single
+# concept covers the entire "Capital expenditures and investments" cash-flow-statement
+# line.
+_PSX_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:psx="http://phillips66.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001534701</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <psx:CapitalExpendituresAndInvestments contextRef="c-1" unitRef="usd" decimals="-6">4466000000</psx:CapitalExpendituresAndInvestments>
+</xbrl>
+"""
+
+
+class TestExtractCustomCapexUtilityAndRefinerFilers:
+    def test_nee_sums_the_three_additive_concepts(self):
+        result = extract_custom_capex_from_xbrl_xml(_NEE_XML, "NEE")
+        # 8,719,000,000 (FPL) + 15,332,000,000 (NEER) + 2,000,000 (Other)
+        assert result[2025] == 24_053_000_000.0
+
+    def test_nee_excludes_the_fpl_co_registrant_duplicate_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_NEE_XML, "NEE")
+        # CapitalExpendituresOfPublicUtility re-tags the same $8,719M FPL figure under a
+        # LegalEntityAxis-dimensioned context (FPL's own standalone statement within the
+        # same filing) - summing it in would double-count FPL's capex.
+        assert result[2025] == 24_053_000_000.0
+
+    def test_psx_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_PSX_XML, "PSX")
+        assert result[2025] == 4_466_000_000.0
