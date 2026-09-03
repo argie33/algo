@@ -429,6 +429,21 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # this only fills years/filers where the parent-only concept is absent entirely.
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
         "StockholdersEquity",
+        # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, KKR live-
+        # confirmed): limited-partnership-structured filers (KKR & Co. L.P. before its
+        # 2018 conversion to a corporation, and other PE firms/MLPs with a similar
+        # history) tag total partner capital as "PartnersCapital"/"PartnersCapital
+        # IncludingPortionAttributableToNoncontrollingInterest" instead of any
+        # "StockholdersEquity" concept - live-confirmed via real SEC companyfacts JSON
+        # that KKR's FY2009-2017 10-Ks (CIK 0001404912) have ZERO StockholdersEquity-
+        # family facts, only PartnersCapitalIncludingPortionAttributableToNoncontrolling
+        # Interest (e.g. FY2014). Mapped to the same "stockholders_equity" DB column via
+        # load_financial_statements.py's fallback-only field mapping (never overwrites a
+        # real StockholdersEquity value - mutually exclusive by fiscal year in practice,
+        # since a filer's legal structure conversion is a one-time event, but kept
+        # fallback-only for the same defensive reason as the concept above).
+        "PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest",
+        "PartnersCapital",
         # FIXED 2026-08-03: two fallback cash concepts added below, both mapped to the same
         # cash_and_equivalents column via field_mapping in load_financial_statements.py.
         # _aggregate_concepts keeps the LAST-processed concept's value on overwrite when a

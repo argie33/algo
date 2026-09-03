@@ -489,6 +489,19 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # producing a wildly understated invested_capital for roic_pct (and any other
         # consumer of total_debt/long_term_debt).
         "debt_instrument_carrying_amount",
+        # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, KKR live-
+        # confirmed): see sec_statements.py's get_balance_sheet() comment on
+        # "PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest" -
+        # limited-partnership-structured filers (KKR pre-2018) tag total consolidated
+        # partner capital (including third-party LP capital in consolidated managed
+        # funds - live-confirmed KKR FY2014 $51.4B under this concept vs $5.38B under
+        # the parent-only "PartnersCapital" concept the same year, a ~10x gap from
+        # consolidated variable-interest entities) under this concept. Fallback-only so
+        # the precise parent-only "partners_capital" mapping below (NOT fallback-only,
+        # same non-fallback precedence as "stockholders_equity" itself) always wins when
+        # both are present for the same fiscal year - same "IncludingPortion" vs.
+        # parent-only precedence convention as the StockholdersEquity pair above.
+        "partners_capital_including_portion_attributable_to_noncontrolling_interest",
     }
 )
 
@@ -531,6 +544,15 @@ _BALANCE_FIELD_MAPPING = {
     # list order (fallback listed before "StockholdersEquity" there), same convention as the
     # cash fallbacks immediately below.
     "stockholders_equity_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
+    # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, KKR live-confirmed):
+    # see _DEBT_FALLBACK_ONLY_FIELDS's comment on the IncludingPortion key -
+    # limited-partnership-structured filers (KKR pre-2018) tag total partner capital
+    # instead of any StockholdersEquity concept. "partners_capital" (parent-only, NOT
+    # fallback-only) is the direct partnership analogue of "stockholders_equity" above
+    # and always wins; the IncludingPortion variant only fills years where the
+    # parent-only concept is absent entirely.
+    "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
+    "partners_capital": "stockholders_equity",
     # FIXED 2026-07-28: these 6 concepts are fetched from real SEC XBRL data every run
     # (utils/external/sec_statements.py's get_balance_sheet(), GAAP + IFRS aliases both
     # present since the module was written) but had no target column here - a commit on
