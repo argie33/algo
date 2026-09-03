@@ -138,6 +138,21 @@ class SecSegmentMetricsLoader(OptimalLoader):
             # Validate minimum data
             all_missing = all([seg_count is None, largest_pct is None, diversification_hhi is None])
 
+            # FIX 2026-09-03 (SEC/XBRL missing-data sweep, reason-propagation gap - same
+            # shape as positioning_metrics.short_interest_pct fixed today): the substring
+            # check above (line ~128) only respects sec_segment_info's own `reason` early
+            # when it looks like "single_segment"/"no_segment" - every OTHER real, already-
+            # diagnosed terminal reason it can carry (companyfacts_api_never_exposes_per_
+            # segment_revenue, no_us_gaap_facts, symbol_not_found, zero_total_segment_revenue
+            # - none of these mean "not fetched yet", all are permanent facts, see
+            # load_sec_segment_info.py's own reason literals) instead "tries to proceed
+            # anyway" with all-None fields, lands on all_missing=True, and the real upstream
+            # reason got silently discarded here in favor of the generic
+            # no_computable_segment_metrics. Live-confirmed 155 universe sec_segment_metrics
+            # rows carry one of these 4 specific upstream reasons instead. Prefer it when
+            # present.
+            final_reason = (reason or "no_computable_segment_metrics") if all_missing else None
+
             return [
                 {
                     "symbol": symbol,
@@ -146,7 +161,7 @@ class SecSegmentMetricsLoader(OptimalLoader):
                     "revenue_concentration_hhi": diversification_hhi,
                     "is_diversified": seg_count >= 2 if seg_count else None,
                     "data_unavailable": all_missing,
-                    "reason": "no_computable_segment_metrics" if all_missing else None,
+                    "reason": final_reason,
                     "computed_at": date.today(),
                 }
             ]
