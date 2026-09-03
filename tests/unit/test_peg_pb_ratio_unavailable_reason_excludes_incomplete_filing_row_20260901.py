@@ -106,7 +106,13 @@ class TestPegRatioUnavailableReasonExcludesIncompleteFilingRow:
 
         assert metrics["peg_ratio_unavailable_reason"] == "negative_earnings_growth"
 
-    def test_genuinely_missing_eps_history_still_reports_missing_sec_data(self):
+    def test_genuinely_missing_eps_history_reports_insufficient_history(self):
+        """FIXED 2026-09-02 (commit 10f8edb1a): peg_ratio_reason_from_eps_history()'s
+        `len(eps_rows) < 2` branch (covers zero OR one real EPS fiscal year - a YoY growth
+        rate can't be computed either way) now reports the specific "insufficient_history"
+        cause instead of the generic "missing_sec_data" this test originally asserted -
+        same convention as every other insufficient-history reason in this codebase. This
+        test was stale (never updated when that fix landed) until now."""
         loader = _make_loader()
         cursor = _RoutingCursor({"SELECT fiscal_year, earnings_per_share": []})
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
@@ -118,7 +124,7 @@ class TestPegRatioUnavailableReasonExcludesIncompleteFilingRow:
                 ),
             )
 
-        assert metrics["peg_ratio_unavailable_reason"] == "missing_sec_data"
+        assert metrics["peg_ratio_unavailable_reason"] == "insufficient_history"
 
 
 class TestPbRatioUnavailableReasonExcludesIncompleteFilingRow:
