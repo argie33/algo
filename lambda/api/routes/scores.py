@@ -2163,6 +2163,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # every required-field force-null regardless of cause; now each rejection carries its
             # real reason (see that file's 2026-09-03 fix comment on _record_explicit_null_rejection).
             "no_usable_annual_duration_fact",
+            # ADDED 2026-09-03 (same sweep, [[quarterly_duration_fact_comparative_fp_aliasing_
+            # residual_10sym_20260903]] follow-up): a one-time direct correction of 8
+            # quarterly_income_statement Q1 rows (AMTB/BGC/GPOR/KOP/PNR, symbol+fiscal_year
+            # pairs) hand-verified to be whole-annual-fact duplicates from an old extraction
+            # bug - live re-extraction confirms the CURRENT code no longer produces a Q1 fact
+            # for these exact periods at all (not even an all-None row), so
+            # _reject_stale_all_none_annual_row's guard can never reach them and a normal
+            # backfill can never self-heal this population - a direct data correction was the
+            # only path, same as 49b5569f8's original 293-symbol correction.
+            "quarterly_row_orphaned_annual_duplicate",
             # ADDED 2026-09-02 (same sweep): load_value_quality_growth_metrics.py's row-level
             # early-return reason when the symbol's annual_balance_sheet row itself is
             # unavailable/empty (see that file's ~line 4528) - was also unmapped, falling
