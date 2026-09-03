@@ -573,6 +573,13 @@ _BALANCE_FIELD_MAPPING = {
     # parent-only concept is absent entirely.
     "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
     "partners_capital": "stockholders_equity",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" audit): LLC-
+    # structured domestic filers (APGE/ARXS/ITG live-confirmed) tag "MembersEquity"
+    # instead of any StockholdersEquity/PartnersCapital concept - see sec_statements.py's
+    # get_balance_sheet() comment on the matching concept-list entry for the live
+    # evidence. Direct legal-structure analogue, not fallback-only, same convention as
+    # "partners_capital" above.
+    "members_equity": "stockholders_equity",
     # FIXED 2026-07-28: these 6 concepts are fetched from real SEC XBRL data every run
     # (utils/external/sec_statements.py's get_balance_sheet(), GAAP + IFRS aliases both
     # present since the module was written) but had no target column here - a commit on

@@ -444,6 +444,19 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # fallback-only for the same defensive reason as the concept above).
         "PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest",
         "PartnersCapital",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" audit):
+        # LLC-structured domestic filers (not FPIs) tag "MembersEquity" instead of any
+        # StockholdersEquity/PartnersCapital concept - live-confirmed via real SEC
+        # companyfacts JSON for 3 universe symbols (all `is_foreign_private_issuer=False`,
+        # `entity_type='operating'`): APGE (Apogee Therapeutics) FY2025 $903,883,000 +
+        # current Q2 2026 10-Q $1,194,604,000, ARXS (Arxis) current Q2 2026 10-Q
+        # $3,183,274,000, ITG (ITG, Inc./DE/) current Q2 2026 10-Q $34,376,000 - all real,
+        # current (through mid-2026), USD-denominated instant facts, zero StockholdersEquity/
+        # PartnersCapital facts of any kind for any of the three. Same "direct legal-
+        # structure-specific equivalent" pattern as PartnersCapital above (mutually
+        # exclusive by entity type in practice - an LLC never also tags StockholdersEquity),
+        # not fallback-only for the same reason.
+        "MembersEquity",
         # FIXED 2026-08-03: two fallback cash concepts added below, both mapped to the same
         # cash_and_equivalents column via field_mapping in load_financial_statements.py.
         # _aggregate_concepts keeps the LAST-processed concept's value on overwrite when a
