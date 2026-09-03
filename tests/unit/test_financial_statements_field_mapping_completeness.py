@@ -55,6 +55,7 @@ _BALANCE_CONCEPTS = [
     "LiabilitiesCurrent",
     "StockholdersEquity",
     "CashAndCashEquivalentsAtCarryingValue",
+    "ReceivablesNetCurrent",
     "AccountsReceivableNetCurrent",
     "InventoryNet",
     "PublicUtilitiesPropertyPlantAndEquipmentNet",

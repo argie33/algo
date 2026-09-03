@@ -606,6 +606,9 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # the stockholders_equity entry's comment above), covers non-debt fields too.
         "public_utilities_property_plant_and_equipment_net",
         "property_plant_and_equipment_and_finance_lease_right_of_use_asset_after_accumulated_depreciation_and_amortization",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence).
+        "receivables_net_current",
     }
 )
 
@@ -693,6 +696,10 @@ _BALANCE_FIELD_MAPPING = {
     # from sec_statements.py's get_balance_sheet() concept list order (see its comment).
     "cash_and_due_from_banks": "cash_and_equivalents",
     "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents": "cash_and_equivalents",
+    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
+    # on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence) - fallback-only (see
+    # _DEBT_FALLBACK_ONLY_FIELDS below), must never win over the standard concept.
+    "receivables_net_current": "accounts_receivable",
     "accounts_receivable_net_current": "accounts_receivable",
     "inventory_net": "inventory",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments

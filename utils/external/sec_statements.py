@@ -58,6 +58,13 @@ _BALANCE_IFRS_ALIASES = [
     ("EquityAttributableToOwnersOfParent", "stockholders_equity"),
     ("CashAndCashEquivalents", "cash_and_cash_equivalents_at_carrying_value"),
     ("TradeAndOtherCurrentReceivables", "accounts_receivable_net_current"),
+    # FIXED 2026-09-03 (same sweep): TSM (Taiwan Semiconductor) live-confirmed via real
+    # companyfacts JSON - reports trade receivables under this concept instead of
+    # "TradeAndOtherCurrentReceivables" above (USD 6.5746B FY2023 / 8.2551B FY2024,
+    # continuous). Same target key as that concept - genuinely the narrower "trade
+    # receivables only" IFRS taxonomy element (not a combined trade+other concept), close
+    # enough in meaning to the us-gaap "AccountsReceivableNetCurrent" target it feeds.
+    ("CurrentTradeReceivables", "accounts_receivable_net_current"),
     ("Inventories", "inventory_net"),
     ("PropertyPlantAndEquipment", "property_plant_and_equipment_net"),
     ("Goodwill", "goodwill"),
@@ -511,6 +518,14 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # found and still came back NULL, ruling out staleness for this subset.
         "CashAndDueFromBanks",
         "CashAndCashEquivalentsAtCarryingValue",
+        # FIXED 2026-09-03 (same sweep): WMT/RTX/COST all live-confirmed (via real
+        # companyfacts JSON) reporting the primary balance-sheet "Receivables, net" line
+        # under this concept instead of "AccountsReceivableNetCurrent" below - WMT: real
+        # $9.975B FY2025/$11.172B FY2026; COST: $2.721B FY2024/$3.203B FY2025; RTX reports
+        # both concepts with identical values ($14.701B FY2025). Fallback-only, listed
+        # before the standard concept so a filer reporting both keeps the more specific
+        # trade-only figure.
+        "ReceivablesNetCurrent",
         "AccountsReceivableNetCurrent",
         "InventoryNet",
         # FIXED 2026-09-03 (same sweep): regulated utilities (ES/Eversource live-confirmed
