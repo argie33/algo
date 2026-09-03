@@ -477,6 +477,32 @@ _EQH_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors the real structure confirmed live 2026-09-03 against Viking Holdings' actual
+# filed FY2025 10-K raw XBRL instance document (accession 0001745201-26-000007).
+_VIK_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:vik="http://viking.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001745201</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <vik:InvestmentsInPropertyPlantAndEquipmentAndIntangibleAssets contextRef="c-1" unitRef="usd" decimals="-6">1026854000</vik:InvestmentsInPropertyPlantAndEquipmentAndIntangibleAssets>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Zurn Elkay's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0001628280-26-006372).
+_ZWS_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:zws="http://zurnelkay.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001439288</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <zws:PaymentsToAcquirePropertyPlantAndEquipmentIncludingDiscontinuedOperations contextRef="c-1" unitRef="usd" decimals="-6">29900000</zws:PaymentsToAcquirePropertyPlantAndEquipmentIncludingDiscontinuedOperations>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_nee_sums_the_three_additive_concepts(self):
@@ -522,6 +548,14 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_eqh_returns_its_own_concept(self):
         result = extract_custom_capex_from_xbrl_xml(_EQH_XML, "EQH")
         assert result[2025] == 34_000_000.0
+
+    def test_vik_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_VIK_XML, "VIK")
+        assert result[2025] == 1_026_854_000.0
+
+    def test_zws_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_ZWS_XML, "ZWS")
+        assert result[2025] == 29_900_000.0
 
 
 # Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual

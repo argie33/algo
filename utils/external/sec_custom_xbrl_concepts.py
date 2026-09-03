@@ -200,6 +200,24 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # plain non-dimensioned annual contexts: $34,000,000 FY2025 / $153,000,000 FY2024 /
     # $117,000,000 FY2023.
     "EQH": [("eqh", "InvestmentInCapitalizedSoftwareLeaseholdImprovementsAndEDPEquipment")],
+    # Viking Holdings Ltd (CIK 0001745201, $27.3B market cap cruise operator) - verified
+    # live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL instance
+    # document (accession 0001745201-26-000007, vik-20251231_htm.xml). companyfacts has
+    # zero standard/IFRS PP&E-purchase concept for VIK at all - real capex (new-ship
+    # construction) tagged under vik:InvestmentsInPropertyPlantAndEquipmentAndIntangible
+    # Assets, plain non-dimensioned annual contexts: $1,026,854,000 FY2025 /
+    # $917,424,000 FY2024 / $673,932,000 FY2023 - plausible vs. VIK's real cruise-ship-
+    # building capex scale (~40% of FY2025 operating cash flow of $2.56B).
+    "VIK": [("vik", "InvestmentsInPropertyPlantAndEquipmentAndIntangibleAssets")],
+    # Zurn Elkay Water Solutions Corp (CIK 0001439288, $7.9B market cap industrial) -
+    # verified live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL
+    # instance document (accession 0001628280-26-006372, zws-20251231_htm.xml). Neither
+    # the standard fetch list nor companyfacts has any populated PP&E-purchase concept
+    # for ZWS - real capex tagged under zws:PaymentsToAcquirePropertyPlantAndEquipment
+    # IncludingDiscontinuedOperations, plain non-dimensioned annual contexts:
+    # $29,900,000 FY2025 / $21,800,000 FY2024 / $21,300,000 FY2023 - plausible small-cap
+    # industrial capex scale.
+    "ZWS": [("zws", "PaymentsToAcquirePropertyPlantAndEquipmentIncludingDiscontinuedOperations")],
 }
 
 
