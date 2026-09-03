@@ -2364,6 +2364,17 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "no_recent_total_assets_reported",
             "eps_never_tagged_in_filings",
             "capex_never_tagged_in_recent_filings",
+            # MOVED 2026-09-02 (SEC/XBRL missing-data sweep, live audit of the "Other" bucket):
+            # "symbol_not_found" was sitting in "Other (errors / excluded)" as a bare set
+            # literal with no explanation. Repo-wide grep of every write site (only two:
+            # load_sec_segment_info.py's _handle_symbol_not_found and
+            # load_current_reports_8k.py's CIK-lookup branch) shows both mean exactly
+            # "self.sec_client.symbol_to_cik(symbol)"/"_get_cik(symbol)" found no SEC CIK for
+            # this symbol - the identical fact "cik_not_found" already captures above, just a
+            # different literal from two specific loaders. Not a processing error; a real SEC/
+            # XBRL data gap. Was mislabeled as an unexplained "Other" error (53 live
+            # sec_segment_info rows + 17 live current_reports_8k rows).
+            "symbol_not_found",
         },
     ),
     (
@@ -2513,7 +2524,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
     (
         "Other (errors / excluded)",
         {
-            "symbol_not_found",
             "fetch_error:ValueError",
             "fetch_error:RuntimeError",
             "data_unavailable_during_load",
