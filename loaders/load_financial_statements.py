@@ -599,6 +599,13 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "ShortTermBankLoansAndNotesPayable" (EXPD live evidence).
         "short_term_bank_loans_and_notes_payable",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
+        # the finance-lease-combined PP&E concept (DASH/DINO live evidence) - despite this
+        # set's debt-focused name it's the shared balance-sheet fallback-only bucket (see
+        # the stockholders_equity entry's comment above), covers non-debt fields too.
+        "public_utilities_property_plant_and_equipment_net",
+        "property_plant_and_equipment_and_finance_lease_right_of_use_asset_after_accumulated_depreciation_and_amortization",
     }
 )
 
@@ -688,6 +695,13 @@ _BALANCE_FIELD_MAPPING = {
     "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents": "cash_and_equivalents",
     "accounts_receivable_net_current": "accounts_receivable",
     "inventory_net": "inventory",
+    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments
+    # on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
+    # "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciation
+    # AndAmortization" (DASH/DINO live evidence) - both fallback-only (see
+    # _DEBT_FALLBACK_ONLY_FIELDS below), must never win over the standard concept.
+    "public_utilities_property_plant_and_equipment_net": "ppe_net",
+    "property_plant_and_equipment_and_finance_lease_right_of_use_asset_after_accumulated_depreciation_and_amortization": "ppe_net",
     "property_plant_and_equipment_net": "ppe_net",
     "goodwill": "goodwill",
     "long_term_debt": "long_term_debt",

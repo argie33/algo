@@ -513,6 +513,24 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "CashAndCashEquivalentsAtCarryingValue",
         "AccountsReceivableNetCurrent",
         "InventoryNet",
+        # FIXED 2026-09-03 (same sweep): regulated utilities (ES/Eversource live-confirmed
+        # via real companyfacts JSON: $39.499B FY2023 / $40.987B FY2024 / $45.931B FY2025,
+        # continuous) tag net PP&E under this utility-specific concept instead of the plain
+        # one below - a real, sector-standard taxonomy element (rate-base-regulated utility
+        # accounting), not a filer-specific quirk. A live DB scan found 11 Utilities-sector
+        # symbols (ES/TXNM/AVA/CWT/SWX/MSEX/RGCO among others) with real total_assets but
+        # NEVER a single ppe_net value. Fallback-only, listed before the standard concept so
+        # a utility holding company that also tags the plain concept keeps that value.
+        "PublicUtilitiesPropertyPlantAndEquipmentNet",
+        # FIXED 2026-09-03 (same sweep): post-ASC-842 combined PP&E + finance-lease
+        # right-of-use concept - DASH (DoorDash) and DINO (HF Sinclair) both live-confirmed
+        # via real companyfacts JSON reporting their entire real net PP&E only under this
+        # concept in real 10-K filings (DASH: $778M FY2024/$1.067B FY2025; DINO: $6.627B
+        # FY2023/$6.558B FY2024/$6.533B FY2025), never the plain concept below. Shared
+        # standard taxonomy element (not company-specific), likely broadly applicable
+        # post-2019 (ASC 842 adoption). Fallback-only, same before-the-standard-concept
+        # ordering as the utility fallback above.
+        "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization",
         "PropertyPlantAndEquipmentNet",
         "Goodwill",
         # FIXED 2026-08-17 (loader-review goal continuation): fallback long-term-debt

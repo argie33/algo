@@ -57,6 +57,8 @@ _BALANCE_CONCEPTS = [
     "CashAndCashEquivalentsAtCarryingValue",
     "AccountsReceivableNetCurrent",
     "InventoryNet",
+    "PublicUtilitiesPropertyPlantAndEquipmentNet",
+    "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization",
     "PropertyPlantAndEquipmentNet",
     "Goodwill",
     "NotesPayableRelatedPartiesNoncurrent",
