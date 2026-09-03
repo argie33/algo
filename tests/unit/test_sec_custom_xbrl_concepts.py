@@ -391,6 +391,38 @@ _PSX_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors the real structure confirmed live 2026-09-03 against ConocoPhillips' actual
+# filed FY2025 10-K raw XBRL instance document (accession 0001163165-26-000009): a single
+# concept covers the entire "Capital expenditures and investments" cash-flow-statement
+# line, plain non-dimensioned context, immediately after Net Cash Provided by Operating
+# Activities.
+_COP_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:cop="http://conocophillips.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001163165</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <cop:PaymentToAcquireProductiveAssetsAndInvestments contextRef="c-1" unitRef="usd" decimals="-6">12553000000</cop:PaymentToAcquireProductiveAssetsAndInvestments>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Alibaba's actual filed
+# FY2026 (fiscal year ended 2026-03-31) 20-F raw XBRL instance document (accession
+# 0001193125-26-231755): a plain non-dimensioned annual-duration context, USD-denominated
+# fact alongside a parallel CNY one (only the USD fact used here, matching this module's
+# "match by local name only" convention - both are real, not a duplicate/typo).
+_BABA_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:baba="http://alibabagroup.com/20260331">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001577552</identifier></entity>
+    <period><startDate>2025-04-01</startDate><endDate>2026-03-31</endDate></period>
+  </context>
+  <baba:PaymentsToAcquireLandUseRightsPropertyAndEquipment contextRef="c-1" unitRef="usd" decimals="-6">18275000000</baba:PaymentsToAcquireLandUseRightsPropertyAndEquipment>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_nee_sums_the_three_additive_concepts(self):
@@ -408,6 +440,17 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_psx_returns_its_own_concept(self):
         result = extract_custom_capex_from_xbrl_xml(_PSX_XML, "PSX")
         assert result[2025] == 4_466_000_000.0
+
+    def test_cop_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_COP_XML, "COP")
+        assert result[2025] == 12_553_000_000.0
+
+    def test_baba_fiscal_year_matches_march_period_end_not_start(self):
+        result = extract_custom_capex_from_xbrl_xml(_BABA_XML, "BABA")
+        # Fiscal year ended 2026-03-31 must bucket as FY2026 (end_date.year), matching
+        # this codebase's own annual_cash_flow.fiscal_year convention for BABA - not
+        # FY2025 (the year the period started in).
+        assert result[2026] == 18_275_000_000.0
 
 
 # Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual

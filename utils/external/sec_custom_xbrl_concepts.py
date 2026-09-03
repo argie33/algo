@@ -128,6 +128,36 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # scale. PSX's companyfacts JSON has zero entries under any PP&E-family/standard
     # concept for any fiscal year.
     "PSX": [("psx", "CapitalExpendituresAndInvestments")],
+    # ConocoPhillips (CIK 0001163165, integrated oil & gas major) - verified live
+    # 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+    # no_recent_free_cash_flow_reported investigation, $309B market cap). COP's
+    # companyfacts JSON has zero entries under any PP&E-family/standard capex concept
+    # since FY2022 (its last "PaymentsToAcquireProductiveAssets" 10-K value was FY2022,
+    # $10.159B). Real FY2023-2025 companion figure confirmed against the raw filed
+    # FY2025 10-K XBRL instance document (accession 0001163165-26-000009,
+    # cop-20251231_htm.xml): single concept covers COP's whole capex line ("Capital
+    # expenditures and investments" on the consolidated cash flow statement, immediately
+    # below Net Cash Provided by Operating Activities, plain non-dimensioned contexts):
+    # cop:PaymentToAcquireProductiveAssetsAndInvestments $12,553,000,000 FY2025 /
+    # $12,118,000,000 FY2024 / $11,248,000,000 FY2023 - plausible vs. COP's real,
+    # publicly reported ~$11-13B/yr capex budget, growing consistent with no gap/reset
+    # between years. Same "filer switched to its own extension concept, standard
+    # companyfacts extraction structurally can't see it" pattern as PSX above.
+    "COP": [("cop", "PaymentToAcquireProductiveAssetsAndInvestments")],
+    # Alibaba Group Holding Ltd (CIK 0001577552, $278B market cap 20-F filer) - verified
+    # live 2026-09-03 (same sweep) against the real filed FY2026 (fiscal year ended
+    # 2026-03-31) 20-F raw XBRL instance document (accession 0001193125-26-231755,
+    # baba-20260331_htm.xml). companyfacts JSON's only PP&E-family concept
+    # (PaymentsToAcquireOtherPropertyPlantAndEquipment) stops after FY2020 (last real
+    # value $3.483B, fiscal year ended 2020-03-31) - every fiscal year since is a genuine
+    # unextracted-data gap, not a structural absence: baba:PaymentsToAcquireLandUseRights
+    # PropertyAndEquipment (BABA's own combined "land use rights" - the standard PRC
+    # equivalent of purchased land - plus PP&E concept) continues with real, plain
+    # non-dimensioned contexts every fiscal year: CNY 32,087,000,000 FY2024 (fiscal year
+    # ended 2024-03-31) / CNY 85,972,000,000 FY2025 / CNY 126,063,000,000 (USD
+    # 18,275,000,000) FY2026 - a real, sharply accelerating capex ramp plausible against
+    # Alibaba's own publicly reported AI/cloud-infrastructure buildout, not a placeholder.
+    "BABA": [("baba", "PaymentsToAcquireLandUseRightsPropertyAndEquipment")],
 }
 
 
