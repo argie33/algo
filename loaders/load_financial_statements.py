@@ -666,6 +666,12 @@ _BALANCE_FIELD_MAPPING = {
     # (was reading total_liabilities, not any debt concept at all).
     "commercial_paper": "short_term_debt",
     "short_term_borrowings": "short_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): VRSN
+    # (VeriSign) real debt concept - see sec_statements.py's get_balance_sheet() comment
+    # on SeniorNotes/SeniorNotesCurrent for the live evidence. Same either/or-alternative,
+    # plain-mapping convention as commercial_paper/short_term_borrowings above.
+    "senior_notes": "long_term_debt",
+    "senior_notes_current": "short_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's

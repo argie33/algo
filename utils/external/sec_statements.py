@@ -553,6 +553,21 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # collision case).
         "CommercialPaper",
         "ShortTermBorrowings",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # no_recent_debt_components_symbols investigation): VRSN (VeriSign) tags its real,
+        # current debt exclusively under "SeniorNotes"/"SeniorNotesCurrent" - live-
+        # confirmed via real companyfacts JSON: SeniorNotes (noncurrent) FY2025
+        # $1,788,200,000, growing from FY2024's $1,792,300,000 basis; VeriSign's older
+        # "LongTermDebt" concept reports real $0 since FY2013 and "ConvertibleDebt" since
+        # FY2018 (paid off/refinanced, not still in use) - no overlap with this concept's
+        # real values in any year. Same "either/or alternative, plain concept" convention
+        # as CommercialPaper/ShortTermBorrowings above (target: long_term_debt).
+        "SeniorNotes",
+        # Current-portion pairing for the concept above - same either/or convention as
+        # CommercialPaper/ShortTermBorrowings (target: short_term_debt). VeriSign's own
+        # SeniorNotesCurrent was $299,800,000 FY2024, $0 FY2025 (fully refinanced to
+        # noncurrent that year) - a real, moving figure, not a placeholder.
+        "SeniorNotesCurrent",
         # FIXED 2026-08-17 (migration 1205): post-ASC 842 (2019+) capitalized lease
         # liabilities - a real, separate liability from long_term_debt/short_term_debt
         # above (AAPL's LongTermDebt does not include either). Using the COMBINED tags
