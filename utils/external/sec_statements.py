@@ -1048,6 +1048,34 @@ def _fill_income_tax_expense_from_current_deferred_split(rows: list[dict[str, An
         row["income_tax_expense"] = current + deferred
 
 
+def _fill_pretax_income_from_results_of_operations_when_validated(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: pretax_income from "ResultsOfOperationsIncomeBeforeIncomeTaxes", but ONLY
+    when it exactly matches the independently-known net_income + income_tax_expense identity
+    for that same fiscal year.
+
+    This concept is genuinely ambiguous per-filer - live-confirmed CNX Resources tags it as an
+    ASC 932 oil-and-gas-producing-activities supplementary disclosure (NOT consolidated pretax
+    income), while RRC (Range Resources, same SIC 1311 E&P classification) tags the identical
+    concept name as its REAL consolidated pretax income. Rather than guessing which meaning a
+    given filer uses, cross-validate the filer's OWN tagged value against its own already-known
+    net_income/income_tax_expense for that year - only promote it when they agree exactly (both
+    values, being independently-sourced real SEC facts, should match to the dollar when the
+    concept really is consolidated pretax income; a supplementary sub-figure like CNX's won't).
+    Never overwrites a real "pretax_income" value already resolved from the primary concepts
+    above. Mutates rows in place and always strips the raw candidate key.
+    """
+    for row in rows:
+        candidate = row.pop("results_of_operations_income_before_income_taxes", None)
+        if row.get("pretax_income") is not None or candidate is None:
+            continue
+        net_income = row.get("net_income_loss")
+        tax = row.get("income_tax_expense")
+        if net_income is None or tax is None:
+            continue
+        if candidate == net_income + tax:
+            row["pretax_income"] = candidate
+
+
 def get_income_statement(
     client: Any, symbol: str, period: str = "annual", security_name: str | None = None
 ) -> list[dict[str, Any]]:
@@ -1489,12 +1517,32 @@ def get_income_statement(
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        # FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction, pretax_income
+        # investigation): the comment above rejected "ResultsOfOperationsIncomeBeforeIncomeTaxes"
+        # wholesale after finding it's CNX's ASC 932 oil-and-gas-producing-activities
+        # supplementary disclosure, not consolidated pretax income - true for CNX, but NOT
+        # universal. Live-confirmed RRC (Range Resources, also SIC 1311 E&P) tags this SAME
+        # concept as its REAL consolidated pretax income: FY2020/2021/2022 values
+        # (-$737,329,000 / $402,035,000 / $1,413,830,000) match net_income + income_tax_expense
+        # to the exact dollar in all 3 years. Since this concept is genuinely ambiguous
+        # per-filer (sometimes the real total, sometimes a supplementary sub-figure), it is
+        # deliberately NOT mapped to "pretax_income" via field_mapping here (which would apply
+        # it blindly, unlike every concept above) - instead kept under its own raw key and only
+        # promoted by _fill_pretax_income_from_results_of_operations_when_validated() below,
+        # which requires an exact match against the already-known net_income+income_tax_expense
+        # identity before trusting it for that specific fiscal year. This is NOT the blanket
+        # "pretax_income = net_income + income_tax_expense" reconstruction already investigated
+        # and rejected as a scoring-layer fallback (~75% accurate universe-wide, see MEMORY.md's
+        # pretax_income_derivation_rejected) - it only ever uses the filer's OWN real tagged
+        # value, and only when independently corroborated, never a computed number.
+        "ResultsOfOperationsIncomeBeforeIncomeTaxes",
     ]
     rows = _aggregate_concepts(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
+    _fill_pretax_income_from_results_of_operations_when_validated(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows
