@@ -110,5 +110,12 @@ class TestDebtComponentsNeverTaggedFullHistoryReason:
 
         metrics = loader._compute_quality_metrics("NORMALCO", _quality_row(), ev_metrics=None)
 
-        assert metrics["total_debt_unavailable_reason"] == "missing_sec_data"
+        # total_debt reads ev_metrics=None as "no sec_valuations row at all" since bf82fc6d0
+        # wired total_debt into the same no_sec_valuations_row/sec_valuations.reason
+        # propagation its sibling fields (total_cash/cash_per_share/ebitda) already had - the
+        # real, more specific cause, not the generic fallback this test originally asserted.
+        assert metrics["total_debt_unavailable_reason"] == "no_sec_valuations_row"
+        # debt_to_equity doesn't read from ev_metrics/sec_valuations at all (it uses
+        # debt_for_roic and its own quality_row-derived gates), so it's unaffected and still
+        # correctly falls through to the generic label here.
         assert metrics["debt_to_equity_unavailable_reason"] == "missing_sec_data"
