@@ -110,3 +110,24 @@ class TestOilGasMajorsIfrsCapexAliases:
         rows = get_cash_flow(_FakeClient(facts), "SHEL", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
         assert by_year[2025]["payments_to_acquire_property_plant_and_equipment"] == 21_815_000_000.0
+
+
+class TestToyotaIfrsCapexAlias:
+    """Regression test for the 2026-09-03 follow-up: TM (Toyota Motor Corp), filing 20-F
+    under IFRS, stopped tagging either us-gaap "PaymentsToAcquirePropertyPlantAndEquipment"
+    or "PaymentsToAcquireProductiveAssets" after its FY2020 20-F - real capex continued
+    under the ifrs-full "AdditionsToNoncurrentAssets" concept instead, previously unmapped."""
+
+    def test_additions_to_noncurrent_assets_maps_to_capex(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            sec_statements._fx_rate_cache, "get_usd_rate", lambda code, date: 150.0 if code == "JPY" else None
+        )
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "AdditionsToNoncurrentAssets": {"units": {"JPY": [_entry(2025, 5_991_268_000_000.0, "2026-06-24")]}},
+            },
+        }
+        rows = get_cash_flow(_FakeClient(facts), "TM", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["payments_to_acquire_property_plant_and_equipment"] == 5_991_268_000_000.0 / 150.0

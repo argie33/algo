@@ -307,6 +307,27 @@ _CASHFLOW_IFRS_ALIASES = [
         "PropertyPlantAndEquipmentExpendituresRecognisedForConstructions",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, capex
+    # generic-gap investigation): TM (Toyota Motor Corp, CIK 0001094517) stopped tagging
+    # either us-gaap "PaymentsToAcquirePropertyPlantAndEquipment" or
+    # "PaymentsToAcquireProductiveAssets" (both real, continuous through FY2020, both
+    # already mapped above/in the us-gaap list) after its FY2020 20-F - live-confirmed via
+    # real companyfacts JSON that this ifrs-full concept picks up immediately where they
+    # stop and continues with real, growing values through FY2025 (JPY 3.582T FY2020,
+    # 3.610T FY2021, 3.612T FY2022, 3.496T FY2023, 4.848T FY2024, 5.991T FY2025 -
+    # continuously plausible against Toyota's real, publicly reported ~JPY3.5-6T/yr capex
+    # scale as EV/battery investment ramped, no other concept in Toyota's companyfacts
+    # comes close to this magnitude for FY2021+). Same "closest available proxy" caveat as
+    # the PropertyPlantAndEquipmentExpendituresRecognisedForConstructions/SHEL and
+    # AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipment/TTE concepts
+    # above: a PP&E roll-forward "additions to noncurrent assets" disclosure rather than a
+    # concept scoped to PP&E alone by name, but the real, current capex figure these
+    # filers actually report - no overlap risk with the FY2020-and-earlier concepts above
+    # (this concept only appears starting FY2020, after those go silent).
+    (
+        "AdditionsToNoncurrentAssets",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
     # FIXED 2026-08-03: no IFRS dividend concept was mapped at all, so every dividend-paying
     # IFRS filer (live-confirmed: WPM/Wheaton Precious Metals, real ifrs-full:DividendsPaid
     # data present back to FY2015, $296M for FY2025) got payout_ratio/dividend_yield

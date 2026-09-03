@@ -2733,6 +2733,27 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         and row.get("stockholders_equity") is not None
                     ):
                         row["total_liabilities"] = row["total_assets"] - row["stockholders_equity"]
+                    # INVESTIGATED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k"
+                    # sweep, pretax_income generic-gap investigation) and deliberately NOT added
+                    # here: live-confirmed CVNA (Carvana, CIK 0001690820) never tags ANY of the
+                    # three IncomeLossFromContinuingOperationsBeforeIncomeTaxes* concepts above,
+                    # in any fiscal year, while NetIncomeLoss/IncomeTaxExpenseBenefit are both
+                    # real - net_income + income_tax_expense reconstructs CVNA's real pretax
+                    # income exactly. But this same approximation was already tried and
+                    # REJECTED one layer up, at the point of use, in
+                    # test_roic_pct_zero_tax_untagged_pretax_reason.py's docstring: "only ~75%
+                    # agreement across the universe due to noncontrolling-interest/discontinued-
+                    # operations adjustments" (289-symbol universe check). Filling it in HERE, at
+                    # the source column, would be strictly worse than what was already rejected -
+                    # it would silently corrupt pretax_income for every downstream consumer
+                    # (not just roic_pct's scoped, confirmed-structural-absence branch via
+                    # _get_never_tagged_pretax_income_symbols), indistinguishable from real
+                    # tagged data. Leave pretax_income NULL here; the existing scoped
+                    # approximation in load_value_quality_growth_metrics.py's roic_pct branch
+                    # (only fires for symbols confirmed pretax-absent 3+ years) remains the
+                    # correct, narrower place for this identity - do not re-add it as a blanket
+                    # column-level fallback without addressing the NCI/discontinued-ops error
+                    # rate first.
                     # FIXED 2026-08-18 (missing factor inputs audit): DividendsCommonStockCash/
                     # DividendsCommonStock (see _CASHFLOW_FIELD_MAPPING comment) carry a
                     # debit-balance XBRL definition and live-confirmed flip sign by filing
