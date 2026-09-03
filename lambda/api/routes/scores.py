@@ -2425,6 +2425,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "spy_price_data_insufficient",
             "insufficient_common_dates",
             "insufficient_returns",
+            # ADDED 2026-09-03 (SEC/XBRL missing-data sweep, synchronous static sweep):
+            # loaders/load_risk_metrics_daily.py's sibling beta-computation gate to the three
+            # above - SPY's own aligned-window return variance came back exactly 0 (a
+            # degenerate covariance denominator, distinct from extreme_beta below which fires
+            # AFTER a beta value was successfully computed). Same "beta couldn't be computed
+            # at all from this window" class as spy_price_data_insufficient/
+            # insufficient_common_dates/insufficient_returns, not extreme_beta's "computed but
+            # implausible" class. Was unmapped, falling through to "Other (errors / excluded)".
+            "spy_variance_zero",
             # ADDED 2026-08-29 (goal session: coverage-categorization sweep, live audit of
             # the "Other (errors / excluded)" bucket via lambda/api/routes/scores.py's own
             # _get_scores_coverage output): load_value_quality_growth_metrics.py's
@@ -2863,6 +2872,24 @@ def _categorize_reason(reason: str) -> str:
     # of the universe legitimately has zero signals at any given time), not a loader bug -
     # same "not enough qualifying data yet" class as "Insufficient history"'s other members.
     if reason.startswith(("[SIGNAL_QUALITY]", "[VCP_NO_DATA]")):
+        return "Insufficient history"
+    # ADDED 2026-09-03 (SEC/XBRL missing-data sweep, synchronous static sweep): stock_scores'
+    # own `reason` column - the FINAL composite-scoring stage, written by
+    # load_stock_scores.py's `_build_score_row` when too few of the 5 pillars
+    # (quality/growth/value/risk/momentum) were available to trust a composite score -
+    # f"Completeness {pct:.2f}% < {threshold}% threshold (missing metrics: {...})". A full
+    # sentence with a variable percentage, not a snake_case code, so `base` (split on the
+    # first ":") comes out as "Completeness NN.NN% < NN.N% threshold (missing metrics" and
+    # never matches a set literal below - same "sentence instead of a code" shape as
+    # "Insufficient historical data:" above. Live-confirmed 227 rows, the largest unmapped
+    # stock_scores reason. Same "not enough underlying data to trust a computed value" class
+    # as insufficient_completeness (quality_score's own analogous gate, already in
+    # "Insufficient history" below). Deliberately does NOT also catch the sibling
+    # "Operation failed: {exception}" wrapper two lines below in the source (RuntimeError's
+    # generic exception-message wrapper, `raise RuntimeError(f"Operation failed: {e}")`) -
+    # that one can wrap an arbitrary exception, not always a data-completeness fact, so
+    # bucketing it here would risk mislabeling a genuine bug as a data gap.
+    if reason.startswith("Completeness "):
         return "Insufficient history"
     for cat, keys in _COVERAGE_CATEGORY_RULES:
         if base in keys or reason in keys:

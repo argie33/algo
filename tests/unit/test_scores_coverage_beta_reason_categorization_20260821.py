@@ -18,6 +18,12 @@ def test_beta_history_shortfalls_categorize_as_insufficient_history():
         "insufficient_common_dates: 2/5",
         "insufficient_returns: 3/4",
         "insufficient_price_history",
+        # ADDED 2026-09-03 (synchronous static sweep): sibling gate in
+        # load_risk_metrics_daily.py - SPY's own aligned-window return variance came back
+        # exactly 0 (degenerate covariance denominator), a beta-couldn't-be-computed-at-all
+        # fact like the others above, distinct from extreme_beta below (computed but
+        # implausible). Was unmapped, falling through to "Other (errors / excluded)".
+        "spy_variance_zero",
     ):
         assert scores_mod._categorize_reason(reason) == "Insufficient history", (
             f"{reason!r} categorized as {scores_mod._categorize_reason(reason)!r}, not 'Insufficient history'"
