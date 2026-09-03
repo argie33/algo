@@ -177,7 +177,16 @@ class TestQuarterlyGrowthMomentumGarbageBound:
             == "garbage_metric_value_implausible_growth_rate"
         )
 
-    def test_near_zero_prior_quarter_eps_marked_unavailable(self, monkeypatch):
+    def test_near_zero_prior_quarter_eps_excluded_not_diluting_average(self, monkeypatch):
+        # FIXED 2026-09-03 (goal session: "implausible values" investigation, AFL live
+        # evidence): a single quarter's implausible ratio (prior_eps=0.0001 here) used to
+        # get included un-bounded and only the AGGREGATE was checked - with 3 other 0%-
+        # growth quarters diluting it, real cases like AFL's 1948.03% average stayed under
+        # the 2000% cap and got silently trusted. Now the implausible quarter is excluded
+        # from the average BEFORE combining (same "bound each side, not just the result"
+        # governance as the margin_trend fix elsewhere in this file), leaving only the 3
+        # genuinely-0%-growth quarters - a real, computable average, not a total loss of
+        # signal, and no longer silently corruptible by one garbage quarter either.
         rows = self._quarters(
             [100_000_000.0, 100_000_000.0, 100_000_000.0, 100_000_000.0],
             epss=[0.5, 0.5, 0.5, 0.5],
@@ -187,10 +196,44 @@ class TestQuarterlyGrowthMomentumGarbageBound:
 
         metrics = loader._compute_quarterly_metrics("NIQ")
 
-        assert metrics.get("earnings_growth_4q_avg") is None
-        assert (
-            metrics.get("earnings_growth_4q_avg_unavailable_reason") == "garbage_metric_value_implausible_growth_rate"
+        assert metrics.get("earnings_growth_4q_avg") == 0.0
+        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") is None
+
+    def test_afl_style_single_garbage_quarter_diluted_average_now_excluded(self, monkeypatch):
+        # AFL-shaped: 3 quarters with real, moderate growth plus 1 quarter whose prior-year
+        # EPS was implausibly tiny - before the fix, that one quarter's huge ratio (diluted
+        # by the other 3) could still land the AVERAGE under the 2000% cap and get trusted
+        # as real data. Now the bad quarter is excluded before averaging, so the result
+        # reflects only the 3 genuinely-computable quarters, not a distorted blend.
+        rows = self._quarters(
+            [100_000_000.0] * 4,
+            epss=[1.10, 1.20, 1.05, 1.15],
+            prior_epss=[1.00, 0.0002, 1.00, 1.00],
         )
+        loader = _make_loader(monkeypatch, quarterly_rows=rows)
+
+        metrics = loader._compute_quarterly_metrics("AFLLIKE")
+
+        # Only the 3 quarters with a real prior-year base (1.00) contribute: growth rates
+        # 10%, 5%, 15% -> average 10%. The 0.0002-based quarter (~549,900% growth) must be
+        # excluded, not averaged in.
+        assert metrics.get("earnings_growth_4q_avg") == pytest.approx(10.0, abs=1e-2)
+        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") is None
+
+    def test_all_quarters_implausible_still_marked_unavailable(self, monkeypatch):
+        # Control: when EVERY quarter's individual ratio is implausible (not just one
+        # diluted by normal siblings), eps_growth_rates ends up empty and the field
+        # correctly falls through to the existing "no usable data" path.
+        rows = self._quarters(
+            [100_000_000.0, 100_000_000.0, 100_000_000.0, 100_000_000.0],
+            epss=[0.5, 0.5, 0.5, 0.5],
+            prior_epss=[0.0001, 0.0001, 0.0001, 0.0001],
+        )
+        loader = _make_loader(monkeypatch, quarterly_rows=rows)
+
+        metrics = loader._compute_quarterly_metrics("ALLGARBAGECO")
+
+        assert metrics.get("earnings_growth_4q_avg") is None
 
     def test_normal_quarterly_growth_still_computes(self, monkeypatch):
         rows = self._quarters(

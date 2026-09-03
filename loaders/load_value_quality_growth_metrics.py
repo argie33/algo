@@ -1960,7 +1960,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 any_yoy_period_matched = True
                 curr_eps, prev_eps = q["eps"], prior["eps"]
                 if curr_eps is not None and prev_eps is not None and prev_eps != 0:
-                    eps_growth_rates.append(((curr_eps - prev_eps) / abs(prev_eps)) * 100)
+                    quarter_eps_growth = ((curr_eps - prev_eps) / abs(prev_eps)) * 100
+                    # FIXED 2026-09-03 (goal session: "implausible values" investigation):
+                    # this used to append every quarter's ratio unconditionally and only
+                    # bound the AGGREGATE (average/stddev) below - same bug class as the
+                    # margin_trend fix elsewhere in this file (2026-08-10: "the trend-level
+                    # check only bounds the DELTA, not the two margins that produce it") and
+                    # operating_income_growth_yoy's immaterial-base guard a few hundred
+                    # lines below. Live-confirmed on AFL: a single quarter's near-zero-
+                    # prior-EPS ratio (Q1 2025 EPS $0.05 -> Q1 2026 $1.99, ~3,880%) diluted
+                    # under the 2000% aggregate cap into a "trusted" 1948.03% average -
+                    # mathematically correct given the real inputs, but not meaningfully
+                    # different from the overflow risk this file already treats as
+                    # implausible everywhere else. Excluding an individual quarter whose own
+                    # ratio already exceeds MAX_PLAUSIBLE_GROWTH_PCT (reusing the same
+                    # constant the aggregate already uses, not a new guessed threshold)
+                    # before averaging - live DB scan found ~215-271 universe symbols show
+                    # this exact dilution pattern.
+                    if abs(quarter_eps_growth) < MAX_PLAUSIBLE_GROWTH_PCT:
+                        eps_growth_rates.append(quarter_eps_growth)
                 curr_rev, prev_rev = q["revenue"], prior["revenue"]
                 if curr_rev is not None and prev_rev is not None and prev_rev != 0:
                     revenue_yoy_growth_rates.append(((curr_rev - prev_rev) / abs(prev_rev)) * 100)
