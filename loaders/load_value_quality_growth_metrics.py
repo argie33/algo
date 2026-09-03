@@ -84,12 +84,23 @@ def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
     1282 universe rows in this exact state (pe present, peg NULL, "missing_sec_data") have
     declining or newly-positive EPS - only 8 are genuine missing-prior-year-EPS gaps.
 
+    FIXED 2026-09-03 (SEC/XBRL missing-data sweep, generic missing_sec_data bucket
+    breakdown): the `len(eps_rows) < 2` branch still fell to generic "missing_sec_data" even
+    though it's a distinct, identifiable cause - only one (or zero) real EPS fiscal years
+    exist, so a year-over-year growth rate can't be computed at all, same "not enough history"
+    fact as every other insufficient_history reason in this codebase. Live-confirmed 14 of 15
+    sampled peg_ratio "missing_sec_data" rows with pe_ratio present (VSNT, PDCC, SPMC, NRP,
+    AGRZ, BXDC, APC, SAGT, PLSM, MICC, ELMT, MRP, PARK, JCAP) have exactly one non-NULL EPS
+    fiscal year on file - correctly labeled "insufficient_history" instead, which
+    `_categorize_reason()` (lambda/api/routes/scores.py) buckets into "Insufficient history",
+    not "Missing SEC/XBRL data".
+
     Args:
         eps_rows: 0-2 (fiscal_year, earnings_per_share) tuples, already filtered to non-NULL
             EPS and ordered fiscal_year DESC (i.e. exactly what the caller's DB query returns).
     """
     if len(eps_rows) < 2:
-        return "missing_sec_data"
+        return "insufficient_history"
     ttm_eps_for_growth, prior_eps_for_growth = eps_rows[0][1], eps_rows[1][1]
     if prior_eps_for_growth is None or prior_eps_for_growth <= 0:
         return "negative_earnings_growth"
@@ -5835,6 +5846,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "operating_cash_flow_absent_from_anchor_year"
                     if operating_cash_flow is None
                     and symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
+                    # FIX 2026-09-03 (SEC/XBRL missing-data sweep, generic missing_sec_data
+                    # bucket breakdown): accruals_ratio's denominator is total_assets (see its
+                    # computation above), but this gate chain only ever checked the numerator's
+                    # operating_cash_flow inputs against the structural no-data gates - never
+                    # total_assets, even though roa/debt_to_assets/asset_turnover right below
+                    # already reuse these exact same gates for the identical total_assets-is-
+                    # None cause. Live-confirmed WPP/RTO (real net_income and operating_cash_flow
+                    # every recent year, but total_assets genuinely never tagged - both already
+                    # in _get_no_recent_total_assets_symbols()/_get_never_tagged_total_assets_
+                    # symbols()) fell to the generic fallback despite the specific cause already
+                    # being computable from an existing, reused gate.
+                    else "no_recent_total_assets_reported"
+                    if total_assets is None
+                    and (
+                        symbol in self._get_no_recent_total_assets_symbols()
+                        or symbol in self._get_never_tagged_total_assets_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if accruals_ratio is None

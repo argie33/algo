@@ -42,11 +42,12 @@ def test_genuine_growth_reports_missing_sec_data() -> None:
     assert peg_ratio_reason_from_eps_history(eps_rows) == "missing_sec_data"
 
 
-def test_only_one_year_of_eps_history_reports_missing_sec_data() -> None:
-    # Can't compute a growth rate without a prior year at all - genuine gap.
+def test_only_one_year_of_eps_history_reports_insufficient_history() -> None:
+    # Can't compute a growth rate without a prior year at all - a distinct, identifiable
+    # cause (FIXED 2026-09-03), not the generic "missing_sec_data" catch-all.
     eps_rows = [(2025, 5.00)]
-    assert peg_ratio_reason_from_eps_history(eps_rows) == "missing_sec_data"
+    assert peg_ratio_reason_from_eps_history(eps_rows) == "insufficient_history"
 
 
-def test_no_eps_history_reports_missing_sec_data() -> None:
-    assert peg_ratio_reason_from_eps_history([]) == "missing_sec_data"
+def test_no_eps_history_reports_insufficient_history() -> None:
+    assert peg_ratio_reason_from_eps_history([]) == "insufficient_history"
