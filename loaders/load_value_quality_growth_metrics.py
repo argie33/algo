@@ -6208,6 +6208,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     else "operating_income_absent_from_anchor_year"
                     if operating_income_for_margin is None
                     and symbol in self._get_operating_income_available_elsewhere_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same fix as gross_margin/roic_pct/roce_pct elsewhere in this
+                    # file): operating_margin's total_assets fallback (see the computation block
+                    # above) only ever runs when operating_income_for_margin is non-None - a
+                    # symbol with operating_income_for_margin NEVER tagged (not just this anchor
+                    # year) and no _get_no_tax_concept_symbols() match (that gate is scoped to
+                    # the REIT/tonnage-tax "never tags pretax_income/income_tax_expense" pattern,
+                    # which doesn't fit passive commodity/crypto trusts that tag real tax lines)
+                    # falls through to generic. Live-confirmed 23/98 universe operating_margin
+                    # "missing_sec_data" rows are the same commodity/crypto-trust population
+                    # (AAAU, BDRY, BWET, DRUG - genuinely zero operating_income AND zero revenue
+                    # in every fiscal year on file) as roic_pct/roce_pct/gross_margin's identical
+                    # fix.
+                    else "no_revenue_reported"
+                    if operating_income_for_margin is None
+                    and (
+                        symbol in self._get_blank_check_symbols()
+                        or symbol in self._get_no_recent_revenue_symbols()
+                        or symbol in self._get_never_tagged_revenue_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "operating_margin" in failed_metrics
