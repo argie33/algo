@@ -605,6 +605,19 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # name that a filer reporting a real, more complete LongTermDebt/SeniorNotes figure
         # must always keep that value instead.
         "NotesPayable",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # continuation): PGR (Progressive) stopped tagging plain "LongTermDebt" after
+        # FY2015 (last real fact 2015-12-31, $2.708B) - live-confirmed via real companyfacts
+        # JSON that every 10-K since tags its real combined debt under
+        # "DebtLongtermAndShorttermCombinedAmount" instead: $4.899B FY2021 growing to
+        # $6.897B FY2025, continuous and consistent with Progressive's real, publicly known
+        # ~$6.9B debt scale - not debt-free, just a taxonomy switch (same pattern as ADC's
+        # DebtInstrumentCarryingAmount switch already fixed above). No current/noncurrent
+        # split reported under this concept, so single-figure fallback targeting
+        # long_term_debt only, same convention as NotesPayable immediately above.
+        # Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS) so a filer reporting the standard
+        # LongTermDebt concept for a given year always keeps that value.
+        "DebtLongtermAndShorttermCombinedAmount",
         # FIXED 2026-08-17 (migration 1205): post-ASC 842 (2019+) capitalized lease
         # liabilities - a real, separate liability from long_term_debt/short_term_debt
         # above (AAPL's LongTermDebt does not include either). Using the COMBINED tags

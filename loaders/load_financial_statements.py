@@ -571,6 +571,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # comment on "NotesPayable" (AFL/MAA live evidence) - must never win over a real,
         # more complete LongTermDebt/SeniorNotes value.
         "notes_payable",
+        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
+        # comment on "DebtLongtermAndShorttermCombinedAmount" (PGR live evidence) - must
+        # never win over a real LongTermDebt value from an earlier fiscal year.
+        "debt_longterm_and_shortterm_combined_amount",
     }
 )
 
@@ -708,6 +712,11 @@ _BALANCE_FIELD_MAPPING = {
     # "NotesPayable" for the live evidence. Same either/or-alternative, plain-mapping
     # convention as senior_notes above.
     "notes_payable": "long_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): PGR
+    # (Progressive) real debt concept - see sec_statements.py's get_balance_sheet()
+    # comment on "DebtLongtermAndShorttermCombinedAmount" for the live evidence. Same
+    # fallback-only, single-figure convention as notes_payable above.
+    "debt_longterm_and_shortterm_combined_amount": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's
