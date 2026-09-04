@@ -47,21 +47,21 @@ class TestPercentRankHigherIsBetter:
 
 
 class TestReconciliationMarginCurveMatchesNestedOriginal:
-    """_reconciliation_margin_curve must exactly match _compute_quality_metrics's nested
+    """_margin_curve must exactly match _compute_quality_metrics's nested
     _margin_curve (verbatim copy - verified against known ROE/ROCE breakpoint outputs)."""
 
     def test_roe_breakpoints(self) -> None:
-        assert L._reconciliation_margin_curve(10.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 50.0
-        assert L._reconciliation_margin_curve(20.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 85.0
-        assert L._reconciliation_margin_curve(40.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 100.0
-        assert L._reconciliation_margin_curve(151.91, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 100.0
+        assert L._margin_curve(10.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 50.0
+        assert L._margin_curve(20.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 85.0
+        assert L._margin_curve(40.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 100.0
+        assert L._margin_curve(151.91, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 100.0
 
     def test_roce_breakpoints(self) -> None:
-        assert L._reconciliation_margin_curve(8.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]) == 40.0
-        assert L._reconciliation_margin_curve(25.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]) == 100.0
+        assert L._margin_curve(8.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]) == 40.0
+        assert L._margin_curve(25.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]) == 100.0
 
     def test_negative_value_floors_at_zero(self) -> None:
-        assert L._reconciliation_margin_curve(-5.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 0.0
+        assert L._margin_curve(-5.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)]) == 0.0
 
 
 class TestUpdateQualityRoeRocePercentilesReconciliation:
@@ -84,14 +84,14 @@ class TestUpdateQualityRoeRocePercentilesReconciliation:
         )
         # Old (curve-based) component scores, computed the exact same way _compute_quality_metrics
         # does (verified against TestReconciliationMarginCurveMatchesNestedOriginal above).
-        roe_curve = L._reconciliation_margin_curve(roe, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-        roa_score = L._reconciliation_margin_curve(roa, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
-        roce_curve = L._reconciliation_margin_curve(roce_pct, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-        fcf_score = L._reconciliation_margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+        roe_curve = L._margin_curve(roe, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+        roa_score = L._margin_curve(roa, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
+        roce_curve = L._margin_curve(roce_pct, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+        fcf_score = L._margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
         d2e_score = max(0.0, min(100.0, 100.0 - (d2e / 2.0) * 100.0))
-        mv_score = 100.0 - L._reconciliation_margin_curve(margin_vol, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
-        at_score = L._reconciliation_margin_curve(asset_turnover, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
-        gp_score = L._reconciliation_margin_curve(gross_profitability, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
+        mv_score = 100.0 - L._margin_curve(margin_vol, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+        at_score = L._margin_curve(asset_turnover, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
+        gp_score = L._margin_curve(gross_profitability, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
         quality_score_old = (
             roe_curve * 11
             + roa_score * 18

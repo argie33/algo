@@ -16,7 +16,7 @@ the industry-best right formula" - see algo/research/quality_industry_leader_for
    passed in). This affects ALL symbols, not just Financial Services/Real Estate.
 
 Expected values below are independently derived using
-`ValueQualityGrowthMetricsLoader._reconciliation_margin_curve` (the same standalone curve-score
+`ValueQualityGrowthMetricsLoader._margin_curve` (the same standalone curve-score
 helper `test_quality_roe_roce_percentile_ranking_20260828.py` already uses for this exact
 purpose) applied to the SAME breakpoints live in `_compute_quality_metrics`, not copied from a
 particular run's output - if either the curve breakpoints or the composite weights drift, this
@@ -142,19 +142,19 @@ class TestMarginVolatilityScoreActuallyWired:
     def test_universal_formula_matches_independently_derived_expected_value(self):
         # Full hand-computable case, all 8 inputs available, Technology sector (universal
         # 8-input branch). Expected value derived from the same curve breakpoints live in
-        # _compute_quality_metrics, applied via _reconciliation_margin_curve - see module
+        # _compute_quality_metrics, applied via _margin_curve - see module
         # docstring for why this isn't just copying one run's observed output.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Technology"
 
-        roe_curve = L._reconciliation_margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-        roa_curve = L._reconciliation_margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
-        roce_curve = L._reconciliation_margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-        fcf_curve = L._reconciliation_margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
-        gp_curve = L._reconciliation_margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
+        roe_curve = L._margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+        roa_curve = L._margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
+        roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+        fcf_curve = L._margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+        gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
         d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
-        mv_score = 100.0 - L._reconciliation_margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
-        at_curve = L._reconciliation_margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
+        mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+        at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
             roe_curve * 11
@@ -178,13 +178,13 @@ class TestSectorConditionalFormula:
     asset_turnover_score - everything else (universal formula, other sectors) is unchanged."""
 
     def _expected_cluster_score(self):
-        roe_curve = L._reconciliation_margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-        roa_curve = L._reconciliation_margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
-        roce_curve = L._reconciliation_margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-        fcf_curve = L._reconciliation_margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
-        gp_curve = L._reconciliation_margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
+        roe_curve = L._margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+        roa_curve = L._margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
+        roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+        fcf_curve = L._margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+        gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
         d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
-        mv_score = 100.0 - L._reconciliation_margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+        mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
 
         profitability_cluster = (roe_curve + roa_curve + roce_curve + fcf_curve + gp_curve) / 5.0
         safety_cluster = (d2e_score + mv_score) / 2.0
@@ -263,10 +263,10 @@ class TestSectorConditionalFormula:
         assert metrics.get("roce_pct") is None
         assert metrics.get("roe") is not None  # profitability cluster's other inputs intact
 
-        roe_curve = L._reconciliation_margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-        roa_curve = L._reconciliation_margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
-        fcf_curve = L._reconciliation_margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
-        gp_curve = L._reconciliation_margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
+        roe_curve = L._margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
+        roa_curve = L._margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
+        fcf_curve = L._margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+        gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
         expected_profitability_only = (roe_curve + roa_curve + fcf_curve + gp_curve) / 4.0
 
         assert metrics["quality_score"] == expected_profitability_only
