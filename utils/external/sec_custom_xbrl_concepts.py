@@ -308,8 +308,52 @@ CUSTOM_REVENUE_CONCEPTS: dict[str, list[tuple[str, str]]] = {
 # structural companyfacts-excludes-custom-namespace-concepts limitation as
 # CUSTOM_CAPEX_CONCEPTS/CUSTOM_REVENUE_CONCEPTS above, verified against the real FY2025 10-K
 # raw XBRL instance document (accession 0000811156-26-000004, cms-20251231_htm.xml).
+#
+# SPG (Simon Property Group, CIK 1063761): tagged standard "PaymentsOfOrdinaryDividends"
+# through FY2018 only, then went silent on every "PaymentsOf*Dividend*"/"Dividends*"
+# concept for FY2019+ despite continuing to pay real, growing dividends - live-confirmed
+# via the real FY2025 10-K raw XBRL instance document (accession 0001104659-26-019419,
+# spg-20251231x10k.htm) that the real figure is tagged only under SPG's own extension
+# concept `spg:PaymentsOfOrdinaryDividendsCommonStockAndPreferredStock` (combined common+
+# preferred total, same shape as CMS's extension concept above) - FY2025 $2,792,872,000/
+# FY2024 $2,645,213,000/FY2023 $2,439,233,000, all plain non-dimensioned full-year
+# contexts. Absent from companyfacts entirely (only "spg:CommonStockDividendsPaid" and
+# other per-share/schedule concepts appear there, never this one) - same structural
+# companyfacts-excludes-custom-namespace-concepts limitation as CMS above.
+#
+# RS (Reliance, Inc. f/k/a Reliance Steel & Aluminum, CIK 861884): tagged standard
+# "PaymentsOfDividendsCommonStock" through FY2014 only, then went silent for a real,
+# growing dividend payer - live-confirmed via the real FY2025 10-K raw XBRL instance
+# document (accession 0001104659-26-020651, rs-20251231x10k.htm) that the real figure is
+# tagged only under RS's own extension concept
+# `rs:PaymentsOfOrdinaryDividendsCommonStockAndDividendEquivalents` - FY2025
+# $254,700,000/FY2024 $249,700,000/FY2023 $238,100,000, all plain non-dimensioned
+# full-year contexts. Same structural companyfacts-excludes-custom-namespace-concepts
+# limitation as CMS/SPG above.
+#
+# HUBB (Hubbell Inc, CIK 48898): a different bug shape from the CMS/SPG/RS extension-
+# concept cases above - HUBB tags its real common-stock dividend cash outflow under the
+# STANDARD us-gaap concept "PaymentsOfDividendsMinorityInterest" (which every other
+# checked filer, e.g. SPG/PSA above, uses correctly for the much smaller noncontrolling-
+# interest distribution only) - a filer-side mistagging, not a missing/renamed concept.
+# Live-confirmed via the real FY2025 10-K raw XBRL instance document (accession
+# 0001628280-26-007500, hubb-20251231.htm): the value tagged under this concept in
+# context "c-1" (plain, non-dimensioned, full FY2025) is $286.6M, matching the MD&A's own
+# prose disclosure ("Dividends paid on our common stock in 2025 were $286.6 million")
+# exactly, with FY2024 $267.3M/FY2023 $245.5M continuing the same trajectory - HUBB tags
+# no other "Dividend"-named concept anywhere in this filing at all. Deliberately NOT added
+# to the general concept list in sec_statements.py (that would wrongly conflate real NCI
+# distributions with common dividends for every other filer, e.g. SPG/PSA, that reports
+# both concepts correctly and distinctly) - routed through this symbol-scoped raw-XBRL
+# extraction path instead, which only ever fires for HUBB. This module's extraction
+# matches on local_name only (namespace prefix is not compared - see
+# _extract_values_for_concepts below), so registering the concept here under an
+# "us-gaap" prefix works exactly like the "cms"/"spg"/"rs" custom-namespace entries above.
 CUSTOM_DIVIDEND_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "CMS": [("cms", "PaymentsOfOrdinaryDividendsCommonAndPreferred")],
+    "SPG": [("spg", "PaymentsOfOrdinaryDividendsCommonStockAndPreferredStock")],
+    "RS": [("rs", "PaymentsOfOrdinaryDividendsCommonStockAndDividendEquivalents")],
+    "HUBB": [("us-gaap", "PaymentsOfDividendsMinorityInterest")],
 }
 
 

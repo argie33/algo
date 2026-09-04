@@ -2308,8 +2308,9 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         - CUSTOM_CAPEX_DIMENSIONED_CONCEPTS (NJR/MUX): real capex split across N axis
           members with no consolidated total -> custom_extension_capex_dimensioned_sum
           (capex). See that module's CUSTOM_CAPEX_DIMENSIONED_CONCEPTS docstring.
-        - CUSTOM_DIVIDEND_CONCEPTS (CMS): filer-specific custom XBRL extension dividends
-          concept -> custom_extension_dividends_paid (dividends_paid). See that module's
+        - CUSTOM_DIVIDEND_CONCEPTS (CMS/SPG/RS/HUBB): filer-specific custom XBRL extension
+          (or, for HUBB, a mistagged standard) dividends concept ->
+          custom_extension_dividends_paid (dividends_paid). See that module's
           CUSTOM_DIVIDEND_CONCEPTS docstring.
 
         Cheap no-op for every symbol in none of these registries (dict lookup miss, zero
