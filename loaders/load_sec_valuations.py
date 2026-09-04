@@ -130,6 +130,15 @@ DUAL_CLASS_NO_SEPARATOR_ROOTS = frozenset({"DGIC", "KELY", "LBTY", "BELF", "SENE
 # denominator is price-only, so unaffected) consistent.
 DOMESTIC_FILER_ADS_RATIO_OVERRIDES: dict[str, float] = {
     "AMRN": 20.0,  # Amarin Corporation plc - 1 ADS = 20 ordinary shares, effective 2025-04-11
+    # ONC (BeOne Medicines Ltd, formerly BeiGene): is_foreign_private_issuer=False despite being
+    # Cayman-incorporated (large accelerated domestic-form filer) - 1 ADS = 13 ordinary shares
+    # per SEC filings (424B7, Form 4 insider-trading reports). Live-confirmed via the same
+    # market-cap-independent cross-check as the reverse-split registry below: shares_out/13 *
+    # price = $39.55B vs a live yfinance market cap of $41.03B, within 3.6%. Also needs
+    # FPI_EPS_ADS_RATIO_OVERRIDES' EPS-side entry (see below) - unadjusted EPS gives an
+    # implausible ~1813x PE, adjusted gives ~139x (still high but plausible for a
+    # barely-profitable biotech with a $286.9M/-$644.8M net income swing 2024-2025).
+    "ONC": 13.0,
 }
 
 # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data"/implausible-values sweep,
@@ -267,6 +276,10 @@ FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, tuple[float, date | None]] = {
     # consistently ~3x too high in every year - confirming SEC XBRL tags EPS per ordinary
     # share, not per CPO, for this filer.
     "CX": (30.0, None),
+    # ONC (BeOne Medicines, formerly BeiGene): 1 ADS = 13 ordinary shares - see
+    # DOMESTIC_FILER_ADS_RATIO_OVERRIDES' own comment for the full cross-check rationale
+    # (this symbol needs BOTH registries: shares_out AND EPS are on ordinary-share basis).
+    "ONC": (13.0, None),
     "FEDU": (10.0, date(2022, 6, 21)),  # Four Seasons Education - ratio changed from 1:2
     "LITB": (12.0, date(2024, 9, 5)),  # LightInTheBox - ratio changed
     "TOUR": (30.0, date(2026, 4, 22)),  # Tuniu - ratio changed from 1:3

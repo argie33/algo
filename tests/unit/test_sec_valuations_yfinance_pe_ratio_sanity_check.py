@@ -85,7 +85,12 @@ class TestYfinancePeRatioSanityCheck:
             (None, 67.58),  # yfinance_snapshot: market_cap unavailable, pe_ratio=67.58 (real)
         ]
 
-        result, cursor = _run_fetch_incremental("ONC", _ONC_EPS_SHAPED_INCOME_ROWS, fetchone_results)
+        # NOTE: uses "ONC1" not the real "ONC" - a 2026-09-03 fix added ONC to
+        # DOMESTIC_FILER_ADS_RATIO_OVERRIDES/FPI_EPS_ADS_RATIO_OVERRIDES (see
+        # test_sec_valuations_onc_dual_ads_registry_20260903.py), which would apply an ADS
+        # adjustment before this test's raw fixture numbers ever reach the sanity check under
+        # test here - same reason ONC2/ONC3 below already avoid the literal symbol.
+        result, cursor = _run_fetch_incremental("ONC1", _ONC_EPS_SHAPED_INCOME_ROWS, fetchone_results)
 
         row = result[0]
         assert row["pe_ratio"] is None

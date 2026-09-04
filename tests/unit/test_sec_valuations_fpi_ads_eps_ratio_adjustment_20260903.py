@@ -77,7 +77,10 @@ class TestFpiAdsAdjustedEpsHelper:
         assert _fpi_ads_adjusted_eps("CX", 0.0217, 2024) == pytest.approx(0.0217 * 30.0)
 
     def test_unregistered_symbol_untouched(self) -> None:
-        assert _fpi_ads_adjusted_eps("ONC", 41.37, 2025) == 41.37
+        # NOTE: "ONC" is no longer a valid placeholder for "unregistered" - a 2026-09-03 fix
+        # added it to FPI_EPS_ADS_RATIO_OVERRIDES (see
+        # test_sec_valuations_onc_dual_ads_registry_20260903.py).
+        assert _fpi_ads_adjusted_eps("NOTREGISTERED", 41.37, 2025) == 41.37
 
     def test_none_eps_passthrough(self) -> None:
         assert _fpi_ads_adjusted_eps("DDI", None, 2025) is None
