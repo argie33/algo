@@ -43,7 +43,7 @@ class _FakeCursor:
         q = self._last_query
         if "annual_cash_flow" in q and "free_cash_flow" in q and "COUNT(free_cash_flow)" in q:
             return [(s,) for s in self._no_recent_fcf]
-        if "annual_income_statement" in q and "revenue" in q:
+        if "WITH recent AS" in q and "revenue" in q:
             return [(s,) for s in self._no_recent_revenue]
         return []
 

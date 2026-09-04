@@ -6064,6 +6064,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # quality_metrics_fallback_queries_missing_data_unavailable_filter_fixed_20260901 -
             # here it's the None-check being one-sided (checks the numerator's own None-ness,
             # not the denominator's) rather than a missing filter.
+            # FIXED 2026-09-04 (goal: "Missing SEC/XBRL data"/implausible-value reduction, same
+            # "scan past the single nearest year" bug class as margin_volatility's 2026-09-03
+            # fix - see _compute_margin_volatility's docstring): both fallback tiers used
+            # LIMIT 1, taking only the single most recent (fiscal_year, free_cash_flow, revenue)
+            # row and never looking further back even when it was implausible (|margin|>1000,
+            # e.g. a near-zero-revenue year) and an older, plausible year sat right below it in
+            # the same query's result set. Live-confirmed 153/280 universe implausible_ratio
+            # fcf_margin rows (e.g. AADI, SNGX, TXMD, CATX) have a usable pair in an earlier
+            # fiscal year - now fetches every candidate year per tier and takes the most recent
+            # one that's actually plausible, falling back to the single most recent row (old
+            # behavior, still correctly lands on implausible_ratio below) only when no year in
+            # the fetched history is usable.
             fcf_margin_free_cash_flow = free_cash_flow
             fcf_margin_revenue = revenue
             if fcf_margin_free_cash_flow is None or fcf_margin_revenue is None or fcf_margin_revenue <= 0:
@@ -6076,12 +6088,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                           ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
                         WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
                           AND acf.fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY acf.fiscal_year DESC LIMIT 1
+                        ORDER BY acf.fiscal_year DESC
                         """,
                         (symbol,),
                     )
-                    fallback_fcf_row = cur.fetchone()
-                    if not fallback_fcf_row:
+                    fallback_fcf_rows = cur.fetchall()
+                    if not fallback_fcf_rows:
                         cur.execute(
                             """
                             SELECT free_cash_flow, revenue
@@ -6089,11 +6101,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             JOIN annual_income_statement ais
                               ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
                             WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
-                            ORDER BY acf.fiscal_year DESC LIMIT 1
+                            ORDER BY acf.fiscal_year DESC
                             """,
                             (symbol,),
                         )
-                        fallback_fcf_row = cur.fetchone()
+                        fallback_fcf_rows = cur.fetchall()
+                fallback_fcf_row = next(
+                    (
+                        row
+                        for row in fallback_fcf_rows
+                        if row[1] is not None and row[1] > 0 and abs(row[0] / row[1] * 100.0) <= 1000
+                    ),
+                    fallback_fcf_rows[0] if fallback_fcf_rows else None,
+                )
                 if fallback_fcf_row:
                     fcf_margin_free_cash_flow = self._nan_to_none(
                         safe_float(fallback_fcf_row[0], f"{symbol}.free_cash_flow_fallback_year", allow_none=True)

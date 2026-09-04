@@ -46,6 +46,10 @@ class _FakeCursor:
 
     def fetchall(self):
         q = self._last_query
+        if "free_cash_flow" in q:
+            # fcf_margin's own cross-year (free_cash_flow, revenue) fallback query - not the
+            # symbol-list revenue gates below, which never select free_cash_flow.
+            return []
         if "annual_income_statement" in q and "revenue" in q:
             if "ROW_NUMBER" in q:
                 return [(s,) for s in self._no_recent_revenue]
