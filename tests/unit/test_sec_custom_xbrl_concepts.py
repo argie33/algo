@@ -272,6 +272,9 @@ def test_custom_capex_concepts_registry_is_well_formed():
     assert "EGY" in CUSTOM_CAPEX_CONCEPTS
     assert "ANNA" in CUSTOM_CAPEX_CONCEPTS
     assert "EPSN" in CUSTOM_CAPEX_CONCEPTS
+    assert "WHD" in CUSTOM_CAPEX_CONCEPTS
+    assert "AMBQ" in CUSTOM_CAPEX_CONCEPTS
+    assert "HTO" in CUSTOM_CAPEX_CONCEPTS
     for symbol, concepts in CUSTOM_CAPEX_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
@@ -670,6 +673,49 @@ _LYFT_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors the real structure confirmed live 2026-09-03 against Cactus Inc's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0001628280-26-012377).
+_WHD_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:whd="http://cactuswellhead.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001699136</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <whd:PaymentsForCapitalExpenditures contextRef="c-1" unitRef="usd" decimals="-3">38805000</whd:PaymentsForCapitalExpenditures>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against Ambiq Micro's actual filed
+# FY2025 10-K (its first-ever) raw XBRL instance document (accession
+# 0001193125-26-094004).
+_AMBQ_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:ambq="http://ambiq.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001500412</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <ambq:PurchasesOfPropertyEquipmentAndSoftware contextRef="c-1" unitRef="usd" decimals="-3">1344000</ambq:PurchasesOfPropertyEquipmentAndSoftware>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against H2O America/SJW Group's
+# actual filed FY2025 10-K raw XBRL instance document (accession 0001628280-26-012438,
+# hto-20251231_htm.xml): two real, additive, plain non-dimensioned concepts that must be
+# SUMMED (company-funded vs. contributions-in-aid-of-construction water system spend).
+_HTO_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:hto="http://h2oamerica.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000766829</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <hto:PaymentsToAcquireWaterSystemsUsingCompanyFunds contextRef="c-1" unitRef="usd" decimals="-3">489607000</hto:PaymentsToAcquireWaterSystemsUsingCompanyFunds>
+  <hto:PaymentsToAcquireWaterSystemsUsingContributionsInAidOfConstruction contextRef="c-1" unitRef="usd" decimals="-3">30146000</hto:PaymentsToAcquireWaterSystemsUsingContributionsInAidOfConstruction>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_nee_sums_the_three_additive_concepts(self):
@@ -737,6 +783,19 @@ class TestExtractCustomCapexUtilityAndRefinerFilers:
     def test_lyft_returns_its_own_concept(self):
         result = extract_custom_capex_from_xbrl_xml(_LYFT_XML, "LYFT")
         assert result[2025] == 52_822_000.0
+
+    def test_whd_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_WHD_XML, "WHD")
+        assert result[2025] == 38_805_000.0
+
+    def test_ambq_returns_its_own_concept(self):
+        result = extract_custom_capex_from_xbrl_xml(_AMBQ_XML, "AMBQ")
+        assert result[2025] == 1_344_000.0
+
+    def test_hto_sums_both_concepts(self):
+        result = extract_custom_capex_from_xbrl_xml(_HTO_XML, "HTO")
+        # 489,607,000 (company funds) + 30,146,000 (contributions in aid of construction)
+        assert result[2025] == 519_753_000.0
 
 
 # Mirrors the real structure confirmed live 2026-09-03 against Berkshire Hathaway's actual

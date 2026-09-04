@@ -240,6 +240,36 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     # annual contexts: $52,822,000 FY2025 / $83,470,000 FY2024 / $149,819,000 FY2023 -
     # declining, consistent with Lyft's real publicly reported cost-cutting.
     "LYFT": [("lyft", "PaymentsToAcquirePropertyAndEquipmentAndScooterFleet")],
+    # Cactus Inc (CIK 0001699136, $5.4B market cap oil & gas equipment manufacturer) -
+    # verified live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL
+    # instance document (accession 0001628280-26-012377, whd-20251231_htm.xml). Neither a
+    # standard concept nor any custom-namespace entry is visible via companyfacts at all -
+    # real capex tagged under whd:PaymentsForCapitalExpenditures, plain non-dimensioned
+    # annual contexts: $38,805,000 FY2025 / $39,176,000 FY2024 / $43,977,000 FY2023.
+    "WHD": [("whd", "PaymentsForCapitalExpenditures")],
+    # Ambiq Micro Inc (CIK 0001500412, $1.4B market cap fabless semiconductor company,
+    # newly public) - verified live 2026-09-03 (same sweep) against the real filed FY2025
+    # 10-K raw XBRL instance document (accession 0001193125-26-094004,
+    # ambq-20251231_htm.xml) - the company's first-ever 10-K, only FY2024/FY2025 exist.
+    # Real capex tagged under ambq:PurchasesOfPropertyEquipmentAndSoftware, plain
+    # non-dimensioned annual contexts: $1,344,000 FY2025 / $658,000 FY2024 - small,
+    # plausible for a fabless (no owned fabs) semiconductor company.
+    "AMBQ": [("ambq", "PurchasesOfPropertyEquipmentAndSoftware")],
+    # H2O America / SJW Group (CIK 0000766829, $2.2B market cap water utility) - verified
+    # live 2026-09-03 (same sweep) against the real filed FY2025 10-K raw XBRL instance
+    # document (accession 0001628280-26-012438, hto-20251231_htm.xml). The already-landed
+    # PaymentsToAcquireWaterAndWasteWaterSystems fix (same session) does not reach this
+    # filer - its real capex is split across two real, additive, plain non-dimensioned
+    # concepts that must be SUMMED: hto:PaymentsToAcquireWaterSystemsUsingCompanyFunds
+    # ($489,607,000 FY2025 / $353,029,000 FY2024 / $271,772,000 FY2023) and
+    # hto:PaymentsToAcquireWaterSystemsUsingContributionsInAidOfConstruction
+    # ($30,146,000 / $24,179,000 / $16,855,000) - summed totals ($519,753,000 /
+    # $377,208,000 / $288,627,000) closely match NetCashProvidedByUsedInInvestingActivities
+    # for the same years.
+    "HTO": [
+        ("hto", "PaymentsToAcquireWaterSystemsUsingCompanyFunds"),
+        ("hto", "PaymentsToAcquireWaterSystemsUsingContributionsInAidOfConstruction"),
+    ],
 }
 
 
