@@ -325,7 +325,9 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # existing conservative "cannot determine which class" behavior, unchanged.
             if shares_outstanding is None and isinstance(facts_obj, dict):
                 common_tickers = [
-                    t for t in (submissions.get("tickers") or []) if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+                    t
+                    for t in (submissions.get("tickers") or [])
+                    if not self._PREFERRED_TICKER_SUFFIX_RE.search(t) and t not in self._NON_COMMON_SECURITY_TICKERS
                 ]
                 if len(common_tickers) <= 1:
                     gaap_facts = facts_obj.get("us-gaap")
@@ -442,6 +444,28 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # that correctly once the false ambiguity signal is removed) - both live-verified against
     # their actual, current 10-K inline XBRL and submissions.json ticker lists.
     _PREFERRED_TICKER_SUFFIX_RE = re.compile(r"-P[A-Z]+$", re.IGNORECASE)
+
+    # FIXED 2026-09-03 (SEC/XBRL missing-data sweep, interest_expense_not_itemized
+    # investigation follow-up): same false-ambiguity bug class as the preferred-suffix regex
+    # above, for exchange-traded DEBT securities (baby bonds/subordinated notes) registered
+    # on the same CIK as a common stock - these never carry a competing
+    # dei:EntityCommonStockSharesOutstanding fact either, but don't follow the preferred
+    # stock "-P<letter>" naming convention so the regex above doesn't catch them. Unlike
+    # preferred stock, exchange-traded notes have no consistent ticker-spelling convention
+    # (SFB has no dash, no "P", nothing that generalizes to a regex) - live-confirmed via
+    # SF's (Stifel Financial) real submissions.json ticker list (['SF', 'SF-PB', 'SFB',
+    # 'SF-PC', 'SF-PD']) and its own dei:EntityCommonStockSharesOutstanding history (real
+    # data through 2019-08-01, nothing since - SF simply stopped tagging the DEI cover-page
+    # instant fact, same pattern as ATRO/GTN below) that SFB is Stifel's 6.25% Subordinated
+    # Notes due 2054, not a second common share class - SF's real, current
+    # WeightedAverageNumberOfSharesOutstandingBasic (154.9M as of FY2026 Q2) was sitting
+    # unused because `multi_ticker_cik` saw ['SF', 'SFB'] (2 entries after the preferred
+    # filter) and conservatively refused to pick a class. An explicit, individually-verified
+    # set rather than a pattern match, same "don't guess, only add what's been checked"
+    # discipline as SHARED_ISSUER_OR_TRUST_CIK_SYMBOLS in load_financial_statements.py - add
+    # to this set only after confirming via real submissions.json + dei history that the
+    # extra ticker is a bond/note, not an untracked common class.
+    _NON_COMMON_SECURITY_TICKERS: frozenset[str] = frozenset({"SFB"})
 
     @staticmethod
     def _latest_shares_value(fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False) -> int | None:
@@ -818,7 +842,9 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # so max() stays correct there. Kept the dot-suffix check as a defensive OR in case
         # `tickers` is ever missing/malformed in a submissions payload.
         common_tickers = [
-            t for t in (submissions.get("tickers") or []) if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+            t
+            for t in (submissions.get("tickers") or [])
+            if not self._PREFERRED_TICKER_SUFFIX_RE.search(t) and t not in self._NON_COMMON_SECURITY_TICKERS
         ]
         multi_ticker_cik = len(common_tickers) > 1
         if len(plausible) > 1 and (multi_ticker_cik or "." in symbol):
