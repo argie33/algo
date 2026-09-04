@@ -34,6 +34,19 @@ import xml.etree.ElementTree as ET
 from datetime import date
 from typing import Any
 
+from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
+
+# FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, DB/BIDU income-
+# dimensioned currency follow-up): the debt/capex custom-extension registries above never
+# needed currency handling (every filer using them reports in USD), but
+# CUSTOM_INCOME_DIMENSIONED_CONCEPTS's first two uses (DB in EUR, BIDU in CNY) do. Separate
+# instance from utils/external/sec_statements.py's own `_fx_rate_cache` (not imported
+# directly - that name is that module's private singleton) but backed by the SAME on-disk
+# cache file (see FxRateCache's own docstring: keyed by (currency, date), immutable once
+# published, no staleness concept), so both modules share cached lookups without needing to
+# import each other's private state.
+_fx_rate_cache = FxRateCache()
+
 # Each entry: list of (namespace_prefix, local_name) pairs to SUM for that symbol's real
 # annual capex - a filer may split acquisition vs. under-construction spend across two
 # concepts that are both real, additive parts of total vessel capex (verified for DHT via
@@ -1074,7 +1087,63 @@ CUSTOM_INCOME_DIMENSIONED_CONCEPTS: dict[str, list[tuple[str, str, frozenset[str
             frozenset({"ConsolidatedBankEntityMember"}),
         ),
     ],
+    # Baidu Inc (CIK 0001329099, $25.8B market cap, 20-F filer) - verified live 2026-09-03
+    # (same sweep, research fork) against the real filed FY2025 20-F raw XBRL instance
+    # document (accession 0001193125-26-109289, d38065d20f_htm.xml). Real EPS is tagged
+    # THREE times: once per-ordinary-share (single-member StatementClassOfStockAxis=
+    # CommonClassAAndClassBMember, CNY-only - the wrong figure, an entity-wide-shares
+    # basis rather than the economically relevant ADS basis) and once per-ADS (dimensioned
+    # by BOTH StatementClassOfStockAxis=CommonClassAMember AND
+    # StatementEquityComponentsAxis=AmericanDepositaryShareMember TOGETHER - the real
+    # exact 2-member combination needed here), plus a third redundant duplicate under a
+    # custom BIDUEarningsPerShareAxis (same values, not separately registered - the
+    # us-gaap-axis combination above already reaches the same fact). Diluted EPS (per ADS):
+    # $1.68 USD FY2025 (a real, direct USD-unit fact - CNY 11.78 duplicate-tagged under the
+    # identical context must not win, see _extract_single_concept_duration_dimensioned_sum's
+    # USD-preference logic) / CNY 65.91 FY2024 (no USD fact exists for this year - requires
+    # real historical FX conversion, same MAJOR_CURRENCIES-gated discipline as everywhere
+    # else in this codebase) / CNY 55.08 FY2023. Only diluted registered (not basic/net
+    # income) - net_income already extracts correctly via the normal concept-list path for
+    # BIDU, and basic EPS was not separately live-verified this pass.
+    "BIDU": [
+        (
+            "EarningsPerShareDiluted",
+            "custom_extension_eps_diluted",
+            frozenset({"CommonClassAMember", "AmericanDepositaryShareMember"}),
+        ),
+    ],
 }
+
+
+def _parse_unit_currencies(root: ET.Element) -> dict[str, str]:
+    """unitRef -> ISO 4217 currency code, for every monetary or per-share-ratio <unit>
+    definition in the document (e.g. `<unit id="Unit_USD_per_Share"><divide>
+    <unitNumerator><measure>iso4217:USD</measure></unitNumerator>
+    <unitDenominator><measure>shares</measure></unitDenominator></divide></unit>` ->
+    {"Unit_USD_per_Share": "USD"}).
+
+    Takes the FIRST <measure> found under each <unit> (document order): for a plain
+    monetary unit there is only one; for a "currency per share" divide unit, the
+    numerator (currency) is always written before the denominator (shares), so this
+    correctly skips the non-currency "shares" measure without needing to distinguish
+    numerator from denominator explicitly. A unit with no resolvable ISO 4217 code (e.g.
+    "shares", "pure") is simply absent from the returned mapping.
+    """
+    currencies: dict[str, str] = {}
+    for unit_el in root.iter():
+        if _local_name(unit_el.tag) != "unit":
+            continue
+        unit_id = unit_el.get("id")
+        if not unit_id:
+            continue
+        measure_el = next((el for el in unit_el.iter() if _local_name(el.tag) == "measure" and el.text), None)
+        if measure_el is None or measure_el.text is None:
+            continue
+        text = measure_el.text.strip()
+        code = text.rsplit(":", 1)[-1].upper()
+        if len(code) == 3 and code.isalpha():
+            currencies[unit_id] = code
+    return currencies
 
 
 def _extract_single_concept_duration_dimensioned_sum(
@@ -1086,8 +1155,30 @@ def _extract_single_concept_duration_dimensioned_sum(
     independent concepts (e.g. DB's net income + basic EPS + diluted EPS) from one parsed
     document without re-parsing the XML for each one. See that function's own docstring for
     the duration/period-matching convention this mirrors exactly.
+
+    Context match is EXACT SET EQUALITY (`set(members) == member_local_names`), not
+    "exactly one member drawn from a candidate set" like the debt/capex sibling functions -
+    this supports both a single required member (DB: {"ConsolidatedBankEntityMember"}) and
+    a multi-member combination that must ALL be present together (BIDU: {"CommonClassAMember",
+    "AmericanDepositaryShareMember"}), backward-compatible with the single-member case since
+    a size-1 set's "exactly one member, and it equals X" and "the member set equals {X}" are
+    the same condition.
+
+    FIXED 2026-09-03 (DB/BIDU currency follow-up): unlike every other custom-extension
+    concept in this file (all USD-only filers), income-dimensioned concepts can be
+    non-USD (DB reports in EUR, BIDU in CNY) - and BIDU tags the SAME concept+context in
+    BOTH a local-currency AND (for at least one fiscal year) a direct USD unit. Resolves
+    each fact's currency via _parse_unit_currencies() and, per (fiscal_year, context),
+    prefers a real USD fact when present; otherwise converts a MAJOR_CURRENCIES-listed
+    local-currency fact via the real historical FX rate for the period end date (same
+    `value / rate` convention as sec_statements.py's _aggregate_concepts - see fx_rates.py's
+    own docstring for why this never guesses a rate); a currency neither USD nor on that
+    whitelist is skipped entirely, same fail-closed discipline as everywhere else in this
+    codebase that touches foreign-currency facts.
     """
-    context_info: dict[str, tuple[str, str, str]] = {}
+    unit_currencies = _parse_unit_currencies(root)
+
+    context_info: dict[str, tuple[str, str]] = {}
     for ctx in root.iter():
         if _local_name(ctx.tag) != "context":
             continue
@@ -1101,24 +1192,26 @@ def _extract_single_concept_duration_dimensioned_sum(
         end_el = next((c for c in period if _local_name(c.tag) == "endDate"), None)
         if start_el is None or end_el is None or not start_el.text or not end_el.text:
             continue  # Instant context, not a duration one - not usable here.
-        members = [
+        members = {
             el.text.strip().rsplit(":", 1)[-1]
             for el in ctx.iter()
             if _local_name(el.tag) == "explicitMember" and el.text
-        ]
-        if len(members) != 1 or members[0] not in member_local_names:
-            continue  # Not one of our target member totals - see module comment above.
-        context_info[ctx_id] = (start_el.text.strip(), end_el.text.strip(), members[0])
+        }
+        if members != member_local_names:
+            continue  # Not our target member combination - see docstring above.
+        context_info[ctx_id] = (start_el.text.strip(), end_el.text.strip())
 
-    values_by_year: dict[int, float] = {}
-    members_seen_by_year: dict[int, set[str]] = {}
+    # {fiscal_year: {currency: value}} - collected before picking a winner per year so a
+    # real USD fact always wins over a same-year local-currency duplicate regardless of
+    # document order (see docstring's BIDU evidence).
+    candidates_by_year: dict[int, dict[str, float]] = {}
     for el in root.iter():
         if _local_name(el.tag) != concept_local_name:
             continue
         ctx_ref = el.get("contextRef")
         if ctx_ref not in context_info:
             continue
-        start_str, end_str, member = context_info[ctx_ref]
+        start_str, end_str = context_info[ctx_ref]
         try:
             start_date = date.fromisoformat(start_str)
             end_date = date.fromisoformat(end_str)
@@ -1133,16 +1226,28 @@ def _extract_single_concept_duration_dimensioned_sum(
             value = float(el.text.strip())
         except ValueError:
             continue
+        unit_ref = el.get("unitRef")
+        currency = unit_currencies.get(unit_ref) if unit_ref else None
+        if currency is None:
+            continue  # Unresolvable unit - never guess a currency.
         fiscal_year = end_date.year
-        seen = members_seen_by_year.setdefault(fiscal_year, set())
-        if member in seen:
-            continue  # Duplicate fact for a member/year already summed - never double-count.
-        seen.add(member)
-        values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
+        candidates_by_year.setdefault(fiscal_year, {})[currency] = value
 
-    return {
-        year: total for year, total in values_by_year.items() if members_seen_by_year[year] == set(member_local_names)
-    }
+    values_by_year: dict[int, float] = {}
+    for fiscal_year, by_currency in candidates_by_year.items():
+        if "USD" in by_currency:
+            values_by_year[fiscal_year] = by_currency["USD"]
+            continue
+        for currency, value in by_currency.items():
+            if currency not in MAJOR_CURRENCIES:
+                continue  # Not USD, not a real-rate-convertible major currency - skip.
+            fx_rate = _fx_rate_cache.get_usd_rate(currency, f"{fiscal_year}-12-31")
+            if fx_rate is None or fx_rate == 0:
+                continue  # No real rate available for this exact date - fail closed.
+            values_by_year[fiscal_year] = value / fx_rate
+            break
+
+    return values_by_year
 
 
 def extract_custom_income_dimensioned_from_xbrl_xml(xml_content: str, symbol: str) -> dict[str, dict[int, float]]:

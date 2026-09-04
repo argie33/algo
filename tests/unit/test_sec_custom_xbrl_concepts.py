@@ -7,9 +7,11 @@ Holdings' and Costamare's actual filed XBRL instance documents (accessions
 identical to the real filings for a meaningful regression test.
 """
 
+import xml.etree.ElementTree as ET
 from datetime import date
 from unittest.mock import MagicMock
 
+from utils.external import sec_custom_xbrl_concepts
 from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_CAPEX_CONCEPTS,
     CUSTOM_CAPEX_DIMENSIONED_CONCEPTS,
@@ -22,6 +24,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     _extract_dimensioned_sum_from_xbrl_xml,
     _extract_duration_dimensioned_sum_from_xbrl_xml,
     _extract_instant_values_for_concepts,
+    _extract_single_concept_duration_dimensioned_sum,
     _fiscal_year_for_instant,
     extract_custom_capex_from_xbrl_xml,
     extract_custom_debt_longterm_from_xbrl_xml,
@@ -1373,6 +1376,13 @@ _DB_XML = """<?xml version="1.0" encoding="utf-8"?>
       xmlns:dei="http://xbrl.sec.gov/dei/2025"
       xmlns:db="http://db.com/20251231"
       xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full">
+  <unit id="eur"><measure>iso4217:EUR</measure></unit>
+  <unit id="eurpershare">
+    <divide>
+      <unitNumerator><measure>iso4217:EUR</measure></unitNumerator>
+      <unitDenominator><measure>shares</measure></unitDenominator>
+    </divide>
+  </unit>
   <context id="c-consolidated-fy2025">
     <entity>
       <identifier scheme="http://www.sec.gov/CIK">0001159508</identifier>
@@ -1401,17 +1411,22 @@ _DB_XML = """<?xml version="1.0" encoding="utf-8"?>
 
 
 class TestExtractCustomIncomeDimensionedFromXbrlXml:
-    def test_db_recovers_all_three_independent_concepts(self) -> None:
+    def test_db_recovers_all_three_independent_concepts(self, monkeypatch) -> None:
+        # DB reports in EUR - real historical FX rate conversion required (see
+        # TestIncomeDimensionedCurrencyHandling below for dedicated currency-path tests).
+        # 1.10 USD/EUR here for a round, easy-to-verify expected value.
+        monkeypatch.setattr(sec_custom_xbrl_concepts._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 0.9091)
         result = extract_custom_income_dimensioned_from_xbrl_xml(_DB_XML, "DB")
-        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0
-        assert result["custom_extension_eps_basic"][2025] == 2.97
-        assert result["custom_extension_eps_diluted"][2025] == 2.93
+        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0 / 0.9091
+        assert result["custom_extension_eps_basic"][2025] == 2.97 / 0.9091
+        assert result["custom_extension_eps_diluted"][2025] == 2.93 / 0.9091
 
-    def test_db_excludes_multi_dimensioned_sub_breakdown_fact(self) -> None:
+    def test_db_excludes_multi_dimensioned_sub_breakdown_fact(self, monkeypatch) -> None:
+        monkeypatch.setattr(sec_custom_xbrl_concepts._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 0.9091)
         result = extract_custom_income_dimensioned_from_xbrl_xml(_DB_XML, "DB")
         # The 999,000,000 fact carries a SECOND explicitMember - not the plain
         # single-member consolidated total, must never be summed or substituted in.
-        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0
+        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0 / 0.9091
 
     def test_unregistered_symbol_returns_empty_without_parsing(self) -> None:
         assert extract_custom_income_dimensioned_from_xbrl_xml(_DB_XML, "SOME_OTHER_SYMBOL") == {}
@@ -1429,7 +1444,8 @@ class TestFetchCustomIncomeDimensioned:
         assert result == {}
         sec_client.symbol_to_cik.assert_not_called()
 
-    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self) -> None:
+    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self, monkeypatch) -> None:
+        monkeypatch.setattr(sec_custom_xbrl_concepts._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 0.9091)
         sec_client = MagicMock()
         sec_client.symbol_to_cik.return_value = "0001159508"
         sec_client.get_submissions.return_value = {
@@ -1444,5 +1460,130 @@ class TestFetchCustomIncomeDimensioned:
 
         result = fetch_custom_income_dimensioned("DB", sec_client)
 
-        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0
+        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0 / 0.9091
         sec_client.get_filing_xml.assert_called_once_with("0001159508", "0001159508-26-000017", "20-F")
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against Baidu's actual filed FY2025
+# 20-F raw XBRL instance document (accession 0001193125-26-109289, d38065d20f_htm.xml):
+# the ADS-level (economically relevant) diluted EPS is dimensioned by BOTH
+# StatementClassOfStockAxis=CommonClassAMember AND StatementEquityComponentsAxis=
+# AmericanDepositaryShareMember TOGETHER in the same context - a genuine 2-member exact
+# combination, not "one of N candidates". The SAME context/concept also carries a CNY-unit
+# duplicate fact (real filing behavior - only FY2025 also has a direct USD fact; FY2023/
+# FY2024 are CNY-only and must go through real FX conversion). A decoy single-member
+# context (the ordinary-share-level figure, not the ADS-level one) must be excluded.
+_BIDU_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:us-gaap="http://fasb.org/us-gaap/2025">
+  <unit id="Unit_USD_per_Share">
+    <divide>
+      <unitNumerator><measure>iso4217:USD</measure></unitNumerator>
+      <unitDenominator><measure>shares</measure></unitDenominator>
+    </divide>
+  </unit>
+  <unit id="Unit_CNY_per_Share">
+    <divide>
+      <unitNumerator><measure>iso4217:CNY</measure></unitNumerator>
+      <unitDenominator><measure>shares</measure></unitDenominator>
+    </divide>
+  </unit>
+  <context id="c-ads-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001329099</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="us-gaap:StatementEquityComponentsAxis">bidu:AmericanDepositaryShareMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-ads-fy2024">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001329099</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="us-gaap:StatementEquityComponentsAxis">bidu:AmericanDepositaryShareMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
+  </context>
+  <context id="c-ordinary-share-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001329099</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">bidu:CommonClassAAndClassBMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <us-gaap:EarningsPerShareDiluted contextRef="c-ads-fy2025" unitRef="Unit_CNY_per_Share" decimals="2">11.78</us-gaap:EarningsPerShareDiluted>
+  <us-gaap:EarningsPerShareDiluted contextRef="c-ads-fy2025" unitRef="Unit_USD_per_Share" decimals="2">1.68</us-gaap:EarningsPerShareDiluted>
+  <us-gaap:EarningsPerShareDiluted contextRef="c-ads-fy2024" unitRef="Unit_CNY_per_Share" decimals="2">65.91</us-gaap:EarningsPerShareDiluted>
+  <us-gaap:EarningsPerShareDiluted contextRef="c-ordinary-share-fy2025" unitRef="Unit_CNY_per_Share" decimals="2">1.47</us-gaap:EarningsPerShareDiluted>
+</xbrl>
+"""
+
+
+class TestIncomeDimensionedCurrencyHandling:
+    """Dedicated tests for the 2026-09-03 currency-resolution/FX-conversion follow-up -
+    exercised against BIDU's real 2-member exact-match + USD/CNY-duplicate shape (see
+    _BIDU_XML's own comment) rather than DB's single-currency case above."""
+
+    _BIDU_SPEC = (
+        "EarningsPerShareDiluted",
+        "custom_extension_eps_diluted",
+        frozenset({"CommonClassAMember", "AmericanDepositaryShareMember"}),
+    )
+
+    def test_prefers_a_real_usd_fact_over_a_same_year_local_currency_duplicate(self) -> None:
+        root = ET.fromstring(_BIDU_XML)
+        concept, _key, members = self._BIDU_SPEC
+        result = _extract_single_concept_duration_dimensioned_sum(_BIDU_XML, root, concept, members)
+        # 1.68 USD must win over the same context/year's 11.78 CNY duplicate - no FX
+        # division should be applied to the real USD fact.
+        assert result[2025] == 1.68
+
+    def test_converts_local_currency_via_real_fx_rate_when_no_usd_fact_exists(self, monkeypatch) -> None:
+        monkeypatch.setattr(sec_custom_xbrl_concepts._fx_rate_cache, "get_usd_rate", lambda currency, date_str: 7.1)
+        root = ET.fromstring(_BIDU_XML)
+        concept, _key, members = self._BIDU_SPEC
+        result = _extract_single_concept_duration_dimensioned_sum(_BIDU_XML, root, concept, members)
+        # FY2024 has ONLY a CNY fact (65.91) - must be converted via the real historical
+        # rate (division, same convention as sec_statements.py's own currency guard), not
+        # left as the raw CNY magnitude.
+        assert result[2024] == 65.91 / 7.1
+
+    def test_exact_two_member_match_excludes_single_member_decoy(self) -> None:
+        root = ET.fromstring(_BIDU_XML)
+        concept, _key, members = self._BIDU_SPEC
+        result = _extract_single_concept_duration_dimensioned_sum(_BIDU_XML, root, concept, members)
+        # The ordinary-share-level context (single member: CommonClassAAndClassBMember, a
+        # DIFFERENT member name entirely) must never be mistaken for the ADS-level
+        # 2-member combination - if it leaked in, FY2025 would resolve from the 1.47 CNY
+        # fact instead of the real 1.68 USD ADS-level figure.
+        assert result[2025] == 1.68
+
+    def test_unresolvable_currency_is_skipped_not_guessed(self) -> None:
+        xml_with_unsupported_currency = _BIDU_XML.replace(
+            '<xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</xbrldi:explicitMember>\n        <xbrldi:explicitMember dimension="us-gaap:StatementEquityComponentsAxis">bidu:AmericanDepositaryShareMember</xbrldi:explicitMember>\n      </segment>\n    </entity>\n    <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>',
+            '<xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</xbrldi:explicitMember>\n        <xbrldi:explicitMember dimension="us-gaap:StatementEquityComponentsAxis">bidu:AmericanDepositaryShareMember</xbrldi:explicitMember>\n      </segment>\n    </entity>\n    <period><startDate>2022-01-01</startDate><endDate>2022-12-31</endDate></period>',
+        ).replace(
+            '<us-gaap:EarningsPerShareDiluted contextRef="c-ads-fy2024" unitRef="Unit_CNY_per_Share" decimals="2">65.91</us-gaap:EarningsPerShareDiluted>',
+            '<unit id="Unit_XYZ_per_Share"><divide><unitNumerator><measure>iso4217:XYZ</measure></unitNumerator>'
+            "<unitDenominator><measure>shares</measure></unitDenominator></divide></unit>"
+            '<us-gaap:EarningsPerShareDiluted contextRef="c-ads-fy2024" unitRef="Unit_XYZ_per_Share" decimals="2">99.0</us-gaap:EarningsPerShareDiluted>',
+        )
+        root = ET.fromstring(xml_with_unsupported_currency)
+        concept, _key, members = self._BIDU_SPEC
+        result = _extract_single_concept_duration_dimensioned_sum(xml_with_unsupported_currency, root, concept, members)
+        # "XYZ" is not USD and not on MAJOR_CURRENCIES - must be skipped entirely (fail
+        # closed), never returned as if it were a real USD/converted value.
+        assert 2022 not in result
+
+    def test_custom_income_dimensioned_concepts_registry_includes_bidu(self) -> None:
+        assert "BIDU" in CUSTOM_INCOME_DIMENSIONED_CONCEPTS
+        for concept, result_key, member_names in CUSTOM_INCOME_DIMENSIONED_CONCEPTS["BIDU"]:
+            assert concept and result_key and member_names
+            assert len(member_names) == 2
