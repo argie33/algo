@@ -634,6 +634,33 @@ class SecEdgarStatementLoader(SecLoaderBase):
         }
     )
 
+    # FIXED 2026-09-04 (goal session: "missing SEC/XBRL data under 6k" sweep, capex_never_
+    # tagged_in_recent_filings follow-up): a small, individually-verified allowlist of
+    # mortgage REITs and consumer/specialty finance companies confirmed to have ZERO capex-
+    # related XBRL concept (checked live against each symbol's real companyfacts JSON:
+    # no PaymentsToAcquirePropertyPlantAndEquipment/PaymentsToAcquireProductiveAssets/
+    # PaymentsForCapitalImprovements anywhere in filing history) - same underlying fact as
+    # the bank/insurance cases above (these companies hold financial assets, not physical
+    # property, so there is genuinely no capital-expenditure line to disclose), just a
+    # different SIC-code family (6798 mortgage REIT / 6141 personal credit / 6199 finance
+    # services / 6211 broker-dealer). Deliberately NOT SIC-based: SIC 6798 also covers
+    # ordinary EQUITY REITs (AVB, EQR, ...) which DO tag real, material capex - same "not
+    # uniformly capex-less" caution _INSURANCE_CAPEX_EXEMPT_SYMBOLS's own docstring gives for
+    # insurance SIC codes.
+    _FINANCIAL_CAPEX_EXEMPT_SYMBOLS = frozenset(
+        {
+            "NAVI",
+            "OMF",
+            "DX",
+            "ARR",
+            "ORC",
+            "CIM",
+            "RWT",
+            "MFIN",
+            "CHMI",
+        }
+    )
+
     def _get_depository_institution_symbols(self) -> frozenset[str]:
         """Bulk-fetch bank/depository-institution symbols once per loader run, not per-row.
 
@@ -1258,9 +1285,12 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # FIXED 2026-08-24 (same audit, insurance-sector continuation): see
                 # _INSURANCE_CAPEX_EXEMPT_SYMBOLS's docstring above for why this is a
                 # verified symbol allowlist, not a SIC-code check like the bank case.
+                # FIXED 2026-09-04 (mortgage REIT / consumer finance continuation): see
+                # _FINANCIAL_CAPEX_EXEMPT_SYMBOLS's own docstring above.
                 if capex is None and (
                     r.get("symbol") in self._get_depository_institution_symbols()
                     or r.get("symbol") in self._INSURANCE_CAPEX_EXEMPT_SYMBOLS
+                    or r.get("symbol") in self._FINANCIAL_CAPEX_EXEMPT_SYMBOLS
                 ):
                     capex = 0
                 # FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit,

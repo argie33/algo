@@ -454,6 +454,31 @@ class SecValuationsLoader(OptimalLoader):
         }
     )
 
+    # FIXED 2026-09-04 (goal session: "missing SEC/XBRL data under 6k" sweep, capex_never_
+    # tagged_in_recent_filings follow-up): mirrors INSURANCE_CAPEX_EXEMPT_SYMBOLS above, for
+    # mortgage REITs and consumer/specialty finance companies instead - each symbol below was
+    # live-checked against its full companyfacts JSON and confirmed to have ZERO
+    # PaymentsToAcquirePropertyPlantAndEquipment/PaymentsToAcquireProductiveAssets/
+    # PaymentsForCapitalImprovements anywhere in filing history. Deliberately NOT SIC-based:
+    # SIC 6798 also covers ordinary EQUITY REITs (AVB, EQR, ...) which DO tag real, material
+    # capex - same "not uniformly capex-less" caution as insurance SIC codes above. Keep in
+    # sync with loaders/helpers/sec_base.py's _FINANCIAL_CAPEX_EXEMPT_SYMBOLS (same
+    # duplication convention already used for DEPOSITORY_INSTITUTION_SIC_CODES/
+    # INSURANCE_CAPEX_EXEMPT_SYMBOLS between this file and that one).
+    FINANCIAL_CAPEX_EXEMPT_SYMBOLS = frozenset(
+        {
+            "NAVI",
+            "OMF",
+            "DX",
+            "ARR",
+            "ORC",
+            "CIM",
+            "RWT",
+            "MFIN",
+            "CHMI",
+        }
+    )
+
     # FIXED 2026-08-18 (goal session, currency-poisoned-row cleanup follow-up): live-crashed
     # via NMR (Nomura Holdings, a JPY-reporting IFRS filer - JPY is FX-CONVERTED not rejected
     # outright, unlike KRW/VND above, since it's in MAJOR_CURRENCIES): the derived-shares-out
@@ -1559,10 +1584,13 @@ class SecValuationsLoader(OptimalLoader):
                 # DEPOSITORY_INSTITUTION_SIC_CODES above) - treat it as 0 rather than
                 # unknowable, for both the latest year and every year in the multi-year
                 # average below. Same treatment for the small, individually-verified
-                # INSURANCE_CAPEX_EXEMPT_SYMBOLS allowlist above (symbol-based, not SIC-based
-                # - insurance isn't a uniformly capex-less sector the way banking is).
+                # INSURANCE_CAPEX_EXEMPT_SYMBOLS/FINANCIAL_CAPEX_EXEMPT_SYMBOLS allowlists
+                # above (symbol-based, not SIC-based - neither sector is uniformly
+                # capex-less the way banking is).
                 is_capex_exempt = (
-                    sic_code in self.DEPOSITORY_INSTITUTION_SIC_CODES or symbol in self.INSURANCE_CAPEX_EXEMPT_SYMBOLS
+                    sic_code in self.DEPOSITORY_INSTITUTION_SIC_CODES
+                    or symbol in self.INSURANCE_CAPEX_EXEMPT_SYMBOLS
+                    or symbol in self.FINANCIAL_CAPEX_EXEMPT_SYMBOLS
                 )
                 if is_capex_exempt and capex is None:
                     capex = 0
