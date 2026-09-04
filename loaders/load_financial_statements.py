@@ -2759,6 +2759,15 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         ordinary companies, and this file has no independently-verified sign convention for
         the other three to safely floor against - same "don't guess a bound you can't verify"
         discipline as pretax_income/income_tax_expense above.
+
+        ADDED 2026-09-04 (goal: "missing SEC/XBRL data under 6k" sweep continuation): capex
+        is now included in this same per-field FY-minus-9mo identity, closing the gap
+        `_sweep_derive_missing_q4_cash_flow`'s docstring flagged as deliberately deferred
+        ("a future pass could add it with its own explicit null-guard on all three quarters'
+        capex") - this loop already requires all three quarters non-null per field before
+        deriving, same guard that comment asked for. free_cash_flow is then derived
+        separately below from the (now-populated) Q4 operating_cash_flow/capex, same
+        `ocf - capex` formula _sweep_missing_free_cash_flow() already uses for annual_cash_flow.
         """
         fields = (
             "financing_cash_flow",
@@ -2766,6 +2775,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             "dividends_paid",
             "stock_based_compensation",
             "common_stock_repurchased",
+            "capex",
         )
         with DatabaseContext("write") as cur:
             for field in fields:
@@ -2801,6 +2811,22 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                         f"[quarterly_cash_flow] post_run(): derived {cur.rowcount} Q4 "
                         f"{field} row(s) as FY_annual - 9mo_YTD."
                     )
+            cur.execute(
+                """
+                UPDATE quarterly_cash_flow
+                   SET free_cash_flow = operating_cash_flow - capex,
+                       data_source = 'derived_fy_minus_9m'
+                 WHERE fiscal_quarter = 4
+                   AND free_cash_flow IS NULL
+                   AND operating_cash_flow IS NOT NULL
+                   AND capex IS NOT NULL
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_cash_flow] post_run(): derived {cur.rowcount} Q4 "
+                    "free_cash_flow row(s) as operating_cash_flow - capex."
+                )
 
     def _sweep_copy_missing_q4_balance_sheet(self) -> None:
         """Fill a missing/incomplete Q4 quarterly_balance_sheet row by copying the matching
