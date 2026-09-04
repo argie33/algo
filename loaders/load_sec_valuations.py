@@ -155,6 +155,40 @@ RECENT_STOCK_SPLITS: dict[str, tuple[float, date]] = {
     "BKNG": (25.0, date(2026, 4, 2)),
 }
 
+# FIXED 2026-09-03 (goal session continuation, same eps_scale_mismatch sweep): a real REVERSE
+# split creates the mirror-image problem on the shares_out side instead of EPS - SEC's
+# cover-page shares_outstanding_basic is "as of filing date," and for a filer whose most recent
+# annual/quarterly filing predates a reverse split that happened only days ago (common for
+# micro-cap issuers doing a reverse split to avoid delisting), that stored count is still the
+# stale PRE-split (too-large) figure while current_price is live/post-split - producing a
+# market_cap wildly too big, correctly rejected by `_sanity_check_market_cap` as
+# shares_outstanding_scale_mismatch. Unlike RECENT_STOCK_SPLITS (EPS, divides for a FORWARD
+# split), this divides shares_out for a REVERSE split, and is applied unconditionally (no
+# effective-date gate) because as of this fix every fiscal year on file for these symbols
+# predates their split - a future filing reflecting the new post-split count needs this entry
+# removed, not date-gated (SEC's cover-page shares_outstanding_basic has no reliable per-row
+# as-of-date distinct from fiscal_year end to gate on).
+# Each entry was cross-validated against a LIVE yfinance market cap (not just the disclosed
+# split ratio): (current_price * shares_out / ratio) compared to a fresh live yfinance market
+# cap fetch. PPCB and NXTT matched to the DOLLAR (2,323,938.62 vs 2,323,938.0 live;
+# 8,734,664.19 vs 8,734,664.0 live) - about as strong a confirmation as this kind of check can
+# give. HCWC matched within the right order of magnitude and ratio ballpark (adjusted
+# $5.07M vs live $6.48M - explainable by price_daily being a day or more staler than the live
+# yfinance quote used in the check) - real reverse split independently confirmed via SEC 8-K/
+# press release, kept despite the imperfect match. PIII was investigated with a real,
+# source-confirmed 1-for-50 reverse split but FAILED this same cross-check by ~3 orders of
+# magnitude (adjusted $597K vs live $1.82B) - deliberately EXCLUDED; the split is real but
+# something else is going on with this symbol's share count that a naive ratio-divide would
+# get badly wrong. AKTX's raw shares_outstanding_basic has been growing every year
+# (9.7B->23.9B->67.3B->91.6B, 2023-2026) with no visible post-split drop despite a confirmed
+# 1-for-40 ADS-ratio change - also EXCLUDED, needs more investigation before any fix. QNRX's
+# split date/ratio was only medium-confidence sourced - not added without re-confirmation.
+RECENT_REVERSE_SPLITS_SHARES_OUT: dict[str, float] = {
+    "PPCB": 25.0,  # Propanc Biopharma - 1-for-25 reverse split, effective 2026-05-18
+    "NXTT": 100.0,  # Next Technology Holding - 1-for-100 reverse split, effective 2026-08-10
+    "HCWC": 35.0,  # Healthy Choice Wellness Corp - 1-for-35 reverse split, effective 2026-08-28
+}
+
 
 def _split_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any:
     """Divide a fiscal year's as-reported EPS by a confirmed post-filing split ratio when that
@@ -1571,6 +1605,15 @@ class SecValuationsLoader(OptimalLoader):
             if ads_ratio and shares_out:
                 logger.debug(f"[{symbol}] Applying ADS ratio override: {shares_out:,.0f} / {ads_ratio:g}")
                 shares_out = shares_out / ads_ratio
+
+            # See RECENT_REVERSE_SPLITS_SHARES_OUT' own module-level comment (PPCB/NXTT/HCWC).
+            reverse_split_ratio = RECENT_REVERSE_SPLITS_SHARES_OUT.get(symbol)
+            if reverse_split_ratio and shares_out:
+                logger.debug(
+                    f"[{symbol}] Applying reverse-split shares_out override: "
+                    f"{shares_out:,.0f} / {reverse_split_ratio:g}"
+                )
+                shares_out = shares_out / reverse_split_ratio
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
