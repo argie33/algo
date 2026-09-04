@@ -2149,6 +2149,17 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "total_debt_not_itemized",
             "interest_expense_not_itemized",
             "stockholders_equity_not_reported",
+            # ADDED 2026-09-04 (goal session: "Top Causes of Missing Data" sweep): same
+            # "the filer never itemizes this XBRL concept" class as total_debt_not_itemized/
+            # interest_expense_not_itemized above - written by roic_pct/roce_pct/ebitda_margin/
+            # operating_margin/interest_coverage/operating_profitability/ebitda/ebitda_ev's
+            # own _get_no_recent_operating_income_symbols()/_get_never_tagged_operating_income_
+            # symbols() gates (see their 2026-09-03 "Missing SEC/XBRL data reduction" fix
+            # comments throughout load_value_quality_growth_metrics.py) but never added to this
+            # map, so every row fell through to "Other (errors / excluded)" instead (32 live scored roce_pct
+            # rows, plus unscored siblings on roic_pct/ebitda_margin/interest_coverage/
+            # operating_profitability/operating_margin/ebitda).
+            "operating_income_not_itemized",
             "no_dividend_xbrl_concepts",
             "no_us_gaap_facts",
             "no_xbrl_filings",
