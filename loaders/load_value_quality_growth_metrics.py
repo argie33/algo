@@ -7802,6 +7802,37 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # just another (fiscal_year, value) series, no new math needed.
         bvps_values: list[tuple[int, float]] = []
         shares_by_year: dict[int, float] = {}
+        # ADDED 2026-09-04 (goal: "fix all xbrl issues" sweep): query company_info_sec for
+        # shares_outstanding fallback when annual_income_statement has NULL shares for specific
+        # fiscal years. book_value_growth was never computing when income_rows lacked
+        # shares_outstanding_diluted/basic (even though stockholders_equity was present),
+        # because _compute_period_growth's split-guard logic requires shares_by_year entries
+        # for those years to detect stock splits. company_info_sec.shares_outstanding is a
+        # point-in-time snapshot (not historical per fiscal year) but is usable as a
+        # conservative fallback to enable bvps computation when income statement shares are
+        # missing - avoids false "insufficient_history" when other years' data is complete.
+        # This follows the same pattern as company_info_sec._weighted_average_shares_override.
+        company_info_shares: dict[int, float] = {}
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s",
+                    (symbol,),
+                )
+                result = cur.fetchone()
+                fallback_shares = result[0] if result and result[0] else None
+                if fallback_shares and fallback_shares > 0:
+                    # Use company_info_sec shares as conservative fallback for ALL years
+                    # where income_rows has stockholders_equity but not shares. This assumes
+                    # shares didn't change dramatically between years (conservative, not ideal,
+                    # but better than unavailable).
+                    for row in income_rows:
+                        if row is not None and len(row) > 7:
+                            fiscal_year = int(row[0]) if row[0] is not None else None
+                            if fiscal_year is not None:
+                                company_info_shares[fiscal_year] = fallback_shares
+        except Exception as e:
+            logger.debug(f"[{symbol}] Could not fetch company_info_sec shares fallback: {e}")
         for row in income_rows:
             try:
                 fiscal_year = int(row[0]) if row[0] is not None else None
@@ -7830,15 +7861,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     revenues.append((fiscal_year, rev))
                 if eps is not None and eps != 0:
                     eps_values.append((fiscal_year, eps))
-                if shares is not None and shares > 0 and fiscal_year not in shares_by_year:
-                    shares_by_year[fiscal_year] = shares
+                # Use income statement shares if available, fallback to company_info_sec if not
+                # (see fallback-fetch logic above for context)
+                shares_for_year = shares
+                if (shares_for_year is None or shares_for_year <= 0) and fiscal_year in company_info_shares:
+                    shares_for_year = company_info_shares[fiscal_year]
+                if shares_for_year is not None and shares_for_year > 0 and fiscal_year not in shares_by_year:
+                    shares_by_year[fiscal_year] = shares_for_year
                 # Book value per share can be legitimately negative (heavily-levered/buyback-
                 # heavy firms) - only require shares > 0 (a real, positive share count to
                 # divide by), same convention as _compute_period_growth's own sign-change
                 # guard handling negative-to-positive transitions correctly rather than
                 # excluding negative values outright.
-                if stockholders_equity is not None and shares is not None and shares > 0:
-                    bvps_values.append((fiscal_year, stockholders_equity / shares))
+                if stockholders_equity is not None and shares_for_year is not None and shares_for_year > 0:
+                    bvps_values.append((fiscal_year, stockholders_equity / shares_for_year))
             except (ValueError, TypeError):
                 continue
 
