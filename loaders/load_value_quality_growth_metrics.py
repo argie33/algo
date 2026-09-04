@@ -1645,25 +1645,61 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 )
                 equity_row = cur.fetchone()
             latest_book_value = equity_row[0] if equity_row else None
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction to zero, tuple-wrapped-
+            # NULL bug class): the query above has NO `stockholders_equity IS NOT NULL` filter
+            # (deliberately, to mirror load_sec_valuations.py's own CASE-prioritized query) -
+            # so a symbol with real annual_balance_sheet rows on file but stockholders_equity
+            # NULL in every single one of them still gets a non-None `equity_row` (a 1-tuple
+            # wrapping None), not `equity_row is None`. The `equity_row is None` check below
+            # was meant to detect exactly this "never tagged" case (see its own comment: "means
+            # this full-history query found ZERO fiscal years with a real stockholders_equity
+            # value") but can only ever be True when the symbol has NO annual_balance_sheet rows
+            # at all - a strictly narrower, mostly-unreachable condition. Live-confirmed BAR/NRT/
+            # PAC/BMA (real royalty-trust/ADR filers, 10 fiscal years of BAR's own data_
+            # unavailable=FALSE rows, all with stockholders_equity NULL) fell through to the
+            # generic "missing_sec_data" fallback below as a result. Checking the actual fetched
+            # value instead of the row wrapper catches both shapes of "never tagged" the comment
+            # already claimed to cover.
+            _pb_shares_out = safe_float(row_dict.get("shares_outstanding"), f"{symbol}.pb_reason_shares_outstanding")
+            _pb_current_price = safe_float(row_dict.get("current_price"), f"{symbol}.pb_reason_current_price")
             pb_ratio_reason = (
                 "negative_book_value"
                 if latest_book_value is not None and latest_book_value <= 0
                 # FIX 2026-09-02 (goal: "keep the missing-data number going down" SEC/XBRL
                 # audit, same fix/pattern applied to pe_ratio_reason's `eps_row is None` case
-                # above): `equity_row is None` means this full-history query found ZERO fiscal
-                # years with a real stockholders_equity value, a distinct, verifiable fact from
-                # "found a value but pb still came out null for some other reason" (which
-                # correctly stays "missing_sec_data"). Live-verified 23 of the universe's 65
-                # pb_ratio "missing_sec_data" rows are this exact case - real total_assets/
-                # total_liabilities present (EPD, NRP, SPH spot-checked: MLPs that tag
-                # "Partners' Capital" instead of a "StockholdersEquity" concept, same taxonomy
+                # above): a distinct, verifiable "found a value but pb still came out null for
+                # some other reason" (which correctly stays "missing_sec_data"). Live-verified 23
+                # of the universe's 65 pb_ratio "missing_sec_data" rows are this exact case - real
+                # total_assets/total_liabilities present (EPD, NRP, SPH spot-checked: MLPs that
+                # tag "Partners' Capital" instead of a "StockholdersEquity" concept, same taxonomy
                 # difference class as HESM's EPS gap in
                 # [[interest_coverage_and_pe_ratio_reason_gates_fixed_20260902]]) or, for a
                 # handful of Latin American ADRs (UGP/PAGS/XP), a balance sheet that never
                 # extracted ANY field at all - either way, a genuine "never tagged", not an
                 # ambiguous remainder.
                 else "stockholders_equity_never_tagged_in_filings"
-                if equity_row is None
+                if latest_book_value is None
+                # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction, sibling of the
+                # eps_scale_mismatch/implausible_ratio treatment quality_metrics factors already
+                # get, never applied to pb_ratio here): a real, positive book value combined with
+                # a tiny share count relative to it (or vice versa) can push the SAME bound check
+                # load_sec_valuations.py's own pb computation applies
+                # (MIN_PLAUSIBLE_PB_RATIO=0.05..1000) to reject the ratio - that loader only logs
+                # a warning and leaves pb_ratio/reason both NULL on the sec_valuations row, with
+                # no way for this reason chain to distinguish it from a genuine extraction gap.
+                # Live-confirmed CL (stockholders_equity=$54M vs 1.47B shares -> bvps=$0.037,
+                # pb~2412, real near-zero equity from sustained buybacks, not a data gap) and PBT
+                # (bvps=$0.003, pb~9863, an oil/gas royalty trust with an atypically tiny
+                # residual equity base) recomputed here bind against the exact bounds
+                # load_sec_valuations.py already enforces at ratio-computation time.
+                else "implausible_ratio"
+                if (
+                    latest_book_value > 0
+                    and _pb_shares_out is not None
+                    and _pb_current_price is not None
+                    and _pb_shares_out > 0
+                    and not (0.05 <= (_pb_current_price / (float(latest_book_value) / _pb_shares_out)) <= 1000)
+                )
                 # FIXED 2026-09-03 (SEC/XBRL missing-data sweep, sibling of the eps_scale_
                 # mismatch fix just above for pe_ratio/peg_ratio): _sanity_check_market_cap
                 # (load_sec_valuations.py) deliberately nulls pb_ratio/ps_ratio/market_cap/
