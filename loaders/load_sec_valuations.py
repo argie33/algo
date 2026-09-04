@@ -1767,6 +1767,12 @@ class SecValuationsLoader(OptimalLoader):
     DCF_GROWTH_CEILING = 0.15
     DCF_FORECAST_YEARS = 5
     MAX_INTRINSIC_VALUE_PER_SHARE = 1_000_000.0  # $1M/share - no real per-share DCF exceeds this
+    # Below $1/share the DCF output is degenerate rather than a real valuation - it's the
+    # fcf_base-near-cancellation bug class (same root cause as DCF_NET_BORROWING_MIN_RETAINED_FRACTION,
+    # e.g. IMMR/ARM/COMP: a healthy company's FCF nearly exactly offset by a one-time item leaves a
+    # tiny positive fcf_base that DCFs out to pennies/share). A $0.01-$0.99 "intrinsic value" isn't
+    # informative even as a number, so both fields are nulled here rather than only margin_of_safety_pct.
+    MIN_INTRINSIC_VALUE_PER_SHARE = 1.0
 
     # Long-run US equity risk premium (Damodaran/Ibbotson-style estimate - the ~4-6% range is
     # the standard academic/practitioner convention for the market's average excess return
@@ -2225,12 +2231,16 @@ class SecValuationsLoader(OptimalLoader):
         pv_terminal = terminal_value / ((1 + discount_rate) ** self.DCF_FORECAST_YEARS)
         intrinsic_per_share = (pv_explicit + pv_terminal) / shares_out
 
-        if not (0 < intrinsic_per_share < self.MAX_INTRINSIC_VALUE_PER_SHARE):
+        if not (self.MIN_INTRINSIC_VALUE_PER_SHARE <= intrinsic_per_share < self.MAX_INTRINSIC_VALUE_PER_SHARE):
             logger.debug(f"[{symbol}] DCF intrinsic value implausible ({intrinsic_per_share:.2f}), marking as NULL")
             return None, None
 
+        # Deeply negative margins of safety (e.g. AMD/MPWR/MU-scale megacaps where the DCF's
+        # conservative growth-fade disagrees hard with the market's growth-priced multiple) are a
+        # real, if extreme, signal - not data corruption - so this bound only screens for
+        # formula breakdown (division by a near-zero intrinsic_per_share), not "surprising" results.
         margin_of_safety_pct = (intrinsic_per_share - current_price) / intrinsic_per_share * 100
-        if not (-1000 <= margin_of_safety_pct <= 1000):
+        if not (-100_000 <= margin_of_safety_pct <= 1000):
             logger.debug(f"[{symbol}] Margin of safety out of bounds ({margin_of_safety_pct:.0f}%), marking as NULL")
             return round(intrinsic_per_share, 2), None
 
