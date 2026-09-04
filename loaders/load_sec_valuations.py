@@ -173,6 +173,46 @@ def _split_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any:
     return eps
 
 
+# FIXED 2026-09-03 (goal session continuation, DDI-discovered): a genuine foreign private
+# issuer's shares_out is ALREADY corrected to an ADS-equivalent basis elsewhere in this file
+# (the `not shares_out and is_foreign_private_issuer` yfinance fallback a few hundred lines
+# below - yfinance queries per-LISTING, i.e. the ADS ticker, so its sharesOutstanding is
+# naturally ADS-basis) - but earnings_per_share is SEC-tagged per the filer's home-market
+# (ordinary/common) share and NEVER goes through any ADS conversion at all. When 1 ordinary
+# share != 1 ADS, this leaves shares_out on ADS-basis and EPS on ordinary-share-basis at the
+# same time, silently mismatched, and _sanity_check_pe_ratio correctly (by design) nulls the
+# resulting nonsense pe_ratio as eps_scale_mismatch - same failure MODE as
+# RECENT_STOCK_SPLITS/DOMESTIC_FILER_ADS_RATIO_OVERRIDES above (a real ratio never applied to
+# EPS) but a distinct, unconditional-on-fiscal-year root cause: this is a permanent unit
+# mismatch for the symbol, not a one-time corporate action, so (unlike RECENT_STOCK_SPLITS)
+# every fiscal year's EPS needs the same division, with no effective-date cutoff.
+# Live-confirmed via DDI (DoubleDown Interactive Co., Ltd., Korean 20-F filer): SEC's own
+# 424B4 prospectus and subsequent Schedule 13G ADS-count filings confirm 20 ADS = 1 ordinary
+# share (each ADS = 1/20th of an ordinary share). FY2025 SEC-tagged
+# earnings_per_share=$41.37 (per ordinary share) vs a live ADS price of $12.97 computed an
+# implied PE of ~0.31 (real ADS-basis EPS = $41.37/20 = $2.07, giving a plausible ~6.3x PE).
+# shares_out in sec_valuations for DDI was independently confirmed already-correct at
+# 49,553,440 = 2,477,672 (SEC ordinary shares) * 20 - confirming both the ratio and that only
+# EPS was left unconverted. Same never-guess discipline as the two registries above: only a
+# symbol with a source-confirmed ADS ratio belongs here.
+FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, float] = {
+    "DDI": 20.0,  # DoubleDown Interactive Co., Ltd. - 20 ADS = 1 ordinary share
+}
+
+
+def _fpi_ads_adjusted_eps(symbol: str, eps: Any) -> Any:
+    """Divide a foreign private issuer's SEC-tagged (ordinary-share-basis) EPS by its
+    confirmed ADS ratio so it matches the ADS-basis price/shares_out used everywhere else in
+    this file (see FPI_EPS_ADS_RATIO_OVERRIDES' own module-level comment).
+    """
+    if eps is None:
+        return eps
+    ratio = FPI_EPS_ADS_RATIO_OVERRIDES.get(symbol)
+    if ratio is None:
+        return eps
+    return float(eps) / ratio
+
+
 class SecValuationsLoader(OptimalLoader):
     """Compute valuations from SEC audited data instead of yfinance estimates.
 
@@ -540,6 +580,8 @@ class SecValuationsLoader(OptimalLoader):
 
                 # See RECENT_STOCK_SPLITS' own module-level comment (BKNG 25-for-1, 2026-04-02).
                 ttm_eps_basic = _split_adjusted_eps(symbol, ttm_eps_basic, ttm_eps_fiscal_year)
+                # See FPI_EPS_ADS_RATIO_OVERRIDES' own module-level comment (DDI, 20 ADS = 1 share).
+                ttm_eps_basic = _fpi_ads_adjusted_eps(symbol, ttm_eps_basic)
 
                 # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
                 # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton
@@ -597,6 +639,7 @@ class SecValuationsLoader(OptimalLoader):
                 if len(income_rows) > 1 and not eps_substituted_from_row1:
                     prior_year_eps = income_rows[1][3]  # Index 3 = earnings_per_share
                     prior_year_eps = _split_adjusted_eps(symbol, prior_year_eps, income_rows[1][0])
+                    prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps)
                 elif eps_substituted_from_row1:
                     # income_rows[1] was itself consumed above as the ttm_eps substitute (the
                     # premature-stub case) - re-fetch a genuinely older year rather than reuse it.
@@ -612,6 +655,7 @@ class SecValuationsLoader(OptimalLoader):
                     prior_year_eps = (
                         _split_adjusted_eps(symbol, older_eps_row[1], older_eps_row[0]) if older_eps_row else None
                     )
+                    prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps)
                 else:
                     prior_year_eps = None
 
