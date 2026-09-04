@@ -2892,6 +2892,32 @@ _UNSCORED_FACTORS: set[tuple[str, str]] = {
     ("stability_metrics", "downside_volatility_252d"),
     ("stability_metrics", "downside_volatility_60d"),
     ("stability_metrics", "downside_volatility_30d"),
+    # FIXED 2026-09-04 (goal: SEC/XBRL "missing data" headline audit): quality_metrics'
+    # own interest_coverage/payout_ratio/operating_margin_trend/net_margin_trend/roe_trend
+    # were explicitly REMOVED from _score_quality's quality_components formula
+    # (load_value_quality_growth_metrics.py, 2026-08-27 - see that formula's own docstring:
+    # "Interest Coverage/Payout Ratio REMOVED 2026-08-27... neither ever approached
+    # significance" and "Operating Margin Trend/Net Margin Trend/ROE Trend: relocated here
+    # from Growth 2026-08-27, then REMOVED from scoring again the same day... Still
+    # computed/persisted (quality_metrics table), not scored") - still computed/persisted/
+    # displayed, but zero references anywhere in load_stock_scores.py's _score_quality
+    # (verified via grep: each appears exactly once, only in the raw metrics-dict fetch,
+    # never in the 8-input quality_components list). earnings_beat_rate/earnings_surprise_avg
+    # (quality_metrics' OWN columns, distinct from the already-excluded growth_metrics
+    # versions above) have zero references at all in load_stock_scores.py - same "mislabeled
+    # proxies, confirmed dead code" finding as their growth_metrics siblings, just missed for
+    # the quality_metrics table specifically. Combined, these 7 quality_metrics factors were
+    # contributing 901 rows to the "Missing SEC/XBRL data" scored-only headline (6,345 ->
+    # 5,444) for factors that were never part of the real scored surface at all - same "coverage
+    # counted things outside the real scored universe" bug class as the CEF/BDC/ETN exclusion
+    # fixes (`3629005d4`/`cbd8eb268`).
+    ("quality_metrics", "interest_coverage"),
+    ("quality_metrics", "payout_ratio"),
+    ("quality_metrics", "operating_margin_trend"),
+    ("quality_metrics", "net_margin_trend"),
+    ("quality_metrics", "roe_trend"),
+    ("quality_metrics", "earnings_beat_rate"),
+    ("quality_metrics", "earnings_surprise_avg"),
 }
 
 _TABLE_GROUP = {
