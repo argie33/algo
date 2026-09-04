@@ -209,9 +209,7 @@ def _split_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any:
 # net_income itself looks bad, 50x jump from prior year), BCH/ENIC/LOMA/SOGP/TLK/PHAR/WDH/SIM
 # (true PE implausible and/or >30% off from the ratio-adjusted PE), JFU/KRKR/TC (ratio
 # recently changed AND validation failed/was wildly off - TC's mismatch was ~235x, far beyond
-# what a mid-year ratio-change split-history could explain). CX has a genuine basis ambiguity
-# (each ADS = 10 CPOs, each CPO = 3 ordinary shares - unclear whether SEC XBRL EPS is tagged
-# per-CPO or per-ordinary-share) not yet resolved. SBS's ADR ratio is 1:1 - its
+# what a mid-year ratio-change split-history could explain). SBS's ADR ratio is 1:1 - its
 # eps_scale_mismatch is NOT an ADS-ratio issue (parallels the already-known WSE case, likely
 # FX/currency-basis). BSP/CHSN/HKIT/LGCL/MASK/MATH/TLIH/TWG/ZJYL trade as ordinary shares
 # directly (no ADS program found) - their FPI flag/mismatch has some other cause.
@@ -225,6 +223,13 @@ FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, tuple[float, date | None]] = {
     "PAM": (25.0, None),  # Pampa Energy - 1 ADS = 25 ordinary shares
     "VTMX": (10.0, None),  # Vesta Real Estate - 1 ADS = 10 ordinary shares
     "YMM": (20.0, None),  # Full Truck Alliance - 1 ADS = 20 Class A ordinary shares
+    # CX (Cemex): 1 ADS = 10 CPOs, 1 CPO = 3 ordinary shares -> 1 ADS = 30 ordinary shares.
+    # The per-CPO-vs-per-ordinary basis ambiguity this creates was resolved via the
+    # net_income/market_cap cross-check (not just the disclosed ratio alone): x30 landed
+    # within ~2-9% of the ratio-independent "true PE" across FY2022-2024, while x10 was
+    # consistently ~3x too high in every year - confirming SEC XBRL tags EPS per ordinary
+    # share, not per CPO, for this filer.
+    "CX": (30.0, None),
     "FEDU": (10.0, date(2022, 6, 21)),  # Four Seasons Education - ratio changed from 1:2
     "LITB": (12.0, date(2024, 9, 5)),  # LightInTheBox - ratio changed
     "TOUR": (30.0, date(2026, 4, 22)),  # Tuniu - ratio changed from 1:3

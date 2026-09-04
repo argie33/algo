@@ -71,6 +71,11 @@ class TestFpiAdsAdjustedEpsHelper:
         # GDS: 1 ADS = 8 ordinary shares -> multiply.
         assert _fpi_ads_adjusted_eps("GDS", 0.3110, 2024) == pytest.approx(0.3110 * 8.0)
 
+    def test_cx_resolved_cpo_ambiguity_uses_30x(self) -> None:
+        # CX: 1 ADS = 10 CPOs = 30 ordinary shares - resolved via net_income/market_cap
+        # cross-check to be the per-ordinary-share (x30) basis, not per-CPO (x10).
+        assert _fpi_ads_adjusted_eps("CX", 0.0217, 2024) == pytest.approx(0.0217 * 30.0)
+
     def test_unregistered_symbol_untouched(self) -> None:
         assert _fpi_ads_adjusted_eps("ONC", 41.37, 2025) == 41.37
 
