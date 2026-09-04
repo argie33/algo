@@ -243,6 +243,31 @@ _SHARED_TREND_FIELDS = (
 )
 
 
+def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[str, Any]) -> None:
+    """Copy _SHARED_TREND_FIELDS values/reasons from quality_dict into growth_dict in place.
+
+    FIXED 2026-09-03 (goal: "Missing SEC/XBRL data under 6k" sweep): this mirror used to run
+    only when `not growth_dict.get("data_unavailable")`, so a symbol whose growth-side revenue/
+    EPS history all failed (_compute_growth_metrics's len==7 branch, which stamps every
+    _SHARED_TREND_FIELDS reason with its own blanket "Insufficient historical data:
+    revenue_growth_1y, ... could not be computed" string) got that unrelated reason for
+    sustainable_growth_rate even when quality_metrics had computed a real value - these fields
+    come from _compute_quality_metrics (ROE/dividends), a completely different input set than
+    growth's revenue/EPS history. Live-confirmed 59 symbols (PALL, AGRZ, ALMS, BXBL, MIRA, and
+    more) had a real, non-NULL quality_metrics.sustainable_growth_rate silently discarded this
+    way. Mirrors regardless of growth_dict.data_unavailable; only leaves growth_dict's own
+    reason untouched when quality has no value AND no reason for that field either, preserving
+    the original 2026-08-28 fix's intent for symbols where BOTH sides genuinely lack the data.
+    """
+    for field in _SHARED_TREND_FIELDS:
+        reason_field = f"{field}_unavailable_reason"
+        if quality_dict.get(field) is not None:
+            growth_dict[field] = quality_dict[field]
+            growth_dict[reason_field] = None
+        elif quality_dict.get(reason_field) is not None:
+            growth_dict[reason_field] = quality_dict[reason_field]
+
+
 class ValueQualityGrowthMetricsLoader(OptimalLoader):
     """Consolidated value + quality + growth metrics from SEC + valuations.
 
@@ -936,13 +961,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # (a fully-blanked growth row shouldn't be selectively patched). Live-confirmed on
             # DMRC/CNK (quality data_unavailable=True, growth data_unavailable=False): both had
             # sustainable_growth_rate=NULL with no reason before this fix.
-            if not growth_dict.get("data_unavailable"):
-                for field in _SHARED_TREND_FIELDS:
-                    if quality_dict.get(field) is not None:
-                        growth_dict[field] = quality_dict[field]
-                    reason_field = f"{field}_unavailable_reason"
-                    if quality_dict.get(reason_field) is not None:
-                        growth_dict[reason_field] = quality_dict[reason_field]
+            #
+            # FIXED 2026-09-03: the gate above used to ALSO skip this mirror whenever
+            # growth_dict itself was data_unavailable, incorrectly letting growth's own
+            # revenue/EPS-shaped blanket reason clobber a real quality-computed
+            # sustainable_growth_rate - see _mirror_shared_trend_fields's own docstring.
+            _mirror_shared_trend_fields(quality_dict, growth_dict)
 
             # Forward growth/estimate-revision fields (informational only, do not feed
             # growth_score - see _get_analyst_forward_growth_estimates's docstring). FIXED
