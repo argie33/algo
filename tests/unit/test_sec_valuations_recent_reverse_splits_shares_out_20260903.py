@@ -22,7 +22,7 @@ yfinance_snapshot fetchone result and the override symbol/ratio differ per test.
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from loaders.load_sec_valuations import SecValuationsLoader
+from loaders.load_sec_valuations import RECENT_REVERSE_SPLITS_SHARES_OUT, SecValuationsLoader
 
 
 def _make_loader() -> SecValuationsLoader:
@@ -120,3 +120,8 @@ class TestRecentReverseSplitsSharesOut:
         row = result[0]
         assert row["shares_outstanding"] == 56_959_280.0
         assert row["market_cap"] == 1.02 * 56_959_280.0
+
+    def test_qnrx_registered_with_confirmed_ads_ratio(self) -> None:
+        # QNRX: SEC 8-K confirms ADS ratio changed 1:1 -> 1:35, effective 2025-04-09 -
+        # cross-checked against a live yfinance market cap fetch (matched within 2.4%).
+        assert RECENT_REVERSE_SPLITS_SHARES_OUT["QNRX"] == 35.0

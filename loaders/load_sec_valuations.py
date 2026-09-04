@@ -181,12 +181,15 @@ RECENT_STOCK_SPLITS: dict[str, tuple[float, date]] = {
 # something else is going on with this symbol's share count that a naive ratio-divide would
 # get badly wrong. AKTX's raw shares_outstanding_basic has been growing every year
 # (9.7B->23.9B->67.3B->91.6B, 2023-2026) with no visible post-split drop despite a confirmed
-# 1-for-40 ADS-ratio change - also EXCLUDED, needs more investigation before any fix. QNRX's
-# split date/ratio was only medium-confidence sourced - not added without re-confirmation.
+# 1-for-40 ADS-ratio change - also EXCLUDED, needs more investigation before any fix.
+# QNRX re-confirmed same session via SEC's own 8-K (Nasdaq ECA2025-183): ADS ratio changed
+# 1:1 -> 1 ADS = 35 ordinary shares, effective 2025-04-09 (a Nasdaq $1.00 minimum-bid-price
+# compliance action) - cross-check matched within 2.4% (adjusted $15.44M vs live $15.81M).
 RECENT_REVERSE_SPLITS_SHARES_OUT: dict[str, float] = {
     "PPCB": 25.0,  # Propanc Biopharma - 1-for-25 reverse split, effective 2026-05-18
     "NXTT": 100.0,  # Next Technology Holding - 1-for-100 reverse split, effective 2026-08-10
     "HCWC": 35.0,  # Healthy Choice Wellness Corp - 1-for-35 reverse split, effective 2026-08-28
+    "QNRX": 35.0,  # Quoin Pharmaceuticals - ADS ratio 1:1 -> 1:35, effective 2025-04-09
 }
 
 
