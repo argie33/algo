@@ -2947,6 +2947,18 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         skipped entirely rather than trusted). Live-confirmed 26,668 of 27,203 candidate rows
         pass this corroboration check - directly feeds growth_metrics' quarterly-derived
         fields (earnings_growth_4q_avg, eps_growth_stability, consecutive_positive_quarters).
+
+        FIXED 2026-09-04 (same pass, live-caught before it could linger): the share-count
+        corroboration guard above cannot catch a corrupted net_income - live-confirmed INVE
+        FY2021/2022 quarterly net_income tagged as $1.6 TRILLION / -$392 BILLION (a pre-
+        existing scale/tagging error in already-stored data, several orders of magnitude
+        beyond anything a ~22M-share company could produce), dividing through to a
+        "confirmed-real" 22.2M share count and landing a $72,874/share derived EPS - the
+        exact same "confidently wrong, not just missing" failure _reject_implausible_eps()
+        exists to catch for directly-reported EPS, applied here to a value THIS sweep itself
+        would otherwise manufacture. Added the identical absolute ceiling
+        (abs(eps) <= 100,000) that governs no real filer's per-share value; INVE's two rows
+        were caught and reverted by hand before this guard existed.
         """
         with DatabaseContext("write") as cur:
             cur.execute(
@@ -2979,6 +2991,11 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                                    cis.shares_outstanding,
                                    COALESCE(q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei)
                                ) <= 20
+                           AND ABS(
+                                   q4x.net_income / COALESCE(
+                                       q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei
+                                   )
+                               ) <= 100000
                        ) AS derived
                  WHERE q4.id = derived.id
                 """

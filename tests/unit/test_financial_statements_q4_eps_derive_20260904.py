@@ -46,6 +46,9 @@ class TestDeriveMissingQ4Eps:
         # The company_info_sec corroboration guard (same 20x threshold as _fill_derived_eps).
         assert "cis.shares_outstanding" in sql
         assert "<= 20" in sql
+        # The absolute EPS ceiling (live-caught via INVE's corrupted trillion-dollar
+        # net_income - the share-count guard alone can't catch a bad net_income numerator).
+        assert "<= 100000" in sql
         # data_source must fit the real column's VARCHAR(20) limit.
         assert "'derived_ni_shares'" in sql
 
