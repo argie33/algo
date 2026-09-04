@@ -3686,10 +3686,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         sibling ratio, applied per-year before the variance calc so one garbage year correctly
         falls back to "insufficient usable years" (same path as a missing year) instead of
         poisoning the stdev with an astronomical outlier.
+
+        FIXED 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, same "search past the
+        immediate anchor years" convention used throughout this file - e.g. interest_coverage's
+        multi-year interest_expense/operating_income fallback, dividends_paid's prior-year
+        rescue): this only ever looked at the top 3 rows of income_rows (already fetched with
+        LIMIT 30, ordered fiscal_year DESC by the caller) - one missing/implausible year
+        anywhere in that specific top-3 window discarded the whole computation even when a 4th+
+        older year with real, usable data was sitting right there in the same already-fetched
+        list. Live-confirmed 439 universe margin_volatility rows land on implausible_ratio (a
+        strictly larger set than "insufficient_history" - i.e. the caller HAD 3+ years fetched,
+        just not 3 clean consecutive ones at the top). Now scans the full fetched history
+        (already bounded to 30 rows, no new query) and takes the 3 most recent USABLE years,
+        skipping - not aborting on - a bad one in between. `implausible` still tracks whether
+        any skipped year was a real-but-garbage ratio (vs. simply missing), for the same
+        fallback reason string when fewer than 3 usable years exist anywhere in the fetched
+        history.
         """
-        margins = []
+        margins: list[float] = []
         implausible = False
-        for row in income_rows[:3]:
+        for row in income_rows:
+            if len(margins) >= 3:
+                break
             revenue = safe_float(row[1], "margin_vol.revenue", allow_none=True)
             net_income = safe_float(row[3], "margin_vol.net_income", allow_none=True)
             if revenue is not None and revenue > 0 and net_income is not None:
