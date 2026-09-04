@@ -1268,6 +1268,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (
                 "no_recent_free_cash_flow_reported"
                 if symbol in self._get_no_recent_free_cash_flow_symbols()
+                or symbol in self._get_never_tagged_free_cash_flow_symbols()
                 else "capex_never_tagged_in_recent_filings"
                 if symbol in self._get_no_recent_capex_symbols()
                 # FIXED 2026-09-03 (SEC/XBRL missing-data sweep) - fcf_yield is also nulled by
@@ -3225,6 +3226,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._no_recent_free_cash_flow_symbols_cache = result
+        return result
+
+    def _get_never_tagged_free_cash_flow_symbols(self) -> frozenset[str]:
+        """Symbols with at least one real (non-data_unavailable) annual_cash_flow row, none of
+        which ever carry a real free_cash_flow value - a broader, full-history sibling of
+        _get_no_recent_free_cash_flow_symbols() above for filers too recently IPO'd/listed to
+        have accumulated the 3 consecutive real fiscal years that gate requires, same pattern
+        as _get_never_tagged_interest_expense_symbols().
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction continuation):
+        _get_no_recent_free_cash_flow_symbols() only has 12 sibling helpers total across this
+        file, but free_cash_flow itself was missing this full-history counterpart entirely
+        (unlike interest_expense/debt_components/revenue/total_assets/current_assets/
+        current_liabilities/net_income/total_liabilities/stockholders_equity, which all already
+        have one) - live-confirmed 48 additional universe symbols have real annual_cash_flow
+        history but never once tag a real free_cash_flow figure, too few consecutive real
+        fiscal years (recent IPOs/SPAC-mergers) to satisfy the 3-year window the sibling gate
+        requires. Cached for the life of this loader instance; this query runs once per
+        pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_free_cash_flow_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_cash_flow
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE free_cash_flow IS NOT NULL) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_free_cash_flow_symbols_cache = result
         return result
 
     def _get_last_known_zero_dividends_symbols(self) -> frozenset[str]:
@@ -6254,6 +6290,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # rows (65%) covered by either gate.
                     else "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    or symbol in self._get_never_tagged_free_cash_flow_symbols()
                     # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
                     # bug class - see bf82fc6d0/total_debt): ps_ratio/ev_revenue's own
                     # no_revenue_reported gate already ORs in _get_never_tagged_revenue_symbols()
@@ -6773,7 +6810,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # reason below. Live-confirmed 228 of 462 universe fcf_to_net_income
                     # "missing_sec_data" rows are symbols where free_cash_flow is also missing.
                     "no_recent_free_cash_flow_reported"
-                    if free_cash_flow is None and symbol in self._get_no_recent_free_cash_flow_symbols()
+                    if free_cash_flow is None
+                    and (
+                        symbol in self._get_no_recent_free_cash_flow_symbols()
+                        or symbol in self._get_never_tagged_free_cash_flow_symbols()
+                    )
                     # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
                     # _get_free_cash_flow_available_elsewhere_symbols()'s docstring). Label-
                     # only, no value recomputed.
@@ -6847,6 +6888,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # (see _get_no_recent_free_cash_flow_symbols()'s docstring for why).
                     "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
+                    or symbol in self._get_never_tagged_free_cash_flow_symbols()
                     # FIX 2026-09-02 (quality_row_db anchor-year investigation - see
                     # _get_free_cash_flow_available_elsewhere_symbols()'s docstring, the exact
                     # residual this reason's own comment above flagged as deliberately not
