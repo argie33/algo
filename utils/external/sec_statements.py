@@ -723,6 +723,15 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # keeps that value; live-checked neither AGNC nor ARR reports any other debt
         # concept, so no overwrite-collision risk for the two symbols this was found from.
         "SecuritiesSoldUnderAgreementsToRepurchase",
+        # FIXED 2026-09-03 (same sweep, follow-up to the AGNC/ARR find above): SEVN (Seven
+        # Hills Realty Trust, a commercial mortgage REIT) tags its real repo financing
+        # under this DIFFERENT standard concept instead - live-confirmed via real
+        # companyconcept API data: $417,796,000 FY2024 / $487,657,000 FY2025, previously
+        # NULL for every debt-component column. Checked SEVN's companyfacts for the plain
+        # "SecuritiesSoldUnderAgreementsToRepurchase" concept above too: not tagged at all,
+        # so no overwrite-collision risk between the two. Same short-term-financing
+        # semantic as the concept above (target: short_term_debt), fallback-only.
+        "SecuredDebtRepurchaseAgreements",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # no_recent_debt_components_symbols investigation): VRSN (VeriSign) tags its real,
         # current debt exclusively under "SeniorNotes"/"SeniorNotesCurrent" - live-
