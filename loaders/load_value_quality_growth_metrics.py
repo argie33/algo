@@ -2248,6 +2248,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         NOPAT = operating_income (0% effective rate) - the same "genuine business-state
         fact, not an absent SEC concept" distinction already applied to
         roic_pct_unprofitable just below. Cached for the life of this loader instance.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction - same bug class
+        as _get_no_recent_interest_expense_symbols' 2026-09-03 fix, missed in that sweep):
+        `WHERE data_unavailable = FALSE` made a symbol whose 3 most recent fiscal years are
+        ALL explicitly marked unavailable invisible to this gate. `fiscal_year > 0` keeps the
+        ranking free of `_unavailable_marker` sentinel rows while including real-fiscal-year
+        unavailable ones. Live-confirmed 109 additional symbols recovered. Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_no_tax_concept_symbols_cache", None)
         if cached is not None:
@@ -2259,7 +2266,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, pretax_income, income_tax_expense,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
@@ -2290,6 +2297,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         see that branch's comment for why this narrow use is safe despite the general
         net_income-derivation approach being rejected elsewhere in this file. Cached for
         the life of this loader instance.
+
+        FIXED 2026-09-03 (same bug class/fix as _get_no_tax_concept_symbols above, missed in
+        the same original sweep): `WHERE data_unavailable = FALSE` -> `WHERE fiscal_year > 0`
+        so a symbol whose 3 most recent fiscal years are ALL explicitly marked unavailable
+        isn't invisible to this gate. Live-confirmed 142 additional symbols recovered.
+        Label-only.
         """
         cached: frozenset[str] | None = getattr(self, "_never_tagged_pretax_income_symbols_cache", None)
         if cached is not None:
@@ -2301,7 +2314,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     SELECT symbol, pretax_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
-                    WHERE data_unavailable = FALSE
+                    WHERE fiscal_year > 0
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
