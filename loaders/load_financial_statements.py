@@ -2954,6 +2954,79 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 )
         self._sweep_derive_missing_q4_interest_expense()
         self._sweep_derive_missing_q4_eps()
+        self._sweep_derive_missing_q4_income_remaining_fields()
+
+    def _sweep_derive_missing_q4_income_remaining_fields(self) -> None:
+        """Derive operating_income/gross_profit/cost_of_revenue/depreciation_expense/
+        amortization_expense/research_development_expense for a missing Q4
+        quarterly_income_statement row as FY_annual - (Q1+Q2+Q3), same identity and
+        independent-per-field gating as _sweep_derive_missing_q4_cash_flow_remaining_fields()
+        (cash flow statement's sibling sweep).
+
+        ADDED 2026-09-04 (goal: "missing SEC/XBRL data under 6k" sweep continuation):
+        _sweep_derive_missing_q4() above only ever covered revenue/net_income - every other
+        additive flow field on this table was left untouched, even though nothing about them
+        is any less safe to derive this way than revenue/net_income already are. Live-
+        confirmed recoverable: 25,792 operating_income / 12,873 gross_profit / 15,731
+        cost_of_revenue / 11,224 depreciation_expense / 13,036 amortization_expense / 12,054
+        research_development_expense rows - by far the largest remaining Q4-derivation gap in
+        this file.
+
+        Floor: cost_of_revenue/depreciation_expense/amortization_expense/
+        research_development_expense are reported as non-negative cost/expense figures in this
+        schema (same "a real filer's [cost] can restate but never actually go negative for a
+        quarter" reasoning _sweep_derive_missing_q4() already applies to revenue) - a negative
+        derived value there signals an inter-filing reclassification, not a real Q4 result, and
+        is skipped. gross_profit and operating_income get NO floor: both can legitimately go
+        negative for a real quarter (a company selling below cost, or absorbing a one-time
+        operating charge), same reasoning _sweep_derive_missing_q4() already applies to
+        net_income.
+        """
+        floored_fields = (
+            "cost_of_revenue",
+            "depreciation_expense",
+            "amortization_expense",
+            "research_development_expense",
+        )
+        unfloored_fields = ("operating_income", "gross_profit")
+        with DatabaseContext("write") as cur:
+            for field in floored_fields + unfloored_fields:
+                floor_clause = (
+                    f"AND (a.{field} - (q1.{field} + q2.{field} + q3.{field})) >= 0" if field in floored_fields else ""
+                )
+                cur.execute(
+                    f"""
+                    UPDATE quarterly_income_statement q4
+                       SET {field} = derived.{field},
+                           data_source = 'derived_fy_minus_9m'
+                      FROM (
+                            SELECT q4x.id,
+                                   a.{field} - (q1.{field} + q2.{field} + q3.{field}) AS {field}
+                              FROM quarterly_income_statement q4x
+                              JOIN annual_income_statement a
+                                ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                              JOIN quarterly_income_statement q1
+                                ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                              JOIN quarterly_income_statement q2
+                                ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                              JOIN quarterly_income_statement q3
+                                ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                             WHERE q4x.fiscal_quarter = 4
+                               AND q4x.{field} IS NULL
+                               AND a.{field} IS NOT NULL
+                               AND q1.{field} IS NOT NULL
+                               AND q2.{field} IS NOT NULL
+                               AND q3.{field} IS NOT NULL
+                               {floor_clause}
+                           ) AS derived
+                     WHERE q4.id = derived.id
+                    """
+                )
+                if cur.rowcount:
+                    logger.warning(
+                        f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
+                        f"{field} row(s) as FY_annual - 9mo_YTD."
+                    )
 
     def _sweep_derive_missing_q4_eps(self) -> None:
         """Derive earnings_per_share for a missing quarterly_income_statement row (any
