@@ -2414,7 +2414,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             numerator, denominator = row[num_idx], row[den_idx]
             if numerator is None or denominator is None or denominator == 0:
                 continue
-            ratio = numerator / denominator * 100.0
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same Decimal/float
+            # class as the fcf_margin fallback crash elsewhere in this file): numerator/
+            # denominator are raw psycopg2 Decimal values straight from fetchall() - `Decimal *
+            # float` (the `* 100.0` below) raises TypeError on every single call, not just some
+            # (this function only ever runs on the already-rare implausible-ratio branch, so
+            # this always-crash bug was invisible in the ratio-level "N/M implausible_ratio
+            # rows have a usable pair" audits above, which only checked whether a usable row
+            # EXISTED in the query result, not whether this code path actually returned it
+            # without crashing). Propagates to the caller's caller's outer try/except, wiping
+            # the entire quality_metrics row to "missing_sec_data" for every symbol that hits
+            # an implausible anchor-year roe/roa/asset_turnover ratio.
+            ratio = float(numerator) / float(denominator) * 100.0
             if abs(ratio) <= 1000:
                 return float(ratio)
         return None
