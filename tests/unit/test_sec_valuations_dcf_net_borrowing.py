@@ -216,6 +216,25 @@ class TestNetBorrowingWiredIntoDcfOnly:
         assert nb_result["intrinsic_value_per_share"] == no_nb_result["intrinsic_value_per_share"]
         assert nb_result["margin_of_safety_pct"] == no_nb_result["margin_of_safety_pct"]
 
+    def test_near_total_cancellation_nulls_dcf_not_a_misleading_near_zero_value(self) -> None:
+        """IMMR-shaped bug, live-caught 2026-09-04 (goal: "implausible values" audit): a real,
+        healthy fcf_base ($32.102M, fcf_yield=12.92%) combined with a single large
+        debt-repayment year's net_borrowing (-$32.098M, well within the 10x ceiling) leaves a
+        candidate dcf_fcf_base of just $4,000 - still positive, so it slips past the DCF's own
+        `fcf <= 0` gate, but that near-zero base compounds through the whole forecast into an
+        intrinsic_value_per_share that rounds to $0.00 (a misleading "worthless" signal, not an
+        honest "no DCF available" one). DCF_NET_BORROWING_MIN_RETAINED_FRACTION must null the
+        DCF here instead - same treatment as a full negative flip."""
+        loader = _make_loader()
+        kwargs = self._base_kwargs()
+        kwargs["ocf"] = 32_102_000.0
+        kwargs["capex"] = 0.0
+        kwargs["net_borrowing"] = -32_098_000.0  # fcf_base=32.102M, candidate=$4,000
+        result = loader._compute_valuations(**kwargs)
+
+        assert result["intrinsic_value_per_share"] is None
+        assert result["margin_of_safety_pct"] is None
+
     def test_net_borrowing_at_exactly_the_bound_is_still_applied(self) -> None:
         """Exactly DCF_NET_BORROWING_MAX_FCF_MULTIPLE x fcf_base (the boundary itself, <=) must
         still be applied, not rejected - fcf_base=100.0, net_borrowing=1000.0 is exactly 10x."""

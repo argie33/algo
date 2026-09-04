@@ -1824,6 +1824,22 @@ class SecValuationsLoader(OptimalLoader):
     # temporarily weak FCF year, while still catching an order-of-magnitude data-quality outlier
     # like BWXT's.
     DCF_NET_BORROWING_MAX_FCF_MULTIPLE = 10.0
+    # FIXED 2026-09-04 (goal: SEC/XBRL "implausible values" audit, live-confirmed via IMMR):
+    # the 10x ceiling above only guards against net_borrowing being implausibly LARGE relative
+    # to fcf_base - it says nothing about net_borrowing nearly CANCELLING fcf_base out. IMMR's
+    # real FY2026 fcf_base ($32.102M, OCF-CapEx-SBC, genuinely healthy - fcf_yield=12.92%) and
+    # net_borrowing (-$32.098M, a single large debt-repayment year, well within the 10x bound)
+    # combine to a dcf_fcf_base of ~$4,000 - still technically positive, so it slips past the
+    # DCF's own `fcf <= 0` null-out gate, but that near-zero base then compounds through all
+    # DCF_FORECAST_YEARS plus the terminal value, producing an intrinsic_value_per_share that
+    # rounds to $0.00 - a misleading "worthless" signal for a real, cash-generative company,
+    # not an honest "no DCF available" result. A full sign-flip to negative was already handled
+    # (fcf<=0 gate nulls it, see test_net_borrowing_pushing_fcf_negative_leaves_dcf_none_
+    # not_a_crash) - this catches the same "one-time financing event shouldn't anchor a
+    # multi-year perpetuity" problem one step earlier, before it degenerates into a near-zero
+    # (rather than negative) base. 0.15 is conservative: every symbol checked in the live
+    # $0.00-$0.30/share tier that wasn't near-total cancellation retained >=60% of fcf_base.
+    DCF_NET_BORROWING_MIN_RETAINED_FRACTION = 0.15
     # Fallback risk-free rate (approx. long-run average 10Y Treasury yield) - used only as a
     # test/caller default and on the rare day economic_data has no recent DGS10 reading. Live
     # runs use the actual current 10Y yield via _get_risk_free_rate() below, not this constant.
@@ -2617,7 +2633,18 @@ class SecValuationsLoader(OptimalLoader):
             and fcf_base != 0
             and abs(net_borrowing) <= self.DCF_NET_BORROWING_MAX_FCF_MULTIPLE * abs(fcf_base)
         ):
-            dcf_fcf_base = fcf_base + net_borrowing
+            candidate_fcf_base = fcf_base + net_borrowing
+            # See DCF_NET_BORROWING_MIN_RETAINED_FRACTION's docstring above (IMMR live
+            # evidence): a candidate that's still positive but has been nearly cancelled out
+            # by net_borrowing must be treated the same as a full negative flip - null the DCF
+            # (fcf=None hits the same `fcf is None` gate _compute_dcf_intrinsic_value already
+            # uses for `fcf <= 0`) rather than anchor a multi-year perpetuity on a near-zero,
+            # one-time-financing-event-distorted base. A genuine negative flip is unaffected
+            # (falls through to the else branch unchanged, still caught by that same gate).
+            if fcf_base > 0 and 0 < candidate_fcf_base < self.DCF_NET_BORROWING_MIN_RETAINED_FRACTION * fcf_base:
+                dcf_fcf_base = None
+            else:
+                dcf_fcf_base = candidate_fcf_base
         eps_growth_pct = None
         if prior_year_eps is not None and prior_year_eps != 0 and ttm_eps is not None:
             eps_growth_pct = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100
