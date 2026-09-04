@@ -3764,7 +3764,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # a real operating_income value when one exists.
             interest_coverage_operating_income = operating_income
             interest_coverage_pretax_income = pretax_income
-            if interest_expense is None or interest_expense <= 0:
+            _interest_expense_invalid = interest_expense is None or interest_expense <= 0
+            # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, WELL
+            # follow-up): this fallback search only ever fired when interest_expense ITSELF
+            # was the problem - but a filer can have a perfectly real, valid current-year
+            # interest_expense while ONLY operating_income/pretax_income are missing for that
+            # specific anchor year (live-confirmed WELL/Welltower: FY2025 has real
+            # interest_expense=$579.6M and income_tax_expense=$-7.1M, but pretax_income is
+            # NULL that one year despite being real and populated FY2021-2024 - same
+            # "anchor-year-specific extraction gap, real data one year back" class already
+            # fixed for other fields via the no-recent-X gates). Without this second trigger,
+            # a symbol in exactly this state skipped the fallback search entirely and fell
+            # straight to the generic "missing_sec_data" label instead of either a real
+            # recovered value or the more specific reit_special_entity/no-tax-concept label.
+            _income_inputs_missing = (
+                interest_coverage_operating_income is None and interest_coverage_pretax_income is None
+            )
+            if _interest_expense_invalid or _income_inputs_missing:
                 with DatabaseContext("read") as cur:
                     # FIXED 2026-09-01 (same pattern/fix as the gross_profit fallback above -
                     # goal session "we had data but didn't know how to read it" audit).
@@ -3803,9 +3819,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         fallback_ie_row = cur.fetchone()
 
                 if fallback_ie_row:
-                    interest_expense = self._nan_to_none(
-                        safe_float(fallback_ie_row[0], f"{symbol}.interest_expense_fallback_year", allow_none=True)
-                    )
+                    # Only overwrite interest_expense itself when IT was the reason this
+                    # fallback fired - WELL-style callers already have a real, current-year
+                    # interest_expense and must keep it, not silently swap in a prior year's
+                    # (which would mix a current-year denominator with a stale numerator).
+                    if _interest_expense_invalid:
+                        interest_expense = self._nan_to_none(
+                            safe_float(fallback_ie_row[0], f"{symbol}.interest_expense_fallback_year", allow_none=True)
+                        )
                     interest_coverage_operating_income = self._nan_to_none(
                         safe_float(fallback_ie_row[1], f"{symbol}.operating_income_fallback_year", allow_none=True)
                     )
@@ -6274,6 +6295,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol in self._get_no_recent_stockholders_equity_symbols()
                         or symbol in self._get_never_tagged_stockholders_equity_symbols()
                     )
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same operating_income_not_itemized case as ebitda_margin/
+                    # roic_pct/roce_pct/operating_margin/interest_coverage above):
+                    # operating_profitability_for_margin also depends on operating_income.
+                    else "operating_income_not_itemized"
+                    if symbol in self._get_no_recent_operating_income_symbols()
+                    or symbol in self._get_never_tagged_operating_income_symbols()
                     else "missing_sec_data"
                 )
                 if operating_profitability is None
