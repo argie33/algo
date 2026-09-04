@@ -297,6 +297,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     # <=1.0 bound from that file's primary computation - kept in sync here for the same reason.
     MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO = 0.30
 
+    # ADDED 2026-09-04 (goal session: "Missing SEC/XBRL data" headline reduction sweep).
+    # Pure oil/gas grantor royalty trusts (SIC 6792/6795, NOT operating royalty companies
+    # like RGLD/SSRM/TFPM/TPL which have real corporate balance sheets and are deliberately
+    # excluded from this set) - these entities pass through royalty proceeds and file a
+    # trust-basis balance sheet with no debt, cash, equity, or operating-income concepts in
+    # the traditional GAAP-operating-company sense, the SAME structural gap current_ratio/
+    # quick_ratio/gross_margin/gross_profitability/gross_margin_trend already recognize via
+    # "reit_special_entity" (no_operating_income_concept/no_gross_profit_concept checks
+    # below) - but the debt/cash/interest/FCF-derived fields below did NOT get that same
+    # recognition, instead falling through to the generic "missing_sec_data"/
+    # "total_debt_not_itemized"/"no_recent_cash_reported"/"interest_expense_not_itemized"
+    # reasons, miscounting a structurally-permanent gap as a recoverable one. Live-confirmed
+    # via company_info_sec (sic_code=6792/6795, entity_type='operating' - these are NOT
+    # caught by the sic_code=0/entity_type='other' CEF/BDC/ETN exclusion in scores.py's
+    # active_join, commit 3629005d4, since a royalty trust genuinely does have a real SIC
+    # code) and via each symbol's already-live quality_score completeness-floor carve-out
+    # above (see "oil/gas royalty trusts with atypical capital structures" note on
+    # min_quality_weight_pct). Small (6 symbols), curated by hand rather than a SIC-code
+    # rule - SIC 6792/6795 also covers real operating companies (RGLD/SSRM/TFPM/TPL/EROK/LB)
+    # that DO report normal financials and must not be swept in here.
+    _ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS = frozenset({"NRT", "MTR", "CRT", "PBT", "SBR", "SJT"})
+
     table_name = "value_metrics"  # Primary table for watermarking
     # Deliberately NOT declaring output_tables here (unlike e.g. load_sector_industry_daily).
     # That mechanism makes runner.py force quality_metrics/growth_metrics to the SAME
@@ -7356,6 +7378,49 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics computed from available data. "
                     f"Unavailable: {', '.join(sorted(set(failed_metrics)))} (insufficient SEC data)"
                 )
+
+            # FIXED 2026-09-04 (goal session: "Missing SEC/XBRL data" headline reduction sweep)
+            # - see _ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS's own docstring above for the full
+            # evidence trail. Recategorize the debt/cash/interest/FCF-derived fields these 6
+            # pure grantor trusts structurally never report, from generic/recoverable-sounding
+            # reasons to the same "reit_special_entity" label already used for their
+            # current_ratio/quick_ratio/gross_margin siblings - only when the field is
+            # genuinely None and already carries one of the specific reasons this gap can
+            # produce, so a symbol that DOES have real data for one of these fields (or a
+            # reason unrelated to this structural gap) is left untouched.
+            if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
+                _trust_recategorize_fields = (
+                    "total_debt",
+                    "debt_to_equity",
+                    "debt_to_assets",
+                    "roic_pct",
+                    "roce_pct",
+                    "interest_coverage",
+                    "total_cash",
+                    "cash_per_share",
+                    "free_cash_flow",
+                    "operating_cash_flow",
+                    "fcf_to_net_income",
+                    "ocf_to_net_income",
+                    "accruals_ratio",
+                    "fcf_margin",
+                    "ebitda",
+                    "ebitda_margin",
+                    "operating_margin",
+                )
+                _trust_source_reasons = {
+                    "missing_sec_data",
+                    "total_debt_not_itemized",
+                    "no_recent_cash_reported",
+                    "interest_expense_not_itemized",
+                    "stockholders_equity_not_reported",
+                    "operating_income_not_itemized",
+                    "total_liabilities_not_reported",
+                }
+                for _field in _trust_recategorize_fields:
+                    _reason_key = f"{_field}_unavailable_reason"
+                    if metrics.get(_field) is None and metrics.get(_reason_key) in _trust_source_reasons:
+                        metrics[_reason_key] = "reit_special_entity"
 
             return metrics
 
