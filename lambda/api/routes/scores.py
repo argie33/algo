@@ -3470,6 +3470,20 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
                 (
                     f" LEFT JOIN company_info_sec _cis ON _cis.symbol = {table}.symbol"
                     f" JOIN stock_symbols _su ON _su.symbol = {table}.symbol AND _su.active = true"
+                    # FIXED 2026-09-03 (SEC/XBRL missing-data sweep, drift check against the
+                    # canonical filter): utils/loaders/helpers.py's get_active_symbols(
+                    # exclude_etfs=True) - the actual real-scoring population this report is
+                    # trying to match - also requires `data_unavailable IS NOT TRUE` as a
+                    # sibling condition to `active = true` (a symbol can be active=true in the
+                    # roster yet separately flagged permanently data_unavailable, e.g. after a
+                    # confirmed-dead-data investigation), but this join never carried that
+                    # second condition. Live-confirmed only 3 active-universe symbols currently
+                    # match (ISSC/BNRG/AVB) and none currently contribute a live
+                    # missing_sec_data row, so this has zero headline impact today, but it's the
+                    # same "measuring a population nobody actually scores" bug class as the two
+                    # fixes just above/below this comment and would silently reopen the moment
+                    # any such symbol picks up a real gap.
+                    f" AND _su.data_unavailable IS NOT TRUE"
                     f" AND {_NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias='_su', company_info_alias='_cis')}"
                 )
                 if has_symbol
