@@ -1284,7 +1284,14 @@ class PositionSizer:
         # 3. Could not arbitrate between these two real-but-conflicting numbers with a fresh
         #    backtest: same hard data-availability wall as
         #    regime_manager.py's get_adjusted_config() finding - see
-        #    tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py.
+        #    tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py. NOTE
+        #    (2026-09-04 correction, see that test file's docstring): the regime-LABEL half of
+        #    that finding was later found to be wrong (correction/caution regimes are common,
+        #    66% of market history, once reconstructed from deeper price/VIX/credit-spread
+        #    data instead of the shallow market_exposure_daily table) - but this decision here
+        #    depends only on buy_sell_daily's shallow real-trade history (~83 days), which is
+        #    still true and still the actual blocker. This #3 point is NOT reopened by that
+        #    correction.
         # Net: the concentration branch below stays exactly as-is (correct, real defense-in-
         # depth code, just non-binding under today's numbers) - not simplified/removed either,
         # since it would activate correctly and immediately if either number is ever

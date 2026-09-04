@@ -62,15 +62,22 @@ class RegimeManager:
     # and were removed; this dict key and its REGIME_POSITION_SIZE_* constants were not.
     #
     # max_hold_days_mult/target_1-3_mult (REGIME_TARGET_*/REGIME_HOLD_DAYS_* -
-    # _regime_target_hold_days_inert, RESOLVED 2026-08-25): same shape as position_size_mult
-    # above in that get_adjusted_config() (the only place these get applied) has zero real
-    # callers, but a DIFFERENT resolution - not double-counting like position_size_mult, but a
-    # hard data-availability wall: validating whether regime-scaled exits actually help would
-    # need real trade history across at least one correction/caution regime, and none exists
-    # locally (buy_sell_daily's real entry-signal history only goes back to 2026-06-12; every
-    # available window shows confirmed_uptrend/uptrend_under_pressure only). See
+    # _regime_target_hold_days_inert, RESOLVED 2026-08-25, CORRECTED 2026-09-04): same shape
+    # as position_size_mult above in that get_adjusted_config() (the only place these get
+    # applied) has zero real callers, but a DIFFERENT resolution - not double-counting like
+    # position_size_mult. The 2026-08-25 writeup claimed regime *label* data was the wall
+    # (correction/caution "don't exist" locally) - that was WRONG, see
+    # tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py's corrected
+    # docstring: a standalone reconstruction against real price/VIX/credit-spread history
+    # (scripts/backtest_regime_reconstruction.py) found correction+caution are 66% of market
+    # weeks 1993-2026, not rare. The REAL remaining wall is narrower: buy_sell_daily (the
+    # algo's own entry-signal table) only goes back to 2026-06-12, so there's no real
+    # historical TRADE data to compare static vs. regime-scaled exits against, even though
+    # regime labels themselves are now well-supported historically. See
     # get_adjusted_config()'s own docstring for the full writeup. Intentionally left un-wired,
-    # not an accidental bug - revisit once real correction/caution-regime trade history exists.
+    # not an accidental bug - revisit once real historical trade data under known regimes
+    # exists (via a signal-replay backtest, not yet built) or buy_sell_daily accumulates
+    # enough live history on its own.
     REGIME_PARAMS: ClassVar[dict[str, Any]] = {
         "confirmed_uptrend": {
             "position_size_mult": REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
@@ -259,31 +266,50 @@ class RegimeManager:
         way vol_managed_multiplier was validated, or (b) mark this display-only like
         position_size_mult and stop implying it's live, or (c) leave as documented dead code.
 
-        RESOLVED 2026-08-25 (same day, user directed: "build a real backtest first"): option
-        (a) is not achievable with data that exists locally today - checked concretely, not
-        assumed. `run_backtest.py`'s own real entry-signal source, `buy_sell_daily`, has only
-        2.5 months of history (2026-06-12 to 2026-08-25, live-queried) - nowhere near enough
-        trades to compare static vs. regime-scaled exits with any statistical power. Worse:
-        the regime dimension itself has no correction/caution representation to test against
-        in ANY available window - `market_exposure_daily`'s full history (28 days) shows only
-        confirmed_uptrend/uptrend_under_pressure, zero correction/caution days. (SPY's own
-        30-week-trend + realized-vol history goes back to 1993 and could reconstruct `regime`
-        for decades without the DB table - the real blocker is pairing that with actual stock-
-        level trade entries, which `buy_sell_daily` cannot supply before 2026-06-12.) Building
-        a backtest anyway (e.g. on synthetic entries) would produce a number that LOOKS like
-        evidence but isn't - exactly the failure mode this file's own bar (vol_managed_multiplier
-        stayed inert until real evidence existed) is designed to prevent.
+        RESOLVED 2026-08-25 (same day, user directed: "build a real backtest first"), CORRECTED
+        2026-09-04 (user pushback the same real-money-readiness session: "isn't the limit
+        self-imposed? we should get all the data we need"): the 2026-08-25 writeup claimed
+        "the regime dimension itself has no correction/caution representation to test against
+        in ANY available window" - that was WRONG, and self-contradicted its own parenthetical
+        one sentence later ("SPY's own 30-week-trend + realized-vol history goes back to 1993
+        and could reconstruct regime for decades without the DB table"). `market_exposure_daily`
+        being shallow (28-36 days observed across two sessions) reflects only how long that
+        live production loader has been running, not how much regime history is reconstructable.
+        Built `scripts/backtest_regime_reconstruction.py` (standalone, read-only, touches no
+        production table) to actually do the reconstruction the parenthetical described: it
+        replicates market_exposure.py's real scoring/veto logic against price_daily/FRED
+        history at weekly cadence, 1993-01-25 to 2026-08-31 (1,753 weeks). Result: correction
+        466 weeks (27%), caution 693 weeks (40%), uptrend_under_pressure 132 (8%),
+        confirmed_uptrend 462 (26%) - correction+caution are 66% of market history, sanity-
+        checked against GFC/COVID/dot-com/2022-bear dates with no cherry-picking (see
+        tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py's corrected
+        docstring for the full list). Regime-label scarcity is DEAD as a justification for
+        leaving this unwired - do not cite it going forward.
+
+        The narrower blocker the original writeup also named survives this correction, though:
+        `run_backtest.py`'s own real entry-signal source, `buy_sell_daily`, still has only
+        ~83 days of live history (2026-06-12 to 2026-09-03) - nowhere near enough real trades,
+        under real regimes, to compare static vs. regime-scaled exits with statistical power.
+        Regime labels now exist for decades; real historical trade outcomes under those labels
+        do not. Building a backtest on synthetic entries paired with the reconstructed regime
+        history would still produce a number that LOOKS like evidence but isn't - exactly the
+        failure mode this file's own bar (vol_managed_multiplier stayed inert until real
+        evidence existed) is designed to prevent. Closing this gap for real means replaying the
+        full stock-scoring + entry-signal pipeline against point-in-time historical fundamentals
+        (not just price) across decades - a substantially larger, separate undertaking, not
+        attempted as part of this correction.
 
         DECISION: keep this method un-wired (option (c), effectively also (b) - see the
         `_regime_target_hold_days_inert` marker on the class-level comment above, added to
-        make this an intentional, monitored state rather than an implicit one). Revisit ONLY
-        when `buy_sell_daily` (or an equivalent real entry-signal history) accumulates enough
-        history to include at least one real correction or caution regime - until then, no
-        amount of engineering effort here produces trustworthy evidence either way. Pinned by
-        tests/unit/test_regime_manager_adjusted_config_never_wired_20260825.py plus
-        tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py (the data-
-        constraint finding above, so a future session with more history doesn't have to
-        re-derive it).
+        make this an intentional, monitored state rather than an implicit one). Revisit when
+        EITHER a signal-replay backtest against point-in-time historical fundamentals is built
+        and validated, OR `buy_sell_daily` accumulates enough live history on its own to include
+        a real correction/caution regime with statistical power - until then, no amount of
+        engineering effort on the regime-label side alone produces trustworthy evidence. Pinned
+        by tests/unit/test_regime_manager_adjusted_config_never_wired_20260825.py plus
+        tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py (now documenting
+        the corrected finding, so a future session doesn't re-derive it or repeat the "regime
+        labels are scarce" mistake).
         """
         # Fail-fast: base_config must have critical values (validated at init time)
         if "max_hold_days" not in base_config or base_config["max_hold_days"] is None:

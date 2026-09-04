@@ -64,7 +64,9 @@ class TestRunBacktestSharpeSortinoCalmarUseCanonicalFormulas:
             }
         ]
 
-        def fake_buy_signals(signal_date: date, min_composite: float) -> list[dict[str, Any]]:
+        def fake_buy_signals(
+            signal_date: date, min_composite: float, rank_by: str = "signal_quality_score"
+        ) -> list[dict[str, Any]]:
             return buy_signal if signal_date == trading_dates[0] else []
 
         def fake_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:

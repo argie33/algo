@@ -29,7 +29,9 @@ RAW_ENTRY_PRICE = 100.0
 RAW_EXIT_PRICE = 110.0
 
 
-def _buy_signals(signal_date: date, min_composite: float) -> list[dict[str, Any]]:
+def _buy_signals(
+    signal_date: date, min_composite: float, rank_by: str = "signal_quality_score"
+) -> list[dict[str, Any]]:
     if signal_date == DAY1_SIGNAL:
         return [
             {

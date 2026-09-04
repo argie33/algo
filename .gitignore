@@ -328,3 +328,6 @@ nohup.out
 # live incident response - real for that session, meaningless as permanent history afterward.
 scripts/_wait_and_run_*.ps1
 !steering/YFINANCE_PARALLELISM_INVESTIGATION.md
+
+# Generated local analysis output (re-derivable by re-running the script; not source)
+scripts/output/
