@@ -109,7 +109,7 @@ class TestEpsPrefersPopulatedFiscalYear:
         ]
         # The substitution fires (income_rows[1] consumed as ttm_eps), so prior_year_eps is
         # re-fetched from a genuinely older year - mock it as None (no 3rd year in this fixture).
-        fetchone_results = [(None,), *_DOWNSTREAM_FETCHONE]
+        fetchone_results = [None, *_DOWNSTREAM_FETCHONE]
 
         result = _run_fetch_incremental("HG", income_rows, fetchone_results)
 
@@ -153,7 +153,7 @@ class TestEpsPrefersPopulatedFiscalYear:
             (2025, 2_905_524_000.0, 840_029_000.0, 5.75, None, 824_905_000.0, None, None, 100_364_000.0, None),
         ]
         # A genuinely older year (FY2024) with its own real EPS - the re-fetch query result.
-        fetchone_results = [(3.81,), *_DOWNSTREAM_FETCHONE]
+        fetchone_results = [(2024, 3.81), *_DOWNSTREAM_FETCHONE]
 
         result = _run_fetch_incremental("HG2", income_rows, fetchone_results)
 

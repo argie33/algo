@@ -112,7 +112,7 @@ class TestRevenuePrefersPopulatedFiscalYear:
         # growth-rate leg, since FY2025 was itself consumed as the ttm_eps substitute) before
         # the shared downstream calls below - see load_sec_valuations.py's
         # eps_substituted_from_row1 branch.
-        fetchone_results = [(None,), *_DOWNSTREAM_FETCHONE]
+        fetchone_results = [None, *_DOWNSTREAM_FETCHONE]
 
         result = _run_fetch_incremental("CRAI", income_rows, fetchone_results)
 

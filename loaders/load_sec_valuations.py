@@ -132,6 +132,46 @@ DOMESTIC_FILER_ADS_RATIO_OVERRIDES: dict[str, float] = {
     "AMRN": 20.0,  # Amarin Corporation plc - 1 ADS = 20 ordinary shares, effective 2025-04-11
 }
 
+# FIXED 2026-09-03 (goal session: "missing SEC/XBRL data"/implausible-values sweep,
+# eps_scale_mismatch follow-up): a real stock split creates the SAME class of same-symbol
+# scale mismatch as an ADS-ratio change above, but on the EPS side instead of shares_out -
+# current_price is always live/post-split, while an annual (or quarterly) filing whose fiscal
+# period ENDED BEFORE the split's effective date reports EPS on the PRE-split share count.
+# _sanity_check_pe_ratio below correctly (by design) nulls pe_ratio/peg_ratio rather than
+# publish a wrong ratio - the fix here is to stop FEEDING it a stale-scale EPS in the first
+# place for a confirmed split, not to touch that guard. Live-confirmed via BKNG (Booking
+# Holdings): a real 25-for-1 split, effective 2026-04-02 (record date 2026-03-06, ex-date
+# 2026-04-06 - see Booking Holdings' own split announcement/8-K), left FY2025's annual EPS
+# ($166.52, pre-split) being compared against the live post-split current_price ($195.13 as
+# of 2026-09-03) - pe_ratio computed as ~1.17 vs yfinance's real ~29x, correctly rejected as
+# eps_scale_mismatch. $195.13 * 25 = $4,878.25, consistent with BKNG's real pre-split trading
+# range in early 2026 - confirms the split, not a different/unrelated data bug. Same
+# never-guess discipline as DOMESTIC_FILER_ADS_RATIO_OVERRIDES above: only a symbol
+# individually confirmed via a real corporate-action filing/announcement belongs here (GMAB
+# and UHAL were checked the same session and are NOT recent splits - their own
+# eps_scale_mismatch/shares_outstanding_scale_mismatch flags have a different, unconfirmed
+# root cause and must not be added here on the same assumption).
+RECENT_STOCK_SPLITS: dict[str, tuple[float, date]] = {
+    "BKNG": (25.0, date(2026, 4, 2)),
+}
+
+
+def _split_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any:
+    """Divide a fiscal year's as-reported EPS by a confirmed post-filing split ratio when that
+    fiscal year ended before the split's effective date (see RECENT_STOCK_SPLITS' own comment).
+    A fiscal year ending ON OR AFTER the split date already reflects the post-split weighted-
+    average share count in its own as-filed EPS (ASC 260) and must not be double-adjusted.
+    """
+    if eps is None or fiscal_year is None:
+        return eps
+    split = RECENT_STOCK_SPLITS.get(symbol)
+    if split is None:
+        return eps
+    ratio, effective_date = split
+    if date(fiscal_year, 12, 31) < effective_date:
+        return float(eps) / ratio
+    return eps
+
 
 class SecValuationsLoader(OptimalLoader):
     """Compute valuations from SEC audited data instead of yfinance estimates.
@@ -498,6 +538,9 @@ class SecValuationsLoader(OptimalLoader):
                     ttm_eps_fiscal_year = income_rows[1][0]
                     eps_substituted_from_row1 = True
 
+                # See RECENT_STOCK_SPLITS' own module-level comment (BKNG 25-for-1, 2026-04-02).
+                ttm_eps_basic = _split_adjusted_eps(symbol, ttm_eps_basic, ttm_eps_fiscal_year)
+
                 # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
                 # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton
                 # Insurance Group): FY2026 (anchor) has BOTH operating_income=NULL and
@@ -553,19 +596,22 @@ class SecValuationsLoader(OptimalLoader):
                 # _compute_valuations already handles by leaving peg_ratio NULL.
                 if len(income_rows) > 1 and not eps_substituted_from_row1:
                     prior_year_eps = income_rows[1][3]  # Index 3 = earnings_per_share
+                    prior_year_eps = _split_adjusted_eps(symbol, prior_year_eps, income_rows[1][0])
                 elif eps_substituted_from_row1:
                     # income_rows[1] was itself consumed above as the ttm_eps substitute (the
                     # premature-stub case) - re-fetch a genuinely older year rather than reuse it.
                     cur.execute(
                         """
-                        SELECT earnings_per_share FROM annual_income_statement
+                        SELECT fiscal_year, earnings_per_share FROM annual_income_statement
                         WHERE symbol = %s AND fiscal_year < %s AND earnings_per_share IS NOT NULL
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
                         (symbol, ttm_eps_fiscal_year),
                     )
                     older_eps_row = cur.fetchone()
-                    prior_year_eps = older_eps_row[0] if older_eps_row else None
+                    prior_year_eps = (
+                        _split_adjusted_eps(symbol, older_eps_row[1], older_eps_row[0]) if older_eps_row else None
+                    )
                 else:
                     prior_year_eps = None
 
