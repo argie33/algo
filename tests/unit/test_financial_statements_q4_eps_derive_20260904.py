@@ -52,7 +52,9 @@ class TestDeriveMissingQ4Eps:
         assert "<= 20" in sql
         # The absolute EPS ceiling (live-caught via INVE's corrupted trillion-dollar
         # net_income - the share-count guard alone can't catch a bad net_income numerator).
-        assert "<= 100000" in sql
+        # Tightened from an initial 100,000 (too loose - INVE's $72,874 slipped through) to
+        # 10,000 (~6x BRK.A's own real historical maximum of $1,604.92/share).
+        assert "<= 10000" in sql
         # data_source must fit the real column's VARCHAR(20) limit.
         assert "'derived_ni_shares'" in sql
         # Must NOT be restricted to Q4 only - the safe net_income/shares method applies

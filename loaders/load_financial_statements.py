@@ -2962,9 +2962,18 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         "confirmed-real" 22.2M share count and landing a $72,874/share derived EPS - the
         exact same "confidently wrong, not just missing" failure _reject_implausible_eps()
         exists to catch for directly-reported EPS, applied here to a value THIS sweep itself
-        would otherwise manufacture. Added the identical absolute ceiling
-        (abs(eps) <= 100,000) that governs no real filer's per-share value; INVE's two rows
-        were caught and reverted by hand before this guard existed.
+        would otherwise manufacture.
+
+        FIXED 2026-09-04 (same pass, second catch on the SAME bug): the first ceiling
+        (abs(eps) <= 100,000) was too loose to actually exclude INVE's $72,874 - it slipped
+        back through when this sweep was widened to all four quarters and re-ran. Live-
+        checked the real distribution of every value this sweep has ever derived: the
+        highest genuine one is BRK.A's own $1,604.92/share (2011, a real, well-known
+        high-price-per-share stock), with SEB/BH/BH.A the next tier down around $150-340 -
+        a wide, clean gap below INVE's garbage value. Tightened to abs(eps) <= 10,000 (still
+        ~6x BRK.A's own real historical maximum, comfortable margin without being loose
+        enough to let a similarly-corrupted net_income back through). INVE's two rows were
+        caught and reverted by hand a second time before this tighter guard existed.
         """
         with DatabaseContext("write") as cur:
             cur.execute(
@@ -3000,7 +3009,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                                    q4x.net_income / COALESCE(
                                        q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei
                                    )
-                               ) <= 100000
+                               ) <= 10000
                        ) AS derived
                  WHERE q4.id = derived.id
                 """
