@@ -2682,6 +2682,82 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             self._sweep_stale_implausible_eps()
         if self.statement_type == "cashflow" and self.table_name == "annual_cash_flow":
             self._sweep_missing_free_cash_flow()
+        if self.statement_type == "income" and self.table_name == "quarterly_income_statement":
+            self._sweep_derive_missing_q4()
+
+    def _sweep_derive_missing_q4(self) -> None:
+        """Derive revenue/net_income for a missing/incomplete Q4 quarterly row as
+        FY_annual - (Q1+Q2+Q3), independent of what this run happened to fetch.
+
+        FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): US GAAP
+        filers never file a discrete "three months ended" Q4 10-Q - Q4 results are only ever
+        disclosed as part of the full-year 10-K, so quarterly_income_statement's Q4 row has no
+        directly-tagged XBRL fact to extract, ever, for any domestic filer, regardless of how
+        many times a fetch re-runs. Live-confirmed: 3,816 symbols / 36,812 rows currently sit
+        at data_unavailable/'incomplete_sec_filing_income' purely because of this - by far the
+        largest single class found this session, dwarfing every other individual bug fixed
+        today combined.
+
+        Revenue and net_income are simple accounting flow quantities - by definition additive
+        across a fiscal year's four quarters - so FY - (Q1+Q2+Q3) is not a heuristic, it's the
+        same identity a real Q4 income statement would satisfy if one were ever filed. EPS is
+        deliberately NOT derived this way: live-confirmed via AZTR (a nano-cap with an
+        extreme, volatile per-quarter EPS and a share count that nearly doubled between its
+        last 10-Q and its next 10-K's cover-page date) that subtracting quarterly EPS values
+        the same way produces a wildly implausible result (23.67, vs a real ~-0.20 when
+        computed instead as this derived net_income / Q4's OWN reported share count) - EPS
+        isn't a flow quantity, and isn't safely additive across quarters with a changing share
+        count. Scope limited to revenue/net_income only; a future pass could add EPS via
+        net_income / shares_outstanding (same quarter, not subtraction) with its own guard.
+
+        Guards: only fires when Q1+Q2+Q3+annual all have real, non-null revenue AND
+        net_income for the same fiscal year, and only writes revenue when the derived value is
+        >= 0 (a real filer's revenue can restate but never actually go negative for a quarter -
+        a negative derived value is a signal of an inter-filing restatement/reclassification
+        between the annual and quarterly figures, not a real Q4 revenue result, and is skipped
+        entirely rather than written). No corresponding bound on net_income - a real Q4 often
+        legitimately absorbs large one-time items (annual bonus true-ups, impairments, tax
+        adjustments) that don't afflict revenue the same way, so an aggressive magnitude guard
+        there would reject far more real results than bad ones.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_income_statement q4
+                   SET revenue = derived.revenue,
+                       net_income = derived.net_income,
+                       data_unavailable = FALSE,
+                       reason = NULL,
+                       data_source = 'derived_annual_minus_9mo_ytd'
+                  FROM (
+                        SELECT q4x.id,
+                               a.revenue - (q1.revenue + q2.revenue + q3.revenue) AS revenue,
+                               a.net_income - (q1.net_income + q2.net_income + q3.net_income) AS net_income
+                          FROM quarterly_income_statement q4x
+                          JOIN annual_income_statement a
+                            ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                          JOIN quarterly_income_statement q1
+                            ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                          JOIN quarterly_income_statement q2
+                            ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_income_statement q3
+                            ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q4x.fiscal_quarter = 4
+                           AND (q4x.revenue IS NULL OR q4x.data_unavailable = TRUE)
+                           AND a.revenue IS NOT NULL AND a.net_income IS NOT NULL
+                           AND q1.revenue IS NOT NULL AND q2.revenue IS NOT NULL AND q3.revenue IS NOT NULL
+                           AND q1.net_income IS NOT NULL AND q2.net_income IS NOT NULL AND q3.net_income IS NOT NULL
+                           AND (a.revenue - (q1.revenue + q2.revenue + q3.revenue)) >= 0
+                       ) AS derived
+                 WHERE q4.id = derived.id
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
+                    "revenue/net_income row(s) as FY_annual - 9mo_YTD (Q4 is never separately "
+                    "filed by any US GAAP domestic filer)."
+                )
 
     def _sweep_missing_free_cash_flow(self) -> None:
         """Table-wide free_cash_flow = operating_cash_flow - capex recompute, independent of
