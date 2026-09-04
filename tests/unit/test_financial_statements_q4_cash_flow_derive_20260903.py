@@ -36,7 +36,7 @@ class TestDeriveMissingQ4CashFlow:
             loader.post_run()
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
-        derive_sqls = [s for s in sqls if "quarterly_cash_flow q4" in s]
+        derive_sqls = [s for s in sqls if "operating_cash_flow = derived.operating_cash_flow" in s]
         assert len(derive_sqls) == 1
         sql = derive_sqls[0]
         assert "fiscal_quarter = 4" in sql

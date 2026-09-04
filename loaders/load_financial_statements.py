@@ -2742,6 +2742,65 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     "operating_cash_flow row(s) as FY_annual - 9mo_YTD (Q4 is never "
                     "separately filed by any US GAAP domestic filer)."
                 )
+        self._sweep_derive_missing_q4_cash_flow_remaining_fields()
+
+    def _sweep_derive_missing_q4_cash_flow_remaining_fields(self) -> None:
+        """Derive financing_cash_flow/investing_cash_flow/dividends_paid/
+        stock_based_compensation/common_stock_repurchased for a missing Q4
+        quarterly_cash_flow row as FY_annual - (Q1+Q2+Q3), same identity and independent-
+        per-field gating as _sweep_derive_missing_q4_interest_expense() (income statement).
+
+        Live-confirmed recoverable: 818 financing_cash_flow / 796 investing_cash_flow / 90
+        dividends_paid / 623 stock_based_compensation / 411 common_stock_repurchased rows -
+        smaller than operating_cash_flow's own 929 (fewer symbols have all 4 quarters'
+        components tagged for these less-universally-reported lines), but the identical safe
+        accounting identity. No non-negative floor on any of them: financing_cash_flow and
+        investing_cash_flow are net flows that legitimately go either sign every quarter for
+        ordinary companies, and this file has no independently-verified sign convention for
+        the other three to safely floor against - same "don't guess a bound you can't verify"
+        discipline as pretax_income/income_tax_expense above.
+        """
+        fields = (
+            "financing_cash_flow",
+            "investing_cash_flow",
+            "dividends_paid",
+            "stock_based_compensation",
+            "common_stock_repurchased",
+        )
+        with DatabaseContext("write") as cur:
+            for field in fields:
+                cur.execute(
+                    f"""
+                    UPDATE quarterly_cash_flow q4
+                       SET {field} = derived.{field},
+                           data_source = 'derived_fy_minus_9m'
+                      FROM (
+                            SELECT q4x.id,
+                                   a.{field} - (q1.{field} + q2.{field} + q3.{field}) AS {field}
+                              FROM quarterly_cash_flow q4x
+                              JOIN annual_cash_flow a
+                                ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                              JOIN quarterly_cash_flow q1
+                                ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                              JOIN quarterly_cash_flow q2
+                                ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                              JOIN quarterly_cash_flow q3
+                                ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                             WHERE q4x.fiscal_quarter = 4
+                               AND q4x.{field} IS NULL
+                               AND a.{field} IS NOT NULL
+                               AND q1.{field} IS NOT NULL
+                               AND q2.{field} IS NOT NULL
+                               AND q3.{field} IS NOT NULL
+                           ) AS derived
+                     WHERE q4.id = derived.id
+                    """
+                )
+                if cur.rowcount:
+                    logger.warning(
+                        f"[quarterly_cash_flow] post_run(): derived {cur.rowcount} Q4 "
+                        f"{field} row(s) as FY_annual - 9mo_YTD."
+                    )
 
     def _sweep_copy_missing_q4_balance_sheet(self) -> None:
         """Fill a missing/incomplete Q4 quarterly_balance_sheet row by copying the matching
