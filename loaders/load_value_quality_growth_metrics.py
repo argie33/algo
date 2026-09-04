@@ -3535,6 +3535,30 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             invested_capital = None
             debt_for_roic = total_debt_ev if total_debt_ev is not None else roic_long_term_debt
 
+            # FIX 2026-09-04 (goal: reduce "Missing SEC/XBRL data" for real, not just relabel):
+            # a symbol that has NEVER tagged ANY debt component (long_term_debt/short_term_debt/
+            # operating_lease_liability/finance_lease_liability) across its FULL annual_balance_
+            # sheet history AND never reports a real nonzero interest_expense either is
+            # double-confirmed structurally debt-free (SPACs, pre-revenue biotech, small tech/
+            # services - see _get_never_tagged_debt_components_symbols()'s docstring), not a
+            # data extraction gap. load_sec_valuations.py's own EV computation already treats a
+            # missing total_debt as 0 (`debt_val = total_debt if total_debt else 0`) rather than
+            # blocking - this applies the same established precedent, but requires the
+            # interest_expense corroboration too (a company that genuinely carries debt not
+            # itemized under these 4 concepts would still normally report SOME interest expense)
+            # since debt_to_equity/roce_pct/roic_pct feed real trading scores and a false "0
+            # debt" would overstate leverage safety. This computes a real value instead of just
+            # relabeling debt_to_equity_unavailable_reason/roce_pct's generic "missing_sec_data"
+            # to "total_debt_not_itemized" the way the reason-only fix a few hundred lines below
+            # already does for the cases this doesn't reach (e.g. only 1-2 real fiscal years on
+            # file, not yet "never tagged" territory).
+            if (
+                debt_for_roic is None
+                and symbol in self._get_never_tagged_debt_components_symbols()
+                and symbol in self._get_never_tagged_interest_expense_symbols()
+            ):
+                debt_for_roic = 0.0
+
             if (
                 roic_stockholders_equity is not None
                 and debt_for_roic is not None
