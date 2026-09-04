@@ -1462,7 +1462,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # filter makes this query select the SAME row load_sec_valuations.py's real computation
         # used, not a different, unfiltered one.
         pe_ratio_reason = None
-        if pe is None:
+        if pe is None and row_dict.get("reason") == "eps_scale_mismatch":
+            # FIXED 2026-09-03 (SEC/XBRL missing-data sweep): load_sec_valuations.py's
+            # _sanity_check_pe_ratio already deliberately nulls pe_ratio/peg_ratio and records
+            # this exact, specific reason on the sec_valuations row itself (a >10x SEC-vs-
+            # yfinance PE disagreement - a mis-scaled ttm_eps, not a missing one) - but this
+            # block never consulted it, instead re-deriving from annual_income_statement below,
+            # which finds a real, non-NULL, often-plausible-looking EPS (the mis-scale is in
+            # ttm_eps's specific computation, not in the raw tagged EPS value) and so always
+            # fell through to the generic "missing_sec_data" else-branch. Live-confirmed 50 of
+            # 51 universe sec_valuations.reason='eps_scale_mismatch' rows (BKNG spot-checked)
+            # hit exactly this: a real EPS on file, generic label anyway. `eps_scale_mismatch`
+            # is already mapped in scores.py's _categorize_reason to "Implausible / rejected
+            # value" (added 2026-08-20 for the sec_valuations.reason surfacing further down this
+            # same function) - this just lets pe_ratio/peg_ratio's OWN reason columns reach that
+            # same, already-correct bucket instead of "Missing SEC/XBRL data".
+            pe_ratio_reason = "eps_scale_mismatch"
+        elif pe is None:
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
