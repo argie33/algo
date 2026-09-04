@@ -2686,6 +2686,62 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             self._sweep_derive_missing_q4()
         if self.statement_type == "balance" and self.table_name == "quarterly_balance_sheet":
             self._sweep_copy_missing_q4_balance_sheet()
+        if self.statement_type == "cashflow" and self.table_name == "quarterly_cash_flow":
+            self._sweep_derive_missing_q4_cash_flow()
+
+    def _sweep_derive_missing_q4_cash_flow(self) -> None:
+        """Derive operating_cash_flow for a missing/incomplete Q4 quarterly_cash_flow row as
+        FY_annual - (Q1+Q2+Q3), independent of what this run happened to fetch.
+
+        FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, same root
+        cause and derivation as _sweep_derive_missing_q4() for the income statement):
+        operating_cash_flow is a flow quantity, additive across a fiscal year's four
+        quarters, so FY - (Q1+Q2+Q3) is the same accounting identity a real Q4 cash-flow
+        statement would satisfy if one were ever filed - and none ever is, for the same
+        "Q4 is only ever disclosed inside the annual 10-K" reason as the income statement.
+        Live-confirmed 929 rows recoverable this way. Scoped to operating_cash_flow only -
+        free_cash_flow/capex are deliberately NOT derived here: capex is frequently NULL for
+        one or more of Q1-Q3 even when OCF is present (see this file's own capex-fallback
+        history), so a Q4 capex subtraction would silently produce a wrong result far more
+        often than the OCF-only case does; a future pass could add it with its own explicit
+        null-guard on all three quarters' capex.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_cash_flow q4
+                   SET operating_cash_flow = derived.operating_cash_flow,
+                       data_unavailable = FALSE,
+                       reason = NULL,
+                       data_source = 'derived_fy_minus_9m'
+                  FROM (
+                        SELECT q4x.id,
+                               a.operating_cash_flow - (q1.operating_cash_flow + q2.operating_cash_flow + q3.operating_cash_flow) AS operating_cash_flow
+                          FROM quarterly_cash_flow q4x
+                          JOIN annual_cash_flow a
+                            ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                          JOIN quarterly_cash_flow q1
+                            ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                          JOIN quarterly_cash_flow q2
+                            ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_cash_flow q3
+                            ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q4x.fiscal_quarter = 4
+                           AND (q4x.operating_cash_flow IS NULL OR q4x.data_unavailable = TRUE)
+                           AND a.operating_cash_flow IS NOT NULL
+                           AND q1.operating_cash_flow IS NOT NULL
+                           AND q2.operating_cash_flow IS NOT NULL
+                           AND q3.operating_cash_flow IS NOT NULL
+                       ) AS derived
+                 WHERE q4.id = derived.id
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_cash_flow] post_run(): derived {cur.rowcount} Q4 "
+                    "operating_cash_flow row(s) as FY_annual - 9mo_YTD (Q4 is never "
+                    "separately filed by any US GAAP domestic filer)."
+                )
 
     def _sweep_copy_missing_q4_balance_sheet(self) -> None:
         """Fill a missing/incomplete Q4 quarterly_balance_sheet row by copying the matching

@@ -54,17 +54,22 @@ class TestFreeCashFlowSweep:
         assert "operating_cash_flow IS NOT NULL" in sql
         assert "capex IS NOT NULL" in sql
 
-    def test_quarterly_cash_flow_is_not_swept(self) -> None:
-        """The sweep is scoped to annual_cash_flow only - quarterly filings routinely omit a
-        full cash-flow statement (interim reports), so a NULL free_cash_flow there is far more
-        often genuinely absent than a transient-refetch artifact; don't force a value onto it."""
+    def test_quarterly_cash_flow_is_not_swept_for_free_cash_flow(self) -> None:
+        """This free_cash_flow sweep is scoped to annual_cash_flow only - quarterly filings
+        routinely omit a full cash-flow statement (interim reports), so a NULL free_cash_flow
+        there is far more often genuinely absent than a transient-refetch artifact; don't
+        force a value onto it. A quarterly cashflow run DOES trigger its own, separate Q4
+        operating_cash_flow derivation sweep (see
+        test_financial_statements_q4_cash_flow_derive_20260903.py) - this test only asserts
+        the free_cash_flow-specific UPDATE never fires for quarterly."""
         loader = _make_loader(statement_type="cashflow", period="quarterly")
         mock_ctx, mock_cur = _mock_write_context()
 
-        with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx) as mock_dc:
+        with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
 
-        mock_dc.assert_not_called()
+        for call in mock_cur.execute.call_args_list:
+            assert "UPDATE annual_cash_flow" not in call[0][0]
 
     def test_income_statement_run_does_not_trigger_cashflow_sweep(self) -> None:
         loader = _make_loader(statement_type="income")
