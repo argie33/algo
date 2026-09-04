@@ -1521,7 +1521,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # filter makes this query select the SAME row load_sec_valuations.py's real computation
         # used, not a different, unfiltered one.
         pe_ratio_reason = None
-        if pe is None and row_dict.get("reason") == "eps_scale_mismatch":
+        if pe is None and symbol in self._get_preferred_or_debt_security_symbols():
+            # See _get_preferred_or_debt_security_symbols()'s docstring: this ticker's real
+            # EPS on file belongs to its parent's common stock, not to itself - a P/E computed
+            # from it would be wrong, not just missing.
+            pe_ratio_reason = "preferred_or_debt_security_no_common_equity_ratio"
+        elif pe is None and row_dict.get("reason") == "eps_scale_mismatch":
             # FIXED 2026-09-03 (SEC/XBRL missing-data sweep): load_sec_valuations.py's
             # _sanity_check_pe_ratio already deliberately nulls pe_ratio/peg_ratio and records
             # this exact, specific reason on the sec_valuations row itself (a >10x SEC-vs-
@@ -1613,7 +1618,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # value" CASE ordering as load_sec_valuations.py's own book_value query, so this
         # doesn't reintroduce the "latest year is empty" trap already fixed there.
         pb_ratio_reason = None
-        if pb is None:
+        if pb is None and symbol in self._get_preferred_or_debt_security_symbols():
+            # See _get_preferred_or_debt_security_symbols()'s docstring - same "wrong, not
+            # missing" reasoning as pe_ratio_reason above, for book value per share.
+            pb_ratio_reason = "preferred_or_debt_security_no_common_equity_ratio"
+        elif pb is None:
             with DatabaseContext("read") as cur:
                 # FIXED 2026-09-01 (same bug class as peg_ratio_reason above and the already-
                 # fixed pe_ratio_unavailable_reason - see memory/
@@ -1711,7 +1720,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "pb_ratio_unavailable_reason": pb_ratio_reason,
             "ps_ratio_unavailable_reason": (
                 (
-                    "no_revenue_reported"
+                    # See _get_preferred_or_debt_security_symbols()'s docstring - same "wrong,
+                    # not missing" reasoning as pe_ratio_reason/pb_ratio_reason above, for
+                    # revenue per share.
+                    "preferred_or_debt_security_no_common_equity_ratio"
+                    if symbol in self._get_preferred_or_debt_security_symbols()
+                    else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
                     # Real $0 anchor-year revenue, distinct from "never any revenue in 3
@@ -2738,6 +2752,54 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             result = frozenset(row[0] for row in cur.fetchall())
         self._revenue_absent_from_anchor_year_symbols_cache = result
+        return result
+
+    def _get_preferred_or_debt_security_symbols(self) -> frozenset[str]:
+        """Symbols whose own ticker is a preferred stock, subordinated debenture/note, or
+        depositary share - not the filer's common equity - even though annual_income_statement/
+        annual_balance_sheet carries real net_income/earnings_per_share/stockholders_equity for
+        them (these child tickers share their parent company's CIK, so the SAME SEC financial
+        facts get attached to both the common ticker and every preferred/debt ticker trading
+        under that filer).
+
+        FIX 2026-09-04 (goal: "under 6k the right way" sweep, pe_ratio/pb_ratio/ps_ratio
+        missing_sec_data follow-up): live-confirmed AFGB/DTB/DUKB/BHFAL/KMPB/DCBG/MNSBP and
+        siblings have zero sec_valuations row at all (no market-equity computation was ever
+        attempted for them) yet a real, positive, non-NULL annual EPS on file - e.g. DUKB
+        (Duke Energy's 5.625% Junior Subordinated Debentures) shows FY2025 net_income=$4.968B,
+        earnings_per_share=$6.31, both belonging to Duke Energy's COMMON stock, not this
+        fixed-income instrument - so pe_ratio_reason's `eps_row is not None` branch landed on
+        the generic "missing_sec_data" as if this were a recoverable gap. A P/E, P/B, or P/S
+        ratio computed from a preferred/debenture's own market price against its parent's
+        common-equity EPS/book-value/revenue-per-share would be actively wrong, not just
+        missing - the correct outcome is "not applicable", the same class as
+        unprofitable_stock/reit_special_entity elsewhere in this file, not a fixable gap.
+        Deliberately does NOT touch dividend_yield: a preferred/debenture's fixed coupon
+        divided by its own market price IS a real, meaningful yield figure.
+
+        Identified via stock_symbols.security_name text (SEC's own official title for the
+        listing), not SIC code or price level - a preferred/debenture always states its own
+        instrument type there (e.g. "American Financial Group, Inc. 5.875% Subordinated
+        Debentures due 2059"), unlike a REIT/trust whose entity-level SIC code doesn't
+        distinguish common from preferred. Cached for the life of this loader instance.
+        """
+        cached: frozenset[str] | None = getattr(self, "_preferred_or_debt_security_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM stock_symbols
+                WHERE security_name ILIKE '%%Subordinated Debenture%%'
+                   OR security_name ILIKE '%%Subordinated Note%%'
+                   OR security_name ILIKE '%%Junior Subordinated%%'
+                   OR security_name ILIKE '%%Depositary Share%%'
+                   OR security_name ILIKE '%%Preferred Stock%%'
+                   OR security_name ILIKE '%%Preferred Share%%'
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._preferred_or_debt_security_symbols_cache = result
         return result
 
     def _get_no_recent_total_assets_symbols(self) -> frozenset[str]:

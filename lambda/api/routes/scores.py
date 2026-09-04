@@ -2712,6 +2712,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # 1,560 rows, including real large-caps like MRNA/RBLX/RIVN/RKLB/WBD/BNTX).
             "negative_forward_eps",
             "reit_special_entity",
+            # ADDED 2026-09-04 (goal: "under 6k the right way" sweep): load_value_quality_
+            # growth_metrics.py's preferred_or_debt_security_no_common_equity_ratio -
+            # AFGB/DTB/DUKB/BHFAL/KMPB/DCBG/MNSBP and siblings are preferred-stock/subordinated-
+            # debenture tickers sharing their parent's CIK, so real common-equity EPS/book-value/
+            # revenue-per-share data exists but doesn't belong to this instrument - a P/E, P/B,
+            # or P/S computed from it would be wrong, not just missing. See that helper's own
+            # docstring for the live evidence.
+            "preferred_or_debt_security_no_common_equity_ratio",
             "negative_free_cash_flow",
             "negative_book_value",
             "negative_earnings_growth",

@@ -74,6 +74,17 @@ _CLASS_LETTER_FROM_MEMBER_RE = re.compile(r"Class([A-Z])(?:Member)?\b")
 _DOT_SUFFIX_RE = re.compile(r"\.([A-Za-z])$")
 _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
 
+# Sentinel class "letter" for filers that tag their SOLE traded common stock under
+# us-gaap:StatementClassOfStockAxis with a member that names no letter at all - a custom
+# extension like "CommonClassUndefinedMember" - rather than "CommonClassAMember" etc. Matched
+# via _COMMON_CLASS_UNDEFINED_MEMBER_RE instead of _CLASS_LETTER_FROM_MEMBER_RE whenever a
+# symbol resolves to this sentinel. Deliberately scoped to the "Common" variant only - the same
+# filers often ALSO tag an unrelated "PreferredClassUndefinedMember"/"NonconvertiblePreferred
+# StockMember" under the identical axis (live-confirmed in Coca-Cola Consolidated's own filing,
+# see _CLASS_LETTER_OVERRIDES below), which must not match here.
+_UNDEFINED_CLASS_SENTINEL = "UNDEFINED"
+_COMMON_CLASS_UNDEFINED_MEMBER_RE = re.compile(r"CommonClassUndefined(?:Member)?\b")
+
 # Explicit, human-verified overrides for symbols neither auto-resolution source reaches: no
 # dot suffix, and `security_name` never states a class (Visa's is literally just "Visa Inc.").
 # Not a guess - each entry is a public, unambiguous fact confirmed against the filer's own real
@@ -90,8 +101,22 @@ _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
 # WeightedAverageNumberOfShares* facts at all (live-confirmed same session), so every fiscal
 # year's eps/diluted_eps/shares_outstanding_basic/shares_outstanding_diluted was NULL for one
 # of the largest S&P 500 constituents before this override.
+# FIXED 2026-09-04 (goal: "under 6k the right way" sweep, pe_ratio "missing_sec_data" follow-up):
+# Coca-Cola Consolidated's ticker COKE (security_name is plain "... - Common Stock", no "Class"
+# text at all, so neither the dot-suffix nor security_name path reaches it) - live-confirmed via
+# its real FY2024 10-K instance document (CIK 0000317540, accession 0000317540-25-000025):
+# EarningsPerShareBasic tagged once per fiscal year under us-gaap:StatementClassOfStockAxis with
+# member coke:CommonClassUndefinedMember (FY2024=$70.10, FY2023=$43.56, FY2022=$45.88, each a
+# clean annual-span context) - real per-share values (COKE has ~9M shares outstanding, so
+# double-digit-dollar EPS is correct), matching companyfacts' own confirmed cap at FY2019 for
+# the undimensioned concept (COKE started dimensioning EPS by class in its FY2020 10-K onward).
+# Resolves via _UNDEFINED_CLASS_SENTINEL/_COMMON_CLASS_UNDEFINED_MEMBER_RE above, not a letter -
+# COKE's own instrument has no class letter, it's the filer's sole "undesignated" common class
+# (distinct from its separately-tagged, non-traded Class B/Class C and preferred instruments in
+# the same filing).
 _CLASS_LETTER_OVERRIDES: dict[str, str] = {
     "V": "A",
+    "COKE": _UNDEFINED_CLASS_SENTINEL,
 }
 
 _EPS_BASIC_CONCEPT = "EarningsPerShareBasic"
@@ -157,6 +182,8 @@ def _class_letter_for_context(cdata: dict[str, Any], target_letter: str) -> bool
     axis, member = members[0]
     if axis not in _CLASS_OF_STOCK_AXES:
         return False
+    if target_letter == _UNDEFINED_CLASS_SENTINEL:
+        return bool(_COMMON_CLASS_UNDEFINED_MEMBER_RE.search(member))
     letter_m = _CLASS_LETTER_FROM_MEMBER_RE.search(member)
     if letter_m is None:
         return False
