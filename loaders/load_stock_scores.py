@@ -3991,6 +3991,55 @@ class StockScoresLoader(OptimalLoader):
             i = j
         return result
 
+    # MIN_SECTOR_SLICE: a sector/GICS group needs at least this many symbols in the current
+    # run's universe before its own within-sector percentile is trusted; smaller groups fall
+    # back to the plain universe-wide percentile for just their members (fails open, mirrors
+    # `_get_symbol_sector`'s own fail-open convention in load_value_quality_growth_metrics.py).
+    # Live sector sizes in the scored universe are all far above this (smallest ~117 symbols,
+    # see SECTOR-RELATIVE VALUE RANKING docstring note below) - this floor exists for
+    # 'Unclassified' (company_profile.sector missing/NULL) and any genuinely thin group, not
+    # the normal case.
+    _MIN_SECTOR_SLICE = 20
+
+    @classmethod
+    def _percent_rank_cheap_high_sector_relative(
+        cls, values: dict[str, float], sector_map: dict[str, str]
+    ) -> dict[str, float]:
+        """Sector-relative counterpart to `_percent_rank_cheap_high` - same "lowest raw value ->
+        highest percentile" convention, but each symbol is ranked ONLY against same-sector peers
+        (`sector_map[symbol]`, GICS via company_profile.sector) instead of the full cross-sector
+        universe. Symbols with no sector_map entry, or belonging to a sector with fewer than
+        `_MIN_SECTOR_SLICE` members among `values`, are pooled into one residual group and ranked
+        via the plain universe-wide `_percent_rank_cheap_high` instead - never dropped, never
+        left unranked.
+
+        ADDED 2026-09-04 (real-money-readiness review, "always do what is best" directive - see
+        this method's caller, `update_value_multiples_percentiles()`, for the full evidence
+        trail and citations). Ties/single-sector/empty-input edge cases all delegate to
+        `_percent_rank_cheap_high`'s own already-tested handling, per sector group.
+        """
+        groups: dict[str, list[str]] = {}
+        residual: dict[str, float] = {}
+        for symbol, val in values.items():
+            sector = sector_map.get(symbol)
+            if sector is None:
+                residual[symbol] = val
+            else:
+                groups.setdefault(sector, []).append(symbol)
+
+        result: dict[str, float] = {}
+        for symbols in groups.values():
+            if len(symbols) < cls._MIN_SECTOR_SLICE:
+                for symbol in symbols:
+                    residual[symbol] = values[symbol]
+                continue
+            sector_values = {symbol: values[symbol] for symbol in symbols}
+            result.update(cls._percent_rank_cheap_high(sector_values))
+
+        if residual:
+            result.update(cls._percent_rank_cheap_high(residual))
+        return result
+
     @staticmethod
     def _components_with_corrected_value(components_old: Any, value_score_new: float) -> str:
         """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'value'
@@ -4131,6 +4180,73 @@ class StockScoresLoader(OptimalLoader):
         for a future pass - not addressed here to keep this fix scoped to the confirmed
         correctness bug.
 
+        SECTOR-RELATIVE RANKING ADOPTED 2026-09-04 (real-money-readiness review, user directive
+        "always do what is best, dig in and do the right best things around all of this",
+        deciding the previously-open item tracked as
+        algo/research/sector_relative_scoring_test_20260828.py / memory
+        sector_relative_scoring_investigated_never_shipped_20260904). PE/PB/PS/Forward P/E are
+        now percentile-ranked WITHIN each symbol's GICS sector (`company_profile.sector`, via
+        `_percent_rank_cheap_high_sector_relative`) instead of against the full cross-sector
+        universe - closing the gap that research script was built to test.
+
+        WHY: cross-sectionally pooling all sectors before ranking P/E/P/B/P/S conflates genuine
+        mispricing with persistent, structural sector-level valuation-regime differences (a
+        Financial Services stock's P/E is mechanically lower than a Technology stock's for
+        leverage/regulatory/growth-optionality reasons that have nothing to do with which one is
+        actually cheap for what it is) - live-confirmed average P/E 19.0 (Financials) vs 32.4
+        (Technology), average P/B 1.9 (Real Estate) vs 5.3 (Technology). Controlling for sector
+        before ranking value multiples is standard quant-equity practice (Fama-French 1992
+        already excludes financials from several factor constructions for exactly this reason;
+        MSCI/Barra-style multi-factor models and AQR-style practitioner value composites
+        routinely sector/industry-neutralize valuation ratios rather than rank them pooled
+        market-wide) precisely to avoid a factor secretly becoming a sector bet.
+
+        VALIDATED, not just asserted (re-ran algo/research/sector_relative_scoring_test_20260828.py
+        fresh this session against real history, 111 usable months 2017-06 to 2026-08, n=6,474
+        median monthly cross-section): sector-relative (`value_sector`) beat universe-wide
+        (`value_uni`) in EVERY era, both specs -
+          multivariate (5-pillar-controlled) t: FULL 2.54->2.94, ERA1 1.27->1.70, ERA2 2.25->2.40
+          univariate t:                          FULL 4.62->4.91, ERA1 2.54->2.94, ERA2 3.96->3.97
+        A 50/50 UNIVERSE/SECTOR blend (`value_blend`) was also tested and sits between the two on
+        every spec except univariate ERA2 (where it edges out pure sector, 4.04 vs 3.97) - pure
+        sector-relative is the more consistent winner on the more rigorous multivariate spec,
+        so it was adopted outright rather than blended.
+
+        Sector-sliced Spearman IC (within Financial Services/Real Estate only) came out slightly
+        LOWER for `value_sector` than `value_uni` (FS 0.0754->0.0718, RE 0.0387->0.0261) - this
+        is NOT a contradiction: within a single sector, sector-relative z-scoring is a monotonic
+        transform of the same raw ordering universe-wide ranking already produces there (modulo
+        winsorization-cutoff differences), so within-sector stock-picking power is roughly
+        unchanged either way. The real gain sector-relative ranking captures is at the
+        ACROSS-sector allocation level (which sector's stocks get called "cheap" at all) - only
+        visible to the universe-wide multivariate/univariate tests above, not to a metric that
+        holds sector fixed by construction.
+
+        SECTOR SIZE CHECKED (small-sector noise risk, live-queried this session against the
+        actual scored universe, not company_profile's full historical roster): smallest scored
+        sector is Consumer Defensive at 117 symbols, next Communication Services 130 - all far
+        above `_MIN_SECTOR_SLICE` (20) and standard percentile-stability rule-of-thumb minimums
+        (30-50). `_percent_rank_cheap_high_sector_relative` still floors any thin/unmapped group
+        into a universe-wide-ranked residual pool defensively, but this floor is not expected to
+        bind materially in normal operation.
+
+        TRADEOFF, acknowledged not ignored: a pure sector-relative composite can in principle
+        rank an expensive-for-its-sector Tech stock above a cheap-for-its-sector Financials
+        stock even where the Financials stock is cheaper in absolute terms - by design, this
+        pillar is choosing to treat persistent sector-level multiple differences as a regime
+        effect to control for, not information to keep. That is the standard quant-equity
+        position (see citations above), and this session's own re-test confirms it wins here,
+        but it is a real, deliberate choice, not a free lunch.
+
+        ACTIVATION: restart-only, not backfill - this is a `loaders/load_stock_scores.py` batch
+        pass (`update_value_multiples_percentiles`, part of `post_run()`), not `_score_*` reason
+        logic served directly by the API. It takes effect the next time the stock_scores loader
+        actually runs (via the pipeline scheduler - never invoke it standalone) and rewrites
+        value_score/composite_score for the whole scored universe; `lambda/api/dev_server.py`
+        reads whatever is currently in `stock_scores` and needs no code change, but per this
+        repo's own no-hot-reload pattern, restart it anyway if it's been holding a stale
+        in-memory reference to anything in this module.
+
         CRITICAL: raises on failure, same as `update_rs_percentiles()` - an inconsistent value_
         score/composite_score is a live-trading-relevant correctness issue, not just Phase 7
         display noise.
@@ -4143,9 +4259,10 @@ class StockScoresLoader(OptimalLoader):
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
                            vm.dividend_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
-                           ss.components
+                           ss.components, cp.sector
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
+                    LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     WHERE ss.value_score IS NOT NULL
                       AND COALESCE(vm.data_unavailable, false) = false
                 """)
@@ -4168,9 +4285,13 @@ class StockScoresLoader(OptimalLoader):
             # (not exclusion) is the theoretically correct treatment here.
             unprofitable_symbols: set[str] = set()
             negative_fwd_symbols: set[str] = set()
+            sector_map: dict[str, str] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
                 pe_reason, fwd_pe_reason = row[12], row[13]
+                sector = row[15]
+                if sector is not None:
+                    sector_map[symbol] = sector
                 if pe is not None and float(pe) > 0:
                     pe_raw[symbol] = float(pe)
                 elif pe_reason == "unprofitable_stock":
@@ -4184,16 +4305,17 @@ class StockScoresLoader(OptimalLoader):
                 elif fwd_pe_reason == "negative_forward_eps":
                     negative_fwd_symbols.add(symbol)
 
-            pe_pct = self._percent_rank_cheap_high(pe_raw)
-            pb_pct = self._percent_rank_cheap_high(pb_raw)
-            ps_pct = self._percent_rank_cheap_high(ps_raw)
-            fwd_pe_pct = self._percent_rank_cheap_high(fwd_pe_raw)
+            pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map)
+            pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map)
+            ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map)
+            fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map)
             for symbol in unprofitable_symbols:
                 pe_pct[symbol] = 0.0
             for symbol in negative_fwd_symbols:
                 fwd_pe_pct[symbol] = 0.0
             logger.info(
-                f"[STOCK_SCORES] Value multiples percentile universe: "
+                f"[STOCK_SCORES] Value multiples percentile universe (sector-relative, "
+                f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
                 f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
                 f"P/B {len(pb_pct)}, P/S {len(ps_pct)}, "
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"

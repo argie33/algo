@@ -172,8 +172,14 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         )
 
     growth_monthly = merge_asof_monthly(months, growth_fund, cols=["book_value_growth"])
+    # BIT-ROT FIX 2026-09-04: build_value_panel_raw() (fama_macbeth_composite_weights.py) no
+    # longer returns fcf_per_share - it was dropped when FCF yield was removed from live Value
+    # scoring (see loaders/load_stock_scores.py._score_value's "FCF YIELD - RESOLVED" note).
+    # This script's own docstring already scopes fcf_term as deliberately universe-wide/
+    # identical in both UNIVERSE and SECTOR variants (out of scope for the PE/PB/PS test), so
+    # dropping it (fcf_term=0.0 below) doesn't affect the comparison this script exists to make.
     value_monthly = merge_asof_monthly(
-        months, value_fund, cols=["eps", "book_value_per_share", "sales_per_share", "fcf_per_share", "shares_diluted"]
+        months, value_fund, cols=["eps", "book_value_per_share", "sales_per_share", "shares_diluted"]
     )
     quality_monthly = merge_asof_monthly(
         months,
@@ -210,29 +216,25 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
             np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan), index=v.index
         )
         ps = pd.Series(np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan), index=v.index)
-        fcf_yield = v["fcf_per_share"] / price
 
         sectors_here = sector_map.reindex(v.index).fillna(UNCLASSIFIED)
 
-        # (a) UNIVERSE: exact replica of composite_weights.py's live value_proxy construction.
-        fcf_term = (9.0 / 78.0) * _zwinsor(fcf_yield)
-        value_uni = (
-            (12.0 / 78.0) * _zwinsor(-pe) + (30.0 / 78.0) * _zwinsor(-pb) + (27.0 / 78.0) * _zwinsor(-ps) + fcf_term
-        )
+        # (a) UNIVERSE: PE/PB/PS equal-weighted (1/3 each) - matches the CURRENT live
+        # _score_value equal-weighting of the 3 core multiples (27/27/27, see that method's
+        # "EQUAL-WEIGHTED 2026-09-01" docstring note), not the 12/30/27-plus-FCF weights this
+        # script originally used on 2026-08-28 (FCF yield has since been removed from live Value
+        # scoring entirely - see BIT-ROT FIX note above).
+        value_uni = (1.0 / 3.0) * (_zwinsor(-pe) + _zwinsor(-pb) + _zwinsor(-ps))
 
         # (b) SECTOR: identical weights, PE/PB/PS z-scored WITHIN sector group instead of the
-        # whole universe. FCF yield term deliberately left universe-wide in both variants (out
-        # of scope for this test - see module docstring, only PE/PB/PS were flagged).
-        value_sector = (
-            (12.0 / 78.0) * _zwinsor_by_group(-pe, sectors_here)
-            + (30.0 / 78.0) * _zwinsor_by_group(-pb, sectors_here)
-            + (27.0 / 78.0) * _zwinsor_by_group(-ps, sectors_here)
-            + fcf_term
+        # whole universe.
+        value_sector = (1.0 / 3.0) * (
+            _zwinsor_by_group(-pe, sectors_here)
+            + _zwinsor_by_group(-pb, sectors_here)
+            + _zwinsor_by_group(-ps, sectors_here)
         )
 
-        # (c) BLEND: simple average - mathematically equivalent to averaging each component's
-        # universe/sector z-score before applying the same 12/30/27/9-over-78 weights, since the
-        # weighting is linear and the shared fcf_term cancels to itself.
+        # (c) BLEND: simple average.
         value_blend = 0.5 * (value_uni + value_sector)
 
         market_cap = price * v["shares_diluted"]

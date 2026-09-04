@@ -77,6 +77,7 @@ class TestValuePercentileComponentsSync:
             None,
             None,  # pe_reason, fwd_pe_reason
             components_old,
+            None,  # sector (added 2026-09-04, sector-relative Value percentile ranking)
         )
 
         select_cursor = MagicMock()

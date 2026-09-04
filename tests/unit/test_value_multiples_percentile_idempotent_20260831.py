@@ -42,6 +42,7 @@ def _row(
     pe_reason: str | None = None,
     fwd_pe_reason: str | None = None,
     components: dict | None = None,
+    sector: str | None = None,
 ) -> tuple:
     return (
         symbol,
@@ -59,6 +60,7 @@ def _row(
         pe_reason,
         fwd_pe_reason,
         components if components is not None else {},
+        sector,
     )
 
 

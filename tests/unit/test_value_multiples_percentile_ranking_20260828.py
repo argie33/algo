@@ -56,6 +56,65 @@ class TestPercentRankCheapHigh:
         assert len(result) == len(values)
 
 
+class TestPercentRankCheapHighSectorRelative:
+    """Tests for _percent_rank_cheap_high_sector_relative (added 2026-09-04 - see
+    update_value_multiples_percentiles' "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring
+    note for the full Fama-MacBeth evidence trail behind this adoption)."""
+
+    def test_empty_input_returns_empty(self) -> None:
+        assert StockScoresLoader._percent_rank_cheap_high_sector_relative({}, {}) == {}
+
+    def test_ranks_within_sector_not_across(self) -> None:
+        # Two 20-symbol sectors (meets _MIN_SECTOR_SLICE) - a mid-priced Tech stock should NOT
+        # be penalized just because Financials is cheaper on average.
+        values = {}
+        sector_map = {}
+        for i in range(20):
+            values[f"TECH{i}"] = 20.0 + i  # 20..39
+            sector_map[f"TECH{i}"] = "Technology"
+        for i in range(20):
+            values[f"FIN{i}"] = 5.0 + i  # 5..24
+            sector_map[f"FIN{i}"] = "Financial Services"
+
+        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, sector_map)
+        # Cheapest Tech stock (TECH0=20.0) should rank near 100 WITHIN Technology, even though
+        # it's more expensive than most Financials stocks in raw terms.
+        assert result["TECH0"] == 100.0
+        assert result["FIN0"] == 100.0
+        # A universe-wide ranking would have put TECH0 far below FIN-sector stocks; sector-
+        # relative ranking keeps them on separate, comparable scales instead.
+        assert result["TECH0"] == result["FIN0"] == 100.0
+
+    def test_thin_sector_falls_back_to_universe_wide_pool(self) -> None:
+        # A 3-symbol sector (below _MIN_SECTOR_SLICE=20) should NOT get its own tiny-n
+        # percentile - it's folded into the residual pool with everything else unmapped.
+        values = {"A": 5.0, "B": 10.0, "C": 15.0, "X": 100.0, "Y": 200.0}
+        sector_map = {"A": "Utilities", "B": "Utilities", "C": "Utilities"}  # only 3, thin
+        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, sector_map)
+        # All 5 symbols pooled together (3 thin-sector + 2 unmapped) - A is cheapest of all 5.
+        assert result["A"] == 100.0
+        assert result["Y"] == 0.0
+
+    def test_unmapped_symbols_pooled_into_residual_group(self) -> None:
+        values = {"A": 5.0, "B": 50.0}
+        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, {})
+        assert result["A"] == 100.0
+        assert result["B"] == 0.0
+
+    def test_large_sector_ranked_independently_of_residual_pool(self) -> None:
+        values = {}
+        sector_map = {}
+        for i in range(25):
+            values[f"RE{i}"] = float(i + 1)  # 1..25
+            sector_map[f"RE{i}"] = "Real Estate"
+        values["UNMAPPED"] = 0.5  # cheaper than every Real Estate symbol, but not in that sector
+        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, sector_map)
+        # UNMAPPED is alone in the residual pool (n=1) -> midpoint 50.0, NOT percentile 100 just
+        # because it's numerically the cheapest across all symbols.
+        assert result["UNMAPPED"] == 50.0
+        assert result["RE0"] == 100.0  # cheapest within its own 25-symbol sector
+
+
 class TestPeCurveScoreUnchanged:
     """_pe_curve_score/_pb_curve_score/_ps_curve_score must stay byte-for-byte the OLD
     formulas - update_value_multiples_percentiles()'s reconciliation diffs against whatever
@@ -377,9 +436,28 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
     def test_real_row_shape_does_not_raise_indexerror(self) -> None:
         # One profitable symbol, one unprofitable (floored) symbol, one negative-forecast
         # Forward P/E symbol - exercises every branch of the real row-unpacking code with the
-        # REAL 15-column shape the live SELECT actually returns.
+        # REAL 16-column shape the live SELECT actually returns (sector added 2026-09-04 for
+        # sector-relative Value percentile ranking - see update_value_multiples_percentiles'
+        # own "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note).
         rows = [
-            ("AAPL", 60.0, 55.0, 40.0, 70.0, 65.0, 55.0, 15.0, 2.0, 4.0, 18.0, 0.005, None, None, {"quality": 70.0}),
+            (
+                "AAPL",
+                60.0,
+                55.0,
+                40.0,
+                70.0,
+                65.0,
+                55.0,
+                15.0,
+                2.0,
+                4.0,
+                18.0,
+                0.005,
+                None,
+                None,
+                {"quality": 70.0},
+                "Technology",
+            ),
             (
                 "UNPROFIT",
                 50.0,
@@ -395,6 +473,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 None,
                 "unprofitable_stock",
                 "no_analyst_estimates",
+                None,
                 None,
             ),
             (
@@ -413,6 +492,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 None,
                 "negative_forward_eps",
                 "{}",
+                "Financial Services",
             ),
         ]
         cur = self._make_mock_cursor(rows)
