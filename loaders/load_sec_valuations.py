@@ -254,6 +254,16 @@ def _fpi_ads_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any
     return float(eps) * multiplier
 
 
+# See _sanity_check_market_cap's own comment for the full KELYB/LBTYB rationale and the
+# sibling-sum cross-check discipline required before adding a symbol here.
+DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS: frozenset[str] = frozenset(
+    {
+        "KELYB",  # Kelly Services Class B
+        "LBTYB",  # Liberty Global Class B
+    }
+)
+
+
 class SecValuationsLoader(OptimalLoader):
     """Compute valuations from SEC audited data instead of yfinance estimates.
 
@@ -2762,6 +2772,26 @@ class SecValuationsLoader(OptimalLoader):
         if market_cap is None or market_cap <= 0:
             return
         if yf_market_cap is None:
+            return
+        # FIXED 2026-09-03 (goal session continuation, KELYB-discovered): for a thin sibling
+        # class of a multi-class ticker family, yfinance's market_cap/sharesOutstanding
+        # reflects the COMBINED-entity share count (shared across every class' ticker symbol
+        # by the data vendor) rather than that specific class' own float - live-confirmed both
+        # via the frozen yfinance_snapshot table AND a fresh live re-fetch (both agree, so this
+        # is NOT the staleness case the live-refetch fallback below already handles).
+        # Live-confirmed: KELYB's own SEC-derived market_cap ($76.7M, 3,295,941 real Class B
+        # shares per company_info_sec x price) vs yfinance's $808M-830M for the SAME ticker -
+        # but company_info_sec's own class-specific counts sum correctly across siblings
+        # (KELYA 30,915,587 + KELYB 3,295,941 = 34,211,528, matching Kelly Services' real
+        # combined ~34.6M shares outstanding per public filings) - confirming our class-
+        # specific number is the correct one and yfinance's is the combined-entity total
+        # mislabeled per-class. Same pattern for LBTYB (LBTYA+LBTYB+LBTYK sums to 335.0M vs the
+        # combined DB total of 337.9M, within 0.9%). Registry restricted to individually
+        # confirmed thin-class tickers only - do NOT add a symbol here without the same
+        # sibling-sum cross-check; a genuinely mis-scaled shares_outstanding bug (this check's
+        # real purpose, e.g. the already-fixed ONC case) would NOT sum correctly with its
+        # siblings this cleanly.
+        if symbol in DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS:
             return
         ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
         if ratio <= 10:
