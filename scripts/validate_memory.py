@@ -124,7 +124,17 @@ def check_structure(filepath: Path, content: str) -> list[str]:
         )
         if not has_method:
             has_shown_command = bool(re.search(r"`[^`\n]+`", content))
-            has_result_line = bool(re.search(r"\d+\s*(passed|/\d+)", lowered))
+            # BUG FOUND 2026-09-04: the original `\d+\s*(passed|/\d+)` only matched a count
+            # immediately adjacent to "passed" (e.g. "7 passed"). Real writeups more often
+            # phrase it as "N (new/existing) tests ... still pass" with other words in between
+            # ("6 new tests in `test_foo.py`, all pass; 312 existing tests still pass") - a false
+            # positive that blocked commits repo-wide for claims that were, on inspection,
+            # genuinely backed by a shown test file and a pass count. Widened to also match a
+            # digit followed by "pass"/"passed"/"failed" within the same sentence, not just
+            # immediately adjacent.
+            has_result_line = bool(re.search(r"\d+\s*(passed|/\d+)", lowered)) or bool(
+                re.search(r"\d+[\w\s,/.'-]{0,60}\bpass(ed|ing)?\b", lowered)
+            )
             has_method = has_shown_command and has_result_line
         if not has_method:
             issues.append(

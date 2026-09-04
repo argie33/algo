@@ -2442,6 +2442,44 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             stockholders_equity = self._nan_to_none(
                 safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True)
             )
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same anchor-year fiscal
+            # mismatch bug class already fixed for net_income/revenue/operating_income/OCF/FCF/
+            # debt elsewhere in this file, and separately for roic_stockholders_equity further
+            # below): the anchor balance-sheet row (quality_row[0]) can have stockholders_equity
+            # NULL even though a nearby fiscal year has a real value. ROE/sustainable_growth_rate
+            # (unlike roic_pct/roce_pct/debt_to_equity, which already use the fallback-enhanced
+            # roic_stockholders_equity computed further below) used ONLY this bare anchor value
+            # with no fallback at all. Live-confirmed 345 of 371 universe roe "missing_sec_data"
+            # residual symbols have a real stockholders_equity in SOME annual_balance_sheet year.
+            # Same 3-year-window-then-full-history search as every other field's fallback here.
+            if stockholders_equity is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT stockholders_equity FROM annual_balance_sheet
+                        WHERE symbol = %s AND stockholders_equity IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    _se_fallback_row = cur.fetchone()
+                    if not _se_fallback_row:
+                        cur.execute(
+                            """
+                            SELECT stockholders_equity FROM annual_balance_sheet
+                            WHERE symbol = %s AND stockholders_equity IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _se_fallback_row = cur.fetchone()
+                if _se_fallback_row:
+                    stockholders_equity = self._nan_to_none(
+                        safe_float(_se_fallback_row[0], f"{symbol}.stockholders_equity_fallback_year", allow_none=True)
+                    )
             total_liabilities = self._nan_to_none(
                 safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
             )
