@@ -349,12 +349,39 @@ class CompanyInfoSECLoader(SecLoaderBase):
 
             shares_outstanding_unavailable_reason = None
             if shares_outstanding is None:
+                # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction to zero,
+                # inconsistent-preserved-pair bug class): `shares_outstanding` is one of this
+                # loader's `preserve_on_missing_fields` columns (see __init__'s comment) - when
+                # THIS run's fetch comes back None, the bulk insert's COALESCE preserves
+                # whatever real value the symbol already had on file, so the row's actual
+                # `shares_outstanding` stays non-NULL. But this reason column is ALSO in that
+                # preserve set, and unlike `shares_outstanding` it was never None going into the
+                # insert (a real string gets computed unconditionally right below) - so it does
+                # NOT get COALESCE-preserved, it overwrites the old (correctly NULL) reason with
+                # a fresh "unavailable" label. Live-confirmed 66 active-universe rows (DDS, MKC,
+                # WLY, WSO, AGM, AMH, ARTNA, ATRO among them) carry a REAL, non-NULL
+                # shares_outstanding value (correctly preserved) sitting next to this
+                # contradictory "not found" reason (freshly overwritten) - every one of these
+                # counts as a live "Missing SEC/XBRL data" gap on the coverage dashboard despite
+                # having real data. Checking the existing DB value first and leaving the reason
+                # None (so it gets COALESCE-preserved too, back to whatever it correctly was)
+                # keeps the pair consistent instead of re-deriving a reason for a value this run
+                # never actually re-examined.
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    _existing_row = cur.fetchone()
+                _existing_shares_outstanding = _existing_row[0] if _existing_row else None
+                if _existing_shares_outstanding is not None:
+                    shares_outstanding_unavailable_reason = None
                 # Live audit (goal session, "Ownership data unresolved" bucket
                 # investigation, 2026-08-23) decomposed 1,237 active-universe NULL
                 # shares_outstanding rows into exactly these 3 buckets by hand - surface it
                 # directly instead of requiring the same manual SQL archaeology next time.
                 # See migration 1201's own comment for the full live evidence per bucket.
-                if is_foreign_private_issuer:
+                elif is_foreign_private_issuer:
                     shares_outstanding_unavailable_reason = "fpi_shares_excluded_domestic_only"
                 elif not has_annual_report_filing:
                     shares_outstanding_unavailable_reason = "no_annual_report_filing"
