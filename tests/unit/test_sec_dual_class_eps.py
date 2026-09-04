@@ -67,20 +67,52 @@ _FIXTURE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 
 class TestExtractDualClassEpsShares:
     def test_extracts_class_a_facts_for_period(self) -> None:
+        # FIXED 2026-09-03: no EarningsPerShareDiluted concept exists anywhere in this
+        # fixture (same as Berkshire's real filing) - ASC 260 treats total absence of the
+        # diluted concept as "no dilutive securities", so diluted now mirrors basic.
         result = extract_dual_class_eps_shares(_FIXTURE_XML, "A", "2025-12-31")
-        assert result == {"eps_basic": 46563.0, "shares_basic": 1438223.0}
+        assert result == {
+            "eps_basic": 46563.0,
+            "eps_diluted": 46563.0,
+            "shares_basic": 1438223.0,
+            "shares_diluted": 1438223.0,
+        }
 
     def test_extracts_class_b_facts_for_period(self) -> None:
         result = extract_dual_class_eps_shares(_FIXTURE_XML, "B", "2025-12-31")
-        assert result == {"eps_basic": 31.04, "shares_basic": 2157335139.0}
+        assert result == {
+            "eps_basic": 31.04,
+            "eps_diluted": 31.04,
+            "shares_basic": 2157335139.0,
+            "shares_diluted": 2157335139.0,
+        }
 
-    def test_never_returns_diluted_facts_that_do_not_exist(self) -> None:
-        # Berkshire tags no diluted EPS/share-count facts at all - the fallback must return
-        # only what it actually finds, never fabricate the rest.
+    def test_diluted_mirrors_basic_when_concept_absent_filing_wide(self) -> None:
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # pe_ratio/peg_ratio investigation): Berkshire tags no diluted EPS/share-count facts
+        # at all, anywhere in the filing - by ASC 260's own logic this means it has no
+        # dilutive potential common shares, so diluted EPS/shares equal the basic figures
+        # (a definitional fact, not an approximation - see this module's own comment for
+        # why this is a materially different case than the rejected pretax_income
+        # reconstruction). Still never fabricates eps_basic/shares_basic themselves.
         result = extract_dual_class_eps_shares(_FIXTURE_XML, "A", "2025-12-31")
         assert result is not None
-        assert "eps_diluted" not in result
-        assert "shares_diluted" not in result
+        assert result["eps_diluted"] == result["eps_basic"]
+        assert result["shares_diluted"] == result["shares_basic"]
+
+    def test_real_diluted_concept_is_never_overwritten_when_present(self) -> None:
+        # If the filing DOES tag EarningsPerShareDiluted anywhere (even for a different
+        # class/period), the ASC-260 mirroring fallback must not fire at all - a real
+        # diluted fact for THIS class/period should still win untouched.
+        xml_with_real_diluted = _FIXTURE_XML.replace(
+            "</xbrl>",
+            '<us-gaap:EarningsPerShareDiluted contextRef="c-classA-2025" unitRef="usd-per-share" '
+            'decimals="0">46000</us-gaap:EarningsPerShareDiluted></xbrl>',
+        )
+        result = extract_dual_class_eps_shares(xml_with_real_diluted, "A", "2025-12-31")
+        assert result is not None
+        assert result["eps_diluted"] == 46000.0
+        assert "shares_diluted" not in result  # still absent - shares fallback is independent
 
     def test_same_axis_debt_instrument_context_never_matches(self) -> None:
         # The decoy note context tags EarningsPerShareBasic=2.15 under the SAME
@@ -98,7 +130,7 @@ class TestExtractDualClassEpsShares:
 
     def test_different_fiscal_year_resolves_independently(self) -> None:
         result = extract_dual_class_eps_shares(_FIXTURE_XML, "A", "2024-12-31")
-        assert result == {"eps_basic": 61900.0}
+        assert result == {"eps_basic": 61900.0, "eps_diluted": 61900.0}
 
     def test_unresolvable_class_letter_returns_none(self) -> None:
         assert extract_dual_class_eps_shares(_FIXTURE_XML, "C", "2025-12-31") is None

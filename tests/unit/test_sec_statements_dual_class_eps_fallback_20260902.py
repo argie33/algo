@@ -66,9 +66,11 @@ class TestDualClassEpsFallbackIntegration:
 
         assert rows[0]["earnings_per_share_basic"] == 31.04
         assert rows[0]["weighted_average_number_of_shares_outstanding_basic"] == 2157335139.0
-        # never fabricated - the fixture has no diluted facts
-        assert rows[0]["earnings_per_share_diluted"] is None
-        assert rows[0]["weighted_average_number_of_diluted_shares_outstanding"] is None
+        # FIXED 2026-09-03: the fixture has no diluted facts anywhere in the filing - ASC 260
+        # treats that as "no dilutive securities", so diluted now mirrors basic (see
+        # loaders/helpers/sec_dual_class_eps.py's own comment for the rationale).
+        assert rows[0]["earnings_per_share_diluted"] == 31.04
+        assert rows[0]["weighted_average_number_of_diluted_shares_outstanding"] == 2157335139.0
 
     def test_never_overwrites_a_real_value(self) -> None:
         rows = [

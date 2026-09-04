@@ -21,8 +21,13 @@ Live-verified against BRK's real instance XML: EarningsPerShareBasic tagged once
 (class, fiscal year) under a single-member us-gaap:StatementClassOfStockAxis context -
 Class A FY2025=$46,563/share (1,438,223 shares), Class B FY2025=$31.04/share
 (2,157,335,139 shares) - both match Berkshire's real known per-class scale. Berkshire tags no
-EarningsPerShareDiluted/diluted-share-count facts at all (no dilutive securities to report) -
-this module correctly returns only the fields it actually finds, never fabricating the rest.
+EarningsPerShareDiluted/diluted-share-count facts anywhere in the filing (no dilutive
+securities to report) - FIXED 2026-09-03: rather than leaving diluted_eps/shares_diluted
+permanently NULL, `extract_dual_class_eps_shares` now sets them equal to the basic figures
+whenever the diluted concept is confirmed absent filing-wide (see that function's own comment
+for the ASC 260 rationale - ASC 260 requires diluted EPS disclosure whenever any dilutive
+potential common shares exist, so its total absence is a definitional fact, not an
+approximation). This module still never fabricates eps_basic/shares_basic themselves.
 
 FALSE-POSITIVE GUARD: Berkshire (and presumably other filers) also tags several debt
 instruments (senior notes) under this SAME us-gaap:StatementClassOfStockAxis with member names
@@ -190,6 +195,7 @@ def extract_dual_class_eps_shares(xml_text: str, class_letter: str, period_end: 
         return None
 
     result: dict[str, float] = {}
+    found_diluted_concept_anywhere = bool(_fact_values_by_context(xml_text, _EPS_DILUTED_CONCEPT))
     for result_key, concept in (
         ("eps_basic", _EPS_BASIC_CONCEPT),
         ("eps_diluted", _EPS_DILUTED_CONCEPT),
@@ -201,5 +207,27 @@ def extract_dual_class_eps_shares(xml_text: str, class_letter: str, period_end: 
             if ctx in values:
                 result[result_key] = values[ctx]
                 break
+
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
+    # peg_ratio investigation): Berkshire's diluted_eps was NULL every fiscal year (blocking
+    # pe_ratio/peg_ratio for a $700B+/$388B company) because this module - by design, see its
+    # own docstring - never fabricates a value for a field it didn't find. But ASC 260 requires
+    # diluted EPS to be disclosed whenever an entity has ANY dilutive potential common shares;
+    # a filer that tags EarningsPerShareDiluted NOWHERE in the entire filing (not just missing
+    # for this class/period - checked filing-wide, not just this class's contexts, so a filer
+    # that tags diluted for a DIFFERENT class but genuinely omits it for this one is not
+    # affected by this rule) is asserting, by the standard's own logic, that it has no
+    # dilutive securities - i.e. diluted EPS equals basic EPS by definition, not an
+    # approximation. This is a materially different evidentiary bar than the already-rejected
+    # net_income+tax pretax_income reconstruction (a ~75%-accurate identity with real,
+    # unpredictable NCI/discontinued-ops noise) - there is no "noise" case here, only "the
+    # filer has dilutive securities and tagged them" vs. "it doesn't and didn't". Only fires
+    # when eps_basic/shares_basic were actually found for this class+period; never invents a
+    # basic figure either.
+    if not found_diluted_concept_anywhere:
+        if "eps_basic" in result and "eps_diluted" not in result:
+            result["eps_diluted"] = result["eps_basic"]
+        if "shares_basic" in result and "shares_diluted" not in result:
+            result["shares_diluted"] = result["shares_basic"]
 
     return result or None
