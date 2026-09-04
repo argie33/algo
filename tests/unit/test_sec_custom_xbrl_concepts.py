@@ -17,6 +17,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
     CUSTOM_DIVIDEND_CONCEPTS,
+    CUSTOM_INCOME_DIMENSIONED_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     _extract_dimensioned_sum_from_xbrl_xml,
     _extract_duration_dimensioned_sum_from_xbrl_xml,
@@ -26,6 +27,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     extract_custom_debt_longterm_from_xbrl_xml,
     extract_custom_debt_shortterm_from_xbrl_xml,
     extract_custom_dividends_from_xbrl_xml,
+    extract_custom_income_dimensioned_from_xbrl_xml,
     extract_custom_revenue_from_xbrl_xml,
     fetch_custom_capex,
     fetch_custom_capex_dimensioned_sum,
@@ -33,6 +35,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
     fetch_custom_dividends,
+    fetch_custom_income_dimensioned,
     fetch_custom_revenue,
 )
 
@@ -1355,3 +1358,91 @@ class TestExtractDurationDimensionedSumSingleMemberSubtotal:
 
     def test_custom_capex_dimensioned_concepts_registry_includes_mux(self) -> None:
         assert "MUX" in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS
+
+
+# Mirrors the real structure confirmed live 2026-09-03 against Deutsche Bank's actual filed
+# FY2025 20-F raw XBRL instance document (accession 0001159508-26-000017,
+# db-20251231_htm.xml): net income, basic EPS, and diluted EPS all tagged ONLY under a
+# context dimensioned by exactly one explicitMember (dei:LegalEntityAxis=
+# db:ConsolidatedBankEntityMember) - no plain non-dimensioned fact exists for any of the
+# three. A decoy multi-dimensioned context (the same member plus an unrelated second
+# dimension) must be excluded.
+_DB_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:dei="http://xbrl.sec.gov/dei/2025"
+      xmlns:db="http://db.com/20251231"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full">
+  <context id="c-consolidated-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001159508</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="dei:LegalEntityAxis">db:ConsolidatedBankEntityMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-multi-dimension-fy2025">
+    <entity>
+      <identifier scheme="http://www.sec.gov/CIK">0001159508</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="dei:LegalEntityAxis">db:ConsolidatedBankEntityMember</xbrldi:explicitMember>
+        <xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <ifrs-full:ProfitLossAttributableToOwnersOfParent contextRef="c-consolidated-fy2025" unitRef="eur" decimals="-6">6606000000</ifrs-full:ProfitLossAttributableToOwnersOfParent>
+  <ifrs-full:BasicEarningsLossPerShare contextRef="c-consolidated-fy2025" unitRef="eurpershare" decimals="2">2.97</ifrs-full:BasicEarningsLossPerShare>
+  <ifrs-full:DilutedEarningsLossPerShare contextRef="c-consolidated-fy2025" unitRef="eurpershare" decimals="2">2.93</ifrs-full:DilutedEarningsLossPerShare>
+  <ifrs-full:ProfitLossAttributableToOwnersOfParent contextRef="c-multi-dimension-fy2025" unitRef="eur" decimals="-6">999000000</ifrs-full:ProfitLossAttributableToOwnersOfParent>
+</xbrl>
+"""
+
+
+class TestExtractCustomIncomeDimensionedFromXbrlXml:
+    def test_db_recovers_all_three_independent_concepts(self) -> None:
+        result = extract_custom_income_dimensioned_from_xbrl_xml(_DB_XML, "DB")
+        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0
+        assert result["custom_extension_eps_basic"][2025] == 2.97
+        assert result["custom_extension_eps_diluted"][2025] == 2.93
+
+    def test_db_excludes_multi_dimensioned_sub_breakdown_fact(self) -> None:
+        result = extract_custom_income_dimensioned_from_xbrl_xml(_DB_XML, "DB")
+        # The 999,000,000 fact carries a SECOND explicitMember - not the plain
+        # single-member consolidated total, must never be summed or substituted in.
+        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0
+
+    def test_unregistered_symbol_returns_empty_without_parsing(self) -> None:
+        assert extract_custom_income_dimensioned_from_xbrl_xml(_DB_XML, "SOME_OTHER_SYMBOL") == {}
+
+    def test_custom_income_dimensioned_concepts_registry_includes_db(self) -> None:
+        assert "DB" in CUSTOM_INCOME_DIMENSIONED_CONCEPTS
+        for concept, result_key, member_names in CUSTOM_INCOME_DIMENSIONED_CONCEPTS["DB"]:
+            assert concept and result_key and member_names
+
+
+class TestFetchCustomIncomeDimensioned:
+    def test_unregistered_symbol_never_calls_sec_client(self) -> None:
+        sec_client = MagicMock()
+        result = fetch_custom_income_dimensioned("AAPL", sec_client)
+        assert result == {}
+        sec_client.symbol_to_cik.assert_not_called()
+
+    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self) -> None:
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0001159508"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["6-K", "20-F", "20-F"],
+                    "accessionNumber": ["0000000000-26-000001", "0001159508-26-000017", "0001159508-25-000012"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _DB_XML
+
+        result = fetch_custom_income_dimensioned("DB", sec_client)
+
+        assert result["custom_extension_net_income"][2025] == 6_606_000_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0001159508", "0001159508-26-000017", "20-F")

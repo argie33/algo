@@ -1038,3 +1038,143 @@ def fetch_custom_capex_dimensioned_sum(symbol: str, sec_client: Any) -> dict[int
     return _fetch_custom_concept(
         symbol, sec_client, CUSTOM_CAPEX_DIMENSIONED_CONCEPTS, _extract_duration_dimensioned_sum_from_xbrl_xml
     )
+
+
+# FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
+# peg_ratio investigation, BRK diluted_eps follow-up): DB (Deutsche Bank AG, CIK
+# 0001159508, $76.1B market cap, 20-F/IFRS filer) has real net_income/diluted_eps/
+# basic_eps for FY2023-2025, but ALL THREE concepts are tagged ONLY under a context
+# dimensioned by EXACTLY ONE explicitMember - dei:LegalEntityAxis=
+# db:ConsolidatedBankEntityMember - live-confirmed against the real filed FY2025 20-F raw
+# XBRL instance document (accession 0001159508-26-000017, db-20251231_htm.xml): net income
+# (ifrs-full:ProfitLossAttributableToOwnersOfParent) EUR 6,606M FY2025 / 4,342M FY2024 /
+# 6,332M FY2023; diluted EPS (ifrs-full:DilutedEarningsLossPerShare) EUR 2.93 / 1.85 / 2.77;
+# basic EPS (ifrs-full:BasicEarningsLossPerShare) matching contexts. Same "single-member
+# dimensioned fact, invisible to companyfacts, real consolidated total not a sub-breakdown"
+# shape as CUSTOM_DEBT_CONCEPTS's Berkshire debt and CUSTOM_CAPEX_DIMENSIONED_CONCEPTS's
+# MUX capex above - but unlike either of those, DB needs THREE independent concepts (not
+# one, and not summed together) recovered from the same single-member axis/member, which is
+# why this is its own registry shape (list of (concept, result_field_key, member_set)
+# triples per symbol) rather than reusing either existing dict[str, tuple[...]] shape.
+CUSTOM_INCOME_DIMENSIONED_CONCEPTS: dict[str, list[tuple[str, str, frozenset[str]]]] = {
+    "DB": [
+        (
+            "ProfitLossAttributableToOwnersOfParent",
+            "custom_extension_net_income",
+            frozenset({"ConsolidatedBankEntityMember"}),
+        ),
+        (
+            "BasicEarningsLossPerShare",
+            "custom_extension_eps_basic",
+            frozenset({"ConsolidatedBankEntityMember"}),
+        ),
+        (
+            "DilutedEarningsLossPerShare",
+            "custom_extension_eps_diluted",
+            frozenset({"ConsolidatedBankEntityMember"}),
+        ),
+    ],
+}
+
+
+def _extract_single_concept_duration_dimensioned_sum(
+    xml_content: str, root: ET.Element, concept_local_name: str, member_local_names: frozenset[str]
+) -> dict[int, float]:
+    """Shared core of _extract_duration_dimensioned_sum_from_xbrl_xml, generalized to take
+    an already-parsed `root` and an explicit (concept, member_set) pair rather than looking
+    both up from a single symbol-keyed registry entry - lets a caller extract MULTIPLE
+    independent concepts (e.g. DB's net income + basic EPS + diluted EPS) from one parsed
+    document without re-parsing the XML for each one. See that function's own docstring for
+    the duration/period-matching convention this mirrors exactly.
+    """
+    context_info: dict[str, tuple[str, str, str]] = {}
+    for ctx in root.iter():
+        if _local_name(ctx.tag) != "context":
+            continue
+        ctx_id = ctx.get("id")
+        if not ctx_id:
+            continue
+        period = next((c for c in ctx if _local_name(c.tag) == "period"), None)
+        if period is None:
+            continue
+        start_el = next((c for c in period if _local_name(c.tag) == "startDate"), None)
+        end_el = next((c for c in period if _local_name(c.tag) == "endDate"), None)
+        if start_el is None or end_el is None or not start_el.text or not end_el.text:
+            continue  # Instant context, not a duration one - not usable here.
+        members = [
+            el.text.strip().rsplit(":", 1)[-1]
+            for el in ctx.iter()
+            if _local_name(el.tag) == "explicitMember" and el.text
+        ]
+        if len(members) != 1 or members[0] not in member_local_names:
+            continue  # Not one of our target member totals - see module comment above.
+        context_info[ctx_id] = (start_el.text.strip(), end_el.text.strip(), members[0])
+
+    values_by_year: dict[int, float] = {}
+    members_seen_by_year: dict[int, set[str]] = {}
+    for el in root.iter():
+        if _local_name(el.tag) != concept_local_name:
+            continue
+        ctx_ref = el.get("contextRef")
+        if ctx_ref not in context_info:
+            continue
+        start_str, end_str, member = context_info[ctx_ref]
+        try:
+            start_date = date.fromisoformat(start_str)
+            end_date = date.fromisoformat(end_str)
+        except ValueError:
+            continue
+        duration_days = (end_date - start_date).days
+        if not (350 <= duration_days <= 380):
+            continue  # Not a full-year duration - skip quarterly/interim facts.
+        if el.text is None:
+            continue
+        try:
+            value = float(el.text.strip())
+        except ValueError:
+            continue
+        fiscal_year = end_date.year
+        seen = members_seen_by_year.setdefault(fiscal_year, set())
+        if member in seen:
+            continue  # Duplicate fact for a member/year already summed - never double-count.
+        seen.add(member)
+        values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
+
+    return {
+        year: total for year, total in values_by_year.items() if members_seen_by_year[year] == set(member_local_names)
+    }
+
+
+def extract_custom_income_dimensioned_from_xbrl_xml(xml_content: str, symbol: str) -> dict[str, dict[int, float]]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known
+    CUSTOM_INCOME_DIMENSIONED_CONCEPTS-registered concepts, returning
+    {result_field_key: {fiscal_year: value}} for each one independently (never summed
+    across result_field_keys - each is a distinct income-statement line, unlike
+    CUSTOM_DEBT_CONCEPTS/CUSTOM_CAPEX_DIMENSIONED_CONCEPTS where multiple members of ONE
+    concept get summed into a single total).
+
+    Only meaningful for symbols in CUSTOM_INCOME_DIMENSIONED_CONCEPTS - returns {}
+    immediately otherwise (never guesses at unregistered concept/member names).
+    """
+    specs = CUSTOM_INCOME_DIMENSIONED_CONCEPTS.get(symbol)
+    if not specs:
+        # Not an error - no candidates registered for this symbol at all, so there is
+        # nothing to search the XML for (never guesses at unregistered concept/member
+        # names).
+        return {}
+    root = ET.fromstring(xml_content)
+    return {
+        result_key: _extract_single_concept_duration_dimensioned_sum(xml_content, root, concept, member_names)
+        for concept, result_key, member_names in specs
+    }
+
+
+def fetch_custom_income_dimensioned(symbol: str, sec_client: Any) -> dict[str, dict[int, float]]:
+    """Fetch and parse `symbol`'s latest annual filing for its known
+    CUSTOM_INCOME_DIMENSIONED_CONCEPTS concepts. Returns {} if symbol isn't registered, the
+    filing can't be found, or the XML can't be parsed - callers should treat that as "no
+    fallback data", not raise.
+    """
+    return _fetch_custom_concept(  # type: ignore[return-value]
+        symbol, sec_client, CUSTOM_INCOME_DIMENSIONED_CONCEPTS, extract_custom_income_dimensioned_from_xbrl_xml
+    )

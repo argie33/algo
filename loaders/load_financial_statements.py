@@ -50,6 +50,7 @@ from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
     CUSTOM_DIVIDEND_CONCEPTS,
+    CUSTOM_INCOME_DIMENSIONED_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     fetch_custom_capex,
     fetch_custom_capex_dimensioned_sum,
@@ -57,6 +58,7 @@ from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
     fetch_custom_dividends,
+    fetch_custom_income_dimensioned,
     fetch_custom_revenue,
 )
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
@@ -348,6 +350,17 @@ _INCOME_FIELD_MAPPING = {
     # _REVENUE_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the normal
     # SEC extraction already found.
     "custom_extension_revenue": "revenue",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
+    # peg_ratio investigation): identity keys set directly on rows for symbols in
+    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_INCOME_DIMENSIONED_CONCEPTS - see
+    # that module's docstring (DB's real net_income/basic_eps/diluted_eps tagged only under
+    # a single-explicitMember dimensioned context, invisible to the normal concept-list
+    # extraction the same way CUSTOM_REVENUE_CONCEPTS is above). fallback_only (see
+    # _REVENUE_FALLBACK_ONLY_FIELDS below) so these never overwrite a real value the normal
+    # SEC extraction already found.
+    "custom_extension_net_income": "net_income",
+    "custom_extension_eps_basic": "earnings_per_share",
+    "custom_extension_eps_diluted": "diluted_eps",
     "cost_of_revenue": "cost_of_revenue",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
     # added to sec_statements.py's get_income_statement() concepts list - see that file's
@@ -603,6 +616,13 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # populated for CUSTOM_REVENUE_CONCEPTS-registered symbols in the first place, so
         # this is a defensive-in-depth guard rather than a live-confirmed clobber risk.
         "custom_extension_revenue",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
+        # peg_ratio investigation): same "fills only an already-empty db_field" reasoning as
+        # custom_extension_revenue above - see _INCOME_FIELD_MAPPING's comment on these keys.
+        # Only ever populated for CUSTOM_INCOME_DIMENSIONED_CONCEPTS-registered symbols.
+        "custom_extension_net_income",
+        "custom_extension_eps_basic",
+        "custom_extension_eps_diluted",
     }
 )
 
@@ -2167,6 +2187,21 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 fiscal_year = row.get("fiscal_year")
                 if fiscal_year in custom_revenue_by_year:
                     row["custom_extension_revenue"] = custom_revenue_by_year[fiscal_year]
+
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
+        # peg_ratio investigation, BRK diluted_eps follow-up): DB's real net_income/basic_
+        # eps/diluted_eps are tagged only under a single-explicitMember dimensioned context
+        # (dei:LegalEntityAxis=db:ConsolidatedBankEntityMember), invisible to the normal
+        # concept-list extraction the same way CUSTOM_DEBT_CONCEPTS's Berkshire debt is -
+        # see utils/external/sec_custom_xbrl_concepts.py's CUSTOM_INCOME_DIMENSIONED_CONCEPTS
+        # docstring for the live-verified evidence. Cheap no-op for every other symbol.
+        if self.statement_type == "income" and symbol in CUSTOM_INCOME_DIMENSIONED_CONCEPTS:
+            custom_income_fields = fetch_custom_income_dimensioned(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                for field_key, values_by_year in custom_income_fields.items():
+                    if fiscal_year in values_by_year:
+                        row[field_key] = values_by_year[fiscal_year]
 
         if self.statement_type == "balance":
             self._apply_custom_debt_extensions(symbol, rows)
