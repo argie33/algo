@@ -19,6 +19,58 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+# FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data under 6k" sweep, follow-up to the
+# 2026-08-20 sic_code/entity_type CEF/BDC/ETN exclusion above): that check requires
+# entity_type IN ('other', 'investment'), but SEC EDGAR classifies many real, registered
+# Business Development Companies as entity_type='operating' despite also carrying
+# sic_code=NULL - live-confirmed 31 active-universe symbols match sic_code=NULL AND
+# entity_type='operating', of which 30 are genuine BDCs (Main Street Capital, Hercules
+# Capital, FS KKR, Blue Owl, Goldman Sachs BDC, ...) - external, fund-of-loans entities with
+# no normal operating income statement, structurally unable to report interest_coverage/
+# total_debt/free_cash_flow/etc. the way an operating company does, same population as the
+# sic_code/entity_type exclusion just misses on entity_type alone. Only 1 false positive in
+# the 31 (CBC, Central Bancompany - a real bank holding company with an unrelated
+# unclassified-SIC gap, same shape as the OZK carve-out above) - excluded from this list.
+# AFCG (Advanced Flower Capital, a commercial mortgage REIT) deliberately left OUT despite
+# also matching the sic_code/entity_type signature - it's economically fund-like but not a
+# registered BDC, and unlike the other 30 there's no unambiguous evidence its per-share
+# financials are structurally meaningless the way a BDC's are; erring toward NOT excluding a
+# possibly-real operating company, same discipline as leaving ambiguous cases in throughout
+# this file's history.
+_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS: frozenset[str] = frozenset(
+    {
+        "BBDC",
+        "BCSF",
+        "CCAP",
+        "CION",
+        "CSWC",
+        "EQS",
+        "FSK",
+        "GAIN",
+        "GSBD",
+        "HRZN",
+        "HTGC",
+        "ICMB",
+        "KBDC",
+        "LIEN",
+        "MAIN",
+        "NCDL",
+        "NMFC",
+        "OBDC",
+        "OTF",
+        "PFLT",
+        "PFX",
+        "PNNT",
+        "PSBD",
+        "RWAY",
+        "SAR",
+        "SCM",
+        "TPVG",
+        "TRIN",
+        "TSLX",
+    }
+)
+
 
 def get_api_key(secret_name: str, env_var: str, default: str | None = None, required: bool = False) -> str | None:
     """Fetch API key from AWS Secrets Manager with fallback to environment variable.
@@ -316,8 +368,15 @@ def get_active_symbols(
                               -- convention for preferred/trust-preferred securities - same
                               -- unclassifiable-by-name-pattern situation as TVC/TVE, same fix.
                               AND s.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
+                              -- FIXED 2026-09-03: see _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS'
+                              -- own module-level comment above.
+                              AND s.symbol NOT IN ({bdc_symbols})
                             ORDER BY s.symbol
-                        """
+                        """.format(
+                            bdc_symbols=", ".join(
+                                f"'{sym}'" for sym in sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS)
+                            )
+                        )
                     else:
                         # For price/market data loaders: include both stocks and ETFs.
                         # FIXED 2026-08-03: previously didn't exclude data_unavailable=true

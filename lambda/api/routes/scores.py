@@ -53,6 +53,16 @@ _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = """
               AND {symbols_alias}.symbol != 'OZK'
         )
         AND {symbols_alias}.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
+        -- FIXED 2026-09-03: mirrors utils/loaders/helpers.py's
+        -- _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS - see that constant's own module-level
+        -- comment for the full live-evidence trail (30 real BDCs whose SEC entity_type is
+        -- 'operating' despite sic_code=NULL, so they escape the sic_code/entity_type check
+        -- above; CBC/AFCG deliberately excluded from this list, see that comment).
+        AND {symbols_alias}.symbol NOT IN (
+            'BBDC', 'BCSF', 'CCAP', 'CION', 'CSWC', 'EQS', 'FSK', 'GAIN', 'GSBD', 'HRZN',
+            'HTGC', 'ICMB', 'KBDC', 'LIEN', 'MAIN', 'NCDL', 'NMFC', 'OBDC', 'OTF', 'PFLT',
+            'PFX', 'PNNT', 'PSBD', 'RWAY', 'SAR', 'SCM', 'TPVG', 'TRIN', 'TSLX'
+        )
     )
 """
 
