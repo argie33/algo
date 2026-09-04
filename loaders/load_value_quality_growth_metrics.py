@@ -2908,6 +2908,67 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._never_tagged_current_liabilities_symbols_cache = result
         return result
 
+    def _get_no_recent_cash_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported a real (non-NULL, positive) cash_and_equivalents in
+        any of their 3 most recent fiscal years - i.e. total_cash/cash_per_share are
+        structurally None for them, not a loader gap. Same shape as
+        _get_no_recent_current_assets_symbols() above, for total_cash's own cash_and_equivalents
+        input instead of current_assets.
+
+        FIX 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction, live static-outlier
+        sweep): total_cash_unavailable_reason/cash_per_share_unavailable_reason only ever
+        reused sec_valuations.reason (a real, but narrower, "why did the whole valuation row
+        fail" signal) - unlike every other balance-sheet-input field in this file, they never
+        had their own dedicated no-data gate for cash_and_equivalents specifically. Live-
+        confirmed FDXF (FedEx Freight Holding Company, a real, large recently-spun-off S&P
+        500-flagged filer with real total_assets $6.88B FY2026/$5.02B FY2025) has NULL
+        cash_and_equivalents across its entire filing history despite a real, non-trivial
+        balance sheet - a genuine "never tagged" gap, not covered by the sec_valuations.reason
+        reuse since that row's OTHER valuation metrics compute fine.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_cash_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, cash_and_equivalents,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                    WHERE fiscal_year > 0
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(*) FILTER (WHERE cash_and_equivalents IS NOT NULL AND cash_and_equivalents > 0) = 0
+                   AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_cash_symbols_cache = result
+        return result
+
+    def _get_never_tagged_cash_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_cash_symbols() above - see
+        _get_never_tagged_net_income_symbols()'s docstring for the general pattern."""
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_cash_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE cash_and_equivalents IS NOT NULL AND cash_and_equivalents > 0) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_cash_symbols_cache = result
+        return result
+
     def _get_no_recent_net_income_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported net_income in any of their 3 most recent fiscal
         years - i.e. roe/roa are structurally None for them, not a loader gap.
@@ -7114,12 +7175,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Live-confirmed 135 of 167 universe total_cash "missing_sec_data" rows have a
             # sec_valuations row; of those, 81 (60%) carry a real, specific `reason` this now
             # reuses instead of a generic "missing_sec_data".
+            # FIX 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction, live static-
+            # outlier sweep): total_cash/cash_per_share never checked cash_and_equivalents
+            # against its own no-data gate - see _get_no_recent_cash_symbols()'s docstring
+            # (FDXF live evidence) for why the sec_valuations_reason reuse above doesn't cover
+            # this case (a genuinely never-tagged cash concept doesn't fail the rest of the
+            # valuation row, so sec_valuations_reason stays empty).
+            no_recent_cash_concept = (
+                symbol in self._get_no_recent_cash_symbols() or symbol in self._get_never_tagged_cash_symbols()
+            )
             metrics["total_cash_unavailable_reason"] = (
                 (
                     "no_sec_valuations_row"
                     if ev_metrics is None
                     else sec_valuations_reason
                     if sec_valuations_reason
+                    else "no_recent_cash_reported"
+                    if no_recent_cash_concept
                     else "missing_sec_data"
                 )
                 if "total_cash" in failed_metrics
@@ -7133,6 +7205,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if ev_metrics is None
                     else sec_valuations_reason
                     if sec_valuations_reason
+                    else "no_recent_cash_reported"
+                    if no_recent_cash_concept
                     else "missing_sec_data"
                 )
                 if "cash_per_share" in failed_metrics

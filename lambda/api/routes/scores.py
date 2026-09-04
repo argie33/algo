@@ -2442,6 +2442,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # reasons just above.
             "no_recent_current_assets_reported",
             "no_recent_current_liabilities_reported",
+            # ADDED 2026-09-03 (SEC/XBRL missing-data sweep, live static-outlier check):
+            # total_cash/cash_per_share's own new no-data gate - see load_value_quality_growth_
+            # metrics.py's _get_no_recent_cash_symbols() docstring for the live evidence (FDXF,
+            # a real S&P 500-flagged filer with real total_assets but never-tagged cash).
+            # Same "never tagged this concept for this filer" class as the entries just above -
+            # added here in the SAME commit as the reason string itself so it never sits
+            # unmapped in "Other (errors / excluded)" even briefly (the exact "wiring half-
+            # landed" mistake the four entries above this one were fixing after the fact).
+            "no_recent_cash_reported",
             # MOVED 2026-09-02 (SEC/XBRL missing-data sweep, live audit of the "Other" bucket):
             # "symbol_not_found" was sitting in "Other (errors / excluded)" as a bare set
             # literal with no explanation. Repo-wide grep of every write site (only two:
