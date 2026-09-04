@@ -6266,6 +6266,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if "gross_profitability" in implausible_ratio_metrics
                     else "reit_special_entity"
                     if no_gross_profit_concept
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - gross_profitability = gross_profit_for_profitability /
+                    # total_assets, the SAME two inputs gross_margin/asset_turnover already gate
+                    # on, but this reason chain never checked either): a genuinely no-revenue
+                    # filer (gross_profit's own numerator input) falls through to generic
+                    # "missing_sec_data" instead of the specific no_revenue_reported reason.
+                    else "no_revenue_reported"
+                    if symbol in self._get_blank_check_symbols()
+                    or symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
+                    # Same gap on the denominator side - total_assets never checked either.
+                    else "no_recent_total_assets_reported"
+                    if total_assets is None
+                    and (
+                        symbol in self._get_no_recent_total_assets_symbols()
+                        or symbol in self._get_never_tagged_total_assets_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if gross_profitability is None
