@@ -813,6 +813,80 @@ class MarketConstituentsLoader(OptimalLoader):
         except (ValueError, TypeError, RuntimeError) as notify_err:
             logger.error(f"[MARKET_CONSTITUENTS] Failed to send delisted-deactivation alert: {notify_err}")
 
+    def _purge_orphaned_downstream_score_rows(self) -> None:
+        """Purge downstream score-table rows for symbols with ZERO row in stock_symbols -
+        not merely `active=false`, genuinely absent.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction, live coverage-
+        report audit): _deactivate_symbols_delisted_from_exchange_feed()'s purge only ever
+        fires for a symbol it personally flips active=true -> false THIS run - it can never
+        catch a symbol that became orphaned any other way (e.g. a ticker-symbol rename where
+        the old ticker's stock_symbols row was replaced by the new one rather than
+        deactivated, so the old symbol never had an active=true row for that method to act
+        on). Live-confirmed 7 real operating companies sitting in stock_scores with a fresh
+        `updated_at` (an unrelated batch recompute keeps touching every stock_scores row
+        regardless of whether its symbol is still valid) despite zero row in stock_symbols
+        under their scored ticker: BK (renamed BNY), FDP (renamed DMC), GIG (renamed GCT) -
+        all three confirmed via the live NASDAQ/otherlisted feed under their new ticker, same
+        CIK/company, same real financial data just filed under a different symbol now; MASI/
+        SNBR/SLNO/AIFC's exact cause wasn't fully traced but show the identical symptom. This
+        directly inflates /api/scores/coverage's "Missing SEC/XBRL data" count with rows for
+        symbols that shouldn't be in the scored universe at all anymore.
+
+        Same safety posture as _deactivate_symbols_delisted_from_exchange_feed(): capped and
+        logged/notified, never a silent mass-delete. A symbol literally cannot enter
+        stock_scores without first passing through get_active_symbols() (sourced from
+        stock_symbols WHERE active=true) at scoring time, so "zero row in stock_symbols now"
+        can only mean the symbol left stock_symbols since - never a new listing whose
+        stock_symbols sync just hasn't landed yet.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT symbol FROM stock_scores
+                WHERE symbol NOT IN (SELECT symbol FROM stock_symbols)
+                """
+            )
+            orphaned = sorted(row[0] for row in cur.fetchall())
+        if not orphaned:
+            return
+
+        max_auto_purge = 50
+        if len(orphaned) > max_auto_purge:
+            logger.critical(
+                f"[MARKET_CONSTITUENTS] {len(orphaned)} stock_scores symbol(s) have zero row in "
+                f"stock_symbols - exceeds the {max_auto_purge} safety cap, which more likely "
+                "means an upstream data problem (e.g. a bad/partial stock_symbols fetch) than "
+                f"genuine orphans. Skipping automatic purge this run. Sample: {orphaned[:10]}"
+            )
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Purging {len(orphaned)} downstream score row(s) for "
+            f"symbol(s) with zero row in stock_symbols (renamed/delisted, never cleaned up): "
+            f"{orphaned[:10]}" + (f" ...and {len(orphaned) - 10} more" if len(orphaned) > 10 else "")
+        )
+        self._purge_stale_downstream_score_rows(orphaned)
+
+        try:
+            from algo.reporting import notify
+
+            notify(
+                severity="warning",
+                title="Orphaned Downstream Score Rows Purged",
+                message=(
+                    f"{len(orphaned)} symbol(s) purged from stock_scores/value_metrics/"
+                    "quality_metrics/growth_metrics/momentum_metrics/stability_metrics - zero "
+                    "row in stock_symbols (likely a ticker rename or delisting that predates "
+                    "this reconciliation): "
+                    + ", ".join(orphaned[:10])
+                    + (f" ...and {len(orphaned) - 10} more" if len(orphaned) > 10 else "")
+                ),
+                details={"symbols": orphaned},
+            )
+        except (ValueError, TypeError, RuntimeError) as notify_err:
+            logger.error(f"[MARKET_CONSTITUENTS] Failed to send orphaned-purge alert: {notify_err}")
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
 
@@ -831,6 +905,7 @@ class MarketConstituentsLoader(OptimalLoader):
             self._deactivate_stale_excluded_symbols()
             self._reactivate_no_longer_excluded_symbols()
             self._deactivate_blank_check_shells_by_sic_and_revenue()
+            self._purge_orphaned_downstream_score_rows()
 
             # STEP 1: Fetch NASDAQ/NYSE symbols
             logger.info("STEP 1/3: Fetching NASDAQ/NYSE tradable symbols")

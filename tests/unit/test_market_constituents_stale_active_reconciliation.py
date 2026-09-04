@@ -494,3 +494,85 @@ class TestPurgeStaleDownstreamScoreRows:
         with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
             loader._purge_stale_downstream_score_rows([])
             mock_db_ctx.assert_not_called()
+
+
+class TestPurgeOrphanedDownstreamScoreRows:
+    """Regression test (2026-09-03, goal: "Missing SEC/XBRL data" reduction): a symbol can
+    end up in stock_scores with ZERO row in stock_symbols at all (not merely
+    active=false) - e.g. a ticker-symbol rename (BK -> BNY, FDP -> DMC, GIG -> GCT all
+    live-confirmed) where the old ticker's stock_symbols row is replaced by the new one
+    rather than deactivated, so _deactivate_symbols_delisted_from_exchange_feed()'s
+    purge (scoped to symbols IT flips active=true -> false this run) never gets a chance
+    to catch it. This reconciliation catches that residual class directly.
+    """
+
+    def _make_loader(self):
+        return MarketConstituentsLoader.__new__(MarketConstituentsLoader)
+
+    def test_orphaned_symbol_gets_purged(self):
+        loader = self._make_loader()
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [("BK",)]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_purge_cur]
+
+            loader._purge_orphaned_downstream_score_rows()
+
+            sql = mock_read_cur.execute.call_args[0][0]
+            assert "NOT IN" in sql
+            assert "stock_symbols" in sql
+
+            assert mock_purge_cur.execute.call_count == 6
+            for call in mock_purge_cur.execute.call_args_list:
+                _, params = call[0]
+                assert params == (["BK"],)
+
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["severity"] == "warning"
+        assert "BK" in kwargs["message"]
+        assert kwargs["details"]["symbols"] == ["BK"]
+
+    def test_no_orphans_skips_purge_entirely(self):
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._purge_orphaned_downstream_score_rows()
+
+            # Only the read call happened - no purge DatabaseContext("write") entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_mass_orphans_exceeds_safety_cap_skips_purge(self):
+        """More than the safety cap implies an upstream data problem (e.g. a bad/partial
+        stock_symbols fetch), not genuine mass orphaning - must not mass-delete."""
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [(f"ORPHAN{i}",) for i in range(51)]
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._purge_orphaned_downstream_score_rows()
+
+            # Only the read call happened - no purge DatabaseContext("write") entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_notify_failure_does_not_crash_the_loader(self):
+        loader = self._make_loader()
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify", side_effect=RuntimeError("smtp down")),
+        ):
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [("BK",)]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_purge_cur]
+
+            # Must not raise despite notify() failing internally.
+            loader._purge_orphaned_downstream_score_rows()
