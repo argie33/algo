@@ -1,9 +1,10 @@
 """Regression test for a 2026-09-04 fix (goal session: "missing SEC/XBRL data under 6k"
-sweep, capex_never_tagged_in_recent_filings follow-up): a small set of mortgage REITs and
-consumer/specialty finance companies (NAVI, OMF, DX, ARR, ORC, CIM, RWT, MFIN, CHMI) never
-tag any capex-related XBRL concept in their entire filing history - live-confirmed via real
-companyfacts JSON: no PaymentsToAcquirePropertyPlantAndEquipment/
-PaymentsToAcquireProductiveAssets/PaymentsForCapitalImprovements anywhere.
+sweep, capex_never_tagged_in_recent_filings follow-up): a small set of mortgage REITs,
+consumer/specialty finance companies, and mineral-royalty traders (NAVI, OMF, DX, ARR, ORC,
+CIM, RWT, MFIN, CHMI, RGLD, MSB) never tag any capex-related XBRL concept in their entire
+filing history - live-confirmed via real companyfacts JSON: no
+PaymentsToAcquirePropertyPlantAndEquipment/PaymentsToAcquireProductiveAssets/
+PaymentsForCapitalImprovements anywhere.
 
 Mirrors INSURANCE_CAPEX_EXEMPT_SYMBOLS (test_insurance_capex_exempt_symbols_fixed_20260824.py)
 exactly - a symbol allowlist, not a SIC-code allowlist, because SIC 6798 also covers ordinary
@@ -16,7 +17,7 @@ from loaders.load_sec_valuations import SecValuationsLoader
 class TestFinancialCapexExemptSymbols:
     def test_confirmed_structurally_capex_less_symbols_are_covered(self) -> None:
         symbols = SecValuationsLoader.FINANCIAL_CAPEX_EXEMPT_SYMBOLS
-        for real_symbol in ("NAVI", "OMF", "DX", "ARR", "ORC", "CIM", "RWT", "MFIN", "CHMI"):
+        for real_symbol in ("NAVI", "OMF", "DX", "ARR", "ORC", "CIM", "RWT", "MFIN", "CHMI", "RGLD", "MSB"):
             assert real_symbol in symbols
 
     def test_ordinary_equity_reits_are_excluded(self) -> None:

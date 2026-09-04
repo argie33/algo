@@ -456,15 +456,16 @@ class SecValuationsLoader(OptimalLoader):
 
     # FIXED 2026-09-04 (goal session: "missing SEC/XBRL data under 6k" sweep, capex_never_
     # tagged_in_recent_filings follow-up): mirrors INSURANCE_CAPEX_EXEMPT_SYMBOLS above, for
-    # mortgage REITs and consumer/specialty finance companies instead - each symbol below was
-    # live-checked against its full companyfacts JSON and confirmed to have ZERO
-    # PaymentsToAcquirePropertyPlantAndEquipment/PaymentsToAcquireProductiveAssets/
-    # PaymentsForCapitalImprovements anywhere in filing history. Deliberately NOT SIC-based:
-    # SIC 6798 also covers ordinary EQUITY REITs (AVB, EQR, ...) which DO tag real, material
-    # capex - same "not uniformly capex-less" caution as insurance SIC codes above. Keep in
-    # sync with loaders/helpers/sec_base.py's _FINANCIAL_CAPEX_EXEMPT_SYMBOLS (same
-    # duplication convention already used for DEPOSITORY_INSTITUTION_SIC_CODES/
-    # INSURANCE_CAPEX_EXEMPT_SYMBOLS between this file and that one).
+    # mortgage REITs, consumer/specialty finance companies, and mineral-royalty traders
+    # instead - each symbol below was live-checked against its full companyfacts JSON and
+    # confirmed to have ZERO PaymentsToAcquirePropertyPlantAndEquipment/
+    # PaymentsToAcquireProductiveAssets/PaymentsForCapitalImprovements anywhere in filing
+    # history. Deliberately NOT SIC-based: SIC 6798 also covers ordinary EQUITY REITs (AVB,
+    # EQR, ...) which DO tag real, material capex - same "not uniformly capex-less" caution
+    # as insurance SIC codes above. Keep in sync with loaders/helpers/sec_base.py's
+    # _FINANCIAL_CAPEX_EXEMPT_SYMBOLS (same duplication convention already used for
+    # DEPOSITORY_INSTITUTION_SIC_CODES/INSURANCE_CAPEX_EXEMPT_SYMBOLS between this file and
+    # that one).
     FINANCIAL_CAPEX_EXEMPT_SYMBOLS = frozenset(
         {
             "NAVI",
@@ -476,6 +477,8 @@ class SecValuationsLoader(OptimalLoader):
             "RWT",
             "MFIN",
             "CHMI",
+            "RGLD",
+            "MSB",
         }
     )
 

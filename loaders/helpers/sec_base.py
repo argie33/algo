@@ -636,17 +636,18 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
     # FIXED 2026-09-04 (goal session: "missing SEC/XBRL data under 6k" sweep, capex_never_
     # tagged_in_recent_filings follow-up): a small, individually-verified allowlist of
-    # mortgage REITs and consumer/specialty finance companies confirmed to have ZERO capex-
-    # related XBRL concept (checked live against each symbol's real companyfacts JSON:
-    # no PaymentsToAcquirePropertyPlantAndEquipment/PaymentsToAcquireProductiveAssets/
-    # PaymentsForCapitalImprovements anywhere in filing history) - same underlying fact as
-    # the bank/insurance cases above (these companies hold financial assets, not physical
-    # property, so there is genuinely no capital-expenditure line to disclose), just a
-    # different SIC-code family (6798 mortgage REIT / 6141 personal credit / 6199 finance
-    # services / 6211 broker-dealer). Deliberately NOT SIC-based: SIC 6798 also covers
-    # ordinary EQUITY REITs (AVB, EQR, ...) which DO tag real, material capex - same "not
-    # uniformly capex-less" caution _INSURANCE_CAPEX_EXEMPT_SYMBOLS's own docstring gives for
-    # insurance SIC codes.
+    # mortgage REITs, consumer/specialty finance companies, and mineral-royalty traders
+    # confirmed to have ZERO capex-related XBRL concept (checked live against each symbol's
+    # real companyfacts JSON: no PaymentsToAcquirePropertyPlantAndEquipment/
+    # PaymentsToAcquireProductiveAssets/PaymentsForCapitalImprovements anywhere in filing
+    # history) - same underlying fact as the bank/insurance cases above (these companies
+    # hold financial assets or royalty interests, not physical property/mining operations
+    # themselves, so there is genuinely no capital-expenditure line to disclose), just
+    # different SIC-code families (6798 mortgage REIT / 6141 personal credit / 6199 finance
+    # services / 6211 broker-dealer / 6795 mineral royalty trader). Deliberately NOT
+    # SIC-based: SIC 6798 also covers ordinary EQUITY REITs (AVB, EQR, ...) which DO tag
+    # real, material capex - same "not uniformly capex-less" caution
+    # _INSURANCE_CAPEX_EXEMPT_SYMBOLS's own docstring gives for insurance SIC codes.
     _FINANCIAL_CAPEX_EXEMPT_SYMBOLS = frozenset(
         {
             "NAVI",
@@ -658,6 +659,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
             "RWT",
             "MFIN",
             "CHMI",
+            "RGLD",
+            "MSB",
         }
     )
 
