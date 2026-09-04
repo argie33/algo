@@ -324,10 +324,13 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # TR, DDS, RUM, and every other dual-class symbol checked, leaving them on the
             # existing conservative "cannot determine which class" behavior, unchanged.
             if shares_outstanding is None and isinstance(facts_obj, dict):
+                raw_tickers = submissions.get("tickers") or []
                 common_tickers = [
                     t
-                    for t in (submissions.get("tickers") or [])
-                    if not self._PREFERRED_TICKER_SUFFIX_RE.search(t) and t not in self._NON_COMMON_SECURITY_TICKERS
+                    for t in raw_tickers
+                    if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+                    and t not in self._NON_COMMON_SECURITY_TICKERS
+                    and not self._is_spac_unit_warrant_right_ticker(t, raw_tickers)
                 ]
                 if len(common_tickers) <= 1:
                     gaap_facts = facts_obj.get("us-gaap")
@@ -477,6 +480,35 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # name is "non-COMMON-security", not "non-debt" - preferred stock belongs here too, same as
     # SFB.
     _NON_COMMON_SECURITY_TICKERS: frozenset[str] = frozenset({"SFB", "DDT"})
+
+    # ADDED 2026-09-04 (SEC/XBRL missing-data sweep): same false-ambiguity bug class as
+    # _PREFERRED_TICKER_SUFFIX_RE/_NON_COMMON_SECURITY_TICKERS above, for SPAC unit/warrant/
+    # rights tickers sharing a CIK with the underlying common stock (e.g. TWLV/TWLVU/TWLVR,
+    # SVCC/SVCCU/SVCCW, JACS/JACS-UN/JACS-RI, BEBE/BEBE-UN/BEBE-WT) - live-confirmed via
+    # submissions.json for TWLV/SVCC/JACS/HVMC/CHEC/BEBE, all pre-merger 2026-vintage SPAC
+    # shells with exactly one real common class but 2-3 registered tickers, all currently
+    # blocked from shares_outstanding recovery by the `len(common_tickers) <= 1` /
+    # `multi_ticker_cik` guards. Matched relative to another ticker already in the same CIK's
+    # list (never a bare suffix heuristic) so a real standalone ticker that happens to end in
+    # U/W/R can't be misclassified - it only fires when stripping a known SPAC suffix from one
+    # ticker yields another ticker also registered on the same CIK.
+    _SPAC_UNIT_WARRANT_RIGHT_SUFFIXES: frozenset[str] = frozenset({"U", "W", "R", "WS", "RT", "UN", "WT", "RI"})
+
+    @classmethod
+    def _is_spac_unit_warrant_right_ticker(cls, ticker: str, all_tickers: list[str]) -> bool:
+        """True if `ticker` is a SPAC unit/warrant/rights ticker derived from another
+        common-stock ticker in `all_tickers` (e.g. "TWLVU" derived from "TWLV",
+        "JACS-UN" derived from "JACS")."""
+        base, _, dash_suffix = ticker.partition("-")
+        if dash_suffix and dash_suffix.upper() in cls._SPAC_UNIT_WARRANT_RIGHT_SUFFIXES and base in all_tickers:
+            return True
+        for other in all_tickers:
+            if other == ticker or not ticker.upper().startswith(other.upper()):
+                continue
+            bare_suffix = ticker[len(other) :]
+            if bare_suffix.upper() in cls._SPAC_UNIT_WARRANT_RIGHT_SUFFIXES:
+                return True
+        return False
 
     @staticmethod
     def _latest_shares_value(fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False) -> int | None:
@@ -852,10 +884,13 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # filing text itself has multiple plausible values (an untracked closely-held class),
         # so max() stays correct there. Kept the dot-suffix check as a defensive OR in case
         # `tickers` is ever missing/malformed in a submissions payload.
+        raw_tickers = submissions.get("tickers") or []
         common_tickers = [
             t
-            for t in (submissions.get("tickers") or [])
-            if not self._PREFERRED_TICKER_SUFFIX_RE.search(t) and t not in self._NON_COMMON_SECURITY_TICKERS
+            for t in raw_tickers
+            if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+            and t not in self._NON_COMMON_SECURITY_TICKERS
+            and not self._is_spac_unit_warrant_right_ticker(t, raw_tickers)
         ]
         multi_ticker_cik = len(common_tickers) > 1
         if len(plausible) > 1 and (multi_ticker_cik or "." in symbol):
