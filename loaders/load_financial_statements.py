@@ -2929,7 +2929,22 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             net_income = row.get("net_income")
             if net_income is None:
                 continue
-            shares = row.get("shares_outstanding_diluted") or row.get("shares_outstanding_basic")
+            # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, PJT
+            # follow-up): shares_outstanding_diluted/basic (period weighted-average concepts)
+            # are the preferred denominator, but a filer that never tags EITHER - live-
+            # confirmed via PJT Partners (net_income real every year 2019-2026, no
+            # EarningsPerShareBasic/Diluted OR any WeightedAverageNumberOfShares* concept
+            # anywhere in its real companyfacts history since 2016) - can still have a real,
+            # non-fabricated share count via dei:EntityCommonStockSharesOutstanding (the
+            # mandatory SEC cover-page fact, a point-in-time count rather than a period
+            # average, but the same "genuinely reported, not guessed" standard already applied
+            # to shares_outstanding_dei elsewhere in this codebase as a last-resort shares
+            # source). Last in the fallback chain - never overrides a real period-average count.
+            shares = (
+                row.get("shares_outstanding_diluted")
+                or row.get("shares_outstanding_basic")
+                or row.get("shares_outstanding_dei")
+            )
             if shares is None or shares <= 0:
                 continue
             needs_division.append(row)
@@ -2956,14 +2971,18 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             symbol = row.get("symbol")
             if not symbol:
                 continue
-            for field in ("shares_outstanding_diluted", "shares_outstanding_basic"):
+            for field in ("shares_outstanding_diluted", "shares_outstanding_basic", "shares_outstanding_dei"):
                 val = row.get(field)
                 if val:
                     shares_history_by_symbol.setdefault(str(symbol), []).append(float(val))
 
         for row in needs_division:
             net_income = row["net_income"]
-            shares = row.get("shares_outstanding_diluted") or row.get("shares_outstanding_basic")
+            shares = (
+                row.get("shares_outstanding_diluted")
+                or row.get("shares_outstanding_basic")
+                or row.get("shares_outstanding_dei")
+            )
             assert shares is not None  # narrows for mypy; needs_division's filter already guarantees this
             symbol = str(row.get("symbol") or "")
 

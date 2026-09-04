@@ -68,6 +68,7 @@ def _row(**overrides: Any) -> dict[str, Any]:
         "diluted_eps": None,
         "shares_outstanding_basic": None,
         "shares_outstanding_diluted": None,
+        "shares_outstanding_dei": None,
         "data_unavailable": False,
         "reason": None,
     }
@@ -181,5 +182,43 @@ class TestDerivedEpsFallback:
         file already applies elsewhere)."""
         loader = _make_loader()
         rows = [_row(symbol="ATHS", shares_outstanding_basic=Decimal("203805"))]
+        result = _transform(loader, rows, company_info_sec_rows=None)
+        assert result[0]["earnings_per_share"] is None
+
+
+class TestDerivedEpsShareOutstandingDeiFallback:
+    """FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, PJT Partners
+    follow-up): PJT Partners tags neither EarningsPerShareBasic/Diluted nor any
+    WeightedAverageNumberOfShares* concept anywhere in its real SEC filing history since 2016
+    (live-confirmed via companyfacts), so both existing tiers above (diluted_eps,
+    shares_outstanding_diluted-or-basic) leave earnings_per_share permanently None despite
+    real net_income every year. dei:EntityCommonStockSharesOutstanding - the mandatory SEC
+    cover-page fact - IS real, reported data for PJT and is added as a third, lowest-priority
+    fallback tier: never overrides a real period-average share count, only used when NEITHER
+    of the two preferred tiers has anything.
+    """
+
+    def test_derives_using_shares_outstanding_dei_when_no_other_share_count_exists(self) -> None:
+        loader = _make_loader()
+        rows = [_row(shares_outstanding_dei=Decimal("20000000"))]
+        result = _transform(loader, rows, company_info_sec_rows=[("ACME", 19_500_000.0)])
+        assert result[0]["earnings_per_share"] == Decimal("2")
+
+    def test_shares_outstanding_dei_never_overrides_diluted_or_basic(self) -> None:
+        loader = _make_loader()
+        rows = [
+            _row(
+                shares_outstanding_diluted=Decimal("20000000"),
+                shares_outstanding_dei=Decimal("999999999"),
+            )
+        ]
+        result = _transform(loader, rows, company_info_sec_rows=[("ACME", 19_500_000.0)])
+        assert result[0]["earnings_per_share"] == Decimal("2")
+
+    def test_shares_outstanding_dei_still_subject_to_corroboration_check(self) -> None:
+        """Same scale-mismatch/uncorroborated-value discipline applies to this tier too - a
+        dei share count isn't exempt from the guards protecting the other two tiers."""
+        loader = _make_loader()
+        rows = [_row(symbol="ATHS", shares_outstanding_dei=Decimal("203805"))]
         result = _transform(loader, rows, company_info_sec_rows=None)
         assert result[0]["earnings_per_share"] is None
