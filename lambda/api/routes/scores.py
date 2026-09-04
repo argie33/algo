@@ -2816,11 +2816,19 @@ _COVERAGE_CATEGORY_ORDER = [name for name, _ in _COVERAGE_CATEGORY_RULES]
 # (table, factor_name) rather than factor_name alone - a couple of these names could in
 # principle collide with an unrelated, actually-scored field on a different table.
 #
-# Quality is NOT represented here: _score_quality reads only the single pre-computed
-# quality_score field, but every quality_metrics per-field column (roe, roa,
-# gross_profitability, ...) is a genuine upstream INPUT to that same quality_score,
-# computed one stage earlier by load_value_quality_growth_metrics.py - a different pipeline
-# stage, not a dead end - so none of those belong in this "has zero path to any score" set.
+# Quality: _score_quality reads only the single pre-computed quality_score field, and that
+# score's own upstream formula (load_value_quality_growth_metrics.py's quality_components,
+# _score_quality's own 2026-08-26/27 docstring) is an 8-input weighted blend: roe(11%),
+# roa(18%), roce_pct(18%, replaces roic_pct), debt_to_equity(18%, replaces debt_to_assets),
+# fcf_margin(15%, replaces accruals_ratio), margin_volatility(~7%), asset_turnover(~7%),
+# gross_profitability(~7%, replaces operating_profitability). The line below this comment
+# block used to claim EVERY quality_metrics column was a genuine input "one stage earlier" -
+# that was already disproven for 7 fields by the 2026-09-04 fix just below (interest_coverage/
+# payout_ratio/operating_margin_trend/net_margin_trend/roe_trend/earnings_beat_rate/
+# earnings_surprise_avg), and a full re-sweep the same day found the claim was wrong for 36
+# MORE columns: only the 8 named above (plus quality_score itself) have any live
+# quality_components entry - everything else in quality_metrics is fetched/computed/persisted
+# for the Deep Value/StockDetail display pages only. See the second FIXED block below.
 # Momentum has no entry either: none of its scored (momentum_3m, mom_12_1, rsi_14, macd,
 # price_vs_sma_50/200) or unscored (momentum_6m) fields have their own tracked
 # *_unavailable_reason column in this report at all (momentum_metrics only exposes a
@@ -2926,6 +2934,84 @@ _UNSCORED_FACTORS: set[tuple[str, str]] = {
     ("quality_metrics", "roe_trend"),
     ("quality_metrics", "earnings_beat_rate"),
     ("quality_metrics", "earnings_surprise_avg"),
+    # FIXED 2026-09-04 (goal: SEC/XBRL headline audit, part 2 - full grep-verification sweep
+    # of the remaining quality_metrics columns against _score_quality's live 8-input
+    # quality_components formula, load_stock_scores.py + load_value_quality_growth_metrics.py).
+    # Only roe/roa/roce_pct/debt_to_equity/fcf_margin/margin_volatility/asset_turnover/
+    # gross_profitability (already excluded from this set - they're the real scored inputs)
+    # and quality_score itself have any live path into a score. Every other quality_metrics
+    # column is fetched/computed/persisted for the Deep Value/StockDetail display pages only -
+    # confirmed one at a time, not assumed as a block:
+    #  - roic_pct: superseded by roce_pct (quality_components' own comment: "ROCE replaces
+    #    ROIC - fixes ROIC's cash-netting coverage gap").
+    #  - debt_to_assets: superseded by debt_to_equity (correlated 0.67, debt_to_equity tests
+    #    stronger per that formula's own docstring).
+    #  - accruals_ratio: superseded by fcf_margin (independent signal, corr=0.13 - accruals_
+    #    ratio itself never re-added after the fcf_margin swap).
+    #  - operating_profitability: superseded by gross_profitability (Novy-Marx recovery under
+    #    isolated FM testing, same docstring).
+    #  - gross_margin/net_margin/operating_margin: "operating_margin_score/net_margin_score
+    #    REMOVED 2026-08-26... no longer feed quality_score at all" (that removal's own inline
+    #    comment) - gross_margin never had a _score variant to begin with (distinct from the
+    #    scored gross_profitability, a different total-assets-denominator ratio).
+    #  - gross_margin_trend: sibling of the already-excluded operating_margin_trend/
+    #    net_margin_trend above, missed in the first (2026-09-04, part 1) pass.
+    #  - quarterly_growth_momentum/earnings_growth_4q_avg/sustainable_growth_rate/
+    #    revenue_growth_yoy/earnings_growth_yoy/net_income_growth_yoy/fcf_growth_yoy/
+    #    ocf_growth_yoy/operating_income_growth_yoy/asset_growth_yoy: growth-shaped mirror
+    #    columns quality_metrics also stores, but Growth's own _score_growth reads its
+    #    OWN growth_metrics copies of these (GROWTH_SCORE_FIELDS) - the quality_metrics
+    #    duplicates specifically have zero reader anywhere.
+    #  - current_ratio/quick_ratio: "Current Ratio was tested and excluded (no cross-sectional
+    #    signal despite being a standard quality-investing checklist item)" (_score_quality's
+    #    own docstring) - quick_ratio never had a score variant either.
+    #  - estimate_momentum_60d/estimate_momentum_90d/estimate_revision_direction/
+    #    revision_activity_30d/revision_trend_score: per
+    #    quality_metrics_estimate_revision_columns_deliberately_untouched (2026-08-28 memory) -
+    #    "doesn't feed a scored pillar", computed only by the AWS-only enhanced-loader, no
+    #    scoring consumer.
+    #  - cash_per_share/ebitda/ebitda_margin/free_cash_flow/operating_cash_flow/total_cash/
+    #    total_debt/fcf_to_net_income/ocf_to_net_income/eps_growth_stability/
+    #    consecutive_positive_quarters: raw/reference figures with zero _score_quality
+    #    consumption (repo-wide grep of load_stock_scores.py).
+    # Verified via a live read of _score_quality/quality_components, not re-sampled from an
+    # already-triaged bucket - same method as the part-1 fix directly above.
+    ("quality_metrics", "accruals_ratio"),
+    ("quality_metrics", "asset_growth_yoy"),
+    ("quality_metrics", "cash_per_share"),
+    ("quality_metrics", "consecutive_positive_quarters"),
+    ("quality_metrics", "current_ratio"),
+    ("quality_metrics", "debt_to_assets"),
+    ("quality_metrics", "earnings_growth_4q_avg"),
+    ("quality_metrics", "earnings_growth_yoy"),
+    ("quality_metrics", "ebitda"),
+    ("quality_metrics", "ebitda_margin"),
+    ("quality_metrics", "eps_growth_stability"),
+    ("quality_metrics", "estimate_momentum_60d"),
+    ("quality_metrics", "estimate_momentum_90d"),
+    ("quality_metrics", "estimate_revision_direction"),
+    ("quality_metrics", "fcf_growth_yoy"),
+    ("quality_metrics", "fcf_to_net_income"),
+    ("quality_metrics", "free_cash_flow"),
+    ("quality_metrics", "gross_margin"),
+    ("quality_metrics", "gross_margin_trend"),
+    ("quality_metrics", "net_income_growth_yoy"),
+    ("quality_metrics", "net_margin"),
+    ("quality_metrics", "ocf_growth_yoy"),
+    ("quality_metrics", "ocf_to_net_income"),
+    ("quality_metrics", "operating_cash_flow"),
+    ("quality_metrics", "operating_income_growth_yoy"),
+    ("quality_metrics", "operating_margin"),
+    ("quality_metrics", "operating_profitability"),
+    ("quality_metrics", "quarterly_growth_momentum"),
+    ("quality_metrics", "quick_ratio"),
+    ("quality_metrics", "revenue_growth_yoy"),
+    ("quality_metrics", "revision_activity_30d"),
+    ("quality_metrics", "revision_trend_score"),
+    ("quality_metrics", "roic_pct"),
+    ("quality_metrics", "sustainable_growth_rate"),
+    ("quality_metrics", "total_cash"),
+    ("quality_metrics", "total_debt"),
 }
 
 _TABLE_GROUP = {
