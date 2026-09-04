@@ -2867,6 +2867,55 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     "revenue/net_income row(s) as FY_annual - 9mo_YTD (Q4 is never separately "
                     "filed by any US GAAP domestic filer)."
                 )
+        self._sweep_derive_missing_q4_interest_expense()
+
+    def _sweep_derive_missing_q4_interest_expense(self) -> None:
+        """Derive interest_expense for a missing Q4 quarterly_income_statement row as
+        FY_annual - (Q1+Q2+Q3), same identity and same discipline as
+        _sweep_derive_missing_q4()'s revenue/net_income above, but as its own independent
+        UPDATE: interest_expense can be (and very often is) the only field still missing on a
+        Q4 row whose revenue/net_income were already recovered by the sweep above (or were
+        never missing to begin with) - gating this on revenue's own null-check would miss all
+        of those rows. Live-confirmed 27,037 rows recoverable this way - directly feeds
+        interest_coverage, currently one of the largest remaining quality_metrics gaps.
+        Same non-negative guard as revenue: a real filer's interest_expense doesn't go
+        negative for a quarter; a negative derived value signals an inter-filing
+        restatement/reclassification, not a real Q4 result, and is skipped.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_income_statement q4
+                   SET interest_expense = derived.interest_expense,
+                       data_source = 'derived_fy_minus_9m'
+                  FROM (
+                        SELECT q4x.id,
+                               a.interest_expense - (q1.interest_expense + q2.interest_expense + q3.interest_expense) AS interest_expense
+                          FROM quarterly_income_statement q4x
+                          JOIN annual_income_statement a
+                            ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                          JOIN quarterly_income_statement q1
+                            ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                          JOIN quarterly_income_statement q2
+                            ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_income_statement q3
+                            ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q4x.fiscal_quarter = 4
+                           AND q4x.interest_expense IS NULL
+                           AND a.interest_expense IS NOT NULL
+                           AND q1.interest_expense IS NOT NULL
+                           AND q2.interest_expense IS NOT NULL
+                           AND q3.interest_expense IS NOT NULL
+                           AND (a.interest_expense - (q1.interest_expense + q2.interest_expense + q3.interest_expense)) >= 0
+                       ) AS derived
+                 WHERE q4.id = derived.id
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
+                    "interest_expense row(s) as FY_annual - 9mo_YTD."
+                )
 
     def _sweep_missing_free_cash_flow(self) -> None:
         """Table-wide free_cash_flow = operating_cash_flow - capex recompute, independent of
