@@ -166,6 +166,10 @@ VALIDATION_SCHEMA = {
     "re_engage_recovery_pct": ("float", 0.0, 100.0, False, 8.0),
     "re_engage_min_days": ("int", 0, 100, False, 5),
     "require_ftd_to_re_engage": ("bool", None, None, False, None),
+    "vix_spike_min_reengagement_days": ("int", 0, 100, False, 3),
+    "daily_loss_min_reengagement_days": ("int", 0, 100, False, 2),
+    "weekly_loss_min_reengagement_days": ("int", 0, 100, False, 3),
+    "total_risk_min_reengagement_days": ("int", 0, 100, False, 2),
     # Circuit Breaker Thresholds
     "max_daily_loss_pct": ("float", 0.1, 50.0, True, 2.0),  # Critical halt
     "min_live_sharpe_ratio": ("float", -100.0, 10.0, False, 0.0),  # Halt if Sharpe < threshold in auto mode

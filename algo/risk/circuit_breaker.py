@@ -40,12 +40,19 @@ Halts trading when any of these fire:
   CB8. DATA STALENESS      latest data > N days old
   CB9. SECTOR DRAWDOWN     <= sector_drawdown_halt_pct (default -12%, cost-basis weighted)
 
-Plus 5 more real checks in `_check_registry` that predate/postdate the CB1-CB9 numbering
+Plus 9 more real checks in `_check_registry` that predate/postdate the CB1-CB9 numbering
 above and were never folded into it (this list undercounted the file's own behavior until
 2026-08-25 - see [[circuit_breaker_full_audit_20260825]] in memory):
   - DRAWDOWN RE-ENGAGEMENT   halts (re-halts) during the post-drawdown-halt recovery
                              lockout window even after `dd` itself drops back under CB1's
                              threshold - see _check_drawdown_re_engagement's docstring
+  - VIX/DAILY/WEEKLY/TOTAL-RISK RE-ENGAGEMENT  same minimum-elapsed-trading-days lockout
+                             as drawdown re-engagement, generalized via
+                             _check_min_reengagement_days - added 2026-09-04 after an
+                             audit found only drawdown had this protection, letting the
+                             other four breachable-and-clearable checks flap (trip, clear,
+                             trip again) the instant the metric ticked back under
+                             threshold with no minimum recovery time enforced.
   - INTRADAY MARKET HEALTH   halts if SPY fell > 2% the prior trading day (wait for
                              stability before adding new exposure)
   - WIN RATE FLOOR           halts if the rolling last-30-closed-trades win rate <
@@ -68,13 +75,17 @@ When a circuit breaker fires:
 # Human-readable labels for circuit breaker checks
 CHECK_LABELS = {
     "daily_loss": "Daily Loss Limit Exceeded",
+    "daily_loss_re_engagement": "Daily Loss Recovery Period",
     "drawdown": "Portfolio Drawdown Limit",
     "drawdown_re_engagement": "Drawdown Recovery Period",
     "consecutive_losses": "Consecutive Losses Limit",
     "total_risk": "Total Open Risk Limit",
+    "total_risk_re_engagement": "Total Open Risk Recovery Period",
     "vix_spike": "Market Volatility Spike",
+    "vix_spike_re_engagement": "Volatility Spike Recovery Period",
     "market_stage": "Market Stage Break",
     "weekly_loss": "Weekly Loss Limit Exceeded",
+    "weekly_loss_re_engagement": "Weekly Loss Recovery Period",
     "sector_concentration": "Sector Concentration Warning",
     "sector_drawdown": "Sector Drawdown Halt",
     "intraday_market_health": "Market Instability (Prior-Day Drop)",
@@ -135,13 +146,17 @@ class CircuitBreaker:
 
     _check_registry = [
         "daily_loss",
+        "daily_loss_re_engagement",
         "drawdown",
         "drawdown_re_engagement",
         "consecutive_losses",
         "total_risk",
+        "total_risk_re_engagement",
         "vix_spike",
+        "vix_spike_re_engagement",
         "market_stage",
         "weekly_loss",
+        "weekly_loss_re_engagement",
         "sector_concentration",
         "sector_drawdown",
         "intraday_market_health",
@@ -159,13 +174,17 @@ class CircuitBreaker:
         # is a real, greppable usage that keeps them from being flagged as dead code.
         self._checks: dict[str, Callable[[Any, Any], dict[str, Any]]] = {
             "daily_loss": self._check_daily_loss,
+            "daily_loss_re_engagement": self._check_daily_loss_re_engagement,
             "drawdown": self._check_drawdown,
             "drawdown_re_engagement": self._check_drawdown_re_engagement,
             "consecutive_losses": self._check_consecutive_losses,
             "total_risk": self._check_total_risk,
+            "total_risk_re_engagement": self._check_total_risk_re_engagement,
             "vix_spike": self._check_vix_spike,
+            "vix_spike_re_engagement": self._check_vix_spike_re_engagement,
             "market_stage": self._check_market_stage,
             "weekly_loss": self._check_weekly_loss,
+            "weekly_loss_re_engagement": self._check_weekly_loss_re_engagement,
             "sector_concentration": self._check_sector_concentration,
             "sector_drawdown": self._check_sector_drawdown,
             "intraday_market_health": self._check_intraday_market_health,
@@ -498,6 +517,74 @@ class CircuitBreaker:
             "halted": False,
             "reason": f"Re-engagement approved: recovered to {recovery_pct:.1f}%, {days_elapsed}d elapsed, market Stage 2",
         }
+
+    def _check_min_reengagement_days(
+        self,
+        current_date: _date,
+        cur: PsycopgCursor[Any],
+        source_check_name: str,
+        min_days_config_key: str,
+    ) -> dict[str, Any]:
+        """Shared minimum-elapsed-trading-days lockout, generalized from
+        _check_drawdown_re_engagement's day-gate for breakers where a full
+        recovery-pct/Follow-Through-Day protocol doesn't apply (VIX, daily/weekly loss,
+        total open risk aren't "distance from peak" concepts). Without this, those
+        breakers could trip and clear on consecutive check_all() calls the moment the
+        underlying metric ticks back under threshold, even though the condition that
+        caused the halt (e.g. an elevated-vol regime) hasn't actually resolved - a real
+        flap risk drawdown was deliberately protected against but these four were not
+        (audit finding, 2026-09-04 real-money-readiness push).
+
+        Same audit-log matching convention as _check_drawdown_re_engagement: gate on the
+        SOURCE check's own halted flag via its JSON key (not a substring/text search,
+        which would match every halt log entry regardless of which check fired), and
+        exclude details->>'corrected'=true entries for the same reason documented there.
+        """
+        cur.execute(
+            """
+            SELECT created_at FROM algo_audit_log
+            WHERE action_type = 'circuit_breaker_halt'
+              AND (details->'checks'->%s->>'halted')::boolean IS TRUE
+              AND NOT COALESCE((details->>'corrected')::boolean, false)
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (source_check_name,),
+        )
+        halt_row = cur.fetchone()
+        if halt_row is None:
+            return {"halted": False, "reason": f"Not in {source_check_name} halt"}
+
+        halt_date = halt_row[0]
+        halt_date_only = halt_date.date() if isinstance(halt_date, datetime) else halt_date
+
+        from algo.infrastructure import MarketCalendar
+
+        days_elapsed = MarketCalendar.trading_days_elapsed(halt_date_only, current_date)
+        min_days_val = self._get_required_config(min_days_config_key, f"in {source_check_name} re-engagement check")
+        min_days_elapsed = int(min_days_val)
+
+        if days_elapsed < min_days_elapsed:
+            return {
+                "halted": True,
+                "reason": f"{source_check_name} halt occurred {days_elapsed}d ago, need {min_days_elapsed}d to elapse before resume",
+            }
+
+        return {
+            "halted": False,
+            "reason": f"Re-engagement approved: {days_elapsed}d elapsed since last {source_check_name} halt",
+        }
+
+    def _check_vix_spike_re_engagement(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        return self._check_min_reengagement_days(current_date, cur, "vix_spike", "vix_spike_min_reengagement_days")
+
+    def _check_daily_loss_re_engagement(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        return self._check_min_reengagement_days(current_date, cur, "daily_loss", "daily_loss_min_reengagement_days")
+
+    def _check_weekly_loss_re_engagement(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        return self._check_min_reengagement_days(current_date, cur, "weekly_loss", "weekly_loss_min_reengagement_days")
+
+    def _check_total_risk_re_engagement(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        return self._check_min_reengagement_days(current_date, cur, "total_risk", "total_risk_min_reengagement_days")
 
     def _check_daily_loss(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         # Cash-flow-adjusted, same reasoning as _check_drawdown above (migration 1134):

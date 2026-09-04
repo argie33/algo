@@ -586,6 +586,39 @@ class AlgoConfig:
             "Require Follow-Through Day signal",
             "Drawdown Defense",
         ),
+        # Re-engagement lockouts (Sprint 3 generalization, 2026-09-04): minimum elapsed
+        # trading days after a VIX/daily-loss/weekly-loss/total-risk halt before the
+        # breaker may clear, mirroring drawdown's re_engage_min_days above. Shorter than
+        # drawdown's 5 days (a deep-drawdown capital-preservation event warrants the
+        # longest lockout) but long enough that a same-day metric recovery can't
+        # immediately re-clear a halt within the same trading session. daily_loss/
+        # total_risk move on an intraday timescale (a single extra session is enough to
+        # prevent same-day flap); vix_spike/weekly_loss track slower, noisier multi-day
+        # conditions and get one extra day of margin.
+        "vix_spike_min_reengagement_days": (
+            "3",
+            "int",
+            "Min trading days after a VIX-spike halt before re-engagement",
+            "Drawdown Defense",
+        ),
+        "daily_loss_min_reengagement_days": (
+            "2",
+            "int",
+            "Min trading days after a daily-loss halt before re-engagement",
+            "Drawdown Defense",
+        ),
+        "weekly_loss_min_reengagement_days": (
+            "3",
+            "int",
+            "Min trading days after a weekly-loss halt before re-engagement",
+            "Drawdown Defense",
+        ),
+        "total_risk_min_reengagement_days": (
+            "2",
+            "int",
+            "Min trading days after a total-open-risk halt before re-engagement",
+            "Drawdown Defense",
+        ),
         # Circuit Breaker Thresholds (CB)
         "max_daily_loss_pct": ("2.0", "float", "Max daily loss % before halt", "Risk Management"),
         "max_consecutive_losses": ("3", "int", "Max consecutive losing trades (live)", "Risk Limits"),
