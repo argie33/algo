@@ -29,6 +29,33 @@ from loaders.loader_registry import LOADER_TABLES, PSEUDO_LOADER_TABLES
 
 logger = logging.getLogger(__name__)
 
+# FIXED 2026-09-03 (SEC/XBRL missing-data sweep): mirrors utils/loaders/helpers.py's
+# get_active_symbols(exclude_etfs=True) inline SQL - the canonical, heavily-refined "is this
+# symbol a real operating company, not an ETF/CEF/BDC/ETN/trust-preferred/SPAC shell" test (name
+# regex uses `\y` not `\b` - `\b` is a literal backspace in PostgreSQL regex, not a word boundary;
+# sic_code/entity_type check added 2026-08-20 after CEFs like BCAT/HQL/GBAB slipped past the name
+# regex; OZK force-include and TVC/TVE/SCE$L force-exclude added for cases the pattern can't
+# generalize to - see that function's own inline history for the full live-evidence trail).
+# Duplicated here rather than imported - a same-session sibling process was actively rewriting
+# utils/loaders/helpers.py concurrently while this fix was being landed, wiping a shared-import
+# version of this constant three times in a row (each landing then vanishing within seconds) -
+# self-contained is the only way this specific fix could be gotten onto disk reliably today. If
+# helpers.py's canonical version is ever refined again (a new OZK-shaped carve-out, etc.), this
+# copy needs the same update - grep both files for NON_OPERATING_COMPANY_EXCLUSION_SQL to find
+# both copies.
+_NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = """
+    (
+        ({symbols_alias}.etf IS NULL OR {symbols_alias}.etf != 'true')
+        AND {symbols_alias}.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
+        AND NOT (
+              COALESCE({company_info_alias}.sic_code, 0) = 0
+              AND COALESCE({company_info_alias}.entity_type, 'operating') IN ('other', 'investment')
+              AND {symbols_alias}.symbol != 'OZK'
+        )
+        AND {symbols_alias}.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
+    )
+"""
+
 
 def handle(
     cur: cursor,
@@ -3422,8 +3449,31 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
             # DIFFERENT, larger, stale-inflated population than what real users ever see.
             # Joining to stock_symbols and filtering active=true here makes this report
             # match that same real, live-scored universe.
+            #
+            # FIXED 2026-09-03 (SEC/XBRL missing-data sweep): active=true alone still let through
+            # closed-end funds/BDCs/ETNs (BCAT, HQL, GBAB, BDJ, EVF, JHI, BMN, FTF, GAM, PIM, ... -
+            # live-confirmed 88 active symbols matching this exact signature) - these are
+            # active=true in stock_symbols but structurally never real operating companies (no
+            # SIC classification, entity_type='other'/'investment'), the SAME population
+            # loaders/*.py's get_active_symbols(exclude_etfs=True) already excludes from every
+            # real scoring loader (quality_metrics/growth_metrics/value_metrics never even
+            # attempt to fetch data for them going forward) - see that function's own extensive
+            # inline history for why each piece of this filter exists. This report was still
+            # counting their permanent, structural "no free_cash_flow/operating_cash_flow/
+            # interest_coverage/..." gaps as real "Missing SEC/XBRL data" on top of the real
+            # scored universe's gaps - the same "measuring a population nobody actually scores"
+            # bug class as the active=true fix above, just for entity type instead of listing
+            # status. See _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own module-level
+            # comment above for why this duplicates (rather than imports) utils/loaders/
+            # helpers.py's canonical filter.
             active_join = (
-                f" JOIN stock_symbols _su ON _su.symbol = {table}.symbol AND _su.active = true" if has_symbol else ""
+                (
+                    f" LEFT JOIN company_info_sec _cis ON _cis.symbol = {table}.symbol"
+                    f" JOIN stock_symbols _su ON _su.symbol = {table}.symbol AND _su.active = true"
+                    f" AND {_NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias='_su', company_info_alias='_cis')}"
+                )
+                if has_symbol
+                else ""
             )
 
             if table not in denom_cache:
