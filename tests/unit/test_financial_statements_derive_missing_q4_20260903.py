@@ -77,11 +77,15 @@ class TestDeriveMissingQ4:
         for call in mock_cur.execute.call_args_list:
             assert "quarterly_income_statement" not in call[0][0]
 
-    def test_balance_statement_run_does_not_trigger_q4_sweep(self) -> None:
+    def test_balance_statement_run_does_not_trigger_income_q4_sweep(self) -> None:
+        """A quarterly balance-sheet run triggers its OWN Q4 sweep (the balance-sheet Q4
+        copy, see test_financial_statements_q4_balance_sheet_copy_20260903.py) - it must not
+        also trigger this income-statement-specific derivation."""
         loader = _make_loader(statement_type="balance", period="quarterly")
         mock_ctx, mock_cur = _mock_write_context()
 
-        with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx) as mock_dc:
+        with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
 
-        mock_dc.assert_not_called()
+        for call in mock_cur.execute.call_args_list:
+            assert "fiscal_quarter = 1" not in call[0][0]

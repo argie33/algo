@@ -2684,6 +2684,59 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             self._sweep_missing_free_cash_flow()
         if self.statement_type == "income" and self.table_name == "quarterly_income_statement":
             self._sweep_derive_missing_q4()
+        if self.statement_type == "balance" and self.table_name == "quarterly_balance_sheet":
+            self._sweep_copy_missing_q4_balance_sheet()
+
+    def _sweep_copy_missing_q4_balance_sheet(self) -> None:
+        """Fill a missing/incomplete Q4 quarterly_balance_sheet row by copying the matching
+        annual_balance_sheet row for the same fiscal year, independent of what this run
+        happened to fetch.
+
+        FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, same root
+        cause as _sweep_derive_missing_q4() above): US GAAP filers never file a discrete Q4
+        10-Q, so quarterly_balance_sheet's Q4 row has no directly-tagged XBRL fact to extract.
+        Unlike the income statement, the balance sheet is a point-in-time snapshot, not a flow
+        quantity - a fiscal year's Q4 balance sheet IS, by definition, the exact same
+        year-end snapshot the annual 10-K itself reports (verified live: AAL's real Q4 2025
+        total_assets already on file, $61.774B, is byte-identical to its annual FY2025
+        total_assets) - so recovering it is a direct copy, not an arithmetic derivation, with
+        no scale-mismatch or corroboration risk at all. Live-confirmed 597 rows recoverable
+        this way (574 symbols / 815 total gap rows before this fix).
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_balance_sheet q4
+                   SET total_assets = a.total_assets,
+                       total_liabilities = a.total_liabilities,
+                       stockholders_equity = a.stockholders_equity,
+                       current_assets = a.current_assets,
+                       current_liabilities = a.current_liabilities,
+                       inventory = a.inventory,
+                       cash_and_equivalents = a.cash_and_equivalents,
+                       accounts_receivable = a.accounts_receivable,
+                       ppe_net = a.ppe_net,
+                       goodwill = a.goodwill,
+                       long_term_debt = a.long_term_debt,
+                       short_term_debt = a.short_term_debt,
+                       operating_lease_liability = a.operating_lease_liability,
+                       finance_lease_liability = a.finance_lease_liability,
+                       data_unavailable = FALSE,
+                       reason = NULL,
+                       data_source = 'derived_annual_q4'
+                  FROM annual_balance_sheet a
+                 WHERE a.symbol = q4.symbol AND a.fiscal_year = q4.fiscal_year
+                   AND q4.fiscal_quarter = 4
+                   AND (q4.total_assets IS NULL OR q4.data_unavailable = TRUE)
+                   AND a.total_assets IS NOT NULL
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_balance_sheet] post_run(): copied {cur.rowcount} Q4 row(s) "
+                    "from the matching annual_balance_sheet fiscal year (Q4 is never "
+                    "separately filed - the year-end snapshot IS the annual balance sheet)."
+                )
 
     def _sweep_derive_missing_q4(self) -> None:
         """Derive revenue/net_income for a missing/incomplete Q4 quarterly row as
