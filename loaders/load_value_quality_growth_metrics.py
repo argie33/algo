@@ -3806,6 +3806,51 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         variance = sum((m - mean) ** 2 for m in margins) / len(margins)
         return float(sqrt(variance)), None
 
+    def _find_plausible_cross_year_ratio(
+        self, symbol: str, numerator_field: str, denominator_field: str
+    ) -> float | None:
+        """Cross-year fallback for ROE/ROA/asset_turnover's |ratio|>1000 implausible-value
+        bound (net_income/stockholders_equity, net_income/total_assets, revenue/total_assets
+        respectively) - same "scan past the single anchor year" bug class as
+        _compute_margin_volatility's 2026-09-03 fix and fcf_margin's 2026-09-04 fix (see
+        those docstrings). Those two ratios were already multi-year computations/had an
+        existing fallback query to extend; ROE/ROA/asset_turnover instead used ONLY
+        quality_row's single balance-sheet-freshness-selected anchor year with no fallback at
+        all, so an anchor year with a near-zero denominator (extraction artifact, not a real
+        business characteristic) threw the symbol straight to implausible_ratio even when
+        older fiscal years - already fetched nowhere else in this function - had a plausible
+        pair. Live-confirmed 72/78 roe, 15/16 roa and 5/10 asset_turnover implausible_ratio
+        rows have a usable pair in an earlier fiscal year.
+
+        Only called from the implausible-ratio branch (rare: <1% of symbols), so the extra
+        per-symbol query here doesn't touch the common path.
+        """
+        field_index = {"net_income": 0, "total_assets": 1, "stockholders_equity": 2, "revenue": 3}
+        num_idx, den_idx = field_index[numerator_field], field_index[denominator_field]
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT ais.net_income, abs.total_assets, abs.stockholders_equity, ais.revenue
+                FROM annual_income_statement ais
+                JOIN annual_balance_sheet abs
+                  ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
+                  AND abs.data_unavailable = FALSE
+                WHERE ais.symbol = %s AND ais.data_unavailable = FALSE
+                ORDER BY ais.fiscal_year DESC
+                LIMIT 30
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        for row in rows:
+            numerator, denominator = row[num_idx], row[den_idx]
+            if numerator is None or denominator is None or denominator == 0:
+                continue
+            ratio = numerator / denominator * 100.0
+            if abs(ratio) <= 1000:
+                return float(ratio)
+        return None
+
     def _get_symbol_sector(self, symbol: str) -> str | None:
         """Lazily fetches and caches symbol -> company_profile.sector (GICS) once per loader
         run, reused across every _compute_quality_metrics call (no per-symbol query).
@@ -4227,11 +4272,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # family missing it. Live-confirmed: KWM roe=-6,832,939%, SNDA=643,445%, 83
             # symbols system-wide with |roe| > 1000% feeding quality_score and cross-symbol
             # comparison as extreme, uncapped outliers.
+            # FIXED 2026-09-04 (goal: implausible-value reduction, see
+            # _find_plausible_cross_year_ratio's docstring for the bug class this closes):
+            # an implausible anchor-year ratio now falls back to the most recent OTHER fiscal
+            # year with a plausible pair before giving up as implausible_ratio.
             if net_income is not None and stockholders_equity is not None and stockholders_equity != 0:
                 computed_roe = (net_income / stockholders_equity) * 100
                 if abs(computed_roe) > 1000:
-                    failed_metrics.append("roe")
-                    implausible_ratio_metrics.append("roe")
+                    fallback_roe = self._find_plausible_cross_year_ratio(symbol, "net_income", "stockholders_equity")
+                    if fallback_roe is not None:
+                        metrics["roe"] = fallback_roe
+                    else:
+                        failed_metrics.append("roe")
+                        implausible_ratio_metrics.append("roe")
                 else:
                     metrics["roe"] = float(computed_roe)
             else:
@@ -4240,11 +4293,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # ROA = Net Income / Total Assets
             # FIXED 2026-08-19: same bound as roe above - live-confirmed 13 symbols with
             # |roa| > 1000% from the same near-zero-total-assets extraction-artifact class.
+            # FIXED 2026-09-04: same cross-year fallback as roe above.
             if net_income is not None and total_assets is not None and total_assets != 0:
                 computed_roa = (net_income / total_assets) * 100
                 if abs(computed_roa) > 1000:
-                    failed_metrics.append("roa")
-                    implausible_ratio_metrics.append("roa")
+                    fallback_roa = self._find_plausible_cross_year_ratio(symbol, "net_income", "total_assets")
+                    if fallback_roa is not None:
+                        metrics["roa"] = fallback_roa
+                    else:
+                        failed_metrics.append("roa")
+                        implausible_ratio_metrics.append("roa")
                 else:
                     metrics["roa"] = float(computed_roa)
             else:
@@ -6150,12 +6208,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # fcf_margin/payout's curves) - a turnover ratio of 0.3x (capital-intensive/
             # utilities) maps to 40, 0.8x (typical industrial) to 75, 1.5x+ (retail/services) to
             # 100.
+            # FIXED 2026-09-04: same cross-year implausible-ratio fallback as roe/roa above -
+            # see _find_plausible_cross_year_ratio's docstring.
             asset_turnover = None
             if revenue is not None and total_assets is not None and total_assets > 0:
                 computed_asset_turnover = revenue / total_assets * 100.0
                 if abs(computed_asset_turnover) > 1000:
-                    failed_metrics.append("asset_turnover")
-                    implausible_ratio_metrics.append("asset_turnover")
+                    fallback_asset_turnover = self._find_plausible_cross_year_ratio(symbol, "revenue", "total_assets")
+                    if fallback_asset_turnover is not None:
+                        asset_turnover = fallback_asset_turnover
+                    else:
+                        failed_metrics.append("asset_turnover")
+                        implausible_ratio_metrics.append("asset_turnover")
                 else:
                     asset_turnover = float(computed_asset_turnover)
             asset_turnover_score = (
