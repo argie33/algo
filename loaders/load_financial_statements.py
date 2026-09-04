@@ -2927,6 +2927,68 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     "filed by any US GAAP domestic filer)."
                 )
         self._sweep_derive_missing_q4_interest_expense()
+        self._sweep_derive_missing_q4_eps()
+
+    def _sweep_derive_missing_q4_eps(self) -> None:
+        """Derive earnings_per_share for a missing Q4 quarterly_income_statement row as
+        net_income / shares_outstanding (Q4's OWN reported share count), independent of what
+        this run happened to fetch.
+
+        FOUND 2026-09-04 (goal session: "missing SEC/XBRL data under 6k" sweep): unlike
+        _sweep_derive_missing_q4()'s deliberate exclusion of EPS via subtraction (FY -
+        (Q1+Q2+Q3) - see that method's own AZTR evidence for why subtracting per-share values
+        across a changing share count produces wildly implausible results), this derives EPS
+        the same safe way load_financial_statements.py's _fill_derived_eps() already does for
+        annual rows: net_income / THIS quarter's own share count - never a subtraction, so a
+        changing share count between quarters cannot corrupt the result. Guarded by the exact
+        same corroboration discipline as _fill_derived_eps(): only derives when the resolved
+        share count agrees with company_info_sec's independently-extracted value within 20x
+        (same threshold, same rationale - an uncorroborated or scale-mismatched share count is
+        skipped entirely rather than trusted). Live-confirmed 26,668 of 27,203 candidate rows
+        pass this corroboration check - directly feeds growth_metrics' quarterly-derived
+        fields (earnings_growth_4q_avg, eps_growth_stability, consecutive_positive_quarters).
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_income_statement q4
+                   SET earnings_per_share = derived.eps,
+                       data_source = 'derived_ni_shares'
+                  FROM (
+                        SELECT q4x.id,
+                               q4x.net_income / COALESCE(
+                                   q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei
+                               ) AS eps
+                          FROM quarterly_income_statement q4x
+                          JOIN company_info_sec cis
+                            ON cis.symbol = q4x.symbol AND cis.shares_outstanding > 0
+                         WHERE q4x.fiscal_quarter = 4
+                           AND q4x.earnings_per_share IS NULL
+                           AND q4x.net_income IS NOT NULL
+                           AND COALESCE(
+                                   q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei
+                               ) IS NOT NULL
+                           AND COALESCE(
+                                   q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei
+                               ) > 0
+                           AND GREATEST(
+                                   cis.shares_outstanding,
+                                   COALESCE(q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei)
+                               )
+                               / LEAST(
+                                   cis.shares_outstanding,
+                                   COALESCE(q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei)
+                               ) <= 20
+                       ) AS derived
+                 WHERE q4.id = derived.id
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
+                    "earnings_per_share row(s) as net_income / shares_outstanding "
+                    "(company_info_sec-corroborated)."
+                )
 
     def _sweep_derive_missing_q4_interest_expense(self) -> None:
         """Derive interest_expense for a missing Q4 quarterly_income_statement row as
