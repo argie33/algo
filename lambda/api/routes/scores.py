@@ -2539,11 +2539,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # the other reasons in this bucket. no_value_metrics_found/no_quality_metrics_found
             # (written to composite_score.reason when the source metric table has zero rows),
             # no_growth_inputs_available (when growth_metrics computation exhausted all available
-            # years without finding enough history). Were unmapped and falling through to "Other
+            # years without finding enough history). no_growth_metrics_found/no_*_scores_computed
+            # are similar composite-unavailability reasons from load_stock_scores.py when the
+            # pillar computation completely failed. Were unmapped and falling through to "Other
             # (errors / excluded)".
             "no_value_metrics_found",
             "no_quality_metrics_found",
+            "no_growth_metrics_found",
             "no_growth_inputs_available",
+            "no_momentum_scores_computed",
+            "no_value_scores_computed",
             # ADDED 2026-09-04 (same sweep): load_stock_scores.py/load_positioning_metrics.py's
             # risk/stability/momentum composite-score unavailability reasons - same "not enough
             # data to compute" class as no_value/quality/growth_metrics_found above. These are
