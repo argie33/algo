@@ -279,6 +279,27 @@ _INCOME_IFRS_ALIASES = [
 
 _CASHFLOW_IFRS_ALIASES = [
     ("CashFlowsFromUsedInOperatingActivities", "net_cash_provided_by_used_in_operating_activities"),
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+    # free_cash_flow/fcf_margin/accruals_ratio investigation): NGG (National Grid plc,
+    # $78.5B UK utility, CIK 0001004315, 20-F/IFRS filer) never tags plain
+    # "CashFlowsFromUsedInOperatingActivities" - live-confirmed real operating cash flow
+    # is only reported as "CashFlowsFromUsedInOperatingActivitiesContinuingOperations"
+    # (GBP 6,939,000,000 FY2024 / 6,808,000,000 FY2025), the standard IAS 7 "Net cash from
+    # operating activities" line for a filer presenting continuing/discontinued operations
+    # separately - reconciles with the sibling "CashFlowsFromUsedInOperations" (a
+    # before-tax subtotal) minus "IncomeTaxesPaidRefundClassifiedAsOperatingActivities".
+    # Same target_key as the plain concept above so field_mapping needs no changes.
+    # Listed AFTER the plain concept - for ifrs_aliases specifically, `_aggregate_concepts`
+    # keeps the FIRST match per (fiscal_year, target_key) rather than the last (verified
+    # empirically via a _FakeClient test - unlike the "last-listed wins" convention
+    # documented for the plain-concepts/PaymentsOf*/capex fallback lists elsewhere in this
+    # file, which is a different code path), so this earlier-registered plain concept
+    # keeps priority for a filer reporting both, and this later entry only fills the gap
+    # when that concept is absent entirely - real capex (annual_cash_flow.capex) was
+    # already populated for NGG via a separate concept, only operating_cash_flow (and
+    # everything downstream: free_cash_flow, fcf_margin, accruals_ratio) was blocked by
+    # this gap.
+    ("CashFlowsFromUsedInOperatingActivitiesContinuingOperations", "net_cash_provided_by_used_in_operating_activities"),
     ("CashFlowsFromUsedInInvestingActivities", "net_cash_provided_by_used_in_investing_activities"),
     ("CashFlowsFromUsedInFinancingActivities", "net_cash_provided_by_used_in_financing_activities"),
     (
@@ -1833,6 +1854,23 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # standard/reliable PaymentsOf* tag stays authoritative on the rare filer that
         # reports both - live-confirmed no overlap exists for ACGL/FRT/VSH, but there's no
         # reason to risk it for filers not yet characterized.
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, UBS/SPG/
+        # PSA/HUBB/RS "real historical dividends_paid, stopped tagging any known concept"
+        # audit): PSA (Public Storage, CIK 1393311) stopped tagging "DividendsCommonStock"/
+        # "DividendsPreferredStock"-family concepts continuously after FY2017 (both keep
+        # reappearing sporadically in later years but with real gaps - e.g. no
+        # DividendsCommonStockCash fact at all for FY2018-2020/2023/2025) - live-confirmed
+        # via real companyfacts JSON that "PaymentsOfCapitalDistribution" is tagged
+        # continuously FY2009-2025 with no gaps and, in every year both concepts are
+        # present (2010-2017, 2021, 2022), equals DividendsCommonStockCash +
+        # DividendsPreferredStockCash to within rounding (e.g. FY2022: $3,908,497,000 vs.
+        # $3,714,000,000 + $194,390,000 = $3,908,390,000) - the real combined common+
+        # preferred total-distributions figure, not a narrower/different line. Standard
+        # us-gaap concept (not a filer-specific extension), simply missing from this list
+        # before now. Listed first/least-preferred (same "last-listed wins" convention as
+        # this file's other fallback groups) so the more standard DividendsCommonStock*/
+        # PaymentsOfDividends* concepts below win whenever a filer reports both.
+        "PaymentsOfCapitalDistribution",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
