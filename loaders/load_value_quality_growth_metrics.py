@@ -2484,6 +2484,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
             )
             total_assets = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.total_assets", allow_none=True))
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same anchor-year fiscal
+            # mismatch bug class as stockholders_equity's identical fix just above): the anchor
+            # balance-sheet row can have total_assets NULL even though a nearby fiscal year has
+            # a real value. roa/asset_turnover used ONLY this bare anchor value with no
+            # fallback. Live-confirmed 343 of 370 universe roa "missing_sec_data" residual
+            # symbols have a real total_assets in SOME annual_balance_sheet year. Same 3-year-
+            # window-then-full-history search as every other field's fallback here.
+            if total_assets is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT total_assets FROM annual_balance_sheet
+                        WHERE symbol = %s AND total_assets IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    _ta_fallback_row = cur.fetchone()
+                    if not _ta_fallback_row:
+                        cur.execute(
+                            """
+                            SELECT total_assets FROM annual_balance_sheet
+                            WHERE symbol = %s AND total_assets IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _ta_fallback_row = cur.fetchone()
+                if _ta_fallback_row:
+                    total_assets = self._nan_to_none(
+                        safe_float(_ta_fallback_row[0], f"{symbol}.total_assets_fallback_year", allow_none=True)
+                    )
             net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
             revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
             operating_income = self._nan_to_none(
