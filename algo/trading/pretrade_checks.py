@@ -11,6 +11,7 @@ import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.risk import EarningsBlackout
+from algo.risk.var import empirical_cvar_tail_mean, empirical_var_percentile
 from utils.db import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.trading import TradeStatus
@@ -57,6 +58,18 @@ pdt_day_trade_limit_reactive_only_not_proactively_enforced_20260824 in memory).
 """
 
 logger = logging.getLogger(__name__)
+
+# Matches historical_var()/cvar()'s own defaults (algo/risk/var.py) so there is exactly one
+# "what does VaR mean here" convention across the informational (realized) and pretrade-gating
+# (simulated) versions, even though the underlying return series differs.
+_SIMULATED_VAR_CONFIDENCE = 0.95
+_SIMULATED_VAR_LOOKBACK_DAYS = 252
+# Below this many overlapping return periods, an empirical percentile isn't a reliable estimate
+# - same order of magnitude as beta_exposure()'s own `n < 20` guard, widened because VaR's tail
+# statistics need more observations than a covariance/beta estimate does. Matches this
+# codebase's existing "60 trading days is a reasonable minimum window" convention (see
+# correlation_lookback_days's default in algo/infrastructure/config/main.py).
+_SIMULATED_VAR_MIN_OVERLAP_DAYS = 60
 
 
 class PreTradeChecks:
@@ -423,6 +436,23 @@ class PreTradeChecks:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[PRE-TRADE] {symbol}: top-5 concentration check unavailable ({e}) - failing open.")
 
+        # SIMULATED CURRENT-WEIGHTS VAR CAP (real-money-readiness push, 2026-09-04): algo/risk/
+        # var.py's historical_var() already documents "Daily VaR > 2% -> WARNING" as this
+        # system's own convention, but - unlike beta/concentration above - it was never made
+        # into a pretrade gate, because it measures the REALIZED equity curve (not decomposable
+        # against a hypothetical candidate trade, see _check_portfolio_simulated_var's
+        # docstring). This is a distinct, well-posed "as-if held at today's weights" VaR that
+        # IS decomposable, reusing the same 2% convention rather than inventing a new number.
+        try:
+            with DatabaseContext("read") as cur:
+                var_ok, var_reason = self._check_portfolio_simulated_var(
+                    symbol, position_value_dec, Decimal(str(portfolio_value)), cur
+                )
+                if not var_ok:
+                    return (False, var_reason)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[PRE-TRADE] {symbol}: simulated portfolio-VaR check unavailable ({e}) - failing open.")
+
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
             f"portfolio ${portfolio_value:.2f}, {side} order approved"
@@ -624,6 +654,119 @@ class PreTradeChecks:
             return False, (
                 f"Entry would push top-5-holdings concentration to {top5_pct:.1f}%, exceeding "
                 f"{max_top5_pct:.1f}% limit - risk-management check"
+            )
+        return True, None
+
+    def _check_portfolio_simulated_var(
+        self, symbol: str, position_value: Decimal, portfolio_value: Decimal, cur: PsycopgCursor[Any]
+    ) -> tuple[bool, str | None]:
+        """Block a new entry that would push a SIMULATED current-weights portfolio VaR above
+        max_simulated_var_pct, reusing the same 2% convention algo/risk/var.py's
+        historical_var() already documents for its (report-only) WARNING threshold.
+
+        Deliberately NOT the same calculation as historical_var()/cvar(): those measure the
+        REALIZED day-over-day equity curve (algo_portfolio_snapshots.adjusted_equity) - the
+        portfolio's actual P&L path, reflecting whatever positions actually existed and however
+        the book actually turned over on each historical day. That series cannot be coherently
+        spliced with a candidate trade's returns, since the historical portfolio held entirely
+        different positions at entirely different sizes on those past dates - doing so would
+        silently fabricate a return series that never actually occurred.
+
+        This instead answers a different, well-posed question: "if the CURRENT portfolio
+        (including this candidate, at today's proposed weight) had been held throughout the
+        lookback window, what would its VaR have been, based on each position's own historical
+        daily price returns?" - a standard as-if/backtested-at-current-weights VaR, distinct
+        from realized-P&L VaR, and IS decomposable/incremental the way the realized version
+        isn't. Both coexist deliberately: historical_var()/cvar() remain the informational
+        realized-P&L report, this is the pretrade gate.
+
+        Fails OPEN (never blocks) when the candidate or ANY currently open position lacks
+        sufficient overlapping price history - same rationale as _check_portfolio_beta: does
+        not silently drop a position from a partial weighted return series, since that could
+        understate or overstate the true simulated VaR in either direction depending on which
+        position happens to be missing data.
+
+        Performance: recomputes the full weighted return series per candidate rather than
+        caching the non-candidate portion across a Phase 8 run - matches
+        _check_portfolio_beta/_check_top5_concentration's identical no-caching precedent in
+        this same file (both also re-query algo_positions fresh per candidate). Caching would
+        need explicit invalidation whenever an earlier candidate in the same run gets entered
+        (changing the open-positions set) to avoid a stale-cache bug; left as a genuine future
+        optimization if profiling ever shows this check is a real bottleneck, not attempted here.
+        """
+        cur.execute(
+            "SELECT symbol, quantity, current_price FROM algo_positions WHERE status = %s AND symbol != %s",
+            ("open", symbol),
+        )
+        open_positions = [r for r in cur.fetchall() if r[1] is not None and r[2] is not None]
+
+        existing_value = sum(
+            (Decimal(str(qty)) * Decimal(str(price)) for _, qty, price in open_positions), start=Decimal(0)
+        )
+        total_value = existing_value + position_value
+        if total_value <= 0:
+            return True, None
+
+        all_symbols = [symbol, *(p[0] for p in open_positions)]
+        cur.execute(
+            """
+            SELECT symbol, date, close FROM price_daily
+            WHERE symbol = ANY(%s) AND date >= CURRENT_DATE - (%s || ' days')::interval
+              AND close IS NOT NULL AND close > 0
+            ORDER BY symbol, date
+            """,
+            (all_symbols, _SIMULATED_VAR_LOOKBACK_DAYS),
+        )
+        closes_by_symbol: dict[str, dict[Any, float]] = {}
+        for row_symbol, row_date, row_close in cur.fetchall():
+            closes_by_symbol.setdefault(row_symbol, {})[row_date] = float(row_close)
+
+        # Fails open if ANY position (candidate or existing) lacks price history - see
+        # docstring above for why a partial series isn't an acceptable substitute.
+        missing = [s for s in all_symbols if s not in closes_by_symbol or len(closes_by_symbol[s]) < 2]
+        if missing:
+            return True, None
+
+        common_dates = sorted(set.intersection(*(set(closes_by_symbol[s].keys()) for s in all_symbols)))
+        if len(common_dates) - 1 < _SIMULATED_VAR_MIN_OVERLAP_DAYS:
+            return True, None
+
+        weight_by_symbol = {symbol: position_value / total_value}
+        for open_symbol, qty, price in open_positions:
+            weight_by_symbol[open_symbol] = (Decimal(str(qty)) * Decimal(str(price))) / total_value
+
+        simulated_returns: list[float] = []
+        for i in range(1, len(common_dates)):
+            prev_date, cur_date = common_dates[i - 1], common_dates[i]
+            weighted_return = 0.0
+            for s in all_symbols:
+                prev_close = closes_by_symbol[s][prev_date]
+                cur_close = closes_by_symbol[s][cur_date]
+                weighted_return += float(weight_by_symbol[s]) * (cur_close / prev_close - 1)
+            simulated_returns.append(weighted_return)
+
+        var_threshold = empirical_var_percentile(simulated_returns, _SIMULATED_VAR_CONFIDENCE)
+        var_pct = abs(var_threshold) * 100
+
+        try:
+            max_simulated_var_pct = float(self.config["max_simulated_var_pct"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        if var_pct > max_simulated_var_pct:
+            # CVaR reported alongside for context only - unlike VaR/beta/concentration, this
+            # codebase has no established CVaR alert threshold to reuse (generate_daily_risk_
+            # report() computes cvar_pct but never gates or alerts on it), so this check does
+            # not invent one; only the VaR bound above is enforced.
+            try:
+                cvar_pct = abs(empirical_cvar_tail_mean(simulated_returns, var_threshold)) * 100
+                cvar_note = f", simulated CVaR {cvar_pct:.2f}%"
+            except ValueError:
+                cvar_note = ""
+            return False, (
+                f"Entry would push simulated current-weights portfolio VaR to {var_pct:.2f}%"
+                f"{cvar_note}, exceeding {max_simulated_var_pct:.2f}% limit "
+                f"({_SIMULATED_VAR_CONFIDENCE:.0%}/{_SIMULATED_VAR_LOOKBACK_DAYS}d) - risk-management check"
             )
         return True, None
 

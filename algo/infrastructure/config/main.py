@@ -231,6 +231,13 @@ class AlgoConfig:
             "Block a new entry if it would push the top-5-holdings share of portfolio value above this",
             "Filter Thresholds",
         ),
+        "max_simulated_var_pct": (
+            "2.0",
+            "float",
+            "Block a new entry if it would push the simulated current-weights portfolio VaR (95%/252d, "
+            "held-at-today's-weights over historical per-symbol price returns) above this pct of equity",
+            "Filter Thresholds",
+        ),
         "max_total_invested_pct": (
             "95.0",
             "float",

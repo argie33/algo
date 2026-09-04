@@ -76,6 +76,14 @@ VALIDATION_SCHEMA = {
     # (e.g. 5 positions each just under an 8% per-position cap already sums past 30%), and
     # nothing previously stopped an entry from being the trade that crosses it.
     "max_top5_concentration_pct": ("float", 10.0, 100.0, False, 30.0),
+    # Simulated current-weights VaR cap: distinct from algo/risk/var.py's historical_var(),
+    # which measures the REALIZED equity curve (whatever positions actually existed on each
+    # past day) and is not decomposable to splice in a hypothetical candidate trade. This
+    # answers a different, well-posed question instead - "if today's book (plus this
+    # candidate) had been held throughout the lookback window, using each position's own
+    # historical price returns, what would VaR have been" - and reuses the same var_pct > 2%
+    # convention var.py already documents for its report-only historical_var() alert.
+    "max_simulated_var_pct": ("float", 0.5, 10.0, False, 2.0),
     "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
     # Market Conditions
     "max_distribution_days": ("int", 0, 30, False, 4),

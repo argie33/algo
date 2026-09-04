@@ -30,6 +30,34 @@ from utils.infrastructure.timezone import EASTERN_TZ
 logger = logging.getLogger(__name__)
 
 
+def empirical_var_percentile(returns: list[float], confidence: float) -> float:
+    """Shared percentile math behind every VaR variant in this module (realized and, via
+    pretrade_checks.py's simulated-current-weights check, hypothetical) - a single point of
+    truth so the two never compute "the VaR percentile of a return series" two different ways.
+    """
+    import numpy as np
+
+    return float(np.percentile(returns, (1 - confidence) * 100))
+
+
+def empirical_cvar_tail_mean(returns: list[float], var_threshold: float) -> float:
+    """Shared tail-mean math behind every CVaR variant - see empirical_var_percentile() above
+    for why this is factored out rather than duplicated.
+
+    Raises ValueError (caller's responsibility to convert to its own contract - RuntimeError
+    here, fail-open in pretrade_checks.py) when the sample has no returns at or below
+    var_threshold, which empirically shouldn't happen since var_threshold is itself a
+    percentile of the same returns, but a caller passing a threshold from a different
+    (larger/smaller) sample than `returns` could hit this.
+    """
+    import numpy as np
+
+    tail_losses = [r for r in returns if r <= var_threshold]
+    if not tail_losses:
+        raise ValueError("No returns at or below var_threshold - cannot compute tail mean")
+    return float(np.mean(tail_losses))
+
+
 class ValueAtRisk:
     """Portfolio risk metrics and concentration analysis."""
 
@@ -46,8 +74,6 @@ class ValueAtRisk:
         Returns:
             dict with VaR dollar and %, or raises RuntimeError if insufficient data
         """
-        import numpy as np
-
         try:
             with DatabaseContext("read") as cur:
                 # Cash-flow-adjusted (migration 1134): total_portfolio_value moves for both
@@ -132,7 +158,7 @@ class ValueAtRisk:
                         "Verify portfolio snapshots have valid values."
                     )
 
-                var_percentile = np.percentile(returns, (1 - confidence) * 100)
+                var_percentile = empirical_var_percentile(returns, confidence)
                 current_value = values[-1]
 
                 var_dollars = current_value * Decimal(str(abs(var_percentile)))
@@ -168,7 +194,7 @@ class ValueAtRisk:
                 values = self._extract_portfolio_values(rows)
                 returns = self._compute_portfolio_returns(values)
 
-            var_threshold = np.percentile(returns, (1 - confidence) * 100)
+            var_threshold = empirical_var_percentile(returns, confidence)
             tail_losses = [r for r in returns if r <= var_threshold]
             self._validate_tail_losses(tail_losses)
 
