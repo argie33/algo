@@ -2728,7 +2728,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                        net_income = derived.net_income,
                        data_unavailable = FALSE,
                        reason = NULL,
-                       data_source = 'derived_annual_minus_9mo_ytd'
+                       data_source = 'derived_fy_minus_9m'
                   FROM (
                         SELECT q4x.id,
                                a.revenue - (q1.revenue + q2.revenue + q3.revenue) AS revenue,
