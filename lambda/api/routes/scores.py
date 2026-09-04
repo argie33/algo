@@ -2532,6 +2532,30 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # insufficient_quarterly_history two lines above, just a more precise label for
             # the year-over-year-matching sub-case.
             "insufficient_year_over_year_quarterly_history",
+            # ADDED 2026-09-04 (goal session: "fix all SEC/XBRL" sweep): load_stock_scores.py's
+            # composite-score unavailability reasons for when the underlying pillar metrics
+            # tables (quality_metrics/value_metrics/growth_metrics) have no usable rows at all
+            # for a symbol - same "not enough history/data to trust a computed result" class as
+            # the other reasons in this bucket. no_value_metrics_found/no_quality_metrics_found
+            # (written to composite_score.reason when the source metric table has zero rows),
+            # no_growth_inputs_available (when growth_metrics computation exhausted all available
+            # years without finding enough history). Were unmapped and falling through to "Other
+            # (errors / excluded)".
+            "no_value_metrics_found",
+            "no_quality_metrics_found",
+            "no_growth_inputs_available",
+            # ADDED 2026-09-04 (same sweep): load_stock_scores.py/load_positioning_metrics.py's
+            # risk/stability/momentum composite-score unavailability reasons - same "not enough
+            # data to compute" class as no_value/quality/growth_metrics_found above. These are
+            # sibling reasons generated when their respective input tables (stability_metrics/
+            # positioning_metrics) have insufficient data or the computation failed due to
+            # insufficient history (sparse/thin sample). Were unmapped.
+            "no_stability_metrics_found",
+            "no_momentum_data_available",
+            "no_risk_scores_computed",
+            "insufficient_risk_inputs_thin_sample",
+            "insufficient_breadth_history_or_missing_ratios",
+            "insufficient_growth_inputs_thin_sample",
         },
     ),
     (
@@ -2674,6 +2698,29 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # source entirely, same reasoning as stale_price_data above. Currently 0 live
             # rows but reachable from the main _compute_valuations() call site.
             "invalid_price",
+            # ADDED 2026-09-04 (goal session: "fix all SEC/XBRL" sweep): load_stock_scores.py/
+            # load_risk_metrics_daily.py/load_yield_curve.py error/configuration reasons that
+            # were unmapped. These are operational/transient error conditions (missing
+            # configuration, external service issues, data processing failures) rather than
+            # missing data gaps per se.
+            # - yfinance not installed / No SPY option expirations available: yfinance
+            #   configuration/availability issues (not a persistent data gap)
+            # - unexpected_response_format / unknown error: malformed API responses or
+            #   catch-all error conditions
+            # - momentum_metrics_loader_failed: computational failure in momentum scoring
+            # - yield_curve_fetcher_returned_unavailable_without_reason / yield_data_dict_empty_
+            #   or_invalid: Fed rate fetcher / yield curve data processing issues
+            "yfinance not installed",
+            "No SPY option expirations available from yfinance",
+            "unexpected_response_format",
+            "unknown error",
+            "momentum_metrics_loader_failed",
+            "yield_curve_fetcher_returned_unavailable_without_reason",
+            "yield_data_dict_empty_or_invalid",
+            # ADDED 2026-09-04 (same sweep): load_stock_scores.py's capital_allocation/
+            # exposure aggregation failure reasons for when the composite weighting couldn't
+            # be computed from individual pillar scores (rare, all-or-nothing result).
+            "exposure_no_result",
         },
     ),
     (
