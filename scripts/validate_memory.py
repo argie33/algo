@@ -126,14 +126,18 @@ def check_structure(filepath: Path, content: str) -> list[str]:
             has_shown_command = bool(re.search(r"`[^`\n]+`", content))
             # BUG FOUND 2026-09-04: the original `\d+\s*(passed|/\d+)` only matched a count
             # immediately adjacent to "passed" (e.g. "7 passed"). Real writeups more often
-            # phrase it as "N (new/existing) tests ... still pass" with other words in between
-            # ("6 new tests in `test_foo.py`, all pass; 312 existing tests still pass") - a false
-            # positive that blocked commits repo-wide for claims that were, on inspection,
-            # genuinely backed by a shown test file and a pass count. Widened to also match a
-            # digit followed by "pass"/"passed"/"failed" within the same sentence, not just
-            # immediately adjacent.
+            # phrase it as "N (new/existing) tests ... still pass" with other words (including
+            # inline-code file names in backticks) in between - e.g. "6 new tests in
+            # `test_foo.py`, all pass" or "88 existing `company_info_sec` tests still pass" -
+            # a false positive that blocked commits repo-wide for claims genuinely backed by a
+            # shown test file and a pass count. The first widening only allowed a narrow
+            # `[\w\s,/.'-]` character class between the digit and "pass", which still excluded
+            # backticks around an inline file/module name - repeat of the same false-positive
+            # class on a second real memory file the same day. Widened again to any non-newline
+            # character (still capped at 60, still requires has_shown_command as an AND
+            # condition above, so this alone can't pass a claim with no shown command at all).
             has_result_line = bool(re.search(r"\d+\s*(passed|/\d+)", lowered)) or bool(
-                re.search(r"\d+[\w\s,/.'-]{0,60}\bpass(ed|ing)?\b", lowered)
+                re.search(r"\d+[\s\S]{0,60}\bpass(ed|ing)?\b", lowered)
             )
             has_method = has_shown_command and has_result_line
         if not has_method:

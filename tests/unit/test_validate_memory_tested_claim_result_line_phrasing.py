@@ -34,6 +34,24 @@ def test_tests_still_pass_phrasing_is_not_flagged_unverified() -> None:
     assert issues == []
 
 
+def test_pass_count_separated_by_backtick_wrapped_name_is_not_flagged() -> None:
+    # Real second occurrence of this false-positive class: a digit and "pass" separated by an
+    # inline-code (backtick-wrapped) file/module name, not just plain words.
+    content = """---
+name: example_memory
+description: "example"
+metadata:
+  type: project
+---
+
+Unit-tested (`tests/unit/test_example_20260904.py`), mypy clean, 88 existing
+`company_info_sec` tests still pass.
+"""
+    issues = check_structure(Path("example_memory.md"), content)
+
+    assert issues == []
+
+
 def test_bare_tested_claim_with_no_evidence_is_still_flagged() -> None:
     content = """---
 name: example_memory

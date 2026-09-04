@@ -7,7 +7,10 @@ Strategies are evaluated in priority order; first match wins.
 
 Exit hierarchy (by priority):
 1. Stop-loss (price <= active stop)
-2. Minervini break (close < 21-EMA)
+2. Minervini break (close < 21-EMA) - DISABLED (0% win rate, backtest 2026-08-05; see
+   ExitEngine.check_minervini_break's docstring). Kept in the priority list/strategy chain
+   for its slot ordering and to re-enable via exit_on_minervini_break config; always returns
+   no-trigger today.
 3. RS line break (relative strength breakdown)
 4. Time-based (held >= max_days)
 5. Profit target T1 (1.5R)
@@ -197,7 +200,12 @@ class StopLossStrategy(ExitStrategy):
 
 
 class MinerviniBreakStrategy(ExitStrategy):
-    """Exit on Minervini break: close < 21-EMA on volume > 50d avg (or cleanly below 50-DMA)."""
+    """Exit on Minervini break: close < 21-EMA on volume > 50d avg (or cleanly below 50-DMA).
+
+    DISABLED: ctx.check_minervini_break() always returns no-trigger (0% win rate, backtest
+    2026-08-05) - see its own docstring. This class stays wired into the strategy chain so
+    its priority slot/config toggle (exit_on_minervini_break) still work if re-enabled.
+    """
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         return self._evaluate_engine_strategy(lambda engine: ctx.check_minervini_break(engine))
