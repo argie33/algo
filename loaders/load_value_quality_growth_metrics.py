@@ -1106,7 +1106,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     )
                     sec_div_row = cur.fetchone()
                     if sec_div_row:
-                        dividend_yield = sec_div_row[0] / 100.0  # Convert percentage to decimal
+                        # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same
+                        # Decimal/float class as the fcf_margin fallback fix elsewhere in this
+                        # file): sec_div_row[0] is a raw psycopg2 Decimal (dividend_yield_pct is
+                        # NUMERIC) - `Decimal / 100.0` raises TypeError, silently caught by this
+                        # block's own try/except below and logged at debug level, so this SEC
+                        # dividend_data fallback tier never actually populated dividend_yield for
+                        # any symbol that reached it.
+                        dividend_yield = float(sec_div_row[0]) / 100.0  # Convert percentage to decimal
                         logger.debug(f"[VALUE_METRICS] {symbol}: Using SEC dividend_data: {dividend_yield:.2%}")
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: SEC dividend_data fallback failed: {e}")
@@ -4559,18 +4566,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             # lives further below and only fires if that specific reason wasn't already set.
 
             # Mark unavailable if all metrics are None
-            if all(
-                metrics[k] is None
-                for k in [
-                    "roe",
-                    "roa",
-                    "operating_margin",
-                    "net_margin",
-                    "debt_to_equity",
-                    "debt_to_assets",
-                    "current_ratio",
-                ]
+            if (
+                all(
+                    metrics[k] is None
+                    for k in [
+                        "roe",
+                        "roa",
+                        "operating_margin",
+                        "net_margin",
+                        "debt_to_equity",
+                        "debt_to_assets",
+                        "current_ratio",
+                    ]
+                )
+                and metrics.get("consecutive_positive_quarters") is None
             ):
+                # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - this early return
+                # used to fire on the 7 annual-balance-sheet-derived fields alone, discarding
+                # already-computed quarterly-derived fields (consecutive_positive_quarters/
+                # quarterly_growth_momentum/earnings_growth_4q_avg/eps_growth_stability, merged
+                # in from _compute_quarterly_metrics() just above) via _unavailable_marker's
+                # blanket None+"missing_sec_data" stamp on every column. Live-confirmed 293 of
+                # 378 universe quality_metrics rows currently hitting this path (77%) have real
+                # (data_unavailable=FALSE) quarterly_income_statement data for >=4 quarters -
+                # quarterly_growth_momentum/earnings_growth_4q_avg would have computed real
+                # values for them, and got wiped. consecutive_positive_quarters is always set
+                # to a real int (never None) whenever >=4 real quarters exist - "0 is a
+                # legitimate answer, not missing" per its own computation above - so checking it
+                # here is a direct, non-inferred signal that real quarterly data exists, not a
+                # guess. Row-level annual data_unavailable stays correctly true-to-the-annual-
+                # side only; quarterly fields keep whatever real values/reasons
+                # _compute_quarterly_metrics() already computed.
+                #
                 # FIX 2026-09-02 (goal: "no SEC data" audit continuation - the root cause of
                 # why the per-field gates just added above for debt_to_equity/roe/roa/
                 # debt_to_assets/etc. weren't reflected in most of their live "missing_sec_data"
