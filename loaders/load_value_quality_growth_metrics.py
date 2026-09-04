@@ -3053,6 +3053,75 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         self._operating_income_available_elsewhere_symbols_cache = result
         return result
 
+    def _get_no_recent_operating_income_symbols(self) -> frozenset[str]:
+        """Symbols that have NOT reported operating_income in any of their 3 most recent
+        fiscal years - i.e. operating_margin/interest_coverage are structurally None for them
+        for a reason distinct from the REIT/tonnage-tax no-tax-concept case
+        (_get_no_tax_concept_symbols) and the zero-revenue commodity/crypto-trust case
+        (_get_no_recent_revenue_symbols): a real, revenue-generating filer whose income
+        statement goes straight from revenue/costs to net income with no distinct "operating
+        income" subtotal line ever itemized (common among simplified-format smaller filers and
+        some financials). Same "3 most recent years, not all-time history" windowing as the
+        sibling checks elsewhere in this file - a filer can permanently change what it itemizes
+        partway through its history.
+
+        FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction): operating_margin/
+        interest_coverage's reason chains had no gate at all for this case before this fix -
+        every check upstream of the generic "missing_sec_data" fallback (implausible_ratio,
+        reit_special_entity, operating_income_absent_from_anchor_year, no_revenue_reported) is
+        scoped to a different root cause. Live-confirmed 43 active-universe symbols recovered
+        from "missing_sec_data" to this specific reason. Cached for the life of this loader
+        instance; this query runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_no_recent_operating_income_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT symbol, operating_income,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_income_statement
+                    WHERE fiscal_year > 0
+                )
+                SELECT symbol FROM recent
+                WHERE rn <= 3
+                GROUP BY symbol
+                HAVING COUNT(operating_income) = 0 AND COUNT(*) = 3
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._no_recent_operating_income_symbols_cache = result
+        return result
+
+    def _get_never_tagged_operating_income_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_operating_income_symbols() above - see
+        _get_never_tagged_interest_expense_symbols()'s docstring for the general pattern
+        (windowed gate requires exactly 3 real fiscal years, missing recent IPOs/SPAC-mergers
+        with fewer real years where operating_income is nonetheless genuinely never tagged).
+
+        FIXED 2026-09-03: added alongside _get_no_recent_operating_income_symbols() above -
+        see that method's docstring. Cached for the life of this loader instance; this query
+        runs once per pipeline run, not once per symbol.
+        """
+        cached: frozenset[str] | None = getattr(self, "_never_tagged_operating_income_symbols_cache", None)
+        if cached is not None:
+            return cached
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_income_statement
+                WHERE data_unavailable = FALSE
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (WHERE operating_income IS NOT NULL) = 0
+                """
+            )
+            result = frozenset(row[0] for row in cur.fetchall())
+        self._never_tagged_operating_income_symbols_cache = result
+        return result
+
     def _get_no_recent_total_liabilities_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported total_liabilities in any of their 3 most recent
         fiscal years - i.e. debt_to_assets is structurally None for them, not a loader gap.
@@ -6473,6 +6542,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         or symbol in self._get_no_recent_revenue_symbols()
                         or symbol in self._get_never_tagged_revenue_symbols()
                     )
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction): a real,
+                    # revenue-generating filer whose income statement never itemizes a distinct
+                    # operating income subtotal - see _get_no_recent_operating_income_symbols()'s
+                    # docstring.
+                    else "operating_income_not_itemized"
+                    if operating_income_for_margin is None
+                    and (
+                        symbol in self._get_no_recent_operating_income_symbols()
+                        or symbol in self._get_never_tagged_operating_income_symbols()
+                    )
                     else "missing_sec_data"
                 )
                 if "operating_margin" in failed_metrics
@@ -6602,6 +6681,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if no_recent_interest_expense
                     else "reit_special_entity"
                     if no_operating_income_concept_ic
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction): same
+                    # operating_income-not-itemized case as operating_margin_unavailable_reason
+                    # above - see _get_no_recent_operating_income_symbols()'s docstring.
+                    else "operating_income_not_itemized"
+                    if symbol in self._get_no_recent_operating_income_symbols()
+                    or symbol in self._get_never_tagged_operating_income_symbols()
                     else "missing_sec_data"
                 )
                 if "interest_coverage" in failed_metrics
