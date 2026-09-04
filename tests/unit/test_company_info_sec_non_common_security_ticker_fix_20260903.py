@@ -9,6 +9,10 @@ ambiguity guard.
 Live-verified against Stifel Financial's (CIK 720672) actual submissions.json ticker list
 (['SF', 'SF-PB', 'SFB', 'SF-PC', 'SF-PD']) - SFB is Stifel's 6.25% Subordinated Notes due 2054,
 not a second common share class; SF itself has exactly one common class.
+
+Also covers DDT (Dillard's 7.5% Cumulative Preferred Stock, same CIK as DDS) - the same false-
+ambiguity shape but for PREFERRED stock spelled without the "-P<letter>" convention the existing
+regex expects.
 """
 
 from unittest.mock import MagicMock
@@ -68,9 +72,25 @@ class TestNonCommonSecurityTickerFix:
 
         assert result is None
 
+    def test_dds_resolves_despite_non_dash_preferred_ticker(self):
+        loader = _loader()
+        loader.sec_client.get_filing_plaintext.return_value = (
+            '<ix:nonFraction unitRef="shares" contextRef="c-7" decimals="0" '
+            'name="dei:EntityCommonStockSharesOutstanding" id="f-39">11,630,838</ix:nonFraction>'
+        )
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "DDS", "28917", _submissions_with_10k("0000028917-26-000009", ["DDS", "DDT"])
+        )
+
+        assert result == 11_630_838
+
     def test_non_common_security_set_is_narrowly_scoped(self):
         """Defensive: an unrelated bare-letter-suffix ticker (a genuine second common class
         shape, e.g. GTN-A/ATROB) must not be swept into this set by accident."""
         assert "SFB" in CompanyInfoSECLoader._NON_COMMON_SECURITY_TICKERS
+        assert "DDT" in CompanyInfoSECLoader._NON_COMMON_SECURITY_TICKERS
         assert "GTN-A" not in CompanyInfoSECLoader._NON_COMMON_SECURITY_TICKERS
         assert "ATROB" not in CompanyInfoSECLoader._NON_COMMON_SECURITY_TICKERS
+        assert "HVT-A" not in CompanyInfoSECLoader._NON_COMMON_SECURITY_TICKERS
+        assert "CENTA" not in CompanyInfoSECLoader._NON_COMMON_SECURITY_TICKERS

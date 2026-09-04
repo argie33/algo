@@ -465,7 +465,18 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # discipline as SHARED_ISSUER_OR_TRUST_CIK_SYMBOLS in load_financial_statements.py - add
     # to this set only after confirming via real submissions.json + dei history that the
     # extra ticker is a bond/note, not an untracked common class.
-    _NON_COMMON_SECURITY_TICKERS: frozenset[str] = frozenset({"SFB"})
+    #
+    # ADDED 2026-09-03 (same sweep, continued bucket walk): DDT (Dillard's 7.5% Cumulative
+    # Preferred Stock, same CIK as DDS) is the same false-ambiguity shape but for PREFERRED
+    # stock spelled without the "-P<letter>" convention the regex expects - live-confirmed
+    # via DDS's real companyfacts JSON (CIK 28917): zero dei:EntityCommonStockSharesOutstanding
+    # or us-gaap:CommonStockSharesOutstanding facts under EITHER ticker (consistent with a
+    # single consolidated CIK reporting one real common class), but a real, current
+    # WeightedAverageNumberOfSharesOutstandingBasic (~15.6-15.65M across 2025 Q3/2026 Q1 10-Qs)
+    # that `multi_ticker_cik` was blocking because it saw ['DDS', 'DDT'] (2 entries). This set's
+    # name is "non-COMMON-security", not "non-debt" - preferred stock belongs here too, same as
+    # SFB.
+    _NON_COMMON_SECURITY_TICKERS: frozenset[str] = frozenset({"SFB", "DDT"})
 
     @staticmethod
     def _latest_shares_value(fact: dict[str, Any] | None, restrict_to_domestic_forms: bool = False) -> int | None:
