@@ -707,6 +707,23 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # larger number). Fallback-only, same generic-name caution as DebtCurrent above.
         "ShortTermBankLoansAndNotesPayable",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+        # total_debt_not_itemized investigation): mortgage REITs finance almost entirely via
+        # repurchase ("repo") agreements, a standard, companyfacts-exposed us-gaap concept
+        # none of the LongTermDebt/CommercialPaper/DebtCurrent/etc. concepts above ever
+        # capture - live-confirmed via real SEC companyconcept API data: AGNC Investment
+        # Corp (CIK 0001423689) $60,798,000,000 FY2024/$50,426,000,000 FY2023, ARMOUR
+        # Residential REIT (CIK 0001428205) $10,713,830,000 FY2024/$9,647,982,000 FY2023 -
+        # both real, massive, and completely invisible to long_term_debt/short_term_debt
+        # before this fix (every fiscal year NULL for all 4 debt-component columns despite
+        # each being a multi-billion-dollar leveraged mortgage REIT). Repo agreements are
+        # short-duration rolling financing (30-90 day typical maturity), so this targets
+        # short_term_debt, same semantic class as CommercialPaper/ShortTermBorrowings above,
+        # not long_term_debt. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS in
+        # load_financial_statements.py) so a filer that also reports a standard concept
+        # keeps that value; live-checked neither AGNC nor ARR reports any other debt
+        # concept, so no overwrite-collision risk for the two symbols this was found from.
+        "SecuritiesSoldUnderAgreementsToRepurchase",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # no_recent_debt_components_symbols investigation): VRSN (VeriSign) tags its real,
         # current debt exclusively under "SeniorNotes"/"SeniorNotesCurrent" - live-
         # confirmed via real companyfacts JSON: SeniorNotes (noncurrent) FY2025

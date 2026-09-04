@@ -758,6 +758,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "ShortTermBankLoansAndNotesPayable" (EXPD live evidence).
         "short_term_bank_loans_and_notes_payable",
+        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): mortgage
+        # REIT repo-agreement financing - see sec_statements.py's get_balance_sheet() comment
+        # on "SecuritiesSoldUnderAgreementsToRepurchase" (AGNC/ARR live evidence, $60.8B/
+        # $10.7B FY2024 respectively, both previously NULL for every debt-component column).
+        "securities_sold_under_agreements_to_repurchase",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
         # the finance-lease-combined PP&E concept (DASH/DINO live evidence) - despite this
@@ -941,6 +946,10 @@ _BALANCE_FIELD_MAPPING = {
     # debt - see sec_statements.py's get_balance_sheet() comment on
     # "ShortTermBankLoansAndNotesPayable" for the live evidence.
     "short_term_bank_loans_and_notes_payable": "short_term_debt",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): mortgage
+    # REIT repo-agreement financing - see sec_statements.py's get_balance_sheet() comment
+    # on "SecuritiesSoldUnderAgreementsToRepurchase" for the live evidence (AGNC/ARR).
+    "securities_sold_under_agreements_to_repurchase": "short_term_debt",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): VRSN
     # (VeriSign) real debt concept - see sec_statements.py's get_balance_sheet() comment
     # on SeniorNotes/SeniorNotesCurrent for the live evidence. Same either/or-alternative,
