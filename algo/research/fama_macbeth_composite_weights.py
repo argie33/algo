@@ -121,7 +121,9 @@ Usage:
 """
 
 import argparse
+import inspect
 import logging
+import re
 from datetime import datetime
 from typing import Any
 
@@ -197,6 +199,294 @@ GROWTH_PROXY_COLS = [
 # 2026-08-28). Including them here even though they didn't clear the isolated bar is deliberate:
 # this proxy's job is to test the LIVE formula as-is, not to re-litigate which fields belong in
 # it.
+
+
+# PREFLIGHT DRIFT CHECK (rebuilt 2026-09-04 - the 2026-09-01 version of this mechanism was
+# never committed, then confirmed lost outright by 2026-09-03; this is a from-scratch rebuild
+# against whatever loaders/load_stock_scores.py + loaders/load_value_quality_growth_metrics.py
+# actually contain today, not a recovery of the old code). Answers the recurring failure mode
+# that motivated it in the first place: this script's own pillar proxies drifted stale against
+# live production formulas twice in one day (2026-09-01), each time undetected until a human
+# manually re-diffed the whole file. Reads weights straight out of the LIVE source via
+# inspect.getsource() + regex - never hardcodes a second copy of a weight that can itself go
+# stale - and reports [EXTRACTION FAILED] loudly rather than silently passing when the live
+# source no longer matches the expected pattern (e.g. a weight changed, a component renamed).
+#
+# Each proxy's "expected" weight for the fields it implements is derived dynamically from the
+# live nominal weights of ONLY the fields it implements, renormalized over their combined live
+# total - NOT a hardcoded "value_proxy renormalizes, the others don't" flag (the 2026-09-01
+# version used exactly that flag; it would already be wrong today, since stability_proxy now
+# ALSO renormalizes over its own included subset following Liquidity's 2026-09-01 addition to
+# live Risk - the flag's binary "only value" premise stopped being true the same day it was
+# written, which is the exact class of silent drift this whole mechanism exists to catch).
+_WEIGHTED_SUM_LINE = re.compile(r"weighted_sum\s*\+=\s*(.+?)\s*\*\s*([\d.]+)\s*$", re.MULTILINE)
+
+
+def _extract_weighted_terms(source: str, key_markers: dict[str, str]) -> dict[str, float] | None:
+    """Regex-extracts every live `weighted_sum += <expr> * <weight>` line's weight, keyed by
+    whichever key_markers substring uniquely identifies that line's <expr>. Returns None
+    (extraction failed) if a marker is never matched, or matches two different weights (source
+    changed shape in a way this regex no longer understands correctly).
+    """
+    found: dict[str, float] = {}
+    for expr, weight_str in _WEIGHTED_SUM_LINE.findall(source):
+        weight = float(weight_str)
+        for key, marker in key_markers.items():
+            # \b-bounded: "pe_score" must not match inside "fwd_pe_score" (substring, but not a
+            # separate identifier - the two are always underscore-joined into one \w+ token, so
+            # there's no boundary between them for plain substring "in" to respect).
+            if re.search(r"\b" + re.escape(marker) + r"\b", expr):
+                if key in found and found[key] != weight:
+                    return None
+                found[key] = weight
+    if set(found) != set(key_markers):
+        return None
+    return found
+
+
+def get_live_growth_fields() -> tuple[str, ...] | None:
+    try:
+        from loaders.load_stock_scores import GROWTH_SCORE_FIELDS
+
+        return GROWTH_SCORE_FIELDS
+    except ImportError:
+        return None
+
+
+def get_live_value_weights() -> dict[str, float] | None:
+    from loaders.load_stock_scores import StockScoresLoader
+
+    source = inspect.getsource(StockScoresLoader._score_value)
+    return _extract_weighted_terms(
+        source,
+        {
+            "pe": "pe_score",
+            "pb": "pb_score",
+            "ps": "ps_score",
+            "fwd_pe": "fwd_pe_score",
+            "div": "div_score",
+        },
+    )
+
+
+def get_live_risk_weights() -> dict[str, float] | None:
+    from loaders.load_stock_scores import StockScoresLoader
+
+    source = inspect.getsource(StockScoresLoader._score_risk)
+    return _extract_weighted_terms(
+        source,
+        {
+            "vol60": "v60_score",
+            "vol252": "v252_score",
+            "beta": "beta_score",
+            "maxdd": "dd_score",
+            "liquidity": "liq_score",
+        },
+    )
+
+
+def get_live_momentum_weights() -> dict[str, float] | None:
+    from loaders.load_stock_scores import StockScoresLoader
+
+    source = inspect.getsource(StockScoresLoader._score_momentum)
+    weights = _extract_weighted_terms(
+        source,
+        {
+            "mom_12_1": "mom_12_1_score",
+            "tech_trend": "tech_trend_scores",
+            "sma": "sma_scores",
+        },
+    )
+    if weights is None:
+        return None
+    m3m_match = re.search(r'"momentum_3m"\s*:\s*([\d.]+)', source)
+    if m3m_match is None:
+        return None
+    weights["mom_3m"] = float(m3m_match.group(1))
+    return weights
+
+
+def get_live_quality_weights() -> dict[str, float] | None:
+    from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+
+    source = inspect.getsource(ValueQualityGrowthMetricsLoader._compute_quality_metrics)
+    # Targets the UNIVERSAL (non-Financial-Services/Real-Estate) branch specifically - the
+    # 8-field flat quality_components list this proxy implements. The sector-conditional
+    # 2-cluster branch (Financial Services/Real Estate, added 2026-08-28) is a deliberate,
+    # disclosed simplification this proxy does NOT model - not treated as drift.
+    match = re.search(
+        r"quality_components\s*=\s*\[\s*"
+        r"\(roe_score,\s*([\d.]+)\),\s*"
+        r"\(roa_score,\s*([\d.]+)\),\s*"
+        r"\(roce_score,\s*([\d.]+)\),\s*"
+        r"\(fcf_margin_score,\s*([\d.]+)\),\s*"
+        r"\(debt_to_equity_score,\s*([\d.]+)\),\s*"
+        r"\(margin_volatility_score,\s*([\d.]+)\),\s*"
+        r"\(asset_turnover_score,\s*([\d.]+)\),\s*"
+        r"\(gross_profitability_score,\s*([\d.]+)\),?\s*\]",
+        source,
+    )
+    if match is None:
+        return None
+    keys = [
+        "roe",
+        "roa",
+        "roce",
+        "fcf_margin",
+        "debt_to_equity",
+        "margin_volatility",
+        "asset_turnover",
+        "gross_profitability",
+    ]
+    return dict(zip(keys, (float(g) for g in match.groups()), strict=True))
+
+
+PROXY_VALUE_FIELDS = {"pe", "pb", "ps"}
+PROXY_RISK_FIELDS = {"vol60", "vol252", "beta", "maxdd"}
+PROXY_MOMENTUM_FIELDS = {"mom_3m", "mom_12_1", "tech_trend", "sma"}
+PROXY_QUALITY_FIELDS = {
+    "roe",
+    "roa",
+    "roce",
+    "fcf_margin",
+    "debt_to_equity",
+    "margin_volatility",
+    "asset_turnover",
+    "gross_profitability",
+}
+# growth_proxy's actual implemented subset (equal-weighted, not nominal-weighted like the other
+# 4 pillars) - see GROWTH_PROXY_COLS above.
+PROXY_GROWTH_FIELDS = set(GROWTH_PROXY_COLS)
+
+# The literal weights this script's own build_pillar_proxy_records() uses for each implemented
+# field (numerator only - denominator is each pillar's own renormalization, computed below from
+# the LIVE nominal total of just the implemented fields, not hardcoded here).
+PROXY_VALUE_NUMERATORS = {"pe": 27.0, "pb": 27.0, "ps": 27.0}
+PROXY_RISK_NUMERATORS = {"vol60": 45.0, "vol252": 15.0, "beta": 15.0, "maxdd": 10.0}
+PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 0.20, "mom_12_1": 0.35, "tech_trend": 0.37, "sma": 0.08}
+PROXY_QUALITY_NUMERATORS = {
+    "roe": 11.0,
+    "roa": 18.0,
+    "roce": 18.0,
+    "fcf_margin": 15.0,
+    "debt_to_equity": 18.0,
+    "margin_volatility": 7.0,
+    "asset_turnover": 7.0,
+    "gross_profitability": 7.0,
+}
+
+
+def _check_pillar_weights(
+    label: str,
+    live_weights: dict[str, float] | None,
+    proxy_fields: set[str],
+    proxy_numerators: dict[str, float],
+    tol: float = 1e-6,
+) -> list[str]:
+    """Compares this script's own numerator/renormalized-denominator weight for each field it
+    implements against the LIVE weight for that same field, renormalized over the live total of
+    just the fields this proxy implements (not the pillar's full live total, since fields this
+    proxy excludes correctly get zero weight here by design, not drift)."""
+    problems = []
+    if live_weights is None:
+        return [f"[EXTRACTION FAILED] {label}: could not regex-extract live weights - live source likely changed shape"]
+    missing = proxy_fields - set(live_weights)
+    if missing:
+        problems.append(f"[DRIFT] {label}: proxy implements field(s) no longer found live: {sorted(missing)}")
+    added = set(live_weights) - proxy_fields
+    live_included_total = sum(live_weights[f] for f in proxy_fields if f in live_weights)
+    proxy_total = sum(proxy_numerators.values())
+    for field in sorted(proxy_fields & set(live_weights)):
+        expected = live_weights[field] / live_included_total if live_included_total else 0.0
+        actual = proxy_numerators[field] / proxy_total if proxy_total else 0.0
+        if abs(expected - actual) > 0.01:  # >1 percentage point of renormalized share
+            problems.append(
+                f"[DRIFT] {label}.{field}: proxy uses {actual:.1%} of its own total, live's "
+                f"renormalized share is {expected:.1%} (live nominal weight {live_weights[field]})"
+            )
+    if added:
+        problems.append(
+            f"[INFO] {label}: live has field(s) this proxy doesn't implement (disclosed exclusion "
+            f"unless newly added): {sorted(added)}"
+        )
+    return problems
+
+
+def check_field_coverage(cur: Any, growth_fields_excluded: list[str]) -> None:
+    """Reports live DB coverage % for every growth field this proxy excludes, so a reader can
+    judge case-1 (should-probably-be-added, high coverage) vs case-2 (genuine data-depth gap,
+    low coverage) without a separate manual audit."""
+    if not growth_fields_excluded:
+        return
+    print("\n=== Excluded-field live DB coverage (growth_metrics) ===")
+    for field in growth_fields_excluded:
+        try:
+            cur.execute(
+                f"SELECT COUNT(*) FILTER (WHERE {field} IS NOT NULL), COUNT(*) "
+                f"FROM growth_metrics WHERE COALESCE(data_unavailable, false) = false"
+            )
+            non_null, total = cur.fetchone()
+            pct = (non_null / total * 100) if total else 0.0
+            print(f"  {field:38s} {non_null:6d}/{total:6d}  ({pct:5.1f}%)")
+        except Exception as e:
+            print(f"  {field:38s} [coverage query failed: {e}]")
+
+
+def run_preflight_checks() -> None:
+    """Diffs this script's pillar-proxy field lists/weights against LIVE
+    loaders/load_stock_scores.py + loaders/load_value_quality_growth_metrics.py, every run -
+    see this section's module-level comment above for why."""
+    print("\n########## PREFLIGHT: proxy-vs-live drift check ##########")
+    problems: list[str] = []
+
+    live_growth_fields = get_live_growth_fields()
+    if live_growth_fields is None:
+        problems.append(
+            "[EXTRACTION FAILED] growth: could not import GROWTH_SCORE_FIELDS from loaders.load_stock_scores"
+        )
+    else:
+        missing_growth = PROXY_GROWTH_FIELDS - set(live_growth_fields)
+        if missing_growth:
+            problems.append(
+                f"[DRIFT] growth: proxy implements field(s) no longer in live GROWTH_SCORE_FIELDS: {sorted(missing_growth)}"
+            )
+        excluded_growth = [f for f in live_growth_fields if f not in PROXY_GROWTH_FIELDS]
+        print(
+            f"growth_proxy implements {len(PROXY_GROWTH_FIELDS)}/{len(live_growth_fields)} live GROWTH_SCORE_FIELDS (equal-weighted)."
+        )
+        if excluded_growth:
+            print(f"  Excluded: {excluded_growth}")
+
+    problems += _check_pillar_weights(
+        "value_proxy", get_live_value_weights(), PROXY_VALUE_FIELDS, PROXY_VALUE_NUMERATORS
+    )
+    problems += _check_pillar_weights(
+        "stability_proxy", get_live_risk_weights(), PROXY_RISK_FIELDS, PROXY_RISK_NUMERATORS
+    )
+    problems += _check_pillar_weights(
+        "momentum_proxy", get_live_momentum_weights(), PROXY_MOMENTUM_FIELDS, PROXY_MOMENTUM_NUMERATORS
+    )
+    problems += _check_pillar_weights(
+        "quality_proxy", get_live_quality_weights(), PROXY_QUALITY_FIELDS, PROXY_QUALITY_NUMERATORS
+    )
+
+    if problems:
+        print(f"\n{len(problems)} issue(s) found:")
+        for p in problems:
+            print(f"  {p}")
+    else:
+        print("\nNo drift detected across all 5 pillars - proxies match live weights/fields exactly.")
+
+    try:
+        with DatabaseContext("read") as cur:
+            excluded_growth = (
+                [f for f in live_growth_fields if f not in PROXY_GROWTH_FIELDS] if live_growth_fields else []
+            )
+            check_field_coverage(cur, excluded_growth)
+    except Exception as e:
+        print(f"\n(Coverage check skipped: {e})")
+
+    print("\n########## END PREFLIGHT ##########\n")
 
 
 def _zwinsor(s: pd.Series) -> pd.Series:
@@ -570,6 +860,7 @@ def build_pillar_proxy_records(
 
 
 def run(start_date: str, end_date: str, min_cross_section: int) -> None:
+    run_preflight_checks()
     records_partial, records_complete, _records_raw = build_pillar_proxy_records(
         start_date, end_date, min_cross_section
     )
