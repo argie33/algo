@@ -63,14 +63,33 @@ def _run_fetch_incremental(
 
 
 class TestFpiAdsAdjustedEpsHelper:
-    def test_registered_symbol_divided_by_ratio(self) -> None:
-        assert _fpi_ads_adjusted_eps("DDI", 41.37) == pytest.approx(41.37 / 20.0)
+    def test_divide_direction_symbol(self) -> None:
+        # DDI: 20 ADS = 1 ordinary share -> divide.
+        assert _fpi_ads_adjusted_eps("DDI", 41.37, 2025) == pytest.approx(41.37 / 20.0)
+
+    def test_multiply_direction_symbol(self) -> None:
+        # GDS: 1 ADS = 8 ordinary shares -> multiply.
+        assert _fpi_ads_adjusted_eps("GDS", 0.3110, 2024) == pytest.approx(0.3110 * 8.0)
 
     def test_unregistered_symbol_untouched(self) -> None:
-        assert _fpi_ads_adjusted_eps("ONC", 41.37) == 41.37
+        assert _fpi_ads_adjusted_eps("ONC", 41.37, 2025) == 41.37
 
     def test_none_eps_passthrough(self) -> None:
-        assert _fpi_ads_adjusted_eps("DDI", None) is None
+        assert _fpi_ads_adjusted_eps("DDI", None, 2025) is None
+
+    def test_stable_ratio_applies_regardless_of_fiscal_year(self) -> None:
+        # No effective_date registered for DDI -> applies even to an old fiscal year.
+        assert _fpi_ads_adjusted_eps("DDI", 41.37, 2015) == pytest.approx(41.37 / 20.0)
+
+    def test_ratio_change_gated_by_effective_date(self) -> None:
+        # TOUR's 1:30 ratio only took effect 2026-04-22 - a fiscal year ending before that
+        # used a different, unresearched ratio and must be left unadjusted.
+        assert _fpi_ads_adjusted_eps("TOUR", 0.10, 2025) == 0.10
+        assert _fpi_ads_adjusted_eps("TOUR", 0.10, 2026) == pytest.approx(0.10 * 30.0)
+
+    def test_ratio_change_gated_with_none_fiscal_year(self) -> None:
+        # An unknown fiscal year for a date-gated symbol must not be guessed as post-change.
+        assert _fpi_ads_adjusted_eps("TOUR", 0.10, None) == 0.10
 
 
 # DDI-shaped: FY2025 SEC-tagged EPS=41.37 (per ordinary share), current_price=12.97 (ADS, live).

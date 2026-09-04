@@ -173,44 +173,80 @@ def _split_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any:
     return eps
 
 
-# FIXED 2026-09-03 (goal session continuation, DDI-discovered): a genuine foreign private
-# issuer's shares_out is ALREADY corrected to an ADS-equivalent basis elsewhere in this file
-# (the `not shares_out and is_foreign_private_issuer` yfinance fallback a few hundred lines
-# below - yfinance queries per-LISTING, i.e. the ADS ticker, so its sharesOutstanding is
-# naturally ADS-basis) - but earnings_per_share is SEC-tagged per the filer's home-market
-# (ordinary/common) share and NEVER goes through any ADS conversion at all. When 1 ordinary
-# share != 1 ADS, this leaves shares_out on ADS-basis and EPS on ordinary-share-basis at the
-# same time, silently mismatched, and _sanity_check_pe_ratio correctly (by design) nulls the
-# resulting nonsense pe_ratio as eps_scale_mismatch - same failure MODE as
-# RECENT_STOCK_SPLITS/DOMESTIC_FILER_ADS_RATIO_OVERRIDES above (a real ratio never applied to
-# EPS) but a distinct, unconditional-on-fiscal-year root cause: this is a permanent unit
-# mismatch for the symbol, not a one-time corporate action, so (unlike RECENT_STOCK_SPLITS)
-# every fiscal year's EPS needs the same division, with no effective-date cutoff.
-# Live-confirmed via DDI (DoubleDown Interactive Co., Ltd., Korean 20-F filer): SEC's own
-# 424B4 prospectus and subsequent Schedule 13G ADS-count filings confirm 20 ADS = 1 ordinary
-# share (each ADS = 1/20th of an ordinary share). FY2025 SEC-tagged
-# earnings_per_share=$41.37 (per ordinary share) vs a live ADS price of $12.97 computed an
-# implied PE of ~0.31 (real ADS-basis EPS = $41.37/20 = $2.07, giving a plausible ~6.3x PE).
-# shares_out in sec_valuations for DDI was independently confirmed already-correct at
-# 49,553,440 = 2,477,672 (SEC ordinary shares) * 20 - confirming both the ratio and that only
-# EPS was left unconverted. Same never-guess discipline as the two registries above: only a
-# symbol with a source-confirmed ADS ratio belongs here.
-FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, float] = {
-    "DDI": 20.0,  # DoubleDown Interactive Co., Ltd. - 20 ADS = 1 ordinary share
+# FIXED 2026-09-03 (goal session continuation, DDI-discovered, expanded same session to the
+# rest of the FPI eps_scale_mismatch bucket): a genuine foreign private issuer's shares_out is
+# ALREADY corrected to an ADS-equivalent basis elsewhere in this file (the
+# `not shares_out and is_foreign_private_issuer` yfinance fallback a few hundred lines below -
+# yfinance queries per-LISTING, i.e. the ADS ticker, so its sharesOutstanding is naturally
+# ADS-basis) - but earnings_per_share is SEC-tagged per the filer's home-market (ordinary/
+# common) share and NEVER goes through any ADS conversion at all. When 1 ordinary share != 1
+# ADS, this leaves shares_out on ADS-basis and EPS on ordinary-share-basis at the same time,
+# silently mismatched, and _sanity_check_pe_ratio correctly (by design) nulls the resulting
+# nonsense pe_ratio as eps_scale_mismatch - same failure MODE as RECENT_STOCK_SPLITS/
+# DOMESTIC_FILER_ADS_RATIO_OVERRIDES above (a real ratio never applied to EPS) but a distinct
+# root cause: a permanent per-symbol unit mismatch, not a one-time corporate action.
+#
+# The dict value is (multiplier, effective_date). `multiplier` converts EPS-per-ordinary-share
+# -> EPS-per-ADS (EPS_per_ADS = EPS_per_ordinary * multiplier); most of these disclose their
+# ratio as "1 ADS = N ordinary shares" (multiplier = N, an ADS aggregates N ordinary shares'
+# worth of earnings), while DDI/GMAB disclose the inverse "N ADS = 1 ordinary share"
+# (multiplier = 1/N). `effective_date` is None for a ratio confirmed stable/with no known
+# recent change (apply to every fiscal year, same as DDI originally) - for a symbol whose ADS
+# ratio changed recently (same risk RECENT_STOCK_SPLITS guards against for stock splits), it's
+# the date the NEW ratio took effect; a fiscal year ending before that date used a different,
+# unresearched old ratio and is deliberately left unadjusted (still flagged
+# eps_scale_mismatch, not a regression) rather than guessed.
+#
+# Every entry here was cross-validated two independent ways before being added: (1) a
+# source-confirmed ratio (20-F/F-1/prospectus, Nasdaq/NYSE listing description, or company IR
+# ADR page) and (2) the resulting computed_pe = price / (eps * multiplier) checked against a
+# net_income/market_cap-derived "true PE" that never touches EPS or the ratio at all - both
+# had to land within a plausible range and close to each other. Several symbols with a
+# source-confirmed ratio were investigated and DELIBERATELY EXCLUDED because this
+# cross-validation failed or the "true PE" itself was already implausible (a separate,
+# unrelated data problem the ratio wouldn't fix) - do not add them on the strength of the
+# ratio alone without redoing this same validation: AMX (true PE ~1.0x regardless of ratio -
+# net_income itself looks bad, 50x jump from prior year), BCH/ENIC/LOMA/SOGP/TLK/PHAR/WDH/SIM
+# (true PE implausible and/or >30% off from the ratio-adjusted PE), JFU/KRKR/TC (ratio
+# recently changed AND validation failed/was wildly off - TC's mismatch was ~235x, far beyond
+# what a mid-year ratio-change split-history could explain). CX has a genuine basis ambiguity
+# (each ADS = 10 CPOs, each CPO = 3 ordinary shares - unclear whether SEC XBRL EPS is tagged
+# per-CPO or per-ordinary-share) not yet resolved. SBS's ADR ratio is 1:1 - its
+# eps_scale_mismatch is NOT an ADS-ratio issue (parallels the already-known WSE case, likely
+# FX/currency-basis). BSP/CHSN/HKIT/LGCL/MASK/MATH/TLIH/TWG/ZJYL trade as ordinary shares
+# directly (no ADS program found) - their FPI flag/mismatch has some other cause.
+FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, tuple[float, date | None]] = {
+    "DDI": (1 / 20.0, None),  # DoubleDown Interactive - 20 ADS = 1 ordinary share
+    "GMAB": (1 / 10.0, None),  # Genmab A/S - each ADS = 1/10 ordinary share
+    "ALAR": (10.0, None),  # Alarum Technologies - 1 ADS = 10 ordinary shares
+    "CHT": (10.0, None),  # Chunghwa Telecom - 1 ADS = 10 common shares
+    "GDS": (8.0, None),  # GDS Holdings - 1 ADS = 8 Class A ordinary shares
+    "OMAB": (8.0, None),  # Grupo Aeroportuario del Centro Norte - 1 ADS = 8 Series B shares
+    "PAM": (25.0, None),  # Pampa Energy - 1 ADS = 25 ordinary shares
+    "VTMX": (10.0, None),  # Vesta Real Estate - 1 ADS = 10 ordinary shares
+    "YMM": (20.0, None),  # Full Truck Alliance - 1 ADS = 20 Class A ordinary shares
+    "FEDU": (10.0, date(2022, 6, 21)),  # Four Seasons Education - ratio changed from 1:2
+    "LITB": (12.0, date(2024, 9, 5)),  # LightInTheBox - ratio changed
+    "TOUR": (30.0, date(2026, 4, 22)),  # Tuniu - ratio changed from 1:3
 }
 
 
-def _fpi_ads_adjusted_eps(symbol: str, eps: Any) -> Any:
-    """Divide a foreign private issuer's SEC-tagged (ordinary-share-basis) EPS by its
+def _fpi_ads_adjusted_eps(symbol: str, eps: Any, fiscal_year: int | None) -> Any:
+    """Multiply a foreign private issuer's SEC-tagged (ordinary-share-basis) EPS by its
     confirmed ADS ratio so it matches the ADS-basis price/shares_out used everywhere else in
-    this file (see FPI_EPS_ADS_RATIO_OVERRIDES' own module-level comment).
+    this file (see FPI_EPS_ADS_RATIO_OVERRIDES' own module-level comment). A fiscal year ending
+    before a registered ratio's effective_date used a different, unresearched ratio and is left
+    unadjusted rather than guessed - same discipline as _split_adjusted_eps above.
     """
     if eps is None:
         return eps
-    ratio = FPI_EPS_ADS_RATIO_OVERRIDES.get(symbol)
-    if ratio is None:
+    override = FPI_EPS_ADS_RATIO_OVERRIDES.get(symbol)
+    if override is None:
         return eps
-    return float(eps) / ratio
+    multiplier, effective_date = override
+    if effective_date is not None and (fiscal_year is None or date(fiscal_year, 12, 31) < effective_date):
+        return eps
+    return float(eps) * multiplier
 
 
 class SecValuationsLoader(OptimalLoader):
@@ -581,7 +617,7 @@ class SecValuationsLoader(OptimalLoader):
                 # See RECENT_STOCK_SPLITS' own module-level comment (BKNG 25-for-1, 2026-04-02).
                 ttm_eps_basic = _split_adjusted_eps(symbol, ttm_eps_basic, ttm_eps_fiscal_year)
                 # See FPI_EPS_ADS_RATIO_OVERRIDES' own module-level comment (DDI, 20 ADS = 1 share).
-                ttm_eps_basic = _fpi_ads_adjusted_eps(symbol, ttm_eps_basic)
+                ttm_eps_basic = _fpi_ads_adjusted_eps(symbol, ttm_eps_basic, ttm_eps_fiscal_year)
 
                 # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
                 # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton
@@ -639,7 +675,7 @@ class SecValuationsLoader(OptimalLoader):
                 if len(income_rows) > 1 and not eps_substituted_from_row1:
                     prior_year_eps = income_rows[1][3]  # Index 3 = earnings_per_share
                     prior_year_eps = _split_adjusted_eps(symbol, prior_year_eps, income_rows[1][0])
-                    prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps)
+                    prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps, income_rows[1][0])
                 elif eps_substituted_from_row1:
                     # income_rows[1] was itself consumed above as the ttm_eps substitute (the
                     # premature-stub case) - re-fetch a genuinely older year rather than reuse it.
@@ -655,7 +691,9 @@ class SecValuationsLoader(OptimalLoader):
                     prior_year_eps = (
                         _split_adjusted_eps(symbol, older_eps_row[1], older_eps_row[0]) if older_eps_row else None
                     )
-                    prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps)
+                    prior_year_eps = _fpi_ads_adjusted_eps(
+                        symbol, prior_year_eps, older_eps_row[0] if older_eps_row else None
+                    )
                 else:
                     prior_year_eps = None
 
