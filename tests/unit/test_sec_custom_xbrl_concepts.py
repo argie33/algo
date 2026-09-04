@@ -16,6 +16,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_DEBT_CONCEPTS,
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
+    CUSTOM_DIVIDEND_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     _extract_dimensioned_sum_from_xbrl_xml,
     _extract_duration_dimensioned_sum_from_xbrl_xml,
@@ -24,12 +25,14 @@ from utils.external.sec_custom_xbrl_concepts import (
     extract_custom_capex_from_xbrl_xml,
     extract_custom_debt_longterm_from_xbrl_xml,
     extract_custom_debt_shortterm_from_xbrl_xml,
+    extract_custom_dividends_from_xbrl_xml,
     extract_custom_revenue_from_xbrl_xml,
     fetch_custom_capex,
     fetch_custom_capex_dimensioned_sum,
     fetch_custom_debt,
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
+    fetch_custom_dividends,
     fetch_custom_revenue,
 )
 
@@ -110,6 +113,48 @@ _APA_XML = """<?xml version="1.0" encoding="utf-8"?>
   <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-1-prior" unitRef="usd" decimals="-6">9739000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
   <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-450" unitRef="usd" decimals="-6">5541000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
   <apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments contextRef="c-q4-2025" unitRef="usd" decimals="-6">2200000000</apa:RevenuesAndRealizedGainsLossesOnDerivativeInstruments>
+</xbrl>
+"""
+
+# Mirrors the real structure confirmed live 2026-09-03 against CMS Energy's actual filed
+# FY2025 10-K raw XBRL instance document (accession 0000811156-26-000004,
+# cms-20251231_htm.xml): contexts "c-1"/"c-12"/"c-13" (plain, no segment/scenario
+# dimension) carry the real FY2025/FY2024/FY2023 dividends-paid totals; "c-99" is a
+# segment-dimensioned decoy and "c-q4" a Q4-only (92-day) decoy, neither of which may be
+# counted.
+_CMS_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:cms="http://www.cmsenergy.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000811156</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-12">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000811156</identifier></entity>
+    <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
+  </context>
+  <context id="c-13">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000811156</identifier></entity>
+    <period><startDate>2023-01-01</startDate><endDate>2023-12-31</endDate></period>
+  </context>
+  <context id="c-99">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000811156</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="us-gaap:StatementBusinessSegmentsAxis">cms:ElectricUtilityMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-q4">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0000811156</identifier></entity>
+    <period><startDate>2025-10-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <cms:PaymentsOfOrdinaryDividendsCommonAndPreferred contextRef="c-1" unitRef="usd" decimals="-6">663000000</cms:PaymentsOfOrdinaryDividendsCommonAndPreferred>
+  <cms:PaymentsOfOrdinaryDividendsCommonAndPreferred contextRef="c-12" unitRef="usd" decimals="-6">626000000</cms:PaymentsOfOrdinaryDividendsCommonAndPreferred>
+  <cms:PaymentsOfOrdinaryDividendsCommonAndPreferred contextRef="c-13" unitRef="usd" decimals="-6">579000000</cms:PaymentsOfOrdinaryDividendsCommonAndPreferred>
+  <cms:PaymentsOfOrdinaryDividendsCommonAndPreferred contextRef="c-99" unitRef="usd" decimals="-6">400000000</cms:PaymentsOfOrdinaryDividendsCommonAndPreferred>
+  <cms:PaymentsOfOrdinaryDividendsCommonAndPreferred contextRef="c-q4" unitRef="usd" decimals="-6">170000000</cms:PaymentsOfOrdinaryDividendsCommonAndPreferred>
 </xbrl>
 """
 
@@ -292,6 +337,72 @@ def test_custom_revenue_concepts_registry_is_well_formed():
     guard against an accidental empty-list entry that would silently resolve to no data."""
     assert "APA" in CUSTOM_REVENUE_CONCEPTS
     for symbol, concepts in CUSTOM_REVENUE_CONCEPTS.items():
+        assert concepts, f"{symbol} has an empty concept list"
+        for prefix, local_name in concepts:
+            assert prefix and local_name
+
+
+class TestExtractCustomDividendsFromXbrlXml:
+    def test_cms_returns_the_consolidated_total_for_each_fiscal_year(self):
+        result = extract_custom_dividends_from_xbrl_xml(_CMS_XML, "CMS")
+        assert result[2025] == 663_000_000.0
+        assert result[2024] == 626_000_000.0
+        assert result[2023] == 579_000_000.0
+
+    def test_cms_excludes_dimensionally_scoped_segment_fact(self):
+        result = extract_custom_dividends_from_xbrl_xml(_CMS_XML, "CMS")
+        # The $400M segment-scoped value must never be summed into or replace the real
+        # $663M consolidated FY2025 total.
+        assert result[2025] == 663_000_000.0
+
+    def test_cms_excludes_non_annual_duration_context(self):
+        result = extract_custom_dividends_from_xbrl_xml(_CMS_XML, "CMS")
+        # The $170M Q4-only (92-day) value must not be counted into the FY2025 bucket.
+        assert result[2025] == 663_000_000.0
+
+    def test_unregistered_symbol_returns_empty_without_parsing(self):
+        assert extract_custom_dividends_from_xbrl_xml(_CMS_XML, "SOME_OTHER_SYMBOL") == {}
+
+    def test_malformed_xml_does_not_match_wrong_symbol_data(self):
+        assert extract_custom_dividends_from_xbrl_xml(_APA_XML, "CMS") == {}
+
+
+class TestFetchCustomDividends:
+    def test_unregistered_symbol_never_calls_sec_client(self):
+        sec_client = MagicMock()
+        result = fetch_custom_dividends("AAPL", sec_client)
+        assert result == {}
+        sec_client.symbol_to_cik.assert_not_called()
+
+    def test_registered_symbol_fetches_latest_annual_filing_and_parses(self):
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.return_value = "0000811156"
+        sec_client.get_submissions.return_value = {
+            "filings": {
+                "recent": {
+                    "form": ["8-K", "10-K", "10-K"],
+                    "accessionNumber": ["0000000000-26-000001", "0000811156-26-000004", "0000811156-25-000036"],
+                }
+            }
+        }
+        sec_client.get_filing_xml.return_value = _CMS_XML
+
+        result = fetch_custom_dividends("CMS", sec_client)
+
+        assert result[2025] == 663_000_000.0
+        sec_client.get_filing_xml.assert_called_once_with("0000811156", "0000811156-26-000004", "10-K")
+
+    def test_sec_client_failure_returns_empty_not_raise(self):
+        sec_client = MagicMock()
+        sec_client.symbol_to_cik.side_effect = RuntimeError("network error")
+        assert fetch_custom_dividends("CMS", sec_client) == {}
+
+
+def test_custom_dividend_concepts_registry_is_well_formed():
+    """Every registered symbol must map to at least one (prefix, local_name) tuple - a
+    guard against an accidental empty-list entry that would silently resolve to no data."""
+    assert "CMS" in CUSTOM_DIVIDEND_CONCEPTS
+    for symbol, concepts in CUSTOM_DIVIDEND_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
             assert prefix and local_name

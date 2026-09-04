@@ -49,12 +49,14 @@ from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     CUSTOM_DEBT_CONCEPTS,
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
+    CUSTOM_DIVIDEND_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
     fetch_custom_capex,
     fetch_custom_capex_dimensioned_sum,
     fetch_custom_debt,
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
+    fetch_custom_dividends,
     fetch_custom_revenue,
 )
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
@@ -779,6 +781,11 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # as custom_extension_vessel_capex above (see CUSTOM_CAPEX_DIMENSIONED_CONCEPTS's
         # docstring in sec_custom_xbrl_concepts.py).
         "custom_extension_capex_dimensioned_sum",
+        # FIXED 2026-09-03 (same sweep): CMS's custom-extension dividends_paid - same
+        # "never win over a real value the normal concept-list extraction already found"
+        # reasoning as the capex/revenue custom-extension fields above (see
+        # CUSTOM_DIVIDEND_CONCEPTS's docstring in sec_custom_xbrl_concepts.py).
+        "custom_extension_dividends_paid",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): ED's
         # narrower "construction work in progress" concept - see this dict's own comment
         # on "payments_for_construction_in_process" above and sec_statements.py's
@@ -1059,6 +1066,12 @@ _CASHFLOW_FIELD_MAPPING = {
     # overwrite a real standard-concept value.
     "payments_for_construction_in_process": "capex",
     "payments_of_dividends": "dividends_paid",
+    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): CMS's
+    # filer-specific custom XBRL extension dividends concept - see
+    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DIVIDEND_CONCEPTS docstring.
+    # fallback_only (see _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so it never overwrites a
+    # real value the normal SEC extraction already found.
+    "custom_extension_dividends_paid": "dividends_paid",
     # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
     # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but
     # never mapped here - same "fetched but unmapped" bug class this file has hit
@@ -2138,35 +2151,8 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             self._reject_shared_etf_cik_data(symbol)
             return [self._unavailable_marker(symbol, "shared_issuer_or_trust_cik_not_attributable")]
         rows = super().fetch_incremental(symbol, since)
-        # FIXED 2026-08-29 (goal: "full data" audit continuation, shipping-sector capex
-        # follow-up): CUSTOM_CAPEX_CONCEPTS-registered symbols have their real capex
-        # tagged under a filer-specific custom XBRL extension concept that SEC's
-        # companyfacts API (what `super().fetch_incremental()`'s normal concept-list
-        # extraction uses) structurally never returns - see
-        # utils/external/sec_custom_xbrl_concepts.py's module docstring for the live
-        # evidence this is an API limitation, not an unchecked concept name. Cheap no-op
-        # for every other symbol (dict lookup miss, zero extra network calls).
-        if self.statement_type == "cashflow" and symbol in CUSTOM_CAPEX_CONCEPTS:
-            custom_capex_by_year = fetch_custom_capex(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_capex_by_year:
-                    row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
-
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
-        # no_recent_free_cash_flow_reported continuation): same structural gap as the block
-        # above, for filers whose real capex is a standard concept but never tagged as a
-        # single total - only split across N PropertyPlantAndEquipmentByTypeAxis (or
-        # similar) members, which the normal concept-list extraction's "exclude every
-        # dimensioned context" rule can never see. See
-        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_CAPEX_DIMENSIONED_CONCEPTS
-        # docstring for the live-verified NJR evidence. Cheap no-op for every other symbol.
-        if self.statement_type == "cashflow" and symbol in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS:
-            dimensioned_capex_by_year = fetch_custom_capex_dimensioned_sum(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in dimensioned_capex_by_year:
-                    row["custom_extension_capex_dimensioned_sum"] = dimensioned_capex_by_year[fiscal_year]
+        if self.statement_type == "cashflow":
+            self._apply_custom_cashflow_extensions(symbol, rows)
 
         # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit, no_revenue_reported bucket):
         # same structural gap as the capex block above, for the top-line revenue figure -
@@ -2307,6 +2293,48 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     continue  # Real data present for at least one field - not the all-None case
                 self._reject_stale_all_none_annual_row(symbol, row)
         return rows
+
+    def _apply_custom_cashflow_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
+        """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension
+        cash-flow fallbacks, for symbols where the normal companyfacts-driven concept-list
+        extraction structurally can't reach the real figure. Extracted out of
+        fetch_incremental() to keep its own cyclomatic complexity in check (ruff C901) -
+        purely a call-site split, no behavior change (same reasoning as
+        _apply_custom_debt_extensions below, for the balance-sheet case).
+
+        - CUSTOM_CAPEX_CONCEPTS (DHT/CMRE/...): filer-specific custom XBRL extension
+          concept(s) -> custom_extension_vessel_capex (capex). See
+          utils/external/sec_custom_xbrl_concepts.py's module docstring.
+        - CUSTOM_CAPEX_DIMENSIONED_CONCEPTS (NJR/MUX): real capex split across N axis
+          members with no consolidated total -> custom_extension_capex_dimensioned_sum
+          (capex). See that module's CUSTOM_CAPEX_DIMENSIONED_CONCEPTS docstring.
+        - CUSTOM_DIVIDEND_CONCEPTS (CMS): filer-specific custom XBRL extension dividends
+          concept -> custom_extension_dividends_paid (dividends_paid). See that module's
+          CUSTOM_DIVIDEND_CONCEPTS docstring.
+
+        Cheap no-op for every symbol in none of these registries (dict lookup miss, zero
+        extra network calls) - only called when self.statement_type == "cashflow".
+        """
+        if symbol in CUSTOM_CAPEX_CONCEPTS:
+            custom_capex_by_year = fetch_custom_capex(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_capex_by_year:
+                    row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
+
+        if symbol in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS:
+            dimensioned_capex_by_year = fetch_custom_capex_dimensioned_sum(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in dimensioned_capex_by_year:
+                    row["custom_extension_capex_dimensioned_sum"] = dimensioned_capex_by_year[fiscal_year]
+
+        if symbol in CUSTOM_DIVIDEND_CONCEPTS:
+            custom_dividends_by_year = fetch_custom_dividends(symbol, self._sec_client)
+            for row in rows:
+                fiscal_year = row.get("fiscal_year")
+                if fiscal_year in custom_dividends_by_year:
+                    row["custom_extension_dividends_paid"] = custom_dividends_by_year[fiscal_year]
 
     def _apply_custom_debt_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
         """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension

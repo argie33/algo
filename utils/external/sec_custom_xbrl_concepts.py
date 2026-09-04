@@ -265,6 +265,23 @@ CUSTOM_REVENUE_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "APA": [("apa", "RevenuesAndRealizedGainsLossesOnDerivativeInstruments")],
 }
 
+# FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
+# sustainable_growth_rate/dividend_yield "real recent payer, dividends_paid NULL" audit): CMS
+# (CMS Energy, CIK 0000811156) tagged standard "PaymentsOfOrdinaryDividends"/
+# "PaymentsOfDividendsCommonStock" through FY2022 ($546M) but neither concept has any FY2023+
+# fact at all - live-confirmed real current dividends continue, tagged only under CMS's own
+# extension concept `cms:PaymentsOfOrdinaryDividendsCommonAndPreferred` (a combined common+
+# preferred total, distinct from the old common-only figure but the correct total-cash-outflow
+# figure for this field's purpose) - FY2025 $663M/FY2024 $626M/FY2023 $579M, all plain
+# non-dimensioned contexts, consistent growth trajectory from the last real FY2022 value.
+# Confirmed absent from companyfacts entirely (`facts['facts']['cms']` is empty) - same
+# structural companyfacts-excludes-custom-namespace-concepts limitation as
+# CUSTOM_CAPEX_CONCEPTS/CUSTOM_REVENUE_CONCEPTS above, verified against the real FY2025 10-K
+# raw XBRL instance document (accession 0000811156-26-000004, cms-20251231_htm.xml).
+CUSTOM_DIVIDEND_CONCEPTS: dict[str, list[tuple[str, str]]] = {
+    "CMS": [("cms", "PaymentsOfOrdinaryDividendsCommonAndPreferred")],
+}
+
 
 def _local_name(tag: str) -> str:
     """Strip the Clark-notation namespace from an ElementTree tag."""
@@ -471,6 +488,16 @@ def extract_custom_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[
     return _extract_values_for_concepts(xml_content, CUSTOM_REVENUE_CONCEPTS.get(symbol))
 
 
+def extract_custom_dividends_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known custom dividends-paid
+    concept(s) (see CUSTOM_DIVIDEND_CONCEPTS), returning {fiscal_year: summed_value}.
+
+    Only meaningful for symbols in CUSTOM_DIVIDEND_CONCEPTS - returns {} immediately for any
+    other symbol (never guesses at unregistered concept names).
+    """
+    return _extract_values_for_concepts(xml_content, CUSTOM_DIVIDEND_CONCEPTS.get(symbol))
+
+
 _ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
 # BASE (non-amendment) forms only - tried first. See _fetch_custom_concept's docstring.
 _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
@@ -550,6 +577,15 @@ def fetch_custom_revenue(symbol: str, sec_client: Any) -> dict[int, float]:
     data", not raise.
     """
     return _fetch_custom_concept(symbol, sec_client, CUSTOM_REVENUE_CONCEPTS, extract_custom_revenue_from_xbrl_xml)
+
+
+def fetch_custom_dividends(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known custom dividends-paid
+    concept(s). Returns {} if symbol isn't in CUSTOM_DIVIDEND_CONCEPTS, the filing can't be
+    found, or the XML can't be parsed - callers should treat that as "no fallback data", not
+    raise.
+    """
+    return _fetch_custom_concept(symbol, sec_client, CUSTOM_DIVIDEND_CONCEPTS, extract_custom_dividends_from_xbrl_xml)
 
 
 # FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, total_debt_not_
