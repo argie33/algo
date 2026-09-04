@@ -2916,6 +2916,87 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
                     "interest_expense row(s) as FY_annual - 9mo_YTD."
                 )
+        self._sweep_derive_missing_q4_pretax_and_tax()
+
+    def _sweep_derive_missing_q4_pretax_and_tax(self) -> None:
+        """Derive pretax_income/income_tax_expense for a missing Q4 quarterly_income_statement
+        row as FY_annual - (Q1+Q2+Q3), same identity as interest_expense above, as two more
+        independent UPDATEs (each field gated on its own null-check only). Live-confirmed
+        27,992 pretax_income / 27,836 income_tax_expense rows recoverable - comparable in
+        scale to interest_expense, both feed operating_margin/roic_pct/effective-tax-rate
+        inputs elsewhere.
+
+        Unlike revenue/interest_expense, NEITHER field gets a non-negative floor: a real Q4
+        can legitimately post a pretax LOSS (a floor would reject genuine bad quarters) and a
+        real income_tax_expense can legitimately be negative (a tax BENEFIT in a loss
+        quarter) - same "no floor" treatment already given to net_income in
+        _sweep_derive_missing_q4() above, for the identical reason.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_income_statement q4
+                   SET pretax_income = derived.pretax_income,
+                       data_source = 'derived_fy_minus_9m'
+                  FROM (
+                        SELECT q4x.id,
+                               a.pretax_income - (q1.pretax_income + q2.pretax_income + q3.pretax_income) AS pretax_income
+                          FROM quarterly_income_statement q4x
+                          JOIN annual_income_statement a
+                            ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                          JOIN quarterly_income_statement q1
+                            ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                          JOIN quarterly_income_statement q2
+                            ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_income_statement q3
+                            ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q4x.fiscal_quarter = 4
+                           AND q4x.pretax_income IS NULL
+                           AND a.pretax_income IS NOT NULL
+                           AND q1.pretax_income IS NOT NULL
+                           AND q2.pretax_income IS NOT NULL
+                           AND q3.pretax_income IS NOT NULL
+                       ) AS derived
+                 WHERE q4.id = derived.id
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
+                    "pretax_income row(s) as FY_annual - 9mo_YTD."
+                )
+            cur.execute(
+                """
+                UPDATE quarterly_income_statement q4
+                   SET income_tax_expense = derived.income_tax_expense,
+                       data_source = 'derived_fy_minus_9m'
+                  FROM (
+                        SELECT q4x.id,
+                               a.income_tax_expense - (q1.income_tax_expense + q2.income_tax_expense + q3.income_tax_expense) AS income_tax_expense
+                          FROM quarterly_income_statement q4x
+                          JOIN annual_income_statement a
+                            ON a.symbol = q4x.symbol AND a.fiscal_year = q4x.fiscal_year
+                          JOIN quarterly_income_statement q1
+                            ON q1.symbol = q4x.symbol AND q1.fiscal_year = q4x.fiscal_year AND q1.fiscal_quarter = 1
+                          JOIN quarterly_income_statement q2
+                            ON q2.symbol = q4x.symbol AND q2.fiscal_year = q4x.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_income_statement q3
+                            ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q4x.fiscal_quarter = 4
+                           AND q4x.income_tax_expense IS NULL
+                           AND a.income_tax_expense IS NOT NULL
+                           AND q1.income_tax_expense IS NOT NULL
+                           AND q2.income_tax_expense IS NOT NULL
+                           AND q3.income_tax_expense IS NOT NULL
+                       ) AS derived
+                 WHERE q4.id = derived.id
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_income_statement] post_run(): derived {cur.rowcount} Q4 "
+                    "income_tax_expense row(s) as FY_annual - 9mo_YTD."
+                )
 
     def _sweep_missing_free_cash_flow(self) -> None:
         """Table-wide free_cash_flow = operating_cash_flow - capex recompute, independent of
