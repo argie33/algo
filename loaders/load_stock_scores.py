@@ -1596,14 +1596,26 @@ class StockScoresLoader(OptimalLoader):
                     f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 25. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[24]
-            # If marked unavailable, return marker even if row exists
-            if data_unavailable:
-                logger.debug(
-                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in growth_metrics "
-                    f"(likely security with missing SEC filings)"
-                )
-                return marker_not_applicable(symbol, "growth_metrics")
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction, real-scoring-consumption
+            # follow-up to load_value_quality_growth_metrics.py's row-level unavailable fix):
+            # this used to wholesale-discard the ENTIRE row via marker_not_applicable whenever
+            # data_unavailable=True, even when individual fields carried real, non-NULL values -
+            # notably quarterly_growth_momentum/earnings_growth_4q_avg, which
+            # _mirror_shared_trend_fields() deliberately writes into growth_metrics regardless
+            # of the row's own data_unavailable flag (see that function's 2026-09-03 fix
+            # docstring: "growth_dict's own data_unavailable still gates the write target" -
+            # the individual columns ARE written, just previously never reached this far).
+            # Live-confirmed 121 growth_metrics rows have data_unavailable=TRUE but a real
+            # quarterly_growth_momentum/earnings_growth_4q_avg/sustainable_growth_rate value
+            # sitting in the table - the Coverage dashboard already showed these correctly (it
+            # reads raw columns), but real composite scoring discarded them entirely here.
+            # _score_growth's own multi-field blend below is already designed for partial
+            # availability (GROWTH_MIN_FIELDS_AVAILABLE floor, equal-weighted renormalization
+            # over whichever GROWTH_SCORE_FIELDS candidates are non-NULL) - it just never got
+            # the chance to see these rows' real fields. A genuinely fully-empty row (data_
+            # unavailable=True, every field NULL) still safely falls through to _score_growth's
+            # own "no_growth_inputs_available" marker below, just via that path instead of this
+            # one - same outcome, no regression.
 
             def _scale_fraction_to_pct(val: float | None) -> float | None:
                 """forward_eps_growth_current_fy/next_fy and forward_revenue_growth_next_fy are
