@@ -1227,6 +1227,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             ev_ebitda_reason = "total_debt_not_itemized"
         elif _computed_ev_for_reason is not None and _computed_ev_for_reason <= 0:
             ev_ebitda_reason = "negative_enterprise_value"
+        # FIXED 2026-09-03 (SEC/XBRL missing-data sweep) - see pb_ratio_reason's identical fix
+        # further below for the full rationale; ev_ebitda is one of the same fields
+        # _sanity_check_market_cap nulls on a shares_outstanding scale mismatch. Placed last so
+        # a real ebitda_raw<=0/no-debt-itemized/negative-EV cause above still wins.
+        elif row_dict.get("reason") == "shares_outstanding_scale_mismatch":
+            ev_ebitda_reason = "shares_outstanding_scale_mismatch"
         else:
             ev_ebitda_reason = "missing_sec_data"
 
@@ -1240,6 +1246,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if symbol in self._get_no_recent_free_cash_flow_symbols()
                 else "capex_never_tagged_in_recent_filings"
                 if symbol in self._get_no_recent_capex_symbols()
+                # FIXED 2026-09-03 (SEC/XBRL missing-data sweep) - fcf_yield is also nulled by
+                # _sanity_check_market_cap's shares_outstanding scale-mismatch guard (fcf_yield
+                # divides by market_cap); this also fixes intrinsic_value/margin_of_safety's
+                # own reasons below, which derive from this same fcf_yield_reason_str.
+                else "shares_outstanding_scale_mismatch"
+                if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
                 else "missing_sec_data"
             )
             if fcf_yield is None
@@ -1595,6 +1607,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # ambiguous remainder.
                 else "stockholders_equity_never_tagged_in_filings"
                 if equity_row is None
+                # FIXED 2026-09-03 (SEC/XBRL missing-data sweep, sibling of the eps_scale_
+                # mismatch fix just above for pe_ratio/peg_ratio): _sanity_check_market_cap
+                # (load_sec_valuations.py) deliberately nulls pb_ratio/ps_ratio/market_cap/
+                # fcf_yield/ev_ebitda/ev_revenue/intrinsic_value/margin_of_safety together on a
+                # >10x SEC-vs-yfinance market_cap disagreement and records
+                # "shares_outstanding_scale_mismatch" on the row - but when the row still
+                # resolves overall (data_unavailable stays False, e.g. pe_ratio survived since
+                # it doesn't depend on shares_outstanding), that reason was never consulted here,
+                # only in the whole-row-unavailable early return above. Placed LAST (real
+                # per-field gates above still win, e.g. GV's genuine negative_book_value) so this
+                # only replaces the generic fallback, never a more specific true cause.
+                # Live-confirmed UHAL/GV/FTW (3 of 16 universe shares_outstanding_scale_mismatch
+                # rows with data_unavailable=False) hit this exact gap.
+                else "shares_outstanding_scale_mismatch"
+                if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
                 else "missing_sec_data"
             )
 
@@ -1648,6 +1675,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # year - see _get_revenue_absent_from_anchor_year_symbols()'s docstring.
                     else "revenue_absent_from_anchor_year"
                     if symbol in self._get_revenue_absent_from_anchor_year_symbols()
+                    # FIXED 2026-09-03 (SEC/XBRL missing-data sweep) - see pb_ratio_reason's
+                    # identical shares_outstanding_scale_mismatch fix just above for the full
+                    # rationale; ps_ratio is one of the same fields _sanity_check_market_cap nulls.
+                    else "shares_outstanding_scale_mismatch"
+                    if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
                     else "missing_sec_data"
                 )
                 if ps is None
@@ -1694,12 +1726,33 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Live-confirmed 54/98 (55%) of the post-backfill residual is this case.
                     else "revenue_absent_from_anchor_year"
                     if symbol in self._get_revenue_absent_from_anchor_year_symbols()
+                    # FIXED 2026-09-03 (SEC/XBRL missing-data sweep) - see pb_ratio_reason's
+                    # identical fix above for the full rationale; ev_revenue is one of the same
+                    # fields _sanity_check_market_cap nulls on a shares_outstanding scale
+                    # mismatch. Placed last so a real revenue-shaped cause above still wins.
+                    else "shares_outstanding_scale_mismatch"
+                    if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
                     else "missing_sec_data"
                 )
                 if ev_revenue is None
                 else None
             ),
-            "market_cap_unavailable_reason": "missing_sec_data" if market_cap is None else None,
+            "market_cap_unavailable_reason": (
+                (
+                    # FIXED 2026-09-03 (SEC/XBRL missing-data sweep): this was hardcoded
+                    # "missing_sec_data" regardless of cause - the one field here that never even
+                    # attempted a specific reason. market_cap is the FIRST field
+                    # _sanity_check_market_cap nulls on a shares_outstanding scale mismatch (see
+                    # pb_ratio_reason's identical fix above for the full rationale), and unlike
+                    # pb/ps/ev_ebitda/ev_revenue it has no other real gate to defer to, so this
+                    # reason can be checked unconditionally rather than as a last-resort fallback.
+                    "shares_outstanding_scale_mismatch"
+                    if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
+                    else "missing_sec_data"
+                )
+                if market_cap is None
+                else None
+            ),
             "intrinsic_value_unavailable_reason": intrinsic_value_reason,
             "margin_of_safety_unavailable_reason": margin_of_safety_reason,
             "held_percent_institutions": held_percent_institutions,
