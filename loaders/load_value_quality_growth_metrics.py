@@ -4953,6 +4953,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("payout_ratio")
                 if dividends_paid_with_prior_year_fallback is not None and net_income is not None and net_income <= 0:
                     payout_ratio_reason = "unprofitable_stock"
+                # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                # bug class - same net_income_not_reported gate net_margin/roa/roe already use):
+                # net_income being genuinely never-tagged/no-recent (not just <= 0) was falling
+                # straight through to the dividend-history branch below and, if the symbol has
+                # real recent dividend history, landing on generic "missing_sec_data" instead of
+                # the specific net_income_not_reported reason.
+                elif net_income is None and (
+                    symbol in self._get_no_recent_net_income_symbols()
+                    or symbol in self._get_never_tagged_net_income_symbols()
+                ):
+                    payout_ratio_reason = "net_income_not_reported"
                 else:
                     # FIXED 2026-08-18: same "ever, not recently" gap as dividend_yield_reason
                     # above - a symbol that discontinued its dividend years ago (e.g. ENVA, last
