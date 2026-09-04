@@ -6793,6 +6793,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # recomputed.
                     else "revenue_absent_from_anchor_year"
                     if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same operating_income_not_itemized case wired into
+                    # operating_margin/interest_coverage above, missed here since ebitda_margin
+                    # also depends on operating_income via EBITDA = OperatingIncome + D&A - see
+                    # _get_no_recent_operating_income_symbols()'s docstring).
+                    else "operating_income_not_itemized"
+                    if symbol in self._get_no_recent_operating_income_symbols()
+                    or symbol in self._get_never_tagged_operating_income_symbols()
                     else "missing_sec_data"
                 )
                 if "ebitda_margin" in failed_metrics
@@ -6840,6 +6848,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol in self._get_no_recent_stockholders_equity_symbols()
                         or symbol in self._get_never_tagged_stockholders_equity_symbols()
                     )
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same operating_income_not_itemized case as ebitda_margin/
+                    # operating_margin/interest_coverage above): roic_pct's NOPAT numerator also
+                    # depends on operating_income being present.
+                    else "operating_income_not_itemized"
+                    if symbol in self._get_no_recent_operating_income_symbols()
+                    or symbol in self._get_never_tagged_operating_income_symbols()
                     else "missing_sec_data"
                 )
                 if "roic_pct" in failed_metrics
@@ -6882,6 +6897,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbol in self._get_no_recent_stockholders_equity_symbols()
                         or symbol in self._get_never_tagged_stockholders_equity_symbols()
                     )
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same operating_income_not_itemized case as roic_pct above):
+                    # roce_pct's NOPAT numerator also depends on operating_income being present.
+                    else "operating_income_not_itemized"
+                    if symbol in self._get_no_recent_operating_income_symbols()
+                    or symbol in self._get_never_tagged_operating_income_symbols()
                     else "missing_sec_data"
                 )
                 if "roce_pct" in failed_metrics
