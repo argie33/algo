@@ -1718,6 +1718,47 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 else "missing_sec_data"
             )
 
+        # ps_ratio implausible-ratio bound check (FIX 2026-09-04, goal: "Missing SEC/XBRL data"
+        # reduction, sibling of the pb_ratio implausible_ratio fix just above): load_sec_
+        # valuations.py's own ps computation rejects (silently logs, leaves NULL, no reason
+        # recorded) any ratio outside MIN_PLAUSIBLE_PS_RATIO(0.05)..10000 - ps_ratio_reason never
+        # re-checked that bound. By the time this runs, the no_revenue_reported/
+        # zero_revenue_reported_this_period/revenue_absent_from_anchor_year gates above have
+        # already ruled out "no real revenue anywhere" - so a real, positive revenue combined
+        # with a share count/price that pushes the ratio out of bounds is a genuine "not a
+        # meaningful ratio" case, not a missing one. Live-confirmed ACHR (FY2025 revenue=$300K
+        # against 624M shares - a real pre-revenue aerospace filer, ps~11895) and CWH (real
+        # $6.37B revenue but Class A-only shares_outstanding, ps~0.043, below the lower bound -
+        # a share-class mismatch that produces the same symptom).
+        _ps_implausible_ratio = False
+        if ps is None:
+            _ps_shares_out = safe_float(row_dict.get("shares_outstanding"), f"{symbol}.ps_reason_shares_outstanding")
+            _ps_current_price = safe_float(row_dict.get("current_price"), f"{symbol}.ps_reason_current_price")
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT revenue
+                    FROM annual_income_statement
+                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+                    ORDER BY (CASE WHEN revenue IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                _ps_revenue_row = cur.fetchone()
+            _ps_latest_revenue = (
+                safe_float(_ps_revenue_row[0], f"{symbol}.ps_reason_revenue") if _ps_revenue_row else None
+            )
+            if (
+                _ps_latest_revenue is not None
+                and _ps_latest_revenue > 0
+                and _ps_shares_out is not None
+                and _ps_current_price is not None
+                and _ps_shares_out > 0
+                and not (0.05 <= (_ps_current_price / (_ps_latest_revenue / _ps_shares_out)) <= 10000)
+            ):
+                _ps_implausible_ratio = True
+
         # Fetch held_percent fields from positioning_metrics (FIXED 2026-08-18)
         held_percent_institutions, held_percent_institutions_reason = self._fetch_positioning_metrics(symbol)
 
@@ -1778,6 +1819,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     # rationale; ps_ratio is one of the same fields _sanity_check_market_cap nulls.
                     else "shares_outstanding_scale_mismatch"
                     if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
+                    # See _ps_implausible_ratio's own computation just above this dict for the
+                    # full rationale (mirrors pb_ratio_reason's implausible_ratio branch above).
+                    else "implausible_ratio"
+                    if _ps_implausible_ratio
                     else "missing_sec_data"
                 )
                 if ps is None
@@ -4882,11 +4927,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                             (symbol,),
                         )
                         fallback_fcf_rows = cur.fetchall()
+                # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - Decimal/float crash):
+                # row[0]/row[1] are raw psycopg2 Decimal values (never passed through safe_float
+                # here, unlike every other numeric read in this function) - `Decimal * float`
+                # (the `* 100.0` below) raises TypeError, which propagates all the way up through
+                # this function's own outer try/except (see "Quality metrics compute failed" at
+                # this function's end) and wipes out EVERY quality_metrics field for the symbol
+                # (roa/roe/debt_to_equity/gross_profitability/quality_score/...) as generic
+                # "missing_sec_data" - not just fcf_margin. Live-confirmed via AIG (a real,
+                # large insurer whose net_income/total_assets were both present and would have
+                # produced a real roa/roe) hitting exactly this crash. Casting to float before
+                # the arithmetic, same convention as every other ratio in this file.
                 fallback_fcf_row = next(
                     (
                         row
                         for row in fallback_fcf_rows
-                        if row[1] is not None and row[1] > 0 and abs(row[0] / row[1] * 100.0) <= 1000
+                        if row[1] is not None
+                        and float(row[1]) > 0
+                        and abs(float(row[0]) / float(row[1]) * 100.0) <= 1000
                     ),
                     fallback_fcf_rows[0] if fallback_fcf_rows else None,
                 )
