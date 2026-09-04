@@ -134,6 +134,32 @@ class TestFxRateCache:
         assert rate == 7.7665
         assert session.calls == 1
 
+    def test_brl_is_a_major_currency_and_converts_via_historical_rate(self):
+        # ADDED 2026-09-04: BRL added - see fx_rates.py's module docstring for the full
+        # reasoning. Reverses the 2026-08-29 rejection: the volatility finding itself
+        # (28-29% year-over-year swings) is unchanged, but this is now an explicit,
+        # informed product decision to accept that noise in exchange for real balance-
+        # sheet/income-statement data for ~15+ Brazilian ADRs (ABEV/BBD/STNE/SUZ/CIG/VIV/
+        # XP/AZUL/TIMB/PAGS/...) that were otherwise permanently NULL. Frankfurter covers
+        # BRL (live-confirmed) and each fact is still converted at its own real historical
+        # date-of-record rate, never a guessed/current rate.
+        session = _FakeSession(rate=6.1847)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("BRL", "2024-12-31")
+        assert rate == 6.1847
+        assert session.calls == 1
+
+    def test_ars_stays_excluded_no_frankfurter_coverage(self):
+        # ARS was evaluated alongside BRL in the same 2026-09-04 session and stays
+        # excluded: unlike BRL, this is a structural source-availability gap, not a
+        # volatility judgment - Frankfurter returns {"message": "not found"} for ARS
+        # (live-confirmed `GET /2024-12-31?from=USD&to=ARS`), same as CLP/COP/TWD/KZT.
+        # No policy decision can fix a data source that doesn't exist.
+        session = _FakeSession(rate=1000.0)
+        cache = _isolated_cache(session)
+        assert cache.get_usd_rate("ARS", "2024-12-31") is None
+        assert session.calls == 0
+
     def test_sek_stays_excluded_too_volatile(self):
         # SEK was checked as a DKK/HKD-adjacent candidate (Ericsson reports in SEK, same
         # zeroed-statement shape) and does NOT clear the bar - see fx_rates.py's module

@@ -80,15 +80,32 @@ class TestTotalDollarFallback:
         assert results == []
 
     def test_non_major_currency_unit_rejected(self):
-        # BRL/CLP/COP-style emerging-market currencies stay behind the fail-closed guard,
-        # same discipline as the per-share extraction and sec_statements.py's FX handling.
+        # CLP/COP-style emerging-market currencies (no Frankfurter coverage at all) stay
+        # behind the fail-closed guard, same discipline as the per-share extraction and
+        # sec_statements.py's FX handling. BRL moved onto MAJOR_CURRENCIES 2026-09-04 (see
+        # fx_rates.py's module docstring) - see test_brl_currency_unit_converted below for
+        # its new behavior.
+        ifrs = {
+            "DividendsPaid": {
+                "units": {"CLP": [{"start": "2025-01-01", "end": "2025-12-31", "val": 5000000, "filed": "2026-03-01"}]}
+            }
+        }
+        results = _loader()._extract_total_dividends_from_xbrl_concept("X", ifrs, "DividendsPaid")
+        assert results == []
+
+    def test_brl_currency_unit_converted(self):
+        # ADDED 2026-09-04: BRL moved onto MAJOR_CURRENCIES (fx_rates.py) - a real BRL
+        # dividend fact should now convert to USD via its own historical date-of-record
+        # rate rather than being rejected outright, same as CNY/ZAR/DKK/HKD already do here.
         ifrs = {
             "DividendsPaid": {
                 "units": {"BRL": [{"start": "2025-01-01", "end": "2025-12-31", "val": 5000000, "filed": "2026-03-01"}]}
             }
         }
         results = _loader()._extract_total_dividends_from_xbrl_concept("X", ifrs, "DividendsPaid")
-        assert results == []
+        assert len(results) == 1
+        assert results[0]["currency"] == "USD"
+        assert results[0]["total_dividend_amount"] > 0
 
     def test_implausible_magnitude_rejected(self):
         us_gaap = {

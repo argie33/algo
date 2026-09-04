@@ -152,6 +152,25 @@ HKD, found via TDIC (a small HK-listed 20-F filer, same zeroed-statement shape),
 the bar trivially: year-over-year moves +/-0.6% or less (2021-2024, live-checked) - Hong
 Kong's currency board has pegged HKD to USD within a ~7.75-7.85 band since 1983, making it
 structurally more stable than every currency already on this list, JPY/CHF included. Added.
+
+ADDED 2026-09-04 (goal session: "SEC/XBRL missing data under 6k" sweep): BRL added, reversing
+the 2026-08-29 rejection above - NOT a re-assessment of the volatility (still the same real
+28-29% year-over-year swings, live-reconfirmed via `GET /2019-01-01?from=USD&to=BRL` = 3.8812
+vs `GET /2024-12-31?from=USD&to=BRL` = 6.1847), but an explicit, informed product decision:
+given a direct choice between "leave ~15+ real Brazilian ADRs' (ABEV/BBD/STNE/SUZ/CIG/VIV/XP/
+AZUL/TIMB/PAGS/...) balance-sheet and income-statement data permanently NULL" vs "convert it
+at each fact's own real historical date-of-record rate and accept that cross-year trend/growth
+metrics for these symbols will show real currency-driven noise on top of real business
+performance", the latter was chosen. This is real historical FX movement, not fabricated data
+or a bug - a Brazilian company's USD-equivalent revenue genuinely did move with BRL/USD, same
+as it does for every other currency on this list, just by a wider margin. Frankfurter serves
+BRL with real historical rates (confirmed above); sanity-checked ABEV's real FY2025 total_assets
+(BRL 145.087B) converts to ~$26.5B at that fiscal year-end's real rate (5.4778) - a plausible
+figure for Ambev's real balance sheet, no magnitude red flag. ARS was evaluated alongside BRL
+in this same session and stays excluded: Frankfurter returns `{"message":"not found"}` for ARS
+(live-confirmed `GET /2024-12-31?from=USD&to=ARS`) - a structural source-availability gap like
+CLP/COP/TWD/KZT above, not a volatility judgment, so no policy decision can fix it without a
+different historical-FX data source for ARS.
 """
 
 import json
@@ -170,7 +189,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
 MAJOR_CURRENCIES = frozenset(
-    {"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK", "HKD"}
+    {"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK", "HKD", "BRL"}
 )
 
 
