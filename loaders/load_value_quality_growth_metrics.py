@@ -7147,6 +7147,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # missing_sec_data rows are this exact case.
                     "reit_special_entity"
                     if no_operating_income_concept
+                    # FIX 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind
+                    # bug class - same operating_income_not_itemized case as ebitda_margin/
+                    # roic_pct/roce_pct/operating_margin/interest_coverage/operating_profitability
+                    # above): ebitda = OperatingIncome + D&A, so a real filer that never itemizes
+                    # a distinct operating income subtotal fails here too.
+                    else "operating_income_not_itemized"
+                    if symbol in self._get_no_recent_operating_income_symbols()
+                    or symbol in self._get_never_tagged_operating_income_symbols()
                     # FIX 2026-09-02 (goal: "no SEC data" audit continuation, same pattern as
                     # total_cash/cash_per_share above): ebitda_ev comes from the exact same
                     # ev_metrics tuple as total_cash_ev, so reuse the same sec_valuations `reason`
