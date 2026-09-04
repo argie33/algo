@@ -2519,6 +2519,39 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             total_liabilities = self._nan_to_none(
                 safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
             )
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same anchor-year fiscal
+            # mismatch bug class as stockholders_equity/total_assets's identical fixes above):
+            # debt_to_assets used ONLY the anchor row's own total_liabilities with no fallback.
+            # Live-confirmed 328 of 354 universe debt_to_assets "missing_sec_data" residual
+            # symbols have a real total_liabilities in SOME annual_balance_sheet year.
+            if total_liabilities is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT total_liabilities FROM annual_balance_sheet
+                        WHERE symbol = %s AND total_liabilities IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    _tl_fallback_row = cur.fetchone()
+                    if not _tl_fallback_row:
+                        cur.execute(
+                            """
+                            SELECT total_liabilities FROM annual_balance_sheet
+                            WHERE symbol = %s AND total_liabilities IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _tl_fallback_row = cur.fetchone()
+                if _tl_fallback_row:
+                    total_liabilities = self._nan_to_none(
+                        safe_float(_tl_fallback_row[0], f"{symbol}.total_liabilities_fallback_year", allow_none=True)
+                    )
             total_assets = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.total_assets", allow_none=True))
             # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same anchor-year fiscal
             # mismatch bug class as stockholders_equity's identical fix just above): the anchor
@@ -2561,9 +2594,71 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True)
             )
             current_assets = self._nan_to_none(safe_float(quality_row[6], f"{symbol}.current_assets", allow_none=True))
+            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same anchor-year fiscal
+            # mismatch bug class as stockholders_equity/total_assets/total_liabilities's
+            # identical fixes above): current_ratio/quick_ratio used ONLY the anchor row's own
+            # current_assets/current_liabilities with no fallback. Live-confirmed 301 of 359
+            # universe current_ratio "missing_sec_data" residual symbols have a real
+            # current_assets in SOME annual_balance_sheet year (300/359 for current_liabilities).
+            if current_assets is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT current_assets FROM annual_balance_sheet
+                        WHERE symbol = %s AND current_assets IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    _cua_fallback_row = cur.fetchone()
+                    if not _cua_fallback_row:
+                        cur.execute(
+                            """
+                            SELECT current_assets FROM annual_balance_sheet
+                            WHERE symbol = %s AND current_assets IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _cua_fallback_row = cur.fetchone()
+                if _cua_fallback_row:
+                    current_assets = self._nan_to_none(
+                        safe_float(_cua_fallback_row[0], f"{symbol}.current_assets_fallback_year", allow_none=True)
+                    )
             current_liabilities = self._nan_to_none(
                 safe_float(quality_row[7], f"{symbol}.current_liabilities", allow_none=True)
             )
+            if current_liabilities is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT current_liabilities FROM annual_balance_sheet
+                        WHERE symbol = %s AND current_liabilities IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    _cul_fallback_row = cur.fetchone()
+                    if not _cul_fallback_row:
+                        cur.execute(
+                            """
+                            SELECT current_liabilities FROM annual_balance_sheet
+                            WHERE symbol = %s AND current_liabilities IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _cul_fallback_row = cur.fetchone()
+                if _cul_fallback_row:
+                    current_liabilities = self._nan_to_none(
+                        safe_float(_cul_fallback_row[0], f"{symbol}.current_liabilities_fallback_year", allow_none=True)
+                    )
             inventory = self._nan_to_none(safe_float(quality_row[9], f"{symbol}.inventory", allow_none=True))
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
