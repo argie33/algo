@@ -430,10 +430,47 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # dimension - not a per-filer naming guess - lets a dot-suffixed ticker (BRK.A, BRK.B,
     # LEN.B, ...) claim its OWN class's real value instead of being permanently left NULL
     # alongside its sibling.
-    _CONTEXT_BLOCK_RE_TEMPLATE = r'<xbrli:context id="{}">.*?</xbrli:context>'
+    # FIXED 2026-09-04 (SEC/XBRL missing-data sweep, DGICA/DGICB shares_outstanding
+    # investigation): hardcoded `id="{}"` immediately after `<xbrli:context` assumed `id` is
+    # always the tag's only/first attribute - live-confirmed via Donegal Group's real, current
+    # 10-K (CIK 800457, accession 0001140361-26-008268) inline XBRL: its embedded contexts are
+    # tagged `<xbrli:context xmlns="" id="c4">` (an extra `xmlns=""` reset attribute some
+    # filing agents inject before `id` when a context is embedded inline in the HTML body
+    # rather than as a separate XBRL exhibit) - the exact-match template never found context
+    # "c4"/"c5", so `_class_letter_for_context` always returned None here and both DGICA and
+    # DGICB fell through to the ambiguous-reject path despite the filing actually tagging
+    # Class A (31,426,189) and Class B (5,576,775) shares distinctly under
+    # us-gaap:StatementClassOfStockAxis, same shape as the already-working BRK/LEN case. Now
+    # tolerates any attributes before AND after `id="..."`.
+    _CONTEXT_BLOCK_RE_TEMPLATE = r'<xbrli:context\b[^>]*\bid="{}"[^>]*>.*?</xbrli:context>'
     _CLASS_OF_STOCK_MEMBER_RE = re.compile(r'dimension="[^"]*ClassOfStockAxis"[^>]*>\s*([\w:.-]+)\s*<', re.IGNORECASE)
     _CLASS_LETTER_FROM_MEMBER_RE = re.compile(r"Class([A-Z])(?:Member)?\b")
-    _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\bClass\s+([A-Z])\b")
+    # FIXED 2026-09-04 (same sweep, continued): Liberty Media family tracking-stock spinoffs
+    # (FWONA/FWONK Liberty Formula One, GLIBA/GLIBK Liberty Capital/GCI, LLYVA/LLYVK Liberty
+    # Live, BATRA/BATRK Atlanta Braves Holdings) all name their security "Series {LETTER}",
+    # never "Class {LETTER}", in stock_symbols.security_name - live-confirmed each ticker's
+    # real security_name (e.g. "Liberty Media Corporation - Series A Liberty Formula One
+    # Common Stock") - so the Class-only pattern always returned None for every one of these,
+    # blocking `_target_class_letter` before it could even attempt dimensional resolution.
+    # Their underlying XBRL member is still the standard "CommonClass{A,B,C}Member" shape
+    # (live-confirmed via Liberty Media's real 10-K, CIK 1560385: contextRef ids embed
+    # "...LibertyFormulaOneGroupCommonClassBMember..."), so once the letter is recovered from
+    # "Series {LETTER}" it lines up correctly with the same class-letter matching used for
+    # Class-labeled filers.
+    _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\b(?:Class|Series)\s+([A-Z])\b")
+    # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
+    # generators) embed the full dimension/member name directly in the contextRef id string
+    # itself (e.g. "As_Of_1_31_2026_us-gaap_StatementClassOfStockAxis_lmca_
+    # LibertyFormulaOneGroupCommonClassBMember_Se1lZdhv3k...") rather than defining a separate
+    # short <xbrli:context id="c4"> block elsewhere with a nested explicitMember - live-
+    # confirmed via Liberty Media's real 10-K. `_class_letter_for_context` below tries this
+    # cheap direct match on the id string first (avoids a full-document context-block search
+    # entirely when the id is already self-describing) before falling back to the
+    # <xbrli:context> block lookup for filers with opaque short ids like Donegal's "c4"/"c5".
+    # Anchored to "CommonClass...Member" specifically (not the looser Class-letter pattern
+    # above) so it can't false-match "StatementClassOfStockAxis" itself, which is always
+    # present in the same id string and would otherwise wrongly yield letter "O".
+    _COMMON_CLASS_MEMBER_IN_ID_RE = re.compile(r"CommonClass([A-Z])Member")
 
     # ADDED 2026-09-02 (goal: SEC/XBRL missing-data sweep). multi_ticker_cik below exists to
     # detect genuine multi-COMMON-class ambiguity (BRK-A/BRK-B, HEI/HEI-A), but was counting
@@ -728,6 +765,9 @@ class CompanyInfoSECLoader(SecLoaderBase):
         None if this context has no such dimension (single-class filers, or an unrelated
         context reused from another fact) or the member name doesn't end in a bare letter.
         """
+        id_match = self._COMMON_CLASS_MEMBER_IN_ID_RE.search(context_id)
+        if id_match:
+            return id_match.group(1).upper()
         context_re = re.compile(
             self._CONTEXT_BLOCK_RE_TEMPLATE.format(re.escape(context_id)), re.IGNORECASE | re.DOTALL
         )
