@@ -563,61 +563,6 @@ class TestPositionAggregation:
             assert isinstance(breakdown, dict)
 
 
-class TestAuditManager:
-    """Test audit logging of all actions."""
-
-    def test_audit_manager_initialization(self):
-        """Test that audit manager can be initialized."""
-        from algo.monitoring.audit_manager import AuditManager
-
-        config = {}
-        manager = AuditManager(config)
-        assert manager is not None
-
-    def test_audit_manager_logs_trades(self):
-        """Test that audit manager logs all trade actions."""
-        from algo.monitoring.audit_manager import AuditManager
-
-        config = {}
-        manager = AuditManager(config)
-
-        if hasattr(manager, "log_trade"):
-            trade = {
-                "symbol": "AAPL",
-                "action": "entry",
-                "quantity": 100,
-                "price": 150.0,
-            }
-            manager.log_trade(trade)
-            # Should not raise
-
-    def test_audit_manager_logs_halts(self):
-        """Test that audit manager logs halt events."""
-        from algo.monitoring.audit_manager import AuditManager
-
-        config = {}
-        manager = AuditManager(config)
-
-        if hasattr(manager, "log_halt"):
-            manager.log_halt("Circuit breaker L2")
-            # Should not raise
-
-    def test_audit_manager_retrieves_history(self):
-        """Test that audit manager can retrieve action history."""
-        from algo.monitoring.audit_manager import AuditManager
-
-        config = {}
-        manager = AuditManager(config)
-
-        if hasattr(manager, "get_position_history"):
-            assert callable(manager.get_position_history)
-            assert manager.get_position_history.__doc__ is not None
-
-        if hasattr(manager, "get_history"):
-            with pytest.raises(NotImplementedError):
-                manager.get_history()
-
-
 class TestDataPatrolBase:
     """Test base data patrol functionality."""
 

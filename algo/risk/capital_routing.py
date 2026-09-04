@@ -84,15 +84,17 @@ rather than scoring VIX continuously. GLD/DBC are NOT MOVE-vetoed - MOVE is spec
 Treasury-market stress read, not a general risk-off signal, and gold in particular often
 benefits from exactly the flight-to-safety conditions that spike MOVE.
 
-WHAT THIS DOES NOT DO YET: this module computes and persists the routing DECISION only. It
-does not place orders. Wiring real Alpaca execution for GLD/IEF/DBC (sizing dollar amounts
-off portfolio value, order submission, exit logic) is real, hard-to-reverse production
-trading-system surgery into an execution path (`algo/trading/order_manager.py`,
-`algo/orchestrator/phase8_entry_execution.py`) that took this codebase many sessions of
-adversarial fuzz-testing to harden for the existing stock path alone (NaN/Infinity/
-magnitude-ceiling bugs found via fuzzing as late as 2026-08-11) - deliberately scoped out
-of this pass pending the user reviewing what this engine actually recommends day to day
-before any real (even paper) order flow gets wired to it.
+WHAT THIS DOES NOT DO, BY DECISION (confirmed 2026-09-04, real-money-readiness review): this
+module computes and persists the routing DECISION only. It does not place orders, and won't
+before real-money go-live - this is a settled scope decision, not a pending TODO. Wiring real
+Alpaca execution for GLD/IEF/DBC (sizing dollar amounts off portfolio value, order submission,
+exit logic) is real, hard-to-reverse production trading-system surgery into an execution path
+(`algo/trading/order_manager.py`, `algo/orchestrator/phase8_entry_execution.py`) that took
+this codebase many sessions of adversarial fuzz-testing to harden for the existing stock path
+alone (NaN/Infinity/magnitude-ceiling bugs found via fuzzing as late as 2026-08-11). The user
+explicitly chose to keep this advisory/metrics-only (persisted to `capital_routing_daily`,
+visible on the dashboard) rather than build execution now - revisit only if the user asks to
+extend the system to non-equity asset classes later.
 """
 
 from __future__ import annotations
