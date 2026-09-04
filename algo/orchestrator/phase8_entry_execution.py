@@ -1703,79 +1703,18 @@ def run(
         log_phase_result_fn(8, "entry_execution", "halt", error_msg)
         raise RuntimeError(error_msg) from e
 
-    # CRITICAL: Verify data freshness before executing trades
-
-    # Trades execute on EOD (after market close), so expect:
-    # - If today is a trading day: same-day data
-    # - If today is not a trading day: most recent trading day's data (within 10 days)
-
-    try:
-        from datetime import timedelta as td
-
-        with DatabaseContext("read") as cur:
-            cur.execute("""SELECT MAX(date) as latest_price_date FROM price_daily""")
-
-            result = cur.fetchone()
-            if result is None:
-                raise ValueError("Price data freshness query returned no results - price_daily table may be empty")
-
-            latest_price_date = result[0]
-            if latest_price_date is None:
-                # In dry-run/test mode, price_daily may be empty. Skip freshness check instead of crashing.
-                if dry_run:
-                    logger.warning(
-                        "[PHASE 8] Price data unavailable in dry-run mode (price_daily is empty). "
-                        "Skipping price freshness validation (acceptable for testing)."
-                    )
-                    latest_price_date = run_date  # Assume data is fresh for testing purposes
-                else:
-                    raise ValueError(
-                        "Price data freshness query returned NULL - price_daily table may have no valid dates"
-                    )
-
-            # Determine expected last trading day - allow previous trading day's data
-            # Phase 8 may run intraday (9 AM, 1 PM, 3 PM) before EOD data is available,
-            # so we require prices to be at most 1 trading day old (not necessarily same-day).
-            most_recent_trading_day = run_date
-            if not MarketCalendar.is_trading_day(most_recent_trading_day):
-                most_recent_trading_day = most_recent_trading_day - td(days=1)
-                while most_recent_trading_day > run_date - td(days=10):
-                    if MarketCalendar.is_trading_day(most_recent_trading_day):
-                        break
-                    most_recent_trading_day -= td(days=1)
-                if not MarketCalendar.is_trading_day(most_recent_trading_day):
-                    raise ValueError(f"No trading day found within 10 days of {run_date}")
-            # Find previous trading day as minimum acceptable price date
-            expected_price_date = most_recent_trading_day - td(days=1)
-            while expected_price_date > most_recent_trading_day - td(days=10):
-                if MarketCalendar.is_trading_day(expected_price_date):
-                    break
-                expected_price_date -= td(days=1)
-            if not MarketCalendar.is_trading_day(expected_price_date):
-                raise ValueError(f"No previous trading day found within 10 days of {most_recent_trading_day}")
-
-            if latest_price_date is None or latest_price_date < expected_price_date:
-                msg = (
-                    f"[PHASE 8 CRITICAL] Price data is not current (latest: {latest_price_date}, "
-                    f"expected: {expected_price_date}, run_date: {run_date}). "
-                    f"Cannot execute trades without current market data. "
-                    f"EOD price loader may not have completed - check data_loader_status and CloudWatch logs."
-                )
-
-                logger.critical(msg)
-
-                log_phase_result_fn(8, "entry_execution", "halt", msg)
-
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        msg = f"[PHASE 8 CRITICAL] Data freshness check failed: {e}"
-
-        logger.critical(msg)
-
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+    # REMOVED 2026-09-04 (goal: real-money-readiness push): this block was a second,
+    # independently-computed price-freshness re-validation - looser than, and redundant with,
+    # `_check_price_data_freshness()` already called earlier in this function (see its call
+    # site above), which is market-hours/early-close-aware and always runs first, returning
+    # early on failure. This second check could never actually let stale data through today
+    # (the first check already blocks it), but it used a different, less strict "at most 1
+    # trading day old" rule with no early-close/intraday awareness - the exact class of bug
+    # the first check's own 2026-08-24 fix addressed. Two different freshness methodologies
+    # guarding the same thing is a landmine: if the call order were ever refactored, this
+    # looser check would silently become the live one. Deleted rather than reconciled, since
+    # `_check_price_data_freshness()` already covers every case this one did (including the
+    # dry-run/empty-price_daily allowance, via its own "No price data yet" branch).
 
     # exposure_constraints validated above - guaranteed to exist and have all required fields
     # Additional fields may be present (tier_name, risk_multiplier) but are not required for entry execution
