@@ -134,16 +134,21 @@ class TestPostRunFlagsRequiredFieldForceNulls:
         assert len(fake_cur.execute_calls) == 1
 
     def test_cashflow_required_field_uses_operating_cash_flow(self) -> None:
+        # A cashflow-type run also triggers the 2026-09-03 free_cash_flow recompute sweep
+        # (see test_financial_statements_free_cash_flow_sweep_20260903.py) - one extra
+        # execute() call beyond the force-null + flag-sync pair this test itself covers.
         loader = _make_loader(statement_type="cashflow")
         loader._explicit_null_rejections = [
             ({"symbol": "FXE", "fiscal_year": 2021}, "operating_cash_flow"),
         ]
-        mock_ctx, fake_cur = _mock_write_context([1, 1])
+        mock_ctx, fake_cur = _mock_write_context([1, 1, 0])
         with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
             loader.post_run()
-        assert len(fake_cur.execute_calls) == 2
+        assert len(fake_cur.execute_calls) == 3
         flag_query, _ = fake_cur.execute_calls[1]
         assert "operating_cash_flow IS NULL" in flag_query
+        assert "UPDATE annual_cash_flow" in fake_cur.execute_calls[2][0]
+        assert "free_cash_flow = operating_cash_flow - capex" in fake_cur.execute_calls[2][0]
 
     def test_no_rejections_never_touches_flag_sync(self) -> None:
         loader = _make_loader(statement_type="balance")

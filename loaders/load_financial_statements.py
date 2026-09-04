@@ -2680,6 +2680,48 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                 )
         if self.statement_type == "income":
             self._sweep_stale_implausible_eps()
+        if self.statement_type == "cashflow" and self.table_name == "annual_cash_flow":
+            self._sweep_missing_free_cash_flow()
+
+    def _sweep_missing_free_cash_flow(self) -> None:
+        """Table-wide free_cash_flow = operating_cash_flow - capex recompute, independent of
+        what this run happened to fetch.
+
+        FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep):
+        free_cash_flow has no direct XBRL concept - sec_base.py's transform() derives it
+        in-row from THIS run's own freshly-fetched operating_cash_flow/capex only (see that
+        block's own comment). But free_cash_flow itself is not in preserve_on_missing_fields
+        (it's synthesized, not a field_mapping value), so bulk_insert()'s ON CONFLICT always
+        overwrites it with whatever this run's row computed - including NULL, whenever this
+        run's fetch came back without a fresh value for either input. operating_cash_flow and
+        capex ARE preserved (real field_mapping values), so a transient gap in either one
+        (rate limiting, a concept SEC didn't re-serve this run, an interim filing that simply
+        doesn't re-disclose the full cash-flow statement) leaves the DB with real, COALESCE-
+        preserved operating_cash_flow/capex but a wiped, never-recomputed free_cash_flow -
+        permanently, until some future run happens to fetch both fresh in the very same pass.
+        Live-confirmed 57 rows / 39 symbols (CNQ, DB, VET, BTE and others) with exactly this
+        shape: both real inputs on file, right now, but free_cash_flow NULL. Since the
+        recompute only ever needs the two values already committed in the table - not a fresh
+        SEC response - this sweep applies the identical `ocf - capex` formula directly
+        against the full table on every cash-flow-statement run, same "recompute from
+        already-stored real values" discipline as _sweep_stale_implausible_eps() above.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE annual_cash_flow
+                   SET free_cash_flow = operating_cash_flow - capex
+                 WHERE free_cash_flow IS NULL
+                   AND operating_cash_flow IS NOT NULL
+                   AND capex IS NOT NULL
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[annual_cash_flow] post_run(): recomputed {cur.rowcount} free_cash_flow "
+                    "row(s) that had both real operating_cash_flow and capex on file but a "
+                    "NULL free_cash_flow left behind by a prior run's incomplete refetch."
+                )
 
     def _sweep_stale_implausible_eps(self) -> None:
         """Table-wide implausible-EPS sweep, independent of what this run happened to fetch.
