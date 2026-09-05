@@ -38,7 +38,7 @@ import sys
 import time
 from datetime import date, datetime, timezone
 from math import isnan, sqrt
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 from psycopg2.extras import execute_values
@@ -1426,6 +1426,46 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             return None
         return value
 
+    def _fetch_annual_fallback_row(
+        self, table: str, columns: str, extra_where: str, symbol: str
+    ) -> tuple[Any, ...] | None:
+        """3yr-then-full-history search for a not-null annual value, used when the anchor row's
+        own value is NULL. `table`/`columns`/`extra_where` are always hardcoded strings from
+        this file, never user input.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                f"""
+                SELECT {columns} FROM {table}
+                WHERE symbol = %s {extra_where}
+                  AND data_unavailable IS NOT TRUE
+                  AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                ORDER BY fiscal_year DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            row = cur.fetchone()
+            if not row:
+                cur.execute(
+                    f"""
+                    SELECT {columns} FROM {table}
+                    WHERE symbol = %s {extra_where}
+                      AND data_unavailable IS NOT TRUE
+                    ORDER BY fiscal_year DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
+        return cast("tuple[Any, ...] | None", row)
+
+    def _fetch_balance_sheet_anchor_fallback(self, symbol: str, column: str) -> float | None:
+        """Single-column convenience wrapper around `_fetch_annual_fallback_row` for
+        annual_balance_sheet fields."""
+        row = self._fetch_annual_fallback_row("annual_balance_sheet", column, f"AND {column} IS NOT NULL", symbol)
+        if not row:
+            return None
+        return self._nan_to_none(safe_float(row[0], f"{symbol}.{column}_fallback_year", allow_none=True))
+
     def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]:
         """Fetch held_percent_institutions from positioning_metrics.
 
@@ -1941,171 +1981,35 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             # need the same 3-year-window-then-full-history fallback search already used
             # elsewhere in this file (roic_pct/roce_pct/debt_to_equity get it via
             # roic_stockholders_equity below).
+            # The anchor balance-sheet row (quality_row[0]) can have stockholders_equity NULL
+            # even though a nearby fiscal year has a real value - ROE/sustainable_growth_rate
+            # need the same 3-year-window-then-full-history fallback search already used
+            # elsewhere in this file (roic_pct/roce_pct/debt_to_equity get it via
+            # roic_stockholders_equity below). Same fallback pattern applies to
+            # total_liabilities/total_assets/current_assets/current_liabilities below.
             if stockholders_equity is None:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT stockholders_equity FROM annual_balance_sheet
-                        WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                          AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    _se_fallback_row = cur.fetchone()
-                    if not _se_fallback_row:
-                        cur.execute(
-                            """
-                            SELECT stockholders_equity FROM annual_balance_sheet
-                            WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                              AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        _se_fallback_row = cur.fetchone()
-                if _se_fallback_row:
-                    stockholders_equity = self._nan_to_none(
-                        safe_float(_se_fallback_row[0], f"{symbol}.stockholders_equity_fallback_year", allow_none=True)
-                    )
+                stockholders_equity = self._fetch_balance_sheet_anchor_fallback(symbol, "stockholders_equity")
             total_liabilities = self._nan_to_none(
                 safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
             )
-            # Same anchor-year fiscal mismatch as stockholders_equity's fallback above -
-            # debt_to_assets needs the same 3yr-then-full-history fallback search.
             if total_liabilities is None:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT total_liabilities FROM annual_balance_sheet
-                        WHERE symbol = %s AND total_liabilities IS NOT NULL
-                          AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    _tl_fallback_row = cur.fetchone()
-                    if not _tl_fallback_row:
-                        cur.execute(
-                            """
-                            SELECT total_liabilities FROM annual_balance_sheet
-                            WHERE symbol = %s AND total_liabilities IS NOT NULL
-                              AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        _tl_fallback_row = cur.fetchone()
-                if _tl_fallback_row:
-                    total_liabilities = self._nan_to_none(
-                        safe_float(_tl_fallback_row[0], f"{symbol}.total_liabilities_fallback_year", allow_none=True)
-                    )
+                total_liabilities = self._fetch_balance_sheet_anchor_fallback(symbol, "total_liabilities")
             total_assets = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.total_assets", allow_none=True))
-            # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same anchor-year fiscal
-            # mismatch bug class as stockholders_equity's identical fix just above): the anchor
-            # balance-sheet row can have total_assets NULL even though a nearby fiscal year has
-            # a real value. roa/asset_turnover used ONLY this bare anchor value with no
-            # fallback. Live-confirmed 343 of 370 universe roa "missing_sec_data" residual
-            # symbols have a real total_assets in SOME annual_balance_sheet year. Same 3-year-
-            # window-then-full-history search as every other field's fallback here.
             if total_assets is None:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT total_assets FROM annual_balance_sheet
-                        WHERE symbol = %s AND total_assets IS NOT NULL
-                          AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    _ta_fallback_row = cur.fetchone()
-                    if not _ta_fallback_row:
-                        cur.execute(
-                            """
-                            SELECT total_assets FROM annual_balance_sheet
-                            WHERE symbol = %s AND total_assets IS NOT NULL
-                              AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        _ta_fallback_row = cur.fetchone()
-                if _ta_fallback_row:
-                    total_assets = self._nan_to_none(
-                        safe_float(_ta_fallback_row[0], f"{symbol}.total_assets_fallback_year", allow_none=True)
-                    )
+                total_assets = self._fetch_balance_sheet_anchor_fallback(symbol, "total_assets")
             net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
             revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
             operating_income = self._nan_to_none(
                 safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True)
             )
             current_assets = self._nan_to_none(safe_float(quality_row[6], f"{symbol}.current_assets", allow_none=True))
-            # Same anchor-year fallback pattern as stockholders_equity/total_assets above -
-            # current_ratio/quick_ratio need current_assets/current_liabilities from any year,
-            # not just the anchor row.
             if current_assets is None:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT current_assets FROM annual_balance_sheet
-                        WHERE symbol = %s AND current_assets IS NOT NULL
-                          AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    _cua_fallback_row = cur.fetchone()
-                    if not _cua_fallback_row:
-                        cur.execute(
-                            """
-                            SELECT current_assets FROM annual_balance_sheet
-                            WHERE symbol = %s AND current_assets IS NOT NULL
-                              AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        _cua_fallback_row = cur.fetchone()
-                if _cua_fallback_row:
-                    current_assets = self._nan_to_none(
-                        safe_float(_cua_fallback_row[0], f"{symbol}.current_assets_fallback_year", allow_none=True)
-                    )
+                current_assets = self._fetch_balance_sheet_anchor_fallback(symbol, "current_assets")
             current_liabilities = self._nan_to_none(
                 safe_float(quality_row[7], f"{symbol}.current_liabilities", allow_none=True)
             )
             if current_liabilities is None:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT current_liabilities FROM annual_balance_sheet
-                        WHERE symbol = %s AND current_liabilities IS NOT NULL
-                          AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    _cul_fallback_row = cur.fetchone()
-                    if not _cul_fallback_row:
-                        cur.execute(
-                            """
-                            SELECT current_liabilities FROM annual_balance_sheet
-                            WHERE symbol = %s AND current_liabilities IS NOT NULL
-                              AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        _cul_fallback_row = cur.fetchone()
-                if _cul_fallback_row:
-                    current_liabilities = self._nan_to_none(
-                        safe_float(_cul_fallback_row[0], f"{symbol}.current_liabilities_fallback_year", allow_none=True)
-                    )
+                current_liabilities = self._fetch_balance_sheet_anchor_fallback(symbol, "current_liabilities")
             inventory = self._nan_to_none(safe_float(quality_row[9], f"{symbol}.inventory", allow_none=True))
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
@@ -2128,38 +2032,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 interest_coverage_operating_income is None and interest_coverage_pretax_income is None
             )
             if _interest_expense_invalid or _income_inputs_missing:
-                with DatabaseContext("read") as cur:
-                    # `data_unavailable IS NOT TRUE` prevents an incomplete/unfiled fiscal year's
-                    # stub value from being picked up as the real figure.
-                    # First try: recent history (3 years)
-                    cur.execute(
-                        """
-                        SELECT interest_expense, operating_income, pretax_income
-                        FROM annual_income_statement
-                        WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
-                          AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)
-                          AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    fallback_ie_row = cur.fetchone()
-
-                    # If 3-year window fails, search entire history
-                    if not fallback_ie_row:
-                        cur.execute(
-                            """
-                            SELECT interest_expense, operating_income, pretax_income
-                            FROM annual_income_statement
-                            WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
-                              AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)
-                              AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        fallback_ie_row = cur.fetchone()
+                # `data_unavailable IS NOT TRUE` (applied inside the helper) prevents an
+                # incomplete/unfiled fiscal year's stub value from being picked up as the real
+                # figure.
+                fallback_ie_row = self._fetch_annual_fallback_row(
+                    "annual_income_statement",
+                    "interest_expense, operating_income, pretax_income",
+                    "AND interest_expense IS NOT NULL AND interest_expense > 0 "
+                    "AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)",
+                    symbol,
+                )
 
                 if fallback_ie_row:
                     # Only overwrite interest_expense itself when IT was the reason this
@@ -2553,34 +2435,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
 
             # Fallback to prior year if current year lacks both sources
             if gross_profit_used is None and (gross_profit_direct is None and cost_of_revenue is None):
-                with DatabaseContext("read") as cur:
-                    # `data_unavailable IS NOT TRUE` excludes incomplete/unfiled stub rows,
-                    # which under-report vs the real complete fiscal year.
-                    cur.execute(
-                        """
-                        SELECT gross_profit, cost_of_revenue, revenue
-                        FROM annual_income_statement
-                        WHERE symbol = %s AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
-                          AND revenue IS NOT NULL AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    fallback_gm_row = cur.fetchone()
-                    if not fallback_gm_row:
-                        # If 3-year window has nothing, search entire history (for very old data)
-                        cur.execute(
-                            """
-                            SELECT gross_profit, cost_of_revenue, revenue
-                            FROM annual_income_statement
-                            WHERE symbol = %s AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
-                              AND revenue IS NOT NULL AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        fallback_gm_row = cur.fetchone()
+                # `data_unavailable IS NOT TRUE` (applied inside the helper) excludes
+                # incomplete/unfiled stub rows, which under-report vs the real complete fiscal
+                # year.
+                fallback_gm_row = self._fetch_annual_fallback_row(
+                    "annual_income_statement",
+                    "gross_profit, cost_of_revenue, revenue",
+                    "AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL) AND revenue IS NOT NULL",
+                    symbol,
+                )
                 if fallback_gm_row:
                     fallback_gross_profit = self._nan_to_none(
                         safe_float(fallback_gm_row[0], f"{symbol}.gross_profit_fallback_year", allow_none=True)
@@ -2800,37 +2663,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             # FCF-prioritized row vs a different year that has it).
             roic_stockholders_equity, roic_cash_and_equivalents = stockholders_equity, cash_and_equivalents_bs
             if stockholders_equity is None or cash_and_equivalents_bs is None:
-                with DatabaseContext("read") as cur:
-                    # `data_unavailable IS NOT TRUE` excludes an incomplete/unfiled or
-                    # stale-orphan (see sec_base.py's
-                    # stale_fiscal_year_not_confirmed_by_full_sec_refetch) fiscal year's stub.
-                    # First try: both fields in recent history (3 years)
-                    cur.execute(
-                        """
-                        SELECT stockholders_equity, cash_and_equivalents
-                        FROM annual_balance_sheet
-                        WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                          AND cash_and_equivalents IS NOT NULL AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    fallback_bs_row = cur.fetchone()
-
-                    # If 3-year window fails, search entire history
-                    if not fallback_bs_row:
-                        cur.execute(
-                            """
-                            SELECT stockholders_equity, cash_and_equivalents
-                            FROM annual_balance_sheet
-                            WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                              AND cash_and_equivalents IS NOT NULL AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        fallback_bs_row = cur.fetchone()
+                # `data_unavailable IS NOT TRUE` (applied inside the helper) excludes an
+                # incomplete/unfiled or stale-orphan (see sec_base.py's
+                # stale_fiscal_year_not_confirmed_by_full_sec_refetch) fiscal year's stub.
+                fallback_bs_row = self._fetch_annual_fallback_row(
+                    "annual_balance_sheet",
+                    "stockholders_equity, cash_and_equivalents",
+                    "AND stockholders_equity IS NOT NULL AND cash_and_equivalents IS NOT NULL",
+                    symbol,
+                )
 
                 if fallback_bs_row:
                     roic_stockholders_equity = self._nan_to_none(
@@ -2848,36 +2689,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             # search when total_debt_ev is also absent (it remains the primary source below).
             roic_long_term_debt = long_term_debt_bs
             if total_debt_ev is None and long_term_debt_bs is None:
-                with DatabaseContext("read") as cur:
-                    # `data_unavailable IS NOT TRUE` excludes an incomplete/stale-orphan stub.
-                    cur.execute(
-                        """
-                        SELECT long_term_debt
-                        FROM annual_balance_sheet
-                        WHERE symbol = %s AND long_term_debt IS NOT NULL AND data_unavailable IS NOT TRUE
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    fallback_debt_row = cur.fetchone()
-
-                    if not fallback_debt_row:
-                        cur.execute(
-                            """
-                            SELECT long_term_debt
-                            FROM annual_balance_sheet
-                            WHERE symbol = %s AND long_term_debt IS NOT NULL AND data_unavailable IS NOT TRUE
-                            ORDER BY fiscal_year DESC LIMIT 1
-                            """,
-                            (symbol,),
-                        )
-                        fallback_debt_row = cur.fetchone()
-
-                if fallback_debt_row:
-                    roic_long_term_debt = self._nan_to_none(
-                        safe_float(fallback_debt_row[0], f"{symbol}.long_term_debt_fallback_year", allow_none=True)
-                    )
+                # `data_unavailable IS NOT TRUE` (applied inside the helper) excludes an
+                # incomplete/stale-orphan stub.
+                fallback_debt = self._fetch_balance_sheet_anchor_fallback(symbol, "long_term_debt")
+                if fallback_debt is not None:
+                    roic_long_term_debt = fallback_debt
 
             invested_capital = None
             debt_for_roic = total_debt_ev if total_debt_ev is not None else roic_long_term_debt
@@ -4630,7 +4446,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
 
         except Exception as e:
             logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics compute failed: {e}")
-            return self._unavailable_marker("quality_metrics", symbol)
+            # Propagate the real exception (not the generic "missing_sec_data" default) so a
+            # genuine loader bug lands in scores.py's _categorize_reason() "Other (errors /
+            # excluded)" bucket instead of silently inflating "Missing SEC/XBRL data" - same
+            # fix already applied to this file's outer fetch_incremental() except block.
+            exc_reason = f"fetch_exception: {type(e).__name__}: {str(e)[:150]}"
+            return self._unavailable_marker("quality_metrics", symbol, reason=exc_reason)
 
     @staticmethod
     def _cagr(latest: float, previous: float, years: int) -> float | None:
