@@ -292,7 +292,7 @@
   "dashboard/watch/state.py": 130,
   "lambda/__init__.py": 0,
   "lambda/algo_orchestrator/__init__.py": 0,
-  "lambda/algo_orchestrator/lambda_function.py": 833,
+  "lambda/algo_orchestrator/lambda_function.py": 870,
   "lambda/api/__init__.py": 18,
   "lambda/api/api_router.py": 507,
   "lambda/api/api_types.py": 62,
