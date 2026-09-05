@@ -2100,7 +2100,44 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
                 if ps <= 10000 and ps >= self.MIN_PLAUSIBLE_PS_RATIO:  # Reasonable PS bounds
                     result["ps_ratio"] = round(ps, 2)
                 elif ps > 10000:
-                    logger.warning(f"[{symbol}] PS ratio out of bounds ({ps:.0f}), marking as NULL")
+                    # FIXED 2026-09-05 (goal session: "implausible values" sweep, same gap class
+                    # as fcf_margin's cross-year fallback - see
+                    # test_fcf_margin_implausible_anchor_cross_year_fallback_20260905.py): the
+                    # anchor year's ttm_revenue can be a real but near-zero extraction/reporting
+                    # artifact (e.g. a not-yet-fully-tagged interim period) even though an older
+                    # fiscal year has a real, representative revenue figure - shares_out/
+                    # current_price are current-snapshot values (not fiscal-year-scoped), so
+                    # re-pairing them with an older year's revenue is the same "mixed-vintage but
+                    # more representative" substitution ttm_revenue's own None-fallback (this
+                    # method's caller) already does, just triggered by "implausible" instead of
+                    # "missing". _compute_valuations doesn't have the caller's income_rows in
+                    # scope, so this queries fresh - only reached on the rare implausible-ratio
+                    # path, same "extra query is fine here" discipline as
+                    # _find_plausible_cross_year_ratio elsewhere in this codebase.
+                    fallback_ps = None
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT revenue FROM annual_income_statement
+                            WHERE symbol = %s AND revenue IS NOT NULL AND revenue > 0
+                              AND data_unavailable = FALSE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        older_revenue_rows = cur.fetchall()
+                    for (older_revenue,) in older_revenue_rows:
+                        older_rps = float(older_revenue) / shares_out
+                        if older_rps <= 0:
+                            continue
+                        candidate_ps = current_price / older_rps
+                        if self.MIN_PLAUSIBLE_PS_RATIO <= candidate_ps <= 10000:
+                            fallback_ps = candidate_ps
+                            break
+                    if fallback_ps is not None:
+                        result["ps_ratio"] = round(fallback_ps, 2)
+                    else:
+                        logger.warning(f"[{symbol}] PS ratio out of bounds ({ps:.0f}), marking as NULL")
                 else:
                     logger.warning(
                         f"[{symbol}] PS ratio implausibly low ({ps:.4f} < {self.MIN_PLAUSIBLE_PS_RATIO}), "
