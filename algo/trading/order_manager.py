@@ -21,6 +21,7 @@ import requests
 
 from algo.infrastructure import get_api_timeout
 from algo.trading.exceptions import OrderExecutionError
+from algo.trading.order_manager_stop_repair import StopLossRepairMixin
 from utils.validation import AlpacaResponseValidator
 
 logger = logging.getLogger(__name__)
@@ -61,8 +62,13 @@ def _quantize_price(v: float) -> str:
     return str(v_dec.quantize(places, rounding=ROUND_HALF_UP))
 
 
-class OrderManager:
-    """Manage order lifecycle via Alpaca API."""
+class OrderManager(StopLossRepairMixin):
+    """Manage order lifecycle via Alpaca API.
+
+    is_order_still_live/submit_standalone_protective_stop live in
+    order_manager_stop_repair.py's StopLossRepairMixin (split out to respect the
+    file-size ratchet on this already-oversized file, see .file-size-baseline.json).
+    """
 
     def __init__(self, alpaca_key: str | None, alpaca_secret: str | None, alpaca_base_url: str) -> None:
         self.alpaca_key = alpaca_key

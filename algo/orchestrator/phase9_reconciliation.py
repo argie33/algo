@@ -1682,7 +1682,8 @@ def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None
 
 
 def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callable[..., Any], config: Any) -> None:
-    """Verify every open position still has a live stop-loss leg resting at the broker.
+    """Verify every open position still has a live stop-loss leg resting at the broker,
+    and auto-repair one that doesn't rather than only alerting a human to do it.
 
     REAL-MONEY-READINESS FINDING (2026-09-04): entry bracket orders are submitted with
     time_in_force=day (order_manager.py's _build_bracket_order_payload). Whether Alpaca
@@ -1695,13 +1696,22 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
     regardless of root cause (TIF expiry, manual intervention, a broker-side glitch) by
     proactively checking every open position, every reconciliation cycle.
 
-    Deliberately detects-and-alerts rather than auto-repairing: placing a brand new stop
-    order automatically when something has already gone wrong could compound the anomaly
-    (see this file's own untracked-position handling and circuit_breaker.py's fail-closed
-    philosophy for the established pattern - notify loudly, let a human decide the repair).
+    UPDATED 2026-09-05 (real-money go-live decision, user-directed): originally
+    deliberately detect-and-alert only, on the reasoning that an unconditional
+    replace-on-every-check would compound anomalies. That's still true for the
+    every-cycle "is a leg live" check itself (unchanged, see check_stop_loss_leg_live's
+    own docstring) - but "alert and wait for a human" is not an acceptable real-money
+    control when nobody is reliably watching alerts in real time. When a gap is found,
+    check_and_repair_one_position (phase9_stop_loss_repair.py) now submits a standalone
+    GTC protective stop directly, sized/priced from algo_positions.quantity/
+    current_stop_price - the same values exit_engine.py already trusts as the
+    position's live truth. The alert is now reserved for cases where the system
+    genuinely CANNOT self-heal (the repair submission itself fails) - that is the one
+    case that still needs a human.
     """
     try:
         from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+        from algo.orchestrator.phase9_stop_loss_repair import check_and_repair_one_position
         from algo.trading.order_manager import OrderManager
 
         sync_mgr = AlpacaSyncManager(config)
@@ -1717,7 +1727,8 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT p.id, p.symbol, p.trade_ids_arr
+                SELECT p.id, p.symbol, p.trade_ids_arr, p.quantity, p.current_stop_price,
+                       p.standalone_stop_order_id
                 FROM algo_positions p
                 WHERE p.status = 'open' AND p.quantity > 0
                 """
@@ -1730,65 +1741,65 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
             return
 
         checked = 0
-        unprotected: list[str] = []
-        for pos_id, symbol, trade_ids_arr in open_positions:
-            # Same convention position_monitor.py uses to resolve "the" trade for a
-            # position's stop management (trade_ids_arr[0]) - see its own CRITICAL FIX
-            # comment for why this is the correct, established column to read.
-            trade_id = trade_ids_arr[0] if trade_ids_arr else None
-            if trade_id is None:
+        repaired: list[str] = []
+        unrepairable: list[str] = []
+        for pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id in open_positions:
+            outcome = check_and_repair_one_position(
+                order_mgr, pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id
+            )
+            if outcome == "skipped":
                 continue
-
-            with DatabaseContext("read") as cur:
-                cur.execute("SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s", (trade_id,))
-                row = cur.fetchone()
-            alpaca_order_id = row[0] if row else None
-
-            try:
-                result = order_mgr.check_stop_loss_leg_live(alpaca_order_id)
-            except Exception as e:
-                logger.warning(
-                    f"[PHASE 9] {symbol} (position {pos_id}): could not verify stop-loss leg "
-                    f"for order {alpaca_order_id}: {e}"
-                )
-                continue
-
-            if not result.get("checked"):
-                continue  # paper/local mode or order no longer resolvable - nothing to verify
             checked += 1
-            if not result.get("has_live_stop_loss"):
-                logger.critical(
-                    f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}, order {alpaca_order_id}): {result.get('message')}"
-                )
-                unprotected.append(symbol)
+            if outcome == "repaired":
+                repaired.append(symbol)
+            elif outcome == "unrepairable":
+                unrepairable.append(symbol)
 
-        if unprotected:
+        if repaired:
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "warning",
+                    title="Open Position(s) Auto-Repaired Missing Stop-Loss Protection",
+                    message=(
+                        f"{len(repaired)} open position(s) had NO live stop-loss leg resting at "
+                        f"the broker and were automatically re-protected with a new standalone "
+                        f"GTC stop order: {', '.join(repaired)}. No action required, but worth "
+                        "reviewing why the original bracket leg went missing."
+                    ),
+                )
+            except Exception as notify_err:
+                logger.warning(f"[PHASE 9] Failed to send auto-repair notification for {repaired}: {notify_err}")
+
+        if unrepairable:
             try:
                 from algo.reporting.notifications import notify
 
                 notify(
                     "critical",
-                    title="Open Position(s) Missing Live Stop-Loss Protection",
+                    title="Open Position(s) Missing Stop-Loss Protection - AUTO-REPAIR FAILED",
                     message=(
-                        f"{len(unprotected)} open position(s) have NO live stop-loss leg resting at "
-                        f"the broker: {', '.join(unprotected)}. This may mean a day-TIF bracket's "
-                        "protective legs expired, or a manual/broker-side cancellation happened. "
-                        "Do not assume these positions are protected - investigate and re-arm "
-                        "protection immediately."
+                        f"{len(unrepairable)} open position(s) have NO live stop-loss leg AND "
+                        f"automatic repair failed: {', '.join(unrepairable)}. Do not assume these "
+                        "positions are protected - investigate and re-arm protection immediately."
                     ),
                 )
             except Exception as notify_err:
                 logger.critical(
-                    f"[PHASE 9 CRITICAL] Failed to alert on unprotected positions {unprotected}: {notify_err}",
+                    f"[PHASE 9 CRITICAL] Failed to alert on unrepairable positions {unrepairable}: {notify_err}",
                     exc_info=True,
                 )
 
         log_phase_result_fn(
             9,
             "stop_loss_protection_check",
-            "critical" if unprotected else "success",
-            f"{len(unprotected)}/{checked} open positions missing live stop-loss leg: {unprotected}"
-            if unprotected
+            "critical" if unrepairable else ("warn" if repaired else "success"),
+            (
+                f"{len(repaired)} auto-repaired, {len(unrepairable)} unrepairable "
+                f"of {checked} open position(s) checked: repaired={repaired} unrepairable={unrepairable}"
+            )
+            if (repaired or unrepairable)
             else f"verified {checked} open position(s) protected",
         )
 
