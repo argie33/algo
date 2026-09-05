@@ -424,7 +424,7 @@
   "loaders/helpers/sec_valuations_checks.py": 482,
   "loaders/helpers/sec_valuations_dcf.py": 409,
   "loaders/helpers/vqg_growth.py": 358,
-  "loaders/helpers/vqg_quality.py": 2799,
+  "loaders/helpers/vqg_quality.py": 2834,
   "loaders/helpers/vqg_shared.py": 130,
   "loaders/helpers/vqg_symbol_gates.py": 1546,
   "loaders/helpers/vqg_value.py": 811,
