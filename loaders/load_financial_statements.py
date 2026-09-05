@@ -838,6 +838,12 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # APD/ANGI (which report both concepts) keep the fuller plain-concept total
         # whenever it's actually present for that fiscal year.
         "net_cash_provided_by_used_in_operating_activities_continuing_operations",
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): BDC-
+        # specific distribution concept - see sec_statements.py's get_cash_flow() comment
+        # on this concept (MAIN live-confirmed: tags this AND a real, materially LARGER
+        # DividendsCommonStock figure - a narrower/different sub-component, not a
+        # duplicate) - must never overwrite a real standard-concept dividends_paid value.
+        "investment_company_dividend_distribution",
     }
 )
 
@@ -1118,6 +1124,12 @@ _CASHFLOW_FIELD_MAPPING = {
     # live-confirmed. Least-preferred/first in the concept list so last-listed-wins
     # ordering still lets a real DividendsCommonStock*/PaymentsOfDividends* value win.
     "payments_of_capital_distribution": "dividends_paid",
+    # FIXED 2026-09-05: see sec_statements.py's get_cash_flow() comment on this concept -
+    # BDC-specific (TRIN live-confirmed as the only concept it tags at all). Fallback-only
+    # (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below): MAIN tags this AND a real,
+    # materially larger DividendsCommonStock figure, so this must never overwrite a real
+    # standard-concept value.
+    "investment_company_dividend_distribution": "dividends_paid",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): CMS's
     # filer-specific custom XBRL extension dividends concept - see

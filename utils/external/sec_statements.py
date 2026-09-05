@@ -1897,6 +1897,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # this file's other fallback groups) so the more standard DividendsCommonStock*/
         # PaymentsOfDividends* concepts below win whenever a filer reports both.
         "PaymentsOfCapitalDistribution",
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): BDCs
+        # (business development companies) commonly tag distributions under this
+        # investment-company-specific concept instead of, or in addition to, the standard
+        # PaymentsOf*/DividendsCommonStock* family - live-confirmed TRIN (Trinity Capital,
+        # CIK 1786108) tags ONLY this concept (no PaymentsOfDividends/DividendsCommonStock/
+        # PaymentsOfCapitalDistribution at all), real values through FY2024 ($112.1M).
+        # Listed first/least-preferred (same "last-listed wins" convention as this file's
+        # other fallback groups): live-checked MAIN (CIK 1396440) tags BOTH concepts with
+        # materially DIFFERENT, non-overlapping magnitudes (DividendsCommonStock $161M-
+        # $378M vs this concept's $12M-$110M) - this is a narrower/different distribution
+        # sub-component for filers that also report the real total elsewhere, not a
+        # duplicate tag, so it must never win over a real DividendsCommonStock*/
+        # PaymentsOfDividends* value.
+        "InvestmentCompanyDividendDistribution",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
