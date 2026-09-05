@@ -330,6 +330,7 @@
   "lambda/api/routes/algo_handlers/external.py": 111,
   "lambda/api/routes/algo_handlers/inventory.py": 139,
   "lambda/api/routes/algo_handlers/market.py": 1665,
+  "lambda/api/routes/algo_handlers/market/data_status.py": 1392,
   "lambda/api/routes/algo_handlers/market_health.py": 594,
   "lambda/api/routes/algo_handlers/market_scan.py": 501,
   "lambda/api/routes/algo_handlers/metrics.py": 1246,
