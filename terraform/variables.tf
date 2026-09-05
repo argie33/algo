@@ -640,6 +640,12 @@ variable "algo_schedule_timezone" {
   default     = "America/New_York"
 }
 
+variable "enable_stop_loss_guardian" {
+  description = "Enable the high-frequency stop-loss-only guardian schedule (modules/services/stop-loss-guardian.tf) - a real, ongoing AWS Scheduler invocation cost and a live-account behavior change, needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
+  type        = bool
+  default     = false
+}
+
 variable "enable_morning_orchestrator" {
   description = "Enable 2x daily orchestrator execution (morning 9:30 AM ET + evening 5:30 PM ET)"
   type        = bool

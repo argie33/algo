@@ -67,6 +67,16 @@ enable_afternoon_orchestrator = false                       # Disabled: reduce c
 enable_preclose_orchestrator  = false                       # Disabled: insufficient execution time
 enable_premarket_orchestrator = false                       # Disabled: no market hours
 
+# High-frequency stop-loss-only guardian (modules/services/stop-loss-guardian.tf, checks
+# and auto-repairs missing/wrong-sized protective stops every 15 min during market hours,
+# independent of the full orchestrator's own less-frequent schedule above). Real-money-
+# readiness audit (2026-09-05) found the full orchestrator's cadence alone leaves a real
+# window where a position can sit without a live broker-side stop. Deliberately left false
+# here: this is a real, ongoing AWS Scheduler cost and a live-account behavior change, not
+# just a code readiness question - flip to true only with an explicit go-ahead to deploy it,
+# then `terraform apply`.
+enable_stop_loss_guardian     = false
+
 # Evening orchestrator disabled in favor of morning-only in production
 # Rationale: Paper trading doesn't need evening prep. Real trading: evaluate daily at 9:30 AM only.
 
