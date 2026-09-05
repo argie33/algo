@@ -3413,7 +3413,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 # below run, so propagate a real row-level reason when one is knowable instead
                 # of leaving _unavailable_marker's generic default on every column.
                 row_level_reason = (
-                    "no_recent_balance_sheet_data_reported"
+                    "etf_trust_no_gaap_financials"
+                    if stockholders_equity is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    else "no_recent_balance_sheet_data_reported"
                     if stockholders_equity is None
                     and (
                         symbol in self._get_no_recent_stockholders_equity_symbols()

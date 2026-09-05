@@ -43,6 +43,10 @@ def test_no_recent_balance_sheet_data_reported_categorizes_as_missing_sec_xbrl()
     assert scores_mod._categorize_reason("no_recent_balance_sheet_data_reported") == "Missing SEC/XBRL data"
 
 
+def test_etf_trust_no_gaap_financials_categorizes_as_legitimate_not_applicable():
+    assert scores_mod._categorize_reason("etf_trust_no_gaap_financials") == "Legitimate / not applicable"
+
+
 def test_garbage_metric_value_implausible_ratio_categorizes_as_implausible():
     assert scores_mod._categorize_reason("garbage_metric_value_implausible_ratio") == "Implausible / rejected value"
 

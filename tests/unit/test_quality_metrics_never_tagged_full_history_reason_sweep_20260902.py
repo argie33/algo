@@ -55,7 +55,12 @@ class _FakeCursor:
             return [(s,) for s in self._never_tagged_net_income]
         if "annual_balance_sheet" in q and "total_assets" in q:
             return [(s,) for s in self._never_tagged_total_assets]
-        if "annual_balance_sheet" in q and "stockholders_equity" in q and "cash_and_equivalents" not in q:
+        if (
+            "annual_balance_sheet" in q
+            and "stockholders_equity" in q
+            and "cash_and_equivalents" not in q
+            and "etf_symbols" not in q
+        ):
             return [(s,) for s in self._never_tagged_equity]
         return []
 

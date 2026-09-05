@@ -1263,6 +1263,48 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_etf_trust_no_stockholders_equity_symbols(self) -> frozenset[str]:
+        """`etf_symbols`-registered tickers with real annual_balance_sheet history (proving
+        they're an established filer, not just too new for data) that have never once tagged a
+        real stockholders_equity figure - physical commodity/currency/crypto trusts (GLD, SLV,
+        IAU, AAAU, GLDM, GBTC, ETHE, BITB, BITW, the FXA/FXB/FXC/FXE/FXF/FXY currency trusts,
+        the CANE/CORN/SOYB/WEAT/TAGS/USCI/USL/UGA/UNG/UNL commodity-pool ETFs, ...) file a
+        "Statement of Assets and Liabilities" reporting only `total_assets`/`total_liabilities`
+        (trust shares outstanding, not equity) - same root fact as
+        _get_registered_investment_company_symbols() above but for exchange-traded physical/
+        commodity trusts, which are real SEC filers with their own exclusive CIK (see
+        load_financial_statements.py's shared-CIK ETN/ETF comment - these are explicitly NOT in
+        that shared-CIK exclusion list) rather than the "entity_type='other', no sic_code"
+        registered-investment-company shape the RIC gate keys off.
+
+        ADDED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep): live-verified 32
+        universe `etf_symbols` tickers hit this shape, mislabeled "missing_sec_data"/
+        "no_recent_balance_sheet_data_reported" (both "Missing SEC/XBRL data" in
+        /api/scores/coverage) across debt_to_equity/roa/roe/roce_pct/asset_turnover/
+        gross_profitability/quality_score/sustainable_growth_rate/quarterly_growth_momentum/
+        earnings_growth_4q_avg - a structural fact (no GAAP equity concept exists to tag), not
+        a loader gap. Requiring real balance-sheet history (not just etf_symbols membership
+        alone) excludes any ETF too recently listed to have filed yet. Cached for the life of
+        this loader instance; this query runs once per pipeline run, not once per symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT e.symbol
+                FROM etf_symbols e
+                WHERE EXISTS (
+                    SELECT 1 FROM annual_balance_sheet b
+                    WHERE b.symbol = e.symbol AND b.data_unavailable = FALSE
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM annual_balance_sheet b
+                    WHERE b.symbol = e.symbol AND b.stockholders_equity IS NOT NULL
+                )
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_last_known_zero_dividends_symbols(self) -> frozenset[str]:
         """Symbols whose most recently-tagged (non-NULL) `dividends_paid` fact, however many
         fiscal years back, was exactly $0 - a distinct, narrower gap than

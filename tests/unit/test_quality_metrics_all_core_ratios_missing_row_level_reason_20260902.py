@@ -36,6 +36,7 @@ class _FakeCursor:
             "annual_balance_sheet" in self._last_query
             and "stockholders_equity" in self._last_query
             and "cash_and_equivalents" not in self._last_query
+            and "etf_symbols" not in self._last_query
         ):
             return [(s,) for s in self._no_recent_equity]
         return []

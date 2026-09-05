@@ -2848,6 +2848,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # dividend/distribution concepts (N-2 prospectus fee-table data only), a permanent
             # structural absence, not a loader gap. See load_dividend_data.py's fetch_incremental.
             "registered_investment_company_no_xbrl",
+            # ADDED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" sweep): physical
+            # commodity/currency/crypto trusts (GLD, SLV, IAU, GBTC, ETHE, the FXA-class
+            # currency trusts, etc.) file a "Statement of Assets and Liabilities" with no GAAP
+            # stockholders_equity concept - same permanent structural absence as the
+            # registered-investment-company case above, for `etf_symbols`-registered tickers
+            # rather than CEFs. See vqg_symbol_gates.py's
+            # _get_etf_trust_no_stockholders_equity_symbols().
+            "etf_trust_no_gaap_financials",
             # ADDED 2026-08-21 (goal session: missing-data root-cause audit, "Other" bucket
             # sweep): load_current_reports_8k.py writes this when a symbol's SEC submissions
             # feed genuinely contains zero 8-Ks (8-Ks are event-driven - executive changes,
