@@ -93,3 +93,21 @@ class TestFcfMarginCapexNeverTaggedReason:
 
         assert metrics["fcf_margin"] is not None
         assert metrics.get("fcf_margin_unavailable_reason") is None
+
+    def test_free_cash_flow_itself_gets_specific_reason(self, monkeypatch):
+        loader = _make_loader(monkeypatch, no_recent_capex_symbols=frozenset({"AIG"}))
+        row = _quality_row(free_cash_flow=None)
+
+        metrics = loader._compute_quality_metrics("AIG", row, ev_metrics=None)
+
+        assert metrics["free_cash_flow"] is None
+        assert metrics["free_cash_flow_unavailable_reason"] == "capex_never_tagged_in_recent_filings"
+
+    def test_fcf_to_net_income_gets_specific_reason(self, monkeypatch):
+        loader = _make_loader(monkeypatch, no_recent_capex_symbols=frozenset({"AIG"}))
+        row = _quality_row(free_cash_flow=None)
+
+        metrics = loader._compute_quality_metrics("AIG", row, ev_metrics=None)
+
+        assert metrics["fcf_to_net_income"] is None
+        assert metrics["fcf_to_net_income_unavailable_reason"] == "capex_never_tagged_in_recent_filings"

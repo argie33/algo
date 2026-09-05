@@ -4260,6 +4260,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     # See fcf_margin_unavailable_reason above for why this check comes first.
                     "registered_investment_company_no_xbrl"
                     if free_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
+                    # ADDED 2026-09-05: same sibling-wiring gap as fcf_margin above.
+                    else "capex_never_tagged_in_recent_filings"
+                    if free_cash_flow is None and symbol in self._get_no_recent_capex_symbols()
                     else "no_recent_free_cash_flow_reported"
                     if free_cash_flow is None
                     and (
@@ -4313,6 +4316,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     # See fcf_margin_unavailable_reason above for why this check comes first.
                     "registered_investment_company_no_xbrl"
                     if symbol in self._get_registered_investment_company_symbols()
+                    # ADDED 2026-09-05: same sibling-wiring gap as fcf_margin above.
+                    else "capex_never_tagged_in_recent_filings"
+                    if symbol in self._get_no_recent_capex_symbols()
                     # Only covers the unambiguous "genuinely no FCF in the 3 most recent fiscal
                     # years" case - the rest have FCF in an off-anchor year (see
                     # _get_free_cash_flow_available_elsewhere_symbols() below).
