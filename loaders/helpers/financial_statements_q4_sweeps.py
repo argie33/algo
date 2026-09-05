@@ -7,16 +7,22 @@ attribute these methods read via `self`.
 `DatabaseContext` is accessed via the load_financial_statements module object at call time
 (not imported by name here) because several existing tests patch
 `loaders.load_financial_statements.DatabaseContext` expecting that to affect these sweeps -
-a plain import here would silently stop seeing those patches. `loaders.load_financial_statements`
-itself imports this module at load time, so the reference below is resolved lazily (inside the
-method bodies, not at import time) to avoid a circular-import failure.
+a plain module-level import here would silently stop seeing those patches, AND
+`loaders.load_financial_statements` itself imports this module at load time, so a
+module-level `import loaders.load_financial_statements` here would deadlock as a circular
+import (confirmed live 2026-09-05: this exact ImportError broke financial_statements'
+entire loader run). `_database_context()` below defers the import to call time instead.
 """
 
 import logging
 
-import loaders.load_financial_statements as _lfs
-
 logger = logging.getLogger(__name__)
+
+
+def _database_context() -> type:
+    import loaders.load_financial_statements as _lfs
+
+    return _lfs.DatabaseContext
 
 
 class Q4DerivationSweepMixin:
@@ -43,7 +49,7 @@ class Q4DerivationSweepMixin:
         often than the OCF-only case does; a future pass could add it with its own explicit
         null-guard on all three quarters' capex.
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE quarterly_cash_flow q4
@@ -114,7 +120,7 @@ class Q4DerivationSweepMixin:
             "common_stock_repurchased",
             "capex",
         )
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             for field in fields:
                 cur.execute(
                     f"""
@@ -181,7 +187,7 @@ class Q4DerivationSweepMixin:
         no scale-mismatch or corroboration risk at all. Live-confirmed 597 rows recoverable
         this way (574 symbols / 815 total gap rows before this fix).
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE quarterly_balance_sheet q4
@@ -251,7 +257,7 @@ class Q4DerivationSweepMixin:
         adjustments) that don't afflict revenue the same way, so an aggressive magnitude guard
         there would reject far more real results than bad ones.
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE quarterly_income_statement q4
@@ -326,7 +332,7 @@ class Q4DerivationSweepMixin:
             "research_development_expense",
         )
         unfloored_fields = ("operating_income", "gross_profit")
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             for field in floored_fields + unfloored_fields:
                 floor_clause = (
                     f"AND (a.{field} - (q1.{field} + q2.{field} + q3.{field})) >= 0" if field in floored_fields else ""
@@ -411,7 +417,7 @@ class Q4DerivationSweepMixin:
         enough to let a similarly-corrupted net_income back through). INVE's two rows were
         caught and reverted by hand a second time before this tighter guard existed.
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE quarterly_income_statement q4
@@ -470,7 +476,7 @@ class Q4DerivationSweepMixin:
         negative for a quarter; a negative derived value signals an inter-filing
         restatement/reclassification, not a real Q4 result, and is skipped.
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE quarterly_income_statement q4
@@ -520,7 +526,7 @@ class Q4DerivationSweepMixin:
         quarter) - same "no floor" treatment already given to net_income in
         _sweep_derive_missing_q4() above, for the identical reason.
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE quarterly_income_statement q4
@@ -609,7 +615,7 @@ class Q4DerivationSweepMixin:
         against the full table on every cash-flow-statement run, same "recompute from
         already-stored real values" discipline as _sweep_stale_implausible_eps() above.
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 """
                 UPDATE annual_cash_flow
@@ -645,7 +651,7 @@ class Q4DerivationSweepMixin:
         by the same rule the fresh-fetch path uses. Same 10,000 floor as
         _reject_implausible_eps() (BRK.A/BSAC/EC all clear it comfortably).
         """
-        with _lfs.DatabaseContext("write") as cur:
+        with _database_context()("write") as cur:
             cur.execute(
                 f"""
                 UPDATE {self.table_name}
