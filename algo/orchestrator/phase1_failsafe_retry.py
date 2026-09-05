@@ -280,7 +280,796 @@ def _get_expected_data_date(run_date: _date | None = None, pipeline_context: str
     return expected_data_date, context
 
 
-def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+def _check_data_completeness(cur: Any, table_name: str, check_date: _date) -> tuple[bool, str]:
+    """Check if table has sufficient data completeness (95%+ non-NULL in critical column).
+
+    Args:
+        cur: Open DB cursor - caller owns the DatabaseContext/transaction this runs inside.
+        table_name: Table being checked.
+        check_date: The date to check completeness for - the table's own actual latest
+            date (table_max_date from the staleness check above), NOT necessarily
+            expected_data_date. For stock_scores/earnings_calendar, which track
+            freshness via updated_at (a loader-run timestamp, not a trading-day
+            column), these are only the same value when the loader happens to run
+            exactly on expected_data_date - which the staleness check above already
+            established is NOT required (updated_at from a same-day-or-later refresh
+            correctly reads as "not stale", since it's ahead of, not behind, the
+            expected historical trading day). Bug found 2026-08-10 (live-reproduced
+            on every MORNING/INTRADAY orchestrator run today): this used to always
+            check against expected_data_date regardless, so a same-day stock_scores
+            refresh's updated_at (today) could never match expected_data_date
+            (yesterday) - COUNT(*) for that date was always 0, permanently reporting
+            "No rows for {expected_data_date}" and re-triggering a full stock_scores
+            reload on every single intraday run, even seconds after a fresh,
+            successful, 100%-complete refresh.
+
+    Returns: (is_complete, reason_if_incomplete)
+    """
+    if table_name == "stock_scores":
+        # stock_scores: check that symbol column is non-NULL (composite_score can be NULL for unavailable stocks)
+        critical_col = "symbol"
+    elif table_name in ("price_daily", "etf_price_daily"):
+        # price_daily/etf_price_daily: check close price is populated (same schema)
+        critical_col = "close"
+    elif table_name == "technical_data_daily":
+        # technical_data_daily: check rsi_14 (core technical indicator)
+        critical_col = "rsi_14"
+    elif table_name == "buy_sell_daily":
+        # buy_sell_daily: check signal_type is populated
+        critical_col = "signal_type"
+    elif table_name == "market_health_daily":
+        # market_health_daily: check vix_level is populated
+        critical_col = "vix_level"
+    elif table_name == "trend_template_data":
+        # trend_template_data: check trend_direction is populated (key field for regime detection)
+        critical_col = "trend_direction"
+    elif table_name == "earnings_calendar":
+        # earnings_calendar: check earnings_date is populated (gates earnings_blackout entry blocking)
+        critical_col = "earnings_date"
+    else:
+        return True, ""  # Unknown table, skip completeness check
+
+    try:
+        # stock_scores doesn't have a date column, use updated_at instead
+        if table_name == "stock_scores":
+            date_filter = "updated_at::date = %s"
+            params: tuple[Any, ...] = (check_date,)
+        # trend_template_data: check only today's data by date column, not by created_at
+        # (created_at fallback included old backfilled data, making completeness check too strict)
+        elif table_name == "trend_template_data":
+            date_filter = "date = %s"
+            params = (check_date,)
+        # earnings_calendar: uses updated_at to track loader freshness (not earnings_date, which is forward-looking)
+        elif table_name == "earnings_calendar":
+            date_filter = "updated_at::date = %s"
+            params = (check_date,)
+        else:
+            date_filter = "date = %s OR updated_at::date = %s"
+            params = (check_date, check_date)
+
+        # Technical_data_daily validation requires multiple indicators, not just one.
+        # Session 81: Partial loads were missed before when a loader crash wrote RSI-14
+        # but crashed before writing ATR, SMA, etc. Phase 8 uses ATR for position sizing,
+        # so sparse technical_data causes entry failures later. Validate all 4 required
+        # indicators are present for 95%+ of symbols.
+        if table_name == "technical_data_daily":
+            cur.execute(
+                f"""
+                SELECT
+                    COUNT(*) as total_rows,
+                    COUNT(rsi_14) as rsi_count,
+                    COUNT(atr_14) as atr_count,
+                    COUNT(sma_50) as sma_count,
+                    COUNT(bb_upper) as bb_count
+                FROM {table_name}
+                WHERE {date_filter}
+            """,
+                params,
+            )
+            row = cur.fetchone()
+            if not row or row[0] == 0:
+                return False, f"No rows for {check_date}"
+            total, rsi_count, atr_count, sma_count, bb_count = row
+            # All 4 indicators should be present in >= 95% of rows
+            indicator_pcts = [
+                (rsi_count / total * 100) if total > 0 else 0,
+                (atr_count / total * 100) if total > 0 else 0,
+                (sma_count / total * 100) if total > 0 else 0,
+                (bb_count / total * 100) if total > 0 else 0,
+            ]
+            min_indicator_pct = min(indicator_pcts)
+            if min_indicator_pct < 95.0:
+                return (
+                    False,
+                    f"Technical indicators incomplete: RSI {indicator_pcts[0]:.0f}%, ATR {indicator_pcts[1]:.0f}%, SMA {indicator_pcts[2]:.0f}%, BB {indicator_pcts[3]:.0f}% (need 95%+)",
+                )
+            return True, ""
+
+        cur.execute(
+            f"""
+            SELECT
+                COUNT(*) as total_rows,
+                COUNT({critical_col}) as non_null_rows
+            FROM {table_name}
+            WHERE {date_filter}
+        """,
+            params,
+        )
+
+        row = cur.fetchone()
+        if not row or row[0] == 0:
+            return False, f"No rows for {check_date}"
+
+        total, non_null = row[0], row[1]
+        completeness_pct = (non_null / total * 100) if total > 0 else 0
+
+        min_completeness = 92.0 if table_name == "trend_template_data" else 95.0
+        if completeness_pct < min_completeness:
+            return (
+                False,
+                f"Completeness {completeness_pct:.1f}% (need {min_completeness}%+ of {critical_col} non-NULL)",
+            )
+        return True, ""
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        # This is a failsafe retry helper: its whole job is deciding whether a table
+        # needs a refresh. Treating a completeness-check failure as "complete" silently
+        # skips a table we couldn't actually verify - the same fail-open-and-fabricate
+        # shape this codebase's governance rules forbid elsewhere. Fail closed instead:
+        # an unverifiable table is treated as incomplete, so it gets refreshed (cheap)
+        # rather than possibly staying silently sparse (expensive/invisible).
+        logger.warning(
+            f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}. Treating as incomplete."
+        )
+        return False, f"Completeness check failed (DB error): {e}"
+    except (KeyError, ValueError, TypeError) as e:
+        logger.warning(
+            f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}. Treating as incomplete."
+        )
+        return False, f"Completeness check failed (data error): {e}"
+
+
+def _find_failed_loaders_to_retry(results: dict[str, Any]) -> list[str]:
+    """First pass: find loaders marked FAILED/ERROR/TIMEOUT and queue them for retry.
+
+    CRITICAL FIX 2026-08-12: Loaders marked FAILED on Friday are ignored by Monday because
+    they're not "stale" (data is recent) but they DO need retry to recover from the
+    crash/timeout that caused the FAILED status.
+    SESSION 93 FIX: Also check TIMEOUT status (AWS mode handles it at line 815).
+
+    Mutates results["incomplete_loaders"] for every FAILED loader found.
+    """
+    failed_loaders_to_retry: list[str] = []
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("""
+                SELECT
+                    table_name,
+                    consecutive_failures,
+                    error_message
+                FROM data_loader_status
+                WHERE UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT')
+                ORDER BY table_name
+            """)
+            failed_loaders = cur.fetchall()
+
+            for table_name, consecutive_failures, error_msg in failed_loaders:
+                logger.warning(
+                    f"[PHASE 1 FAILSAFE LOCAL] Found FAILED loader (will retry): {table_name} "
+                    f"(consecutive_failures={consecutive_failures}, error={error_msg[:60] if error_msg else 'none'})"
+                )
+                results["incomplete_loaders"].append(table_name)
+                failed_loaders_to_retry.append(table_name)
+    except Exception as e:
+        logger.warning(
+            f"[PHASE 1 FAILSAFE LOCAL] Could not check for FAILED loaders: {e}. Continuing with staleness checks."
+        )
+    return failed_loaders_to_retry
+
+
+def _find_stale_or_incomplete_loaders(
+    loaders_to_refresh: dict[str, str], expected_data_date: _date, results: dict[str, Any]
+) -> list[tuple[str, str, int]]:
+    """Check each locally-tracked table's own data freshness/completeness and collect the
+    ones needing a refresh. Mutates results["incomplete_loaders"] for every table flagged.
+
+    Returns: list of (table_name, loader_key, days_behind) tuples to retry.
+    """
+    stale_loaders: list[tuple[str, str, int]] = []
+
+    for table_name, loader_key in loaders_to_refresh.items():
+        # CRITICAL FIX (Session 96): Create new DatabaseContext for EACH table
+        # Bug: Single context for entire loop caused transaction abort cascade
+        # When one table's query failed (e.g., company_info_sec), ALL subsequent
+        # queries in same transaction failed with "InFailedSqlTransaction"
+        # Fix: Isolate each table's check in its own transaction
+        with DatabaseContext("read") as cur:
+            try:
+                # SESSION 99 FIX: Use proper date column for each table (14 tables had "column date does not exist")
+                date_col = _get_table_date_column(table_name)
+                if date_col is None:
+                    # Table has no date column - skip freshness check
+                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no date column - skipping freshness check")
+                    continue
+
+                # Type guard: date_col is now guaranteed str (not None)
+                cur.execute(f"SELECT MAX({date_col}) FROM {table_name}")
+
+                row = cur.fetchone()
+                if row and row[0]:
+                    max_date = row[0]
+                    # Convert date/datetime to date for comparison
+                    from datetime import date as date_type
+
+                    if isinstance(max_date, date_type) and not isinstance(max_date, datetime):
+                        table_max_date = max_date
+                    elif isinstance(max_date, datetime):
+                        table_max_date = max_date.date()
+                    else:
+                        logger.warning(
+                            f"[PHASE 1 FAILSAFE LOCAL] Unexpected date type for {table_name}: {type(max_date)}"
+                        )
+                        continue
+
+                    # Market-aware staleness check: allow up to 10 days behind (covers weekends/holidays)
+                    # Don't use naive hours checks which fail at multi-day gaps
+                    days_behind = (expected_data_date - table_max_date).days
+                    is_stale = days_behind > 0  # Stale if behind expected date
+
+                    if is_stale:
+                        stale_loaders.append((table_name, loader_key, days_behind))
+                        results["incomplete_loaders"].append(table_name)
+                        logger.warning(
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} data stale: "
+                            f"{table_max_date} vs expected {expected_data_date} "
+                            f"({days_behind} day(s) behind)"
+                        )
+                    else:
+                        # CRITICAL: Also check data completeness (not just date freshness)
+                        # A table can have MAX(date)=today but be 95% NULL values
+                        is_complete, incomplete_reason = _check_data_completeness(cur, table_name, table_max_date)
+                        if not is_complete:
+                            stale_loaders.append((table_name, loader_key, 0))
+                            results["incomplete_loaders"].append(table_name)
+                            logger.warning(
+                                f"[PHASE 1 FAILSAFE LOCAL] {table_name} data sparse despite fresh date: {incomplete_reason}. "
+                                f"Loader may have completed with insufficient data quality. Triggering refresh."
+                            )
+                        else:
+                            logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh and complete: {table_max_date}")
+                else:
+                    # No data at all
+                    stale_loaders.append((table_name, loader_key, 999))
+                    results["incomplete_loaders"].append(table_name)
+                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no data")
+
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (DB error): {e}")
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (data error): {e}")
+
+    return stale_loaders
+
+
+def _combine_failed_and_stale_loaders(
+    failed_loaders_to_retry: list[str],
+    stale_loaders: list[tuple[str, str, int]],
+    loaders_to_refresh: dict[str, str],
+    results: dict[str, Any],
+) -> list[tuple[str, str, int]]:
+    """Merge FAILED-status loaders with staleness/completeness-driven ones, then drop any
+    downstream loader whose upstream dependency is itself still FAILED (SESSION 106 FIX)."""
+    # Combine FAILED loaders with stale loaders for retry
+    # Map table names to loader keys - use registry for comprehensive mapping
+    from loaders.loader_registry import table_to_loader_shorthand
+
+    table_to_loader_key = dict(loaders_to_refresh)
+    all_loaders_to_retry = []
+
+    # Add FAILED loaders - use registry to find ANY loader, not just hardcoded ones
+    for table_name in failed_loaders_to_retry:
+        key_for_failed: str | None = table_to_loader_key.get(table_name)
+        # If not in hardcoded dict, try dynamic lookup from registry
+        if not key_for_failed:
+            key_for_failed = table_to_loader_shorthand(table_name)
+
+        if key_for_failed:
+            all_loaders_to_retry.append((table_name, key_for_failed, 0))  # age=0 for FAILED
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} → {key_for_failed}")
+        else:
+            logger.warning(f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} not found in registry - cannot retry")
+
+    # Add stale loaders
+    all_loaders_to_retry.extend(stale_loaders)
+
+    # SESSION 106 FIX: Check for upstream dependency failures before retrying downstream loaders
+    # If upstream loaders (prices, technical_data) are still failing, don't retry downstream
+    # (buy_sell_daily, stock_scores) because they'll just fail again - wait for upstream to fix first
+    upstream_failed = set(failed_loaders_to_retry)
+    dependency_map = {
+        "buy_sell_daily": {"price_daily", "technical_data_daily"},
+        "stock_scores": {"price_daily", "technical_data_daily"},
+        "trend_template_data": {"price_daily"},
+        "value_metrics": {"price_daily"},
+        "quality_metrics": {"price_daily"},
+        "growth_metrics": {"price_daily"},
+        "momentum_metrics": {"price_daily"},
+        "positioning_metrics": {"price_daily"},
+    }
+
+    # Filter out downstream loaders whose upstream dependencies are still failing
+    filtered_loaders_to_retry = []
+    for table_name, loader_key, age_in_days in all_loaders_to_retry:
+        deps = dependency_map.get(table_name, set())
+        if deps and deps & upstream_failed:
+            # Upstream dependency is still failing - skip this loader for now
+            skipped_deps = deps & upstream_failed
+            logger.info(
+                f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: upstream dependency "
+                f"{skipped_deps} still failing. Will retry after upstream recovers."
+            )
+            results["incomplete_loaders"].append(table_name)
+            continue
+
+        filtered_loaders_to_retry.append((table_name, loader_key, age_in_days))
+
+    return filtered_loaders_to_retry
+
+
+def _reap_stale_running_loaders_before_retry_loop() -> None:
+    """SESSION 106 FIX: Reap stuck loaders before retry loop.
+
+    Previous behavior: reaper only ran once at orchestrator startup, not between retry
+    attempts. If a loader gets stuck RUNNING during previous phase, it would persist through
+    entire retry loop. Now reap before starting retries to handle any leftover stuck loaders
+    from prior runs.
+    """
+    try:
+        from utils.loaders.status_manager import reap_stale_running_loaders
+
+        reaped_tables = reap_stale_running_loaders()
+        if len(reaped_tables) > 0:
+            logger.info(
+                f"[PHASE 1 FAILSAFE LOCAL] Reaped {len(reaped_tables)} stale running loader(s) before retry loop"
+            )
+    except Exception as reap_err:
+        logger.warning(
+            f"[PHASE 1 FAILSAFE LOCAL] Failed to reap stale loaders: {reap_err}. Proceeding with retries anyway."
+        )
+
+
+def _filter_loaders_blocked_by_dependencies(
+    all_loaders_to_retry: list[tuple[str, str, int]],
+    failed_loaders_to_retry: list[str],
+    results: dict[str, Any],
+) -> list[tuple[str, str, int]]:
+    """SESSION 106 FIX #7: Check dependencies before retry - avoid cascading failures.
+
+    When price_daily fails, don't retry buy_sell_daily (depends on price_daily). Filter out
+    downstream loaders if their upstream dependencies are still failing.
+    """
+    upstream_failed = set(failed_loaders_to_retry)
+    dependency_map = {
+        "buy_sell_daily": {"price_daily", "technical_data_daily"},
+        "stock_scores": {"price_daily", "technical_data_daily"},
+        "trend_template_data": {"price_daily"},
+        "signal_quality_scores": {"buy_sell_daily", "stock_scores"},
+    }
+    filtered_loaders = []
+    for table_name, loader_key, age_in_days in all_loaders_to_retry:
+        deps = dependency_map.get(table_name, set())
+        if deps and deps & upstream_failed:
+            skipped_deps = deps & upstream_failed
+            logger.info(
+                f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: upstream dependency "
+                f"{skipped_deps} still failing. Will retry after upstream recovers."
+            )
+            results["incomplete_loaders"].append(table_name)
+            continue
+        filtered_loaders.append((table_name, loader_key, age_in_days))
+
+    return filtered_loaders
+
+
+def _is_table_locked_by_other_process(table_name: str) -> bool:
+    """BUG FOUND 2026-08-17: this retry loop had no way to tell that table_name was
+    already being loaded by a concurrently-running scheduler pipeline (e.g.
+    `reference`) before starting its own in-process retry - the SESSION 94 comment
+    above claims running in-process "eliminates file lock contention", but
+    loader.run() still acquires the exact same FileLockManager per-table lock
+    either way, it just no longer spawns a new OS process to do it. Live-confirmed
+    2026-08-17: current_reports_8k crashed with LockAcquisitionError from this
+    exact collision, and a separate redundant dividend_data retry had to be
+    force-killed by an operator mid-load for the same reason (see MEMORY.md
+    scheduler_stale_lock_sweep_stole_active_locks_20260817). is_locked() is a
+    read-only peek (never acquires/mutates) - skip this pass's retry if another
+    process already holds the lock; the next Phase 1 pass will re-check once it's
+    released, and the process already holding it makes this retry redundant anyway.
+    """
+    try:
+        from utils.db.local_file_lock import get_lock_manager
+
+        peek_lock_manager = get_lock_manager(table_name=table_name, enable_auto_cleanup=False)
+        if hasattr(peek_lock_manager, "is_locked") and peek_lock_manager.is_locked(table_name):
+            logger.info(
+                f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: already locked by another "
+                f"active process (likely a concurrently-running scheduler pipeline). Not "
+                f"retrying redundantly - will re-check next pass."
+            )
+            return True
+    except Exception as lock_peek_err:
+        logger.debug(
+            f"[PHASE 1 FAILSAFE LOCAL] Could not check lock state for {table_name} "
+            f"(non-fatal, proceeding with retry): {lock_peek_err}"
+        )
+    return False
+
+
+def _prepare_loader_retry_env(run_date: _date | None, loader_key: str, table_name: str) -> tuple[dict[str, str], int]:
+    """Build the environment dict for an in-process local loader retry and resolve its
+    configured timeout. Returns (env, loader_timeout_seconds).
+
+    Raises:
+        RuntimeError: If loader_key isn't registered in loaders/loader_timeout_config.py.
+    """
+    # Run loader with force-refresh to bypass watermarks
+
+    env = os.environ.copy()
+    env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters (read by technical_data_daily)
+
+    # CRITICAL FIX (Session 54): Pass run_date to loader so it respects orchestrator's date, not system date
+    # When orchestrator runs for 2026-08-12 but system date is 2026-08-08 (Saturday),
+    # loader needs run_date to know which trading day data to expect
+    from datetime import date as _date_class
+
+    run_date_str = run_date.isoformat() if run_date else _date_class.today().isoformat()
+    env["ORCHESTRATOR_RUN_DATE"] = run_date_str
+
+    if loader_key == "financial_statements":
+        # Matches local_loader_scheduler.py's identical special case: main() fans
+        # LOADER_STATEMENT_TYPE="all" out to all 6 statement/period combos; the
+        # class constructor alone requires one specific combo to already be named.
+        env["LOADER_STATEMENT_TYPE"] = "all"
+    # SESSION 94 CRITICAL FIX: Run loader IN-PROCESS instead of subprocess
+    # to eliminate file lock contention from concurrent execution.
+    # Previously, subprocess would fail acquiring locks within ~96s even with
+    # 120+ minute timeouts configured, causing cascading failures.
+    # Now runs directly, inheriting parent orchestrator's lock context.
+    # CRITICAL (SESSION 96): Use correct per-loader timeout from centralized config.
+    # Raise immediately if loader not registered - silent fallback to 60min default
+    # was truncating 180min loaders (company_info_sec).
+    timeouts = get_loader_timeouts()
+    if loader_key not in timeouts:
+        raise RuntimeError(
+            f"[PHASE 1 FAILSAFE] Loader {table_name} ({loader_key}) not registered in "
+            f"loaders/loader_timeout_config.py. This is a configuration error. "
+            f"Registered loaders: {sorted(timeouts.keys())}"
+        )
+    loader_timeout = timeouts[loader_key]
+    env["LOADER_TIMEOUT"] = str(max(1, loader_timeout))
+
+    return env, loader_timeout
+
+
+def _execute_loader_module(loader_key: str, loader_filename: str, table_name: str) -> int:
+    """Import the loader's module and dispatch to its main() or Loader-class entrypoint.
+
+    Returns: process-style return code (0 = success).
+    Raises: RuntimeError if no Loader subclass can be found, or whatever the loader itself raises.
+    """
+    # Import and instantiate the loader class dynamically
+    # Use importlib to dynamically load the module and find the loader class
+    # This approach (from run_loader.py) is more robust than CamelCase guessing
+    import importlib
+
+    module_name = loader_filename.replace(".py", "") if loader_filename.endswith(".py") else loader_filename
+    loader_module = importlib.import_module(f"loaders.{module_name}")
+
+    # SESSION 107 FIX: Special case for loaders that need main() instead of Loader class
+    # - financial_statements: has LOADER_STATEMENT_TYPE="all" which needs special fanout logic
+    # - trend_analysis: vectorized without Loader class (was load_trend_criteria_data.py)
+    # Check if this loader has a main() function and no OptimalLoader class
+    from utils.optimal_loader import OptimalLoader
+
+    # BUG FIX (2026-08-16): "prices" regressed the exact bug the 2026-08-10 fix
+    # above (see the long comment starting "BUG FOUND 2026-08-10") was written to
+    # prevent. PriceLoader IS an OptimalLoader subclass, so the "not any(...
+    # OptimalLoader subclass)" clause below is False for it and it silently fell
+    # through to the else-branch's `loader_class().run(symbols)` - which only
+    # loads price_daily (default asset_class="stock", interval="1d") - instead of
+    # load_prices.py's own main(), the only path that loops over all 6
+    # asset_class x interval combos (price_daily/weekly/monthly, etf_price_daily/
+    # weekly/monthly). Caught by
+    # test_phase1_failsafe_retry_invokes_loader_main_not_generic_path.py, which
+    # predates the Session 94 in-process rewrite of this block and was never
+    # re-verified against it until now - confirmed live-relevant since price_daily
+    # and siblings are still showing stale on the dashboard's Phase 1 self-heal.
+    # BUG FIX (2026-08-17): etf_symbols reaped FAILED forever despite real success,
+    # same regression class as "prices" above. `4261cd620` fixed the NORMAL scheduled
+    # path by adding `output_tables = ["etf_symbols"]` to MarketConstituentsLoader -
+    # but that only helps when the loader runs through loaders/runner.py's global-mode
+    # branch (`main(MarketConstituentsLoader, global_mode=True)`), which is the ONLY
+    # place that copies the primary table's mark_completed() onto output_tables (see
+    # runner.py lines ~254-263/275-283). MarketConstituentsLoader IS an OptimalLoader
+    # subclass, so the "not any(... OptimalLoader subclass)" heuristic below is False
+    # for it too - same fall-through as "prices" originally hit - and this in-process
+    # retry path instantiated the class directly and called load_global(), which only
+    # marks its OWN table (stock_symbols) COMPLETED and never touches etf_symbols at
+    # all. Live-reproduced 2026-08-17 repeatedly (consecutive_failures climbing to 3+
+    # across multiple verification runs, all AFTER `4261cd620` landed): loader logged
+    # "Successfully refreshed etf_symbols table with 5611 ETF symbols" every time, but
+    # etf_symbols' own data_loader_status row stayed FAILED from the original reap,
+    # so this retry loop kept reporting "not recovered" and re-queuing it forever even
+    # though the data was correct on every single attempt.
+    # Force main() path for financial_statements/prices/constituents even though they also have Loader classes
+    if loader_key in ("financial_statements", "prices", "constituents") or (
+        hasattr(loader_module, "main")
+        and callable(loader_module.main)
+        and not any(
+            isinstance(getattr(loader_module, attr), type)
+            and issubclass(getattr(loader_module, attr), OptimalLoader)
+            and getattr(loader_module, attr) is not OptimalLoader
+            for attr in dir(loader_module)
+        )
+    ):
+        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using main() path")
+        # CRITICAL FIX: Save/restore sys.argv to prevent argparse from seeing orchestrator arguments
+        # The loader's run_loader() calls argparse.parse_args() which reads sys.argv[1:].
+        # If we don't protect sys.argv, the loader sees --morning --force from orchestrator
+        # and fails with "unrecognized arguments" error.
+        old_argv = sys.argv
+        try:
+            sys.argv = [sys.argv[0]]  # Keep program name, clear arguments
+            returncode = loader_module.main()
+        finally:
+            sys.argv = old_argv
+    else:
+        # Find the loader class in the module (handles edge cases like CurrentReports8KLoader)
+        # First try to find any OptimalLoader subclass (primary pattern)
+        from utils.optimal_loader import OptimalLoader
+
+        loader_class = None
+        for attr_name in dir(loader_module):
+            obj = getattr(loader_module, attr_name)
+            if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
+                loader_class = obj
+                break
+
+        # Fallback: if no OptimalLoader found, look for any class that looks like a loader
+        # (e.g., VectorizedTechnicalLoader, legacy loaders that predate OptimalLoader, SecLoaderBase subclasses)
+        if loader_class is None:
+            for attr_name in dir(loader_module):
+                obj = getattr(loader_module, attr_name)
+                if isinstance(obj, type) and "Loader" in attr_name and obj.__module__.startswith("loaders"):
+                    loader_class = obj
+                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] Using fallback loader class: {attr_name}")
+                    break
+
+        if loader_class is None:
+            raise RuntimeError(
+                f"Could not find any Loader subclass in loaders.{module_name}. "
+                f"Check that the loader file contains a proper Loader class."
+            )
+
+        # Direct instantiation
+        loader = loader_class()
+
+        # BUG FOUND 2026-08-16: this used to unconditionally call loader.run(symbols)
+        # for every failed loader, with no awareness of global/market-wide loaders
+        # (no symbol column at all - aaii_sentiment, algo_metrics_daily, etc.).
+        # Every retry of a global loader was guaranteed to fail with a nonsensical
+        # "N symbols failed" error listing stock tickers for a table that was never
+        # symbol-based. See loaders/loader_registry.py's GLOBAL_MODE_LOADERS for the
+        # authoritative list (same source scripts/local_loader_scheduler.py and each
+        # loader's own __main__ block use).
+        if loader_filename in GLOBAL_MODE_LOADERS:
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Global-mode loader, using load_global()")
+            global_result = loader.load_global()
+            returncode = 0 if global_result else 1
+        else:
+            # CRITICAL SESSION 107 FIX: Fetch active symbols instead of passing empty list
+            # Previously: loader.run([]) loaded 0 symbols, completed "successfully" with no data
+            # This caused stock_scores, buy_sell_daily, metrics to silently stay stale for 1-2 days
+            # Now: fetch full symbol list so loader actually has data to process
+            exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
+            from utils.loaders.helpers import get_active_symbols
+
+            # SESSION 109 FIX: Increase timeout from 300s to 1800s (30 min)
+            # Problem: yfinance rate limiting can slow symbol fetch to 30+ min for 4900 symbols
+            # Previous 300s timeout caused "0% stall" failures, loader hung on symbol fetch
+            # Now matches other loaders' tolerance for network slowdown under rate limiting
+            symbols_to_load = get_active_symbols(timeout_secs=1800, exclude_etfs=exclude_etfs)
+            logger.info(
+                f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Fetched {len(symbols_to_load)} active symbols for in-process retry"
+            )
+
+            result_status = loader.run(symbols_to_load)
+            returncode = 0 if result_status else 1
+
+    # loader_module.main() is Any (dynamically imported module) - the main() path above can
+    # assign an Any-typed value to returncode; every loader's main() is expected to return an
+    # int exit code (same assumption run_loader.py's own generic dispatch makes), but mypy
+    # can't verify that across a dynamic import boundary.
+    return returncode  # type: ignore[no-any-return]
+
+
+def _run_loader_with_timeout_guard(
+    loader_key: str, loader_filename: str, table_name: str, env: dict[str, str], loader_timeout: int
+) -> int:
+    """Set the retry env vars, enforce the loader's configured timeout, execute it in-process,
+    and always restore the environment / cancel the timeout afterward."""
+    # Set environment for this loader run
+    old_env = os.environ.copy()
+    for key, value in env.items():
+        os.environ[key] = value
+
+    # SESSION 111 CRITICAL FIX: Set up timeout enforcement for in-process loader
+    # This prevents hung loaders from blocking entire orchestrator
+    setup_loader_timeout(loader_key, loader_timeout)
+
+    try:
+        returncode = _execute_loader_module(loader_key, loader_filename, table_name)
+    except RuntimeError as timeout_err:
+        # Timeout exception from signal handler
+        if "timeout" in str(timeout_err).lower():
+            logger.error(
+                f"[PHASE 1 FAILSAFE LOCAL] {table_name} timed out after {loader_timeout}s. "
+                f"Loader was taking too long - marked as FAILED for retry."
+            )
+            returncode = 1
+            _mark_loader_failed_after_crash(loader_key, f"timeout after {loader_timeout}s")
+        else:
+            # Re-raise if it's a different RuntimeError
+            raise
+    except Exception as e:
+        logger.error(
+            f"[PHASE 1 FAILSAFE LOCAL] {table_name} in-process run FAILED: {type(e).__name__}: {e}",
+            exc_info=True,
+        )
+        returncode = 1
+    finally:
+        # SESSION 111 FIX: Cancel timeout to prevent it firing on unrelated code
+        cancel_loader_timeout()
+        # Restore environment
+        os.environ.clear()
+        os.environ.update(old_env)
+
+    return returncode
+
+
+def _record_loader_retry_outcome(
+    table_name: str, loader_key: str, loader_filename: str, returncode: int, results: dict[str, Any]
+) -> None:
+    """Interpret the in-process retry's returncode against the table's own terminal status
+    and update results accordingly."""
+    # Now check the results (after environment restored)
+    if returncode == 0:
+        # BUG FOUND 2026-08-10: exit code 0 only means the subprocess didn't
+        # crash - it says nothing about whether THIS SPECIFIC table's own load
+        # actually succeeded. Live-reproduced: a "prices" refresh exited 0 (the
+        # loader ran to completion without an uncaught exception) while
+        # etf_price_daily itself was marked FAILED at 0.00% completion by its own
+        # internal safety check (see the main()-bypass fix above) - reporting this
+        # as "refreshed successfully"/"recovered" would have been the same
+        # fail-open-and-fabricate-success shape this codebase's governance rules
+        # forbid elsewhere. Re-check the table's own terminal status before
+        # trusting the subprocess's exit code.
+        post_status = LoaderStatusManager(table_name).get_status()
+        if post_status and post_status.get("status") == "COMPLETED":
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
+            results["recovered"].append(table_name)
+        else:
+            actual_status = post_status.get("status") if post_status else "MISSING"
+            logger.error(
+                f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh in-process returned success but the "
+                f"table's own status is '{actual_status}', not COMPLETED (completion_pct="
+                f"{post_status.get('completion_pct') if post_status else 'N/A'}, error="
+                f"{post_status.get('error_message') if post_status else 'N/A'}). Not "
+                f"reporting as recovered."
+            )
+            results["still_failing"].append(table_name)
+            # SESSION 106 FIX: Add buy_sell_daily to critical deps - Phase 1 halts on stale buy_sell_daily
+            if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
+                results["halt_required"] = True
+    else:
+        logger.error(
+            f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh FAILED (in-process execution returned non-zero). "
+            f"Loader: {loader_filename} ({loader_key}). Check logs above for details."
+        )
+        results["still_failing"].append(table_name)
+        _mark_loader_failed_after_crash(
+            loader_key, f"failsafe retry in-process execution failed (returncode={returncode})"
+        )
+        # SESSION 106 FIX: Add buy_sell_daily to critical deps
+        if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
+            results["halt_required"] = True
+
+
+def _retry_incomplete_loader_locally(
+    table_name: str,
+    loader_key: str,
+    age_in_days: int,
+    failed_loaders_to_retry: list[str],
+    run_date: _date | None,
+    results: dict[str, Any],
+) -> None:
+    """Run one loader (FAILED or stale) locally in-process and record the outcome.
+
+    Mutates results in place. Lock-contention skip is handled by the caller before this is
+    invoked (the caller's `continue` on a locked table must also skip the between-retries
+    reap, so that check lives one level up in `_check_and_refresh_local`).
+    """
+    try:
+        if age_in_days == 0 and table_name in failed_loaders_to_retry:
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] Retrying FAILED loader: {table_name}")
+        else:
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] Refreshing stale {table_name} ({age_in_days:.0f} day(s) old)")
+        results["retried"].append(table_name)
+
+        env, loader_timeout = _prepare_loader_retry_env(run_date, loader_key, table_name)
+
+        # BUG FOUND 2026-08-10: this used to invoke `scripts/run_loader.py {loader_key}
+        # --force-refresh` - the exact "generic path bypasses main()" bug class
+        # scripts/local_loader_scheduler.py was already rearchitected away from earlier
+        # the same session ("ROOT-CAUSE FIX 2026-08-10: always invoke the loader module
+        # directly... never scripts/run_loader.py's generic path" - see that module's
+        # own comment, which names "prices" by name among the loaders whose main()-only
+        # logic silently never ran through the generic path). run_loader.py's generic
+        # dispatch imports the loader CLASS and calls `PriceLoader().run()` with default
+        # constructor args (interval="1d", asset_class="stock") - it never reaches
+        # load_prices.py's own main(), which is the ONLY code path that loops over all
+        # 6 asset_class x interval combos (price_daily/weekly/monthly, etf_price_daily/
+        # weekly/monthly). Live-reproduced: a "prices" refresh via the old path exited 0
+        # ("refreshed successfully") while price_weekly/price_monthly/etf_price_daily/
+        # etf_price_weekly/etf_price_monthly were ALL marked FAILED at 0.00% completion
+        # (0/N symbols) - only price_daily (the one table matching the default
+        # constructor args) ever actually loaded. This meant Phase 1's OWN self-healing
+        # mechanism could never actually recover etf_price_daily even after correctly
+        # detecting it as stale - every retry would silently "succeed" while leaving the
+        # real data untouched. Fixed identically to local_loader_scheduler.py: invoke
+        # `python loaders/{file}.py` directly so every loader's real production
+        # entrypoint runs locally too, with no generic path left to diverge from it.
+        loader_filename = normalize_loader_name(loader_key)
+
+        returncode = _run_loader_with_timeout_guard(loader_key, loader_filename, table_name, env, loader_timeout)
+
+        _record_loader_retry_outcome(table_name, loader_key, loader_filename, returncode, results)
+
+    except (OSError, RuntimeError) as e:
+        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
+        results["still_failing"].append(table_name)
+        _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")
+        # SESSION 106 FIX: Add buy_sell_daily to critical deps
+        if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
+            results["halt_required"] = True
+    except Exception as e:
+        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
+        results["still_failing"].append(table_name)
+        _mark_loader_failed_after_crash(loader_key, f"failsafe retry unexpected error: {type(e).__name__}: {e}")
+        # SESSION 106 FIX: Add buy_sell_daily to critical deps
+        if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
+            results["halt_required"] = True
+
+
+def _reap_stale_running_loaders_between_retries(table_name: str) -> None:
+    """SESSION 106 FIX: Reap stuck loaders between retry attempts.
+
+    If a loader gets stuck RUNNING during this attempt, reap it before trying the next loader
+    to prevent cascading failures where one stuck loader blocks all subsequent retries. Only
+    reap after attempting to refresh (don't waste time on fast completions).
+    """
+    try:
+        from utils.loaders.status_manager import reap_stale_running_loaders
+
+        reaped_tables = reap_stale_running_loaders()
+        if len(reaped_tables) > 0:
+            logger.info(
+                f"[PHASE 1 FAILSAFE LOCAL] Reaped {len(reaped_tables)} stale running loader(s) after {table_name} retry"
+            )
+    except Exception as reap_err:
+        logger.debug(f"[PHASE 1 FAILSAFE LOCAL] Reaper check between retries failed (non-fatal): {reap_err}")
+
+
+def _check_and_refresh_local(
     run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False
 ) -> dict[str, Any]:
     """In LOCAL_MODE, check for stale DATA and refresh loaders locally.
@@ -336,34 +1125,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         return results
 
     # CRITICAL FIX 2026-08-12: First pass - check for FAILED loaders and retry them
-    # Loaders marked FAILED on Friday are ignored by Monday because they're not "stale" (data is recent)
-    # but they DO need retry to recover from the crash/timeout that caused the FAILED status
-    # SESSION 93 FIX: Also check TIMEOUT status (AWS mode handles it at line 815)
-    failed_loaders_to_retry = []
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute("""
-                SELECT
-                    table_name,
-                    consecutive_failures,
-                    error_message
-                FROM data_loader_status
-                WHERE UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT')
-                ORDER BY table_name
-            """)
-            failed_loaders = cur.fetchall()
-
-            for table_name, consecutive_failures, error_msg in failed_loaders:
-                logger.warning(
-                    f"[PHASE 1 FAILSAFE LOCAL] Found FAILED loader (will retry): {table_name} "
-                    f"(consecutive_failures={consecutive_failures}, error={error_msg[:60] if error_msg else 'none'})"
-                )
-                results["incomplete_loaders"].append(table_name)
-                failed_loaders_to_retry.append(table_name)
-    except Exception as e:
-        logger.warning(
-            f"[PHASE 1 FAILSAFE LOCAL] Could not check for FAILED loaders: {e}. Continuing with staleness checks."
-        )
+    failed_loaders_to_retry = _find_failed_loaders_to_retry(results)
 
     # Critical loaders to refresh in local mode (table_name: loader_script_key)
     # SESSION 94 CRITICAL FIX: Add ALL Phase 1 critical loaders, not just hardcoded subset
@@ -418,7 +1180,6 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
     try:
         # Check actual data freshness (MAX(date) in each table), not loader status
         # This catches when loader ran recently but data is stale
-        stale_loaders = []
 
         # Market-aware freshness check: determine expected data date based on pipeline context + run_date
         # CRITICAL FIX (Session 54 PATCH 2): Pass pipeline_context to avoid recalculating from system time
@@ -428,283 +1189,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         )
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
 
-        def _check_data_completeness(table_name: str, check_date: _date) -> tuple[bool, str]:
-            """Check if table has sufficient data completeness (95%+ non-NULL in critical column).
+        stale_loaders = _find_stale_or_incomplete_loaders(loaders_to_refresh, expected_data_date, results)
 
-            Args:
-                check_date: The date to check completeness for - the table's own actual latest
-                    date (table_max_date from the staleness check above), NOT necessarily
-                    expected_data_date. For stock_scores/earnings_calendar, which track
-                    freshness via updated_at (a loader-run timestamp, not a trading-day
-                    column), these are only the same value when the loader happens to run
-                    exactly on expected_data_date - which the staleness check above already
-                    established is NOT required (updated_at from a same-day-or-later refresh
-                    correctly reads as "not stale", since it's ahead of, not behind, the
-                    expected historical trading day). Bug found 2026-08-10 (live-reproduced
-                    on every MORNING/INTRADAY orchestrator run today): this used to always
-                    check against expected_data_date regardless, so a same-day stock_scores
-                    refresh's updated_at (today) could never match expected_data_date
-                    (yesterday) - COUNT(*) for that date was always 0, permanently reporting
-                    "No rows for {expected_data_date}" and re-triggering a full stock_scores
-                    reload on every single intraday run, even seconds after a fresh,
-                    successful, 100%-complete refresh.
-
-            Returns: (is_complete, reason_if_incomplete)
-            """
-            if table_name == "stock_scores":
-                # stock_scores: check that symbol column is non-NULL (composite_score can be NULL for unavailable stocks)
-                critical_col = "symbol"
-            elif table_name in ("price_daily", "etf_price_daily"):
-                # price_daily/etf_price_daily: check close price is populated (same schema)
-                critical_col = "close"
-            elif table_name == "technical_data_daily":
-                # technical_data_daily: check rsi_14 (core technical indicator)
-                critical_col = "rsi_14"
-            elif table_name == "buy_sell_daily":
-                # buy_sell_daily: check signal_type is populated
-                critical_col = "signal_type"
-            elif table_name == "market_health_daily":
-                # market_health_daily: check vix_level is populated
-                critical_col = "vix_level"
-            elif table_name == "trend_template_data":
-                # trend_template_data: check trend_direction is populated (key field for regime detection)
-                critical_col = "trend_direction"
-            elif table_name == "earnings_calendar":
-                # earnings_calendar: check earnings_date is populated (gates earnings_blackout entry blocking)
-                critical_col = "earnings_date"
-            else:
-                return True, ""  # Unknown table, skip completeness check
-
-            try:
-                # stock_scores doesn't have a date column, use updated_at instead
-                if table_name == "stock_scores":
-                    date_filter = "updated_at::date = %s"
-                    params: tuple[Any, ...] = (check_date,)
-                # trend_template_data: check only today's data by date column, not by created_at
-                # (created_at fallback included old backfilled data, making completeness check too strict)
-                elif table_name == "trend_template_data":
-                    date_filter = "date = %s"
-                    params = (check_date,)
-                # earnings_calendar: uses updated_at to track loader freshness (not earnings_date, which is forward-looking)
-                elif table_name == "earnings_calendar":
-                    date_filter = "updated_at::date = %s"
-                    params = (check_date,)
-                else:
-                    date_filter = "date = %s OR updated_at::date = %s"
-                    params = (check_date, check_date)
-
-                # Technical_data_daily validation requires multiple indicators, not just one.
-                # Session 81: Partial loads were missed before when a loader crash wrote RSI-14
-                # but crashed before writing ATR, SMA, etc. Phase 8 uses ATR for position sizing,
-                # so sparse technical_data causes entry failures later. Validate all 4 required
-                # indicators are present for 95%+ of symbols.
-                if table_name == "technical_data_daily":
-                    cur.execute(
-                        f"""
-                        SELECT
-                            COUNT(*) as total_rows,
-                            COUNT(rsi_14) as rsi_count,
-                            COUNT(atr_14) as atr_count,
-                            COUNT(sma_50) as sma_count,
-                            COUNT(bb_upper) as bb_count
-                        FROM {table_name}
-                        WHERE {date_filter}
-                    """,
-                        params,
-                    )
-                    row = cur.fetchone()
-                    if not row or row[0] == 0:
-                        return False, f"No rows for {check_date}"
-                    total, rsi_count, atr_count, sma_count, bb_count = row
-                    # All 4 indicators should be present in >= 95% of rows
-                    indicator_pcts = [
-                        (rsi_count / total * 100) if total > 0 else 0,
-                        (atr_count / total * 100) if total > 0 else 0,
-                        (sma_count / total * 100) if total > 0 else 0,
-                        (bb_count / total * 100) if total > 0 else 0,
-                    ]
-                    min_indicator_pct = min(indicator_pcts)
-                    if min_indicator_pct < 95.0:
-                        return (
-                            False,
-                            f"Technical indicators incomplete: RSI {indicator_pcts[0]:.0f}%, ATR {indicator_pcts[1]:.0f}%, SMA {indicator_pcts[2]:.0f}%, BB {indicator_pcts[3]:.0f}% (need 95%+)",
-                        )
-                    return True, ""
-
-                cur.execute(
-                    f"""
-                    SELECT
-                        COUNT(*) as total_rows,
-                        COUNT({critical_col}) as non_null_rows
-                    FROM {table_name}
-                    WHERE {date_filter}
-                """,
-                    params,
-                )
-
-                row = cur.fetchone()
-                if not row or row[0] == 0:
-                    return False, f"No rows for {check_date}"
-
-                total, non_null = row[0], row[1]
-                completeness_pct = (non_null / total * 100) if total > 0 else 0
-
-                min_completeness = 92.0 if table_name == "trend_template_data" else 95.0
-                if completeness_pct < min_completeness:
-                    return (
-                        False,
-                        f"Completeness {completeness_pct:.1f}% (need {min_completeness}%+ of {critical_col} non-NULL)",
-                    )
-                return True, ""
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                # This is a failsafe retry helper: its whole job is deciding whether a table
-                # needs a refresh. Treating a completeness-check failure as "complete" silently
-                # skips a table we couldn't actually verify - the same fail-open-and-fabricate
-                # shape this codebase's governance rules forbid elsewhere. Fail closed instead:
-                # an unverifiable table is treated as incomplete, so it gets refreshed (cheap)
-                # rather than possibly staying silently sparse (expensive/invisible).
-                logger.warning(
-                    f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}. Treating as incomplete."
-                )
-                return False, f"Completeness check failed (DB error): {e}"
-            except (KeyError, ValueError, TypeError) as e:
-                logger.warning(
-                    f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}. Treating as incomplete."
-                )
-                return False, f"Completeness check failed (data error): {e}"
-
-        for table_name, loader_key in loaders_to_refresh.items():
-            # CRITICAL FIX (Session 96): Create new DatabaseContext for EACH table
-            # Bug: Single context for entire loop caused transaction abort cascade
-            # When one table's query failed (e.g., company_info_sec), ALL subsequent
-            # queries in same transaction failed with "InFailedSqlTransaction"
-            # Fix: Isolate each table's check in its own transaction
-            with DatabaseContext("read") as cur:
-                try:
-                    # SESSION 99 FIX: Use proper date column for each table (14 tables had "column date does not exist")
-                    date_col = _get_table_date_column(table_name)
-                    if date_col is None:
-                        # Table has no date column - skip freshness check
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no date column - skipping freshness check"
-                        )
-                        continue
-
-                    # Type guard: date_col is now guaranteed str (not None)
-                    cur.execute(f"SELECT MAX({date_col}) FROM {table_name}")
-
-                    row = cur.fetchone()
-                    if row and row[0]:
-                        max_date = row[0]
-                        # Convert date/datetime to date for comparison
-                        from datetime import date as date_type
-
-                        if isinstance(max_date, date_type) and not isinstance(max_date, datetime):
-                            table_max_date = max_date
-                        elif isinstance(max_date, datetime):
-                            table_max_date = max_date.date()
-                        else:
-                            logger.warning(
-                                f"[PHASE 1 FAILSAFE LOCAL] Unexpected date type for {table_name}: {type(max_date)}"
-                            )
-                            continue
-
-                        # Market-aware staleness check: allow up to 10 days behind (covers weekends/holidays)
-                        # Don't use naive hours checks which fail at multi-day gaps
-                        days_behind = (expected_data_date - table_max_date).days
-                        is_stale = days_behind > 0  # Stale if behind expected date
-
-                        if is_stale:
-                            stale_loaders.append((table_name, loader_key, days_behind))
-                            results["incomplete_loaders"].append(table_name)
-                            logger.warning(
-                                f"[PHASE 1 FAILSAFE LOCAL] {table_name} data stale: "
-                                f"{table_max_date} vs expected {expected_data_date} "
-                                f"({days_behind} day(s) behind)"
-                            )
-                        else:
-                            # CRITICAL: Also check data completeness (not just date freshness)
-                            # A table can have MAX(date)=today but be 95% NULL values
-                            is_complete, incomplete_reason = _check_data_completeness(table_name, table_max_date)
-                            if not is_complete:
-                                stale_loaders.append((table_name, loader_key, 0))
-                                results["incomplete_loaders"].append(table_name)
-                                logger.warning(
-                                    f"[PHASE 1 FAILSAFE LOCAL] {table_name} data sparse despite fresh date: {incomplete_reason}. "
-                                    f"Loader may have completed with insufficient data quality. Triggering refresh."
-                                )
-                            else:
-                                logger.info(
-                                    f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh and complete: {table_max_date}"
-                                )
-                    else:
-                        # No data at all
-                        stale_loaders.append((table_name, loader_key, 999))
-                        results["incomplete_loaders"].append(table_name)
-                        logger.warning(f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no data")
-
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (DB error): {e}")
-                except (KeyError, ValueError, TypeError, AttributeError) as e:
-                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (data error): {e}")
-
-        # Combine FAILED loaders with stale loaders for retry
-        # Map table names to loader keys - use registry for comprehensive mapping
-        from loaders.loader_registry import table_to_loader_shorthand
-
-        table_to_loader_key = dict(loaders_to_refresh)
-        all_loaders_to_retry = []
-
-        # Add FAILED loaders - use registry to find ANY loader, not just hardcoded ones
-        for table_name in failed_loaders_to_retry:
-            key_for_failed: str | None = table_to_loader_key.get(table_name)
-            # If not in hardcoded dict, try dynamic lookup from registry
-            if not key_for_failed:
-                key_for_failed = table_to_loader_shorthand(table_name)
-
-            if key_for_failed:
-                all_loaders_to_retry.append((table_name, key_for_failed, 0))  # age=0 for FAILED
-                logger.info(f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} → {key_for_failed}")
-            else:
-                logger.warning(
-                    f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} not found in registry - cannot retry"
-                )
-
-        # Add stale loaders
-        all_loaders_to_retry.extend(stale_loaders)
-
-        # SESSION 106 FIX: Check for upstream dependency failures before retrying downstream loaders
-        # If upstream loaders (prices, technical_data) are still failing, don't retry downstream
-        # (buy_sell_daily, stock_scores) because they'll just fail again - wait for upstream to fix first
-        upstream_failed = set(failed_loaders_to_retry)
-        dependency_map = {
-            "buy_sell_daily": {"price_daily", "technical_data_daily"},
-            "stock_scores": {"price_daily", "technical_data_daily"},
-            "trend_template_data": {"price_daily"},
-            "value_metrics": {"price_daily"},
-            "quality_metrics": {"price_daily"},
-            "growth_metrics": {"price_daily"},
-            "momentum_metrics": {"price_daily"},
-            "positioning_metrics": {"price_daily"},
-        }
-
-        # Filter out downstream loaders whose upstream dependencies are still failing
-        filtered_loaders_to_retry = []
-        for table_name, loader_key, age_in_days in all_loaders_to_retry:
-            deps = dependency_map.get(table_name, set())
-            if deps and deps & upstream_failed:
-                # Upstream dependency is still failing - skip this loader for now
-                skipped_deps = deps & upstream_failed
-                logger.info(
-                    f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: upstream dependency "
-                    f"{skipped_deps} still failing. Will retry after upstream recovers."
-                )
-                results["incomplete_loaders"].append(table_name)
-                continue
-
-            filtered_loaders_to_retry.append((table_name, loader_key, age_in_days))
-
-        all_loaders_to_retry = filtered_loaders_to_retry
+        all_loaders_to_retry = _combine_failed_and_stale_loaders(
+            failed_loaders_to_retry, stale_loaders, loaders_to_refresh, results
+        )
 
         if not all_loaders_to_retry:
             logger.info("[PHASE 1 FAILSAFE LOCAL] All data current - no refresh needed")
@@ -725,393 +1214,31 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # both import from single source of truth (loaders/loader_timeout_config.py)
 
         # SESSION 106 FIX: Reap stuck loaders before retry loop
-        # Previous behavior: reaper only ran once at orchestrator startup, not between retry attempts
-        # If a loader gets stuck RUNNING during previous phase, it would persist through entire retry loop
-        # Now reap before starting retries to handle any leftover stuck loaders from prior runs
-        try:
-            from utils.loaders.status_manager import reap_stale_running_loaders
-
-            reaped_tables = reap_stale_running_loaders()
-            if len(reaped_tables) > 0:
-                logger.info(
-                    f"[PHASE 1 FAILSAFE LOCAL] Reaped {len(reaped_tables)} stale running loader(s) before retry loop"
-                )
-        except Exception as reap_err:
-            logger.warning(
-                f"[PHASE 1 FAILSAFE LOCAL] Failed to reap stale loaders: {reap_err}. Proceeding with retries anyway."
-            )
+        _reap_stale_running_loaders_before_retry_loop()
 
         # SESSION 106 FIX #7: Check dependencies before retry - avoid cascading failures
-        # When price_daily fails, don't retry buy_sell_daily (depends on price_daily)
-        # Filter out downstream loaders if their upstream dependencies are still failing
-        upstream_failed = set(failed_loaders_to_retry)
-        dependency_map = {
-            "buy_sell_daily": {"price_daily", "technical_data_daily"},
-            "stock_scores": {"price_daily", "technical_data_daily"},
-            "trend_template_data": {"price_daily"},
-            "signal_quality_scores": {"buy_sell_daily", "stock_scores"},
-        }
-        filtered_loaders = []
-        for table_name, loader_key, age_in_days in all_loaders_to_retry:
-            deps = dependency_map.get(table_name, set())
-            if deps and deps & upstream_failed:
-                skipped_deps = deps & upstream_failed
-                logger.info(
-                    f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: upstream dependency "
-                    f"{skipped_deps} still failing. Will retry after upstream recovers."
-                )
-                results["incomplete_loaders"].append(table_name)
-                continue
-            filtered_loaders.append((table_name, loader_key, age_in_days))
-
-        all_loaders_to_retry = filtered_loaders
+        all_loaders_to_retry = _filter_loaders_blocked_by_dependencies(
+            all_loaders_to_retry, failed_loaders_to_retry, results
+        )
         if not all_loaders_to_retry:
             logger.info("[PHASE 1 FAILSAFE LOCAL] No independent loaders to retry (all blocked by dependencies)")
             return results
 
         # Run each loader (FAILED or stale) locally
         for table_name, loader_key, age_in_days in all_loaders_to_retry:
-            try:
-                # BUG FOUND 2026-08-17: this retry loop had no way to tell that table_name was
-                # already being loaded by a concurrently-running scheduler pipeline (e.g.
-                # `reference`) before starting its own in-process retry - the SESSION 94 comment
-                # above claims running in-process "eliminates file lock contention", but
-                # loader.run() still acquires the exact same FileLockManager per-table lock
-                # either way, it just no longer spawns a new OS process to do it. Live-confirmed
-                # 2026-08-17: current_reports_8k crashed with LockAcquisitionError from this
-                # exact collision, and a separate redundant dividend_data retry had to be
-                # force-killed by an operator mid-load for the same reason (see MEMORY.md
-                # scheduler_stale_lock_sweep_stole_active_locks_20260817). is_locked() is a
-                # read-only peek (never acquires/mutates) - skip this pass's retry if another
-                # process already holds the lock; the next Phase 1 pass will re-check once it's
-                # released, and the process already holding it makes this retry redundant anyway.
-                try:
-                    from utils.db.local_file_lock import get_lock_manager
-
-                    peek_lock_manager = get_lock_manager(table_name=table_name, enable_auto_cleanup=False)
-                    if hasattr(peek_lock_manager, "is_locked") and peek_lock_manager.is_locked(table_name):
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: already locked by another "
-                            f"active process (likely a concurrently-running scheduler pipeline). Not "
-                            f"retrying redundantly - will re-check next pass."
-                        )
-                        results["still_failing"].append(table_name)
-                        continue
-                except Exception as lock_peek_err:
-                    logger.debug(
-                        f"[PHASE 1 FAILSAFE LOCAL] Could not check lock state for {table_name} "
-                        f"(non-fatal, proceeding with retry): {lock_peek_err}"
-                    )
-
-                if age_in_days == 0 and table_name in failed_loaders_to_retry:
-                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] Retrying FAILED loader: {table_name}")
-                else:
-                    logger.info(
-                        f"[PHASE 1 FAILSAFE LOCAL] Refreshing stale {table_name} ({age_in_days:.0f} day(s) old)"
-                    )
-                results["retried"].append(table_name)
-
-                # Run loader with force-refresh to bypass watermarks
-
-                env = os.environ.copy()
-                env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters (read by technical_data_daily)
-
-                # CRITICAL FIX (Session 54): Pass run_date to loader so it respects orchestrator's date, not system date
-                # When orchestrator runs for 2026-08-12 but system date is 2026-08-08 (Saturday),
-                # loader needs run_date to know which trading day data to expect
-                from datetime import date as _date_class
-
-                run_date_str = run_date.isoformat() if run_date else _date_class.today().isoformat()
-                env["ORCHESTRATOR_RUN_DATE"] = run_date_str
-
-                # BUG FOUND 2026-08-10: this used to invoke `scripts/run_loader.py {loader_key}
-                # --force-refresh` - the exact "generic path bypasses main()" bug class
-                # scripts/local_loader_scheduler.py was already rearchitected away from earlier
-                # the same session ("ROOT-CAUSE FIX 2026-08-10: always invoke the loader module
-                # directly... never scripts/run_loader.py's generic path" - see that module's
-                # own comment, which names "prices" by name among the loaders whose main()-only
-                # logic silently never ran through the generic path). run_loader.py's generic
-                # dispatch imports the loader CLASS and calls `PriceLoader().run()` with default
-                # constructor args (interval="1d", asset_class="stock") - it never reaches
-                # load_prices.py's own main(), which is the ONLY code path that loops over all
-                # 6 asset_class x interval combos (price_daily/weekly/monthly, etf_price_daily/
-                # weekly/monthly). Live-reproduced: a "prices" refresh via the old path exited 0
-                # ("refreshed successfully") while price_weekly/price_monthly/etf_price_daily/
-                # etf_price_weekly/etf_price_monthly were ALL marked FAILED at 0.00% completion
-                # (0/N symbols) - only price_daily (the one table matching the default
-                # constructor args) ever actually loaded. This meant Phase 1's OWN self-healing
-                # mechanism could never actually recover etf_price_daily even after correctly
-                # detecting it as stale - every retry would silently "succeed" while leaving the
-                # real data untouched. Fixed identically to local_loader_scheduler.py: invoke
-                # `python loaders/{file}.py` directly so every loader's real production
-                # entrypoint runs locally too, with no generic path left to diverge from it.
-                loader_filename = normalize_loader_name(loader_key)
-                if loader_key == "financial_statements":
-                    # Matches local_loader_scheduler.py's identical special case: main() fans
-                    # LOADER_STATEMENT_TYPE="all" out to all 6 statement/period combos; the
-                    # class constructor alone requires one specific combo to already be named.
-                    env["LOADER_STATEMENT_TYPE"] = "all"
-                # SESSION 94 CRITICAL FIX: Run loader IN-PROCESS instead of subprocess
-                # to eliminate file lock contention from concurrent execution.
-                # Previously, subprocess would fail acquiring locks within ~96s even with
-                # 120+ minute timeouts configured, causing cascading failures.
-                # Now runs directly, inheriting parent orchestrator's lock context.
-                # CRITICAL (SESSION 96): Use correct per-loader timeout from centralized config.
-                # Raise immediately if loader not registered - silent fallback to 60min default
-                # was truncating 180min loaders (company_info_sec).
-                timeouts = get_loader_timeouts()
-                if loader_key not in timeouts:
-                    raise RuntimeError(
-                        f"[PHASE 1 FAILSAFE] Loader {table_name} ({loader_key}) not registered in "
-                        f"loaders/loader_timeout_config.py. This is a configuration error. "
-                        f"Registered loaders: {sorted(timeouts.keys())}"
-                    )
-                loader_timeout = timeouts[loader_key]
-                env["LOADER_TIMEOUT"] = str(max(1, loader_timeout))
-
-                # Set environment for this loader run
-                old_env = os.environ.copy()
-                for key, value in env.items():
-                    os.environ[key] = value
-
-                # SESSION 111 CRITICAL FIX: Set up timeout enforcement for in-process loader
-                # This prevents hung loaders from blocking entire orchestrator
-                setup_loader_timeout(loader_key, loader_timeout)
-
-                try:
-                    # Import and instantiate the loader class dynamically
-                    # Use importlib to dynamically load the module and find the loader class
-                    # This approach (from run_loader.py) is more robust than CamelCase guessing
-                    import importlib
-
-                    module_name = (
-                        loader_filename.replace(".py", "") if loader_filename.endswith(".py") else loader_filename
-                    )
-                    loader_module = importlib.import_module(f"loaders.{module_name}")
-
-                    # SESSION 107 FIX: Special case for loaders that need main() instead of Loader class
-                    # - financial_statements: has LOADER_STATEMENT_TYPE="all" which needs special fanout logic
-                    # - trend_analysis: vectorized without Loader class (was load_trend_criteria_data.py)
-                    # Check if this loader has a main() function and no OptimalLoader class
-                    from utils.optimal_loader import OptimalLoader
-
-                    # BUG FIX (2026-08-16): "prices" regressed the exact bug the 2026-08-10 fix
-                    # above (see the long comment starting "BUG FOUND 2026-08-10") was written to
-                    # prevent. PriceLoader IS an OptimalLoader subclass, so the "not any(...
-                    # OptimalLoader subclass)" clause below is False for it and it silently fell
-                    # through to the else-branch's `loader_class().run(symbols)` - which only
-                    # loads price_daily (default asset_class="stock", interval="1d") - instead of
-                    # load_prices.py's own main(), the only path that loops over all 6
-                    # asset_class x interval combos (price_daily/weekly/monthly, etf_price_daily/
-                    # weekly/monthly). Caught by
-                    # test_phase1_failsafe_retry_invokes_loader_main_not_generic_path.py, which
-                    # predates the Session 94 in-process rewrite of this block and was never
-                    # re-verified against it until now - confirmed live-relevant since price_daily
-                    # and siblings are still showing stale on the dashboard's Phase 1 self-heal.
-                    # BUG FIX (2026-08-17): etf_symbols reaped FAILED forever despite real success,
-                    # same regression class as "prices" above. `4261cd620` fixed the NORMAL scheduled
-                    # path by adding `output_tables = ["etf_symbols"]` to MarketConstituentsLoader -
-                    # but that only helps when the loader runs through loaders/runner.py's global-mode
-                    # branch (`main(MarketConstituentsLoader, global_mode=True)`), which is the ONLY
-                    # place that copies the primary table's mark_completed() onto output_tables (see
-                    # runner.py lines ~254-263/275-283). MarketConstituentsLoader IS an OptimalLoader
-                    # subclass, so the "not any(... OptimalLoader subclass)" heuristic below is False
-                    # for it too - same fall-through as "prices" originally hit - and this in-process
-                    # retry path instantiated the class directly and called load_global(), which only
-                    # marks its OWN table (stock_symbols) COMPLETED and never touches etf_symbols at
-                    # all. Live-reproduced 2026-08-17 repeatedly (consecutive_failures climbing to 3+
-                    # across multiple verification runs, all AFTER `4261cd620` landed): loader logged
-                    # "Successfully refreshed etf_symbols table with 5611 ETF symbols" every time, but
-                    # etf_symbols' own data_loader_status row stayed FAILED from the original reap,
-                    # so this retry loop kept reporting "not recovered" and re-queuing it forever even
-                    # though the data was correct on every single attempt.
-                    # Force main() path for financial_statements/prices/constituents even though they also have Loader classes
-                    if loader_key in ("financial_statements", "prices", "constituents") or (
-                        hasattr(loader_module, "main")
-                        and callable(loader_module.main)
-                        and not any(
-                            isinstance(getattr(loader_module, attr), type)
-                            and issubclass(getattr(loader_module, attr), OptimalLoader)
-                            and getattr(loader_module, attr) is not OptimalLoader
-                            for attr in dir(loader_module)
-                        )
-                    ):
-                        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using main() path")
-                        # CRITICAL FIX: Save/restore sys.argv to prevent argparse from seeing orchestrator arguments
-                        # The loader's run_loader() calls argparse.parse_args() which reads sys.argv[1:].
-                        # If we don't protect sys.argv, the loader sees --morning --force from orchestrator
-                        # and fails with "unrecognized arguments" error.
-                        old_argv = sys.argv
-                        try:
-                            sys.argv = [sys.argv[0]]  # Keep program name, clear arguments
-                            returncode = loader_module.main()
-                        finally:
-                            sys.argv = old_argv
-                    else:
-                        # Find the loader class in the module (handles edge cases like CurrentReports8KLoader)
-                        # First try to find any OptimalLoader subclass (primary pattern)
-                        from utils.optimal_loader import OptimalLoader
-
-                        loader_class = None
-                        for attr_name in dir(loader_module):
-                            obj = getattr(loader_module, attr_name)
-                            if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
-                                loader_class = obj
-                                break
-
-                        # Fallback: if no OptimalLoader found, look for any class that looks like a loader
-                        # (e.g., VectorizedTechnicalLoader, legacy loaders that predate OptimalLoader, SecLoaderBase subclasses)
-                        if loader_class is None:
-                            for attr_name in dir(loader_module):
-                                obj = getattr(loader_module, attr_name)
-                                if (
-                                    isinstance(obj, type)
-                                    and "Loader" in attr_name
-                                    and obj.__module__.startswith("loaders")
-                                ):
-                                    loader_class = obj
-                                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] Using fallback loader class: {attr_name}")
-                                    break
-
-                        if loader_class is None:
-                            raise RuntimeError(
-                                f"Could not find any Loader subclass in loaders.{module_name}. "
-                                f"Check that the loader file contains a proper Loader class."
-                            )
-
-                        # Direct instantiation
-                        loader = loader_class()
-
-                        # BUG FOUND 2026-08-16: this used to unconditionally call loader.run(symbols)
-                        # for every failed loader, with no awareness of global/market-wide loaders
-                        # (no symbol column at all - aaii_sentiment, algo_metrics_daily, etc.).
-                        # Every retry of a global loader was guaranteed to fail with a nonsensical
-                        # "N symbols failed" error listing stock tickers for a table that was never
-                        # symbol-based. See loaders/loader_registry.py's GLOBAL_MODE_LOADERS for the
-                        # authoritative list (same source scripts/local_loader_scheduler.py and each
-                        # loader's own __main__ block use).
-                        if loader_filename in GLOBAL_MODE_LOADERS:
-                            logger.info(
-                                f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Global-mode loader, using load_global()"
-                            )
-                            global_result = loader.load_global()
-                            returncode = 0 if global_result else 1
-                        else:
-                            # CRITICAL SESSION 107 FIX: Fetch active symbols instead of passing empty list
-                            # Previously: loader.run([]) loaded 0 symbols, completed "successfully" with no data
-                            # This caused stock_scores, buy_sell_daily, metrics to silently stay stale for 1-2 days
-                            # Now: fetch full symbol list so loader actually has data to process
-                            exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
-                            from utils.loaders.helpers import get_active_symbols
-
-                            # SESSION 109 FIX: Increase timeout from 300s to 1800s (30 min)
-                            # Problem: yfinance rate limiting can slow symbol fetch to 30+ min for 4900 symbols
-                            # Previous 300s timeout caused "0% stall" failures, loader hung on symbol fetch
-                            # Now matches other loaders' tolerance for network slowdown under rate limiting
-                            symbols_to_load = get_active_symbols(timeout_secs=1800, exclude_etfs=exclude_etfs)
-                            logger.info(
-                                f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Fetched {len(symbols_to_load)} active symbols for in-process retry"
-                            )
-
-                            result_status = loader.run(symbols_to_load)
-                            returncode = 0 if result_status else 1
-
-                except RuntimeError as timeout_err:
-                    # Timeout exception from signal handler
-                    if "timeout" in str(timeout_err).lower():
-                        logger.error(
-                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} timed out after {loader_timeout}s. "
-                            f"Loader was taking too long - marked as FAILED for retry."
-                        )
-                        returncode = 1
-                        _mark_loader_failed_after_crash(loader_key, f"timeout after {loader_timeout}s")
-                    else:
-                        # Re-raise if it's a different RuntimeError
-                        raise
-                except Exception as e:
-                    logger.error(
-                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} in-process run FAILED: {type(e).__name__}: {e}",
-                        exc_info=True,
-                    )
-                    returncode = 1
-                finally:
-                    # SESSION 111 FIX: Cancel timeout to prevent it firing on unrelated code
-                    cancel_loader_timeout()
-                    # Restore environment
-                    os.environ.clear()
-                    os.environ.update(old_env)
-
-                # Now check the results (after environment restored)
-                if returncode == 0:
-                    # BUG FOUND 2026-08-10: exit code 0 only means the subprocess didn't
-                    # crash - it says nothing about whether THIS SPECIFIC table's own load
-                    # actually succeeded. Live-reproduced: a "prices" refresh exited 0 (the
-                    # loader ran to completion without an uncaught exception) while
-                    # etf_price_daily itself was marked FAILED at 0.00% completion by its own
-                    # internal safety check (see the main()-bypass fix above) - reporting this
-                    # as "refreshed successfully"/"recovered" would have been the same
-                    # fail-open-and-fabricate-success shape this codebase's governance rules
-                    # forbid elsewhere. Re-check the table's own terminal status before
-                    # trusting the subprocess's exit code.
-                    post_status = LoaderStatusManager(table_name).get_status()
-                    if post_status and post_status.get("status") == "COMPLETED":
-                        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
-                        results["recovered"].append(table_name)
-                    else:
-                        actual_status = post_status.get("status") if post_status else "MISSING"
-                        logger.error(
-                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh in-process returned success but the "
-                            f"table's own status is '{actual_status}', not COMPLETED (completion_pct="
-                            f"{post_status.get('completion_pct') if post_status else 'N/A'}, error="
-                            f"{post_status.get('error_message') if post_status else 'N/A'}). Not "
-                            f"reporting as recovered."
-                        )
-                        results["still_failing"].append(table_name)
-                        # SESSION 106 FIX: Add buy_sell_daily to critical deps - Phase 1 halts on stale buy_sell_daily
-                        if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
-                            results["halt_required"] = True
-                else:
-                    logger.error(
-                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh FAILED (in-process execution returned non-zero). "
-                        f"Loader: {loader_filename} ({loader_key}). Check logs above for details."
-                    )
-                    results["still_failing"].append(table_name)
-                    _mark_loader_failed_after_crash(
-                        loader_key, f"failsafe retry in-process execution failed (returncode={returncode})"
-                    )
-                    # SESSION 106 FIX: Add buy_sell_daily to critical deps
-                    if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
-                        results["halt_required"] = True
-
-            except (OSError, RuntimeError) as e:
-                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
+            if _is_table_locked_by_other_process(table_name):
                 results["still_failing"].append(table_name)
-                _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")
-                # SESSION 106 FIX: Add buy_sell_daily to critical deps
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
-                    results["halt_required"] = True
-            except Exception as e:
-                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
-                results["still_failing"].append(table_name)
-                _mark_loader_failed_after_crash(loader_key, f"failsafe retry unexpected error: {type(e).__name__}: {e}")
-                # SESSION 106 FIX: Add buy_sell_daily to critical deps
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
-                    results["halt_required"] = True
+                continue
+
+            _retry_incomplete_loader_locally(
+                table_name, loader_key, age_in_days, failed_loaders_to_retry, run_date, results
+            )
 
             # SESSION 106 FIX: Reap stuck loaders between retry attempts
             # If a loader gets stuck RUNNING during this attempt, reap it before trying the next loader
             # to prevent cascading failures where one stuck loader blocks all subsequent retries.
             # Only reap after attempting to refresh (don't waste time on fast completions).
-            try:
-                from utils.loaders.status_manager import reap_stale_running_loaders
-
-                reaped_tables = reap_stale_running_loaders()
-                if len(reaped_tables) > 0:
-                    logger.info(
-                        f"[PHASE 1 FAILSAFE LOCAL] Reaped {len(reaped_tables)} stale running loader(s) after {table_name} retry"
-                    )
-            except Exception as reap_err:
-                logger.debug(f"[PHASE 1 FAILSAFE LOCAL] Reaper check between retries failed (non-fatal): {reap_err}")
+            _reap_stale_running_loaders_between_retries(table_name)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal database error in local refresh: {e}", exc_info=True)
