@@ -36,6 +36,7 @@ from algo.trading.exceptions import (
 from algo.trading.executor_exit_standalone_stop import (
     cancel_standalone_stop_on_full_exit,
     fetch_standalone_stop_order_id,
+    resize_standalone_stop_after_partial_exit,
 )
 from utils.trading import PositionStatus
 
@@ -1115,6 +1116,20 @@ class ExitHandler:
                     f"{resize_result.get('message')}. The broker's stop-loss order may still be "
                     f"sized for the pre-partial-exit quantity until the next stop-raise corrects it."
                 )
+
+        # A position auto-repaired onto a standalone stop (Phase 9) needs the SAME resize -
+        # see executor_exit_standalone_stop.py's resize_standalone_stop_after_partial_exit
+        # docstring for the gap this closes (2026-09-05 real-money-readiness follow-up).
+        if not (full_exit or new_qty <= 0):
+            resize_standalone_stop_after_partial_exit(
+                self.context._sync_standalone_stop,
+                cur,
+                symbol,
+                position_id,
+                fetch_standalone_stop_order_id(cur, position_id),
+                effective_stop,
+                new_qty,
+            )
 
         # When closing a position, pass P&L values to be persisted in algo_positions
         close_pnl_dollars = cumulative_pnl_dollars if (full_exit or new_qty <= 0) else None

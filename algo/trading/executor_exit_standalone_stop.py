@@ -75,3 +75,52 @@ def cancel_standalone_stop_on_full_exit(
         "UPDATE algo_positions SET standalone_stop_order_id = NULL WHERE position_id = %s",
         (position_id,),
     )
+
+
+def resize_standalone_stop_after_partial_exit(
+    sync_standalone_stop_fn: Callable[[str, float, float], dict[str, Any]],
+    cur: PsycopgCursor[Any],
+    symbol: str,
+    position_id: int | None,
+    standalone_stop_order_id: str | None,
+    new_stop_price: float,
+    new_qty: float,
+) -> None:
+    """Resize (and re-persist the id of) a standalone protective stop after a partial exit.
+
+    GAP FOUND (2026-09-05 real-money-readiness follow-up): a partial exit already resizes
+    the bracket's native stop-loss leg via sync_bracket_stop_loss/replace_order_stop_price
+    (see executor_exit_handler.py) - but a position auto-repaired onto a STANDALONE stop
+    (Phase 9, see this module's other functions) was left sized for the pre-partial-exit
+    share count forever. If it later fires, it would attempt to sell more shares than the
+    account holds after the partial exit - the exact failure mode the bracket-side fix
+    exists to prevent, just unaddressed on this newer code path.
+
+    No-op when there was never a standalone stop for this position. Fails OPEN (log, keep
+    going) like the bracket-side resize at its call site - the partial exit's share sale has
+    already happened for real by the time this runs, so a broker-side resize failure must
+    not roll that back.
+
+    Alpaca implements order replacement as cancel-and-recreate: sync_standalone_stop's
+    result carries a NEW order id on success, which MUST be re-persisted here or the next
+    liveness check looks up a now-terminal order id, believes protection is gone, and
+    triggers a duplicate standalone-stop submission.
+    """
+    if not standalone_stop_order_id:
+        return
+
+    result = sync_standalone_stop_fn(standalone_stop_order_id, new_stop_price, new_qty)
+    if not result.get("success"):
+        logger.error(
+            f"[EXIT_HANDLER] {symbol}: partial exit succeeded but failed to resize the standalone "
+            f"protective stop {standalone_stop_order_id} to {new_qty} shares @ ${new_stop_price:.2f} - "
+            f"{result.get('message')}. It may still be sized for the pre-partial-exit quantity."
+        )
+        return
+
+    new_order_id = result.get("new_order_id")
+    if result.get("synced") and new_order_id and new_order_id != standalone_stop_order_id:
+        cur.execute(
+            "UPDATE algo_positions SET standalone_stop_order_id = %s WHERE position_id = %s",
+            (new_order_id, position_id),
+        )

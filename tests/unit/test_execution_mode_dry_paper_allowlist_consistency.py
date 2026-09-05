@@ -43,7 +43,9 @@ class TestExecutionModeDryPaperAllowlistConsistency:
         )
 
     def test_phase8_pending_order_guard_exempts_dry_mode(self):
-        source = inspect.getsource(phase8_module.run)
+        # _check_pending_orders_guard was extracted from run() 2026-09-05 (file-size
+        # reduction, mechanical - see that function's own docstring); this check moved with it.
+        source = inspect.getsource(phase8_module._check_pending_orders_guard)
         assert 'if execution_mode not in ("paper", "dry"):' in source, (
             "the pending/recent-order DB guard must exempt both paper AND dry mode - "
             'a bare `!= "paper"` here runs a meaningless check in dry mode (which never '

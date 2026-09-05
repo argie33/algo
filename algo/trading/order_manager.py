@@ -761,6 +761,26 @@ class OrderManager(StopLossRepairMixin):
 
         return self.replace_order_stop_price(stop_leg_id, new_stop_price, new_qty=new_qty)
 
+    def sync_standalone_stop(
+        self, standalone_order_id: str | None, new_stop_price: float, new_qty: float | None = None
+    ) -> dict[str, Any]:
+        """Push a trailed stop price and/or corrected quantity to a standalone protective
+        stop (see order_manager_stop_repair.py's submit_standalone_protective_stop) - the
+        analogue of sync_bracket_stop_loss for a stop that isn't a bracket leg.
+
+        A standalone stop IS the order being resized (no parent bracket to look up a leg
+        id from), so this just forwards straight to replace_order_stop_price. Same
+        cancel-and-recreate caveat applies: on success, `new_order_id` in the result is a
+        DIFFERENT id than `standalone_order_id` - callers MUST persist it to
+        algo_positions.standalone_stop_order_id, or the next check_stop_loss_leg_live-style
+        liveness check will look up a now-replaced (terminal) order id, believe protection
+        is gone, and trigger a duplicate standalone-stop submission.
+        """
+        if not standalone_order_id or standalone_order_id.startswith(("LOCAL-", "PENDING-")):
+            return {"success": True, "synced": False, "message": "No live Alpaca order to sync (paper/local mode)"}
+
+        return self.replace_order_stop_price(standalone_order_id, new_stop_price, new_qty=new_qty)
+
     def check_stop_loss_leg_live(self, parent_alpaca_order_id: str | None) -> dict[str, Any]:
         """Read-only check: does this bracket order currently have a live stop-loss leg
         resting at the broker?

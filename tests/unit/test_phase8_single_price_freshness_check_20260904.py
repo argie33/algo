@@ -14,12 +14,17 @@ This test guards against a second such check being reintroduced.
 
 import inspect
 
-from algo.orchestrator import phase8_entry_execution
+from algo.orchestrator import phase8_entry_execution, phase8_guards
 
 
 class TestPhase8SinglePriceFreshnessCheck:
     def test_run_source_has_no_second_freshness_query(self) -> None:
-        source = inspect.getsource(phase8_entry_execution.run)
+        # Checks the WHOLE module, not just run(), since _check_price_freshness_guard's
+        # call to _check_price_data_freshness() was extracted out of run() 2026-09-05
+        # (file-size reduction, mechanical - see that function's own docstring) - the
+        # regression this guards against (a second, looser freshness check reappearing
+        # anywhere in this file) is independent of which function holds the real one.
+        source = inspect.getsource(phase8_entry_execution) + inspect.getsource(phase8_guards)
 
         # The removed block's own literal SQL/marker text - if this reappears, someone
         # reintroduced the redundant second check.
@@ -27,6 +32,6 @@ class TestPhase8SinglePriceFreshnessCheck:
         assert "most_recent_trading_day = run_date" not in source
 
     def test_check_price_data_freshness_still_called_exactly_once(self) -> None:
-        source = inspect.getsource(phase8_entry_execution.run)
+        source = inspect.getsource(phase8_entry_execution) + inspect.getsource(phase8_guards)
 
-        assert source.count("= _check_price_data_freshness(run_date)") == 1
+        assert source.count("_check_price_data_freshness(run_date)") == 1
