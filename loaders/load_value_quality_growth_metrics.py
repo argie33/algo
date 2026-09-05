@@ -3855,6 +3855,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     # correctly-categorized ("Legitimate / not applicable") reason wins.
                     else "registered_investment_company_no_xbrl"
                     if symbol in self._get_registered_investment_company_symbols()
+                    # ADDED 2026-09-05: fcf_yield's own reason chain already checks this gate;
+                    # fcf_margin's sibling chain here never did (AIG-verified: real OCF every
+                    # year, capex-shaped concept stops after FY2023, not PPE-delta-recoverable
+                    # since AIG never tags depreciation either).
+                    else "capex_never_tagged_in_recent_filings"
+                    if symbol in self._get_no_recent_capex_symbols()
                     # fcf_margin's own cross-year fallback (fcf_margin_free_cash_flow/
                     # fcf_margin_revenue above) already looks past the anchor row, so a
                     # remaining None here means both inputs are genuinely absent across recent
