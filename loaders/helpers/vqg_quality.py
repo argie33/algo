@@ -1112,8 +1112,43 @@ class QualityMetricsMixin(SymbolGateMixin):
             else:
                 failed_metrics.append("free_cash_flow")
 
-            if operating_cash_flow is not None and abs(operating_cash_flow) < MAX_ABSOLUTE_DOLLAR_VALUE:
-                metrics["operating_cash_flow"] = float(operating_cash_flow)
+            # FIXED 2026-09-05 (same fix as standalone_free_cash_flow above): operating_cash_flow
+            # is also a standalone dollar figure with no same-year pairing requirement of its
+            # own - ocf_to_net_income/accruals_ratio/the YoY growth check above DO need the
+            # anchor-year-aligned global `operating_cash_flow`, so this fallback is scoped to a
+            # separate local variable exactly like standalone_free_cash_flow.
+            standalone_operating_cash_flow = operating_cash_flow
+            if standalone_operating_cash_flow is None:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT operating_cash_flow FROM annual_cash_flow
+                        WHERE symbol = %s AND operating_cash_flow IS NOT NULL AND data_unavailable = FALSE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_row = cur.fetchone()
+                    if not fallback_row:
+                        cur.execute(
+                            """
+                            SELECT operating_cash_flow FROM annual_cash_flow
+                            WHERE symbol = %s AND operating_cash_flow IS NOT NULL AND data_unavailable = FALSE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_row = cur.fetchone()
+                if fallback_row:
+                    standalone_operating_cash_flow = self._nan_to_none(
+                        safe_float(fallback_row[0], f"{symbol}.operating_cash_flow_fallback_year", allow_none=True)
+                    )
+            if (
+                standalone_operating_cash_flow is not None
+                and abs(standalone_operating_cash_flow) < MAX_ABSOLUTE_DOLLAR_VALUE
+            ):
+                metrics["operating_cash_flow"] = float(standalone_operating_cash_flow)
             else:
                 failed_metrics.append("operating_cash_flow")
 
