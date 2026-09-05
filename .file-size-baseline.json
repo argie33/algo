@@ -338,7 +338,7 @@
   "lambda/api/routes/research.py": 138,
   "lambda/api/routes/risk_dashboard.py": 710,
   "lambda/api/routes/route_decorator.py": 78,
-  "lambda/api/routes/scores.py": 3936,
+  "lambda/api/routes/scores.py": 167,
   "lambda/api/routes/scores_handlers/__init__.py": 3,
   "lambda/api/routes/scores_handlers/coverage.py": 520,
   "lambda/api/routes/scores_handlers/coverage_category_rules.py": 746,
