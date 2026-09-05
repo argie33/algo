@@ -31,7 +31,7 @@ def test_stuck_reconciliation_notifies_operator():
         ("trade-999", "ZZZZ", stuck_exit_date, 10.0, 9.5, None, None),
     ]
 
-    with patch("algo.infrastructure.reconciliation.notify") as mock_notify:
+    with patch("algo.infrastructure.reconciliation_exit_fills.notify") as mock_notify:
         result = reconciliation.check_pending_reconciliations(cur)
 
     assert result["stuck_count"] == 1
@@ -52,7 +52,7 @@ def test_not_yet_stuck_pending_reconciliation_does_not_notify():
         ("trade-1", "AAPL", fresh_exit_date, 10.0, 9.5, None, None),
     ]
 
-    with patch("algo.infrastructure.reconciliation.notify") as mock_notify:
+    with patch("algo.infrastructure.reconciliation_exit_fills.notify") as mock_notify:
         result = reconciliation.check_pending_reconciliations(cur)
 
     assert result["stuck_count"] == 0

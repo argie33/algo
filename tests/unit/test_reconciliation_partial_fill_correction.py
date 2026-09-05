@@ -31,7 +31,7 @@ def test_partial_fill_corrects_db_quantity_to_match_broker():
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
 
-    with patch("algo.infrastructure.reconciliation.notify"):
+    with patch("algo.infrastructure.reconciliation_fill_and_account.notify"):
         result = reconciliation.check_partial_fills(cur)
 
     assert result["mismatches"] == 1
@@ -51,7 +51,7 @@ def test_partial_fill_notifies_operator_of_correction():
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
 
-    with patch("algo.infrastructure.reconciliation.notify") as mock_notify:
+    with patch("algo.infrastructure.reconciliation_fill_and_account.notify") as mock_notify:
         reconciliation.check_partial_fills(cur)
 
     mock_notify.assert_called_once()
@@ -73,7 +73,9 @@ def test_notify_failure_does_not_discard_the_already_applied_correction():
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
 
-    with patch("algo.infrastructure.reconciliation.notify", side_effect=RuntimeError("alert channel down")):
+    with patch(
+        "algo.infrastructure.reconciliation_fill_and_account.notify", side_effect=RuntimeError("alert channel down")
+    ):
         result = reconciliation.check_partial_fills(cur)
 
     assert result["mismatches"] == 1
@@ -98,7 +100,7 @@ def test_sub_one_share_drift_is_detected_and_corrected_with_precision():
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 10.9, "open")
 
-    with patch("algo.infrastructure.reconciliation.notify"):
+    with patch("algo.infrastructure.reconciliation_fill_and_account.notify"):
         result = reconciliation.check_partial_fills(cur)
 
     assert result["mismatches"] == 1

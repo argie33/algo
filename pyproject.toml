@@ -169,6 +169,7 @@ ignore = ["E203", "E501", "UP031", "RUF012", "N999", "N812"]  # N812: `cursor as
 "loaders/load_market_health_daily.py" = ["E402"]  # Loader: setup_imports() before standard imports
 "loaders/load_signal_quality_scores.py" = ["C901"]  # Loader: legitimately complex signal quality score calculations
 "algo/infrastructure/reconciliation.py" = ["C901"]  # Position reconciliation: legitimately complex broker/portfolio logic
+"algo/infrastructure/reconciliation_exit_fills.py" = ["C901"]  # reconcile_exit_fills: legitimately complex multi-leg broker-fill matching (moved verbatim out of reconciliation.py's own C901 ignore, 2026-09-05 bloater-decomposition split)
 "algo/orchestration/database_health_monitor.py" = ["C901"]  # Health monitoring: complex state management
 "algo/orchestrator/phase6_exit_execution.py" = ["C901"]  # Exit logic: legitimately complex trade exit decisions
 "algo/orchestrator/phase8_entry_execution.py" = ["C901"]  # Entry logic: legitimately complex trade entry decisions
