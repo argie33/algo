@@ -2748,6 +2748,26 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
     if source == "dei" and entry.get("form") in ("20-F", "40-F", "6-K"):
         return None
     fp = entry.get("fp")
+    # BUG FOUND 2026-09-05 (goal session: quantifying the retry-gap fix's impact, live-
+    # confirmed via KRC/Kilroy Realty): a fp=None (proxy-statement) entry for a whole-dollar
+    # monetary concept (NetIncomeLoss) carried val=302.64 for FY2025 - a "Pay versus
+    # Performance" DEF 14A compensation table reporting the figure in $ millions with a
+    # decimal, under the SAME us-gaap:NetIncomeLoss tag a real 10-K uses for the whole-dollar
+    # figure ($302,640,000). This DEF 14A entry was filed 2026-04-09, AFTER KRC's real 10-K,
+    # and KRC's 10-K never itemizes plain NetIncomeLoss at all (only ProfitLoss) - so there
+    # was no primary-form entry for THIS concept to rank-gate against, and the corrupted
+    # value landed directly in annual_income_statement.net_income (confirmed live in the DB:
+    # 302.64 instead of 302,640,000 for FY2025, 232.95 instead of ~232,950,000 for FY2024).
+    # A genuine XBRL USD monetary fact for a real company's annual net income/revenue/etc. is
+    # always a whole-dollar integer (verified against EE's real fp=None NetIncomeLoss facts -
+    # the case this fp=None acceptance was originally added for - all whole integers, e.g.
+    # 79996000) - a non-integer value under a whole-dollar concept is the specific, reliable
+    # signature of this scale error. Scoped to fp is None only (real 10-K/10-Q facts are
+    # never affected) and skips PerShare concepts (EPS is legitimately fractional).
+    if fp is None and "PerShare" not in concept:
+        val = entry.get("val")
+        if isinstance(val, (int, float)) and val != 0 and abs(val - round(val)) > 0.005:
+            return None
     # Fixed 2026-07-31: For annual extraction, accept quarterly (Q1-Q4), annual (FY),
     # and proxy-statement (fp=None) data. This handles:
     # - Standard annual 10-Ks: fp='FY'
