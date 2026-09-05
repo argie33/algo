@@ -41,7 +41,14 @@ class AlpacaMockAccount:
             "status": "ACTIVE",
             "cash": str(self.cash),
             "portfolio_value": str(portfolio_value),
-            "buying_power": str(self.cash * Decimal("4")),
+            # Cash-only account: buying_power == cash, multiplier == 1. This mock exists to
+            # exercise real code paths locally, and this codebase's exposure/position-sizing
+            # caps are all expressed as % of equity on the assumption of a cash account (see
+            # portfolio_leverage_concentration_audit_20260904 in memory) - simulating margin's
+            # 4x buying_power here would silently validate against an account shape this
+            # system was never built to handle safely.
+            "buying_power": str(self.cash),
+            "multiplier": "1",
             "trading_blocked": False,
             "account_blocked": False,
             "pattern_day_trader": False,

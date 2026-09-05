@@ -40,6 +40,7 @@ def _account_response(**overrides):
         "account_blocked": False,
         "pattern_day_trader": False,
         "daytrade_count": 0,
+        "multiplier": "1",
     }
     body.update(overrides)
     resp.json.return_value = body
@@ -47,7 +48,7 @@ def _account_response(**overrides):
 
 
 class TestFetchAccountNonFiniteGuard:
-    @pytest.mark.parametrize("field", ["cash", "equity", "portfolio_value", "buying_power"])
+    @pytest.mark.parametrize("field", ["cash", "equity", "portfolio_value", "buying_power", "multiplier"])
     @pytest.mark.parametrize("bad_value", ["nan", "inf", "-inf"])
     def test_non_finite_field_raises(self, field, bad_value):
         adapter = _make_adapter()

@@ -40,6 +40,9 @@ class BrokerAdapter(Protocol):
             - pattern_day_trader: bool, account is flagged PDT (restricts day trades if
               equity < $25k)
             - daytrade_count: int | None, broker's rolling day-trade count
+            - multiplier: float, broker's margin multiplier (1 = cash account, 2/4 = margin).
+              This codebase's exposure/position-sizing caps are all expressed as % of equity
+              on the assumption of a cash-only account - see Phase 2's multiplier check.
         """
         ...
 

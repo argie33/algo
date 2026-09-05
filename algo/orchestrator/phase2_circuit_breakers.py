@@ -327,6 +327,43 @@ def run(  # noqa: C901
                     )
                     log_phase_result_fn(2, "account_status", "halt", reason)
                     return PhaseResult(2, "circuit_breakers", "halted", risk_snapshot, True, reason)
+                # CRITICAL FIX (real-money-readiness, portfolio_leverage_concentration_audit):
+                # every exposure/concentration/position-sizing cap in this system is expressed
+                # as a percentage of equity (market_exposure.py, exposure_policy.py,
+                # position_sizer.py) - none of them clamp against buying_power, and Phase 8's
+                # buying-power check (_check_buying_power_sufficient) only prevents exceeding
+                # whatever buying_power Alpaca reports, not >100% equity deployment. If this
+                # account is ever margin-enabled (accidentally, or via an Alpaca-side account
+                # upgrade), Alpaca's buying_power itself would legitimately be 2x/4x equity,
+                # and nothing here would stop the caps above from deploying 2x/4x equity in
+                # real capital. Fail closed rather than silently trading leveraged - this
+                # system was never designed, backtested, or risk-reviewed for margin.
+                if "multiplier" not in account_data:
+                    raise KeyError(
+                        "[PHASE 2 CRITICAL] Account data missing required 'multiplier' field. "
+                        "Cannot verify account is cash-only before submitting live orders. "
+                        "Check Alpaca API response."
+                    )
+                account_multiplier = float(account_data["multiplier"])
+                if account_multiplier != 1.0:
+                    reason = (
+                        f"Alpaca account is margin-enabled (multiplier={account_multiplier}, "
+                        "expected 1.0 for cash account). This system's exposure caps, "
+                        "concentration limits, and position sizing all assume a cash-only "
+                        "account and have never been reviewed for margin - halting rather than "
+                        "risk deploying leveraged capital. Downgrade the Alpaca account back to "
+                        "cash, or verify this margin change was intentional and get a fresh risk "
+                        "review of the exposure caps before removing this halt."
+                    )
+                    logger.critical(f"[PHASE 2] ACCOUNT MARGIN-ENABLED: {reason}")
+                    alerts.send_position_alert(
+                        "PORTFOLIO",
+                        "ACCOUNT_MARGIN_ENABLED",
+                        reason,
+                        {"multiplier": account_multiplier},
+                    )
+                    log_phase_result_fn(2, "account_status", "halt", reason)
+                    return PhaseResult(2, "circuit_breakers", "halted", risk_snapshot, True, reason)
                 # CRITICAL FIX: Fail-fast if pattern_day_trader flag is missing
                 if "pattern_day_trader" not in account_data:
                     raise KeyError(

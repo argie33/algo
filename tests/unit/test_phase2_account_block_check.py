@@ -106,6 +106,7 @@ class TestPhase2AccountBlockCheck:
                 "account_blocked": False,
                 "pattern_day_trader": True,
                 "daytrade_count": 4,
+                "multiplier": 1.0,
             }
 
             result = phase2_run(
@@ -138,6 +139,7 @@ class TestPhase2AccountBlockCheck:
                 "account_blocked": False,
                 "pattern_day_trader": False,
                 "daytrade_count": 3,
+                "multiplier": 1.0,
             }
 
             result = phase2_run(

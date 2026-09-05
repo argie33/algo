@@ -123,7 +123,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
     def fetch_account(self) -> dict[str, Any]:
         """Fetch account data from Alpaca REST API.
 
-        Returns dict with portfolio_value, cash, equity, buying_power.
+        Returns dict with portfolio_value, cash, equity, buying_power, multiplier.
         Raises ValueError if fetch fails or credentials missing.
         """
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
@@ -191,7 +191,9 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 # this endpoint has been relied on for cash/equity/buying_power since before
                 # these fields were read, and a missing optional field here shouldn't break that.
                 missing_flags = [
-                    f for f in ("trading_blocked", "account_blocked", "pattern_day_trader") if f not in data
+                    f
+                    for f in ("trading_blocked", "account_blocked", "pattern_day_trader", "multiplier")
+                    if f not in data
                 ]
                 if missing_flags:
                     logger.critical(
@@ -207,7 +209,13 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 trading_blocked_val = data.get("trading_blocked")
                 account_blocked_val = data.get("account_blocked")
                 pattern_day_trader_val = data.get("pattern_day_trader")
-                if trading_blocked_val is None or account_blocked_val is None or pattern_day_trader_val is None:
+                multiplier_val = data.get("multiplier")
+                if (
+                    trading_blocked_val is None
+                    or account_blocked_val is None
+                    or pattern_day_trader_val is None
+                    or multiplier_val is None
+                ):
                     raise ValueError(
                         "[FETCH_ACCOUNT CRITICAL] Account flags present but values are NULL. "
                         "Cannot proceed with trades when account status is indeterminate. "
@@ -237,6 +245,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     ("equity", equity_val),
                     ("portfolio_value", portfolio_value_val),
                     ("buying_power", buying_power_val),
+                    ("multiplier", multiplier_val),
                 ):
                     if raw_val is not None and not math.isfinite(float(raw_val)):
                         raise ValueError(
@@ -255,6 +264,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     "account_blocked": bool(account_blocked_val),
                     "pattern_day_trader": bool(pattern_day_trader_val),
                     "daytrade_count": (int(daytrade_count_val) if daytrade_count_val is not None else None),
+                    "multiplier": float(multiplier_val),
                 }
             if resp.status_code in (401, 403):
                 raise ValueError(
