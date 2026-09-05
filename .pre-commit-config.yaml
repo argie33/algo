@@ -101,6 +101,16 @@ repos:
         # health.py and dashboard/fetchers_config.py have ~32 functions (150+ .get() call
         # sites) predating any real enforcement of this rule. Excluded pending a dedicated
         # remediation pass, not silenced - stays fully live for every other file.
+        # 2026-09-05: dashboard/panels/health.py itself split into health_*.py (wired in
+        # commit that also landed this comment) - the file is now a clean 55-line re-export
+        # shim with zero .get() calls of its own, but the pre-existing debt this exclude was
+        # protecting didn't get fixed, it moved with the code. Re-scoped to the 7 split files
+        # that actually inherited a flagged function (confirmed via a direct hook run against
+        # every health_*.py file): health_algo.py, health_algo_phases.py,
+        # health_freshness_sections.py, health_orch.py, health_results.py, health_status.py,
+        # health_status_panel.py. The other 4 split files (health_shared.py,
+        # health_freshness.py, health_freshness_panel.py, health_results_panel.py) came back
+        # clean and are NOT excluded - this hook is fully live for them.
         # dashboard/fetchers_market.py added 2026-08-11: same pre-existing debt (fetch_market/
         # fetch_risk_metrics/fetch_sector_rotation, 22+8+7 .get() calls with no has_error()
         # check, confirmed pre-existing via a direct hook run against the file before this
@@ -130,7 +140,7 @@ repos:
         # and transient-error markers, not fetched panel data has_error() was designed for -
         # excluded pending the same dedicated remediation pass as the other six files above,
         # not silenced.
-        exclude: ^dashboard/(panels/health|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer|fetchers_external|fetchers)\.py$
+        exclude: ^dashboard/(panels/health_(algo|algo_phases|freshness_sections|orch|results|status|status_panel)|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer|fetchers_external|fetchers)\.py$
         stages: [pre-commit]
 
       - id: check-credential-defaults

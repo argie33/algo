@@ -14,10 +14,20 @@ import sys
 
 def test_query_optimization() -> None:
     """Verify scores query optimization is correctly implemented."""
-    # Read the source code to check query structure
-    source_file = "lambda/api/routes/scores.py"
-    with open(source_file) as f:
-        source = f.read()
+    # Read the source code to check query structure. lambda/api/routes/scores.py was split
+    # 2026-09-05 (see scores_handlers/ - MEMORY.md
+    # concurrent_session_scores_handlers_split_import_breakage_reconciled_20260905) into a
+    # thin dispatcher; the actual stock-scores query this test exercises now lives in
+    # stock_scores.py (execute_with_timeout call) and stock_scores_helpers.py
+    # (_build_stock_scores_query) - read both.
+    source_files = [
+        "lambda/api/routes/scores_handlers/stock_scores.py",
+        "lambda/api/routes/scores_handlers/stock_scores_helpers.py",
+    ]
+    source = ""
+    for source_file in source_files:
+        with open(source_file) as f:
+            source += f.read()
 
     print("=" * 70)
     print("Testing Scores Query Optimization Fix")

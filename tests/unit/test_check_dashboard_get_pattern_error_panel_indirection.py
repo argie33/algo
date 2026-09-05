@@ -33,11 +33,12 @@ def test_error_panel_indirection_satisfies_the_has_error_check():
 
 
 def test_check_still_catches_real_violations_in_the_same_file_scope():
-    """Guard against over-correcting: dashboard/panels/health.py has real, pre-existing
+    """Guard against over-correcting: dashboard/panels/health_status_panel.py (one of the
+    health_*.py files health.py split into 2026-09-05) has real, pre-existing
     .get()-without-has_error()-or-_error_panel() violations (see .pre-commit-config.yaml's
     exclude list for this hook) and must still be flagged by the underlying check function -
     only the pre-commit config layer excludes it pending a dedicated remediation pass, not
     this function's own detection logic.
     """
-    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/panels/health.py")
+    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/panels/health_status_panel.py")
     assert violations != []

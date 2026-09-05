@@ -34,9 +34,10 @@ def test_nested_helper_inherits_enclosing_functions_has_error_check():
 
 
 def test_check_still_catches_real_violations_in_the_same_file_scope():
-    """Guard against over-correcting: dashboard/panels/health.py has real, pre-existing
+    """Guard against over-correcting: dashboard/panels/health_status_panel.py (one of the
+    health_*.py files health.py split into 2026-09-05) has real, pre-existing
     .get()-without-has_error()-or-_error_panel() violations at the TOP level (not nested) and
     must still be flagged.
     """
-    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/panels/health.py")
+    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/panels/health_status_panel.py")
     assert violations != []

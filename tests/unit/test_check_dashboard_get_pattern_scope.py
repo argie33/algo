@@ -31,7 +31,10 @@ def test_lambda_api_file_named_dashboard_is_not_scoped_in():
 
 
 def test_real_dashboard_package_file_is_still_scoped_in():
-    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/panels/health.py")
+    # dashboard/panels/health.py split into health_*.py 2026-09-05 - health_status_panel.py
+    # is one of the split files that inherited real, pre-existing .get()-without-has_error()
+    # violations (see .pre-commit-config.yaml's exclude list for this hook).
+    violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/panels/health_status_panel.py")
     assert violations != [], (
         "a real file under dashboard/ with known .get()-without-has_error() violations "
         "must still be caught - the scope fix must not have over-corrected"

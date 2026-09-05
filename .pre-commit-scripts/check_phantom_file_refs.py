@@ -28,10 +28,19 @@ KNOWN_PHANTOM_FILES = {
 
 
 def main() -> int:
+    # encoding="utf-8" + errors="replace" (not the default text=True, which decodes with
+    # the platform locale encoding - cp1252 on Windows) - a staged diff containing any byte
+    # sequence invalid in that codec (e.g. 0x8f, seen live in a concurrent session's shared
+    # checkout) otherwise crashes the subprocess text-decoding thread and leaves .stdout as
+    # None, which then raised AttributeError: 'NoneType' object has no attribute 'splitlines'
+    # here instead of a decode error - blocking every commit repo-wide, not just the one
+    # that introduced the byte. This check only substring-matches known phantom filenames,
+    # so a replacement char in place of an undecodable byte can never mask a real match.
     diff = subprocess.run(
         ["git", "diff", "--cached", "-U0", "--diff-filter=ACM"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     ).stdout
 
