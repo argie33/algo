@@ -407,6 +407,12 @@ _INCOME_FIELD_MAPPING = {
     # under ProfitLoss instead (FY2025: $751,234,000, matching pretax_income - income_tax_expense
     # exactly). Same target column as "net_income_loss" above.
     "profit_loss": "net_income",
+    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers that
+    # stop tagging both NetIncomeLoss and ProfitLoss - see sec_statements.py's
+    # get_income_statement() comment on "IncomeLossFromContinuingOperationsIncludingPortion
+    # AttributableToNoncontrollingInterest" for the live evidence. Same target column as
+    # "net_income_loss"/"profit_loss" above; fallback-only via _REVENUE_FALLBACK_ONLY_FIELDS.
+    "income_loss_from_continuing_operations_including_portion_attributable_to_noncontrolling_interest": "net_income",
     "earnings_per_share_basic": "earnings_per_share",
     # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
     # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)
@@ -652,6 +658,10 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         "custom_extension_net_income",
         "custom_extension_eps_basic",
         "custom_extension_eps_diluted",
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers
+        # that stop tagging NetIncomeLoss/ProfitLoss - see _INCOME_FIELD_MAPPING's comment on
+        # this key above.
+        "income_loss_from_continuing_operations_including_portion_attributable_to_noncontrolling_interest",
     }
 )
 

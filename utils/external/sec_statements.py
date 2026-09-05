@@ -1474,6 +1474,17 @@ def get_income_statement(
         # column via _INCOME_FIELD_MAPPING's "profit_loss" key.
         "ProfitLoss",
         "NetIncomeLoss",
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep, net_income_not_reported/
+        # eps_scale_mismatch investigation): ESOA (Energy Services of America, CIK 0001357971)
+        # stopped tagging both "NetIncomeLoss" and "ProfitLoss" after FY2022 - live-confirmed via
+        # real SEC companyfacts JSON, its real FY2025 bottom line ($379,708, FY ending
+        # 2025-09-30) is tagged solely under this concept instead. Fallback-only (see
+        # _REVENUE_FALLBACK_ONLY_FIELDS in load_financial_statements.py, which despite its name
+        # is a generic "only fill when target column still empty" set, not revenue-specific) so
+        # a filer reporting the standard NetIncomeLoss/ProfitLoss concepts always keeps that
+        # value - only fills the gap for a filer like ESOA that stops tagging either. Maps to
+        # the same "net_income" column via _INCOME_FIELD_MAPPING's matching key.
+        "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
         # FIXED 2026-08-03: live-confirmed against real companyfacts JSON that several
