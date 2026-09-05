@@ -46,10 +46,10 @@ from psycopg2.extras import execute_values
 from loaders.helpers.vqg_growth import GrowthMetricsMixin
 from loaders.helpers.vqg_quality import QualityMetricsMixin
 from loaders.helpers.vqg_shared import (
+    _SHARED_TREND_FIELDS,
     MAX_ABSOLUTE_DOLLAR_VALUE,  # noqa: F401 -- re-exported, see comment below
     MAX_PLAUSIBLE_GROWTH_PCT,
     MAX_TREND_PERCENTAGE_POINTS,  # noqa: F401 -- re-exported, see comment below
-    _SHARED_TREND_FIELDS,
     get_loader_timestamp,
     intrinsic_value_reason_from_fcf_yield,  # noqa: F401 -- re-exported, see comment below
     peg_ratio_reason_from_eps_history,  # noqa: F401 -- re-exported, see comment below
@@ -1130,7 +1130,7 @@ class ValueQualityGrowthMetricsLoader(
                   AND abs.data_unavailable = FALSE
                 WHERE ais.symbol = %s AND ais.data_unavailable = FALSE
                 ORDER BY ais.fiscal_year DESC
-                LIMIT 30
+                LIMIT 6
                 """,
                 (symbol,),
             )
@@ -1176,7 +1176,7 @@ class ValueQualityGrowthMetricsLoader(
                 FROM annual_income_statement
                 WHERE symbol = %s AND data_unavailable = FALSE
                 ORDER BY fiscal_year DESC
-                LIMIT 30
+                LIMIT 6
                 """,
                 (symbol,),
             )
@@ -1224,7 +1224,7 @@ class ValueQualityGrowthMetricsLoader(
                   AND abs.data_unavailable = FALSE
                 WHERE ais.symbol = %s AND ais.data_unavailable = FALSE
                 ORDER BY ais.fiscal_year DESC
-                LIMIT 30
+                LIMIT 6
                 """,
                 (symbol,),
             )

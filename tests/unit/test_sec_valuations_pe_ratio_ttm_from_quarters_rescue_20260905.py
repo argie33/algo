@@ -83,6 +83,36 @@ class TestComputeTtmEpsFromQuarters:
             result = mixin._compute_ttm_eps_from_quarters("TEST")
         assert result is None
 
+    def test_duplicate_period_end_returns_none(self) -> None:
+        # A restated/duplicate filing row for the same reporting period would let "4 most
+        # recent rows by period_end" double-count one quarter's EPS while a genuinely
+        # different quarter was never loaded - must be rejected, not silently summed.
+        rows = [
+            (_TODAY - timedelta(days=10), 5.0),
+            (_TODAY - timedelta(days=10), 5.0),  # duplicate period_end
+            (_TODAY - timedelta(days=190), 5.0),
+            (_TODAY - timedelta(days=280), 5.0),
+        ]
+        mixin = _make_mixin_with_quarters(rows)
+        with patch("loaders.helpers.sec_valuations_checks.DatabaseContext", return_value=mixin._fake_ctx):
+            result = mixin._compute_ttm_eps_from_quarters("TEST")
+        assert result is None
+
+    def test_gapped_quarters_returns_none(self) -> None:
+        # A quarter missing between two loaded ones (e.g. Q2 never filed/loaded) leaves an
+        # ~180+ day gap between consecutive period_ends instead of the normal ~91 days -
+        # summing across the gap is not a true trailing-twelve-month figure.
+        rows = [
+            (_TODAY - timedelta(days=10), 5.0),
+            (_TODAY - timedelta(days=100), 5.0),
+            (_TODAY - timedelta(days=290), 5.0),  # ~190 day gap from the row above
+            (_TODAY - timedelta(days=380), 5.0),
+        ]
+        mixin = _make_mixin_with_quarters(rows)
+        with patch("loaders.helpers.sec_valuations_checks.DatabaseContext", return_value=mixin._fake_ctx):
+            result = mixin._compute_ttm_eps_from_quarters("TEST")
+        assert result is None
+
 
 class TestSanityCheckPeRatioTtmRescue:
     def test_reconciling_ttm_from_quarters_keeps_original_pe_ratio(self) -> None:

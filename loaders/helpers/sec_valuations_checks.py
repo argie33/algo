@@ -6,6 +6,7 @@ Methods are verbatim, no logic changed - mixed into SecValuationsLoader.
 
 import logging
 from datetime import date, timedelta
+from itertools import pairwise
 from typing import Any
 
 from utils.db.context import DatabaseContext
@@ -419,6 +420,17 @@ class ValuationSanityCheckMixin:
             return None
         if any(r[1] is None for r in rows):
             return None
+        # Guard against a restated/duplicate-filing row for one quarter masking a missing
+        # quarter elsewhere: "4 most recent rows by period_end" is only a true TTM sum if
+        # those 4 period_ends are 4 distinct quarters spaced ~91 days apart, not two rows
+        # for the same reporting period plus a gap where a real quarter was never loaded.
+        period_ends = [r[0] for r in rows]
+        if len(set(period_ends)) != 4:
+            return None
+        for earlier, later in pairwise(period_ends):
+            gap_days = (earlier - later).days
+            if not (60 <= gap_days <= 120):
+                return None
         return float(sum(r[1] for r in rows))
 
     def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]:

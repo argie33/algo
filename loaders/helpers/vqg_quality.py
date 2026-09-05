@@ -389,6 +389,15 @@ class QualityMetricsMixin(SymbolGateMixin):
             }
 
             failed_metrics: list[str] = []
+            # Metrics whose value came from _find_plausible_cross_year_ratio /
+            # _find_plausible_cross_year_roic_ratio (up to 6 fiscal years back, tightened
+            # 2026-09-05 real-money audit from an original 30-year lookback that let this
+            # rescue reach implausibly far into the past) rather than the current anchor
+            # year. That value is written into the SAME row as this symbol's current-period
+            # metrics with no other provenance marker, so without this tracking a multi-year-
+            # old ratio is indistinguishable from fresh data to any downstream scoring/
+            # backtest consumer. See data_source override near this function's return.
+            stale_fallback_metrics: list[str] = []
             # Metrics suppressed by the |ratio| > 1000 garbage-value bound below - tracked
             # separately from failed_metrics because "we computed a real ratio and threw it
             # away as implausible" (near-zero-denominator extraction artifact, or a
@@ -447,7 +456,7 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             if operating_income_for_margin is not None and operating_income_for_margin != 0:
                 operating_margin_denominator_field = None
-                if revenue is not None and revenue != 0:
+                if revenue is not None and revenue > 0:
                     computed_operating_margin = (operating_income_for_margin / revenue) * 100
                     operating_margin_denominator_field = "revenue"
                 elif total_assets is not None and total_assets != 0:
@@ -475,6 +484,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                         )
                         if operating_margin_fallback is not None:
                             metrics["operating_margin"] = operating_margin_fallback
+                            stale_fallback_metrics.append("operating_margin")
                         else:
                             failed_metrics.append("operating_margin")
                             implausible_ratio_metrics.append("operating_margin")
@@ -487,7 +497,7 @@ class QualityMetricsMixin(SymbolGateMixin):
             # Fallback for banks (NULL revenue): use Net Income / Total Assets instead
             if net_income is not None and net_income != 0:
                 net_margin_denominator_field = None
-                if revenue is not None and revenue != 0:
+                if revenue is not None and revenue > 0:
                     computed_net_margin = (net_income / revenue) * 100
                     net_margin_denominator_field = "revenue"
                 elif total_assets is not None and total_assets != 0:
@@ -509,6 +519,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                         )
                         if net_margin_fallback is not None:
                             metrics["net_margin"] = net_margin_fallback
+                            stale_fallback_metrics.append("net_margin")
                         else:
                             failed_metrics.append("net_margin")
                             implausible_ratio_metrics.append("net_margin")
@@ -603,6 +614,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     )
                     if interest_coverage_fallback is not None:
                         metrics["interest_coverage"] = interest_coverage_fallback
+                        stale_fallback_metrics.append("interest_coverage")
                     else:
                         failed_metrics.append("interest_coverage")
                         implausible_ratio_metrics.append("interest_coverage")
@@ -680,6 +692,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     gross_margin_fallback = self._find_plausible_cross_year_ratio(symbol, "gross_profit", "revenue")
                     if gross_margin_fallback is not None:
                         metrics["gross_margin"] = gross_margin_fallback
+                        stale_fallback_metrics.append("gross_margin")
                     else:
                         failed_metrics.append("gross_margin")
                         implausible_ratio_metrics.append("gross_margin")
@@ -696,6 +709,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     ebitda_margin_fallback = self._find_plausible_cross_year_ebitda_margin_ratio(symbol)
                     if ebitda_margin_fallback is not None:
                         metrics["ebitda_margin"] = ebitda_margin_fallback
+                        stale_fallback_metrics.append("ebitda_margin")
                     else:
                         failed_metrics.append("ebitda_margin")
                         implausible_ratio_metrics.append("ebitda_margin")
@@ -959,6 +973,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     roic_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roic_pct")
                     if roic_fallback is not None:
                         metrics["roic_pct"] = roic_fallback
+                        stale_fallback_metrics.append("roic_pct")
                     else:
                         failed_metrics.append("roic_pct")
                         implausible_ratio_metrics.append("roic_pct")
@@ -984,6 +999,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     roce_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roce_pct")
                     if roce_fallback is not None:
                         metrics["roce_pct"] = roce_fallback
+                        stale_fallback_metrics.append("roce_pct")
                     else:
                         failed_metrics.append("roce_pct")
                         implausible_ratio_metrics.append("roce_pct")
@@ -2821,6 +2837,19 @@ class QualityMetricsMixin(SymbolGateMixin):
                     _reason_key = f"{_field}_unavailable_reason"
                     if metrics.get(_field) is None and metrics.get(_reason_key) in _trust_source_reasons:
                         metrics[_reason_key] = "reit_special_entity"
+
+            if stale_fallback_metrics:
+                # One or more fields above came from a prior fiscal year (up to 6 years
+                # back) via the cross-year "implausible anchor" rescue, not this symbol's
+                # current reporting period. Flag it on data_source (VARCHAR(50) - keep this
+                # short) so a downstream scoring/backtest consumer can at least tell this row
+                # isn't purely fresh current-period data, since there's no per-field
+                # provenance column to name which ones.
+                metrics["data_source"] = "sec_audited_stale_fallback"
+                logger.info(
+                    f"[VALUE_QUALITY_GROWTH] {symbol}: data_source marked stale_fallback - "
+                    f"fields from a prior fiscal year: {stale_fallback_metrics}"
+                )
 
             return metrics
 
