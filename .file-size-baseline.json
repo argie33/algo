@@ -462,6 +462,7 @@
   "loaders/financial_statements/sweeps.py": 746,
   "loaders/health_monitor.py": 201,
   "loaders/helpers/__init__.py": 9,
+  "loaders/helpers/company_info_sec_reason_cleanup.py": 49,
   "loaders/helpers/financial_statements_q4_sweeps.py": 684,
   "loaders/helpers/price_batch_fetch_retry.py": 557,
   "loaders/helpers/price_loader_reporting.py": 322,
