@@ -1179,6 +1179,49 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_registered_investment_company_symbols(self) -> frozenset[str]:
+        """Symbols SEC-classified as a non-operating entity (company_info_sec.entity_type =
+        'other', no SIC code assigned) that nonetheless have real annual_balance_sheet history
+        (proving they're an established filer, not just too new for data) but have never once
+        tagged a real free_cash_flow figure - closed-end funds/investment trusts (BlackRock
+        BBN/BCAT/BGT-class, Gabelli/Eaton Vance/Invesco/Franklin *Trust-class, GAM/TY/ASA-class)
+        report a "Statement of Changes in Net Assets" instead of a conventional cash-flow
+        statement, so opcf/capex/FCF are structurally absent, not a loader gap - same root fact
+        already established for dividends (see load_dividend_data.py's fetch_incremental,
+        "registered_investment_company_no_xbrl": companyfacts for this class carries only
+        "cef"/"ffd" taxonomy concepts, zero us-gaap).
+
+        FIX 2026-09-05 (goal: "SEC/XBRL missing data to zero" audit): live-verified 83 universe
+        symbols fit this exact shape; quality_metrics.fcf_margin was mislabeling them
+        "missing_sec_data"/"no_recent_free_cash_flow_reported" (both "Missing SEC/XBRL data" in
+        /api/scores/coverage) instead of reusing the already-correctly-bucketed
+        "registered_investment_company_no_xbrl" ("Legitimate / not applicable"). Requiring real
+        balance-sheet history (not just the entity_type/SIC classification alone) excludes
+        genuine operating companies SEC also files as "other" (e.g. many foreign private
+        issuers) and brand-new registrants with no filing history yet (live-checked: Bank OZK,
+        a real operating bank, has this same entity_type/SIC shape but real annual_cash_flow
+        data and is correctly excluded). Cached for the life of this loader instance; this query
+        runs once per pipeline run, not once per symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT c.symbol
+                FROM company_info_sec c
+                WHERE c.entity_type = 'other' AND c.sic_code IS NULL
+                  AND EXISTS (
+                      SELECT 1 FROM annual_balance_sheet b
+                      WHERE b.symbol = c.symbol AND b.data_unavailable = FALSE
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM annual_cash_flow f
+                      WHERE f.symbol = c.symbol AND f.free_cash_flow IS NOT NULL
+                  )
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_last_known_zero_dividends_symbols(self) -> frozenset[str]:
         """Symbols whose most recently-tagged (non-NULL) `dividends_paid` fact, however many
         fiscal years back, was exactly $0 - a distinct, narrower gap than

@@ -1275,6 +1275,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
         # ratio outside MIN_PLAUSIBLE_PS_RATIO(0.05..10000); recheck that bound here so a real,
         # positive revenue combined with an out-of-bounds share count/price reads as
         # "implausible_ratio" rather than a generic missing-data fallback.
+        #
+        # FIXED 2026-09-05 (goal session: "implausible values" sweep): the ORDER BY only
+        # required revenue IS NOT NULL, so a real but NEGATIVE most-recent-year revenue (BWMX/
+        # Betterware de Mexico live-confirmed: FY2022 revenue=-$543.3M, likely a restatement/
+        # writeback artifact on this IFRS filer, with real POSITIVE revenue $7.2B/$10.1B in the
+        # two years just before it) got picked as "the latest revenue" - the `_ps_latest_revenue
+        # > 0` guard below then correctly refused to use it for the implausible-ratio check, but
+        # never fell back to the real positive figure sitting one fiscal year earlier, silently
+        # dropping to the generic "missing_sec_data" fallback instead of "implausible_ratio" or
+        # a real computed check. Same "prefer a real positive value even if not the newest" tiered
+        # preference already used throughout this file's other reason-derivation queries (e.g.
+        # _get_revenue_available_elsewhere_symbols and siblings) - positive revenue now ranks
+        # ahead of a merely-non-null one, so a negative anchor year no longer masks a real
+        # positive figure from an adjacent year.
         _ps_implausible_ratio = False
         if ps is None:
             _ps_shares_out = safe_float(row_dict.get("shares_outstanding"), f"{symbol}.ps_reason_shares_outstanding")
@@ -1285,7 +1299,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     SELECT revenue
                     FROM annual_income_statement
                     WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
-                    ORDER BY (CASE WHEN revenue IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    ORDER BY (CASE WHEN revenue IS NOT NULL AND revenue > 0 THEN 0
+                                   WHEN revenue IS NOT NULL THEN 1
+                                   ELSE 2 END), fiscal_year DESC
                     LIMIT 1
                     """,
                     (symbol,),
@@ -1609,7 +1625,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     SELECT fiscal_year, fiscal_quarter, net_income, revenue, earnings_per_share
                     FROM quarterly_income_statement
                     WHERE symbol = %s
-                    ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                    ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
                     LIMIT 8
                     """,
                     (symbol,),
@@ -3771,6 +3787,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 (
                     "implausible_ratio"
                     if "fcf_margin" in implausible_ratio_metrics
+                    # Closed-end funds/investment trusts file no cash-flow statement at all
+                    # (see _get_registered_investment_company_symbols' docstring) - checked
+                    # before the generic never-tagged-FCF gate below so this more specific,
+                    # correctly-categorized ("Legitimate / not applicable") reason wins.
+                    else "registered_investment_company_no_xbrl"
+                    if symbol in self._get_registered_investment_company_symbols()
                     # fcf_margin's own cross-year fallback (fcf_margin_free_cash_flow/
                     # fcf_margin_revenue above) already looks past the anchor row, so a
                     # remaining None here means both inputs are genuinely absent across recent
@@ -4160,7 +4182,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             )
             metrics["fcf_to_net_income_unavailable_reason"] = (
                 (
-                    "no_recent_free_cash_flow_reported"
+                    # See fcf_margin_unavailable_reason above for why this check comes first.
+                    "registered_investment_company_no_xbrl"
+                    if free_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
+                    else "no_recent_free_cash_flow_reported"
                     if free_cash_flow is None
                     and (
                         symbol in self._get_no_recent_free_cash_flow_symbols()
@@ -4210,10 +4235,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             metrics["payout_ratio_unavailable_reason"] = payout_ratio_reason
             metrics["free_cash_flow_unavailable_reason"] = (
                 (
+                    # See fcf_margin_unavailable_reason above for why this check comes first.
+                    "registered_investment_company_no_xbrl"
+                    if symbol in self._get_registered_investment_company_symbols()
                     # Only covers the unambiguous "genuinely no FCF in the 3 most recent fiscal
                     # years" case - the rest have FCF in an off-anchor year (see
                     # _get_free_cash_flow_available_elsewhere_symbols() below).
-                    "no_recent_free_cash_flow_reported"
+                    else "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
                     or symbol in self._get_never_tagged_free_cash_flow_symbols()
                     # Label-only, no value recomputed.
