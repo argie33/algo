@@ -1016,7 +1016,28 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
             if dep_halt:
                 return dep_halt
     except Exception as e:
-        logger.warning(f"[PHASE 1] Dependency validation check failed (non-fatal): {e}")
+        # REAL-MONEY-READINESS FIX (2026-09-05 audit): this was the one fail-open exception
+        # handler in an otherwise consistently fail-closed file - an unexpected error here
+        # (e.g. a transient DB issue) used to be logged as "non-fatal" and execution
+        # continued straight into the freshness checks below, exactly the "silent data
+        # degradation" this dependency check exists to prevent (see the CRITICAL FIX
+        # 2026-08-12 comment above). Now halts like every other Phase 1 failure mode.
+        logger.error(f"[PHASE 1] Dependency validation check failed unexpectedly: {e}", exc_info=True)
+        log_phase_result_fn(
+            1,
+            "dependency_freshness_check_error",
+            "halt",
+            f"dependency freshness validation raised unexpectedly: {e}",
+        )
+        return PhaseResult(
+            1,
+            "dependency_freshness_check_error",
+            "halted",
+            {},
+            True,
+            f"Dependency freshness validation failed unexpectedly: {type(e).__name__}: {e}. "
+            "Cannot verify upstream data is fresh - halting rather than risk silent degradation.",
+        )
 
     preflight_halt = preflight_verify_stock_symbols_table(log_phase_result_fn)
     if preflight_halt:
