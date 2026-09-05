@@ -225,6 +225,90 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
         # AMZN's real state even after 42d24bbdb's parser-level fix landed on main.
         assert {r["fiscal_year"] for r in rows} == {2026}
 
+    def test_retries_fiscal_year_with_net_income_and_revenue_but_income_tax_expense_null(self):
+        """2026-09-05 fix: income's core-field retry now ALSO fires on `operating_income`/
+        `income_tax_expense`/`interest_expense`/`pretax_income` alone, not just
+        `net_income`/`revenue` - see _CORE_FIELD_BY_STATEMENT_TYPE's comment. Live-confirmed
+        for CNS (Cohen & Steers): FY2025 has real net_income=$153.2M/revenue=$556.1M on file
+        (watermark already at 2025-12-31), but income_tax_expense NULL - the same-session
+        `0e7051e9a` wiring fix could never reach this row without this addition."""
+        from loaders.load_financial_statements import get_income_statement_config
+
+        loader = ConsolidatedFinancialStatementsLoader.__new__(ConsolidatedFinancialStatementsLoader)
+        config = get_income_statement_config("annual")
+        loader.table_name = config["table_name"]
+        loader.period = "annual"
+        loader.statement_type = "income"
+        loader.is_symbol_based = True
+        loader._schema_cols = config["schema_cols"]
+        loader._field_mapping = config["field_mapping"]
+        loader._sec_client = MagicMock()
+        loader._sec_client.symbol_to_cik.return_value = "0001234567"
+        loader._sec_client.get_income_statement.return_value = [
+            {
+                "symbol": "CNS",
+                "fiscal_year": 2025,
+                "net_income": 153_217_000,
+                "revenue": 556_116_000,
+                "income_tax_expense": 46_749_000,
+            },
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[2025]),
+        ):
+            rows = loader.fetch_incremental("CNS", since=date(2025, 12, 31))
+
+        assert {r["fiscal_year"] for r in rows} == {2025}
+
+    def test_income_statement_uses_all_six_core_fields(self):
+        """Confirms all 6 income retry-trigger fields are wired into the query set."""
+        from loaders.load_financial_statements import get_income_statement_config
+
+        loader = ConsolidatedFinancialStatementsLoader.__new__(ConsolidatedFinancialStatementsLoader)
+        config = get_income_statement_config("annual")
+        loader.table_name = config["table_name"]
+        loader.period = "annual"
+        loader.statement_type = "income"
+        loader.is_symbol_based = True
+        loader._schema_cols = config["schema_cols"]
+        loader._field_mapping = config["field_mapping"]
+        loader._sec_client = MagicMock()
+        loader._sec_client.symbol_to_cik.return_value = "0001234567"
+        loader._sec_client.get_income_statement.return_value = [
+            {"symbol": "XYZ", "fiscal_year": 2025, "revenue": 100},
+        ]
+
+        captured_queries = []
+
+        def factory(mode, **kwargs):
+            ctx = MagicMock()
+            cur = MagicMock()
+
+            def execute(query, params=None):
+                captured_queries.append(query)
+
+            cur.execute.side_effect = execute
+            cur.fetchone.side_effect = lambda: (1,)
+            cur.fetchall.side_effect = list
+            ctx.__enter__.return_value = cur
+            ctx.__exit__.return_value = False
+            return ctx
+
+        with patch("utils.db.context.DatabaseContext", side_effect=factory):
+            loader.fetch_incremental("XYZ", since=date(2024, 12, 31))
+
+        for field in (
+            "net_income",
+            "revenue",
+            "operating_income",
+            "income_tax_expense",
+            "interest_expense",
+            "pretax_income",
+        ):
+            assert any(f"{field} IS NULL" in q for q in captured_queries), f"missing retry query for {field}"
+
     def test_retries_fiscal_year_with_operating_cash_flow_populated_but_capex_null(self):
         """2026-08-29 fix: cashflow's core-field retry now also fires on `capex` alone,
         not just `operating_cash_flow` - see _CORE_FIELD_BY_STATEMENT_TYPE's comment.

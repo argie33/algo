@@ -376,37 +376,32 @@ class SecEdgarStatementLoader(SecLoaderBase):
     # Column names are validated against a fixed literal set (not user/DB-supplied) before
     # ever reaching an f-string SQL fragment - see the retry-set query below.
     #
-    # FIX 2026-08-29 (goal: "full data" audit continuation, oil & gas capex follow-up):
-    # was a single field per statement type, so the 2026-08-18 AVAV retry-gap fix (see
-    # fetch_incremental's comment below) only ever re-included a fiscal year whose ONE core
-    # field was NULL - a gap in any OTHER mapped field (e.g. cashflow's `capex`) never
-    # qualified, so a fiscal year already at data_unavailable=FALSE with a populated
-    # operating_cash_flow but NULL capex could never be retried again, no matter how many
-    # later concept-mapping fixes landed. Live-confirmed for the SIC-1311 E&P symbols
-    # targeted by [[oil_gas_capex_xbrl_concepts_fixed_20260829]]: a scoped `--symbols`
-    # backfill for APA/FANG/RRC/etc. logged a clean "Fetched 7 annual cashflow row(s)" and
-    # a "PASS" completion, yet `annual_cash_flow.capex`/`updated_at` stayed untouched - the
-    # new oil & gas concepts DID resolve a real, non-NULL FY2025 capex value on this run's
-    # raw SEC fetch (confirmed via a direct `get_cash_flow()` call outside the loader), but
-    # `fetch_incremental`'s watermark filter dropped FY2025 anyway because
-    # `unavailable_years` only ever checked `operating_cash_flow IS NULL`, already false for
-    # every affected symbol. `capex` added as a second retry-trigger field for cashflow - a
-    # real, widely-scored value (feeds free_cash_flow/fcf_yield/intrinsic_value_per_share),
-    # not cosmetic, so it deserves the same "keep retrying until a real value lands"
-    # treatment as the statement's primary field. balance's equivalent gap: see 2026-09-05 below.
+    # FIX 2026-08-29 ([[oil_gas_capex_xbrl_concepts_fixed_20260829]]): was a single field per
+    # statement type, so a fiscal year at data_unavailable=FALSE with e.g. cashflow's primary
+    # `operating_cash_flow` populated but `capex` NULL could never be retried once the
+    # watermark advanced, no matter how many later concept-mapping fixes landed (live-
+    # confirmed APA/FANG/RRC: a scoped backfill fetched real fresh capex but never wrote it).
+    # `capex` added as cashflow's 2nd retry-trigger field. balance's equivalent gap: see 2026-09-05 below.
     #
     # ADDED 2026-09-02 (AMZN live-confirmed): `revenue` added as income's second retry-trigger
     # field, same bug shape as cashflow's capex addition above - see
     # [[amzn_style_current_year_stub_row_anomaly_open_needs_live_xbrl_20260901]] (memory) /
-    # commit 42d24bbdb. AMZN FY2026 had real net_income but NULL revenue/operating_income/
-    # pretax_income (a TTM 10-Q fact clobbered them) and a watermark stuck past FY2026, so the
-    # old net_income-only check could never retry it even after the parser fix landed.
+    # commit 42d24bbdb. Watermark stuck past FY2026 meant net_income-only never retried it.
     #
-    # FIXED 2026-09-05: `long_term_debt`/`short_term_debt` added as balance's 2nd/3rd
-    # retry-trigger fields (capex/revenue shape above) - debt fallbacks (repo agreements,
-    # LineOfCredit; AIG/ORC live-confirmed) were unreachable for a symbol with real equity already.
+    # FIXED 2026-09-05: `long_term_debt`/`short_term_debt` (balance) and `operating_income`/
+    # `income_tax_expense`/`interest_expense`/`pretax_income` (income) added as further
+    # retry-trigger fields - live-confirmed this session's own `4bb8d3d6b`/`0e7051e9a`/09-03
+    # interest_expense fixes were each blocked by this exact gap (AIG/ORC/RRC/CNS/PKG all
+    # have real primary fields on file with a watermark already past their latest year).
     _CORE_FIELD_BY_STATEMENT_TYPE: dict[str, tuple[str, ...]] = {
-        "income": ("net_income", "revenue"),
+        "income": (
+            "net_income",
+            "revenue",
+            "operating_income",
+            "income_tax_expense",
+            "interest_expense",
+            "pretax_income",
+        ),
         "balance": ("stockholders_equity", "long_term_debt", "short_term_debt"),
         "cashflow": ("operating_cash_flow", "capex"),
     }

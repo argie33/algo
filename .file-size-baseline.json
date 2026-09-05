@@ -400,7 +400,7 @@
   "loaders/financial_statements/sweeps.py": 746,
   "loaders/health_monitor.py": 201,
   "loaders/helpers/__init__.py": 9,
-  "loaders/helpers/sec_base.py": 1542,
+  "loaders/helpers/sec_base.py": 1537,
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_segment_debt.py": 193,
   "loaders/helpers/vqg_quality_growth.py": 599,
