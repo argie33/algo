@@ -204,7 +204,8 @@ class ValueMetricsMixin:
         Ties share the same percentile (RANK()-style, not average-rank - matches PostgreSQL's
         own PERCENT_RANK() tie behavior, the same window function `update_rs_percentiles()`
         already uses for rs_percentile). A universe of 1 symbol gets 50.0 (no peer to rank
-        against); empty input returns {}.
+        against); no candidates to rank (empty input) returns {} - not an error, there is
+        nothing to process.
         """
         n = len(values)
         if n == 0:
