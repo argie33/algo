@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import json
 import logging
 import math
 import os
@@ -14,7 +13,6 @@ from typing import Any
 import psycopg2
 
 from algo.orchestrator.config_validator import validate_phase_config
-from algo.orchestrator.phase_result import PhaseResult
 from algo.orchestrator.phase9_reporting import (
     _compute_performance_metrics,
     _compute_risk_metrics,
@@ -22,9 +20,8 @@ from algo.orchestrator.phase9_reporting import (
     _populate_signal_trade_performance,
     _update_daily_metrics,
 )
+from algo.orchestrator.phase_result import PhaseResult
 from utils.db.advisory_locks import (
-    ALGO_AUDIT_LOG_LOCK_ID,
-    ALGO_METRICS_DAILY_LOCK_ID,
     ALGO_POSITIONS_LOCK_ID,
     ALGO_TRADES_LOCK_ID,
     acquire_advisory_lock,
@@ -1258,10 +1255,27 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
         checked = 0
         repaired: list[str] = []
         unrepairable: list[str] = []
+        check_failures: list[str] = []
         for pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id in open_positions:
-            outcome = check_and_repair_one_position(
-                order_mgr, pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id
-            )
+            # REAL-MONEY-READINESS FIX (2026-09-05 audit): check_and_repair_one_position
+            # issues its own DB reads/writes outside of any try/except (e.g. the
+            # alpaca_order_id lookup) - an unhandled exception there used to propagate out
+            # of this loop entirely, silently skipping verification of every remaining
+            # open position for the rest of this cycle with nothing beyond a warning log
+            # at the bottom of this function. One symbol's transient DB hiccup must not be
+            # able to starve every other position of its stop-loss protection check.
+            try:
+                outcome = check_and_repair_one_position(
+                    order_mgr, pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id
+                )
+            except Exception as per_pos_err:
+                logger.error(
+                    f"[PHASE 9] {symbol} (position {pos_id}): stop-loss protection check raised "
+                    f"unexpectedly, treating as unrepairable and continuing to next position: {per_pos_err}",
+                    exc_info=True,
+                )
+                check_failures.append(symbol)
+                continue
             if outcome == "skipped":
                 continue
             checked += 1
@@ -1269,6 +1283,7 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
                 repaired.append(symbol)
             elif outcome == "unrepairable":
                 unrepairable.append(symbol)
+        unrepairable = unrepairable + check_failures
 
         if repaired:
             try:
@@ -1320,6 +1335,29 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
 
     except Exception as e:
         logger.error(f"[PHASE 9] Stop-loss protection verification step failed unexpectedly: {e}", exc_info=True)
+        # REAL-MONEY-READINESS FIX (2026-09-05 audit): a failure of this entire safety-net
+        # check (e.g. AlpacaSyncManager init, the open_positions query itself) used to be a
+        # log line only - unlike every other failure mode in this function, which pages a
+        # human via notify(). The one check whose whole job is catching every other gap
+        # must not itself be able to fail silently.
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Stop-Loss Protection Verification Step Failed",
+                message=(
+                    "Phase 9's per-cycle check that every open position still has a live "
+                    f"stop-loss leg at the broker failed to run entirely: {type(e).__name__}: {e}. "
+                    "No positions were verified or auto-repaired this cycle - investigate "
+                    "immediately, do not assume existing stops are intact."
+                ),
+            )
+        except Exception as notify_err:
+            logger.critical(
+                f"[PHASE 9 CRITICAL] Failed to alert on stop-loss protection step failure: {notify_err}",
+                exc_info=True,
+            )
         try:
             log_phase_result_fn(9, "stop_loss_protection_check", "warn", f"check failed: {str(e)[:500]}")
         except Exception:
