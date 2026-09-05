@@ -495,6 +495,47 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_eps_absent_from_anchor_year_symbols(self) -> frozenset[str]:
+        """Symbols whose SEC-selected anchor fiscal year (same tier/fiscal_year-DESC ordering
+        as _get_revenue_absent_from_anchor_year_symbols() below) has NULL earnings_per_share -
+        never tagged that specific year - even though a real EPS value exists somewhere else in
+        the symbol's history.
+
+        FIX 2026-09-05 (goal: "SEC/XBRL missing data to zero" audit): pe_ratio_reason's final
+        "found a real historical EPS but pe_ratio still came out None" branch was landing on the
+        generic "missing_sec_data" for this exact case (live-confirmed BRK.A/BRK.B: EPS tagged
+        every year through some historical year at real, large per-share values - Berkshire's
+        actual per-Class-A-share income - but NULL in every fiscal year since; net_income is
+        still tagged every year, so this is a distinct, narrower gap than net_income itself
+        being absent) - same "label-only, no value recomputed" discipline as
+        _get_revenue_absent_from_anchor_year_symbols() (a 2+-year-stale EPS would produce a
+        misleading current-period P/E, so this doesn't fall back to computing one). Cached for
+        the life of this loader instance; this query runs once per pipeline run, not once per
+        symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM (
+                    SELECT DISTINCT ON (symbol) symbol, earnings_per_share
+                    FROM annual_income_statement
+                    WHERE data_unavailable IS NOT TRUE
+                    ORDER BY symbol,
+                             (CASE WHEN revenue IS NOT NULL OR earnings_per_share IS NOT NULL
+                                        OR net_income IS NOT NULL THEN 0 ELSE 1 END),
+                             fiscal_year DESC
+                ) anchor
+                WHERE anchor.earnings_per_share IS NULL
+                  AND anchor.symbol IN (
+                      SELECT symbol FROM annual_income_statement
+                      WHERE data_unavailable IS NOT TRUE AND earnings_per_share IS NOT NULL
+                      GROUP BY symbol
+                  )
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_revenue_absent_from_anchor_year_symbols(self) -> frozenset[str]:
         """Symbols whose SEC-selected anchor fiscal year (same tier/fiscal_year-DESC ordering
         as _get_zero_revenue_anchor_symbols() above) has NULL revenue - never tagged that

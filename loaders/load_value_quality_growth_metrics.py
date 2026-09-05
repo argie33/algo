@@ -1201,6 +1201,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 # never tag an EPS concept at all despite having real net_income every year.
                 else "eps_never_tagged_in_filings"
                 if eps_row is None
+                # A positive EPS was found, but not in the symbol's own SEC-selected anchor
+                # fiscal year (see _get_eps_absent_from_anchor_year_symbols()'s docstring,
+                # e.g. BRK.A/BRK.B) - label-only, distinct from the true "anchor year has it,
+                # pe still null for some other reason" case below.
+                else "eps_absent_from_anchor_year"
+                if symbol in self._get_eps_absent_from_anchor_year_symbols()
                 else "missing_sec_data"
             )
 
@@ -3819,6 +3825,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
+                    # A real free_cash_flow value exists somewhere in the symbol's history but
+                    # not in the same fiscal year as a real revenue value (the cross-year
+                    # fallback above requires both in the SAME year) - live-confirmed FTW/OBX/
+                    # AADX/AVEX/ALLO. Same reason free_cash_flow_unavailable_reason already
+                    # uses for this exact gate above - label-only, no value recomputed.
+                    else "free_cash_flow_absent_from_anchor_year"
+                    if symbol in self._get_free_cash_flow_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if fcf_margin is None
