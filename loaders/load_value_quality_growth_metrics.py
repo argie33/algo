@@ -1955,6 +1955,71 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 return float(ratio)
         return None
 
+    def _find_plausible_cross_year_roic_ratio(self, symbol: str, metric: str) -> float | None:
+        """Cross-year fallback for roic_pct/roce_pct's |ratio|>1000 implausible-value bound,
+        same shape/safety argument as `_find_plausible_cross_year_ratio` above but for the
+        wider NOPAT/invested-capital (roic_pct) or EBIT/capital-employed (roce_pct) formulas.
+
+        Searches for an older fiscal year where income-statement and balance-sheet
+        concepts all coherently exist together for that SAME year (a genuine same-year
+        pair, not a field substituted from a different period) and recomputes the metric
+        entirely from that year's own data. Deliberately excludes total_debt_ev
+        (sec_valuations) as a debt source here - unlike the primary anchor-year
+        computation, that table has no fiscal-year dimension (single latest-snapshot row),
+        so mixing it with an older year's equity/cash would be exactly the cross-period
+        Frankenstein-mix this fallback must avoid; only long_term_debt from the matching
+        fiscal year's own balance sheet is used.
+
+        Only called from the implausible-ratio branch (rare: <1% of symbols), so the extra
+        per-symbol query doesn't touch the common path.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT ais.operating_income, ais.income_tax_expense, ais.pretax_income,
+                       abs.stockholders_equity, abs.cash_and_equivalents, abs.long_term_debt
+                FROM annual_income_statement ais
+                JOIN annual_balance_sheet abs
+                  ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
+                  AND abs.data_unavailable = FALSE
+                WHERE ais.symbol = %s AND ais.data_unavailable = FALSE
+                ORDER BY ais.fiscal_year DESC
+                LIMIT 30
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        for row in rows:
+            operating_income, tax_expense, pretax_income, equity, cash, debt = row
+            if None in (operating_income, tax_expense, pretax_income, equity, cash, debt):
+                continue
+            # Decimal values from psycopg2 - convert before arithmetic (Decimal * float
+            # raises TypeError).
+            operating_income = float(operating_income)
+            tax_expense = float(tax_expense)
+            pretax_income = float(pretax_income)
+            equity = float(equity)
+            cash = float(cash)
+            debt = float(debt)
+            if pretax_income <= 0:
+                continue
+            rate = tax_expense / pretax_income
+            if not (-0.60 <= rate <= 0.60):
+                continue
+            if metric == "roic_pct":
+                invested_capital = equity + debt - cash
+                if invested_capital <= 0:
+                    continue
+                ratio = (operating_income * (1 - rate) / invested_capital) * 100.0
+            else:
+                capital_employed = equity + debt
+                if capital_employed <= 0:
+                    continue
+                ratio = (operating_income / capital_employed) * 100.0
+            if abs(ratio) <= 1000:
+                return float(ratio)
+        return None
+
     def _ratio_with_implausible_fallback(
         self,
         symbol: str,
@@ -2818,8 +2883,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 # not an implausibly tiny-but-positive value that explodes the ratio.
                 computed_roic_pct = (nopat / invested_capital) * 100
                 if abs(computed_roic_pct) > 1000:
-                    failed_metrics.append("roic_pct")
-                    implausible_ratio_metrics.append("roic_pct")
+                    roic_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roic_pct")
+                    if roic_fallback is not None:
+                        metrics["roic_pct"] = roic_fallback
+                    else:
+                        failed_metrics.append("roic_pct")
+                        implausible_ratio_metrics.append("roic_pct")
                 else:
                     metrics["roic_pct"] = float(computed_roic_pct)
             else:
@@ -2839,8 +2908,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             if roic_operating_income is not None and capital_employed is not None and capital_employed > 0:
                 computed_roce_pct = (roic_operating_income / capital_employed) * 100
                 if abs(computed_roce_pct) > 1000:
-                    failed_metrics.append("roce_pct")
-                    implausible_ratio_metrics.append("roce_pct")
+                    roce_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roce_pct")
+                    if roce_fallback is not None:
+                        metrics["roce_pct"] = roce_fallback
+                    else:
+                        failed_metrics.append("roce_pct")
+                        implausible_ratio_metrics.append("roce_pct")
                 else:
                     metrics["roce_pct"] = float(computed_roce_pct)
             else:
