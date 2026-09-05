@@ -5,8 +5,10 @@ Methods are verbatim, no logic changed - mixed into SecValuationsLoader.
 """
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
+
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -337,6 +339,42 @@ class ValuationSanityCheckMixin:
                 ratio = max(pe_ratio, yf_pe_ratio) / min(pe_ratio, yf_pe_ratio)
                 if ratio <= 10:
                     return
+        # FIXED 2026-09-05 (goal session: "get SEC/XBRL missing data to zero" campaign,
+        # eps_scale_mismatch refinement - see
+        # eps_scale_mismatch_mostly_stale_annual_vs_live_ttm_not_true_scale_bug_20260905 in
+        # memory): most rejections here are NOT a genuine XBRL scale-tagging bug - `pe_ratio`
+        # is computed from `ttm_eps_basic`, which despite its name is just the latest ANNUAL
+        # EPS (see load_sec_valuations.py's own "ttm_eps_basic" naming), while `yf_pe_ratio`
+        # is a real rolling trailing-twelve-month figure. For a symbol whose earnings moved a
+        # lot since that stale annual period, comparing a stale-annual-EPS PE against a live
+        # TTM PE produces a large, real divergence with NO scale-tagging error involved - a
+        # measurement-window mismatch, not a mis-scaled fact. A prior investigation into this
+        # concluded a genuine TTM-from-quarters rescue wasn't feasible because it checked the
+        # wrong column (`quarterly_income_statement.eps`, which is dead - never a mapping
+        # target, 0/186099 rows populated); the real column, `earnings_per_share`, is 95%
+        # populated. If the trailing 4 real quarters (by `period_end`, not the fiscal_year/
+        # fiscal_quarter pair alone - see migration 1256's non-December-fiscal-year-end
+        # ordering fix) are present, recent, and sum to a genuine trailing-twelve-month EPS
+        # that reconciles with yfinance's live TTM PE, this was never a scale bug - keep the
+        # original SEC-derived pe_ratio/peg_ratio rather than nulling them (does NOT replace
+        # pe_ratio with the quarterly-derived figure - peg_ratio's growth-rate calculation
+        # upstream already assumes pe_ratio came from the annual-EPS path, so swapping the
+        # value here would silently desync the two; this only rescues the sanity check itself).
+        ttm_eps_from_quarters = self._compute_ttm_eps_from_quarters(symbol)
+        if ttm_eps_from_quarters is not None and ttm_eps_from_quarters > 0:
+            current_price = result.get("current_price")
+            if current_price is not None and current_price > 0:
+                pe_from_quarters = current_price / ttm_eps_from_quarters
+                ratio = max(pe_from_quarters, yf_pe_ratio) / min(pe_from_quarters, yf_pe_ratio)
+                if ratio <= 10:
+                    logger.info(
+                        f"[{symbol}] pe_ratio sanity check false positive avoided: annual-EPS-"
+                        f"based PE={pe_ratio:.2f} vs yfinance={yf_pe_ratio:.2f} diverged, but a "
+                        f"true trailing-4-quarter EPS reconciles (PE={pe_from_quarters:.2f}) - "
+                        f"keeping original SEC-derived pe_ratio/peg_ratio (measurement-window "
+                        f"mismatch, not a scale bug)"
+                    )
+                    return
         logger.warning(
             f"[{symbol}] pe_ratio sanity check failed: SEC-derived={pe_ratio:.2f} vs "
             f"yfinance={yf_pe_ratio:.2f} (ratio {ratio:.0f}x) - ttm_eps is likely mis-scaled; "
@@ -349,6 +387,39 @@ class ValuationSanityCheckMixin:
         key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
         if all(m is None for m in key_metrics):
             result["data_unavailable"] = True
+
+    def _compute_ttm_eps_from_quarters(self, symbol: str) -> float | None:
+        """Sum of the 4 most recent real quarterly `earnings_per_share` values, ordered by
+        actual `period_end` date (not the fiscal_year/fiscal_quarter pair - see migration
+        1256's non-December-fiscal-year-end ordering fix elsewhere in this codebase for why
+        that pair alone doesn't give true chronological order for every filer).
+
+        Returns None (not a partial/best-effort sum) unless all 4 most recent quarters are
+        present with a real value AND the most recent one is within ~400 days (a normal
+        annual reporting cadence plus slack for late filers) - a genuine TTM figure needs all
+        4 real quarters, and a stale set of "recent" quarters would just reintroduce the same
+        stale-vs-live measurement-window problem this exists to fix.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT period_end, earnings_per_share
+                FROM quarterly_income_statement
+                WHERE symbol = %s AND data_unavailable IS NOT TRUE AND period_end IS NOT NULL
+                ORDER BY period_end DESC
+                LIMIT 4
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        if len(rows) != 4:
+            return None
+        most_recent_period_end = rows[0][0]
+        if most_recent_period_end is None or (date.today() - most_recent_period_end) > timedelta(days=400):
+            return None
+        if any(r[1] is None for r in rows):
+            return None
+        return float(sum(r[1] for r in rows))
 
     def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]:
         """Pure balance-sheet total_cash/total_debt lookup - no income-statement dependency,
