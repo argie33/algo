@@ -459,7 +459,7 @@
   "loaders/load_sector_industry_daily.py": 519,
   "loaders/load_short_interest_finra.py": 408,
   "loaders/load_signal_quality_scores.py": 1025,
-  "loaders/load_stock_scores.py": 1300,
+  "loaders/load_stock_scores.py": 1296,
   "loaders/load_technical_indicators.py": 1404,
   "loaders/load_trend_analysis.py": 356,
   "loaders/load_value_quality_growth_metrics.py": 2352,
