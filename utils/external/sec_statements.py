@@ -2141,6 +2141,20 @@ def _aggregate_concepts(
     # "Unmapped SEC field" warning on every single row of every symbol across all 6
     # statement tables, drowning real per-symbol unmapped-concept warnings in noise
     # (564,688 lines / 109MB from one 2026-08-14 run, confirmed via log analysis).
+    # FIXED 2026-09-05 (migration 1256, "implausible values" sweep): quarterly_income_
+    # statement.fiscal_year is the CALENDAR year of each fact's end date (see this
+    # function's own "Use period end year as the fiscal year key" comment above) - for a
+    # non-December-fiscal-year-end filer this scatters one real fiscal cycle's 4 quarters
+    # across two different calendar-year fiscal_year values (AAPL live-confirmed: its real
+    # Oct-Dec holiday quarter lands in a LOWER fiscal_year than the Jan-Mar/Apr-Jun quarters
+    # that come chronologically after it), so `ORDER BY fiscal_year DESC, fiscal_quarter
+    # DESC` does not reliably give true chronological order - see migration 1256's own
+    # header for the full evidence. `period_end` (this key's value, already computed above
+    # as this row's real end date) is kept ONLY for quarterly extraction, feeding the new
+    # quarterly_income_statement.period_end column so consumers can order by a real date
+    # instead of guessing from (fiscal_year, fiscal_quarter). Annual extraction still strips
+    # it - annual_income_statement has no such column and no such ordering ambiguity (a
+    # single fiscal_year value already identifies one row per symbol unambiguously).
     result = []
     for row in rows.values():
         result.append(
@@ -2153,7 +2167,8 @@ def _aggregate_concepts(
                 and not k.startswith("_frame_")
                 and not k.startswith("_span_")
                 and not k.startswith("_is_instant_")
-                and k not in ("period_end", "filed", "form")
+                and k not in ("filed", "form")
+                and (k != "period_end" or period == "quarterly")
             }
         )
     # Validate fiscal_year exists before sorting (critical for financial statement ordering)

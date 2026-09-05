@@ -685,7 +685,25 @@ class SecValuationsLoader(OptimalLoader):
                 # extra query) is checked - same small-window "same-year-substitute" fallback
                 # already used elsewhere in this codebase (e.g. roic_pct's long_term_debt
                 # fallback), not an unbounded historical search.
-                if ttm_revenue is None and len(income_rows) > 1 and income_rows[1][1] is not None:
+                # FIXED 2026-09-05 (goal session: "implausible values" sweep): the check above
+                # only handled ttm_revenue being NULL, not a real but NEGATIVE anchor-year value
+                # - live-confirmed BWMX (Betterware de Mexico, IFRS filer): FY2022 anchor row has
+                # revenue=-$543.3M (likely a restatement/writeback artifact), while FY2025/FY2024
+                # both have real positive revenue ($7.2B/$10.1B) one-two rows back. A negative
+                # revenue is exactly as unusable for ps_ratio/ev_revenue as a NULL one (the
+                # downstream `if ttm_revenue and ttm_revenue > 0` gates already refuse to compute
+                # from it either way) but, unlike NULL, never triggered this same-window fallback
+                # - silently leaving ps_ratio/ev_revenue None with no reason recorded instead of
+                # recovering the real, usable figure one row back. Same small-window fallback,
+                # just widened to treat "real but non-positive" the same as "missing", consistent
+                # with every other revenue-anchor gate in this codebase treating a non-positive
+                # value as equivalent to absent for ratio-denominator purposes.
+                if (
+                    (ttm_revenue is None or ttm_revenue <= 0)
+                    and len(income_rows) > 1
+                    and income_rows[1][1] is not None
+                    and income_rows[1][1] > 0
+                ):
                     ttm_revenue = income_rows[1][1]
 
                 # FIXED 2026-08-18: earnings_per_share suffers the identical "premature fiscal

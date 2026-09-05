@@ -901,7 +901,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 SELECT fiscal_year, fiscal_quarter, earnings_per_share, net_income
                 FROM quarterly_income_statement
                 WHERE symbol = %s AND data_unavailable IS NOT TRUE
-                ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
                 LIMIT 8
             """,
                 (symbol,),

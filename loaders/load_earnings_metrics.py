@@ -68,7 +68,7 @@ class EarningsMetricsLoader(OptimalLoader):
                 SELECT fiscal_year, fiscal_quarter, earnings_per_share
                 FROM quarterly_income_statement
                 WHERE symbol = %s AND earnings_per_share IS NOT NULL
-                ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
                 LIMIT 4
                 """,
                 (symbol,),

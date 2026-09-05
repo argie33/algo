@@ -171,6 +171,19 @@ in this same session and stays excluded: Frankfurter returns `{"message":"not fo
 (live-confirmed `GET /2024-12-31?from=USD&to=ARS`) - a structural source-availability gap like
 CLP/COP/TWD/KZT above, not a volatility judgment, so no policy decision can fix it without a
 different historical-FX data source for ARS.
+
+CHECKED 2026-09-05 (goal session: "get SEC/XBRL missing data to zero" sweep) - TRY (Turkish
+Lira, the currency behind TKC/Turkcell and HEPS/Hepsiburada's gaps) evaluated and REJECTED,
+never previously checked in this file. Frankfurter DOES serve it (live-confirmed
+`GET /2024-12-31?from=USD&to=TRY` = 35.361, so this is not a source-availability gap like
+ARS/CLP/COP/TWD/KZT) - but year-end TRY/USD year-over-year moves were +24.8% (2020), +81.1%
+(2021), +39.2% (2022), +57.9% (2023), +19.7% (2024), +21.5% (2025) - every single year exceeds
+BRL's already-rejected ~28-29% high-water mark, with 2021's 81.1% move alone dwarfing every
+currency ever accepted or rejected on this list. Converting TKC/HEPS's real TRY-denominated
+financials at these rates would produce USD figures whose year-over-year swings are almost
+entirely currency noise, not real business performance - clearly fails the same volatility bar
+that excluded BRL/MXN/SEK, more decisively than any of them. Confirmed correct to exclude, not
+an oversight - do not re-add without a materially different Turkish-lira stabilization regime.
 """
 
 import json

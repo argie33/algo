@@ -1169,6 +1169,14 @@ _CASHFLOW_FIELD_MAPPING = {
 # annual tables have no fiscal_quarter column.
 _QUARTERLY_EXTRA = {"fiscal_period": "fiscal_quarter"}
 
+# Migration 1256 ("implausible values" sweep, quarterly fiscal-year-ordering bug): only
+# quarterly_income_statement has a period_end column (see that migration's own header for
+# why fiscal_year/fiscal_quarter alone can't reliably sort into true chronological order for
+# non-December-fiscal-year-end filers) - kept separate from _QUARTERLY_EXTRA (shared by
+# cashflow/balance sheet quarterly configs too) so this doesn't map a field into a column
+# those two tables don't have.
+_QUARTERLY_INCOME_EXTRA = {**_QUARTERLY_EXTRA, "period_end": "period_end"}
+
 
 def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
     """Return configuration for a specific statement type and period.
@@ -1237,7 +1245,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
     elif period == "quarterly":
         return {
             "table_name": "quarterly_income_statement",
-            "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_EXTRA},
+            "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_INCOME_EXTRA},
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
             "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
@@ -1263,6 +1271,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "shares_outstanding_dei",
                     "income_tax_expense",
                     "pretax_income",
+                    "period_end",
                     "created_at",
                     "data_unavailable",
                     "reason",
