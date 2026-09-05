@@ -14,8 +14,11 @@ from typing import Any, cast
 import psycopg2
 
 from algo.config.credential_validator import assert_credentials
-from algo.infrastructure.config.config_defaults_1 import CONFIG_DEFAULTS_1
-from algo.infrastructure.config.config_defaults_2 import CONFIG_DEFAULTS_2
+from algo.infrastructure.config.config_defaults_data_quality import CONFIG_DEFAULTS_DATA_QUALITY
+from algo.infrastructure.config.config_defaults_market import CONFIG_DEFAULTS_MARKET
+from algo.infrastructure.config.config_defaults_risk import CONFIG_DEFAULTS_RISK
+from algo.infrastructure.config.config_defaults_signals import CONFIG_DEFAULTS_SIGNALS
+from algo.infrastructure.config.config_defaults_system import CONFIG_DEFAULTS_SYSTEM
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -97,7 +100,13 @@ class AlgoConfig:
 
     # Default configuration values
     # Format: (value, type, description, category) - category enables metadata-driven grouping
-    DEFAULTS: dict[str, tuple[Any, ...]] = {**CONFIG_DEFAULTS_1, **CONFIG_DEFAULTS_2}
+    DEFAULTS: dict[str, tuple[Any, ...]] = {
+        **CONFIG_DEFAULTS_RISK,
+        **CONFIG_DEFAULTS_SIGNALS,
+        **CONFIG_DEFAULTS_MARKET,
+        **CONFIG_DEFAULTS_DATA_QUALITY,
+        **CONFIG_DEFAULTS_SYSTEM,
+    }
 
     def __init__(self) -> None:
         import os
