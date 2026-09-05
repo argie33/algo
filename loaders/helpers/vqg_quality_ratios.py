@@ -6,6 +6,16 @@ tightly-related blocks from that single function - no computation, fallback orde
 threshold, or return value was changed. Every fix-history comment/live-verified sample
 count/bound below is preserved byte-for-byte from its original location.
 
+2026-09-05 second pass: `_compute_core_financial_ratios` and `_compute_roic_roce_and_leverage`
+were themselves still too large (295/316 lines) relative to the repo's own gold-standard example
+(`algo/risk/circuit_breaker.py`'s ~150-200-line `_check_*` methods). Both are now thin
+orchestrators over private per-sub-metric helpers, one level deeper than the original monolith
+split, same extract-method technique - no computation, fallback order, tolerance, threshold, or
+return value changed here either. Every sub-helper takes exactly the inputs its slice of the
+original code used and returns exactly what downstream code in the same original function needed;
+`metrics`/`failed_metrics`/`implausible_ratio_metrics` are still mutated in place, matching the
+original inline code's side effects.
+
 `QualityRatiosMixin` provides:
 - `_compute_core_financial_ratios`: ROE/ROA (via the shared cross-year-fallback ratio helper),
   operating/net margin, debt-to-assets, current/quick ratio, interest coverage, EV-metrics
@@ -64,6 +74,18 @@ class RoicRoceResult:
     no_operating_income_concept_roic: bool
 
 
+@dataclass
+class _NopatInputs:
+    """Same-fiscal-year tax/pretax/operating-income/interest-expense/net-income quintuple used
+    to derive NOPAT - internal to `_compute_roic_roce_and_leverage`'s helpers only."""
+
+    tax_expense: float | None
+    pretax_income: float | None
+    operating_income: float | None
+    interest_expense: float | None
+    net_income: float | None
+
+
 class QualityRatiosMixin(SymbolGateMixin):
     """See module docstring. TYPE_CHECKING stubs mirror vqg_quality_metrics.py's - only the
     cross-mixin members (defined directly on ValueQualityGrowthMetricsLoader) this file's
@@ -91,37 +113,21 @@ class QualityRatiosMixin(SymbolGateMixin):
             denominator_must_be_positive: bool = False,
         ) -> tuple[float | None, bool]: ...
 
-    def _compute_core_financial_ratios(  # noqa: C901 -- inherent branching of the tiered SEC/XBRL
-        # fallback pattern (primary value -> cross-year search -> implausible-ratio guard) applied
-        # per ratio; extracted verbatim from the original monolith, not introduced by this split.
+    # ------------------------------------------------------------------
+    # _compute_core_financial_ratios and its per-sub-metric helpers
+    # ------------------------------------------------------------------
+
+    def _compute_roe_roa(
         self,
         symbol: str,
         net_income: float | None,
         stockholders_equity: float | None,
         total_assets: float | None,
-        revenue: float | None,
-        operating_income: float | None,
-        interest_expense: float | None,
-        pretax_income: float | None,
-        current_assets: float | None,
-        current_liabilities: float | None,
-        inventory: float | None,
-        total_liabilities: float | None,
-        gross_profit_direct: float | None,
-        cost_of_revenue: float | None,
-        ev_metrics: Any,
-        interest_coverage_operating_income: float | None,
         metrics: dict[str, Any],
         failed_metrics: list[str],
         implausible_ratio_metrics: list[str],
-    ) -> CoreRatiosResult:
-        """ROE/ROA/margins/leverage/liquidity/interest-coverage/EV-extraction/gross+EBITDA margin.
-
-        Writes metrics["roe"], ["roa"], ["operating_margin"], ["net_margin"], ["debt_to_assets"],
-        ["current_ratio"], ["quick_ratio"], ["interest_coverage"], ["gross_margin"],
-        ["ebitda_margin"] and appends to failed_metrics/implausible_ratio_metrics - identical to
-        the original inline code.
-        """
+    ) -> None:
+        """ROE/ROA - each via the shared cross-year-fallback ratio helper."""
         # ROE = Net Income / Shareholders' Equity. Same near-zero-denominator garbage-value
         # bound as the other ratios in this function; falls back to the most recent OTHER
         # fiscal year with a plausible pair before giving up as implausible_ratio.
@@ -142,6 +148,26 @@ class QualityRatiosMixin(SymbolGateMixin):
             if _roa_implausible:
                 implausible_ratio_metrics.append("roa")
 
+    def _compute_operating_and_net_margins(
+        self,
+        symbol: str,
+        operating_income: float | None,
+        revenue: float | None,
+        total_assets: float | None,
+        pretax_income: float | None,
+        interest_expense: float | None,
+        net_income: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> tuple[float | None, bool]:
+        """Operating Margin and Net Margin, each with the bank (NULL-revenue) ROA-style fallback.
+
+        Returns (operating_income_for_margin, no_operating_income_concept) - both needed by
+        later blocks in the caller (interest-coverage flag reuses the no_tax_concept gate, EV
+        block reads none of these, but the original inline code computed
+        operating_income_for_margin here and it stays computed here).
+        """
         # Operating Margin = Operating Income / Revenue
         # Fallback for banks (NULL revenue): use Operating Income / Total Assets instead
         # EBIT-approximation fallback (pretax_income + interest_expense), same as
@@ -206,6 +232,21 @@ class QualityRatiosMixin(SymbolGateMixin):
         else:
             failed_metrics.append("net_margin")
 
+        return operating_income_for_margin, no_operating_income_concept
+
+    def _compute_leverage_and_liquidity_ratios(
+        self,
+        symbol: str,
+        current_assets: float | None,
+        current_liabilities: float | None,
+        inventory: float | None,
+        total_liabilities: float | None,
+        total_assets: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> bool:
+        """Debt-to-Assets, Current Ratio, Quick Ratio. Returns unclassified_balance_sheet."""
         # Debt to Equity is computed after roic_pct below, alongside ROCE, from
         # debt_for_roic (interest-bearing debt) / equity - NOT Total Liabilities / Equity,
         # which is a different, broader ratio (includes AP/deferred revenue/accrued
@@ -253,12 +294,22 @@ class QualityRatiosMixin(SymbolGateMixin):
         # REITs/banks file unclassified balance sheets and never report
         # AssetsCurrent/LiabilitiesCurrent - a permanent structural gap, distinct from an
         # ordinary filer's one-year extraction/timing gap, so check full symbol history.
-        unclassified_balance_sheet = (
+        return (
             current_assets is None
             and current_liabilities is None
             and symbol in self._get_unclassified_balance_sheet_symbols()
         )
 
+    def _compute_interest_coverage_metric(
+        self,
+        symbol: str,
+        interest_expense: float | None,
+        interest_coverage_operating_income: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> tuple[bool, bool]:
+        """Interest Coverage. Returns (no_recent_interest_expense, no_operating_income_concept_ic)."""
         # Companies that stop itemizing interest_expense (debt-free, or netted into other
         # income/expense) never report it again - full-history check, not just this row.
         no_recent_interest_expense = interest_expense is None and (
@@ -291,7 +342,15 @@ class QualityRatiosMixin(SymbolGateMixin):
         else:
             failed_metrics.append("interest_coverage")
 
-        # Extract EV metrics from sec_valuations if available
+        return no_recent_interest_expense, no_operating_income_concept_ic
+
+    def _extract_ev_metrics(
+        self, symbol: str, ev_metrics: Any
+    ) -> tuple[float | None, float | None, float | None, str | None]:
+        """Extract EV metrics from sec_valuations, if available.
+
+        Returns (total_debt_ev, total_cash_ev, ebitda_ev, sec_valuations_reason).
+        """
         total_debt_ev = None
         total_cash_ev = None
         ebitda_ev = None
@@ -304,6 +363,23 @@ class QualityRatiosMixin(SymbolGateMixin):
             total_cash_ev = self._nan_to_none(safe_float(ev_metrics[1], f"{symbol}.total_cash", allow_none=True))
             ebitda_ev = self._nan_to_none(safe_float(ev_metrics[2], f"{symbol}.ebitda", allow_none=True))
 
+        return total_debt_ev, total_cash_ev, ebitda_ev, sec_valuations_reason
+
+    def _compute_gross_and_ebitda_margins(
+        self,
+        symbol: str,
+        gross_profit_direct: float | None,
+        cost_of_revenue: float | None,
+        revenue: float | None,
+        ebitda_ev: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> tuple[float | None, bool]:
+        """Gross Margin (with prior-year fallback) and EBITDA Margin.
+
+        Returns (gross_profit_used, no_gross_profit_concept).
+        """
         # Gross Margin = Gross Profit / Revenue. Prefers gross_profit directly from SEC
         # data over computing it from cost_of_revenue, with a prior-year fallback (like
         # ROIC/interest_coverage) when the anchor year has neither. Fetched as a triple
@@ -373,6 +449,90 @@ class QualityRatiosMixin(SymbolGateMixin):
         else:
             failed_metrics.append("ebitda_margin")
 
+        return gross_profit_used, no_gross_profit_concept
+
+    def _compute_core_financial_ratios(
+        self,
+        symbol: str,
+        net_income: float | None,
+        stockholders_equity: float | None,
+        total_assets: float | None,
+        revenue: float | None,
+        operating_income: float | None,
+        interest_expense: float | None,
+        pretax_income: float | None,
+        current_assets: float | None,
+        current_liabilities: float | None,
+        inventory: float | None,
+        total_liabilities: float | None,
+        gross_profit_direct: float | None,
+        cost_of_revenue: float | None,
+        ev_metrics: Any,
+        interest_coverage_operating_income: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> CoreRatiosResult:
+        """ROE/ROA/margins/leverage/liquidity/interest-coverage/EV-extraction/gross+EBITDA margin.
+
+        Thin orchestrator: each sub-metric family is computed by its own helper above (same
+        extract-method split the original 2,581-line monolith itself got, one level deeper).
+        Writes metrics["roe"], ["roa"], ["operating_margin"], ["net_margin"], ["debt_to_assets"],
+        ["current_ratio"], ["quick_ratio"], ["interest_coverage"], ["gross_margin"],
+        ["ebitda_margin"] and appends to failed_metrics/implausible_ratio_metrics - identical to
+        the original inline code.
+        """
+        self._compute_roe_roa(
+            symbol, net_income, stockholders_equity, total_assets, metrics, failed_metrics, implausible_ratio_metrics
+        )
+
+        operating_income_for_margin, no_operating_income_concept = self._compute_operating_and_net_margins(
+            symbol,
+            operating_income,
+            revenue,
+            total_assets,
+            pretax_income,
+            interest_expense,
+            net_income,
+            metrics,
+            failed_metrics,
+            implausible_ratio_metrics,
+        )
+
+        unclassified_balance_sheet = self._compute_leverage_and_liquidity_ratios(
+            symbol,
+            current_assets,
+            current_liabilities,
+            inventory,
+            total_liabilities,
+            total_assets,
+            metrics,
+            failed_metrics,
+            implausible_ratio_metrics,
+        )
+
+        no_recent_interest_expense, no_operating_income_concept_ic = self._compute_interest_coverage_metric(
+            symbol,
+            interest_expense,
+            interest_coverage_operating_income,
+            metrics,
+            failed_metrics,
+            implausible_ratio_metrics,
+        )
+
+        total_debt_ev, total_cash_ev, ebitda_ev, sec_valuations_reason = self._extract_ev_metrics(symbol, ev_metrics)
+
+        gross_profit_used, no_gross_profit_concept = self._compute_gross_and_ebitda_margins(
+            symbol,
+            gross_profit_direct,
+            cost_of_revenue,
+            revenue,
+            ebitda_ev,
+            metrics,
+            failed_metrics,
+            implausible_ratio_metrics,
+        )
+
         return CoreRatiosResult(
             operating_income_for_margin=operating_income_for_margin,
             no_operating_income_concept=no_operating_income_concept,
@@ -387,9 +547,11 @@ class QualityRatiosMixin(SymbolGateMixin):
             no_gross_profit_concept=no_gross_profit_concept,
         )
 
-    def _compute_roic_roce_and_leverage(  # noqa: C901 -- inherent branching of the tiered
-        # SEC/XBRL fallback pattern applied per ratio (ROIC/ROCE/debt-to-equity share NOPAT/
-        # invested-capital inputs); extracted verbatim from the original monolith.
+    # ------------------------------------------------------------------
+    # _compute_roic_roce_and_leverage and its per-sub-metric helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_nopat_inputs(
         self,
         symbol: str,
         quality_row: Any,
@@ -397,18 +559,10 @@ class QualityRatiosMixin(SymbolGateMixin):
         pretax_income: float | None,
         operating_income: float | None,
         net_income: float | None,
-        stockholders_equity: float | None,
-        cash_and_equivalents_bs: float | None,
-        long_term_debt_bs: float | None,
-        total_debt_ev: float | None,
-        metrics: dict[str, Any],
-        failed_metrics: list[str],
-        implausible_ratio_metrics: list[str],
-    ) -> RoicRoceResult:
-        """ROIC/ROCE/Debt-to-Equity - share NOPAT/invested-capital/capital-employed inputs.
-
-        Writes metrics["roic_pct"], ["roce_pct"], ["debt_to_equity"] and appends to
-        failed_metrics/implausible_ratio_metrics - identical to the original inline code.
+    ) -> _NopatInputs:
+        """Resolve the same-fiscal-year tax/pretax/operating-income/interest-expense/net-income
+        quintuple NOPAT needs, searching cross-year fallbacks only to rescue whichever of
+        operating_income/interest_expense the anchor year is missing (see inline comments).
         """
         # ROIC = NOPAT / Invested Capital, NOPAT = EBIT * (1 - effective_tax_rate). No
         # hardcoded tax-rate assumption - only real SEC-reported tax/pretax concepts are
@@ -516,6 +670,26 @@ class QualityRatiosMixin(SymbolGateMixin):
             # so this never mixes fiscal years.
             roic_operating_income = roic_pretax_income + roic_interest_expense
 
+        return _NopatInputs(
+            tax_expense=roic_tax_expense,
+            pretax_income=roic_pretax_income,
+            operating_income=roic_operating_income,
+            interest_expense=roic_interest_expense,
+            net_income=roic_net_income,
+        )
+
+    def _compute_effective_tax_rate(
+        self,
+        symbol: str,
+        nopat_inputs: _NopatInputs,
+        implausible_ratio_metrics: list[str],
+    ) -> tuple[float | None, bool]:
+        """Effective tax rate for NOPAT, bounded to [-60%, 60%]. Returns
+        (effective_tax_rate, roic_pct_unprofitable)."""
+        roic_tax_expense = nopat_inputs.tax_expense
+        roic_pretax_income = nopat_inputs.pretax_income
+        roic_net_income = nopat_inputs.net_income
+
         # No hardcoded tax-rate assumption - only real SEC-reported IncomeTaxExpenseBenefit/
         # pretax_income concepts are used (a fabricated 0.21/0.25 fallback was rejected).
         # Bounded to [-60%, 60%]: an implausible rate (near-zero pretax income swamped by an
@@ -566,6 +740,21 @@ class QualityRatiosMixin(SymbolGateMixin):
             else:
                 implausible_ratio_metrics.append("roic_pct")
 
+        return effective_tax_rate, roic_pct_unprofitable
+
+    def _resolve_invested_capital(
+        self,
+        symbol: str,
+        stockholders_equity: float | None,
+        cash_and_equivalents_bs: float | None,
+        long_term_debt_bs: float | None,
+        total_debt_ev: float | None,
+    ) -> tuple[float | None, float | None, float | None, bool]:
+        """Resolve Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents.
+
+        Returns (roic_stockholders_equity, debt_for_roic, invested_capital,
+        roic_pct_negative_invested_capital).
+        """
         # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
         # Use total_debt_ev (from sec_valuations, 81% available) as primary source
         # Fall back to long_term_debt_bs (from balance_sheet, only 22% available) if needed
@@ -635,13 +824,19 @@ class QualityRatiosMixin(SymbolGateMixin):
         # business-state fact, not an absent concept (same distinction as
         # roic_pct_unprofitable below for pretax losses).
         roic_pct_negative_invested_capital = invested_capital is not None and invested_capital <= 0
-        # roic_operating_income (NOPAT's other input) can independently be None for
-        # no-tax-concept REITs even when effective_tax_rate's own branch already handles
-        # them - same structural-not-missing gate.
-        no_operating_income_concept_roic = (
-            roic_operating_income is None and symbol in self._get_no_tax_concept_symbols()
-        )
 
+        return roic_stockholders_equity, debt_for_roic, invested_capital, roic_pct_negative_invested_capital
+
+    def _compute_roic_pct(
+        self,
+        effective_tax_rate: float | None,
+        roic_operating_income: float | None,
+        invested_capital: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> None:
+        """ROIC = NOPAT / Invested Capital, NOPAT = EBIT * (1 - effective_tax_rate)."""
         if (
             effective_tax_rate is not None
             and roic_operating_income is not None
@@ -661,6 +856,16 @@ class QualityRatiosMixin(SymbolGateMixin):
         else:
             failed_metrics.append("roic_pct")
 
+    def _compute_roce_pct(
+        self,
+        roic_operating_income: float | None,
+        roic_stockholders_equity: float | None,
+        debt_for_roic: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> bool:
+        """ROCE = EBIT / (Equity + Debt). Returns roce_pct_negative_capital_employed."""
         # ROCE = EBIT / (Equity + Debt), deliberately NO cash subtraction - unlike roic_pct
         # above, whose cash-netted invested_capital goes negative for well-capitalized,
         # profitable companies. roic_operating_income is used as the EBIT proxy (pretax,
@@ -682,6 +887,17 @@ class QualityRatiosMixin(SymbolGateMixin):
         else:
             failed_metrics.append("roce_pct")
 
+        return roce_pct_negative_capital_employed
+
+    def _compute_debt_to_equity(
+        self,
+        roic_stockholders_equity: float | None,
+        debt_for_roic: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> None:
+        """Debt to Equity: interest-bearing Debt / Equity."""
         # Debt to Equity: interest-bearing Debt / Equity (replaced the old Total
         # Liabilities / Equity formula). Reuses debt_for_roic/roic_stockholders_equity, same
         # inputs as ROIC/ROCE above. Correlates strongly with debt_to_assets (corr=0.67), so
@@ -695,6 +911,75 @@ class QualityRatiosMixin(SymbolGateMixin):
                 metrics["debt_to_equity"] = float(computed_debt_to_equity)
         else:
             failed_metrics.append("debt_to_equity")
+
+    def _compute_roic_roce_and_leverage(
+        self,
+        symbol: str,
+        quality_row: Any,
+        income_tax_expense: float | None,
+        pretax_income: float | None,
+        operating_income: float | None,
+        net_income: float | None,
+        stockholders_equity: float | None,
+        cash_and_equivalents_bs: float | None,
+        long_term_debt_bs: float | None,
+        total_debt_ev: float | None,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+        implausible_ratio_metrics: list[str],
+    ) -> RoicRoceResult:
+        """ROIC/ROCE/Debt-to-Equity - share NOPAT/invested-capital/capital-employed inputs.
+
+        Thin orchestrator: NOPAT-input resolution, effective-tax-rate, and invested-capital
+        resolution are each genuinely separable sub-concerns (own helpers above) despite
+        sharing inputs downstream - only ROIC/ROCE/debt-to-equity themselves stay as three
+        small, independent final-ratio helpers since each is a single formula once its inputs
+        are resolved. Writes metrics["roic_pct"], ["roce_pct"], ["debt_to_equity"] and appends
+        to failed_metrics/implausible_ratio_metrics - identical to the original inline code.
+        """
+        nopat_inputs = self._resolve_nopat_inputs(
+            symbol, quality_row, income_tax_expense, pretax_income, operating_income, net_income
+        )
+
+        effective_tax_rate, roic_pct_unprofitable = self._compute_effective_tax_rate(
+            symbol, nopat_inputs, implausible_ratio_metrics
+        )
+
+        roic_stockholders_equity, debt_for_roic, invested_capital, roic_pct_negative_invested_capital = (
+            self._resolve_invested_capital(
+                symbol, stockholders_equity, cash_and_equivalents_bs, long_term_debt_bs, total_debt_ev
+            )
+        )
+
+        roic_operating_income = nopat_inputs.operating_income
+        # roic_operating_income (NOPAT's other input) can independently be None for
+        # no-tax-concept REITs even when effective_tax_rate's own branch already handles
+        # them - same structural-not-missing gate.
+        no_operating_income_concept_roic = (
+            roic_operating_income is None and symbol in self._get_no_tax_concept_symbols()
+        )
+
+        self._compute_roic_pct(
+            effective_tax_rate,
+            roic_operating_income,
+            invested_capital,
+            metrics,
+            failed_metrics,
+            implausible_ratio_metrics,
+        )
+
+        roce_pct_negative_capital_employed = self._compute_roce_pct(
+            roic_operating_income,
+            roic_stockholders_equity,
+            debt_for_roic,
+            metrics,
+            failed_metrics,
+            implausible_ratio_metrics,
+        )
+
+        self._compute_debt_to_equity(
+            roic_stockholders_equity, debt_for_roic, metrics, failed_metrics, implausible_ratio_metrics
+        )
 
         return RoicRoceResult(
             debt_for_roic=debt_for_roic,

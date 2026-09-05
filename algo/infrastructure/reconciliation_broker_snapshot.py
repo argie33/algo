@@ -117,42 +117,128 @@ class BrokerSnapshotMixin:
                 f"Cannot calculate concentration risk without complete position data."
             )
 
+        largest_position_dec, max_concentration_dec, avg_position_size_dec, herfindahl_index_dec = (
+            self._broker_snapshot_concentration_metrics(
+                position_values, total_position_value, len(positions), total_equity_dec
+            )
+        )
+
+        daily_return_pct_dec = self._broker_snapshot_daily_return(cur, reconcile_date, total_equity_dec)
+
+        market_trend = self._broker_snapshot_market_trend(cur, reconcile_date)
+
+        win_count, loss_count, realized_pnl_today = self._broker_snapshot_trade_counts(cur, reconcile_date)
+
+        # initial_capital is fetched here (normalize to actual initial capital from Alpaca
+        # account history) but cumulative_return_pct itself is computed further below,
+        # once adjusted_equity is available - see that comment for why.
+        try:
+            initial_capital = self._fetch_initial_capital(cur)  # type: ignore[attr-defined]
+            if initial_capital <= 0:
+                raise ValueError(
+                    f"CRITICAL: Invalid initial_capital={initial_capital} - cannot calculate cumulative return. "
+                    "Check Alpaca account initialization and capital history."
+                )
+        except ValueError as e:
+            logger.error(f"CRITICAL: {e} - cannot calculate cumulative return")
+            raise
+
+        (
+            max_drawdown_pct_dec,
+            running_peak_dec,
+            drawdown_pct_dec,
+            net_capital_flow_cum,
+            adjusted_equity,
+            adjusted_running_peak,
+            adjusted_drawdown_pct,
+        ) = self._broker_snapshot_drawdown_metrics(cur, reconcile_date, total_equity_dec)
+
+        # Cumulative return against adjusted_equity (cash-flow-adjusted), NOT the
+        # realized-trades-only cumulative_pnl this used previously: "total return since
+        # inception" should reflect trading performance (realized + unrealized) relative
+        # to starting capital, not be inflated/deflated by deposits and withdrawals, and
+        # should include unrealized gains on open positions rather than excluding them
+        # entirely. Mirrors the LOCAL_MODE/paper path above and the migration 1134
+        # rationale already applied to drawdown/daily-loss elsewhere in this codebase.
+        cumulative_return_pct = (adjusted_equity - initial_capital) / initial_capital * 100
+        logger.info(f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})")
+
+        sharpe_ratio = self._broker_snapshot_sharpe_ratio(cur, reconcile_date)
+
+        return BrokerSnapshotMetrics(
+            largest_position_dec=largest_position_dec,
+            max_concentration_dec=max_concentration_dec,
+            avg_position_size_dec=avg_position_size_dec,
+            herfindahl_index_dec=herfindahl_index_dec,
+            daily_return_pct_dec=daily_return_pct_dec,
+            market_trend=market_trend,
+            win_count=win_count,
+            loss_count=loss_count,
+            realized_pnl_today=realized_pnl_today,
+            initial_capital=initial_capital,
+            max_drawdown_pct_dec=max_drawdown_pct_dec,
+            running_peak_dec=running_peak_dec,
+            drawdown_pct_dec=drawdown_pct_dec,
+            net_capital_flow_cum=net_capital_flow_cum,
+            adjusted_equity=adjusted_equity,
+            adjusted_running_peak=adjusted_running_peak,
+            adjusted_drawdown_pct=adjusted_drawdown_pct,
+            cumulative_return_pct=cumulative_return_pct,
+            sharpe_ratio=sharpe_ratio,
+        )
+
+    def _broker_snapshot_concentration_metrics(
+        self,
+        position_values: list[Any],
+        total_position_value: Decimal,
+        position_count: int,
+        total_equity_dec: Decimal,
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        """Largest/average/Herfindahl concentration metrics from open position values.
+
+        Verbatim relocation from `_compute_broker_snapshot_metrics`.
+        Returns (largest_position_dec, max_concentration_dec, avg_position_size_dec, herfindahl_index_dec).
+        """
         # FIXED: Allow zero positions (fresh account) as valid state
         # Fresh accounts have no positions - this is expected, not an error
         if not position_values:
             logger.info("[RECONCILIATION] Portfolio has no open positions (fresh account or all exited)")
-            largest_position_dec = Decimal(0)
-            max_concentration_dec = Decimal(0)
-            avg_position_size_dec = Decimal(0)
-            herfindahl_index_dec = Decimal(0)
-        else:
-            largest_position_dec = Decimal(str(max(position_values)))
-            if total_equity_dec <= 0:
-                logger.critical(f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation")
-                raise ValueError(
-                    f"CRITICAL: Total equity invalid ({total_equity_dec}) - cannot calculate concentration"
-                )
-            max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
-            # avg_position_size_dec stores the average position VALUE in dollars (NOT a percentage)
-            # It will be converted to percentage on line 1385-1388
-            avg_position_size_dec = total_position_value / len(positions) if len(positions) > 0 else Decimal(0)
+            return Decimal(0), Decimal(0), Decimal(0), Decimal(0)
 
-            # Calculate Herfindahl index for concentration_risk_pct (sum of squared position percentages)
-            # This measures portfolio concentration: 1/n for equal-weight = low concentration, 100 for single position = high
-            herfindahl_index_dec = Decimal(0)
-            for pos_val in position_values:
-                pos_pct = Decimal(str(pos_val)) / total_equity_dec * Decimal(100)
-                herfindahl_index_dec += pos_pct * pos_pct
+        largest_position_dec = Decimal(str(max(position_values)))
+        if total_equity_dec <= 0:
+            logger.critical(f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation")
+            raise ValueError(f"CRITICAL: Total equity invalid ({total_equity_dec}) - cannot calculate concentration")
+        max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
+        # avg_position_size_dec stores the average position VALUE in dollars (NOT a percentage)
+        # It will be converted to percentage on line 1385-1388
+        avg_position_size_dec = total_position_value / position_count if position_count > 0 else Decimal(0)
 
-            logger.debug(
-                f"[RECONCILIATION] Concentration metrics: "
-                f"total_position_value={float(total_position_value):.2f}, "
-                f"total_equity_dec={float(total_equity_dec):.2f}, "
-                f"largest_pos={float(largest_position_dec):.2f} ({float(max_concentration_dec):.2f}%), "
-                f"avg_pos_dollars={float(avg_position_size_dec):.2f}, "
-                f"herfindahl_index={float(herfindahl_index_dec):.2f}"
-            )
+        # Calculate Herfindahl index for concentration_risk_pct (sum of squared position percentages)
+        # This measures portfolio concentration: 1/n for equal-weight = low concentration, 100 for single position = high
+        herfindahl_index_dec = Decimal(0)
+        for pos_val in position_values:
+            pos_pct = Decimal(str(pos_val)) / total_equity_dec * Decimal(100)
+            herfindahl_index_dec += pos_pct * pos_pct
 
+        logger.debug(
+            f"[RECONCILIATION] Concentration metrics: "
+            f"total_position_value={float(total_position_value):.2f}, "
+            f"total_equity_dec={float(total_equity_dec):.2f}, "
+            f"largest_pos={float(largest_position_dec):.2f} ({float(max_concentration_dec):.2f}%), "
+            f"avg_pos_dollars={float(avg_position_size_dec):.2f}, "
+            f"herfindahl_index={float(herfindahl_index_dec):.2f}"
+        )
+
+        return largest_position_dec, max_concentration_dec, avg_position_size_dec, herfindahl_index_dec
+
+    def _broker_snapshot_daily_return(
+        self, cur: PsycopgCursor[Any], reconcile_date: _date_type, total_equity_dec: Decimal
+    ) -> Decimal:
+        """Daily return pct against the most recent prior snapshot.
+
+        Verbatim relocation from `_compute_broker_snapshot_metrics`.
+        """
         # CRITICAL FIX 2026-08-09: bound by reconcile_date - an unbounded "latest
         # snapshot" query picks up any stray future-dated row (e.g. a leftover
         # local --date simulation snapshot in the shared dev DB) ahead of the real
@@ -177,8 +263,13 @@ class BrokerSnapshotMixin:
             raise ValueError(
                 f"Prior portfolio value invalid ({prev_value_dec}) - daily return calculation requires valid historical snapshot"
             )
-        daily_return_pct_dec = daily_return_dec / prev_value_dec * Decimal(100)
+        return daily_return_dec / prev_value_dec * Decimal(100)
 
+    def _broker_snapshot_market_trend(self, cur: PsycopgCursor[Any], reconcile_date: _date_type) -> str:
+        """Most recent market trend as of `reconcile_date`.
+
+        Verbatim relocation from `_compute_broker_snapshot_metrics`.
+        """
         cur.execute(
             """
             SELECT market_trend, distribution_days_4w
@@ -194,10 +285,17 @@ class BrokerSnapshotMixin:
             logger.warning(
                 f"[RECONCILIATION] Market trend data missing for {reconcile_date} (no row in market_health_daily)"
             )
-            market_trend = "data_unavailable"
-        else:
-            market_trend = market[0]
+            return "data_unavailable"
+        return market[0]  # type: ignore[no-any-return]
 
+    def _broker_snapshot_trade_counts(
+        self, cur: PsycopgCursor[Any], reconcile_date: _date_type
+    ) -> tuple[int, int, float]:
+        """Win/loss counts (all-time, closed trades) and today's realized P&L.
+
+        Verbatim relocation from `_compute_broker_snapshot_metrics`.
+        Returns (win_count, loss_count, realized_pnl_today).
+        """
         # Calculate additional metrics (no COALESCE - catch missing data explicitly)
         cur.execute(
             """
@@ -235,24 +333,22 @@ class BrokerSnapshotMixin:
         if realized_pnl_today is None:
             realized_pnl_today = 0.0
             logger.info("No trades closed today - daily realized PnL is 0")
-        win_count = int(win_count)
-        loss_count = int(loss_count)
-        realized_pnl_today = float(realized_pnl_today)
 
-        # initial_capital is fetched here (normalize to actual initial capital from Alpaca
-        # account history) but cumulative_return_pct itself is computed further below,
-        # once adjusted_equity is available - see that comment for why.
-        try:
-            initial_capital = self._fetch_initial_capital(cur)  # type: ignore[attr-defined]
-            if initial_capital <= 0:
-                raise ValueError(
-                    f"CRITICAL: Invalid initial_capital={initial_capital} - cannot calculate cumulative return. "
-                    "Check Alpaca account initialization and capital history."
-                )
-        except ValueError as e:
-            logger.error(f"CRITICAL: {e} - cannot calculate cumulative return")
-            raise
+        return int(win_count), int(loss_count), float(realized_pnl_today)
 
+    def _broker_snapshot_drawdown_metrics(
+        self, cur: PsycopgCursor[Any], reconcile_date: _date_type, total_equity_dec: Decimal
+    ) -> tuple[Decimal, Decimal, Decimal, float, float, float, float]:
+        """Max drawdown (all-time), running peak/drawdown, and cash-flow-adjusted equity/peak/drawdown.
+
+        Verbatim relocation from `_compute_broker_snapshot_metrics` - kept as one block (not split
+        further) because `running_peak_dec`'s `max(peak_val_dec, ...) if peak_row and peak_row[0] else ...`
+        short-circuit depends on `peak_val_dec` only being bound inside the preceding `if`, which is the
+        exact fragile-but-correct pattern flagged in the first-pass refactor commit (fc40f26a2) - moved
+        verbatim, not touched.
+        Returns (max_drawdown_pct_dec, running_peak_dec, drawdown_pct_dec, net_capital_flow_cum,
+        adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct).
+        """
         # Calculate max drawdown from historical snapshots
         max_drawdown_pct_dec = Decimal(0)
         cur.execute("""
@@ -287,16 +383,21 @@ class BrokerSnapshotMixin:
         )
         adjusted_equity = float(total_equity_dec) - net_capital_flow_cum
 
-        # Cumulative return against adjusted_equity (cash-flow-adjusted), NOT the
-        # realized-trades-only cumulative_pnl this used previously: "total return since
-        # inception" should reflect trading performance (realized + unrealized) relative
-        # to starting capital, not be inflated/deflated by deposits and withdrawals, and
-        # should include unrealized gains on open positions rather than excluding them
-        # entirely. Mirrors the LOCAL_MODE/paper path above and the migration 1134
-        # rationale already applied to drawdown/daily-loss elsewhere in this codebase.
-        cumulative_return_pct = (adjusted_equity - initial_capital) / initial_capital * 100
-        logger.info(f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})")
+        return (
+            max_drawdown_pct_dec,
+            running_peak_dec,
+            drawdown_pct_dec,
+            net_capital_flow_cum,
+            adjusted_equity,
+            adjusted_running_peak,
+            adjusted_drawdown_pct,
+        )
 
+    def _broker_snapshot_sharpe_ratio(self, cur: PsycopgCursor[Any], reconcile_date: _date_type) -> float | None:
+        """Sharpe ratio (mean_return / std_dev * sqrt(252)) from trailing daily returns.
+
+        Verbatim relocation from `_compute_broker_snapshot_metrics`.
+        """
         # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
         # CRITICAL FIX 2026-08-09: bound by reconcile_date - an unbounded trailing
         # window can pull in a stray future-dated row (e.g. a leftover local
@@ -334,27 +435,7 @@ class BrokerSnapshotMixin:
                 "Cannot proceed without Sharpe calculation capability."
             ) from e
 
-        return BrokerSnapshotMetrics(
-            largest_position_dec=largest_position_dec,
-            max_concentration_dec=max_concentration_dec,
-            avg_position_size_dec=avg_position_size_dec,
-            herfindahl_index_dec=herfindahl_index_dec,
-            daily_return_pct_dec=daily_return_pct_dec,
-            market_trend=market_trend,
-            win_count=win_count,
-            loss_count=loss_count,
-            realized_pnl_today=realized_pnl_today,
-            initial_capital=initial_capital,
-            max_drawdown_pct_dec=max_drawdown_pct_dec,
-            running_peak_dec=running_peak_dec,
-            drawdown_pct_dec=drawdown_pct_dec,
-            net_capital_flow_cum=net_capital_flow_cum,
-            adjusted_equity=adjusted_equity,
-            adjusted_running_peak=adjusted_running_peak,
-            adjusted_drawdown_pct=adjusted_drawdown_pct,
-            cumulative_return_pct=cumulative_return_pct,
-            sharpe_ratio=sharpe_ratio,
-        )
+        return sharpe_ratio
 
     def _write_broker_snapshot(
         self,
