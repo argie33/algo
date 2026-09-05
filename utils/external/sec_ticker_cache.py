@@ -69,11 +69,28 @@ DEFAULT_TIMEOUT = 10.0
 # cache refresh + a hopefully-recovered browse-edgar) since these are live, in-universe
 # symbols needing real data now, and a verified-correct override never goes stale the
 # way a bulk-file snapshot or a flaky legacy endpoint can.
+#
+# HOS: yet another category - a genuine, very recent (2026-08-31, per CIK 866829's own
+# formerNames history) corporate rename that SEC's company_tickers.json "tickers" field
+# hasn't caught up with yet. CIK 866829's submissions.json `name` is now "HORNBECK
+# OFFSHORE SERVICES, INC." (most recent filing 2026-09-04, an S-8) with formerNames
+# showing "HELIX ENERGY SOLUTIONS GROUP INC" (2006-2026-08-31) and, before that, "CAL
+# DIVE INTERNATIONAL INC" - i.e. this is the same continuously-filing entity, just
+# renamed, not two different companies. SEC's own bulk company_tickers.json snapshot
+# still lists this CIK under the pre-rename ticker "HLX" only, so a plain ticker lookup
+# for our tracked "HOS" symbol finds nothing and falls through to "no_income_statement"/
+# missing-SEC-data reasons even though the real, current XBRL data exists and is being
+# filed under this exact CIK right now. Found 2026-09-05 (goal session: "SEC/XBRL
+# missing data to zero" sweep) via a fork's live companyfacts/submissions.json check
+# flagging HOS as a suspected phantom-symbol case; confirmed directly against
+# submissions.json rather than assumed. Same self-healing caveat as DMC/SHOE/GRSD above
+# once SEC's snapshot catches up with the rename - safe to remove this entry then.
 CIK_OVERRIDES: dict[str, str] = {
     "XOM": "0000034088",  # EXXON MOBIL CORP (real 10-K filer) - see comment above
     "DMC": "0001047340",  # DEL MONTE CORP (NYSE) - see DMC/SHOE/GRSD comment above
     "SHOE": "0000895447",  # SHOE STATION GROUP INC (Nasdaq) - see comment above
     "GRSD": "0001839799",  # GRANDSTAND Ltd (Nasdaq) - see comment above
+    "HOS": "0000866829",  # HORNBECK OFFSHORE SERVICES INC (formerly Helix Energy Solutions Group) - see HOS comment above
 }
 
 # Ensure socket timeout is configured globally

@@ -53,6 +53,22 @@ class TestCikOverrides:
         assert cache.symbol_to_cik("SHOE") == "0000895447"
         assert cache.symbol_to_cik("GRSD") == "0001839799"
 
+    def test_hos_overridden_to_the_post_rename_cik(self):
+        # Added 2026-09-05 (goal session: "SEC/XBRL missing data to zero" sweep). CIK
+        # 866829 genuinely renamed itself "HORNBECK OFFSHORE SERVICES, INC." on
+        # 2026-08-31 (per its own submissions.json formerNames, coming from "HELIX
+        # ENERGY SOLUTIONS GROUP INC") and is still filing under that CIK (most recent
+        # filing 2026-09-04). SEC's bulk company_tickers.json snapshot hasn't caught up
+        # with the rename yet and still lists this CIK only under the old "HLX" ticker,
+        # so a plain lookup for our tracked "HOS" symbol found nothing and fell through
+        # to missing-SEC-data reasons for a company that is actively, currently filing.
+        cache = TickerCache.__new__(TickerCache)
+        cache._ticker_cache = {}  # would raise ValueError if the override didn't short-circuit
+        cache._ticker_cache_time = 0.0
+        cache._cache_ttl = 86400
+
+        assert cache.symbol_to_cik("HOS") == "0000866829"
+
     def test_override_does_not_affect_unrelated_symbols(self):
         cache = TickerCache.__new__(TickerCache)
         cache._ticker_cache = {"AAPL": "0000320193"}
