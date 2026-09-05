@@ -12,12 +12,19 @@ the real key and that a row with only "ad_change_20d" populated (no "value" key)
 returned, not filtered out.
 
 'lambda' is a Python keyword, so the module under test is loaded via importlib.
+
+NOTE (2026-09-05): _handle_technicals moved from the flat lambda/api/routes/market.py into
+lambda/api/routes/market/technicals.py (file-size-ratchet package split - see
+lambda/api/routes/market/__init__.py for the full rationale). execute_with_timeout and
+check_data_freshness are patched on that submodule (not the market package's __init__.py)
+because patch.object() resolves attributes on the literal module object named, and
+technicals.py has its own top-level import of both names from routes.utils.
 """
 
 import importlib
 from unittest.mock import MagicMock, patch
 
-market_module = importlib.import_module("lambda.api.routes.market")
+market_module = importlib.import_module("lambda.api.routes.market.technicals")
 
 
 def test_ad_line_query_reads_ad_change_20d_not_stale_value_key():
