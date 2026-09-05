@@ -115,15 +115,15 @@ class CorporateActionsMixin:
         resp = None
         for attempt in range(max_attempts):
             try:
-                resp = _pm.requests.get(url, headers=headers, timeout=timeout)  # type: ignore[attr-defined]
-            except (_pm.requests.Timeout, _pm.requests.ConnectionError) as e:  # type: ignore[attr-defined]
+                resp = _pm.requests.get(url, headers=headers, timeout=timeout)
+            except (_pm.requests.Timeout, _pm.requests.ConnectionError) as e:
                 if attempt < max_attempts - 1:
                     wait_time = 2**attempt
                     logger.warning(
                         f"[CORP_ACTION] {symbol}: Alpaca {type(e).__name__} - transient, retrying in "
                         f"{wait_time}s (attempt {attempt + 1}/{max_attempts})"
                     )
-                    _pm.time.sleep(wait_time)  # type: ignore[attr-defined]
+                    _pm.time.sleep(wait_time)
                     continue
                 raise RuntimeError(f"Alpaca API unreachable for {symbol} after {max_attempts} attempts: {e}") from e
             if resp.status_code in (429, 503) and attempt < max_attempts - 1:
@@ -132,7 +132,7 @@ class CorporateActionsMixin:
                     f"[CORP_ACTION] {symbol}: Alpaca {resp.status_code} - transient, retrying in "
                     f"{wait_time}s (attempt {attempt + 1}/{max_attempts})"
                 )
-                _pm.time.sleep(wait_time)  # type: ignore[attr-defined]
+                _pm.time.sleep(wait_time)
                 continue
             break
 
