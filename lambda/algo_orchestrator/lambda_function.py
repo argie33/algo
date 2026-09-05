@@ -155,6 +155,42 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 "body": json.dumps({"status": "error", "message": "Event must be a JSON object"}),
             }
 
+        # REAL-MONEY-READINESS FIX (2026-09-05 audit): the full 9-phase orchestrator only
+        # runs 5x/day (see terraform/modules/services/2x-daily-orchestrator.tf), and Phase 9's
+        # stop-loss protection verify/auto-repair check (phase9_reconciliation.py) is the only
+        # thing that catches a stop-loss leg going missing between orchestrator runs - a real
+        # gap can sit unprotected for hours during market hours. Rather than build a second,
+        # separately-packaged Lambda (and a second IAM role/zip to keep correct), a
+        # `mode: "stop_loss_guardian"` event lets EventBridge invoke this SAME already-deployed
+        # function on a much tighter schedule to run ONLY that one check - no phases, no order
+        # entry/exit logic touched. See stop-loss-guardian.tf (not yet enabled - see its own
+        # comment) for the schedule this dispatches from.
+        if event.get("mode") == "stop_loss_guardian":
+            from algo.infrastructure import get_config
+            from algo.orchestrator.phase9_reconciliation import (
+                _verify_open_position_stop_loss_protection_step,
+            )
+
+            def _log_guardian_result(*args: Any, **kwargs: Any) -> None:
+                logger.info(f"[STOP_LOSS_GUARDIAN] phase_result: args={args} kwargs={kwargs}")
+
+            try:
+                _verify_open_position_stop_loss_protection_step(_log_guardian_result, get_config())
+            except Exception as guardian_err:
+                # _verify_open_position_stop_loss_protection_step already catches and alerts
+                # (notify()) on its own internal failures - this outer catch only ensures a
+                # truly unexpected error still surfaces as a failed Lambda invocation
+                # (CloudWatch/Lambda error metrics) rather than a silently-swallowed 200.
+                logger.critical(
+                    f"[STOP_LOSS_GUARDIAN CRITICAL] Guardian run failed unexpectedly: {guardian_err}",
+                    exc_info=True,
+                )
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({"status": "error", "message": str(guardian_err)}),
+                }
+            return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "stop_loss_guardian"})}
+
         # FIXED Issue #1: Parse event execution_mode BEFORE validation
         # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
         event_execution_mode = event.get("execution_mode", "").strip().lower()
