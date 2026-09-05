@@ -27,6 +27,26 @@ logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
 
 
+_LIVE_LEG_STATUSES = {"new", "accepted", "held", "pending_new", "accepted_for_bidding"}
+
+
+def _find_live_stop_loss_leg(legs: list[Any]) -> dict[str, Any] | None:
+    """Find the resting stop-loss leg (if any) in a bracket order's `legs` array.
+
+    Shared by sync_bracket_stop_loss (which needs the leg's id to replace it) and
+    check_stop_loss_leg_live (which only needs to know whether one exists) so the two
+    can never disagree about what counts as "live".
+    """
+    return next(
+        (
+            leg
+            for leg in legs
+            if isinstance(leg, dict) and leg.get("order_type") == "stop" and leg.get("status") in _LIVE_LEG_STATUSES
+        ),
+        None,
+    )
+
+
 def _quantize_price(v: float) -> str:
     """Quantize a price for broker submission - SEC Rule 612 sub-penny rule.
 
@@ -717,15 +737,7 @@ class OrderManager:
             return {"success": True, "synced": False, "message": "No live Alpaca order to sync (paper/local mode)"}
 
         legs = order.get("legs") or []
-        live_statuses = {"new", "accepted", "held", "pending_new", "accepted_for_bidding"}
-        stop_leg = next(
-            (
-                leg
-                for leg in legs
-                if isinstance(leg, dict) and leg.get("order_type") == "stop" and leg.get("status") in live_statuses
-            ),
-            None,
-        )
+        stop_leg = _find_live_stop_loss_leg(legs)
         if stop_leg is None:
             return {
                 "success": False,
@@ -742,6 +754,52 @@ class OrderManager:
             return {"success": False, "synced": False, "message": "Stop-loss leg missing order id"}
 
         return self.replace_order_stop_price(stop_leg_id, new_stop_price, new_qty=new_qty)
+
+    def check_stop_loss_leg_live(self, parent_alpaca_order_id: str | None) -> dict[str, Any]:
+        """Read-only check: does this bracket order currently have a live stop-loss leg
+        resting at the broker?
+
+        Unlike sync_bracket_stop_loss, this NEVER writes/replaces anything - it exists so
+        a periodic reconciliation pass (see phase9_reconciliation.py's stop-loss protection
+        check) can verify protection still exists WITHOUT the side effect of an
+        unconditional cancel-and-recreate replace on every cycle (Alpaca implements order
+        replacement that way - calling sync_bracket_stop_loss just to "check" would briefly
+        leave the position naked between the cancel and the recreate, every single check).
+
+        Returns:
+            {"checked": False, "has_live_stop_loss": None, ...} - nothing to verify against
+                a broker: paper/local mode order, or the order can no longer be found. Not
+                itself evidence of a protection gap.
+            {"checked": True, "has_live_stop_loss": bool, "message": str} - a real bracket
+                order was fetched and its legs inspected.
+        """
+        if not parent_alpaca_order_id or parent_alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            return {
+                "checked": False,
+                "has_live_stop_loss": None,
+                "message": "No live Alpaca order to check (paper/local mode)",
+            }
+
+        order = self.get_order(parent_alpaca_order_id)
+        if order is None:
+            return {
+                "checked": False,
+                "has_live_stop_loss": None,
+                "message": "No live Alpaca order to check (paper/local mode)",
+            }
+
+        legs = order.get("legs") or []
+        stop_leg = _find_live_stop_loss_leg(legs)
+        if stop_leg is None:
+            return {
+                "checked": True,
+                "has_live_stop_loss": False,
+                "message": (
+                    f"No live stop-loss leg on order {parent_alpaca_order_id} - "
+                    f"leg statuses: {[(leg.get('order_type'), leg.get('status')) for leg in legs if isinstance(leg, dict)]}"
+                ),
+            }
+        return {"checked": True, "has_live_stop_loss": True, "message": "stop-loss leg live"}
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.

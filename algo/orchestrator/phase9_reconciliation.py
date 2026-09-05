@@ -1681,6 +1681,125 @@ def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None
             logger.warning(f"[PHASE 9] Failed to log orphan cleanup warning: {log_err}")
 
 
+def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callable[..., Any], config: Any) -> None:
+    """Verify every open position still has a live stop-loss leg resting at the broker.
+
+    REAL-MONEY-READINESS FINDING (2026-09-04): entry bracket orders are submitted with
+    time_in_force=day (order_manager.py's _build_bracket_order_payload). Whether Alpaca
+    expires the OCO stop-loss/take-profit legs at end-of-day once they're live is NOT
+    documented either way (checked extensively) - but this strategy holds positions many
+    days, and the only existing code that would ever notice a missing leg
+    (sync_bracket_stop_loss) only runs REACTIVELY, when position_monitor recommends
+    RAISE_STOP. A position that is flat or drawing down - exactly when protection matters
+    most - has no trigger that would ever re-check it. This step closes that gap
+    regardless of root cause (TIF expiry, manual intervention, a broker-side glitch) by
+    proactively checking every open position, every reconciliation cycle.
+
+    Deliberately detects-and-alerts rather than auto-repairing: placing a brand new stop
+    order automatically when something has already gone wrong could compound the anomaly
+    (see this file's own untracked-position handling and circuit_breaker.py's fail-closed
+    philosophy for the established pattern - notify loudly, let a human decide the repair).
+    """
+    try:
+        from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+        from algo.trading.order_manager import OrderManager
+
+        sync_mgr = AlpacaSyncManager(config)
+        if not sync_mgr.alpaca_key or not sync_mgr.alpaca_secret or not sync_mgr.alpaca_base_url:
+            logger.info(
+                "[PHASE 9] Stop-loss protection check skipped - no Alpaca credentials/base_url (paper mode, DB-only)."
+            )
+            log_phase_result_fn(9, "stop_loss_protection_check", "info", "skipped - no Alpaca credentials")
+            return
+
+        order_mgr = OrderManager(sync_mgr.alpaca_key, sync_mgr.alpaca_secret, sync_mgr.alpaca_base_url)
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.symbol, p.trade_ids_arr
+                FROM algo_positions p
+                WHERE p.status = 'open' AND p.quantity > 0
+                """
+            )
+            open_positions = cur.fetchall()
+
+        if not open_positions:
+            logger.info("[PHASE 9] No open positions to verify stop-loss protection for.")
+            log_phase_result_fn(9, "stop_loss_protection_check", "info", "no open positions")
+            return
+
+        checked = 0
+        unprotected: list[str] = []
+        for pos_id, symbol, trade_ids_arr in open_positions:
+            # Same convention position_monitor.py uses to resolve "the" trade for a
+            # position's stop management (trade_ids_arr[0]) - see its own CRITICAL FIX
+            # comment for why this is the correct, established column to read.
+            trade_id = trade_ids_arr[0] if trade_ids_arr else None
+            if trade_id is None:
+                continue
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s", (trade_id,))
+                row = cur.fetchone()
+            alpaca_order_id = row[0] if row else None
+
+            try:
+                result = order_mgr.check_stop_loss_leg_live(alpaca_order_id)
+            except Exception as e:
+                logger.warning(
+                    f"[PHASE 9] {symbol} (position {pos_id}): could not verify stop-loss leg "
+                    f"for order {alpaca_order_id}: {e}"
+                )
+                continue
+
+            if not result.get("checked"):
+                continue  # paper/local mode or order no longer resolvable - nothing to verify
+            checked += 1
+            if not result.get("has_live_stop_loss"):
+                logger.critical(
+                    f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}, order {alpaca_order_id}): {result.get('message')}"
+                )
+                unprotected.append(symbol)
+
+        if unprotected:
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Open Position(s) Missing Live Stop-Loss Protection",
+                    message=(
+                        f"{len(unprotected)} open position(s) have NO live stop-loss leg resting at "
+                        f"the broker: {', '.join(unprotected)}. This may mean a day-TIF bracket's "
+                        "protective legs expired, or a manual/broker-side cancellation happened. "
+                        "Do not assume these positions are protected - investigate and re-arm "
+                        "protection immediately."
+                    ),
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[PHASE 9 CRITICAL] Failed to alert on unprotected positions {unprotected}: {notify_err}",
+                    exc_info=True,
+                )
+
+        log_phase_result_fn(
+            9,
+            "stop_loss_protection_check",
+            "critical" if unprotected else "success",
+            f"{len(unprotected)}/{checked} open positions missing live stop-loss leg: {unprotected}"
+            if unprotected
+            else f"verified {checked} open position(s) protected",
+        )
+
+    except Exception as e:
+        logger.error(f"[PHASE 9] Stop-loss protection verification step failed unexpectedly: {e}", exc_info=True)
+        try:
+            log_phase_result_fn(9, "stop_loss_protection_check", "warn", f"check failed: {str(e)[:500]}")
+        except Exception:
+            pass
+
+
 def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     config: Any,
     run_date: _date,
@@ -1717,6 +1836,18 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
     except Exception as repair_err:
         logger.warning(f"[PHASE 9] Exit price repair step encountered unexpected error: {repair_err}", exc_info=True)
         # Don't halt Phase 9 for repair failures - proceed with reconciliation
+
+    # SAFETY: Verify every open position still has a live stop-loss leg at the broker.
+    # See _verify_open_position_stop_loss_protection_step's docstring for why this exists.
+    # Detection-only (alerts, never halts Phase 9) - a broker-protection gap needs a human
+    # to investigate and re-arm, not this reconciliation pass silently placing a new order.
+    try:
+        _verify_open_position_stop_loss_protection_step(log_phase_result_fn, config)
+    except Exception as protection_err:
+        logger.warning(
+            f"[PHASE 9] Stop-loss protection check encountered unexpected error: {protection_err}", exc_info=True
+        )
+        # Don't halt Phase 9 for this check's own failures - proceed with reconciliation
 
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation

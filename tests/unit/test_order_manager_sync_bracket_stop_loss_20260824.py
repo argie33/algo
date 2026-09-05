@@ -174,3 +174,108 @@ class TestSyncBracketStopLoss:
 
         assert mock_patch.call_args_list[0][0][0].endswith("/v2/orders/stop-leg-v1")
         assert mock_patch.call_args_list[1][0][0].endswith("/v2/orders/stop-leg-v2")
+
+
+class TestCheckStopLossLegLive:
+    """check_stop_loss_leg_live is the READ-ONLY counterpart to sync_bracket_stop_loss,
+    added 2026-09-04 for phase9_reconciliation.py's proactive stop-loss protection check
+    (real-money-readiness finding: day-TIF bracket legs might not survive past the entry
+    day, and nothing previously re-verified protection on a flat/non-trailing position).
+    It must NEVER call requests.patch - a periodic "are we still protected" check that
+    itself triggers a cancel-and-recreate replace would defeat its own purpose."""
+
+    def test_no_alpaca_order_id_is_unchecked_not_unprotected(self):
+        manager = _make_manager()
+        with patch("algo.trading.order_manager.requests.get") as mock_get:
+            result = manager.check_stop_loss_leg_live(None)
+        assert result == {
+            "checked": False,
+            "has_live_stop_loss": None,
+            "message": "No live Alpaca order to check (paper/local mode)",
+        }
+        mock_get.assert_not_called()
+
+    def test_local_order_id_is_unchecked_not_unprotected(self):
+        manager = _make_manager()
+        with patch("algo.trading.order_manager.requests.get") as mock_get:
+            result = manager.check_stop_loss_leg_live("LOCAL-abc")
+        assert result["checked"] is False
+        assert result["has_live_stop_loss"] is None
+        mock_get.assert_not_called()
+
+    def test_live_stop_leg_present_reports_protected(self):
+        manager = _make_manager()
+        get_resp = MagicMock(status_code=200)
+        get_resp.json.return_value = {
+            "id": "parent-1",
+            "legs": [
+                {"id": "tp-leg", "order_type": "limit", "status": "new"},
+                {"id": "stop-leg", "order_type": "stop", "status": "new"},
+            ],
+        }
+        with (
+            patch("algo.trading.order_manager.requests.get", return_value=get_resp),
+            patch("algo.trading.order_manager.requests.patch") as mock_patch,
+        ):
+            result = manager.check_stop_loss_leg_live("parent-1")
+
+        assert result == {"checked": True, "has_live_stop_loss": True, "message": "stop-loss leg live"}
+        mock_patch.assert_not_called()
+
+    def test_missing_stop_leg_reports_unprotected(self):
+        """The core case this check exists for: the stop-loss leg is gone (whatever the
+        reason - expired day-TIF, manual cancel, broker glitch) while the position is
+        still open. Must be flagged, not silently treated as fine."""
+        manager = _make_manager()
+        get_resp = MagicMock(status_code=200)
+        get_resp.json.return_value = {
+            "id": "parent-1",
+            "legs": [{"id": "tp-leg", "order_type": "limit", "status": "new"}],
+        }
+        with (
+            patch("algo.trading.order_manager.requests.get", return_value=get_resp),
+            patch("algo.trading.order_manager.requests.patch") as mock_patch,
+        ):
+            result = manager.check_stop_loss_leg_live("parent-1")
+
+        assert result["checked"] is True
+        assert result["has_live_stop_loss"] is False
+        assert "No live stop-loss leg" in result["message"]
+        mock_patch.assert_not_called()
+
+    def test_terminal_status_stop_leg_reports_unprotected(self):
+        """A stop leg with status='canceled'/'expired'/'filled' is not live protection -
+        exactly the day-TIF-expiry scenario this check is meant to catch."""
+        manager = _make_manager()
+        for terminal_status in ("canceled", "expired", "filled", "rejected", "replaced"):
+            get_resp = MagicMock(status_code=200)
+            get_resp.json.return_value = {
+                "id": "parent-1",
+                "legs": [{"id": "stop-leg", "order_type": "stop", "status": terminal_status}],
+            }
+            with patch("algo.trading.order_manager.requests.get", return_value=get_resp):
+                result = manager.check_stop_loss_leg_live("parent-1")
+            assert result["has_live_stop_loss"] is False, f"status={terminal_status} should not count as live"
+
+    def test_agrees_with_sync_bracket_stop_loss_on_same_legs(self):
+        """Both methods share _find_live_stop_loss_leg - assert they never disagree on
+        the same order data, since that's the whole point of factoring it out."""
+        manager = _make_manager()
+        get_resp = MagicMock(status_code=200)
+        get_resp.json.return_value = {
+            "id": "parent-1",
+            "legs": [{"id": "stop-leg", "order_type": "stop", "status": "held"}],
+        }
+        patch_resp = MagicMock(status_code=200)
+        patch_resp.json.return_value = {"id": "stop-leg-replacement"}
+
+        with patch("algo.trading.order_manager.requests.get", return_value=get_resp):
+            check_result = manager.check_stop_loss_leg_live("parent-1")
+        with (
+            patch("algo.trading.order_manager.requests.get", return_value=get_resp),
+            patch("algo.trading.order_manager.requests.patch", return_value=patch_resp),
+        ):
+            sync_result = manager.sync_bracket_stop_loss("parent-1", 105.0)
+
+        assert check_result["has_live_stop_loss"] is True
+        assert sync_result["success"] is True
