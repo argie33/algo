@@ -1621,11 +1621,21 @@ class QualityMetricsMixin(SymbolGateMixin):
                 if metrics["roe"] is not None
                 else None
             )
+            if stockholders_equity is not None and stockholders_equity <= 0:
+                # Negative/zero book equity: net_income/equity can land positive when both are
+                # negative (distressed co. with a loss on a negative equity base), which the
+                # >1000 implausibility bound in _ratio_with_implausible_fallback doesn't catch
+                # since it isn't a scale artifact - it's a real ratio that's directionally
+                # meaningless. Floors to worst score rather than inverting into a spuriously
+                # high one, same treatment as debt_to_equity_score below for the same reason.
+                roe_score = 0.0
             roa_score = (
                 self._margin_curve(metrics["roa"], [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
                 if metrics["roa"] is not None
                 else None
             )
+            if total_assets is not None and total_assets <= 0:
+                roa_score = 0.0
             # operating_margin_score/net_margin_score are not scored - operating_margin and
             # net_margin are still fetched/stored/displayed for reference, but neither carries
             # independent signal once ROA is controlled for (see
