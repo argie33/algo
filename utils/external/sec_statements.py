@@ -830,6 +830,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # single-figure-not-perfect-sum convention as NotesPayable/SeniorNotes above.
         "SubordinatedDebt",
         "JuniorSubordinatedDebentureOwedToUnconsolidatedSubsidiaryTrust",
+        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" sweep, total_debt_not_itemized
+        # investigation): Donegal Group (DGICA/DGICB, CIK 0000800457) - a small insurance
+        # holding company - tags its only real debt instrument, a $35,000,000 revolving
+        # credit facility, exclusively under this plain concept - live-confirmed via real SEC
+        # companyfacts JSON (FY2025 balance; no LongTermDebt/NotesPayable/SubordinatedDebt/
+        # any other debt concept above ever tagged). No Current/Noncurrent split reported, so
+        # single-figure fallback, same convention as notes_payable/senior_notes above (target:
+        # long_term_debt). Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS) - generic enough a
+        # name that a filer reporting a real, more specific debt concept must keep that value.
+        "LineOfCredit",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

@@ -759,6 +759,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # any of the standard debt concepts already fetched above.
         "subordinated_debt",
         "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust",
+        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" sweep): Donegal Group
+        # (DGICA/DGICB) real revolving-credit debt - see sec_statements.py's
+        # get_balance_sheet() comment on "LineOfCredit" for the live evidence ($35M FY2025).
+        "line_of_credit",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "DebtCurrent" (DE live evidence) - a generic enough concept name
         # that a filer reporting a more specific standard concept (CommercialPaper/
@@ -998,6 +1002,11 @@ _BALANCE_FIELD_MAPPING = {
     # amount above.
     "subordinated_debt": "long_term_debt",
     "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust": "long_term_debt",
+    # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" sweep): Donegal Group
+    # (DGICA/DGICB) real revolving-credit debt - see sec_statements.py's get_balance_sheet()
+    # comment on "LineOfCredit" for the live evidence. Same fallback-only, single-figure
+    # convention as notes_payable/subordinated_debt above.
+    "line_of_credit": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's
