@@ -1112,6 +1112,12 @@ _CASHFLOW_FIELD_MAPPING = {
     # figure than the standard concept in years both are present, so it must never
     # overwrite a real standard-concept value.
     "payments_for_construction_in_process": "capex",
+    # FIXED 2026-09-05: fetched since the 2026-09-03 PSA fix to sec_statements.py's
+    # get_cash_flow() concept list but never mapped here, so it was silently dropped at
+    # transform() - PSA payments_of_capital_distribution=$2,303,381,000 FY2025
+    # live-confirmed. Least-preferred/first in the concept list so last-listed-wins
+    # ordering still lets a real DividendsCommonStock*/PaymentsOfDividends* value win.
+    "payments_of_capital_distribution": "dividends_paid",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): CMS's
     # filer-specific custom XBRL extension dividends concept - see

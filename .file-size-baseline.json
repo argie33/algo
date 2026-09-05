@@ -423,7 +423,7 @@
   "loaders/load_economic_calendar.py": 227,
   "loaders/load_economic_data.py": 454,
   "loaders/load_enhanced_quality_growth_metrics.py": 977,
-  "loaders/load_financial_statements.py": 3857,
+  "loaders/load_financial_statements.py": 3863,
   "loaders/load_insider_transaction_velocity.py": 218,
   "loaders/load_institutional_holdings_13f.py": 993,
   "loaders/load_market_constituents.py": 1380,
