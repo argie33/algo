@@ -2,10 +2,14 @@
 """File-size ratchet: blocks already-oversized Python files from growing further,
 and caps brand-new files at a smaller hard limit.
 
-Does not try to fix existing bloat (30+ files already run 1,500-4,400 lines) -
+Does not try to fix existing bloat (30+ files already run 1,500-6,000 lines) -
 that's a real refactor project, not a pre-commit job. It only stops the debt
 from getting worse and stops new files from joining that list. Baseline lives
 in .file-size-baseline.json and auto-tightens whenever a file shrinks.
+
+Baselines are read from git HEAD (the last commit), never from the working
+tree - a bump to a file's cap and the growth it excuses cannot land in the
+same commit. See load_baseline()'s comment for why that matters.
 """
 
 import json
@@ -35,6 +39,23 @@ def is_excluded(path_str: str) -> bool:
 
 
 def load_baseline() -> dict:
+    # Read the last COMMITTED baseline (git HEAD), not the working-tree file. pre-commit
+    # runs hooks against the staged snapshot, so reading straight off disk here would let a
+    # single commit both raise a file's cap (by editing the number in .file-size-baseline.json)
+    # and grow the file to match it - the check would compare the file against its own
+    # just-inflated limit and always pass. That hole was real: loaders/load_value_quality_
+    # growth_metrics.py grew 3263 -> 6070 lines across ~15 commits this way, each one bumping
+    # the baseline just far enough to cover that commit's own growth. Reading from HEAD instead
+    # means a legitimate cap raise must land in its own prior commit with no code change riding
+    # along - visible in git log, not smuggled inside an unrelated fix.
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{BASELINE_PATH.as_posix()}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    # No committed baseline yet (e.g. this is the commit that first adds it).
     if BASELINE_PATH.exists():
         return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     return {}
@@ -98,9 +119,10 @@ def main() -> int:
             failures.append(
                 f"  GROWN  {rel}: {current} lines (was {prior}). Already-oversized legacy "
                 f"debt - growth is blocked, extract a module instead. If this growth is "
-                f"deliberate (e.g. a generated file or data table), bump the value for "
-                f"this path in .file-size-baseline.json in the same commit with a "
-                f"one-line reason."
+                f"truly deliberate (e.g. a generated file or data table), raise the value "
+                f"for this path in .file-size-baseline.json with a one-line reason in a "
+                f"SEPARATE prior commit that touches no other code - baselines are read from "
+                f"git HEAD, so a same-commit bump no longer bypasses this check."
             )
         elif current < prior:
             updated[rel] = current
