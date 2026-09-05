@@ -52,20 +52,12 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
-# Guards against a near-zero EPS-estimate base blowing up a percentage-change calculation
-# into a value that overflows this table's NUMERIC(10,4) revision columns (max magnitude
-# 999,999.9999) - same class of guard as load_value_quality_growth_metrics.py's
-# MAX_TREND_PERCENTAGE_POINTS, applied here to estimate_momentum_60d/90d and
-# revision_trend_score.
+# Bounds a percentage-change value to avoid overflowing this table's NUMERIC(10,4) columns
+# when the base (denominator) is near zero.
 MAX_TREND_PERCENTAGE_POINTS = 100_000.0
 
-# CRITICAL FIX 2026-08-09: same near-zero-revenue-denominator bound as commits 12063b32a/
-# 5ceda9952 (which bounded gross_margin/ebitda_margin/roic_pct/operating_margin/net_margin
-# in load_value_quality_growth_metrics.py at |ratio| <= 1000). This loader recomputes
-# gross/operating/net margin independently from raw annual_income_statement rows to derive
-# *_margin_trend/roe_trend, using the same revenue-denominator division pattern, but never
-# inherited the bound - a garbage current-year or prior-year margin (e.g. near-zero revenue)
-# was flowing straight into a trend value in the thousands of percentage points.
+# Bounds margin values computed from a near-zero revenue denominator from producing a
+# nonsensical trend (thousands of percentage points).
 MAX_MARGIN_ABS_PCT = 1000.0
 
 
@@ -110,15 +102,9 @@ def _yfinance_worker_loop(request_queue: Any, response_queue: Any) -> None:
             result = getattr(ticker, property_name)
             response_queue.put((request_id, True, result))
         except Exception as e:
-            # FIXED 2026-08-31 (goal: data-coverage sweep) - same fix as
-            # utils/external/yfinance_analyst_ratings.py's identical `_yf_attr_worker_loop`
-            # (see that function's own comment for the full GENI live-repro evidence): some
-            # yfinance/curl_cffi exceptions carry unpicklable C-level state
-            # (`_cffi_backend._CDataBase`), which crashes this queue's internal `_feed` thread
-            # asynchronously on `put()` - undetectable via `is_alive()`, permanently hanging
-            # every future `fetch()` call on this worker until the whole process is replaced.
-            # Re-wrapping into a plain RuntimeError (type name + message preserved) keeps this
-            # queue always picklable - no caller here reads more than `str(e)`.
+            # Some yfinance/curl_cffi exceptions carry unpicklable C-level state that crashes
+            # this queue's internal feed thread on put() - re-wrap into a plain RuntimeError
+            # (picklable) since no caller here reads more than str(e).
             response_queue.put((request_id, False, RuntimeError(f"{type(e).__name__}: {e}")))
 
 
@@ -126,33 +112,14 @@ class YfinanceProcessWorker:
     """Persistent subprocess for yfinance property fetches, immune to hangs that defeat
     Thread.join(timeout=N).
 
-    FIXED 2026-08-29 (goal: "full data"/loading-issues audit): replaces
-    `_yfinance_call_with_timeout` (a daemon thread + `Thread.join(timeout=N)`), which
-    live-reproduced evidence shows cannot actually bound a curl_cffi hang.
-    quality_metrics/growth_metrics's 2026-08-29 run hung ~8 hours on one symbol's
-    eps_trend fetch despite the 20s (and the outer 60s per-symbol) thread-based
-    timeouts, because curl_cffi's blocking C call appears to hold the GIL for the
-    entire hang - and `Thread.join(timeout=N)` itself needs the GIL to check elapsed
-    time, so a thread holding the GIL hostage in native code can starve every other
-    Python thread in the process, including the one trying to enforce the timeout,
-    indefinitely. See memory `yfinance_curl_cffi_gil_hostage_hang_diagnosed_not_fixed_20260829`
-    for the full evidence chain (this is the fix that memory's "not yet attempted"
-    section describes).
+    A thread-based timeout can't bound a curl_cffi hang: its blocking C call can hold the
+    GIL indefinitely, which starves even the thread trying to enforce the timeout. A
+    separate OS process can be forcibly terminated regardless of internal state, so it's
+    the only mechanism that actually enforces a timeout here.
 
-    A separate OS process has its own GIL and can be forcibly terminated by the OS
-    regardless of what it's doing internally - this is the only mechanism that can
-    actually enforce a timeout against a GIL-hostage hang. `multiprocessing.Queue.get(
-    timeout=N)` is a genuine cross-process wait on OS-level primitives, not dependent on
-    GIL cooperation from the worker.
-
-    One worker is spawned lazily and reused across the whole loader run (not respawned
-    per call) to amortize yfinance's import cost - live-measured in this environment:
-    ~450ms to spawn+import yfinance fresh vs ~35ms for a bare process spawn. This loader
-    makes 2-3 yfinance calls per symbol across the ~5,000-symbol active universe, so
-    per-call spawning would add tens of minutes of pure overhead to every normal
-    (non-hung) run. A worker that times out or dies is terminated and a fresh one is
-    spawned on the next call - the one-time ~450ms respawn cost only applies on an
-    actual hang/crash, not the common case.
+    The worker is spawned lazily and reused across the whole run (not respawned per call)
+    to amortize yfinance's import cost across the full symbol universe; a timed-out/dead
+    worker is terminated and replaced on the next call.
     """
 
     def __init__(
@@ -294,12 +261,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         from utils.loaders.config import get_default_parallelism
 
         # This loader fully overrides OptimalLoader.run() and never calls super().run(), so
-        # it never got the SLAMonitor wiring the base class does - confirmed 2026-08-23
-        # during the goal session's "meet our SLAs" audit (see
-        # [[sla_monitor_table_name_key_mismatches_fixed_20260823]]). LOADER_SLA_TARGETS had
-        # no "quality_metrics" entry either; added one below calibrated from real log
-        # durations (consistently ~114 min across 2026-08-20/21 full runs, well inside the
-        # 300 min LOADER_TIMEOUT).
+        # it never gets the base class's SLAMonitor wiring for free - wire it up manually.
         sla_monitor = None
         try:
             from utils.loaders.sla_monitor import SLAMonitor
@@ -318,12 +280,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         symbols_failed = 0
         parallelism = parallelism or get_default_parallelism("quality_metrics")
 
-        # DASHBOARD ACCURACY FIX 2026-08-17: materialize so len() gives a real total for
-        # progress reporting - same "frozen at 0% for the entire run" bug class just fixed
-        # in load_prices.py (PriceLoader called mark_running()/mark_completed() only, nothing
-        # in between). Live-confirmed here too: this loader's own per-symbol log lines show
-        # real forward motion while data_loader_status sat at completion_pct=0/symbols_loaded=0
-        # for over an hour, indistinguishable from a hang.
+        # Materialize so len() gives a real total for progress reporting, rather than
+        # leaving the dashboard frozen at completion_pct=0 for the whole run.
         symbols = list(symbols)
         total_symbols = len(symbols)
 
@@ -337,17 +295,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if backfill_days is not None:
                 self._backfill_days = backfill_days
 
-            # PER-SYMBOL TIMEOUT FIX 2026-08-16: live-reproduced today - this loop had NO bound
-            # on total per-symbol work (DB reads/writes + fetch_incremental), only the individual
-            # yfinance sub-calls inside it were capped at 20s each. growth_metrics/quality_metrics
-            # went silent (zero log output, any level) after committing a normal per-symbol write
-            # at 16:07:42 and stayed silent for 4+ hours until local_loader_scheduler's external
-            # "0%% stall for >1800s" watchdog force-killed the subprocess - a genuinely-hung symbol
-            # anywhere in this loop blocks every symbol queued behind it with no visibility into
-            # which one. Same daemon-thread-abandon-with-timeout containment already proven for
-            # this exact failure class in load_financial_statements.py's per-symbol timeout
-            # (2026-08-09) - bounds each symbol to per_symbol_timeout_seconds regardless of root
-            # cause, so the loop always keeps moving and logs which symbol stalled.
+            # Bounds total per-symbol work (DB + fetch_incremental), not just the individual
+            # yfinance sub-calls - a hung symbol otherwise blocks every symbol queued behind it.
             per_symbol_timeout_seconds = self.per_symbol_timeout_seconds
 
             for symbol in symbols:
@@ -366,28 +315,17 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 outcome: list[str] = ["failed"]
                 thread_exc: list[BaseException | None] = [None]
 
-                # ROOT-CAUSE FIX 2026-08-17: since_date was read from the watermark above but
-                # never used to skip already-current symbols, and nothing in this loader ever
-                # advanced the watermark after a symbol succeeded (see _process_one_symbol) - so
-                # every invocation, including same-day retries after a partial failure/timeout,
-                # unconditionally re-ran all 3 yfinance calls (earnings_dates/eps_trend/
-                # eps_revisions) for the full ~4,900-symbol universe. Live-measured 2026-08-17:
-                # ~2.9s/symbol -> ~4h for one full run, serially blocking every downstream
-                # "metrics" pipeline loader (analyst_upgrade_downgrade/analyst_sentiment/
-                # stability_metrics/scores/buy_sell) queued behind it in PIPELINES["metrics"].
-                # Skipping symbols the watermark already shows as done today lets a same-day
-                # retry resume instead of restarting the entire universe from scratch.
+                # Skip symbols the watermark already shows as done today, so a same-day retry
+                # resumes instead of re-running all 3 yfinance calls for the whole universe.
                 watermark_current = (
                     since_date is not None
                     and self._backfill_days <= 0
                     and since_date >= datetime.now(EASTERN_TZ).date()
                 )
                 if watermark_current:
-                    # PROGRESS-UPDATE FIX 2026-08-17: this branch must NOT `continue` past the
-                    # progress-persist block below - a same-day retry where most/all symbols are
-                    # already watermark-current would then skip that block for the whole run,
-                    # leaving the dashboard frozen at completion_pct=0 for exactly the retry
-                    # case an operator is most likely to be anxiously watching.
+                    # Must NOT `continue` past the progress-persist block below, or a same-day
+                    # retry (mostly watermark-current symbols) leaves the dashboard frozen at
+                    # completion_pct=0 for the whole run.
                     logger.debug(f"[ENHANCED] {symbol}: watermark={since_date} already current today, skipping")
                     symbols_succeeded += 1
                 else:
@@ -454,15 +392,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             success = symbols_succeeded > 0
             fail_rate = (symbols_failed / max(symbols_succeeded + symbols_failed, 1)) * 100
 
-            # Use LoaderStatusManager for final status (RACE CONDITION FIX)
-            # FIX 2026-08-09: quality_metrics/growth_metrics are shared status rows also
-            # written by load_value_quality_growth_metrics.py. A bare mark_completed() (no
-            # current_run_* overrides) makes its internal <98%-completion safety check
-            # re-read whatever symbol_count/symbols_loaded THAT OTHER loader last wrote,
-            # instead of this run's own real counts - so this loader's actual completeness
-            # was never actually verified by that safety check. Passing this run's own
-            # symbols_succeeded/attempted counts closes that gap (same pattern as the
-            # 2026-08-03 fix documented in LoaderStatusManager.mark_completed's docstring).
+            # quality_metrics/growth_metrics are shared status rows also written by
+            # load_value_quality_growth_metrics.py - pass this run's own counts explicitly, or
+            # mark_completed's <98%-completion safety check reads the other loader's stale ones.
             for table in ["quality_metrics", "growth_metrics"]:
                 status_mgr = LoaderStatusManager(table)
                 if success and fail_rate <= self.max_fail_rate:
@@ -512,22 +444,14 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
         metric_dict = metrics[0]
 
-        # FIX 2026-08-09: fetch_incremental() returns a truthy
-        # {"data_unavailable": True, "reason": ...} marker dict (not an empty list)
-        # when the symbol has no annual_income_statement history - the `if not
-        # metrics` check above only catches an empty list, not this marker. Without
-        # this check, the marker dict has none of the growth_fields/quality_fields
-        # keys, so both update_fields lists below stay empty, no UPDATE ever runs,
-        # and the caller would silently count zero real data written as a success.
-        # Same bug class as earnings_calendar's fetch-failure placeholder rows
-        # fooling Phase 8 (see earnings_calendar_placeholder_false_rejection_fix_20260809).
+        # fetch_incremental() can return a truthy {"data_unavailable": True, ...} marker dict
+        # (not an empty list) - the `if not metrics` check above only catches an empty list.
         if metric_dict.get("data_unavailable"):
             return
 
         with DatabaseContext("write") as cur:
-            # quarterly_growth_momentum REMOVED 2026-08-31 - see the matching removed-computation
-            # comment in _compute_quarterly_metrics above. This loader must never write that
-            # column again; load_value_quality_growth_metrics.py is the sole source.
+            # quarterly_growth_momentum intentionally excluded - load_value_quality_growth_metrics.py
+            # is the sole source for that column (see _compute_quarterly_metrics below).
             growth_fields = [
                 "gross_margin_trend",
                 "operating_margin_trend",
@@ -547,32 +471,14 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 if key in metric_dict and metric_dict[key] is not None:
                     update_fields.append(f"{key} = %s")
                     values.append(metric_dict[key])
-                    # BUG FIX 2026-08-18 (goal: "no SEC data" loader audit): this UPDATE
-                    # used to only ever SET the value column, never the paired
-                    # {key}_unavailable_reason column - so a symbol whose baseline
-                    # load_value_quality_growth_metrics.py pass set e.g.
-                    # "no_analyst_estimates" kept that stale reason forever even after
-                    # this loader computed and wrote a real value here. Live-confirmed on
-                    # quality_metrics: AAPL/MSFT/CMS/D/TNDM all had real non-NULL
-                    # estimate_revision_direction/revision_activity_30d/estimate_momentum_60d/
-                    # estimate_momentum_90d/revision_trend_score values while their
-                    # _unavailable_reason columns still read "no_analyst_estimates" -
-                    # 3,750/4,959 active-universe symbols affected on
-                    # estimate_revision_direction alone. Clear the reason whenever a real
-                    # value lands.
+                    # Clear the paired _unavailable_reason column whenever a real value lands,
+                    # or a stale reason from an earlier pass persists forever.
                     update_fields.append(f"{key}_unavailable_reason = NULL")
 
             if update_fields:
-                # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
-                # truncates to midnight) - every UPDATE for the rest of the same calendar
-                # day wrote the identical value, so MAX(updated_at) never advanced during
-                # a run. Live-confirmed: this loader ran for 30+ min actively computing and
-                # committing per-symbol updates (log showed continuous ENHANCED_METRICS
-                # writes through hundreds of symbols) while growth_metrics/quality_metrics
-                # both stayed frozen at their pre-run updated_at - the scheduler's stall
-                # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
-                # seeing it flat, killed a genuinely-working loader as a false stall
-                # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
+                # Must be NOW() not CURRENT_DATE (date-only) - a date-truncated timestamp never
+                # advances within a run, and the scheduler's stall watchdog reads MAX(updated_at)
+                # as a liveness signal, so a flat value looks like a hang and gets killed.
                 update_fields.append("updated_at = NOW()")
                 cur.execute(
                     f"UPDATE growth_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
@@ -580,56 +486,18 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 )
 
             quality_fields = [
-                # CRITICAL FIX 2026-08-10: quality_metrics has the same
-                # gross_margin_trend/operating_margin_trend/net_margin_trend/roe_trend
-                # columns as growth_metrics (load_value_quality_growth_metrics.py's
-                # own _SHARED_TREND_FIELDS convention mirrors these 4 fields to BOTH
-                # tables from one computation), but this loader's quality_fields list
-                # never included them while growth_fields above always has - so this
-                # loader's per-symbol UPDATE (a partial/conditional SET - only columns
-                # present in metric_dict are touched) could refresh growth_metrics'
-                # trend columns but could NEVER refresh or clear quality_metrics'
-                # corresponding columns, even when this same fetch_incremental() call
-                # just computed a fresh, correctly-bounded value for both. Live-
-                # confirmed: growth_metrics garbage rows (ABS(trend) > 2000) dropped
-                # from 275 to 252 over a ~50-symbol-per-minute full-universe run while
-                # quality_metrics' count sat unchanged at 281 the entire time - this
-                # loader was structurally incapable of clearing them.
+                # quality_metrics shares these 4 trend columns with growth_metrics (both
+                # populated from one computation) - must be updatable here too, or this
+                # loader can refresh growth_metrics' trend columns but never quality_metrics'.
                 "gross_margin_trend",
                 "operating_margin_trend",
                 "net_margin_trend",
                 "roe_trend",
-                # roic_pct REMOVED 2026-08-03: found while fixing
-                # quality_metrics.roic_pct's real gap (was hardcoded unavailable in
-                # load_value_quality_growth_metrics.py, now computes real
-                # NOPAT/invested-capital ROIC using actual SEC-reported income tax
-                # data, migration 1178). This loader's own roic_pct formula
-                # (operating_income / (total_assets - current_liabilities), no tax
-                # adjustment, no debt/cash netting) is a strictly cruder duplicate.
-                #
-                # CORRECTION 2026-08-09: this comment used to also claim "this loader
-                # isn't wired into any active pipeline" as the reason the removal was
-                # only theoretical ("if this loader were ever scheduled..."). That was
-                # already false the day it was written - terraform/modules/pipeline/
-                # main.tf's EnhancedQualityGrowthMetrics Step Functions state and
-                # terraform/modules/loaders/main.tf's loader_file_map both schedule
-                # this loader in AWS production (a separate same-day 2026-08-03 fix
-                # enabled it), running after ValueQualityGrowthMetrics on the real
-                # quality_metrics/growth_metrics tables.
-                #
-                # CORRECTION 2026-08-31: the "does NOT run in the local dev pipeline"
-                # half of the above was ALSO false, and was already false on 2026-08-09
-                # too - scripts/local_loader_scheduler.py's "metrics" pipeline has
-                # explicitly included "enhanced_quality_growth" right after
-                # "value_quality_growth" since a 2026-08-03 fix (same day as the AWS
-                # wiring above, predating this comment). This loader DOES run locally via
-                # `python scripts/local_loader_scheduler.py --now metrics`, in exactly
-                # this order, in both environments. Found while tracing why
-                # growth_metrics.quarterly_growth_momentum's live value didn't match this
-                # file's own (now-removed) duplicate computation for that field - see
-                # that removed block's comment above _compute_quarterly_metrics. The
-                # roic_pct removal above was and is load-bearing in both environments,
-                # not AWS-only.
+                # roic_pct intentionally excluded - this loader's formula (no tax adjustment,
+                # no debt/cash netting) is a cruder duplicate of
+                # load_value_quality_growth_metrics.py's real NOPAT/invested-capital ROIC.
+                # This loader runs in both AWS production and the local "metrics" pipeline
+                # (scripts/local_loader_scheduler.py), immediately after value_quality_growth.
                 "earnings_surprise_avg",
                 "eps_growth_stability",
                 "earnings_beat_rate",
@@ -648,22 +516,11 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 if key in metric_dict and metric_dict[key] is not None:
                     update_fields.append(f"{key} = %s")
                     values.append(metric_dict[key])
-                    # BUG FIX 2026-08-18: see matching growth_fields comment above - same
-                    # stale-reason bug, same fix (clear {key}_unavailable_reason whenever a
-                    # real value is written here).
+                    # See matching growth_fields comment above - same stale-reason fix.
                     update_fields.append(f"{key}_unavailable_reason = NULL")
 
             if update_fields:
-                # ROOT-CAUSE FIX 2026-08-16: was "updated_at = CURRENT_DATE" (date-only,
-                # truncates to midnight) - every UPDATE for the rest of the same calendar
-                # day wrote the identical value, so MAX(updated_at) never advanced during
-                # a run. Live-confirmed: this loader ran for 30+ min actively computing and
-                # committing per-symbol updates (log showed continuous ENHANCED_METRICS
-                # writes through hundreds of symbols) while growth_metrics/quality_metrics
-                # both stayed frozen at their pre-run updated_at - the scheduler's stall
-                # watchdog reads MAX(updated_at) as one of its 3 liveness signals and,
-                # seeing it flat, killed a genuinely-working loader as a false stall
-                # (same bug class as [[loader_timestamp_precision_systemic_fix]]).
+                # See matching growth_metrics comment above - must be NOW() not CURRENT_DATE.
                 update_fields.append("updated_at = NOW()")
                 cur.execute(
                     f"UPDATE quality_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
@@ -672,12 +529,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
         outcome[0] = "success"
 
-        # ROOT-CAUSE FIX 2026-08-17: pairs with the since_date skip check in run() - without
-        # advancing the watermark here, that check could never trigger (get_current_watermark
-        # would always see None/stale), so a same-day retry would still restart the whole
-        # universe from scratch. rows_loaded=1 (not 0) so advance_watermark's non-trading-day
-        # guard (utils/data/watermark.py) never applies here - this is a same-day completion
-        # marker, not a trading-calendar date advance.
+        # Pairs with the since_date skip check in run() - without advancing the watermark here,
+        # a same-day retry would restart the whole universe from scratch. rows_loaded=1 (not 0)
+        # so advance_watermark's non-trading-day guard never applies (this is a same-day
+        # completion marker, not a trading-calendar date advance).
         from datetime import datetime as _datetime
 
         from utils.infrastructure.timezone import EASTERN_TZ as _EASTERN_TZ
@@ -685,26 +540,12 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         self._watermark.advance_watermark(new_watermark=_datetime.now(_EASTERN_TZ).date(), symbol=symbol, rows_loaded=1)
 
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:  # noqa: C901
-        # Pre-existing complexity debt, surfaced now that the ruff pre-commit hook actually
-        # runs (see .pre-commit-config.yaml's 2026-08-10 fix) - not refactoring a finance-
-        # metrics computation under time pressure; same call made for market_events.py's
-        # check_market_circuit_breaker.
+        # Pre-existing complexity debt (ruff C901), not refactored here under time pressure.
         """Compute enhanced metrics for symbol."""
         with DatabaseContext("read") as cur:
-            # Get historical financial data for trend computation
-            #
-            # FIXED (goal session, "so many from yfinance still" data-accuracy audit):
-            # annual_income_statement writes a data_unavailable=TRUE placeholder row for the
-            # current, not-yet-filed fiscal year - without the filter below, income_rows[0]
-            # (unconditionally treated as "current year" just below) was that all-NULL
-            # placeholder for ~3,076 symbols, so every growth_fields/quality_fields metric
-            # this loader computes silently went unset (curr_*_f is None -> the `is not None`
-            # guards below skip it) instead of computing from the real latest complete year.
-            # Not currently corrupting growth_metrics/quality_metrics (the UPDATE below only
-            # SETs a column when it actually computed a value, so a skip just leaves
-            # load_value_quality_growth_metrics.py's own correctly-guarded value in place) but
-            # made this loader's entire "enhanced" pass a silent no-op for those symbols. Same
-            # fix as lambda/api/routes/stocks.py's /deep-value screener.
+            # Exclude data_unavailable placeholder rows for the current, not-yet-filed fiscal
+            # year, or income_rows[0] below is treated as "current year" when it's really an
+            # all-NULL placeholder, silently no-op'ing every metric for that symbol.
             cur.execute(
                 """
                 SELECT i.fiscal_year, i.revenue, i.operating_income, i.net_income,
@@ -742,9 +583,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             curr_fcf_f = safe_float(curr_fcf, "fcf")
             curr_ocf_f = safe_float(curr_ocf, "ocf")
 
-            # roic_pct computation REMOVED 2026-08-03 - see this loader's quality_fields list
-            # comment above for why (confirmed-duplicate, cruder formula vs.
-            # load_value_quality_growth_metrics.py's real tax-adjusted NOPAT computation).
+            # roic_pct intentionally not computed here - see quality_fields list comment above.
 
             # Get prior year data if available
             if len(income_rows) > 1:
@@ -769,21 +608,12 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 prior_fcf_f = safe_float(prior_fcf, "fcf")
                 prior_ocf_f = safe_float(prior_ocf, "ocf")
 
-                # YoY Growth metrics - only compute if both current and prior values exist and prior > 0
-                #
-                # CRITICAL FIX 2026-08-10: none of these 5 fields had the
-                # MAX_TREND_PERCENTAGE_POINTS bound this file already applies to
-                # estimate_momentum_60d/90d/revision_trend_score - a near-zero prior-year base
-                # (same class of bug as the margin-trend near-zero-denominator fix elsewhere in
-                # this file) produces a ratio that overflows the NUMERIC(10,4) column
-                # (max magnitude 999,999.9999). Live-confirmed: ALLT ocf_growth_yoy=1,113,500.0,
-                # CHAI ocf_growth_yoy=27,256,085.3 - both raised psycopg2.NumericValueOutOfRange
-                # on the UPDATE. Because growth_fields/quality_fields are written as ONE
-                # multi-column UPDATE per table, that exception aborted the ENTIRE statement -
-                # silently losing every other field for that symbol in the same UPDATE, including
-                # the correctly-bounded gross_margin_trend/operating_margin_trend/net_margin_trend/
-                # roe_trend values computed earlier in this same fetch_incremental() call. A single
-                # unbounded field was capable of erasing otherwise-good data for the whole symbol.
+                # YoY Growth metrics - only compute if both current and prior values exist and
+                # prior > 0. Each is bounded by MAX_TREND_PERCENTAGE_POINTS: a near-zero
+                # prior-year base can overflow the NUMERIC(10,4) column, and since
+                # growth_fields/quality_fields are written as one multi-column UPDATE, a single
+                # unbounded field aborting the statement would erase every other field for
+                # that symbol too.
                 if prior_oi_f and prior_oi_f > 0 and curr_oi_f is not None:
                     oi_growth = ((curr_oi_f or 0) - (prior_oi_f or 0)) / prior_oi_f * 100
                     if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
@@ -891,17 +721,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if computed_surprise:
                 logger.info(f"[ENHANCED_METRICS] {symbol}: Computed surprise metrics: {computed_surprise}")
 
-            # PACING FIX 2026-08-10: estimate_revision_direction/revision_activity_30d/
-            # estimate_momentum_60d/90d/revision_trend_score were only ~8-9% populated
-            # (498-551/5701 in quality_metrics) vs. earnings_surprise_avg/earnings_beat_rate
-            # computed by this SAME loader run at ~59-60% - despite live spot-checks showing
-            # real yfinance eps_trend/eps_revisions data available for the large majority of
-            # sampled symbols. A full-universe run makes 3 yfinance calls/symbol back-to-back
-            # for ~25 minutes with zero pacing; this small delay spreads the request rate out,
-            # same trade-off (slower, more complete) already applied to stock_prices_daily/
-            # positioning_metrics/value_metrics for the identical yfinance-throttling failure
-            # mode (see utils/loaders/config.py LOADER_CONSTRAINTS comments). Needs a fresh
-            # full run to confirm coverage actually improves.
+            # Small delay spreads out the yfinance request rate across the full-universe run
+            # to avoid throttling (same trade-off used elsewhere, see
+            # utils/loaders/config.py LOADER_CONSTRAINTS).
             time.sleep(0.3)
 
             # Compute estimate revision trend metrics from yfinance eps_trend/eps_revisions
@@ -944,13 +766,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
             yf_symbol = to_yfinance_symbol(symbol)
 
-            # Get last 4 quarters of earnings data. Retried (2026-08-09) for the same reason
-            # as _compute_estimate_revision_metrics's eps_trend/eps_revisions fetch - a single
-            # transient yfinance failure here shouldn't be indistinguishable from real absence.
-            # Fetched via the process-isolated YfinanceProcessWorker (2026-08-29 fix - see its
-            # docstring), not an in-process yf.Ticker call - a thread-based timeout here proved
-            # unable to bound a genuine curl_cffi hang (live-reproduced twice: 2026-08-16 on
-            # this exact call, then again 2026-08-29 on the eps_trend/eps_revisions siblings).
+            # Retried so a single transient yfinance failure isn't indistinguishable from real
+            # absence. Fetched via the process-isolated YfinanceProcessWorker (see its
+            # docstring) - a thread-based timeout can't bound a genuine curl_cffi hang.
             earnings_dates = retry_with_backoff(
                 lambda: self._get_yf_worker().fetch(yf_symbol, "earnings_dates"),
                 context=f"{symbol} earnings_dates",
@@ -996,39 +814,24 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     def _compute_estimate_revision_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
         """Compute analyst estimate revision trend metrics from yfinance eps_trend/eps_revisions.
 
-        Live-verified 2026-08-04: yf.Ticker(symbol).eps_trend is a real DataFrame indexed by
-        period ('0q'/'+1q'/'0y'/'+1y') with current/7daysAgo/30daysAgo/60daysAgo/90daysAgo
-        consensus EPS columns; yf.Ticker(symbol).eps_revisions is a real DataFrame (same index)
-        with upLast7days/upLast30days/downLast30days/downLast7Days analyst-revision counts.
-        Uses the '0q' (current-quarter) row - the most immediately actionable estimate window,
-        matching the same non-`.info` API family already used for forward_eps
-        (utils/external/yfinance_analyst_ratings.py) and upgrades_downgrades.
+        yf.Ticker(symbol).eps_trend is a DataFrame indexed by period ('0q'/'+1q'/'0y'/'+1y')
+        with current/7/30/60/90-days-ago consensus EPS columns; eps_revisions (same index) has
+        upLast/downLast N-days analyst-revision counts. Uses the '0q' (current-quarter) row as
+        the most immediately actionable window.
 
-        CONFIRMED 2026-08-09: on a full-universe run, this call transiently fails for many
-        symbols that DO have real eps_trend/eps_revisions data (live-verified: CMS, D, TNDM all
-        got a real earnings_surprise_avg from _compute_earnings_surprise_metrics on the same run,
-        proving the symbol/loader/DB path works, yet estimate_momentum_60d/revision_activity_30d
-        stayed NULL - re-fetching eps_trend for the same symbols moments later succeeded
-        instantly). The bare `except Exception: logger.debug(...)` below used to swallow this
-        indistinguishably from genuine "no analyst coverage", with no retry - explains most of
-        the low (~7-8%) coverage on these fields despite real data being available. Now retries
-        the fetch itself before giving up.
+        Retries the fetch itself (not just logs-and-gives-up on first failure): this call
+        transiently fails even for symbols with real data available, so a bare no-retry
+        except swallowed real coverage as if it were genuine "no analyst coverage".
         """
         try:
             from utils.loaders.retry_helper import retry_with_backoff
 
             yf_symbol = to_yfinance_symbol(symbol)
 
-            # PACING FIX 2026-08-10: bumped from max_retries=2/backoff=1.0s (~3s total wait) to
-            # max_retries=4/backoff=3.0s (~45s total wait, capped by RetryHelper's 32s/attempt
-            # ceiling) - the shorter window wasn't enough to survive sustained per-IP throttling
-            # over this loader's ~25min full-universe run (measured coverage stayed ~8-9% even
-            # after the original retry fix landed and ran live - see this method's docstring).
-            # Fetched via the process-isolated YfinanceProcessWorker (2026-08-29 fix) rather
-            # than an in-process yf.Ticker call - see YfinanceProcessWorker's docstring and
-            # yfinance_curl_cffi_gil_hostage_hang_diagnosed_not_fixed_20260829 for why the
-            # prior thread-based timeout couldn't actually bound a real hang (live-reproduced
-            # 2026-08-29: this exact eps_trend call hung ~8 hours on one symbol).
+            # max_retries=4/backoff=3.0s (~45s total, capped by RetryHelper's 32s/attempt
+            # ceiling) survives sustained per-IP throttling over a full-universe run. Fetched
+            # via the process-isolated YfinanceProcessWorker (see its docstring) since an
+            # in-process yf.Ticker call can't be bounded by a thread-based timeout.
             eps_trend = retry_with_backoff(
                 lambda: self._get_yf_worker().fetch(yf_symbol, "eps_trend"),
                 context=f"{symbol} eps_trend",
@@ -1082,9 +885,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except ImportError:
             logger.debug(f"[ENHANCED_METRICS] {symbol}: yfinance not available")
         except Exception as e:
-            # WARNING not DEBUG (2026-08-09): retries above already absorb transient blips;
-            # a failure reaching here means 2 retries were exhausted, which is worth surfacing
-            # instead of silently blending into "no coverage for this symbol".
+            # WARNING not DEBUG: reaching here means retries were exhausted, worth surfacing
+            # rather than blending into "no coverage for this symbol".
             logger.warning(
                 f"[ENHANCED_METRICS] {symbol}: Could not fetch estimate revisions after retries: "
                 f"{type(e).__name__}: {e}"
@@ -1151,30 +953,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             if stdev < MAX_TREND_PERCENTAGE_POINTS:
                                 metrics["eps_growth_stability"] = float(stdev)
                         except (ValueError, statistics.StatisticsError) as e:
-                            # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
-                            # Silent pass hides data quality issues (insufficient data, invalid values)
+                            # Log at WARNING, not silently pass - hides real data quality issues.
                             logger.warning(
                                 f"[{symbol}] Failed to calculate eps_growth_stability: {type(e).__name__}: {e}. "
                                 f"Metric will be marked data_unavailable."
                             )
 
-            # quarterly_growth_momentum computation REMOVED 2026-08-31 (goal session: growth
-            # pillar redundancy/mislabel investigation). This block computed sequential-QoQ EPS
-            # growth (valid_eps[i] vs valid_eps[i+1], i.e. this quarter vs last quarter) and, via
-            # growth_fields above, unconditionally overwrote growth_metrics.quarterly_growth_momentum
-            # - clobbering load_value_quality_growth_metrics.py's canonical value (YoY same-quarter
-            # revenue growth, fixed 2026-08-28 specifically to remove sequential-QoQ seasonal
-            # noise - see that file's _compute_quarterly_metrics) on every symbol with >=4 valid
-            # EPS quarters, since "enhanced_quality_growth" runs immediately after
-            # "value_quality_growth" in both the local "metrics" pipeline
-            # (scripts/local_loader_scheduler.py) and AWS production (this file's own now-removed
-            # comment on quality_fields below already documented the AWS scheduling; the "local
-            # dev doesn't run this loader" half of that comment was stale/false - it does,
-            # explicitly ordered after value_quality_growth). Live-verified 2026-08-31: this
-            # symbol's real growth_metrics.quarterly_growth_momentum values matched the YoY-revenue
-            # formula, not this sequential-EPS one - the clobbering was latent (hadn't fired
-            # recently for the symbols checked), not actively corrupting data yet, but would on
-            # this loader's next run. load_value_quality_growth_metrics.py is the sole source now.
+            # quarterly_growth_momentum intentionally not computed here (sequential-QoQ EPS
+            # growth) - it would clobber load_value_quality_growth_metrics.py's canonical
+            # YoY-revenue value, which is the sole source for that column.
 
 
 def main() -> int:
