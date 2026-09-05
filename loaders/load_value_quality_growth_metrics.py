@@ -856,6 +856,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
         # standard, real approximation (no per-share/shares-outstanding intermediate
         # needed - both cancel out), same "recover a real value instead of a misleading
         # non-payer label" precedent as the dividend_data TIER 2 fallback above.
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): the TIER 3
+        # fallback below already independently confirms - via this exact aggregate-yield
+        # computation - a case entirely distinct from "no dividend data": a REAL dividends_
+        # paid figure and a REAL market_cap producing a REAL ratio that's simply too large to
+        # be a genuine current yield (live-confirmed BGSF 37.3%, CMCT 60.1%, CMTG 53.2% -
+        # small/distressed-price companies whose historical dividend now dwarfs a since-
+        # collapsed market cap). That fact was computed and then silently discarded (just a
+        # debug log) instead of being propagated to dividend_yield_reason below, which instead
+        # fell through to the generic "missing_sec_data" - the same "real value, deliberately
+        # rejected as implausible" mislabel class already fixed elsewhere in this file, just
+        # not yet wired here. `implausible_ratio` is a different, already-correctly-bucketed
+        # coverage category ("Implausible / rejected value") than "missing_sec_data" ("Missing
+        # SEC/XBRL data") - this is a real headline-relevant fix, not just a diagnostic one.
+        dividend_yield_implausible_from_cash_flow = False
         if dividend_yield is None and market_cap is not None and market_cap > 0:
             try:
                 with DatabaseContext("read") as cur:
@@ -882,6 +896,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                                 f"aggregate yield: {dividend_yield:.2%}"
                             )
                         else:
+                            dividend_yield_implausible_from_cash_flow = True
                             logger.debug(
                                 f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback "
                                 f"yield out of bounds ({candidate:.2%}), leaving NULL"
@@ -1100,31 +1115,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
         # If dividend_yield is None, check if stock is a known dividend payer
         dividend_yield_reason = None
         if dividend_yield is None:
-            # Must filter data_unavailable=FALSE: load_dividend_data.py writes an explicit
-            # "confirmed no dividend" marker row for every symbol it checks, not just payers -
-            # without the filter those marker rows would look like real payment history.
-            # 2-year recency window on ex_dividend_date so a stock that discontinued its
-            # dividend years ago reads as "not a data gap, a stock characteristic" too, same
-            # as one that never paid at all.
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT 1 FROM dividend_data
-                    WHERE symbol = %s AND data_unavailable = FALSE
-                      AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                has_dividend_history = cur.fetchone() is not None
-
-            # Confirmed non-payers get dividend_yield=0.0 (semantically correct), not NULL,
-            # with the reason tracked for transparency.
-            if not has_dividend_history:
-                dividend_yield = 0.0
-                dividend_yield_reason = "non_dividend_paying_stock"
+            if dividend_yield_implausible_from_cash_flow:
+                dividend_yield_reason = "implausible_ratio"
             else:
-                dividend_yield_reason = "missing_sec_data"
+                # Must filter data_unavailable=FALSE: load_dividend_data.py writes an explicit
+                # "confirmed no dividend" marker row for every symbol it checks, not just payers -
+                # without the filter those marker rows would look like real payment history.
+                # 2-year recency window on ex_dividend_date so a stock that discontinued its
+                # dividend years ago reads as "not a data gap, a stock characteristic" too, same
+                # as one that never paid at all.
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT 1 FROM dividend_data
+                        WHERE symbol = %s AND data_unavailable = FALSE
+                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
+                        LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    has_dividend_history = cur.fetchone() is not None
+
+                # Confirmed non-payers get dividend_yield=0.0 (semantically correct), not NULL,
+                # with the reason tracked for transparency.
+                if not has_dividend_history:
+                    dividend_yield = 0.0
+                    dividend_yield_reason = "non_dividend_paying_stock"
+                else:
+                    dividend_yield_reason = "missing_sec_data"
 
         # TIER 3 FALLBACK for net_payout_yield: a confirmed non-dividend-payer (dividend_yield_
         # reason == "non_dividend_paying_stock") with no recent buyback either should get 0.0,
