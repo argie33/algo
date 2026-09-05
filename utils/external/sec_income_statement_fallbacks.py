@@ -1,0 +1,223 @@
+"""Income-statement fallback post-processing helpers, extracted from
+utils/external/sec_income_statement.py (2026-09-05, file-size ratchet: that file exceeded
+the 800-line new-file cap once first split out of sec_statements.py, needing a further
+split). Bodies are verbatim, no logic changed - only moved file. Each of these fires after
+get_income_statement()'s primary _aggregate_concepts() extraction, filling gaps that
+extraction's one-column "last value wins" merge can't express (continuing/discontinued EPS
+split, dual-class dimensional EPS/shares, income tax current+deferred split, validated
+pretax-income promotion, and derived operating income).
+"""
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def _fill_earnings_per_share_from_continuing_discontinued_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: earnings_per_share_{basic,diluted} = ...FromContinuingOperations +
+    ...FromDiscontinuedOperations, for IFRS filers (IAS 33.68) that only tag the
+    continuing/discontinued EPS split rather than a single combined concept - see the
+    _INCOME_IFRS_ALIASES comment above these four concepts for the live-confirmed TV
+    (Grupo Televisa) case this recovers. Same "fallback-only, sum two real parts, never
+    overwrite a real combined value" pattern as
+    _fill_long_term_debt_from_noncurrent_current_split below. Discontinued defaults to 0
+    when absent (most filers most years have none, and the taxonomy only requires a
+    Discontinued tag when discontinued operations are real) rather than leaving the whole
+    figure NULL for the common case of a filer that only ever tags the Continuing concept.
+
+    Also falls diluted back into the basic-only "earnings_per_share_basic" key (downstream
+    field_mapping's sole source for annual_income_statement.earnings_per_share - see
+    load_financial_statements.py's _FIELD_MAPPING) when a filer tags no Basic-shaped EPS
+    concept at all, TV's case: it tags only the Diluted split, never Basic in any form.
+    Diluted is a close, honestly-approximate stand-in for Basic (differs only by the
+    dilutive effect of options/convertibles) - the same "blended figure beats permanently
+    NULL" judgment this file already makes for
+    WeightedAverageNumberOfShareOutstandingBasicAndDiluted share-count filers. Only fires
+    when a filer has no real Basic-shaped fact of its own; a filer reporting genuine Basic
+    EPS keeps it untouched.
+    """
+    for row in rows:
+        basic_cont = row.pop("earnings_per_share_basic_continuing", None)
+        basic_disc = row.pop("earnings_per_share_basic_discontinued", None)
+        if row.get("earnings_per_share_basic") is None and basic_cont is not None:
+            row["earnings_per_share_basic"] = basic_cont + (basic_disc or 0)
+
+        diluted_cont = row.pop("earnings_per_share_diluted_continuing", None)
+        diluted_disc = row.pop("earnings_per_share_diluted_discontinued", None)
+        if row.get("earnings_per_share_diluted") is None and diluted_cont is not None:
+            row["earnings_per_share_diluted"] = diluted_cont + (diluted_disc or 0)
+
+        if row.get("earnings_per_share_basic") is None and row.get("earnings_per_share_diluted") is not None:
+            row["earnings_per_share_basic"] = row["earnings_per_share_diluted"]
+
+
+def _fill_eps_shares_from_dual_class_dimensional_facts(
+    rows: list[dict[str, Any]], client: Any, symbol: str, security_name: str | None = None
+) -> None:
+    """Last-resort fallback: recover EPS/weighted-average-share facts tagged only under a
+    us-gaap:StatementClassOfStockAxis dimensional context, for symbols whose own share class
+    is determinable either from a dot-suffix ticker (BRK.A/BRK.B, CRD.A/CRD.B, GTN.A, GEF.B,
+    ...) or, for a bare ticker, from `security_name` stating the class explicitly (e.g. "Greif
+    Inc. Class A Common Stock" for GEF) - see resolve_class_letter's docstring. `security_name`
+    is optional and defaults to None (dot-suffix-only resolution) so this stays callable with
+    no DB access; loaders/helpers/sec_base.py (which already does per-run bulk DB lookups like
+    _get_reit_symbols) is the intended source when it's available.
+
+    See loaders/helpers/sec_dual_class_eps.py's module docstring (Berkshire live-confirmed
+    2026-09-02) for why no concept alias can ever close this gap - same root cause family as
+    _fill_long_term_debt_from_segment_dimensional_facts above, different axis/concepts. Only
+    fires for a fiscal year still missing ANY of the 4 target fields after every tier above;
+    never overwrites a real value. Bounded to the most recent 3 missing fiscal years per
+    symbol, same rationale as the debt fallback's identical cap (live scoring only reads the
+    latest 1-2 annual rows; an unbounded scan of a symbol's full history risks the same
+    zombie-thread/rate-limiter contention already found and fixed there).
+    """
+    from loaders.helpers.sec_dual_class_eps import extract_dual_class_eps_shares, resolve_class_letter
+    from loaders.helpers.sec_segment_debt import find_10k_for_fiscal_year
+
+    class_letter = resolve_class_letter(symbol, security_name)
+    if class_letter is None:
+        return
+
+    target_fields = (
+        "earnings_per_share_basic",
+        "earnings_per_share_diluted",
+        "weighted_average_number_of_shares_outstanding_basic",
+        "weighted_average_number_of_diluted_shares_outstanding",
+    )
+    all_missing_years = [
+        row["fiscal_year"] for row in rows if row.get("fiscal_year") and any(row.get(f) is None for f in target_fields)
+    ]
+    if not all_missing_years:
+        return
+    missing_years = sorted(set(all_missing_years), reverse=True)[:3]
+
+    try:
+        cik = client.symbol_to_cik(symbol)
+        submissions = client.get_submissions(cik)
+    except Exception:
+        logger.debug(
+            f"[DUAL_CLASS_EPS] {symbol}: could not fetch submissions for dual-class EPS fallback", exc_info=True
+        )
+        return
+
+    field_map = {
+        "eps_basic": "earnings_per_share_basic",
+        "eps_diluted": "earnings_per_share_diluted",
+        "shares_basic": "weighted_average_number_of_shares_outstanding_basic",
+        "shares_diluted": "weighted_average_number_of_diluted_shares_outstanding",
+    }
+
+    for row in rows:
+        if row.get("fiscal_year") not in missing_years or not any(row.get(f) is None for f in target_fields):
+            continue
+        located = find_10k_for_fiscal_year(submissions, int(row["fiscal_year"]))
+        if located is None:
+            continue
+        accession, period_end = located
+        try:
+            xml_text = client.get_filing_xml(cik, accession, "10-K")
+        except Exception:
+            logger.debug(
+                f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: could not fetch instance XML "
+                f"({accession}) for dual-class EPS fallback",
+                exc_info=True,
+            )
+            continue
+        result = extract_dual_class_eps_shares(xml_text, class_letter, period_end)
+        if not result:
+            continue
+        filled = []
+        for src_key, dest_key in field_map.items():
+            if row.get(dest_key) is None and src_key in result:
+                row[dest_key] = result[src_key]
+                filled.append(dest_key)
+        if filled:
+            logger.info(
+                f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: recovered {filled} via class "
+                f"'{class_letter}' StatementClassOfStockAxis dimensional match ({accession})"
+            )
+
+
+def _fill_income_tax_expense_from_current_deferred_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: income_tax_expense = CurrentIncomeTaxExpenseBenefit +
+    DeferredIncomeTaxExpenseBenefit.
+
+    Only fires when the primary "income_tax_expense" column (from the plain
+    "IncomeTaxExpenseBenefit" concept, fetched above) is still empty for that fiscal year -
+    never overwrites a real value. Unlike the long_term_debt Noncurrent/Current split above,
+    BOTH components must be present to fire (a filer with only one half tagged genuinely
+    hasn't reported its total tax provision that way, unlike LongTermDebtCurrent's "0 if
+    absent" convention - a missing current-or-deferred component is not safely assumed to be
+    zero the way an untagged current-debt-maturity often genuinely is). Mutates rows in
+    place and always strips both raw keys.
+    """
+    for row in rows:
+        current = row.pop("current_income_tax_expense_benefit", None)
+        deferred = row.pop("deferred_income_tax_expense_benefit", None)
+        if row.get("income_tax_expense") is not None or current is None or deferred is None:
+            continue
+        row["income_tax_expense"] = current + deferred
+
+
+def _fill_pretax_income_from_results_of_operations_when_validated(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: pretax_income from "ResultsOfOperationsIncomeBeforeIncomeTaxes", but ONLY
+    when it exactly matches the independently-known net_income + income_tax_expense identity
+    for that same fiscal year.
+
+    This concept is genuinely ambiguous per-filer - live-confirmed CNX Resources tags it as an
+    ASC 932 oil-and-gas-producing-activities supplementary disclosure (NOT consolidated pretax
+    income), while RRC (Range Resources, same SIC 1311 E&P classification) tags the identical
+    concept name as its REAL consolidated pretax income. Rather than guessing which meaning a
+    given filer uses, cross-validate the filer's OWN tagged value against its own already-known
+    net_income/income_tax_expense for that year - only promote it when they agree exactly (both
+    values, being independently-sourced real SEC facts, should match to the dollar when the
+    concept really is consolidated pretax income; a supplementary sub-figure like CNX's won't).
+    Never overwrites a real "pretax_income" value already resolved from the primary concepts
+    above. Mutates rows in place and always strips the raw candidate key.
+    """
+    for row in rows:
+        candidate = row.pop("results_of_operations_income_before_income_taxes", None)
+        if row.get("pretax_income") is not None or candidate is None:
+            continue
+        net_income = row.get("net_income_loss")
+        tax = row.get("income_tax_expense")
+        if net_income is None or tax is None:
+            continue
+        if candidate == net_income + tax:
+            row["pretax_income"] = candidate
+
+
+def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - CostsAndExpenses, for single-step-format
+    filers that report both totals but never tag OperatingIncomeLoss at all.
+
+    Live-confirmed via real SEC companyfacts JSON: RRC (Range Resources, CIK 0000315852) and
+    ARDT (CIK 0001756655) both report a real "Revenues" and a real "CostsAndExpenses" total
+    every fiscal year but tag zero OperatingIncomeLoss facts anywhere in their filing history -
+    a single-step income statement format (revenue, one combined costs-and-expenses line, then
+    straight to pretax income) rather than the more common multi-step format this loader's
+    other concepts assume. See get_income_statement()'s "CostsAndExpenses" concept comment for
+    the live values.
+
+    Writes to "operating_income_loss" (the same raw key the plain OperatingIncomeLoss concept
+    populates, already mapped to the "operating_income" column in
+    load_financial_statements.py's _INCOME_FIELD_MAPPING) rather than a bare "operating_income"
+    key - see income_tax_expense_pretax_income_wiring_gap_fixed_20260905 in memory for why a
+    fallback that invents its own bare final-column key instead of reusing an already-mapped
+    one silently never reaches the database. Only fires when "Revenues" specifically (RRC/ARDT's
+    own primary revenue concept) is present - deliberately narrow rather than trying to
+    reconstruct a fully-resolved "revenue" figure from every possible revenue concept alias at
+    this pre-transform() aggregation stage, where that resolution hasn't happened yet. Never
+    overwrites a real operating_income_loss value. Mutates rows in place and always strips the
+    raw costs_and_expenses key.
+    """
+    for row in rows:
+        costs_and_expenses = row.pop("costs_and_expenses", None)
+        if row.get("operating_income_loss") is not None or costs_and_expenses is None:
+            continue
+        revenue = row.get("revenues")
+        if revenue is None:
+            continue
+        row["operating_income_loss"] = revenue - costs_and_expenses

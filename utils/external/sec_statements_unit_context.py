@@ -7,7 +7,7 @@ called by _aggregate_concepts in sec_statements_aggregate.py.
 import datetime
 from typing import Any
 
-from utils.external.sec_statements import _ANNUAL_REPORT_FORMS
+from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS
 
 
 def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existing complexity debt extracted from _aggregate_concepts, not new logic

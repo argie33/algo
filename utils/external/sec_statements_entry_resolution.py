@@ -8,7 +8,7 @@ import datetime
 import logging
 from typing import Any
 
-from utils.external.sec_statements import (
+from utils.external.sec_statements_shared import (
     _ANNUAL_REPORT_FORMS,
     _MIN_PLAUSIBLE_FISCAL_YEAR,
     _PRIMARY_STATEMENT_FORMS,

@@ -1,8 +1,10 @@
 """XBRL concept-aggregation helpers for utils/external/sec_statements.py, extracted from
 that file (2026-09-05, file-size ratchet: it's a Tier-2 bloater flagged for decomposition).
 Bodies are verbatim, no logic changed - only moved file. get_balance_sheet/get_income_statement/
-get_cash_flow (still in sec_statements.py) call _aggregate_concepts as their shared engine for
-turning raw SEC XBRL concept facts into normalized statement rows.
+get_cash_flow (now in utils/external/sec_balance_sheet.py, sec_income_statement.py,
+sec_cash_flow.py respectively - sec_statements.py re-exports them for backward compat) call
+_aggregate_concepts as their shared engine for turning raw SEC XBRL concept facts into
+normalized statement rows.
 """
 
 import datetime
@@ -10,14 +12,12 @@ import logging
 from typing import Any
 
 from utils.external.fx_rates import MAJOR_CURRENCIES
-from utils.external.sec_statements import (
-    _extract_currency_code,
-)
 from utils.external.sec_statements_entry_resolution import (
     _aggregate_concepts_apply_entry_value,
     _aggregate_concepts_resolve_entry_period,
     _aggregate_concepts_should_replace_entry,
 )
+from utils.external.sec_statements_shared import _extract_currency_code
 from utils.external.sec_statements_unit_context import _aggregate_concepts_build_unit_context
 
 logger = logging.getLogger(__name__)
