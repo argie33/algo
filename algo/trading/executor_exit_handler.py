@@ -33,6 +33,10 @@ from algo.trading.exceptions import (
     NotificationError,
     TradingError,
 )
+from algo.trading.executor_exit_standalone_stop import (
+    cancel_standalone_stop_on_full_exit,
+    fetch_standalone_stop_order_id,
+)
 from utils.trading import PositionStatus
 
 logger = logging.getLogger(__name__)
@@ -716,6 +720,16 @@ class ExitHandler:
                     logger.error(f"[EXIT_HANDLER] Cancel result missing error message for {trade_id}")
                     message = "Bracket cancellation failed (no error message provided)"
                 logger.warning(f"Failed to cancel bracket for {trade_id}: {message}")
+
+        # See executor_exit_standalone_stop.py (2026-09-05 real-money-readiness fix).
+        if full_exit:
+            cancel_standalone_stop_on_full_exit(
+                self.context._cancel_bracket_orders,
+                cur,
+                trade_id,
+                position_id,
+                fetch_standalone_stop_order_id(cur, position_id),
+            )
 
         # Execute exit order (if not review/paper mode)
         execution_mode = self.context.execution_mode
