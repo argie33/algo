@@ -64,6 +64,16 @@ from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
 from utils.loaders.enum_validator import validate_period, validate_statement_type  # noqa: E402
 
+# Explicit re-export: loaders/financial_statements/{sweeps,runner}.py import
+# DatabaseContext/run_loader from this module at call time (to avoid a circular
+# import with ConsolidatedFinancialStatementsLoader, defined further down in this
+# file) rather than from their own source modules directly - mypy's
+# --no-implicit-reexport requires this to be listed explicitly.
+__all__ = [
+    "DatabaseContext",
+    "run_loader",
+]
+
 logger = logging.getLogger(__name__)
 
 # Configure socket timeout to prevent indefinite hangs

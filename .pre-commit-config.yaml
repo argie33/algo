@@ -158,6 +158,14 @@ repos:
         types: [python]
         stages: [pre-commit]
 
+      - id: check-file-size-ratchet
+        name: File-size ratchet (block bloat growth, cap new files at 800 lines)
+        entry: python .pre-commit-scripts/check_file_size_ratchet.py
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
   # Memory safety enforcement (was previously wired only into a hand-written
   # .git/hooks/pre-commit that bypassed this entire framework - meaning ruff,
   # mypy, pylint, and every other hook below silently never ran on local
