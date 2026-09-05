@@ -18,12 +18,16 @@ This test parses the source directly (not `import lambda_function`) because that
 runs a real DB migration check as an import-time side effect (see
 tests/test_session_282_integration.py's TestBasicValidation.test_import_all_critical_modules
 docstring) - unsuitable for a unit test with no DB available.
+
+require_auth() moved from lambda/api/lambda_function.py into lambda/api/lambda_function/
+auth_validation.py on 2026-09-05 (bloater decomposition, mechanical move, no behavior
+change) - this path was updated to follow it.
 """
 
 import ast
 from pathlib import Path
 
-LAMBDA_FUNCTION_PATH = Path(__file__).resolve().parents[2] / "lambda" / "api" / "lambda_function.py"
+LAMBDA_FUNCTION_PATH = Path(__file__).resolve().parents[2] / "lambda" / "api" / "lambda_function" / "auth_validation.py"
 
 # Endpoints that expose live trading state and must never be reachable without a valid
 # Cognito (or, in local dev, dev-mode) token.
