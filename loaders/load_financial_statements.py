@@ -498,6 +498,25 @@ _INCOME_FIELD_MAPPING = {
     "income_loss_from_continuing_operations_before_income_taxes_domestic": "pretax_income",
     "income_loss_from_continuing_operations_before_income_taxes_minority_interest_and_income_loss_from_equity_method_investments": "pretax_income",
     "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest": "pretax_income",
+    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): identity entries for
+    # the two derived final-column keys sec_statements.py's
+    # _fill_income_tax_expense_from_current_deferred_split()/
+    # _fill_pretax_income_from_results_of_operations_when_validated() write directly (e.g.
+    # row["income_tax_expense"] = current + deferred) - unlike every other fallback in this
+    # dict, those two functions set the DB column name itself, not a raw SEC-concept-derived
+    # key, because they combine two SEPARATE concepts (no single concept alias to hang the
+    # mapping off). Without these entries, transform()'s `if sec_field not in field_mapping`
+    # check silently discarded both computed values on every row that reached this path
+    # (verified empirically: dict(_INCOME_FIELD_MAPPING) has no "income_tax_expense"/
+    # "pretax_income" key without this fix) - the exact "wiring half-landed" bug class
+    # already caught twice before (see debt_fallback_wiring_half_landed_recurring_bug_class
+    # in memory), just for a fill-function's OWN output key instead of a missing concept
+    # string. This silently no-opped the CNS (income_tax_expense) and RRC
+    # (pretax_income) fixes those functions' own docstrings/tests describe - their unit
+    # tests only exercised the pure function in isolation, never round-tripped through
+    # transform(), so the gap passed CI undetected.
+    "income_tax_expense": "income_tax_expense",
+    "pretax_income": "pretax_income",
     **_MARKER_FIELDS,
 }
 
