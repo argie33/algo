@@ -27,9 +27,16 @@ def _make_recon(orders) -> DailyReconciliation:
     return recon
 
 
-def _sell_order(symbol="AAPL", filled_qty="60", filled_avg_price="55.00", order_id="order-1"):
+def _sell_order(
+    symbol="AAPL",
+    filled_qty="60",
+    filled_avg_price="55.00",
+    order_id="order-1",
+    client_order_id="exit-42-abc123",
+):
     return {
         "id": order_id,
+        "client_order_id": client_order_id,
         "symbol": symbol,
         "side": "sell",
         "status": "filled",

@@ -535,7 +535,6 @@ class DailyReconciliation(PaperModeReconciliationMixin, BrokerPositionSyncMixin,
                 return {"updated": 0, "message": "No closed orders to reconcile", "no_orders_available": True}
 
             updated = 0
-            two_days_ago = reconcile_date - timedelta(days=2)
 
             for order in orders:
                 if order.get("status") != "filled" or order.get("side") != "sell":
@@ -546,6 +545,15 @@ class DailyReconciliation(PaperModeReconciliationMixin, BrokerPositionSyncMixin,
                     raise ValueError(
                         f"[RECONCILIATION CRITICAL] Filled sell order missing symbol or filled_price: {order}"
                     )
+                # ORDER-ID CORRELATION FIX (2026-09-05, financial-integrity finding): matching
+                # by client_order_id (exact) instead of symbol+date proximity (see module docstring
+                # note above reconcile_exit_fills - actually see the fix commit message for the
+                # full incident writeup). No match here means this fill isn't one of our trades
+                # still awaiting reconciliation (already reconciled, or a foreign/manual order) -
+                # skip it rather than guessing which trade it belongs to.
+                client_order_id = order.get("client_order_id")
+                if not client_order_id:
+                    continue
                 try:
                     filled_price = float(filled_price_str)
                 except (TypeError, ValueError) as e:
@@ -566,21 +574,20 @@ class DailyReconciliation(PaperModeReconciliationMixin, BrokerPositionSyncMixin,
                         """
                         SELECT trade_id, entry_price, stop_loss_price, entry_quantity
                         FROM algo_trades
-                        WHERE symbol = %s
+                        WHERE pending_exit_client_order_id = %s
+                          AND symbol = %s
                           AND status = 'closed'
-                          AND exit_date >= %s
-                          AND exit_date <= %s
-                        ORDER BY exit_date DESC LIMIT 1
                     """,
-                        (symbol, two_days_ago, reconcile_date),
+                        (client_order_id, symbol),
                     )
 
                     row = cur.fetchone()
                     if row is None:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
-                        raise ValueError(
-                            f"[RECONCILIATION CRITICAL] No closed trade found for {symbol} within 2 days - cannot reconcile fill"
+                        logger.debug(
+                            f"[RECONCILIATION] {symbol} fill (client_order_id={client_order_id}) does not match any trade still awaiting reconciliation - skipping."
                         )
+                        continue
 
                     trade_id, entry_price, stop_loss_price, entry_qty = row
                     if entry_price is None or stop_loss_price is None or entry_qty is None:
