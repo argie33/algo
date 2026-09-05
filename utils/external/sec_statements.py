@@ -1147,6 +1147,40 @@ def _fill_pretax_income_from_results_of_operations_when_validated(rows: list[dic
             row["pretax_income"] = candidate
 
 
+def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - CostsAndExpenses, for single-step-format
+    filers that report both totals but never tag OperatingIncomeLoss at all.
+
+    Live-confirmed via real SEC companyfacts JSON: RRC (Range Resources, CIK 0000315852) and
+    ARDT (CIK 0001756655) both report a real "Revenues" and a real "CostsAndExpenses" total
+    every fiscal year but tag zero OperatingIncomeLoss facts anywhere in their filing history -
+    a single-step income statement format (revenue, one combined costs-and-expenses line, then
+    straight to pretax income) rather than the more common multi-step format this loader's
+    other concepts assume. See get_income_statement()'s "CostsAndExpenses" concept comment for
+    the live values.
+
+    Writes to "operating_income_loss" (the same raw key the plain OperatingIncomeLoss concept
+    populates, already mapped to the "operating_income" column in
+    load_financial_statements.py's _INCOME_FIELD_MAPPING) rather than a bare "operating_income"
+    key - see income_tax_expense_pretax_income_wiring_gap_fixed_20260905 in memory for why a
+    fallback that invents its own bare final-column key instead of reusing an already-mapped
+    one silently never reaches the database. Only fires when "Revenues" specifically (RRC/ARDT's
+    own primary revenue concept) is present - deliberately narrow rather than trying to
+    reconstruct a fully-resolved "revenue" figure from every possible revenue concept alias at
+    this pre-transform() aggregation stage, where that resolution hasn't happened yet. Never
+    overwrites a real operating_income_loss value. Mutates rows in place and always strips the
+    raw costs_and_expenses key.
+    """
+    for row in rows:
+        costs_and_expenses = row.pop("costs_and_expenses", None)
+        if row.get("operating_income_loss") is not None or costs_and_expenses is None:
+            continue
+        revenue = row.get("revenues")
+        if revenue is None:
+            continue
+        row["operating_income_loss"] = revenue - costs_and_expenses
+
+
 def get_income_statement(
     client: Any, symbol: str, period: str = "annual", security_name: str | None = None
 ) -> list[dict[str, Any]]:
@@ -1390,14 +1424,25 @@ def get_income_statement(
         # narrower-measure reason as DirectOperatingCosts above - excludes D&A/interest/taxes
         # that a full cost-of-revenue figure might otherwise include.
         "UtilitiesOperatingExpenseMaintenanceAndOperations",
-        # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
-        # as would-be operating_income fallbacks, but neither has a field_mapping entry or
-        # destination column, and live-checking real filers missing operating_income (SWK,
-        # KMX, BXP - all with NULL operating_income despite real revenue) found zero cases
-        # where either concept was present and OperatingIncomeLoss wasn't - the NULLs are
-        # explained by fiscal-year filing timing, not a missing concept these would recover.
-        # Pure wasted SEC API payload, same class as the cash-flow depreciation fetch
-        # removed the same session (see get_cash_flow() below).
+        # REMOVED 2026-07-28, RE-ADDED 2026-09-05: "CostsAndExpenses"/"OperatingExpenses" used
+        # to be fetched here as would-be operating_income fallbacks, but neither had a
+        # field_mapping entry or destination column, and live-checking real filers missing
+        # operating_income at the time (SWK, KMX, BXP) found zero cases where either concept
+        # was present and OperatingIncomeLoss wasn't - so it was removed as pure wasted SEC
+        # API payload. Re-added 2026-09-05 (goal session: "SEC/XBRL missing data" sweep,
+        # operating_income_not_itemized investigation) after live-confirming a DIFFERENT,
+        # real population this time: RRC (Range Resources, CIK 0000315852) and ARDT (CIK
+        # 0001756655) both report a real "Revenues" total and a real "CostsAndExpenses"
+        # total every fiscal year but tag NO OperatingIncomeLoss concept at all anywhere in
+        # their companyfacts JSON (single-step income statement format) - RRC FY2025
+        # Revenues=$3,115,515,000/CostsAndExpenses=$2,283,825,000, ARDT FY2025
+        # Revenues=$6,324,339,000/CostsAndExpenses=$6,037,981,000, both yielding a plausible
+        # operating margin once subtracted. "OperatingExpenses" (the sibling concept) is
+        # deliberately NOT re-added - not re-verified against this new evidence, no known
+        # real filer needing it. See _fill_operating_income_from_revenue_minus_costs_and_
+        # expenses() below for the derivation - fallback-only, only fires when
+        # OperatingIncomeLoss is absent for that fiscal year.
+        "CostsAndExpenses",
         "GrossProfit",
         "OperatingIncomeLoss",
         # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist
@@ -1624,6 +1669,7 @@ def get_income_statement(
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
+    _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows

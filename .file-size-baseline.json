@@ -567,7 +567,7 @@
   "utils/external/sec_form345_bulk.py": 344,
   "utils/external/sec_form345_transaction_velocity.py": 353,
   "utils/external/sec_form345_transaction_velocity_cached.py": 128,
-  "utils/external/sec_statements.py": 3275,
+  "utils/external/sec_statements.py": 3321,
   "utils/external/sec_ticker_cache.py": 370,
   "utils/external/sec_xbrl_segments.py": 2024,
   "utils/external/yfinance_analyst_ratings.py": 749,
