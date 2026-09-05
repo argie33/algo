@@ -8,6 +8,8 @@ import logging
 from datetime import date
 from typing import Any
 
+import loaders.load_sec_valuations as _lsv
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,20 +17,13 @@ class ValuationSanityCheckMixin:
     """yfinance live cross-check fetches, market-cap/PE plausibility sanity checks, and the
     data_unavailable marker builder for SecValuationsLoader. Not usable standalone.
 
-    `_sanity_check_market_cap` reads DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS via a
-    LOCAL (in-method) `import loaders.load_sec_valuations as _lsv`, not a module-level one,
-    because load_sec_valuations.py imports THIS module before that module-level constant is
-    defined further down in its own source. FIXED 2026-09-05 (goal session: "implausible
-    values" sweep) - a module-level `import loaders.load_sec_valuations as _lsv` at the top of
-    this file still crashed at IMPORT time with "cannot import name 'ValuationSanityCheckMixin'
-    from partially initialized module" (a true circular import, not just a deferred-attribute-
-    access problem) whenever this module was imported before load_sec_valuations.py already had
-    a head start (e.g. `python loaders/load_sec_valuations.py` / `python -m
-    loaders.load_sec_valuations`, both broken since this file's creation at `5e306dab3`, per
-    local reproduction of the scheduler's exact `python loaders/load_sec_valuations.py`
-    invocation) - the `import` statement itself, not just the attribute access, needed to be
-    deferred until the method actually runs, by which point load_sec_valuations.py has finished
-    executing and is present in sys.modules under its real name.
+    `_sanity_check_market_cap` reads DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS via the
+    `_lsv` module object (not a direct import) because load_sec_valuations.py imports this
+    class before that module-level constant is defined further down in its own source - a
+    direct `from loaders.load_sec_valuations import DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS`
+    here would fail at import time. Accessing it as `_lsv.DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS`
+    inside the method body defers the lookup until the method actually runs, by which point
+    load_sec_valuations.py has finished executing.
     """
 
     def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None]:
@@ -244,8 +239,6 @@ class ValuationSanityCheckMixin:
         # sibling-sum cross-check; a genuinely mis-scaled shares_outstanding bug (this check's
         # real purpose, e.g. the already-fixed ONC case) would NOT sum correctly with its
         # siblings this cleanly.
-        import loaders.load_sec_valuations as _lsv
-
         if symbol in _lsv.DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS:
             return
         ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
