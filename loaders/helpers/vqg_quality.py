@@ -1741,7 +1741,25 @@ class QualityMetricsMixin(SymbolGateMixin):
             # year).
             fcf_margin_free_cash_flow = free_cash_flow
             fcf_margin_revenue = revenue
-            if fcf_margin_free_cash_flow is None or fcf_margin_revenue is None or fcf_margin_revenue <= 0:
+            anchor_fcf_margin_implausible = (
+                fcf_margin_free_cash_flow is not None
+                and fcf_margin_revenue is not None
+                and fcf_margin_revenue > 0
+                and abs(fcf_margin_free_cash_flow / fcf_margin_revenue * 100.0) > 1000
+            )
+            if (
+                fcf_margin_free_cash_flow is None
+                or fcf_margin_revenue is None
+                or fcf_margin_revenue <= 0
+                or anchor_fcf_margin_implausible
+            ):
+                # anchor_fcf_margin_implausible also routes here (not just None/<=0) - a
+                # near-zero-revenue anchor year is an extraction artifact, not a real business
+                # characteristic, and an older fiscal year can have a plausible pair even when
+                # the anchor doesn't (same gap class as operating_margin/net_margin's
+                # _find_plausible_cross_year_ratio, fixed 2026-09-05 - this metric has its own
+                # inline cross-table (cash_flow+income_statement) query instead of reusing that
+                # helper because it needs a join those single-table lookups don't).
                 with _owner().DatabaseContext("read") as cur:
                     cur.execute(
                         """
