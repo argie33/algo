@@ -52,6 +52,11 @@ class _RoutingCursor:
         return None
 
     def fetchall(self):
+        # 2026-09-05: the annual_cash_flow dividend fallback now scans every within-window
+        # candidate (fetchall) instead of just the single most recent one (fetchone), same
+        # cross-year-fallback fix as fcf_margin/ps_ratio/pe_ratio/pb_ratio.
+        if self.last_query and "annual_cash_flow" in self.last_query:
+            return [(self._dividends_paid,)]
         return []
 
 

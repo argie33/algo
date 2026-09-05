@@ -182,28 +182,39 @@ class ValueMetricsMixin(SymbolGateMixin):
                         SELECT dividends_paid FROM annual_cash_flow
                         WHERE symbol = %s AND dividends_paid IS NOT NULL AND dividends_paid > 0
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
-                        ORDER BY fiscal_year DESC LIMIT 1
+                        ORDER BY fiscal_year DESC
                         """,
                         (symbol,),
                     )
-                    cf_div_row = cur.fetchone()
-                    if cf_div_row:
-                        # market_cap here can be a real but badly-scaled shares_outstanding
-                        # figure sec_valuations itself already refused to compute a ratio against
-                        # (a scale mismatch inflates the yield) - bound matches
-                        # load_sec_valuations.py's own primary dividend_yield bound.
-                        candidate = float(cf_div_row[0]) / float(market_cap)
-                        if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
-                            dividend_yield = candidate
-                            logger.debug(
-                                f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
-                                f"aggregate yield: {dividend_yield:.2%}"
-                            )
+                    cf_div_rows = cur.fetchall()
+                    # FIXED 2026-09-05 (goal session: "implausible values" sweep, same gap class
+                    # as fcf_margin/ps_ratio/pe_ratio/pb_ratio): this used to check only the
+                    # single most recent qualifying year (LIMIT 1) - a real but tiny/artifact-
+                    # scale dividends_paid figure in that one year could reject the whole
+                    # fallback even when an ALSO-within-window older year has a genuinely
+                    # representative figure. Still bounded to the same 2-year recency window
+                    # (deliberate - a stale multi-year-old dividend shouldn't drive a current
+                    # yield), just no longer gives up after the first candidate.
+                    if cf_div_rows:
+                        dividend_yield_implausible_from_cash_flow = True
+                        for (cf_dividends_paid,) in cf_div_rows:
+                            # market_cap here can be a real but badly-scaled shares_outstanding
+                            # figure sec_valuations itself already refused to compute a ratio
+                            # against (a scale mismatch inflates the yield) - bound matches
+                            # load_sec_valuations.py's own primary dividend_yield bound.
+                            candidate = float(cf_dividends_paid) / float(market_cap)
+                            if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
+                                dividend_yield = candidate
+                                dividend_yield_implausible_from_cash_flow = False
+                                logger.debug(
+                                    f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
+                                    f"aggregate yield: {dividend_yield:.2%}"
+                                )
+                                break
                         else:
-                            dividend_yield_implausible_from_cash_flow = True
                             logger.debug(
-                                f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback "
-                                f"yield out of bounds ({candidate:.2%}), leaving NULL"
+                                f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback - "
+                                "no within-window candidate produced a plausible yield, leaving NULL"
                             )
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback failed: {e}")
