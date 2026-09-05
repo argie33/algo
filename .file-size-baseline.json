@@ -1,7 +1,7 @@
 {
   ".pre-commit-scripts/check-credential-defaults.py": 132,
   ".pre-commit-scripts/check-critical-get-patterns.py": 87,
-  ".pre-commit-scripts/check-dashboard-get-pattern.py": 184,
+  ".pre-commit-scripts/check-dashboard-get-pattern.py": 196,
   ".pre-commit-scripts/check-financial-data-integrity.py": 204,
   ".pre-commit-scripts/check-metric-loader-markers.py": 107,
   ".pre-commit-scripts/check-no-hardcoded-patterns.py": 105,
