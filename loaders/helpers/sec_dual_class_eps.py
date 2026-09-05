@@ -114,9 +114,19 @@ _COMMON_CLASS_UNDEFINED_MEMBER_RE = re.compile(r"CommonClassUndefined(?:Member)?
 # COKE's own instrument has no class letter, it's the filer's sole "undesignated" common class
 # (distinct from its separately-tagged, non-traded Class B/Class C and preferred instruments in
 # the same filing).
+# FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep, eps_never_tagged_in_filings
+# follow-up): Planet Fitness's ticker PLNT trades as Class A common stock but `security_name` is
+# plain "Planet Fitness, Inc. Common Stock" (no "Class" text) - live-confirmed via its real
+# FY2025 10-K instance document (CIK 0001637207, accession 0001637207-26-000011):
+# EarningsPerShareBasic tagged once per fiscal year under us-gaap:StatementClassOfStockAxis with
+# member us-gaap:CommonClassAMember (FY2025=$2.62, FY2024=$2.01, FY2023=$1.63, each a clean
+# annual-span context) - real, continuous values, matching companyfacts' confirmed zero
+# undimensioned EarningsPerShareBasic/Diluted facts (a leftover of Planet Fitness's pre-2024
+# Up-C structure, which used multiple share classes even after most converted).
 _CLASS_LETTER_OVERRIDES: dict[str, str] = {
     "V": "A",
     "COKE": _UNDEFINED_CLASS_SENTINEL,
+    "PLNT": "A",
 }
 
 _EPS_BASIC_CONCEPT = "EarningsPerShareBasic"

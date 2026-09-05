@@ -399,7 +399,7 @@
   "loaders/health_monitor.py": 201,
   "loaders/helpers/__init__.py": 9,
   "loaders/helpers/sec_base.py": 1548,
-  "loaders/helpers/sec_dual_class_eps.py": 260,
+  "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_segment_debt.py": 193,
   "loaders/helpers/vqg_quality_growth.py": 599,
   "loaders/helpers/vqg_quality_metrics.py": 796,

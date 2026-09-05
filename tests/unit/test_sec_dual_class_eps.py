@@ -176,6 +176,16 @@ class TestResolveClassLetter:
         assert resolve_class_letter("V") == "A"
         assert resolve_class_letter("V", "Visa Inc.") == "A"
 
+    def test_plnt_explicit_override_resolves_without_security_name(self) -> None:
+        # FIXED 2026-09-05: PLNT (Planet Fitness) trades as Class A common stock - neither the
+        # dot-suffix nor security_name path can reach this (security_name is plain "Planet
+        # Fitness, Inc. Common Stock"), so it's covered by the explicit override table instead.
+        # Live-confirmed against Planet Fitness's real FY2025 10-K instance XML (CIK
+        # 0001637207): EPS is tagged under us-gaap:StatementClassOfStockAxis with member
+        # us-gaap:CommonClassAMember.
+        assert resolve_class_letter("PLNT") == "A"
+        assert resolve_class_letter("PLNT", "Planet Fitness, Inc. Common Stock") == "A"
+
     def test_dot_suffix_wins_over_security_name_when_both_present(self) -> None:
         # The dot suffix is the more direct/trusted signal - checked first regardless of
         # what security_name says (even a contradictory one, which shouldn't occur in
