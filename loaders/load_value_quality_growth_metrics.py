@@ -1915,13 +1915,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
         return float(sqrt(variance)), None
 
     def _find_plausible_cross_year_ratio(
-        self, symbol: str, numerator_field: str, denominator_field: str
+        self, symbol: str, numerator_field: str, denominator_field: str, *, as_percentage: bool = True
     ) -> float | None:
         """Cross-year fallback for ROE/ROA/asset_turnover's |ratio|>1000 implausible-value
         bound (net_income/stockholders_equity, net_income/total_assets, revenue/total_assets
         respectively). An anchor year with a near-zero denominator (extraction artifact, not a
         real business characteristic) would otherwise throw the symbol straight to
         implausible_ratio even when an older fiscal year has a plausible pair.
+
+        `as_percentage` scales the ratio by 100, matching every percentage-style caller
+        (margins, ROE/ROA). interest_coverage is a raw multiple, not a percentage - pass
+        `as_percentage=False` for it so the fallback value stays consistent with the
+        anchor-year computation's own (unscaled) `operating_income / interest_expense`.
 
         Only called from the implausible-ratio branch (rare: <1% of symbols), so the extra
         per-symbol query here doesn't touch the common path.
@@ -1932,13 +1937,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             "stockholders_equity": 2,
             "revenue": 3,
             "operating_income": 4,
+            "interest_expense": 5,
         }
         num_idx, den_idx = field_index[numerator_field], field_index[denominator_field]
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT ais.net_income, abs.total_assets, abs.stockholders_equity, ais.revenue,
-                       ais.operating_income
+                       ais.operating_income, ais.interest_expense
                 FROM annual_income_statement ais
                 JOIN annual_balance_sheet abs
                   ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
@@ -1954,10 +1960,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             numerator, denominator = row[num_idx], row[den_idx]
             if numerator is None or denominator is None or denominator == 0:
                 continue
+            # interest_coverage's anchor computation only ever fires for interest_expense > 0
+            # (zero/negative debt service is a real "not applicable" case, not a ratio to
+            # substitute a different year's pair into) - match that same requirement here.
+            if not as_percentage and denominator <= 0:
+                continue
             # numerator/denominator are raw psycopg2 Decimal values - `Decimal * float` raises
             # TypeError, which propagates up and wipes the entire quality_metrics row. Must
             # convert to float before arithmetic.
-            ratio = float(numerator) / float(denominator) * 100.0
+            ratio = float(numerator) / float(denominator)
+            if as_percentage:
+                ratio *= 100.0
             if abs(ratio) <= 1000:
                 return float(ratio)
         return None
@@ -2578,8 +2591,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 # A negligibly small interest_expense denominator blows this ratio up into
                 # noise (real but meaningless), not a real coverage signal.
                 if abs(computed_interest_coverage) > 1000:
-                    failed_metrics.append("interest_coverage")
-                    implausible_ratio_metrics.append("interest_coverage")
+                    # Same cross-year fallback as operating_margin/net_margin/roic_pct above -
+                    # search for an older fiscal year with a plausible same-year
+                    # (operating_income, interest_expense) pair.
+                    interest_coverage_fallback = self._find_plausible_cross_year_ratio(
+                        symbol, "operating_income", "interest_expense", as_percentage=False
+                    )
+                    if interest_coverage_fallback is not None:
+                        metrics["interest_coverage"] = interest_coverage_fallback
+                    else:
+                        failed_metrics.append("interest_coverage")
+                        implausible_ratio_metrics.append("interest_coverage")
                 else:
                     metrics["interest_coverage"] = float(computed_interest_coverage)
             else:
