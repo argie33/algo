@@ -264,3 +264,63 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
             rows = loader.fetch_incremental("XOM", since=date(2024, 12, 31))
 
         assert {r["fiscal_year"] for r in rows} == {2025}
+
+    def test_retries_fiscal_year_with_equity_populated_but_long_term_debt_null(self):
+        """2026-09-05 fix: balance's core-field retry now ALSO fires on `long_term_debt`/
+        `short_term_debt` alone, not just `stockholders_equity` - see
+        _CORE_FIELD_BY_STATEMENT_TYPE's comment (same bug shape as cashflow's capex/income's
+        revenue additions above, previously the one documented gap: "balance left as a
+        single-field tuple ... no equivalent secondary-field gap found for it yet").
+        Live-confirmed this session for mortgage REITs (ORC/EARN/etc.) and dozens of other
+        symbols: a real, non-NULL `stockholders_equity` meant these fiscal years never
+        qualified as retry candidates, so this week's debt-concept fallbacks (repo
+        agreements, LineOfCredit, DebtCurrent, ...) could never actually reach an
+        already-processed year even after landing in sec_statements.py."""
+        loader = _make_balance_loader()
+        loader._sec_client.get_balance_sheet.return_value = [
+            {"symbol": "ORC", "fiscal_year": 2026, "stockholders_equity": 1_371_948_000, "long_term_debt": None},
+            {"symbol": "ORC", "fiscal_year": 2025, "stockholders_equity": 668_500_000, "long_term_debt": None},
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[2025]),
+        ):
+            rows = loader.fetch_incremental("ORC", since=date(2025, 12, 31))
+
+        # Without the fix, since_year=2025 would silently drop the FY2025 row forever,
+        # even though a debt concept fix now landed and is right there in the freshly
+        # refetched data - stockholders_equity being non-NULL meant it never triggered a
+        # retry under the old single-field check.
+        assert {r["fiscal_year"] for r in rows} == {2026, 2025}
+
+    def test_balance_statement_uses_debt_fields_as_core_fields(self):
+        """Different statement_type -> different core field(s) (_CORE_FIELD_BY_STATEMENT_TYPE)."""
+        loader = _make_balance_loader()
+        loader._sec_client.get_balance_sheet.return_value = [
+            {"symbol": "AIG", "fiscal_year": 2025, "stockholders_equity": 41_139_000_000},
+            {"symbol": "AIG", "fiscal_year": 2023, "stockholders_equity": 45_351_000_000},
+        ]
+
+        captured_queries = []
+
+        def factory(mode, **kwargs):
+            ctx = MagicMock()
+            cur = MagicMock()
+
+            def execute(query, params=None):
+                captured_queries.append(query)
+
+            cur.execute.side_effect = execute
+            cur.fetchone.side_effect = lambda: (1,)
+            cur.fetchall.side_effect = list
+            ctx.__enter__.return_value = cur
+            ctx.__exit__.return_value = False
+            return ctx
+
+        with patch("utils.db.context.DatabaseContext", side_effect=factory):
+            loader.fetch_incremental("AIG", since=date(2024, 12, 31))
+
+        assert any("stockholders_equity IS NULL" in q for q in captured_queries)
+        assert any("long_term_debt IS NULL" in q for q in captured_queries)
+        assert any("short_term_debt IS NULL" in q for q in captured_queries)
