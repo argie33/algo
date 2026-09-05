@@ -1065,8 +1065,50 @@ class QualityMetricsMixin(SymbolGateMixin):
                     )
 
             # Absolute cash flow values
-            if free_cash_flow is not None and abs(free_cash_flow) < MAX_ABSOLUTE_DOLLAR_VALUE:
-                metrics["free_cash_flow"] = float(free_cash_flow)
+            #
+            # FIXED 2026-09-05 (goal session: "implausible values"/missing-XBRL sweep):
+            # unlike fcf_margin/fcf_to_net_income, this field isn't a ratio requiring same-year
+            # pairing with anything else - it's a standalone dollar figure, so an older real
+            # value is a straightforward, safe substitution (same reasoning as the roic_pct/
+            # roce_pct cross-year fallback) rather than the local-variable-only, label-only
+            # treatment fcf_margin/fcf_to_net_income need to preserve their anchor-year
+            # alignment (see the fcf_margin fallback's own comment above for why those stay
+            # separate). Deliberately a fresh query, not a reuse of
+            # `_get_free_cash_flow_available_elsewhere_symbols()` (that gate only proves
+            # membership for labeling, not the actual value).
+            standalone_free_cash_flow = free_cash_flow
+            if standalone_free_cash_flow is None:
+                # Same two-tier recency window as the fcf_margin fallback above (recent 3 fiscal
+                # years preferred, only reaching further back if nothing qualifies there) - keeps
+                # this from resurrecting a decade-stale figure for a symbol that's simply been
+                # `_get_no_recent_free_cash_flow_symbols()`-flagged for years.
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT free_cash_flow FROM annual_cash_flow
+                        WHERE symbol = %s AND free_cash_flow IS NOT NULL AND data_unavailable = FALSE
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_row = cur.fetchone()
+                    if not fallback_row:
+                        cur.execute(
+                            """
+                            SELECT free_cash_flow FROM annual_cash_flow
+                            WHERE symbol = %s AND free_cash_flow IS NOT NULL AND data_unavailable = FALSE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_row = cur.fetchone()
+                if fallback_row:
+                    standalone_free_cash_flow = self._nan_to_none(
+                        safe_float(fallback_row[0], f"{symbol}.free_cash_flow_fallback_year", allow_none=True)
+                    )
+            if standalone_free_cash_flow is not None and abs(standalone_free_cash_flow) < MAX_ABSOLUTE_DOLLAR_VALUE:
+                metrics["free_cash_flow"] = float(standalone_free_cash_flow)
             else:
                 failed_metrics.append("free_cash_flow")
 
