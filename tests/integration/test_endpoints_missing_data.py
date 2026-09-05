@@ -82,7 +82,7 @@ class TestEndpointsMissingData:
         cursor.fetchone = Mock(return_value=None)
         cursor.description = None
 
-        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+        with patch("routes.algo_handlers.dashboard.positions.check_data_freshness", return_value={"is_stale": False}):
             from routes.algo_handlers.dashboard import _get_algo_positions
 
             # CRITICAL: pass user_id for user isolation enforcement
@@ -105,7 +105,7 @@ class TestEndpointsMissingData:
         cursor.fetchone = Mock(return_value=None)
         cursor.description = None
 
-        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+        with patch("routes.algo_handlers.dashboard.trades.check_data_freshness", return_value={"is_stale": False}):
             from routes.algo_handlers.dashboard import _get_algo_trades
 
             result = _get_algo_trades(cursor)
@@ -125,7 +125,7 @@ class TestEndpointsMissingData:
         cursor.fetchone = Mock(return_value=None)
         cursor.description = None
 
-        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+        with patch("routes.algo_handlers.dashboard.trades.check_data_freshness", return_value={"is_stale": False}):
             from routes.algo_handlers.dashboard import _get_algo_trades
 
             result = _get_algo_trades(cursor, limit=50)

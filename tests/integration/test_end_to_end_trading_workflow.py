@@ -120,7 +120,14 @@ class TestEndToEndTradingWorkflow:
         )
 
         # Test all 4 endpoints return valid data
-        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+        # NOTE: check_data_freshness is patched on both submodules since the 2026-09-05
+        # dashboard package split moved _get_algo_positions and _get_algo_trades into
+        # separate sibling modules (positions.py / trades.py), each with its own import
+        # of check_data_freshness from routes.utils.
+        with (
+            patch("routes.algo_handlers.dashboard.positions.check_data_freshness", return_value={"is_stale": False}),
+            patch("routes.algo_handlers.dashboard.trades.check_data_freshness", return_value={"is_stale": False}),
+        ):
             # Positions endpoint (CRITICAL: pass user_id for user isolation)
             positions = _get_algo_positions(cursor, user_id="test-user-123")
             assert positions["statusCode"] == 200
@@ -186,7 +193,7 @@ class TestEndToEndTradingWorkflow:
         # Step 2: API fetches from database (simulated by cursor)
         from routes.algo_handlers.dashboard import _get_algo_positions
 
-        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+        with patch("routes.algo_handlers.dashboard.positions.check_data_freshness", return_value={"is_stale": False}):
             # Step 3: API returns data to dashboard (CRITICAL: pass user_id for user isolation)
             response = _get_algo_positions(cursor, user_id="test-user-123")
 

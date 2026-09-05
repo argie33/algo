@@ -73,8 +73,20 @@ def check_dashboard_patterns(filepath: str) -> list[str]:
     # instead). The has_error() convention this check enforces is defined in
     # dashboard/error_boundary.py and only applies to the dashboard/ TUI package - scope to
     # that specifically, not any file whose path happens to contain the word "dashboard".
+    #
+    # BUG FOUND 2026-09-05: the "/dashboard/" in normalized fallback (added for this
+    # exact reason above) is ITSELF the same bug class one level down - it matches any
+    # nested directory anywhere in the repo that happens to be *named* "dashboard", not
+    # just the real repo-root TUI package. Confirmed live when
+    # lambda/api/routes/algo_handlers/dashboard.py was split into a package (file-size-
+    # ratchet bloater decomposition) and became lambda/api/routes/algo_handlers/dashboard/
+    # - "/dashboard/" is a substring of that path too, so its new positions.py/status.py
+    # submodules (same non-TUI Lambda API handlers as before, still no error_boundary/
+    # has_error() import) got flagged. The real TUI package is always at the repo root, so
+    # anchor to that: only the first path segment may be "dashboard".
     normalized = filepath.replace("\\", "/")
-    if not filepath.endswith(".py") or not (normalized.startswith("dashboard/") or "/dashboard/" in normalized):
+    first_segment = normalized.split("/", 1)[0]
+    if not filepath.endswith(".py") or first_segment != "dashboard":
         return violations
 
     try:

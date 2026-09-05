@@ -373,6 +373,19 @@ def reload_lambda_api_modules():
     reload them. This forces a complete reimport on the next import statement.
 
     Affects: ResponseValidator, dashboard_api_contract, and other lambda/api modules.
+
+    NOTE (2026-09-05): routes.algo_handlers.dashboard used to be a single flat module, so
+    deleting that one sys.modules key was enough to force a full reimport (which reset
+    module-level state like _positions_cache). It's now a package (see
+    lambda/api/routes/algo_handlers/dashboard/ - split for file-size-ratchet compliance,
+    one submodule per handler function) - deleting only the package's own
+    "routes.algo_handlers.dashboard" key leaves its already-imported submodules
+    (routes.algo_handlers.dashboard.positions etc.) cached in sys.modules, so
+    _positions_cache (now module-level in positions.py) would survive across tests
+    instead of resetting - reintroducing exactly the cross-test pollution this fixture
+    exists to prevent. Clearing every sys.modules key that IS or starts with
+    "<name>." for each entry below (not just an exact-match delete) keeps this fixture
+    correct for both flat modules and packages.
     """
     # Modules to reload before each test
     modules_to_clear = [
@@ -386,14 +399,16 @@ def reload_lambda_api_modules():
         "routes.health",
     ]
 
-    # BEFORE test: Clear modules from cache to force reimport
-    for module_name in modules_to_clear:
-        if module_name in sys.modules:
-            del sys.modules[module_name]
+    def _clear_modules_and_submodules() -> None:
+        for module_name in modules_to_clear:
+            prefix = module_name + "."
+            for key in [k for k in sys.modules if k == module_name or k.startswith(prefix)]:
+                del sys.modules[key]
+
+    # BEFORE test: Clear modules (and any submodules) from cache to force reimport
+    _clear_modules_and_submodules()
 
     yield
 
     # AFTER test: Clear again so next test gets fresh state
-    for module_name in modules_to_clear:
-        if module_name in sys.modules:
-            del sys.modules[module_name]
+    _clear_modules_and_submodules()
