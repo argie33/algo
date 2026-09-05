@@ -166,6 +166,21 @@ repos:
         types: [python]
         stages: [pre-commit]
 
+      - id: check-phantom-file-refs
+        name: Block reintroducing references to deliberately-deleted files
+        entry: python .pre-commit-scripts/check_phantom_file_refs.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vulture-dead-code
+        name: Vulture — block new dead code (existing debt whitelisted)
+        entry: vulture algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/ .vulture_whitelist.py --min-confidence 60
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
   # Memory safety enforcement (was previously wired only into a hand-written
   # .git/hooks/pre-commit that bypassed this entire framework - meaning ruff,
   # mypy, pylint, and every other hook below silently never ran on local

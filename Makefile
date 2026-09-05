@@ -1,4 +1,4 @@
-.PHONY: help install-hooks lint format type-check security test coverage clean ci-local lint-js format-js audit-js license-check
+.PHONY: help install-hooks lint format type-check security dead-code test coverage clean ci-local lint-js format-js audit-js license-check
 
 help:
 	@echo "Algo Trading System — Local Development Commands"
@@ -11,7 +11,8 @@ help:
 	@echo "  make lint              Run ruff linter (Python)"
 	@echo "  make format            Format code with ruff (Python)"
 	@echo "  make type-check        Run mypy type checking (Python)"
-	@echo "  make security          Run bandit security scan + TruffleHog"
+	@echo "  make security          Run bandit + pip-audit + TruffleHog"
+	@echo "  make dead-code         Run vulture (blocks new dead code, existing debt whitelisted)"
 	@echo "  make lint-js           Run ESLint + Prettier check (webapp/lambda)"
 	@echo "  make format-js         Auto-format JS/JSON/MD with Prettier"
 	@echo "  make audit-js          Run npm audit for high-severity CVEs"
@@ -53,8 +54,17 @@ security:
 	bandit -r algo loaders config lambda --severity-level medium --confidence-level high
 	@echo "✅ Bandit scan passed"
 	@echo ""
+	@echo "Running pip-audit (dependency CVE scan)..."
+	pip-audit -r requirements.txt
+	@echo "✅ pip-audit passed"
+	@echo ""
 	@echo "Running TruffleHog secret detection..."
 	trufflehog filesystem . --only-verified 2>/dev/null || echo "✅ No secrets detected"
+
+dead-code:
+	@echo "Running Vulture dead-code scan (existing debt whitelisted)..."
+	vulture algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/ .vulture_whitelist.py --min-confidence 60
+	@echo "✅ No new dead code"
 
 test:
 	pytest tests/ -m unit -v --tb=short
@@ -116,6 +126,6 @@ license-check:
 	license-checker --json --prefix webapp/lambda > /tmp/npm-licenses.json || true
 	@if grep -iE '(GPL|SSPL)' /tmp/npm-licenses.json > /dev/null 2>&1; then echo "WARNING: GPL/SSPL licenses in Node.js dependencies"; else echo "✅ No GPL/SSPL licenses in Node.js dependencies"; fi
 
-ci-local: lint type-check security test lint-js
+ci-local: lint type-check security dead-code test lint-js
 	@echo ""
 	@echo "✅ All CI checks passed locally!"
