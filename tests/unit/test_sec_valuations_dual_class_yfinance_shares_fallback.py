@@ -37,6 +37,13 @@ class _FakeCursor:
         pass
 
     def fetchall(self) -> list[tuple[Any, ...]]:
+        # 2026-09-05: pe_ratio/pb_ratio's implausible-anchor cross-year fallback
+        # (loaders/load_sec_valuations.py) can issue one additional fetchall() beyond this
+        # fixture's originally-scripted sequence - return empty (no plausible fallback found)
+        # rather than IndexError once the scripted list is exhausted, since these fixtures don't
+        # care about that fallback's content.
+        if self._fetchall_idx >= len(self._fetchall_results):
+            return []
         result = self._fetchall_results[self._fetchall_idx]
         self._fetchall_idx += 1
         return result

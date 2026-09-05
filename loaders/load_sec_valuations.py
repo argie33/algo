@@ -2061,7 +2061,33 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
             if pe <= 10000 and pe >= self.MIN_PLAUSIBLE_PE_RATIO:  # Reasonable PE bounds
                 result["pe_ratio"] = round(pe, 2)
             elif pe > 10000:
-                logger.warning(f"[{symbol}] PE ratio out of bounds ({pe:.0f}), marking as NULL")
+                # FIXED 2026-09-05 (goal session: "implausible values" sweep) - same
+                # missing-cross-year-fallback gap as ps_ratio just above and fcf_margin
+                # (loaders/helpers/vqg_quality.py): the anchor year's ttm_eps can be a real but
+                # near-zero extraction/reporting artifact even though an older fiscal year has a
+                # real, representative EPS that would produce a plausible pe_ratio against the
+                # same current_price.
+                fallback_pe = None
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT earnings_per_share FROM annual_income_statement
+                        WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                          AND earnings_per_share > 0 AND data_unavailable = FALSE
+                        ORDER BY fiscal_year DESC
+                        """,
+                        (symbol,),
+                    )
+                    older_eps_rows = cur.fetchall()
+                for (older_eps,) in older_eps_rows:
+                    candidate_pe = current_price / float(older_eps)
+                    if self.MIN_PLAUSIBLE_PE_RATIO <= candidate_pe <= 10000:
+                        fallback_pe = candidate_pe
+                        break
+                if fallback_pe is not None:
+                    result["pe_ratio"] = round(fallback_pe, 2)
+                else:
+                    logger.warning(f"[{symbol}] PE ratio out of bounds ({pe:.0f}), marking as NULL")
             else:
                 logger.warning(
                     f"[{symbol}] PE ratio implausibly low ({pe:.4f} < {self.MIN_PLAUSIBLE_PE_RATIO}), "
@@ -2082,7 +2108,38 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
                 if pb <= 1000 and pb >= self.MIN_PLAUSIBLE_PB_RATIO:  # Reasonable PB bounds
                     result["pb_ratio"] = round(pb, 2)
                 elif pb > 1000:
-                    logger.warning(f"[{symbol}] PB ratio out of bounds ({pb:.0f}), marking as NULL")
+                    # FIXED 2026-09-05 (goal session: "implausible values" sweep) - same
+                    # missing-cross-year-fallback gap as pe_ratio/ps_ratio just above and
+                    # fcf_margin (loaders/helpers/vqg_quality.py): the anchor year's book_value
+                    # can be a real but near-zero extraction/reporting artifact even though an
+                    # older fiscal year has a real, representative stockholders_equity that
+                    # would produce a plausible pb_ratio against the same current_price/
+                    # shares_out (shares_out is a current-snapshot value, not fiscal-year-scoped,
+                    # same reasoning as the ps_ratio fix above).
+                    fallback_pb = None
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT stockholders_equity FROM annual_balance_sheet
+                            WHERE symbol = %s AND stockholders_equity IS NOT NULL
+                              AND stockholders_equity > 0 AND data_unavailable = FALSE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        older_equity_rows = cur.fetchall()
+                    for (older_equity,) in older_equity_rows:
+                        older_bvps = float(older_equity) / shares_out
+                        if older_bvps <= 0:
+                            continue
+                        candidate_pb = current_price / older_bvps
+                        if self.MIN_PLAUSIBLE_PB_RATIO <= candidate_pb <= 1000:
+                            fallback_pb = candidate_pb
+                            break
+                    if fallback_pb is not None:
+                        result["pb_ratio"] = round(fallback_pb, 2)
+                    else:
+                        logger.warning(f"[{symbol}] PB ratio out of bounds ({pb:.0f}), marking as NULL")
                 else:
                     logger.warning(
                         f"[{symbol}] PB ratio implausibly low ({pb:.4f} < {self.MIN_PLAUSIBLE_PB_RATIO}), "
