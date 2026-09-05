@@ -106,4 +106,29 @@ def check_and_repair_one_position(
             (repair.get("order_id"), pos_id),
         )
     logger.warning(f"[PHASE 9] {symbol} (position {pos_id}): auto-repaired - {repair.get('message')}")
+
+    # TAKE-PROFIT-LEG FIX (2026-09-05): the standalone stop just submitted above is not
+    # part of the original bracket's OCO group. If the take-profit leg is still live (the
+    # stop-loss leg alone went missing - e.g. only it hit a day-TIF expiry), the position
+    # now has two unlinked live sell orders: the still-live take-profit leg and this new
+    # standalone stop. If the take-profit leg fills first, nothing cancels the standalone
+    # stop (it's not a sibling order Alpaca knows to cancel), leaving it resting
+    # indefinitely and able to later fire against a completely unrelated future position
+    # in this symbol. Cancel the original bracket's remaining leg(s) now that the
+    # standalone stop is confirmed live, collapsing to stop-only protection - done AFTER
+    # the repair succeeds so a cancel failure here never leaves the position with zero
+    # protection.
+    try:
+        cancel_result = order_mgr.cancel_bracket_orders(alpaca_order_id)
+        if not cancel_result.get("success"):
+            logger.warning(
+                f"[PHASE 9] {symbol} (position {pos_id}): repaired with standalone stop, but "
+                f"failed to cancel original bracket's remaining leg(s) - {cancel_result.get('message')}"
+            )
+    except Exception as e:
+        logger.warning(
+            f"[PHASE 9] {symbol} (position {pos_id}): repaired with standalone stop, but "
+            f"could not cancel original bracket's remaining leg(s): {e}"
+        )
+
     return "repaired"
