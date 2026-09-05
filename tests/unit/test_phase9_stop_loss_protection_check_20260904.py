@@ -123,6 +123,7 @@ def test_protected_position_does_not_alert_or_repair():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
@@ -165,6 +166,7 @@ def test_missing_stop_loss_leg_auto_repairs_and_sends_warning_not_critical():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
@@ -206,6 +208,7 @@ def test_auto_repair_failure_triggers_critical_alert():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
@@ -242,6 +245,7 @@ def test_missing_quantity_or_stop_price_is_unrepairable_not_a_crash():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
@@ -272,6 +276,7 @@ def test_already_repaired_position_with_live_standalone_stop_is_skipped():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
@@ -314,6 +319,7 @@ def test_stale_prior_repair_falls_through_to_recheck_original_bracket():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
@@ -353,6 +359,7 @@ def test_notify_failure_does_not_crash_the_check():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify", side_effect=RuntimeError("smtp down")),
     ):
         # Must not raise despite notify() failing internally.
@@ -408,6 +415,7 @@ def test_unchecked_result_paper_local_order_is_not_counted_as_unprotected():
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
         patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
         patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
         patch("algo.reporting.notifications.notify") as mock_notify,
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
