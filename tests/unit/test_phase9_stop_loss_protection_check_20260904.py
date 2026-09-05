@@ -390,6 +390,82 @@ def test_position_with_no_trade_ids_arr_is_skipped_not_crashed():
     assert log_calls[-1][2] == "success"
 
 
+def test_live_leg_with_stale_qty_resizes_instead_of_reporting_protected():
+    """FINDING (real-money audit, 2026-09-05): leg *presence* alone isn't proof of
+    protection - a partial-exit resize (executor_exit_handler.py) can fail and only log,
+    leaving a live stop leg sized for the PRE-partial-exit share count. Must detect the
+    qty mismatch and resize in place rather than reporting "protected" on presence alone."""
+    log_calls = []
+
+    mock_sync_mgr = MagicMock()
+    mock_sync_mgr.alpaca_key = "key"
+    mock_sync_mgr.alpaca_secret = "secret"
+    mock_sync_mgr.alpaca_base_url = "https://paper-api.alpaca.markets"
+
+    mock_order_mgr = MagicMock()
+    mock_order_mgr.check_stop_loss_leg_live.return_value = {
+        "checked": True,
+        "has_live_stop_loss": True,
+        "leg_qty": 50.0,  # stale: sized for the original position, before a partial exit
+        "message": "stop-loss leg live",
+    }
+    mock_order_mgr.sync_bracket_stop_loss.return_value = {"success": True, "synced": True}
+
+    # Position now holds only 25 shares after a partial exit, but the resting leg is 50.
+    open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
+    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+
+    with (
+        patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
+        patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
+        patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
+        patch("algo.reporting.notifications.notify"),
+    ):
+        _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
+
+    mock_order_mgr.sync_bracket_stop_loss.assert_called_once_with("order-xyz", 210.50, new_qty=25.0)
+    mock_order_mgr.submit_standalone_protective_stop.assert_not_called()
+    # A repair happened (like the missing-leg case), so this logs as a warning, not a
+    # plain success - the resize itself is verified via the mock call assertion above.
+    assert log_calls[-1][2] == "warn"
+    assert "TSLA" in log_calls[-1][3]
+
+
+def test_live_leg_with_matching_qty_is_protected_no_resize():
+    """The normal case: leg present and correctly sized - must not call resize/repair."""
+    log_calls = []
+
+    mock_sync_mgr = MagicMock()
+    mock_sync_mgr.alpaca_key = "key"
+    mock_sync_mgr.alpaca_secret = "secret"
+    mock_sync_mgr.alpaca_base_url = "https://paper-api.alpaca.markets"
+
+    mock_order_mgr = MagicMock()
+    mock_order_mgr.check_stop_loss_leg_live.return_value = {
+        "checked": True,
+        "has_live_stop_loss": True,
+        "leg_qty": 25.0,
+        "message": "stop-loss leg live",
+    }
+
+    open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
+    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+
+    with (
+        patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
+        patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
+        patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=fake_db),
+        patch("algo.orchestrator.phase9_stop_loss_repair.DatabaseContext", side_effect=fake_db),
+        patch("algo.reporting.notifications.notify") as mock_notify,
+    ):
+        _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
+
+    mock_order_mgr.sync_bracket_stop_loss.assert_not_called()
+    mock_notify.assert_not_called()
+    assert log_calls[-1][2] == "success"
+
+
 def test_unchecked_result_paper_local_order_is_not_counted_as_unprotected():
     """A LOCAL-/PENDING- order id (paper-mode synthetic order, never a real broker
     bracket) must not be flagged as missing protection - there was never anything to

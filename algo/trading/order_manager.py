@@ -796,13 +796,18 @@ class OrderManager(StopLossRepairMixin):
             {"checked": False, "has_live_stop_loss": None, ...} - nothing to verify against
                 a broker: paper/local mode order, or the order can no longer be found. Not
                 itself evidence of a protection gap.
-            {"checked": True, "has_live_stop_loss": bool, "message": str} - a real bracket
-                order was fetched and its legs inspected.
+            {"checked": True, "has_live_stop_loss": bool, "leg_qty": float | None, "message": str}
+                - a real bracket order was fetched and its legs inspected. leg_qty is the
+                resting stop leg's order quantity (None if there's no live leg) - callers
+                should compare it against the position's current share count, since a live
+                leg alone doesn't mean it's sized correctly after a partial exit (see
+                phase9_stop_loss_repair.py's quantity-mismatch handling).
         """
         if not parent_alpaca_order_id or parent_alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return {
                 "checked": False,
                 "has_live_stop_loss": None,
+                "leg_qty": None,
                 "message": "No live Alpaca order to check (paper/local mode)",
             }
 
@@ -811,6 +816,7 @@ class OrderManager(StopLossRepairMixin):
             return {
                 "checked": False,
                 "has_live_stop_loss": None,
+                "leg_qty": None,
                 "message": "No live Alpaca order to check (paper/local mode)",
             }
 
@@ -820,12 +826,18 @@ class OrderManager(StopLossRepairMixin):
             return {
                 "checked": True,
                 "has_live_stop_loss": False,
+                "leg_qty": None,
                 "message": (
                     f"No live stop-loss leg on order {parent_alpaca_order_id} - "
                     f"leg statuses: {[(leg.get('order_type'), leg.get('status')) for leg in legs if isinstance(leg, dict)]}"
                 ),
             }
-        return {"checked": True, "has_live_stop_loss": True, "message": "stop-loss leg live"}
+        leg_qty_raw = stop_leg.get("qty")
+        try:
+            leg_qty = float(leg_qty_raw) if leg_qty_raw is not None else None
+        except (TypeError, ValueError):
+            leg_qty = None
+        return {"checked": True, "has_live_stop_loss": True, "leg_qty": leg_qty, "message": "stop-loss leg live"}
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.

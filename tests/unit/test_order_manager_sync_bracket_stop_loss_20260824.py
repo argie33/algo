@@ -191,6 +191,7 @@ class TestCheckStopLossLegLive:
         assert result == {
             "checked": False,
             "has_live_stop_loss": None,
+            "leg_qty": None,
             "message": "No live Alpaca order to check (paper/local mode)",
         }
         mock_get.assert_not_called()
@@ -210,7 +211,7 @@ class TestCheckStopLossLegLive:
             "id": "parent-1",
             "legs": [
                 {"id": "tp-leg", "order_type": "limit", "status": "new"},
-                {"id": "stop-leg", "order_type": "stop", "status": "new"},
+                {"id": "stop-leg", "order_type": "stop", "status": "new", "qty": "100"},
             ],
         }
         with (
@@ -219,7 +220,12 @@ class TestCheckStopLossLegLive:
         ):
             result = manager.check_stop_loss_leg_live("parent-1")
 
-        assert result == {"checked": True, "has_live_stop_loss": True, "message": "stop-loss leg live"}
+        assert result == {
+            "checked": True,
+            "has_live_stop_loss": True,
+            "leg_qty": 100.0,
+            "message": "stop-loss leg live",
+        }
         mock_patch.assert_not_called()
 
     def test_missing_stop_leg_reports_unprotected(self):

@@ -75,6 +75,34 @@ def check_and_repair_one_position(
     if not result.get("checked"):
         return "skipped"  # paper/local mode or order no longer resolvable - nothing to verify
     if result.get("has_live_stop_loss"):
+        leg_qty = result.get("leg_qty")
+        # Leg presence alone isn't proof of protection: a partial-exit resize
+        # (executor_exit_handler.py's _sync_bracket_stop_loss) can fail and only log,
+        # leaving a live stop leg sized for the PRE-partial-exit share count. A stop
+        # sized larger than the current position would try to sell shares the account
+        # no longer holds if it ever fires; resize it in place here rather than
+        # reporting "protected" on presence alone.
+        if leg_qty is not None and quantity is not None and abs(leg_qty - float(quantity)) > 1e-6:
+            if not current_stop_price:
+                logger.critical(
+                    f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): stop leg qty mismatch "
+                    f"(leg={leg_qty}, position={quantity}) but no current_stop_price to resize with"
+                )
+                return "unrepairable"
+            resize = order_mgr.sync_bracket_stop_loss(
+                alpaca_order_id, float(current_stop_price), new_qty=float(quantity)
+            )
+            if not resize.get("success"):
+                logger.critical(
+                    f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): stop leg qty mismatch "
+                    f"(leg={leg_qty}, position={quantity}) - resize FAILED: {resize.get('message')}"
+                )
+                return "unrepairable"
+            logger.warning(
+                f"[PHASE 9] {symbol} (position {pos_id}): resized stop leg from {leg_qty} to "
+                f"{quantity} shares after a stale partial-exit mismatch"
+            )
+            return "repaired"
         return "protected"
 
     logger.critical(
