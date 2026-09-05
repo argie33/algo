@@ -1208,8 +1208,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 )
                 eps_row = cur.fetchone()
             latest_eps = eps_row[0] if eps_row else None
+            # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): mirrors
+            # load_sec_valuations.py's own pe_ratio bounds check (MIN_PLAUSIBLE_PE_RATIO..10000)
+            # - a real, positive, tiny EPS (near-zero-denominator) produces a real but
+            # astronomically large P/E that gets silently rejected there (just a warning log,
+            # no reason recorded), so this cascade never learned the true cause and fell
+            # through to "missing_sec_data". Live-confirmed KLIC (Kulicke & Soffa): FY2025
+            # earnings_per_share=$0.0040 (real, positive) against current_price=$81.62 implies
+            # pe_ratio=20,405 - the exact >10000 rejection. Same "real value, deliberately
+            # rejected as implausible" mislabel class already fixed for dividend_yield this
+            # session - implausible_ratio is a different, already-correctly-bucketed coverage
+            # category than missing_sec_data, so this is headline-relevant, not just cosmetic.
+            _pe_implausible_from_eps = False
+            if latest_eps is not None and latest_eps > 0:
+                _current_price = row_dict.get("current_price")
+                if _current_price is not None and float(_current_price) > 0:
+                    _implied_pe = float(_current_price) / float(latest_eps)
+                    if _implied_pe > 10000 or _implied_pe < 0.05:
+                        _pe_implausible_from_eps = True
             pe_ratio_reason = (
-                "unprofitable_stock"
+                "implausible_ratio"
+                if _pe_implausible_from_eps
+                else "unprofitable_stock"
                 if latest_eps is not None and latest_eps <= 0
                 # `eps_row is None` (this query already searches full history, no fiscal-year
                 # window) means ZERO fiscal years have a real earnings_per_share value - distinct
