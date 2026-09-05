@@ -783,7 +783,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             # Propagate the specific reason load_sec_valuations.py already computed (e.g.
             # "shares_outstanding_unavailable") rather than a generic "missing_sec_data" -
             # falls back to the generic reason only when sec_valuations has no row at all.
-            return self._unavailable_marker("value_metrics", symbol, reason=row_dict.get("reason"))
+            marker = self._unavailable_marker("value_metrics", symbol, reason=row_dict.get("reason"))
+            # A preferred/subordinated-debenture ticker (see
+            # _get_preferred_or_debt_security_symbols()'s docstring) never gets a
+            # sec_valuations row at all (load_sec_valuations.py doesn't compute market-cap/EV
+            # for these child tickers), so this early return was the ONLY code path reachable
+            # for them - the same gate's per-field wiring further below (pe_ratio_reason/
+            # pb_ratio_reason/ps_ratio_reason/peg_ratio's own cascades) is correct but
+            # unreachable dead code for this exact case. Same "wrong, not missing" reasoning,
+            # applied here instead. Deliberately excludes dividend_yield (a preferred's fixed
+            # coupon / its own market price is a real, meaningful yield - see that gate's own
+            # docstring) and every other field (market_cap/EV/intrinsic_value etc. haven't been
+            # vetted the same way) - only overriding the four ratios that gate already covers.
+            if symbol in self._get_preferred_or_debt_security_symbols():
+                for field in ("pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio"):
+                    if marker.get(f"{field}_unavailable_reason") is not None:
+                        marker[f"{field}_unavailable_reason"] = "preferred_or_debt_security_no_common_equity_ratio"
+            return marker
 
         pe = row_dict.get("pe_ratio")
         pb = row_dict.get("pb_ratio")
