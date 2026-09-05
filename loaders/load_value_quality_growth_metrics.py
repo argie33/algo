@@ -1938,13 +1938,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             "revenue": 3,
             "operating_income": 4,
             "interest_expense": 5,
+            "gross_profit": 6,
         }
         num_idx, den_idx = field_index[numerator_field], field_index[denominator_field]
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT ais.net_income, abs.total_assets, abs.stockholders_equity, ais.revenue,
-                       ais.operating_income, ais.interest_expense
+                       ais.operating_income, ais.interest_expense, ais.gross_profit
                 FROM annual_income_statement ais
                 JOIN annual_balance_sheet abs
                   ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
@@ -1971,6 +1972,47 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             ratio = float(numerator) / float(denominator)
             if as_percentage:
                 ratio *= 100.0
+            if abs(ratio) <= 1000:
+                return float(ratio)
+        return None
+
+    def _find_plausible_cross_year_ebitda_margin_ratio(self, symbol: str) -> float | None:
+        """Cross-year fallback for ebitda_margin's |ratio|>1000 implausible-value bound.
+
+        Separate from `_find_plausible_cross_year_ratio` because the anchor computation's
+        `ebitda_ev` comes from `sec_valuations`, a single latest-snapshot row with no
+        fiscal-year dimension - there is no per-year EBITDA to search across using that same
+        source. Reconstructs EBITDA per candidate year instead, as EBIT + D&A
+        (`operating_income + depreciation_expense + amortization_expense`, standard EBITDA
+        definition, same approximation principle as this file's other EBIT-from-pretax-plus-
+        interest fallbacks) from `annual_income_statement` alone, divided by that year's own
+        revenue.
+
+        Only called from the implausible-ratio branch (rare: <1% of symbols), so the extra
+        per-symbol query doesn't touch the common path.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT operating_income, depreciation_expense, amortization_expense, revenue
+                FROM annual_income_statement
+                WHERE symbol = %s AND data_unavailable = FALSE
+                ORDER BY fiscal_year DESC
+                LIMIT 30
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        for row in rows:
+            operating_income, depreciation_expense, amortization_expense, revenue = row
+            if operating_income is None or revenue is None or revenue == 0:
+                continue
+            if depreciation_expense is None and amortization_expense is None:
+                continue
+            # Decimal values from psycopg2 - convert before arithmetic (Decimal * float
+            # raises TypeError).
+            ebitda = float(operating_income) + float(depreciation_expense or 0) + float(amortization_expense or 0)
+            ratio = (ebitda / float(revenue)) * 100.0
             if abs(ratio) <= 1000:
                 return float(ratio)
         return None
@@ -2670,8 +2712,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 # (e.g. a mis-scaled/mis-tagged SEC fact) explodes this into nonsense.
                 computed_gross_margin = (gross_profit_used / gross_profit_revenue) * 100
                 if abs(computed_gross_margin) > 1000:
-                    failed_metrics.append("gross_margin")
-                    implausible_ratio_metrics.append("gross_margin")
+                    # Same cross-year fallback as operating_margin/net_margin/interest_coverage
+                    # above - search for an older fiscal year with a plausible same-year
+                    # (gross_profit, revenue) pair.
+                    gross_margin_fallback = self._find_plausible_cross_year_ratio(symbol, "gross_profit", "revenue")
+                    if gross_margin_fallback is not None:
+                        metrics["gross_margin"] = gross_margin_fallback
+                    else:
+                        failed_metrics.append("gross_margin")
+                        implausible_ratio_metrics.append("gross_margin")
                 else:
                     metrics["gross_margin"] = float(computed_gross_margin)
             else:
@@ -2682,8 +2731,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 # Same near-zero-denominator bound as gross_margin above.
                 computed_ebitda_margin = (ebitda_ev / revenue) * 100
                 if abs(computed_ebitda_margin) > 1000:
-                    failed_metrics.append("ebitda_margin")
-                    implausible_ratio_metrics.append("ebitda_margin")
+                    ebitda_margin_fallback = self._find_plausible_cross_year_ebitda_margin_ratio(symbol)
+                    if ebitda_margin_fallback is not None:
+                        metrics["ebitda_margin"] = ebitda_margin_fallback
+                    else:
+                        failed_metrics.append("ebitda_margin")
+                        implausible_ratio_metrics.append("ebitda_margin")
                 else:
                     metrics["ebitda_margin"] = float(computed_ebitda_margin)
             else:
