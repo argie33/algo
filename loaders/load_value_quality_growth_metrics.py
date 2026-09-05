@@ -1926,12 +1926,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
         Only called from the implausible-ratio branch (rare: <1% of symbols), so the extra
         per-symbol query here doesn't touch the common path.
         """
-        field_index = {"net_income": 0, "total_assets": 1, "stockholders_equity": 2, "revenue": 3}
+        field_index = {
+            "net_income": 0,
+            "total_assets": 1,
+            "stockholders_equity": 2,
+            "revenue": 3,
+            "operating_income": 4,
+        }
         num_idx, den_idx = field_index[numerator_field], field_index[denominator_field]
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT ais.net_income, abs.total_assets, abs.stockholders_equity, ais.revenue
+                SELECT ais.net_income, abs.total_assets, abs.stockholders_equity, ais.revenue,
+                       ais.operating_income
                 FROM annual_income_statement ais
                 JOIN annual_balance_sheet abs
                   ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
@@ -2422,11 +2429,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 operating_income_for_margin is None and symbol in self._get_no_tax_concept_symbols()
             )
             if operating_income_for_margin is not None and operating_income_for_margin != 0:
+                operating_margin_denominator_field = None
                 if revenue is not None and revenue != 0:
                     computed_operating_margin = (operating_income_for_margin / revenue) * 100
+                    operating_margin_denominator_field = "revenue"
                 elif total_assets is not None and total_assets != 0:
                     # Fallback: ROA of operating income (useful for banks with NULL revenue)
                     computed_operating_margin = (operating_income_for_margin / total_assets) * 100
+                    operating_margin_denominator_field = "total_assets"
                 else:
                     computed_operating_margin = None
                 if computed_operating_margin is None:
@@ -2435,8 +2445,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     # Same near-zero-denominator garbage-value bound as gross_margin/
                     # ebitda_margin/roic_pct above.
                     if abs(computed_operating_margin) > 1000:
-                        failed_metrics.append("operating_margin")
-                        implausible_ratio_metrics.append("operating_margin")
+                        # Same cross-year fallback as ROE/ROA/roic_pct - search for an older
+                        # fiscal year with a plausible same-year (operating_income, denominator)
+                        # pair, using the SAME denominator field the anchor year used (revenue
+                        # vs total_assets), before giving up as implausible.
+                        operating_margin_fallback = (
+                            self._find_plausible_cross_year_ratio(
+                                symbol, "operating_income", operating_margin_denominator_field
+                            )
+                            if operating_margin_denominator_field is not None
+                            else None
+                        )
+                        if operating_margin_fallback is not None:
+                            metrics["operating_margin"] = operating_margin_fallback
+                        else:
+                            failed_metrics.append("operating_margin")
+                            implausible_ratio_metrics.append("operating_margin")
                     else:
                         metrics["operating_margin"] = float(computed_operating_margin)
             else:
@@ -2445,11 +2469,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
             # Net Margin = Net Income / Revenue
             # Fallback for banks (NULL revenue): use Net Income / Total Assets instead
             if net_income is not None and net_income != 0:
+                net_margin_denominator_field = None
                 if revenue is not None and revenue != 0:
                     computed_net_margin = (net_income / revenue) * 100
+                    net_margin_denominator_field = "revenue"
                 elif total_assets is not None and total_assets != 0:
                     # Fallback: ROA of net income (useful for banks with NULL revenue)
                     computed_net_margin = (net_income / total_assets) * 100
+                    net_margin_denominator_field = "total_assets"
                 else:
                     computed_net_margin = None
                 if computed_net_margin is None:
@@ -2457,8 +2484,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 else:
                     # Same near-zero-denominator garbage-value bound as the margins above.
                     if abs(computed_net_margin) > 1000:
-                        failed_metrics.append("net_margin")
-                        implausible_ratio_metrics.append("net_margin")
+                        # Same cross-year fallback as operating_margin above.
+                        net_margin_fallback = (
+                            self._find_plausible_cross_year_ratio(symbol, "net_income", net_margin_denominator_field)
+                            if net_margin_denominator_field is not None
+                            else None
+                        )
+                        if net_margin_fallback is not None:
+                            metrics["net_margin"] = net_margin_fallback
+                        else:
+                            failed_metrics.append("net_margin")
+                            implausible_ratio_metrics.append("net_margin")
                     else:
                         metrics["net_margin"] = float(computed_net_margin)
             else:
