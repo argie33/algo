@@ -3262,7 +3262,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     )
                 )
                 if curr_gross_profit is not None and prior_gross_profit is not None:
-                    curr_gm = (curr_gross_profit / revenue) * 100 if revenue > 0 else None
+                    # Prefer the base gross_margin metric's own value when already computed
+                    # above - it may already reflect that field's cross-year implausible-ratio
+                    # fallback (a genuine extraction artifact this fiscal year, e.g. near-zero
+                    # revenue, rescued from a different coherent year), so reusing it here
+                    # avoids re-deriving the SAME raw (and possibly implausible) ratio inline.
+                    curr_gm = metrics.get("gross_margin")
+                    if curr_gm is None:
+                        curr_gm = (curr_gross_profit / revenue) * 100 if revenue > 0 else None
                     prior_gm = (prior_gross_profit / prior_year_revenue) * 100 if prior_year_revenue > 0 else None
                     if (
                         curr_gm is not None
@@ -3291,7 +3298,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                     and prior_year_operating_income_for_trend is not None
                     and prior_year_revenue > 0
                 ):
-                    curr_om = (operating_income_for_margin / revenue) * 100
+                    # Prefer the base operating_margin metric's own value when already
+                    # computed above - see gross_margin_trend's comment on why.
+                    curr_om = metrics.get("operating_margin")
+                    if curr_om is None:
+                        curr_om = (operating_income_for_margin / revenue) * 100
                     prior_om = (prior_year_operating_income_for_trend / prior_year_revenue) * 100
                     if abs(curr_om) <= MAX_MARGIN_ABS_PCT and abs(prior_om) <= MAX_MARGIN_ABS_PCT:
                         try:
@@ -3307,7 +3318,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
 
                 # Net Margin Trend - only if actual prior net income available
                 if net_income is not None and prior_year_net_income is not None and prior_year_revenue > 0:
-                    curr_nm = (net_income / revenue) * 100
+                    # Prefer the base net_margin metric's own value when already computed
+                    # above - see gross_margin_trend's comment on why.
+                    curr_nm = metrics.get("net_margin")
+                    if curr_nm is None:
+                        curr_nm = (net_income / revenue) * 100
                     prior_nm = (prior_year_net_income / prior_year_revenue) * 100
                     if abs(curr_nm) <= MAX_MARGIN_ABS_PCT and abs(prior_nm) <= MAX_MARGIN_ABS_PCT:
                         try:
@@ -3423,7 +3438,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader, SymbolGateMixin):
                 and prior_year_net_income is not None
                 and prior_year_stockholders_equity != 0
             ):
-                curr_roe = (net_income / stockholders_equity) * 100
+                # Prefer the base roe metric's own value when already computed above - it may
+                # already reflect roe's own cross-year implausible-ratio fallback (see
+                # gross_margin_trend's comment on why reusing it here is safe).
+                curr_roe = metrics.get("roe")
+                if curr_roe is None:
+                    curr_roe = (net_income / stockholders_equity) * 100
                 prior_roe = (prior_year_net_income / prior_year_stockholders_equity) * 100
                 if abs(curr_roe) <= MAX_MARGIN_ABS_PCT and abs(prior_roe) <= MAX_MARGIN_ABS_PCT:
                     try:
