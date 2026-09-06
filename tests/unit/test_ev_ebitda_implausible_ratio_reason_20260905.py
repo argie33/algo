@@ -111,3 +111,31 @@ class TestEvEbitdaImplausibleRatioReason:
         )
 
         assert result["ev_ebitda_unavailable_reason"] == "missing_sec_data"
+
+    def test_immaterial_ebitda_per_share_reports_implausible_ratio(self, monkeypatch):
+        """FIXED 2026-09-05 (same-day follow-up). load_sec_valuations.py's own ev_ebitda
+        computation now also rejects a real EBITDA that's immaterial in absolute dollar terms
+        (EBITDA-per-share below the same $0.10 floor already established for EPS/BVPS/RPS),
+        not just the bare 0..10000 ceiling - this reason chain must mirror that too. Live-
+        confirmed HYNE: real $8,921 EBITDA ($0.0012/share against 7.44M shares) against a real
+        $76.3M enterprise value - ev_ebitda=8555.07, technically under 10000, but immaterial.
+        """
+        result = _run(
+            monkeypatch,
+            symbol="HYNE",
+            pe_ratio=None,
+            pb_ratio=2.0,
+            ps_ratio=3.0,
+            ev_revenue=5.0,
+            ev_ebitda=None,
+            ebitda=8_921.0,
+            enterprise_value=None,
+            market_cap=75_000_000.0,
+            total_debt=2_000_000.0,
+            total_cash=680_176.0,  # computed EV ~= 76,319,824, ratio ~= 8555 (< 10000 ceiling)
+            shares_outstanding=7_450_000.0,  # ebitda/share ~= 0.0012 (< 0.10 floor)
+            fcf_yield=6.0,
+        )
+
+        assert result["ev_ebitda"] is None
+        assert result["ev_ebitda_unavailable_reason"] == "implausible_ratio"
