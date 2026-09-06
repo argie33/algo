@@ -1851,16 +1851,19 @@ class SymbolGateMixin:
         "Legitimate / not applicable" rather than "missing_sec_data" across all metrics that
         check SEC filing data.
 
-        Combines:
-        - etf_symbols table (active='true')
-        - company_profile.entity_type = 'fund', 'cef', 'bdc', 'trust'
-        - company_info_sec.entity_type = 'other' with blank SIC (post-2024 bank exemptions)
+        Combines etf_symbols membership with company_info_sec.entity_type IN
+        ('other', 'investment') + no real SIC code (sic_code NULL/0), excluding OZK - the
+        CEF/BDC/trust shape migration 1213 ("clean_cef_bdc_etn_rows_from_stock_scores")
+        validated DB-wide (88 symbols, spot-checked as BlackRock/Gabelli/Eaton Vance
+        *Trust-class names).
 
-        NOTE: This gate is comprehensive but somewhat redundant with existing gates
-        (_get_etf_symbols, _get_registered_investment_company_symbols,
-        _get_no_tax_concept_symbols for shipping/tax-exempt). Its value is in capturing
-        all entity-type bases in one place for new metrics that haven't yet wired
-        per-entity-type checks. Existing metrics already use specific gates.
+        FIX 2026-09-06: previously also queried nonexistent `company_profile.entity_type`
+        (UndefinedColumn on every call; unused until this session so it hadn't surfaced,
+        see .vulture_whitelist.py). No such signal exists in this schema; the
+        company_info_sec clause below was already correct and is now the only one.
+
+        NOTE: redundant with existing narrower gates (_get_etf_symbols,
+        _get_registered_investment_company_symbols) - value is capturing all bases at once.
 
         Cached for the life of this loader instance; this query runs once per pipeline run.
         """
@@ -1872,15 +1875,12 @@ class SymbolGateMixin:
                   AND (
                     -- ETF symbols table
                     s.symbol IN (SELECT symbol FROM etf_symbols)
-                    -- Fund-type entities in company_profile
+                    -- CEF/BDC/trust shape (migration 1213's classification), excl. OZK
                     OR s.symbol IN (
-                      SELECT symbol FROM company_profile
-                      WHERE entity_type IN ('fund', 'cef', 'bdc', 'trust')
-                    )
-                    -- Post-2024 bank exemptions: entity_type='other' + no SIC
-                    OR s.symbol IN (
-                      SELECT symbol FROM company_info_sec
-                      WHERE entity_type = 'other' AND sic_code IS NULL
+                      SELECT c.symbol FROM company_info_sec c
+                      WHERE COALESCE(c.sic_code, 0) = 0
+                        AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
+                        AND c.symbol != 'OZK'
                     )
                   )
                 """

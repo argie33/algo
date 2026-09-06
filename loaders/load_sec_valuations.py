@@ -830,8 +830,10 @@ class SecValuationsLoader(
         # structurally cannot file 10-K/10-Q (CEF/BDC/ETF/post-2024 banks) have no annual
         # financial statements data at all - return early with categorized unavailable reason
         # instead of trying to extract valuations from non-existent income statements.
-        # Direct query check (not via mixin) since SecValuationsLoader doesn't inherit
-        # vqg_symbol_gates mixin.
+        # Direct query check (not via mixin, SecValuationsLoader doesn't inherit
+        # vqg_symbol_gates) - mirrors SymbolGateMixin._get_structural_entity_type_exemptions
+        # (see its docstring: no `company_profile.entity_type` column exists in this schema;
+        # an earlier version of this query referenced one and raised UndefinedColumn).
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -839,12 +841,10 @@ class SecValuationsLoader(
                   AND (
                     s.symbol IN (SELECT symbol FROM etf_symbols)
                     OR s.symbol IN (
-                      SELECT symbol FROM company_profile
-                      WHERE entity_type IN ('fund', 'cef', 'bdc', 'trust')
-                    )
-                    OR s.symbol IN (
-                      SELECT symbol FROM company_info_sec
-                      WHERE entity_type = 'other' AND sic_code IS NULL
+                      SELECT c.symbol FROM company_info_sec c
+                      WHERE COALESCE(c.sic_code, 0) = 0
+                        AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
+                        AND c.symbol != 'OZK'
                     )
                   )
                 """,
