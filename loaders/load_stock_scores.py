@@ -444,10 +444,14 @@ class StockScoresLoader(
             # "no_analyst_estimates" rows are actually unprofitable/negative-forecast-earnings
             # companies (real values, just not ratio-able), not missing data - see
             # _score_value's PE/Forward P/E blocks for how these are now used.
+            # pb_ratio_unavailable_reason added 2026-09-05 (real-money-readiness audit): same
+            # "unprofitable/undefined-ratio silently skipped instead of scored at the floor"
+            # bug class already fixed for pe_ratio/forward_pe above, found unfixed for pb_ratio
+            # (negative book value) - see _score_value's P/B block for how this is now used.
             cur.execute(
                 "SELECT symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, "
                 "forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct, market_cap, net_payout_yield, "
-                "pe_ratio_unavailable_reason, forward_pe_unavailable_reason, "
+                "pe_ratio_unavailable_reason, forward_pe_unavailable_reason, pb_ratio_unavailable_reason, "
                 "data_unavailable FROM value_metrics"
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}

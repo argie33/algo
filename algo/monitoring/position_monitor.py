@@ -221,6 +221,32 @@ class PositionMonitor(
                     f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
                 ) from conc_e
 
+            # WIRED IN 2026-09-05 (real-money-readiness audit): check_corporate_actions()
+            # (stock-split detection/rescale) existed as a fully-implemented method with zero
+            # real callers anywhere in the orchestrator/phases/lambda/scripts - only its own
+            # unit tests ever invoked it, directly, bypassing this entire call path. A real
+            # stock split on an open position had NO mechanism to ever rescale its stop price
+            # or quantity - it would sit at the wrong price scale (e.g. ~2x too high/low after
+            # a 2:1 split) indefinitely, a genuinely unprotected/mis-protected position with
+            # real money at risk. Runs before the FOR UPDATE position query below so any split
+            # is rescaled first, and _evaluate_position reads the corrected values rather than
+            # stale pre-split ones. Same PositionValidationError-wrapping pattern as the
+            # margin/concentration checks above - a DB error here means position quantities
+            # can't be verified against the broker, which must fail closed, not proceed with
+            # potentially stale/wrong quantities and stops.
+            try:
+                logger.info("[POSITION_MONITOR] Checking for corporate actions (stock splits)")
+                corp_actions = self.check_corporate_actions()
+                if corp_actions:
+                    logger.warning(f"[POSITION_MONITOR] Corporate action adjustments applied: {corp_actions}")
+            except PositionValidationError:
+                raise
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as corp_action_e:
+                raise PositionValidationError(
+                    f"Corporate action detection failed: {corp_action_e}. Cannot proceed without "
+                    "verifying position quantities against the broker."
+                ) from corp_action_e
+
             # NOTE: this queries algo_positions.status, not algo_trades.status - a separate,
             # already-normalized PositionStatus enum that every entry path (including
             # paper_pending/paper mode) writes as 'open' for any genuinely open position

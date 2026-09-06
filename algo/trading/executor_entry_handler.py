@@ -1470,10 +1470,27 @@ class EntryHandler:
                 existing_trades_arr = (
                     existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
                 )
-                # Append new trade_id if not already present
-                updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
-                if trade_id not in updated_trades_arr:
-                    updated_trades_arr.append(trade_id)
+                if is_reopening_closed_position:
+                    # FIX 2026-09-05 (real-money-readiness audit): reopening a CLOSED position
+                    # used to APPEND the new trade_id onto the old (closed) position's
+                    # trade_ids_arr, leaving trade_ids_arr = [stale_closed_trade, live_trade].
+                    # trade_ids_arr[0] is the established "the trade for this position"
+                    # convention read throughout the codebase (phase6_exit_execution.py,
+                    # phase9_stop_loss_repair.py, position_monitor.py all resolve it this way)
+                    # - with the stale trade first, stop-sync/exit logic would resolve the
+                    # already-closed bracket's alpaca_order_id/entry_price instead of the live
+                    # one actually protecting the current shares, and an exit's P&L could get
+                    # recorded against the wrong trade row. The existing multi-position data-
+                    # integrity guard in executor_exit_handler.py doesn't catch this because
+                    # both trade_ids map to the SAME single position, not >1 distinct ones. A
+                    # reopened position starts a fresh trade lineage - reset the array to just
+                    # the new trade_id rather than appending onto the prior lineage.
+                    updated_trades_arr = [trade_id]
+                else:
+                    # Append new trade_id if not already present
+                    updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
+                    if trade_id not in updated_trades_arr:
+                        updated_trades_arr.append(trade_id)
                 trade_ids_text = ",".join(updated_trades_arr) if updated_trades_arr else None
 
                 if is_reopening_closed_position:

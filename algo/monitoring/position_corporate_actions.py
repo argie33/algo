@@ -51,9 +51,15 @@ class CorporateActionsMixin:
         adjustments: list[dict[str, Any]] = []
         ctx = _pm.DatabaseContext("write")  # type: ignore[attr-defined]
         with ctx as cur:
+            # trade_ids_arr added 2026-09-05 (real-money-readiness audit): this SELECT used to
+            # omit it entirely, so both call sites below always passed a hardcoded None down
+            # to _apply_split_adjustment - meaning a real stock split NEVER rescaled
+            # algo_trades.entry_price/stop_loss_price/target_N_price (only algo_positions), the
+            # exact gap _apply_split_adjustment's own docstring/warning already describes but
+            # that nothing upstream ever supplied real data to close.
             cur.execute("""
                 SELECT ap.id, ap.symbol, ap.quantity, ap.stop_loss_price,
-                       ap.avg_entry_price AS entry_price
+                       ap.avg_entry_price AS entry_price, ap.trade_ids_arr
                 FROM algo_positions ap
                 WHERE ap.status = 'open'
             """)
@@ -61,10 +67,12 @@ class CorporateActionsMixin:
 
             alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
 
-            for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
+            for pos_id, symbol, db_qty, db_stop, _entry_price, trade_ids_arr in positions:
                 try:
                     alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
-                    self._handle_qty_variance(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, None, adjustments)
+                    self._handle_qty_variance(
+                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments
+                    )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
                         f"Corporate action detection failed for {symbol}: Database error during qty variance handling. "
@@ -197,7 +205,7 @@ class CorporateActionsMixin:
         if qty_change_pct <= 20:
             return
 
-        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, None, adjustments)
+        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments)
 
     def _apply_split_adjustment(
         self,

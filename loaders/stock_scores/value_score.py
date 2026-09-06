@@ -650,9 +650,22 @@ class ValueScoreMixin:
             total_weight += 0.27
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
+        # NEGATIVE-BOOK-VALUE FLOOR ADDED 2026-09-05 (real-money-readiness audit): same bug
+        # class and fix as the "UNPROFITABLE-COMPANY FLOOR"/"UNPROFITABLE-FORECAST FLOOR"
+        # notes above for P/E and Forward P/E - negative stockholders' equity (distressed
+        # leverage, LBO-style buybacks) makes pb_ratio mathematically undefined, and this was
+        # previously just SKIPPED, renormalizing the Value pillar over PE/PS/Forward-PE/Dividend
+        # as if the P/B component didn't exist rather than correctly scoring it at the floor.
+        # A negative book value is definitionally worse than any positive one on a book-to-
+        # market basis, so flooring at 0 (this pillar's existing "worst" value, matching
+        # `_pb_curve_score`'s own floor) is the correct treatment - same reasoning already
+        # applied to P/E's `unprofitable_stock` and Forward P/E's `negative_forward_eps` cases.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb_score = self._pb_curve_score(metrics["pb_ratio"])
             weighted_sum += pb_score * 0.27
+            total_weight += 0.27
+        elif metrics.get("pb_ratio_unavailable_reason") == "negative_book_value":
+            weighted_sum += 0.0 * 0.27
             total_weight += 0.27
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue

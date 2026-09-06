@@ -452,3 +452,27 @@ class TestCircuitBreakerTotalRisk:
         result = cb._check_total_risk(current_date=None, cur=mock_cur)
         assert result["halted"] is False
         assert result["value"] == 1.0  # 1000 / 100000 * 100
+
+    def test_risk_query_uses_per_trade_quantity_not_position_quantity(self, mock_config):
+        """FIX 2026-09-05 (real-money-readiness audit): the risk-sum query used to multiply
+        by p.quantity (a position-level total) on every fanned-out JOIN row, so a pyramided
+        position (2+ trades in trade_ids_arr, a real supported case) summed the SAME full
+        position quantity once per constituent trade instead of that trade's own share count -
+        inflating total_open_risk and, via COUNT(*) counting trade rows instead of positions,
+        also risking a false "orphaned trade_ids_arr" halt. Same bug class and fix already
+        landed in position_sizer.py's aggregate-risk query (2026-08-31) - t.quantity is the
+        correct per-trade figure and COUNT(DISTINCT p.id) restores one-position-one-count."""
+        config = dict(mock_config, max_total_risk_pct=4.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.side_effect = [
+            (0,),  # missing current_stop_price count
+            (1000.0, 5),  # risk SUM/COUNT via trade_ids_arr join
+            (5,),  # direct COUNT of open positions matches
+            (100000.0,),  # portfolio value
+        ]
+        cb._check_total_risk(current_date=None, cur=mock_cur)
+        risk_query_sql = mock_cur.execute.call_args_list[1][0][0]
+        assert "t.quantity" in risk_query_sql
+        assert "p.quantity" not in risk_query_sql
+        assert "COUNT(DISTINCT p.id)" in risk_query_sql

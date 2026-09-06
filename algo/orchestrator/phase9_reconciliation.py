@@ -1401,18 +1401,6 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         logger.warning(f"[PHASE 9] Exit price repair step encountered unexpected error: {repair_err}", exc_info=True)
         # Don't halt Phase 9 for repair failures - proceed with reconciliation
 
-    # SAFETY: Verify every open position still has a live stop-loss leg at the broker.
-    # See _verify_open_position_stop_loss_protection_step's docstring for why this exists.
-    # Detection-only (alerts, never halts Phase 9) - a broker-protection gap needs a human
-    # to investigate and re-arm, not this reconciliation pass silently placing a new order.
-    try:
-        _verify_open_position_stop_loss_protection_step(log_phase_result_fn, config)
-    except Exception as protection_err:
-        logger.warning(
-            f"[PHASE 9] Stop-loss protection check encountered unexpected error: {protection_err}", exc_info=True
-        )
-        # Don't halt Phase 9 for this check's own failures - proceed with reconciliation
-
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
 
@@ -1434,6 +1422,33 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
             else:
                 raise RuntimeError(f"[PHASE 9] DailyReconciliation initialization failed: {e}") from e
         reconciliation_succeeded, result = _run_reconciliation_step(config, run_date, log_phase_result_fn, dry_run)
+
+        # SAFETY: Verify every open position still has a live stop-loss leg at the broker.
+        # See _verify_open_position_stop_loss_protection_step's docstring for why this exists.
+        # Detection-only for the "can't self-heal" case (alerts, never halts Phase 9) - a
+        # broker-protection gap that can't auto-repair needs a human to investigate and
+        # re-arm, not this reconciliation pass silently placing a new order.
+        #
+        # ORDERING FIX 2026-09-05 (real-money-readiness audit): this used to run BEFORE
+        # _run_reconciliation_step above, querying algo_positions WHERE status='open' while
+        # that table could still be stale from the last cycle. A position legitimately
+        # stopped out (its bracket's stop-loss leg filled) since then reads as status='open'
+        # with a real quantity here, check_stop_loss_leg_live correctly finds no *live* leg
+        # (the filled leg isn't live anymore), and phase9_stop_loss_repair.py attempts to
+        # auto-repair a position that no longer exists at the broker - Alpaca safely rejects
+        # the repair (insufficient qty), but a false "AUTO-REPAIR FAILED... investigate
+        # immediately" CRITICAL alert fires for a position that actually exited correctly.
+        # Running this AFTER _run_reconciliation_step (which updates status='closed' from
+        # real broker fills) means the query below sees the current cycle's fresh state, not
+        # last cycle's - closing this false-alarm gap at the source rather than special-
+        # casing "no broker position" inside the repair check itself.
+        try:
+            _verify_open_position_stop_loss_protection_step(log_phase_result_fn, config)
+        except Exception as protection_err:
+            logger.warning(
+                f"[PHASE 9] Stop-loss protection check encountered unexpected error: {protection_err}", exc_info=True
+            )
+            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation
 
         # CRITICAL: Validate that local P&L matches Broker P&L
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)

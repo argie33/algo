@@ -65,14 +65,16 @@ class ValueMetricsMixin:
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 15 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
+        - Row length validation: Must have 16 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
           dividend_yield, fcf_yield, forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct,
           market_cap, net_payout_yield, pe_ratio_unavailable_reason,
-          forward_pe_unavailable_reason, data_unavailable) - the two *_unavailable_reason
-          columns were added 2026-08-28 to distinguish "genuinely missing data" from
-          "unprofitable company / negative earnings forecast" for P/E and Forward P/E (see
-          _score_value's "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" docstring note).
-        - Schema mismatch (len(row) < 15) → raises ValueError immediately
+          forward_pe_unavailable_reason, pb_ratio_unavailable_reason, data_unavailable) - the
+          pe_ratio/forward_pe *_unavailable_reason columns were added 2026-08-28 to distinguish
+          "genuinely missing data" from "unprofitable company / negative earnings forecast" for
+          P/E and Forward P/E (see _score_value's "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28"
+          docstring note); pb_ratio_unavailable_reason added 2026-09-05 for the identical
+          negative-book-value case, previously missing here entirely.
+        - Schema mismatch (len(row) < 16) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_value_metrics_found"
@@ -89,13 +91,14 @@ class ValueMetricsMixin:
             # CRITICAL: Validate row has expected 15 columns before accessing indices
             # (11 + market_cap added 2026-08-25 to close the Size-factor gap, +1 more
             # net_payout_yield added 2026-08-26, +2 more pe_ratio_unavailable_reason/
-            # forward_pe_unavailable_reason added 2026-08-28 - see _score_value's docstring)
-            if len(row) < 15:
+            # forward_pe_unavailable_reason added 2026-08-28, +1 more pb_ratio_unavailable_reason
+            # added 2026-09-05 - see _score_value's docstring)
+            if len(row) < 16:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 15. "
+                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 16. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[14]
+            data_unavailable = row[15]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -119,6 +122,7 @@ class ValueMetricsMixin:
                 "net_payout_yield": safe_float(row[11], f"{symbol}.net_payout_yield", allow_none=True),
                 "pe_ratio_unavailable_reason": row[12],
                 "forward_pe_unavailable_reason": row[13],
+                "pb_ratio_unavailable_reason": row[14],
             }
         # No row exists at all
         logger.warning(
