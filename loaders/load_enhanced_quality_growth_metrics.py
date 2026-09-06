@@ -657,6 +657,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             SELECT fiscal_year, cost_of_revenue, gross_profit
                             FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year IN (%s, %s)
+                              AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC
                         """,
                             (symbol, curr_fy, prior_fy),

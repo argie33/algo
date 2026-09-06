@@ -1033,6 +1033,7 @@ class SecValuationsLoader(
                   AND NOT EXISTS (
                       SELECT 1 FROM annual_cash_flow f
                       WHERE f.symbol = c.symbol AND f.free_cash_flow IS NOT NULL
+                        AND f.data_unavailable IS NOT TRUE
                   )
                 """,
                 (symbol,),
