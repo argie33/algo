@@ -928,7 +928,18 @@ class ValueMetricsMixin(SymbolGateMixin):
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": (
                 (
-                    "no_revenue_reported"
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): a
+                    # registered investment company (see _get_registered_investment_company_
+                    # symbols()' docstring) files no GAAP revenue/EV concepts at all - same
+                    # structural fact already recategorized for total_debt/roic_pct/debt_to_
+                    # equity and this file's own fcf_yield chain above. Live-confirmed SPMC:
+                    # unlike SPY (dead-code case ruled out just below, no sec_valuations row at
+                    # all), SPMC has a real row and was falling through this whole chain to the
+                    # generic "missing_sec_data" (Missing SEC/XBRL data) instead of the correct
+                    # "Legitimate / not applicable" label.
+                    "registered_investment_company_no_xbrl"
+                    if symbol in self._get_registered_investment_company_symbols()
+                    else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
                     # enterprise_value = market_cap + total_debt - total_cash, so it fails
