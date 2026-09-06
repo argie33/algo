@@ -52,7 +52,7 @@ def test_market_exposure_uses_default_str():
 
     from algo.risk.market_exposure import MarketExposure
 
-    source = inspect.getsource(MarketExposure)
+    source = inspect.getsource(MarketExposure._persist)
     assert 'factors_json = json.dumps(result["factors"], default=str)' in source
 
 
