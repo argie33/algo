@@ -41,8 +41,10 @@ class _FakeCursor:
         self._table = table
         self._trade_rows = trade_rows or []
         self._last_select_was_state = False
+        self.executed_queries: list[tuple[str, object]] = []
 
     def execute(self, query, params=None):
+        self.executed_queries.append((query.strip(), params))
         q = query.strip()
         if "FROM algo_risk_monitor_state" in q:
             self._last_select_was_state = True
@@ -77,6 +79,13 @@ class _FakeDbContext:
 
 def _patched_db(table, trade_rows=None):
     return patch("algo.risk.unified_risk_monitor.DatabaseContext", return_value=_FakeDbContext(table, trade_rows))
+
+
+def _patched_db_capturing_context(table, trade_rows=None):
+    """Like _patched_db, but also returns the underlying _FakeDbContext so a test can
+    inspect exactly what SQL was executed (e.g. asserting the advisory lock was taken)."""
+    db_context = _FakeDbContext(table, trade_rows)
+    return patch("algo.risk.unified_risk_monitor.DatabaseContext", return_value=db_context), db_context
 
 
 class TestEscalationLadder:
@@ -130,6 +139,48 @@ class TestEscalationLadder:
         mock_manager.set_halt_flag.assert_called_once()  # halt still (re-)asserted every confirmed run
         mock_act.assert_called_once()
 
+    def test_action_failure_sends_distinct_escalation_alert(self):
+        """Regression for the adversarial-review finding: a position that can't be closed
+        must not just repeat the same routine alert forever - a distinct, filterable
+        'manual intervention required' alert must fire whenever the action reports a
+        failure, on top of (not instead of) the routine RISK_BREACH_HALTED alert."""
+        table = _FakeRiskStateTable()
+        table.upsert("variance", 2, True, "halt", "{}")
+        alerts = MagicMock()
+        mock_manager = MagicMock()
+        with (
+            _patched_db(table),
+            patch("algo.risk.unified_risk_monitor._get_halt_manager", return_value=mock_manager),
+            patch(
+                "algo.risk.unified_risk_monitor._act_reduce_or_flatten",
+                return_value={"closed": [], "failed": [("DELISTED", "position cannot be closed")]},
+            ),
+        ):
+            urm._apply_risk_verdict(
+                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+            )
+        alert_types = [c[0][1] for c in alerts.send_position_alert.call_args_list]
+        assert "RISK_BREACH_ACTION_FAILED_MANUAL_INTERVENTION_REQUIRED" in alert_types
+
+    def test_action_success_does_not_send_failure_escalation_alert(self):
+        table = _FakeRiskStateTable()
+        table.upsert("variance", 2, True, "halt", "{}")
+        alerts = MagicMock()
+        mock_manager = MagicMock()
+        with (
+            _patched_db(table),
+            patch("algo.risk.unified_risk_monitor._get_halt_manager", return_value=mock_manager),
+            patch(
+                "algo.risk.unified_risk_monitor._act_reduce_or_flatten",
+                return_value={"closed": ["AAPL"], "failed": []},
+            ),
+        ):
+            urm._apply_risk_verdict(
+                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+            )
+        alert_types = [c[0][1] for c in alerts.send_position_alert.call_args_list]
+        assert "RISK_BREACH_ACTION_FAILED_MANUAL_INTERVENTION_REQUIRED" not in alert_types
+
     def test_non_breach_resets_streak_to_zero(self):
         table = _FakeRiskStateTable()
         table.upsert("variance", 2, True, "halt", "{}")
@@ -173,6 +224,31 @@ class TestEscalationLadder:
         # here since nothing halted yet) - the real assertion is that set_halt_flag itself
         # is never called across this whole intermittent (never 2-consecutive) sequence.
         mock_manager.set_halt_flag.assert_not_called()
+
+
+class TestConcurrentInvocationSafety:
+    def test_advisory_lock_taken_before_state_read_and_write(self):
+        """Regression for the 2026-09-06 adversarial-review finding: mode=unified_risk_
+        monitor is dispatched directly in lambda_handler, bypassing orchestrator.py's own
+        run lock entirely - two overlapping 5-minute invocations racing _load_state's
+        plain SELECT against _save_state's INSERT would be a lost-update. A transaction-
+        scoped Postgres advisory lock keyed by check_key must be acquired first, so a
+        second concurrent run for the SAME check blocks until the first commits.
+        """
+        table = _FakeRiskStateTable()
+        alerts = MagicMock()
+        patcher, db_context = _patched_db_capturing_context(table)
+        with patcher, patch("algo.risk.unified_risk_monitor._get_halt_manager"):
+            urm._apply_risk_verdict({}, alerts, "variance", True, "breach", {})
+
+        queries = [q for q, _params in db_context._cur.executed_queries]
+        lock_idx = next(i for i, q in enumerate(queries) if "pg_advisory_xact_lock" in q)
+        select_idx = next(i for i, q in enumerate(queries) if "FROM algo_risk_monitor_state" in q)
+        insert_idx = next(i for i, q in enumerate(queries) if "INSERT INTO algo_risk_monitor_state" in q)
+        assert lock_idx < select_idx < insert_idx
+
+        lock_params = db_context._cur.executed_queries[lock_idx][1]
+        assert lock_params == ("variance",)
 
 
 class TestResolveOffendingSymbols:

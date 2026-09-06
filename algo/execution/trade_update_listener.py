@@ -59,17 +59,23 @@ def _run_reconciliation_now(config: Any, trigger_event_type: str, trigger_symbol
     reuses DailyReconciliation's own methods rather than writing anything here directly -
     see this module's docstring for why that's the entire safety argument.
     """
-    from algo.infrastructure.reconciliation import DailyReconciliation
-
-    recon = DailyReconciliation(config)
-    if recon.broker is None:
-        logger.info(
-            f"[TRADE_UPDATE_LISTENER] {trigger_event_type} event for {trigger_symbol} - "
-            "no broker configured (paper/local mode), nothing to reconcile."
-        )
-        return
-
+    # BUG FOUND (adversarial review, 2026-09-06): the try/except below used to start AFTER
+    # DailyReconciliation(config) construction and the recon.broker check - but __init__
+    # itself can raise (e.g. ValueError if config["execution_mode"] is missing), which
+    # would then propagate uncaught, contradicting this function's own "never let a
+    # reconciliation hiccup kill the listener process" contract. The whole thing (build +
+    # check + reconcile) is now inside one try/except.
     try:
+        from algo.infrastructure.reconciliation import DailyReconciliation
+
+        recon = DailyReconciliation(config)
+        if recon.broker is None:
+            logger.info(
+                f"[TRADE_UPDATE_LISTENER] {trigger_event_type} event for {trigger_symbol} - "
+                "no broker configured (paper/local mode), nothing to reconcile."
+            )
+            return
+
         with DatabaseContext("write") as cur:
             fill_result = recon.check_partial_fills(cur)
             exit_result = recon.reconcile_exit_fills(cur, _date.today())

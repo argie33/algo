@@ -99,6 +99,18 @@ class TestRunReconciliationNow:
         ):
             listener._run_reconciliation_now(_config(), "fill", "AAPL")  # must not raise
 
+    def test_daily_reconciliation_construction_failure_is_caught_not_raised(self):
+        """Regression for the 2026-09-06 adversarial-review finding: the try/except used
+        to start AFTER DailyReconciliation(config) construction, so a construction-time
+        failure (e.g. DailyReconciliation.__init__ raises ValueError when config is
+        missing execution_mode) would propagate uncaught - contradicting this function's
+        own 'never let a reconciliation hiccup kill the listener process' contract."""
+        with patch(
+            "algo.infrastructure.reconciliation.DailyReconciliation",
+            side_effect=ValueError("execution_mode missing"),
+        ):
+            listener._run_reconciliation_now(_config(), "fill", "AAPL")  # must not raise
+
 
 class TestListenerAbsenceDegradesLatencyNotCorrectness:
     """Proves the design claim directly: a fill that the listener NEVER saw is still

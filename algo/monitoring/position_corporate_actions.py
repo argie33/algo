@@ -321,20 +321,44 @@ class CorporateActionsMixin:
                 (ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, list(trade_ids_arr)),
             )
         else:
-            logger.warning(
-                f"[POSITION_MONITOR] Split detected for {symbol} (position_id={pos_id}) but "
-                f"trade_ids_arr is empty/NULL - algo_trades entry_price/stop_loss_price/target_N_price "
-                f"were NOT rescaled. R-multiple and profit-target checks for this position's "
+            # ESCALATION FIX (2026-09-06 adversarial review): this was a plain logger.warning
+            # only - every other consumer of an empty/NULL trade_ids_arr in this codebase
+            # (circuit_breaker.py, phase6/phase9_reconciliation.py, executor_exit_handler.py)
+            # treats it as a real, actionable "orphaned position" condition that fails closed
+            # or halts, not a log-and-continue warning. A position left in this state here has
+            # its algo_positions row correctly rescaled but its algo_trades row(s) silently
+            # left at stale pre-split prices - R-multiple and profit-target checks will be
+            # wrong until manual correction, and nothing was loud enough to prompt that
+            # correction. Escalated to a real alert + CRITICAL audit severity, matching how
+            # this exact condition is already treated everywhere else in the codebase.
+            msg = (
+                f"Split detected for {symbol} (position_id={pos_id}) but trade_ids_arr is "
+                f"empty/NULL - algo_trades entry_price/stop_loss_price/target_N_price were "
+                f"NOT rescaled. R-multiple and profit-target checks for this position's "
                 f"underlying trade(s) will use stale pre-split prices until manually corrected."
             )
+            logger.critical(f"[POSITION_MONITOR] {msg}")
+            try:
+                from algo.reporting import notify
 
+                notify("CRITICAL", "Corporate action split - orphaned trade_ids_arr", msg, symbol=symbol)
+            except Exception as notify_err:
+                logger.error(f"[POSITION_MONITOR] Failed to send split-orphan alert: {notify_err}")
+
+        audit_severity = "CRITICAL" if not trade_ids_arr else "WARN"
+        audit_details = (
+            f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {float(split_ratio_dec):.2f}. "
+            f"Stop adjusted {db_stop:.2f} to {new_stop:.2f}."
+        )
+        if not trade_ids_arr:
+            audit_details += " algo_trades NOT rescaled (empty/NULL trade_ids_arr) - manual correction needed."
         cur.execute(
             "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
             (
                 "CORPORATE_ACTION_SPLIT",
                 datetime.now(timezone.utc),
-                f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {float(split_ratio_dec):.2f}. Stop adjusted {db_stop:.2f} to {new_stop:.2f}",
-                "WARN",
+                audit_details,
+                audit_severity,
             ),
         )
 

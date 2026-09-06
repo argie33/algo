@@ -13,7 +13,7 @@ table the exit engine actually reads) and algo_positions (cache/display columns)
 """
 
 import re
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from algo.monitoring.position_monitor import PositionMonitor
 
@@ -124,23 +124,61 @@ class TestSplitAdjustmentRescalesTradePrices:
         duplicates = {col for col in assigned_columns if assigned_columns.count(col) > 1}
         assert not duplicates, f"column(s) assigned more than once in the same UPDATE: {duplicates}"
 
-    def test_no_trade_ids_logs_warning_instead_of_silently_skipping(self) -> None:
-        """If trade_ids_arr is empty/NULL, the stale-price gap must be surfaced via a
-        warning log, not silently left uncorrected with no trace."""
+    def test_no_trade_ids_escalates_to_critical_alert_and_audit_severity(self) -> None:
+        """If trade_ids_arr is empty/NULL, the stale-price gap must be surfaced loudly -
+        a CRITICAL alert (2026-09-06 adversarial-review fix: this used to be only a
+        logger.warning, inconsistent with every other consumer of an empty/NULL
+        trade_ids_arr in this codebase, which all treat it as a real halt-worthy
+        condition) and a CRITICAL algo_audit_log severity, not WARN."""
         monitor = _make_monitor()
         cur = MagicMock()
         adjustments: list = []
 
-        monitor._apply_split_adjustment(
-            cur,
-            pos_id=42,
-            symbol="TEST",
-            db_qty=100,
-            db_stop=90.0,
-            alpaca_qty=200,
-            trade_ids_arr=None,
-            adjustments=adjustments,
-        )
+        with patch("algo.reporting.notify") as mock_notify:
+            monitor._apply_split_adjustment(
+                cur,
+                pos_id=42,
+                symbol="TEST",
+                db_qty=100,
+                db_stop=90.0,
+                alpaca_qty=200,
+                trade_ids_arr=None,
+                adjustments=adjustments,
+            )
 
         trades_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
         assert len(trades_calls) == 0
+
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.args[0] == "CRITICAL"
+
+        audit_calls = [c for c in cur.execute.call_args_list if "INSERT INTO algo_audit_log" in c.args[0]]
+        assert len(audit_calls) == 1
+        audit_params = audit_calls[0].args[1]
+        assert audit_params[-1] == "CRITICAL"
+
+    def test_trade_ids_present_uses_warn_audit_severity_no_alert(self) -> None:
+        """The normal (non-orphaned) split path must stay a routine WARN audit entry with
+        no CRITICAL alert - escalation is specifically for the empty/NULL trade_ids_arr
+        case, not every split."""
+        monitor = _make_monitor()
+        cur = MagicMock()
+        adjustments: list = []
+
+        with patch("algo.reporting.notify") as mock_notify:
+            monitor._apply_split_adjustment(
+                cur,
+                pos_id=42,
+                symbol="TEST",
+                db_qty=100,
+                db_stop=90.0,
+                alpaca_qty=200,
+                trade_ids_arr=[501],
+                adjustments=adjustments,
+            )
+
+        mock_notify.assert_not_called()
+        audit_calls = [c for c in cur.execute.call_args_list if "INSERT INTO algo_audit_log" in c.args[0]]
+        assert len(audit_calls) == 1
+        audit_params = audit_calls[0].args[1]
+        assert audit_params[-1] == "WARN"

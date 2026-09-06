@@ -27,17 +27,22 @@ engineered into WHEN action fires, not into a human checkpoint:
     State persists in `algo_risk_monitor_state` (migration 1260) since each Lambda
     invocation is a fresh process.
   - Confirmed breach -> automatic HALT (HaltFlagManager.set_halt_flag, the same
-    reversible, well-tested, origin-aware primitine circuit-breaker already used
+    reversible, well-tested, origin-aware primitive circuit-breaker already used
     correctly). This alone protects against new entries.
   - Breach still confirmed on the runs AFTER halting (halting alone didn't fix it,
     because it's a concentration/beta problem from EXISTING positions, not new entries)
     -> automatic reduce/flatten through the exact same exit path
     scripts/flatten_all_positions.py uses (TradeExecutor.exit_trade -> ExitHandler -> the
     real order path, never the Alpaca API directly - preserves the fill-vs-cancel race
-    fix, commits bc9b68268/b9c350ee2). Reduces only the identified offending position(s)
-    when the breach type allows pinpointing one (concentration/beta); falls back to a
-    full flatten for a variance/market-health breach where no single position is "the
-    cause."
+    fix, commits bc9b68268/b9c350ee2). CORRECTED 2026-09-06 (adversarial review flagged
+    this claim as broader than the code): today `_resolve_offending_symbols` can only
+    pinpoint one narrow case - a beta breach where a position is missing a beta value
+    entirely (check_intraday_risk returns no other per-symbol beta/concentration
+    contribution data at all). Every other breach shape (variance, market-health, a
+    correctly-scored high-beta position simply dominating exposure, any concentration
+    breach) has no per-symbol data to target and always falls back to a FULL flatten -
+    which is safe, just not "targeted." Building real per-symbol attribution for those
+    cases is a separate follow-up, not yet done.
   - Every automated action still sends an alert (AlertManager) describing exactly what
     was detected and done - this is an audit trail, not a checkpoint. Nothing waits for
     acknowledgment.
@@ -244,6 +249,22 @@ def _apply_risk_verdict(
     the alert is the audit trail, not a gate that blocks the action.
     """
     with DatabaseContext("write") as cur:
+        # RACE CONDITION FIX (found in adversarial review, 2026-09-06): mode="unified_risk_
+        # monitor" is dispatched directly in lambda_handler, bypassing orchestrator.py's own
+        # run()/DB advisory lock entirely - nothing else serializes overlapping invocations
+        # of this check. A slow run (this module's own retry loops on transient API/DB
+        # errors can genuinely exceed the 5-minute schedule interval) can overlap a fresh
+        # invocation. Without locking, _load_state's plain SELECT then _save_state's
+        # INSERT...ON CONFLICT is a classic lost-update: two overlapping runs can both read
+        # the same prior streak count and each independently increment from it, silently
+        # under-counting a real sustained breach - delaying the automatic halt/reduce
+        # exactly when API distress (the same condition causing the overlap) makes
+        # protection matter most. A transaction-scoped advisory lock keyed by check_key
+        # forces a second concurrent run for the SAME check to block until the first
+        # commits (released automatically at transaction end), so it always sees the
+        # already-updated streak rather than a stale one - independent checks (variance vs
+        # beta vs concentration vs market_health) never block each other.
+        cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (check_key,))
         streak = _update_breach_streak(cur, check_key, breached, result)
 
     if not breached:
@@ -277,6 +298,22 @@ def _apply_risk_verdict(
         return {"check": check_key, "breached": True, "streak": streak, "action": "halt"}
 
     action_detail = _act_reduce_or_flatten(config, alerts, check_key, reason, offending_symbols)
+    if action_detail.get("failed"):
+        # ESCALATION FIX (adversarial review, 2026-09-06): a position that genuinely can't
+        # be closed (delisted, halted, Alpaca rejects the exit) previously retried
+        # identically every run with only the same routine RISK_BREACH_AUTO_REDUCED alert
+        # repeating indefinitely - no distinct signal that this specific run's automated
+        # action did NOT succeed and needs a human now, as opposed to a routine confirmed
+        # breach. This is a separate, more urgent alert on top of that one (not instead of
+        # it) so an operator can filter/page on this specific type.
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_ACTION_FAILED_MANUAL_INTERVENTION_REQUIRED",
+            f"{check_key}: automated reduce/flatten could NOT close {len(action_detail['failed'])} "
+            f"position(s) - this will keep retrying every run but requires manual intervention "
+            f"now: {action_detail['failed']}",
+            action_detail,
+        )
     return {
         "check": check_key,
         "breached": True,
