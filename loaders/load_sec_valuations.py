@@ -1361,6 +1361,18 @@ class SecValuationsLoader(
             )
             if cur.fetchone() is not None:
                 result["reason"] = "no_revenue_reported"
+                return
+        # FIXED 2026-09-06 (same-day follow-up): a small number of pre-merger SPAC shells are
+        # SEC-classified under their intended TARGET industry's SIC code, not 6770 "Blank
+        # Checks" - the sic_description check above structurally can't catch these. Individually
+        # verified (not a name-pattern heuristic - matches this codebase's established
+        # discipline for exactly this kind of narrow exception, see sec_dual_class_eps.py's
+        # _VERIFIED_BRAND_NAME_ALIASES): both have zero revenue reported in every fiscal year on
+        # file (annual_income_statement), consistent with a real pre-merger shell despite the
+        # off-taxonomy SIC code. Churchill Capital is a well-known serial SPAC sponsor (SIC 3569
+        # here); Columbus Circle Capital Corp II is SIC 7373.
+        if symbol in ("CCXI", "CMII"):
+            result["reason"] = "no_revenue_reported"
 
     # FIXED 2026-08-20 (goal: finance-accuracy audit, part 2): yfinance_snapshot (the table
     # the cross-check below reads) has had no live writer since Session 275 and was frozen

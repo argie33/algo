@@ -71,6 +71,23 @@ class TestSecValuationsBlankCheckAllValuationMetricsNullReason:
 
         assert result["reason"] == "all_valuation_metrics_null"
 
+    def test_off_taxonomy_verified_spac_gets_no_revenue_reported(self, monkeypatch):
+        """CCXI (Churchill Capital Corp XI, SIC 3569) and CMII (Columbus Circle Capital Corp
+        II, SIC 7373) are individually-verified pre-merger SPAC shells (zero revenue in every
+        fiscal year on file) that SEC classifies under their intended target industry's SIC
+        rather than 6770 "Blank Checks", so the sic_description check above can't catch them -
+        same narrow, individually-verified-exception discipline as sec_dual_class_eps.py's
+        _VERIFIED_BRAND_NAME_ALIASES, not a name-pattern heuristic."""
+        import loaders.load_sec_valuations as mod
+
+        monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=False))
+        loader = _make_loader()
+
+        for symbol in ("CCXI", "CMII"):
+            result: dict = {"reason": "all_valuation_metrics_null"}
+            loader._recategorize_blank_check_all_valuation_metrics_null_reason(symbol, result)
+            assert result["reason"] == "no_revenue_reported"
+
     def test_does_not_touch_a_different_already_specific_reason(self, monkeypatch):
         # Guard against ever overriding anything other than the exact generic
         # "all_valuation_metrics_null" fallback this method targets, even for a SIC-matched
