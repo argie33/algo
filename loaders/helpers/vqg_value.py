@@ -852,6 +852,14 @@ class ValueMetricsMixin(SymbolGateMixin):
                     # Real revenue exists in an earlier year, just not the current anchor year.
                     else "revenue_absent_from_anchor_year"
                     if symbol in self._get_revenue_absent_from_anchor_year_symbols()
+                    # FIXED 2026-09-05 (goal session: "implausible values" sweep): load_sec_
+                    # valuations.py's own ev_revenue computation now rejects a real revenue-per-
+                    # share below MIN_PLAUSIBLE_PS_RATIO's $0.10 floor (same fix as ps_ratio,
+                    # which divides by the identical ttm_revenue) - reuse ps_ratio's own
+                    # implausibility check computed above rather than a second DB round-trip,
+                    # since the two share the exact same real economic cause.
+                    else "implausible_ratio"
+                    if _ps_implausible_ratio
                     # ev_revenue is one of the fields _sanity_check_market_cap nulls on a shares-
                     # outstanding scale mismatch; placed last so a real revenue-shaped cause wins.
                     else "shares_outstanding_scale_mismatch"

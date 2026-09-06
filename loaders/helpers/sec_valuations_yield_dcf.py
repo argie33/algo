@@ -34,6 +34,7 @@ class SecValuationYieldDcfMixin:
     MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO: float
     DCF_NET_BORROWING_MAX_FCF_MULTIPLE: float
     DCF_NET_BORROWING_MIN_RETAINED_FRACTION: float
+    MIN_PLAUSIBLE_PS_RATIO: float
 
     # Type-only declaration, TYPE_CHECKING-only so it exists for mypy but never shadows the
     # real method at runtime - the real implementation lives on DcfValuationMixin, which
@@ -229,9 +230,27 @@ class SecValuationYieldDcfMixin:
                 logger.debug(f"[{symbol}] EV/EBITDA out of bounds ({ev_ebitda:.0f}), marking as NULL")
 
         # EV / Revenue Ratio
+        #
+        # FIXED 2026-09-05 (goal session: "implausible values" sweep): the bare 0..10000 bound
+        # is the same ceiling ps_ratio uses (both divide by the identical ttm_revenue), but
+        # this never got ps_ratio's OTHER real rejection criterion - a real revenue-per-share
+        # below $0.10 (MIN_PLAUSIBLE_PS_RATIO's sibling floor) implies an economically
+        # meaningless EV/Revenue multiple that's nonetheless technically under 10000. Live-
+        # confirmed ABSI (Absci Corp): real FY2025 revenue $2.8M against 136.8M shares =
+        # $0.0205/share - the exact same tiny-revenue-per-share shape ps_ratio's own fix
+        # rejects, yet ev_revenue=425.28 (a real number, computed correctly, just not a
+        # meaningful valuation multiple) was accepted here on the same row ps_ratio was
+        # correctly nulled on. Reuses ps_ratio's own $0.10 floor rather than inventing a new
+        # threshold - same revenue, same real economic problem, same fix.
         if result["enterprise_value"] and ttm_revenue and ttm_revenue > 0:
             ev_revenue = result["enterprise_value"] / ttm_revenue
-            if 0 < ev_revenue <= 10000:  # Reasonable bounds
+            # entity_shares_out unavailable is a genuinely separate, rarer gap (already covered
+            # by ev_revenue_unavailable_reason's own shares_outstanding_scale_mismatch/missing
+            # handling elsewhere) - only apply the extra per-share floor when a real share count
+            # exists to check it against, same "don't demand data this computation doesn't
+            # fundamentally need" discipline as everywhere else in this codebase.
+            _ev_revenue_per_share_ok = entity_shares_out is None or (ttm_revenue / entity_shares_out) >= 0.10
+            if 0 < ev_revenue <= 10000 and _ev_revenue_per_share_ok:
                 result["ev_revenue"] = round(ev_revenue, 2)
             else:
                 logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
