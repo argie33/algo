@@ -3104,6 +3104,17 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # Statement of Changes in Net Assets" fact already recategorized for those
                     # dependents.
                     "total_debt",
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): interest_coverage's own ternary chain (~line 2522) can produce
+                    # "interest_expense_not_itemized" for a RIC (no interest-expense concept in
+                    # a Statement of Changes in Net Assets), and that reason was already listed
+                    # in _ric_source_reasons below as something this loop should catch - but
+                    # "interest_coverage" itself was never added to this recategorize-fields
+                    # tuple, so the catch never fired. The sibling royalty-trust block just
+                    # above (_trust_recategorize_fields) already includes "interest_coverage" -
+                    # this was a half-wired fix, not a deliberate omission. Live-confirmed 7
+                    # active-universe RIC symbols stuck on the generic reason.
+                    "interest_coverage",
                 )
                 _ric_source_reasons = {
                     "missing_sec_data",
