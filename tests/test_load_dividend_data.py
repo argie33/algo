@@ -470,3 +470,69 @@ def test_declared_and_paid_disagreeing_amount_same_period_still_collapses() -> N
     assert len(records) == 1
     assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)
     assert records[0]["source"] == "SEC_XBRL_CommonStockDividendsPerShareDeclared"
+
+
+def test_cumulative_ytd_restatement_of_same_dividend_not_double_counted() -> None:
+    """Live bug, confirmed 2026-09-05 via TASK (TaskUs): a real Q1 2026 special dividend
+    (start=2026-01-01, end=2026-03-31, val=3.65) and TaskUs's own H1 2026 cumulative fact
+    (start=2026-01-01, end=2026-06-30, val=3.65 - i.e. Q2 contributed exactly $0) both
+    survived as independent dividend rows with two different derived ex-dividend dates,
+    doubling this one real payment into two ($3.65 -> $7.30 combined) - inflating
+    dividend_yield enough to trip the coverage dashboard's implausible-ratio bound.
+    earliest_fact_by_period dedupes by period END DATE alone, with no notion of duration,
+    so a same-value cumulative restatement whose end date differs from an already-counted
+    shorter period was never caught. Must keep only the shorter, more precise period when
+    a longer period's value exactly matches (containment + identical value)."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [
+                            {"val": 3.65, "filed": "2026-05-07", "start": "2026-01-01", "end": "2026-03-31"},
+                            {"val": 3.65, "filed": "2026-08-06", "start": "2026-01-01", "end": "2026-06-30"},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(3.65)
+    # The shorter (more precise) Q1 period must win, not the H1 cumulative restatement.
+    assert records[0]["ex_dividend_date"].isoformat() == "2026-05-15"
+
+
+def test_annual_total_summing_two_distinct_quarters_is_not_dropped() -> None:
+    """Control for the fix above: a longer-duration fact must ONLY be dropped when its
+    value exactly matches a contained shorter fact - an annual total that's the genuine
+    SUM of two distinct same-size quarterly dividends (0.55+0.55=1.10) is real, additional
+    information this loader can't safely decompose further, so it must survive as its own
+    row rather than being guessed away just because it overlaps a quarter."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [
+                            {"val": 1.10, "filed": "2023-01-30", "start": "2022-01-01", "end": "2022-12-31"},
+                            {"val": 0.55, "filed": "2022-08-15", "start": "2022-04-01", "end": "2022-06-30"},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 2
+    per_share = sorted(float(r["dividend_per_share"]) for r in records)
+    assert per_share == pytest.approx([0.55, 1.10])

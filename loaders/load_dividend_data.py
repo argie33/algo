@@ -163,6 +163,43 @@ class DividendDataLoader(SecLoaderBase):
         super().__init__(backfill_days)
         self.sec_client = SecEdgarClient()
 
+    @staticmethod
+    def _cumulative_restatement_end_dates(facts_by_end_date: dict[str, dict[str, Any]]) -> set[str]:
+        """End-date keys of facts that are a cumulative (YTD) restatement of an already-
+        counted shorter period, not a distinct additional dividend - see
+        _extract_dividends_from_xbrl_concept's own 2026-09-05 comment for the full TASK
+        (TaskUs) live evidence this was found from.
+
+        When one fact's [start, end] span strictly CONTAINS another's and they report the
+        IDENTICAL value, the longer-duration fact is a restatement of the same payment(s),
+        not additional income - its end date is returned so the caller can drop it and keep
+        only the shorter, more precise period. Deliberately does NOT flag the case where a
+        longer fact's value differs from every contained shorter fact's value (e.g. a real
+        annual total that's the SUM of two distinct same-size quarterly dividends,
+        0.55+0.55=1.10) - that's genuine additional information this loader can't safely
+        decompose further, so it's left alone.
+        """
+        contained_end_dates: set[str] = set()
+        for end_str, outer in facts_by_end_date.items():
+            outer_start, outer_end, outer_val = outer.get("start"), outer.get("end"), outer.get("val")
+            if not outer_start or not outer_end:
+                continue
+            for inner_end_str, inner in facts_by_end_date.items():
+                if inner_end_str == end_str:
+                    continue
+                inner_start, inner_end, inner_val = inner.get("start"), inner.get("end"), inner.get("val")
+                if not inner_start or not inner_end or inner_val != outer_val:
+                    continue
+                # Containment: inner's span sits fully inside outer's. outer_end != inner_end
+                # is already guaranteed (both are dict keys), so containment here always means
+                # outer is strictly the longer period - never two identical-span facts
+                # (those already deduped by filed_str before this runs, keyed on the same
+                # end date).
+                if outer_start <= inner_start and inner_end <= outer_end:
+                    contained_end_dates.add(end_str)
+                    break
+        return contained_end_dates
+
     def _extract_dividends_from_xbrl_concept(
         self, symbol: str, us_gaap: dict[str, Any], concept_name: str
     ) -> list[dict[str, Any]]:
@@ -272,6 +309,26 @@ class DividendDataLoader(SecLoaderBase):
                     # across calls, so mutating `fact` in place would corrupt that cache and
                     # double-apply the conversion on a later lookup.
                     earliest_fact_by_period[end_str] = {**fact, "val": value}
+
+        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data"/implausible-values sweep,
+        # dividend_yield implausible_ratio investigation): earliest_fact_by_period dedupes by
+        # period END DATE alone - it has no notion of a fact's DURATION, so a same-value
+        # cumulative (YTD) restatement of an already-counted period survives as a completely
+        # separate "dividend" because its end date differs from the shorter period's. Live-
+        # confirmed via TASK (TaskUs): a real Q1 2026 special dividend (start=2026-01-01,
+        # end=2026-03-31, val=3.65) and the SAME company's H1 2026 cumulative fact
+        # (start=2026-01-01, end=2026-06-30, val=3.65 - i.e. Q2 contributed exactly $0) both
+        # survived as independent dividend_data rows with two different derived ex-dividend
+        # dates, doubling this one real payment into two ($3.65 -> $7.30) - inflating
+        # dividend_yield enough to trip the implausible-ratio bound. NOT limited to the new
+        # special dividend: the SAME shape affects TASK's own older, previously-trusted
+        # history too - FY2021's annual fact (2021-01-01..2021-12-31, val=0.55) and the Q2
+        # 2021 quarterly fact (2021-04-01..2021-06-30, val=0.55) are the same single real
+        # dividend (TaskUs paid exactly once that year), not two. See
+        # _drop_cumulative_restatements's own docstring for the fix itself (split out here,
+        # pushed this function's own cyclomatic complexity over ruff's C901 limit).
+        for end_str in self._cumulative_restatement_end_dates(earliest_fact_by_period):
+            del earliest_fact_by_period[end_str]
 
         for fact in earliest_fact_by_period.values():
             try:
