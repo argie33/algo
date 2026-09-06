@@ -847,6 +847,86 @@ class EntryHandler:
         )
         return is_valid, error_msg, error_details if error_details else {}
 
+    def _recover_bracket_cancel_race(
+        self,
+        symbol: str,
+        trade_id: str,
+        alpaca_order_id: str,
+        shares: Decimal,
+        order_send_time: float | None,
+        rejection_reason: str | None,
+        failure_context: str,
+    ) -> tuple[bool, str, str, str, Decimal | None, str | None, float | None] | None:
+        """Cancel a bracket order, then check whether the entry leg actually filled during
+        the cancel race despite the caller's reason for cancelling it (missing protective
+        legs, fill-wait timeout, etc). Returns a ready-to-return success tuple if a real fill
+        is found (shares exist at the broker - must never be silently discarded), or None if
+        cancellation left genuinely zero shares filled (safe to report failure as before).
+
+        BUG FOUND 2026-09-05 (real-money-readiness audit): the missing-leg validation branches
+        below used to call `self.context._cancel_bracket_orders(alpaca_order_id)` and discard
+        its return value entirely, unlike this exact race-recovery logic that already existed
+        for the fill-wait-timeout path. A bracket whose stop-loss/take-profit leg gets rejected
+        by Alpaca while the entry leg fills the instant the cancel request lands would silently
+        report `order_ok=False` -> in execution_mode="auto" the caller takes the "hard stop, do
+        NOT create a trade record" path (correct when nothing filled) - but real shares were
+        held at the broker with zero DB record and zero stop-loss, invisible to every downstream
+        risk/exit check. Extracted so all three cancel-then-check-for-a-race call sites share
+        the same correct behavior instead of two of them dropping it.
+        """
+        cancel_result: dict[str, Any] = {}
+        try:
+            cancel_result = self.context._cancel_bracket_orders(alpaca_order_id)
+        except (
+            OrderExecutionError,
+            DatabaseError,
+            RuntimeError,
+            requests.RequestException,
+            requests.Timeout,
+        ) as e:
+            logger.warning(f"Failed to cancel {failure_context} order {alpaca_order_id}: {e}")
+
+        raced_filled_qty = cancel_result.get("filled_qty") if isinstance(cancel_result, dict) else None
+        if not raced_filled_qty:
+            return None
+
+        raced_price = cancel_result.get("filled_avg_price")
+        if raced_price is None:
+            raise RuntimeError(
+                f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: {raced_filled_qty} shares "
+                f"filled during the cancel race ({failure_context}) but no fill price was "
+                f"available - cannot record a trade without a price. Position may be untracked; "
+                f"Phase 9's AlpacaSyncManager should catch it."
+            )
+        executed_price = Decimal(str(raced_price))
+        order_status = "partially_filled" if float(raced_filled_qty) < float(shares) else "filled"
+        logger.warning(
+            f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: fill-vs-cancel race detected "
+            f"({failure_context}) - {raced_filled_qty} shares filled @ ${executed_price} despite "
+            f"attempting to cancel. Recording as a real fill, not discarding it."
+        )
+        try:
+            notify(
+                "warning",
+                title=f"Fill-vs-cancel race recovered: {symbol}",
+                message=(
+                    f"Trade {trade_id}: cancel attempted ({failure_context}) but "
+                    f"{raced_filled_qty} shares actually filled @ ${executed_price} - recorded "
+                    f"correctly, not lost."
+                ),
+            )
+        except NotificationError as e:
+            logger.warning(f"Failed to send fill-vs-cancel-race recovery notice for {symbol}: {e}")
+        return (
+            True,
+            "",
+            order_status,
+            alpaca_order_id,
+            executed_price,
+            rejection_reason,
+            order_send_time,
+        )
+
     def _submit_entry_phase(
         self,
         cur: PsycopgCursor[Any],
@@ -917,19 +997,12 @@ class EntryHandler:
 
             if order_class == "bracket":
                 if len(legs) < 2:
-                    # RuntimeError included per the BUG FOUND 2026-08-31 note further down this
-                    # method (cancel_bracket_orders() raises plain RuntimeError on real failures,
-                    # not the TradingError/requests types this tuple used to list alone).
-                    try:
-                        self.context._cancel_bracket_orders(alpaca_order_id)
-                    except (
-                        OrderExecutionError,
-                        DatabaseError,
-                        RuntimeError,
-                        requests.RequestException,
-                        requests.Timeout,
-                    ) as e:
-                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
+                    failure_context = f"bracket missing stop loss leg ({len(legs)} legs)"
+                    raced = self._recover_bracket_cancel_race(
+                        symbol, trade_id, alpaca_order_id, shares, order_send_time, rejection_reason, failure_context
+                    )
+                    if raced is not None:
+                        return raced
                     return (
                         False,
                         f"Bracket order missing stop loss leg ({len(legs)} legs)",
@@ -944,23 +1017,17 @@ class EntryHandler:
                 has_take_profit = any(leg.get("order_type") == "limit" for leg in legs if isinstance(leg, dict))
 
                 if not has_stop_loss or not has_take_profit:
-                    # RuntimeError included per the BUG FOUND 2026-08-31 note further down this
-                    # method (cancel_bracket_orders() raises plain RuntimeError on real failures).
-                    try:
-                        self.context._cancel_bracket_orders(alpaca_order_id)
-                    except (
-                        OrderExecutionError,
-                        DatabaseError,
-                        RuntimeError,
-                        requests.RequestException,
-                        requests.Timeout,
-                    ) as e:
-                        logger.warning(f"Failed to cancel incomplete bracket order {alpaca_order_id}: {e}")
                     missing = []
                     if not has_stop_loss:
                         missing.append("stop_loss")
                     if not has_take_profit:
                         missing.append("take_profit")
+                    failure_context = f"bracket missing required legs: {', '.join(missing)}"
+                    raced = self._recover_bracket_cancel_race(
+                        symbol, trade_id, alpaca_order_id, shares, order_send_time, rejection_reason, failure_context
+                    )
+                    if raced is not None:
+                        return raced
                     return (
                         False,
                         f"Bracket order missing required legs: {', '.join(missing)}",
@@ -993,63 +1060,20 @@ class EntryHandler:
                 # BUG FOUND 2026-08-31: order_manager.cancel_bracket_orders() raises a plain
                 # RuntimeError on every real failure path (non-retryable status, or 429/503
                 # retries exhausted) - not OrderExecutionError/DatabaseError, which are unrelated
-                # TradingError subclasses, nor requests.RequestException/Timeout. This except
-                # clause could never actually catch a real cancel failure; it silently let the
-                # RuntimeError propagate uncaught out of this method instead of the intended
-                # graceful "log a warning, still report the fill failure" behavior - exactly the
-                # scenario this comment block already documents as "a real, anticipated failure
-                # mode" (order already filled and thus uncancelable, or a live rate-limit
-                # exhaustion) that must not crash the entry pipeline for one symbol.
-                cancel_result: dict[str, Any] = {}
-                try:
-                    cancel_result = self.context._cancel_bracket_orders(alpaca_order_id)
-                except (
-                    OrderExecutionError,
-                    DatabaseError,
-                    RuntimeError,
-                    requests.RequestException,
-                    requests.Timeout,
-                ) as e:
-                    logger.warning(f"Failed to cancel failed order {alpaca_order_id}: {e}")
-
-                raced_filled_qty = cancel_result.get("filled_qty") if isinstance(cancel_result, dict) else None
-                if raced_filled_qty:
-                    raced_price = cancel_result.get("filled_avg_price")
-                    if raced_price is None:
-                        raise RuntimeError(
-                            f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: {raced_filled_qty} shares "
-                            f"filled during the cancel race (fill-vs-cancel race) but no fill price was "
-                            f"available - cannot record a trade without a price. Position may be untracked; "
-                            f"Phase 9's AlpacaSyncManager should catch it."
-                        )
-                    executed_price = Decimal(str(raced_price))
-                    order_status = "partially_filled" if float(raced_filled_qty) < float(shares) else "filled"
-                    logger.warning(
-                        f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: fill-vs-cancel race detected - "
-                        f"{raced_filled_qty} shares filled @ ${executed_price} despite the 30s poll timeout "
-                        f"({fill_error}). Recording as a real fill, not discarding it."
-                    )
-                    try:
-                        notify(
-                            "warning",
-                            title=f"Fill-vs-cancel race recovered: {symbol}",
-                            message=(
-                                f"Trade {trade_id}: order timed out after 30s ({fill_error}) but "
-                                f"{raced_filled_qty} shares actually filled @ ${executed_price} - recorded "
-                                f"correctly, not lost."
-                            ),
-                        )
-                    except NotificationError as e:
-                        logger.warning(f"Failed to send fill-vs-cancel-race recovery notice for {symbol}: {e}")
-                    return (
-                        True,
-                        "",
-                        order_status,
-                        alpaca_order_id,
-                        executed_price,
-                        rejection_reason,
-                        order_send_time,
-                    )
+                # TradingError subclasses, nor requests.RequestException/Timeout. Handled inside
+                # _recover_bracket_cancel_race, which also carries the fill-vs-cancel race
+                # recovery logic shared with the missing-legs validation branches above.
+                raced = self._recover_bracket_cancel_race(
+                    symbol,
+                    trade_id,
+                    alpaca_order_id,
+                    shares,
+                    order_send_time,
+                    rejection_reason,
+                    failure_context=f"30s poll timeout ({fill_error})",
+                )
+                if raced is not None:
+                    return raced
 
                 # Genuinely zero fill - safe to report failure as before.
                 #

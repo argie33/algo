@@ -25,7 +25,7 @@ from psycopg2.extensions import cursor as PsycopgCursor
 if TYPE_CHECKING:
     from algo.trading.handler_context import HandlerContext
 
-from algo.reporting import TradeNotificationService
+from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     AuditLogError,
     DatabaseError,
@@ -740,7 +740,15 @@ class ExitHandler:
         # Calculate shares to exit
         shares_to_exit, full_exit = self._calculate_exit_shares(current_qty, exit_fraction)
 
+        # Needed earlier than before (moved up from just above the order-submission block) so
+        # the cancel-race handling below can distinguish a genuine auto-mode cancel failure from
+        # paper mode's expected "no Alpaca order to cancel" response.
+        execution_mode = self.context.execution_mode
+
         # Cancel bracket orders on full exit
+        raced_filled_qty: float | None = None
+        raced_fill_price: float | None = None
+        raced_fill_closed_position = False
         if full_exit and alpaca_order_id:
             cancel_result = self.context._cancel_bracket_orders(alpaca_order_id)
             if "success" not in cancel_result:
@@ -757,6 +765,107 @@ class ExitHandler:
                     message = "Bracket cancellation failed (no error message provided)"
                 logger.warning(f"Failed to cancel bracket for {trade_id}: {message}")
 
+                # BUG FOUND 2026-09-05 (real-money-readiness audit): a genuine (non-race) cancel
+                # failure in execution_mode="auto" - e.g. rotated/invalid credentials, a network
+                # error, or retries exhausted on a non-transient status - used to just log the
+                # warning above and fall through to submitting a brand-new sell order anyway,
+                # while the original bracket's stop-loss/take-profit legs are still live and
+                # resting at the broker. That's two independent live sell-side orders for the
+                # same position: if the new sell fills and the un-cancelled bracket leg later
+                # also fires, this oversells/shorts the symbol. Paper/dry/review never reach here
+                # with a real order (cancel_bracket_orders reports "Paper mode, no Alpaca order
+                # to cancel (not a failure)" with filled_qty=None, which correctly does NOT match
+                # this branch), so scoping to execution_mode=="auto" only blocks the genuinely
+                # dangerous case. The original bracket legs are left in place (safer than
+                # nothing - the position keeps its existing protection) instead of doubling the
+                # order count; this needs a human/reconciliation pass to actually close the
+                # position cleanly.
+                if execution_mode == "auto" and not cancel_result.get("filled_qty"):
+                    logger.critical(
+                        f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: could not confirm bracket "
+                        f"cancellation ({message}) - aborting the new exit order rather than risk "
+                        f"a duplicate live sell alongside the still-resting bracket legs."
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title=f"Exit blocked - bracket cancel unconfirmed: {symbol}",
+                            message=(
+                                f"Trade {trade_id}: could not confirm bracket order "
+                                f"{alpaca_order_id} was cancelled ({message}). Not submitting a "
+                                f"new sell order to avoid oversell/short risk if the original "
+                                f"bracket legs are still live. Original bracket legs left in "
+                                f"place as protection - needs manual reconciliation to close."
+                            ),
+                            strict=True,
+                        )
+                    except NotificationError as e:
+                        raise RuntimeError(
+                            f"CRITICAL: Failed to send exit-blocked alert for {symbol} "
+                            f"(bracket cancel unconfirmed): {e}. Trader was NOT notified."
+                        ) from e
+                    return {
+                        "success": False,
+                        "trade_id": trade_id,
+                        "shares_exited": 0,
+                        "profit_loss_dollars": None,
+                        "profit_loss_pct": None,
+                        "r_multiple": None,
+                        "full_exit": False,
+                        "is_estimated_price": False,
+                        "message": f"Bracket cancellation unconfirmed ({message}) - exit aborted to avoid a duplicate sell",
+                    }
+
+            # FILL-VS-CANCEL RACE (BUG FOUND 2026-09-05, real-money-readiness audit): neither
+            # branch above checks cancel_result["filled_qty"] - a bracket's stop-loss/take-profit
+            # leg can fill the instant the cancel request lands, regardless of whether Alpaca
+            # reports the cancel itself as success (200/204 on a partial fill, remainder
+            # cancelled) or a 422 "already terminal" failure (fully filled first). This mirrors
+            # executor_entry_handler.py's _recover_bracket_cancel_race, which already handles the
+            # symmetric entry-side race. Discarding it here meant the code below would
+            # unconditionally submit a brand-new sell for the full shares_to_exit regardless of
+            # what the bracket leg already sold - an oversell, or an unintended short if the
+            # position was already fully closed by the raced leg.
+            raw_raced_qty = cancel_result.get("filled_qty")
+            if raw_raced_qty:
+                raced_fill_price = cancel_result.get("filled_avg_price")
+                if raced_fill_price is None:
+                    raise RuntimeError(
+                        f"[EXIT_HANDLER CRITICAL] {trade_id} {alpaca_order_id}: {raw_raced_qty} shares "
+                        f"filled during the bracket-cancel race but no fill price was available - "
+                        f"cannot safely determine the remaining exit quantity."
+                    )
+                raced_filled_qty = float(raw_raced_qty)
+                if raced_filled_qty >= shares_to_exit:
+                    raced_fill_closed_position = True
+                    logger.warning(
+                        f"[EXIT_HANDLER] {trade_id} {symbol}: bracket leg fully filled "
+                        f"({raced_filled_qty}sh @ ${raced_fill_price}) during the cancel race - "
+                        f"position already closed at the broker. Recording that fill instead of "
+                        f"submitting a new exit order (would have oversold/shorted)."
+                    )
+                else:
+                    logger.warning(
+                        f"[EXIT_HANDLER] {trade_id} {symbol}: bracket leg partially filled "
+                        f"{raced_filled_qty}sh @ ${raced_fill_price} during the cancel race - "
+                        f"reducing the new exit order from {shares_to_exit}sh to "
+                        f"{shares_to_exit - raced_filled_qty}sh to avoid double-selling the "
+                        f"already-filled portion."
+                    )
+                    shares_to_exit = shares_to_exit - raced_filled_qty
+                try:
+                    notify(
+                        "critical",
+                        title=f"Fill-vs-cancel race on exit: {symbol}",
+                        message=(
+                            f"Trade {trade_id}: bracket leg filled {raced_filled_qty}sh @ "
+                            f"${raced_fill_price} during a full-exit cancel race - verify no "
+                            f"duplicate/oversold quantity."
+                        ),
+                    )
+                except NotificationError as e:
+                    logger.warning(f"Failed to send fill-vs-cancel-race exit alert for {symbol}: {e}")
+
         # See executor_exit_standalone_stop.py (2026-09-05 real-money-readiness fix).
         if full_exit:
             cancel_standalone_stop_on_full_exit(
@@ -768,7 +877,6 @@ class ExitHandler:
             )
 
         # Execute exit order (if not review/paper mode)
-        execution_mode = self.context.execution_mode
         actual_fill_price = None
         exit_order_result = {"success": False, "message": "No order sent"}
         # CRITICAL FIX: only "auto" mode has genuine fill-price uncertainty (a submitted
@@ -799,7 +907,22 @@ class ExitHandler:
         # once fresh data lands.
         is_estimated_price = execution_mode == "auto" or price_is_estimated
 
-        if execution_mode == "auto":
+        if execution_mode == "auto" and raced_fill_closed_position:
+            # The bracket leg already fully filled during the cancel race above - submitting a
+            # new sell here would oversell/short a position that's already closed at the broker.
+            if raced_fill_price is None:
+                raise RuntimeError(
+                    f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: raced_fill_closed_position=True "
+                    f"but raced_fill_price is None - should be unreachable (set together above)."
+                )
+            exit_order_result = {
+                "success": True,
+                "message": "Closed by bracket leg fill during cancel race",
+                "filled_price": raced_fill_price,
+            }
+            actual_fill_price = raced_fill_price
+            is_estimated_price = False
+        elif execution_mode == "auto":
             exit_order_result = self.context._send_alpaca_exit(
                 symbol, shares_to_exit, trade_id, exit_price=exit_price, exit_stage=exit_stage
             )
@@ -869,8 +992,6 @@ class ExitHandler:
                     logger.error(f"[EXIT_HANDLER] Exit order result missing error message for {symbol}")
                     error_message = "Exit order failed (no error message provided)"
                 try:
-                    from algo.reporting import notify
-
                     notify(
                         "critical",
                         title=f"EXIT ORDER FAILED: {symbol}",
