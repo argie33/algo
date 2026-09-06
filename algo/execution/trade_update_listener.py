@@ -4,6 +4,24 @@ rebuild, 2026-09-06 - see memory/intraday_monitoring_architecture_gap_20260906.m
 audit that found order/fill state was 100% REST polling, invoked only when the
 orchestrator runs).
 
+Talks Alpaca's trading-stream protocol directly over a raw websocket (the `websockets`
+package - already a transitive dependency of yfinance>=1.4.1's own websockets>=13.0
+requirement, now declared directly in requirements.txt since this module relies on it
+explicitly) rather than via the `alpaca-trade-api` SDK's `Stream` class originally used
+here: that SDK hard-pins `websockets<11`, which made requirements.txt's `alpaca-trade-api`
++ `yfinance` combination literally uninstallable (pip ResolutionImpossible, caught by CI
+right after this module was first added). Every other Alpaca call in this codebase already
+uses raw `requests` against the REST API rather than an SDK, for the same reason - one
+fewer dependency surface to keep in sync across the whole requirements.txt.
+
+Protocol (Alpaca's account/trading update stream, distinct from the market-data stream):
+connect to `{base_url with https->wss}/stream`, send `{"action": "auth", "key": ...,
+"secret": ...}`, wait for `{"stream": "authorization", "data": {"status": "authorized"}}`,
+then send `{"action": "listen", "data": {"streams": ["trade_updates"]}}` and read
+`{"stream": "trade_updates", "data": {...}}` messages going forward. This is intentionally
+narrow - just enough to know "something changed, go look now" (see DESIGN CONSTRAINT below,
+unchanged by this rewrite: this process still never trusts the message payload as truth).
+
 DESIGN CONSTRAINT (do not violate): this process is a LATENCY ACCELERANT ONLY, never a
 second source of fill truth. On every trade_updates event it does not write any DB row
 itself - it triggers the exact same reconciliation methods
@@ -31,6 +49,8 @@ repo's infrastructure (everything else is Lambda or scheduled/triggered batch EC
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 import sys
@@ -51,6 +71,14 @@ logger = logging.getLogger(__name__)
 # so a genuine outage doesn't spin-loop against Alpaca's API.
 RECONNECT_BASE_DELAY_SECONDS = 2
 RECONNECT_MAX_DELAY_SECONDS = 60
+
+# Only the account/trading update stream, deliberately not the separate market-data stream
+# (unrelated to this listener's purpose - order/fill events only).
+_STREAM_PATH = "/stream"
+_RELEVANT_EVENTS = frozenset({"fill", "partial_fill", "canceled", "rejected", "expired"})
+# Alpaca's own idle-connection timeout is well under this; a missed ping means the
+# connection is already dead, so failing fast here just gets to reconnect sooner.
+_WEBSOCKET_PING_TIMEOUT_SECONDS = 30
 
 
 def _run_reconciliation_now(config: Any, trigger_event_type: str, trigger_symbol: str | None) -> None:
@@ -94,27 +122,34 @@ def _run_reconciliation_now(config: Any, trigger_event_type: str, trigger_symbol
         )
 
 
-async def _handle_trade_update(config: Any, data: Any) -> None:
-    """Alpaca trade_updates event handler. `data` is the SDK's TradeUpdate object -
-    only `data.event` and `data.order['symbol']` are used, both purely for logging/routing
-    to the reconciliation trigger above; nothing here is trusted as ground truth (see
-    module docstring)."""
-    event_type = getattr(data, "event", "unknown")
-    order = getattr(data, "order", {}) or {}
+async def _handle_trade_update(config: Any, message: dict[str, Any]) -> None:
+    """Handle one `{"stream": "trade_updates", "data": {...}}` message. Only `data.event`
+    and `data.order.symbol` are used, both purely for logging/routing to the reconciliation
+    trigger above; nothing here is trusted as ground truth (see module docstring)."""
+    data = message.get("data") or {}
+    event_type = data.get("event") if "event" in data else "unknown"
+    order = data.get("order") or {}
     symbol = order.get("symbol") if isinstance(order, dict) else None
 
-    if event_type not in ("fill", "partial_fill", "canceled", "rejected", "expired"):
+    if event_type not in _RELEVANT_EVENTS:
         return
 
     logger.info(f"[TRADE_UPDATE_LISTENER] Received {event_type} for {symbol}")
     _run_reconciliation_now(config, event_type, symbol)
 
 
-def _build_stream(config: Any) -> Any:
-    # Imported lazily so this module can be imported (and its handler logic unit-tested)
-    # without the alpaca_trade_api package needing to be importable in every environment
-    # that imports this module.
-    from alpaca_trade_api.stream import Stream
+def _get_stream_url(config: Any) -> str:
+    base_url = get_alpaca_base_url(config.get("execution_mode"))
+    ws_base = base_url.replace("https://", "wss://").replace("http://", "ws://")
+    return f"{ws_base}{_STREAM_PATH}"
+
+
+async def _run_stream_once(config: Any) -> None:
+    """Connect, authenticate, subscribe, and consume trade_updates messages until the
+    connection drops or errors - one full connection lifecycle. Imports `websockets`
+    lazily so this module can be imported (and its handler logic unit-tested) without that
+    package needing to be importable in every environment that imports this module."""
+    import websockets
 
     creds = get_alpaca_credentials()
     key = creds.get("key")
@@ -122,21 +157,32 @@ def _build_stream(config: Any) -> Any:
     if not key or not secret:
         raise RuntimeError("[TRADE_UPDATE_LISTENER] Alpaca credentials unavailable - cannot start websocket listener.")
 
-    base_url = get_alpaca_base_url(config.get("execution_mode"))
-    stream = Stream(key, secret, base_url=base_url)
+    url = _get_stream_url(config)
+    async with websockets.connect(url, ping_timeout=_WEBSOCKET_PING_TIMEOUT_SECONDS) as ws:
+        await ws.send(json.dumps({"action": "auth", "key": key, "secret": secret}))
+        auth_reply = json.loads(await ws.recv())
+        auth_status = (auth_reply.get("data") or {}).get("status") if isinstance(auth_reply, dict) else None
+        if auth_status != "authorized":
+            raise RuntimeError(f"[TRADE_UPDATE_LISTENER] Alpaca stream auth failed: {auth_reply}")
 
-    async def _handler(data: Any) -> None:
-        await _handle_trade_update(config, data)
+        await ws.send(json.dumps({"action": "listen", "data": {"streams": ["trade_updates"]}}))
+        logger.info("[TRADE_UPDATE_LISTENER] Authenticated and subscribed to trade_updates.")
 
-    stream.subscribe_trade_updates(_handler)
-    return stream
+        async for raw_message in ws:
+            try:
+                message = json.loads(raw_message)
+            except (TypeError, ValueError) as e:
+                logger.warning(f"[TRADE_UPDATE_LISTENER] Dropping unparseable message: {e}")
+                continue
+            if isinstance(message, dict) and message.get("stream") == "trade_updates":
+                await _handle_trade_update(config, message)
 
 
 def run_forever() -> None:
-    """Reconnect/backoff loop around the Stream client. Alpaca's websocket disconnects
-    routinely (idle timeouts, server restarts) - `stream.run()` blocking calls are expected
-    to eventually return/raise, and this loop is what makes the process actually always-on
-    rather than exiting on the first disconnect.
+    """Reconnect/backoff loop around the websocket connection. Alpaca's websocket disconnects
+    routinely (idle timeouts, server restarts) - `_run_stream_once` returning/raising is
+    expected, and this loop is what makes the process actually always-on rather than exiting
+    on the first disconnect.
     """
     config = get_config()
     delay = RECONNECT_BASE_DELAY_SECONDS
@@ -145,9 +191,8 @@ def run_forever() -> None:
     while True:
         try:
             logger.info("[TRADE_UPDATE_LISTENER] Connecting to Alpaca trade_updates stream...")
-            stream = _build_stream(config)
-            stream.run()  # blocks until disconnected/error
-            logger.warning("[TRADE_UPDATE_LISTENER] Stream.run() returned - reconnecting.")
+            asyncio.run(_run_stream_once(config))
+            logger.warning("[TRADE_UPDATE_LISTENER] Stream connection closed - reconnecting.")
             consecutive_failures = 0
             delay = RECONNECT_BASE_DELAY_SECONDS
         except Exception as e:

@@ -17,10 +17,12 @@ pydantic==2.8.2
 lxml==6.1.0
 openpyxl==3.1.0
 playwright==1.48.0
-# alpaca-trade-api: ONLY for algo/execution/trade_update_listener.py's Stream client
-# (real-time trade_updates websocket, 2026-09-06 real-money-readiness architecture rebuild).
-# Every other Alpaca call in this codebase uses raw `requests` against the REST API
-# directly (order_manager.py, position_order_management.py, etc.) - do not use this SDK
-# for anything else; that would create two different Alpaca client conventions to keep in
-# sync. Version pinned to match the one already used in lambda/requirements.txt.
-alpaca-trade-api==3.2.0
+# websockets: algo/execution/trade_update_listener.py's raw Alpaca trade_updates stream
+# consumer (2026-09-06 real-money-readiness architecture rebuild). Originally implemented
+# via the alpaca-trade-api SDK's Stream class, but that SDK hard-pins websockets<11, which
+# directly conflicts with yfinance==1.4.1's own websockets>=13.0 floor above - the two could
+# never coexist in this requirements.txt (pip ResolutionImpossible). Rewritten to speak
+# Alpaca's trading-stream protocol directly over this package instead, consistent with
+# every other Alpaca call in this codebase already using raw `requests` rather than an SDK.
+# Floor matches yfinance's own >=13.0 requirement, no new upper bound introduced.
+websockets>=13.0

@@ -27,7 +27,7 @@
   "algo/config/orchestrator_config.py": 147,
   "algo/exceptions.py": 347,
   "algo/execution/__init__.py": 0,
-  "algo/execution/trade_update_listener.py": 218,
+  "algo/execution/trade_update_listener.py": 217,
   "algo/infrastructure/__init__.py": 37,
   "algo/infrastructure/alpaca_broker_adapter.py": 505,
   "algo/infrastructure/alpaca_mock_server.py": 220,
