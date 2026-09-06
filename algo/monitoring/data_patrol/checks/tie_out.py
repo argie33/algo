@@ -136,7 +136,18 @@ _FINANCIAL_INTERMEDIARY_SIC_CODES = (6200, 6211, 6221)
 # float, the same "operations dwarf retained cash" shape as a broker-dealer, just under an
 # e-commerce SIC code that a blanket 7389 exclusion would be far too broad to safely add (that
 # code covers many unrelated ordinary "business services" filers).
-_CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST = frozenset({"MELI"})
+#
+# AXP (American Express, SIC 6199 "finance services" - too broad a catch-all to exclude
+# wholesale, also covers ordinary non-intermediary finance companies): live-confirmed FY2025
+# NetCashProvidedByUsedInFinancingActivities is a real, SEC-tagged $11.21B against
+# CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents of $47.79B, most of it
+# card-member-deposit restricted float - the same "gross customer balance dwarfs the filer's
+# own cash flow" shape as the SIC-excluded broker-dealers/exchanges above.
+#
+# CRCL (Circle, stablecoin issuer, also SIC 6199): live-confirmed FY2025 financing activities
+# is a real $31.94B against $77.42B of (mostly USDC reserve) restricted cash - stablecoin
+# mint/redeem flows are the entire business, not a reconciliation error.
+_CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST = frozenset({"MELI", "AXP", "CRCL"})
 
 
 class TieOutChecker(BaseCheck):

@@ -135,6 +135,18 @@ class TestCashflowReconciliation:
         params = cur.execute.call_args[0][1]
         assert 6022 in params[0]  # state commercial banks SIC code present in exclusion list
 
+    def test_query_excludes_individually_verified_embedded_fintech_symbols(self) -> None:
+        """MELI/AXP/CRCL have the same structural embedded-fintech-float cash-flow mismatch as
+        the SIC-coded exchanges/broker-dealers but their own SIC codes (7389, 6199) are too
+        generic to exclude wholesale - see _CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST's comment."""
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_cashflow_reconciliation(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "cf.symbol = ANY(%s)" in executed_sql
+        params = cur.execute.call_args[0][1]
+        assert set(params[1]) == {"MELI", "AXP", "CRCL"}
+
     def test_query_dedups_cash_flow_cte_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
