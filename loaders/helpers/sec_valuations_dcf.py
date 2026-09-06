@@ -436,6 +436,112 @@ class DcfValuationMixin:
             return None
         return float(((newest_eps / oldest_eps) ** (1 / n_years) - 1) * 100)
 
+    @staticmethod
+    def _validate_dual_class_eps_cagr(
+        cur: Any,
+        symbol: str,
+        has_dual_class_sibling: bool,
+        income_rows: list[tuple[Any, ...]],
+        dcf_eps_cagr_pct: float | None,
+    ) -> float | None:
+        """Discard a multi-year EPS CAGR whose two endpoint fiscal years don't scale
+        consistently against a dual-class sibling's own EPS for those same years.
+
+        ADDED 2026-09-06 (goal session: "digging into symbols we know" audit). EPS is
+        class-specific but must always scale by the security's fixed conversion ratio
+        between siblings (e.g. BRK.A:BRK.B is a structurally fixed 1500:1, enforced by the
+        charter, not an estimate) - so the ratio of this symbol's EPS to its sibling's EPS
+        in any given fiscal year should be identical across years. Live-confirmed BRK.A/
+        BRK.B: FY2023-2025 EPS ratio is consistently ~1500.0-1500.2, but FY2020-2022 is
+        ~2715.0 in every one of those three years - an internally-consistent-with-itself
+        but wrong-relative-to-the-known-current-ratio scaling bug in the older annual_income_
+        statement rows (likely a mistagged XBRL concept/dimension for those historical
+        filings), not a one-off data-entry typo in a single cell. _compute_multi_year_eps_cagr
+        picks its two endpoints independently per symbol with no cross-symbol awareness, so
+        BRK.A's CAGR endpoints landed on a correctly-scaled year (2025) and a
+        wrongly-scaled year (2020), while BRK.B's landed on two more recently-scaled years -
+        producing dcf_eps_cagr_pct of -10.93%/yr for BRK.A vs +0.29%/yr for BRK.B for what
+        must be the same real-world growth rate, corrupting intrinsic_value_per_share/
+        margin_of_safety_pct/value_score for both tickers (the DCF is otherwise correctly
+        fed entity-wide FCF and a correctly 1500:1-scaled entity_shares_out - see
+        _resolve_separate_class_entity_shares - so this was the last unaccounted-for
+        divergence between the two).
+
+        Cross-checks this symbol's two CAGR endpoint years' EPS against the sibling's EPS
+        for those same years - if the implied ratio moves by more than 15% between the two
+        endpoints (a real conversion ratio never changes for a share class, short of a
+        corporate action neither BRK nor most dual-class filers have), the CAGR is
+        discarded (returns None) so the caller falls back to the single-year eps_growth_pct
+        delta instead, which anchors on the current TTM year alone - already confirmed
+        correctly scaled for BRK.A/BRK.B (FY2025 ratio ~1500.1), the same anchor year every
+        other correctly-behaving ratio in this file already trusts.
+
+        Returns dcf_eps_cagr_pct unchanged when there's no dual-class sibling, no CAGR to
+        check, or the sibling has no usable EPS for one/both endpoint years (nothing to
+        cross-check against, so this guard fails open rather than blocking a legitimate
+        result on a data gap it can't evaluate).
+        """
+        if not has_dual_class_sibling or dcf_eps_cagr_pct is None:
+            return dcf_eps_cagr_pct
+
+        eps_by_year = [(int(row[0]), float(row[3])) for row in income_rows if row[3] is not None and float(row[3]) > 0]
+        if len(eps_by_year) < 2:
+            return dcf_eps_cagr_pct
+        newest_year, newest_eps = eps_by_year[0]
+        oldest_year, oldest_eps = eps_by_year[-1]
+
+        # Local import (not module-level): same circular-import reason as every other
+        # DUAL_CLASS_NO_SEPARATOR_ROOTS user in this file's sibling mixins.
+        from loaders.load_sec_valuations import DUAL_CLASS_NO_SEPARATOR_ROOTS
+
+        base_root = symbol.split(".")[0]
+        no_sep_root = next(
+            (r for r in DUAL_CLASS_NO_SEPARATOR_ROOTS if symbol.startswith(r) and len(symbol) == len(r) + 1),
+            None,
+        )
+        cur.execute(
+            """
+            SELECT ais.fiscal_year, ais.earnings_per_share
+            FROM annual_income_statement ais
+            JOIN stock_symbols s ON s.symbol = ais.symbol AND s.active = TRUE
+            WHERE ais.symbol != %s
+              AND (
+                ais.symbol = %s OR ais.symbol LIKE %s
+                OR (%s::text IS NOT NULL AND ais.symbol LIKE %s AND length(ais.symbol) = %s)
+              )
+              AND ais.fiscal_year IN (%s, %s)
+              AND ais.earnings_per_share IS NOT NULL AND ais.earnings_per_share != 0
+            """,
+            (
+                symbol,
+                base_root,
+                f"{base_root}.%",
+                no_sep_root,
+                f"{no_sep_root}%" if no_sep_root else "__no_such_root__",
+                len(symbol),
+                newest_year,
+                oldest_year,
+            ),
+        )
+        sibling_eps_by_year = {int(row[0]): float(row[1]) for row in cur.fetchall()}
+        sibling_newest = sibling_eps_by_year.get(newest_year)
+        sibling_oldest = sibling_eps_by_year.get(oldest_year)
+        if not sibling_newest or not sibling_oldest:
+            return dcf_eps_cagr_pct
+
+        ratio_newest = abs(newest_eps / sibling_newest)
+        ratio_oldest = abs(oldest_eps / sibling_oldest)
+        larger, smaller = max(ratio_newest, ratio_oldest), min(ratio_newest, ratio_oldest)
+        if smaller > 0 and larger / smaller > 1.15:
+            logger.warning(
+                f"[{symbol}] dual-class EPS CAGR endpoints scale-inconsistent with sibling "
+                f"(FY{newest_year} implied ratio={ratio_newest:.1f}, FY{oldest_year} implied "
+                f"ratio={ratio_oldest:.1f}) - discarding multi-year CAGR, falling back to "
+                "single-year growth"
+            )
+            return None
+        return dcf_eps_cagr_pct
+
     def _compute_dcf_intrinsic_value(
         self,
         symbol: str,

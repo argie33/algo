@@ -911,6 +911,15 @@ class SecValuationsLoader(
                     reported_shares_outstanding,
                 )
 
+                # Cross-check the multi-year DCF growth driver against a dual-class sibling's
+                # own EPS for the same two endpoint years - see
+                # _validate_dual_class_eps_cagr's docstring for the live BRK.A/BRK.B evidence
+                # (FY2020-2022 EPS scaled ~2715:1 instead of the real, fixed 1500:1) that
+                # motivated this guard.
+                dcf_eps_cagr_pct = self._validate_dual_class_eps_cagr(
+                    cur, symbol, has_dual_class_sibling, income_rows, dcf_eps_cagr_pct
+                )
+
                 # Fail if still no shares outstanding available.
                 # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit):
                 # every SEC-sourced tier above that could resolve a foreign private issuer's
