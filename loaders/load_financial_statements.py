@@ -2881,8 +2881,29 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         cross-check against company_info_sec.shares_outstanding (the same independent
         source load_sec_valuations.py's own 20x scale-mismatch guard already trusts for
         exactly this purpose), not just an absolute floor.
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" / tie-out sweep): the
+        relative cross-check just below only runs when company_info_sec.shares_outstanding
+        has a real value for the symbol - NMR (Nomura Holdings, a Japanese 20-F filer) has
+        NULL there, so its shares_outstanding_diluted sailed straight through with no upper
+        bound at all. Live-verified via SEC's own companyfacts API
+        (WeightedAverageNumberOfDilutedSharesOutstanding, CIK0001163653): the RAW SEC-tagged
+        fact itself is 3,041,190,068,000,000 "shares" for FY2026 (and every other fiscal
+        year on file, 2018-2026) - a real filer/filing-agent XBRL tagging error on SEC's
+        side, not an extraction bug in this codebase (net_income and diluted_eps for the
+        same rows are both correct and consistent with each other: implied share count
+        net_income/diluted_eps ~= 3.04 BILLION, exactly 1,000,000x smaller than the tagged
+        3.04 QUADRILLION). An absolute ceiling closes this gap independent of whether a
+        reference value exists. Calibrated against every real value already in this
+        table (2026-09-06 DB scan): the largest genuine share counts on file are NVDA
+        (~24.5-25.1B, real post-split), MFG/Mizuho Financial (~24.5-25.4B, another large
+        Japanese bank ADR), CIGI (~36-38B), AKTX (~24-67B) and UXIN (~63B) - all comfortably
+        under 100B even for the most heavily-diluted real filers. 500B leaves ~7x headroom
+        above the largest genuine value in this table while still catching NMR's (and any
+        similar) many-orders-of-magnitude tagging error.
         """
         min_plausible_shares_outstanding = 100_000
+        max_plausible_shares_outstanding = 500_000_000_000
         for row in transformed:
             for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
                 val = row.get(field)
@@ -2893,6 +2914,16 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                         "- likely an unconverted 'reported in thousands' XBRL value SEC's "
                         "companyfacts API didn't normalize. Rejecting rather than storing a "
                         "confidently-wrong share count."
+                    )
+                    row[field] = None
+                    self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
+                elif val is not None and val > max_plausible_shares_outstanding:
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"{field}={val:,.0f} is implausibly large (> {max_plausible_shares_outstanding:,}) "
+                        "- likely a real filer/filing-agent XBRL tagging error (e.g. NMR's "
+                        "~1,000,000x-too-large tagged share count). Rejecting rather than "
+                        "storing a confidently-wrong share count."
                     )
                     row[field] = None
                     self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
