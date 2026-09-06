@@ -43,11 +43,20 @@ def check_and_repair_one_position(
         try:
             still_live = order_mgr.is_order_still_live(standalone_stop_order_id)
         except Exception as e:
-            logger.warning(
+            # REAL-MONEY-READINESS FIX (2026-09-05 audit): a "skipped" return here is
+            # indistinguishable at the caller from the benign no-trade-id/paper-mode
+            # skips (phase9_reconciliation.py just `continue`s with no alert) - a
+            # persistently-failing verification call for one symbol would silently
+            # never surface to a human, cycle after cycle, for the exact position this
+            # whole check exists to protect. "unrepairable" is the same outcome the
+            # caller already alerts loudly on for a confirmed-missing stop; a
+            # false-positive alert here (transient blip, actually still protected) is
+            # far safer than a silent miss that never gets looked at.
+            logger.critical(
                 f"[PHASE 9] {symbol} (position {pos_id}): could not verify prior repair "
-                f"order {standalone_stop_order_id}: {e}"
+                f"order {standalone_stop_order_id}, cannot confirm protection: {e}"
             )
-            return "skipped"
+            return "unrepairable"
         if still_live:
             return "protected"
         # Repair order is no longer live (filled/cancelled/expired) - fall through and
@@ -68,10 +77,14 @@ def check_and_repair_one_position(
     try:
         result = order_mgr.check_stop_loss_leg_live(alpaca_order_id)
     except Exception as e:
-        logger.warning(
-            f"[PHASE 9] {symbol} (position {pos_id}): could not verify stop-loss leg for order {alpaca_order_id}: {e}"
+        # See the identical rationale on the standalone_stop_order_id check above -
+        # "unrepairable" routes this into the caller's existing loud alert path instead
+        # of a silent, unalerted "skipped" that could recur forever for one symbol.
+        logger.critical(
+            f"[PHASE 9] {symbol} (position {pos_id}): could not verify stop-loss leg for order "
+            f"{alpaca_order_id}, cannot confirm protection: {e}"
         )
-        return "skipped"
+        return "unrepairable"
 
     if not result.get("checked"):
         return "skipped"  # paper/local mode or order no longer resolvable - nothing to verify
