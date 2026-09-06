@@ -12,7 +12,9 @@ sec_statements_aggregate) without recreating the circular-import trap the origin
 single-file layout required a mid-file import to work around.
 """
 
-from utils.external.fx_rates import FxRateCache
+from typing import Any
+
+from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
 
 # FIXED 2026-08-17 (goal: "no SEC data" audit): module-level so the (currency, date)
 # rate cache is shared and its persistent file cache reused across every symbol
@@ -76,3 +78,52 @@ _ANNUAL_REPORT_FORMS = {
     "40-F",
     "40-F/A",
 }
+
+
+def has_unsupported_currency_only_fact(
+    client: Any, symbol: str, us_gaap_concepts: list[str], ifrs_concepts: list[str]
+) -> bool:
+    """True if the filer tagged a real value for one of these concepts, but ONLY under a
+    non-USD, non-major currency (see fx_rates.MAJOR_CURRENCIES) - a genuine SEC data point
+    that exists but can't be safely converted, distinct from a true absence.
+
+    ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): live-confirmed GGAL/BBAR/
+    BSAC/SUPV/TEO/TKC/TGS/TV (Argentine/regional FPI banks/telecoms/utilities filing
+    ifrs-full "Assets" only under unit="ARS", never USD or any major currency).
+    _aggregate_concepts already correctly skips a non-major-currency fact (no reliable FX
+    rate to safely convert a hyperinflationary-currency filer - see
+    _aggregate_concepts_currency_code's own docstring), but the resulting all-required-
+    fields-NULL row then falls to the generic "incomplete_sec_filing_{type}" instead of the
+    specific "unsupported_currency_no_fx_rate" reason (same "Missing SEC/XBRL data" category
+    as its post_run()-path sibling fpi_currency_data_rejected - this doesn't change which
+    category the row counts toward, just which real, specific cause it's attributed to) -
+    same reason-string-doesn't-match-real-cause bug class as this sweep's other fixes, just
+    undetectable from the DB alone since the currency a raw fact was tagged under isn't
+    persisted anywhere once _aggregate_concepts discards it.
+
+    Reuses client.get_company_facts()'s own per-CIK cache (already warmed by this same run's
+    extraction call for this exact symbol), so this adds no extra HTTP cost on the only path
+    that calls it (a required field this statement type already confirmed missing).
+    """
+    try:
+        cik = client.symbol_to_cik(symbol)
+        facts = client.get_company_facts(cik)
+    except Exception:
+        return False
+    for taxonomy, concepts in (("us-gaap", us_gaap_concepts), ("ifrs-full", ifrs_concepts)):
+        taxonomy_facts = facts.get("facts", {}).get(taxonomy, {})
+        for concept in concepts:
+            units = taxonomy_facts.get(concept, {}).get("units", {})
+            has_allowed_currency_value = False
+            has_rejected_currency_value = False
+            for unit, entries in units.items():
+                if not any(e.get("val") is not None for e in entries):
+                    continue
+                currency = _extract_currency_code(unit)
+                if currency == "USD" or currency in MAJOR_CURRENCIES:
+                    has_allowed_currency_value = True
+                else:
+                    has_rejected_currency_value = True
+            if has_rejected_currency_value and not has_allowed_currency_value:
+                return True
+    return False

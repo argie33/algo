@@ -89,6 +89,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # both were falling through to "Other (errors / excluded)" for lack of a mapping.
             "fpi_currency_data_rejected",
             "raw_unconverted_currency_stale_value_20260829",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same root fact
+            # as fpi_currency_data_rejected/raw_unconverted_currency_stale_value_20260829
+            # above (a foreign private issuer - GGAL/BBAR/BSAC/SUPV/TEO/TKC/TGS/TV and
+            # siblings - tags its required statement concepts only under a hyperinflationary/
+            # unsupported local currency, e.g. ARS, never USD or any MAJOR_CURRENCIES entry),
+            # just written by transform()'s initial-fetch path (has_unsupported_currency_
+            # only_fact, sec_statements_shared.py) instead of post_run()'s force-null path -
+            # kept in the SAME category as its two siblings above for consistency, not moved
+            # to "Legitimate / not applicable": this team's existing precedent treats
+            # "genuinely knowable if a reliable FX rate ever becomes available" as still
+            # "Missing SEC/XBRL data", not a permanent exemption.
+            "unsupported_currency_no_fx_rate",
             # ADDED 2026-09-03 (same sweep, stranded-fix recovery): load_financial_statements.py's
             # _reject_stale_all_none_annual_row reason (Q1-mislabeled-as-annual force-null, e.g.
             # OFRM) - post_run()'s flag-sync previously hardcoded 'fpi_currency_data_rejected' for

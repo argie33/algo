@@ -63,6 +63,7 @@ from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
     fetch_custom_revenue,
 )
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
+from utils.external.sec_statements_shared import has_unsupported_currency_only_fact  # noqa: E402
 from utils.loaders.enum_validator import validate_period, validate_statement_type  # noqa: E402
 
 # Explicit re-export: loaders/financial_statements/{sweeps,runner}.py import
@@ -253,6 +254,24 @@ _REQUIRED_STATEMENT_FIELDS = {
     "income": {"revenue", "net_income"},
     "balance": {"total_assets", "stockholders_equity"},
     "cashflow": {"operating_cash_flow"},
+}
+
+# ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the (us-gaap concepts,
+# ifrs-full concepts) checked by has_unsupported_currency_only_fact() when a required field
+# above comes back NULL for a foreign private issuer - see that function's own docstring
+# (sec_statements_shared.py) for the GGAL/BBAR/BSAC/... root cause this distinguishes from a
+# genuine filing gap. Deliberately a minimal, high-confidence concept list per statement type
+# (a false negative here just keeps the existing generic label - safe; a false positive would
+# mislabel a genuinely-broken filing as "Legitimate / not applicable" - not safe), not the
+# full alias lists sec_balance_sheet.py/sec_income_statement.py/sec_cash_flow.py use for
+# actual value extraction.
+_UNSUPPORTED_CURRENCY_CHECK_CONCEPTS: dict[str, tuple[list[str], list[str]]] = {
+    "income": (["Revenues", "NetIncomeLoss"], ["Revenue", "ProfitLoss"]),
+    "balance": (["Assets", "StockholdersEquity"], ["Assets", "Equity"]),
+    "cashflow": (
+        ["NetCashProvidedByUsedInOperatingActivities"],
+        ["CashFlowsFromUsedInOperatingActivities"],
+    ),
 }
 
 # data_unavailable/reason must pass through so marker rows keep their flags.
@@ -3317,6 +3336,25 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
             except Exception as e:
                 logger.debug(f"[{self.table_name}] Existing-row lookup failed (non-fatal): {e}")
 
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): batched alongside
+        # already_available above (same would_downgrade gate, same symbols_in_batch) so the
+        # unsupported-currency check below has is_foreign_private_issuer available without a
+        # per-row query - see has_unsupported_currency_only_fact's docstring for why this
+        # check is scoped to FPIs only (a domestic filer with all-NULL required fields is
+        # never a currency issue, so this would be wasted API-cache-lookup cost for it).
+        fpi_symbols: set[str] = set()
+        if would_downgrade:
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol FROM company_info_sec WHERE symbol = ANY(%s) "
+                        "AND is_foreign_private_issuer = TRUE",
+                        (symbols_in_batch,),
+                    )
+                    fpi_symbols = {row[0] for row in cur.fetchall()}
+            except Exception as e:
+                logger.debug(f"[{self.table_name}] FPI lookup failed (non-fatal): {e}")
+
         result = []
         for row in transformed:
             if row.get("data_unavailable"):
@@ -3335,7 +3373,28 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                         f"has no {self.statement_type} metrics (likely recent spinoff or incomplete SEC filing)"
                     )
                     row["data_unavailable"] = True
-                    row["reason"] = f"incomplete_sec_filing_{self.statement_type}"
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): a
+                    # foreign private issuer that only tags this statement's required
+                    # concept(s) under an unsupported (non-major, non-USD) currency - see
+                    # has_unsupported_currency_only_fact's docstring - gets the specific
+                    # "unsupported_currency_no_fx_rate" reason instead of the generic
+                    # "incomplete_sec_filing_{type}" every other cause here shares (both are
+                    # "Missing SEC/XBRL data" in coverage_category_rules.py, same as this
+                    # reason's post_run()-path sibling fpi_currency_data_rejected - this is a
+                    # diagnostic-specificity fix, not a recategorization). Gated on FPI status
+                    # first (cheap set lookup) so the extra get_company_facts() call - free
+                    # here since it hits the same per-CIK cache this row's own extraction
+                    # already warmed, but still a dict/API-shape round trip - never runs for
+                    # the vastly more common domestic-filer incomplete-filing case.
+                    us_gaap_concepts, ifrs_concepts = _UNSUPPORTED_CURRENCY_CHECK_CONCEPTS.get(
+                        self.statement_type, ([], [])
+                    )
+                    if symbol in fpi_symbols and has_unsupported_currency_only_fact(
+                        self._sec_client, symbol, us_gaap_concepts, ifrs_concepts
+                    ):
+                        row["reason"] = "unsupported_currency_no_fx_rate"
+                    else:
+                        row["reason"] = f"incomplete_sec_filing_{self.statement_type}"
                 else:
                     # Has required metrics - data is valid even if optional fields are NULL
                     row["data_unavailable"] = False
