@@ -646,7 +646,7 @@
   "utils/exceptions/core.py": 252,
   "utils/external/__init__.py": 5,
   "utils/external/alpaca_market_data.py": 284,
-  "utils/external/fx_rates.py": 302,
+  "utils/external/fx_rates.py": 319,
   "utils/external/openfigi_crosswalk.py": 549,
   "utils/external/sec_balance_sheet.py": 638,
   "utils/external/sec_cash_flow.py": 531,
