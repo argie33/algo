@@ -3133,6 +3133,28 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # reported" - both already listed in _ric_source_reasons below.
                     "total_cash",
                     "cash_per_share",
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): 12 more fields share the identical "no more specific gate
+                    # matched, fell to the generic missing_sec_data fallback" shape for a RIC as
+                    # the fields already listed above - live-confirmed via a full scan of every
+                    # `else "missing_sec_data"` ternary branch in this function against this
+                    # exact RIC population (GGN/BLW/BGY/BDJ/BUI/BGR/BIT/BGT/IGI/BST/VLT/VPV/VTN/
+                    # VVR/VCV/VGM/VKI/VKQ/BBN/BTZ/EFT/EOT/EVF and siblings): each of these was
+                    # never added to this loop despite its own reason already being a member of
+                    # _ric_source_reasons below, the same half-wired-fix pattern as total_cash/
+                    # cash_per_share/interest_coverage above.
+                    "payout_ratio",
+                    "ebitda_margin",
+                    "gross_profitability",
+                    "asset_turnover",
+                    "roa",
+                    "operating_margin",
+                    "net_margin",
+                    "current_ratio",
+                    "quick_ratio",
+                    "debt_to_assets",
+                    "gross_margin",
+                    "ebitda",
                 )
                 _ric_source_reasons = {
                     "missing_sec_data",
