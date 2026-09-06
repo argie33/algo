@@ -31,39 +31,45 @@ Fixed streaming download timeout that only covered initial connection, not chunk
 
 ## Remaining High-Impact Opportunities
 
-### A. ENTITY-TYPE STRUCTURAL EXEMPTIONS (HIGH PRIORITY)
-**Estimated Impact:** 250-500+ symbols, ~0 lines of code changed
+### A. ENTITY-TYPE STRUCTURAL EXEMPTIONS ✅ DONE (commit `138006446`, 2026-09-06)
+**Actual Impact:** 88 active symbols (not the 250-500 originally estimated)
 
-CEF/BDC/ETF/Banks are structurally unable to provide traditional 10-K filings:
-- **CEF (Closed-end funds)** → file N-1A, not 10-K
-- **BDC (Business development companies)** → file N-2, not 10-K
-- **ETF (Exchange-traded funds)** → file N-1A, not 10-K
-- **Banks (FDIC-insured)** → regulatory exemption (post-2024)
+CEF/BDC/ETF/Banks are structurally unable to provide traditional 10-K filings. Implemented
+in `SecValuationsLoader.fetch_incremental` (loaders/load_sec_valuations.py) and
+`SymbolGateMixin._get_structural_entity_type_exemptions` (loaders/helpers/vqg_symbol_gates.py).
 
-**TODO:** Query `company_profile.entity_type` and auto-categorize these as "Legitimate / not applicable"
+**CORRECTION:** `company_profile.entity_type` **does not exist** - that was this plan's own
+mistake, taken literally without checking `information_schema` first, and it shipped as a
+real UndefinedColumn crash in the first commit that used it. The real signal is
+`company_info_sec.entity_type IN ('other', 'investment')` with no real SIC code
+(`COALESCE(sic_code, 0) = 0`), excluding OZK (a real bank sharing that profile) - the exact
+shape migration 1213 (`clean_cef_bdc_etn_rows_from_stock_scores`) already validated. If you
+are about to write a query against `company_profile`, check its actual columns first (only
+`sector`/`industry`/`short_name`/`reason`/`currency_code`/`symbol` etc. - no `entity_type`).
 
-### B. SCALE MISMATCH AUTO-CORRECTION (MEDIUM PRIORITY)
-**Estimated Impact:** 210 symbols (129 shares_outstanding + 81 EPS)
+### B. SCALE MISMATCH AUTO-CORRECTION - ALREADY LARGELY DONE, don't re-implement
+This plan's "detected but not corrected" premise was wrong even at the time it was written -
+`load_sec_valuations.py`/`helpers/sec_valuations_checks.py`/`helpers/sec_valuations_yield_dcf.py`
+already auto-correct shares_outstanding/EPS scale mismatches via ratio cross-checks against
+company_info_sec (SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO, lowered to 2x per prior sessions'
+live-verification sweeps - see MEMORY.md's sec_xbrl_shares_scale_cross_check entries), plus
+explicit stock-split/reverse-split/FPI-ADS-ratio adjustments. `shares_outstanding_scale_mismatch`/
+`eps_scale_mismatch` reason strings that remain are the genuinely-ambiguous residual after those
+corrections, not an unimplemented feature. Verify current counts in DB before assuming there's
+free headline reduction here.
 
-Current state: Detected but not corrected.
-- `shares_outstanding_scale_mismatch` (129) → could auto-fix thousands→units or vice versa
-- `eps_scale_mismatch` (81) → could auto-fix basis point→percentage or vice versa
-
-**Risk:** Low if we verify the scale direction first (ratio sanity check).
-
-### C. FALLBACK MECHANISMS FOR RARELY-REPORTED CONCEPTS (LOWER PRIORITY)
-**Estimated Impact:** 50-100+ symbols
-
-Some concepts are legitimately rare:
-- `capex_never_tagged_in_recent_filings` (435)
-  - Could use: capex ≈ PPE(t) - PPE(t-1) + depreciation
-  - Or: capex = depreciation (for mature companies)
-
-- `interest_expense_not_itemized` (354)
-  - Could use: interest ≈ total_debt × weighted_avg_rate
-  - Or: interest = net_income - operating_income (approximation)
-
-**TODO:** Research which fallbacks are safe without introducing more noise than signal.
+### C. FALLBACK MECHANISMS FOR RARELY-REPORTED CONCEPTS - CAUTION, don't guess-fill
+**Do not implement the capex≈depreciation or interest≈debt×rate approximations above** -
+these are exactly the kind of synthetic/guessed fallback MEMORY.md's
+`cash_flow_fallback_window_rejected` and `pretax_income_derivation_rejected` entries already
+evaluated and rejected: they trade a correctly-labeled "missing" for an incorrectly-labeled
+"present but wrong", which is worse for anything consuming these fields downstream (quality/
+value scoring, DCF). The lease-only-filer slice of `interest_expense_not_itemized` WAS a real
+extraction bug and got fixed properly (see `sec_xbrl_interest_coverage_lease_only_gate_fixed_20260906`
+in memory) by recognizing a real reported concept that existed but wasn't being read, not by
+approximating a number that was never reported. Apply that same standard to any remaining
+"never tagged" bucket: only fix it if there's a real SEC-filed concept being missed, not by
+deriving a substitute value.
 
 ---
 
