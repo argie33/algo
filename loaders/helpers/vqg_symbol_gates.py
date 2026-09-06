@@ -1446,20 +1446,75 @@ class SymbolGateMixin:
         them to the more accurate no_recent_operating_cash_flow_reported gate instead
         (fixed identically, same table) rather than mislabeling them as "real recent OCF,
         capex specifically missing". Label-only.
+
+        FIXED 2026-09-05 (`capex_never_tagged_in_recent_filings` reason mislabeled/missed -
+        cross-session follow-up to the 2026-09-03 fix above): `fiscal_year > 0` alone still let
+        a stray trailing placeholder row corrupt the ranking. Many symbols carry a not-yet-filed
+        NEXT fiscal year row (`data_unavailable = TRUE`) that nonetheless has leftover non-NULL
+        numeric values in some columns (a carry-over that was never nulled when the row was
+        flagged unavailable) - because that placeholder wasn't excluded, it silently occupied
+        one of the "3 most recent" ranking slots two different ways:
+          - CYCN/EMAT/EWBC/PPCB/TFIN: the placeholder's stray non-NULL capex made
+            `COUNT(capex) != 0` even though their true 3 most recent REAL fiscal years all have
+            real operating_cash_flow and genuinely NULL capex - these 5 wrongly fell through to
+            generic "missing_sec_data" instead of this gate's specific reason.
+          - AIG/NLY/UHT/AAMI/RZLT/SPWR (39 total, live-confirmed): the placeholder's presence
+            pushed a REAL capex-bearing row (e.g. AIG FY2023 capex=$240M) out of the 3-slot
+            window entirely, so this gate WRONGLY matched them as "capex never tagged" when
+            capex was in fact tagged, just one fiscal year further back than the corrupted
+            window could see.
+        Fix: exclude a `data_unavailable = TRUE` row ONLY when its fiscal_year is exactly
+        (that symbol's own max `data_unavailable = FALSE` fiscal_year) + 1 - i.e. a single
+        trailing "not yet filed" placeholder for next year - while still including any OTHER
+        data_unavailable = TRUE row in the ranking, so the GLNG-shaped case (multiple
+        consecutive real gap years, true recent history is genuinely unavailable, must still
+        fall through to no_recent_operating_cash_flow_reported instead) is unaffected; live-
+        reverified GLNG still does NOT match after this change.
+
+        This placeholder-only exclusion, if shipped with the old `COUNT(*) = 3` requirement
+        unchanged, was live-verified to also DROP 131 already-correctly-matching symbols -
+        mostly SPAC/shell tickers (LCCC, MACI, NPAC, RFAI, TAVI, DMAA, PACH, ...) that simply
+        have only 2 real filed fiscal years on record (too recently IPO'd/merged to have a 3rd),
+        both real years genuinely NULL for capex. Checking those symbols against every earlier
+        gate in this file's fcf_yield priority chain (registered-investment-company/etf-trust/
+        no-recent-fcf/never-tagged-fcf) showed only 51 of the 131 were re-caught elsewhere; the
+        remaining 80 would have regressed from this gate's specific, accurate reason to the
+        generic "missing_sec_data" bucket - a real loss of accuracy, not a neutral relabeling.
+        `COUNT(*) = 3` replaced with `COUNT(*) >= 2` to admit these thinner-history filers (same
+        "too few consecutive real fiscal years, same underlying fact" reasoning already used by
+        `_get_never_tagged_free_cash_flow_symbols()`'s `COUNT(*) >= 1` full-history sibling) -
+        live-reverified this recovers 129 of the 131 SPAC-shaped symbols (the remaining 2,
+        TACO/TWLVR-shaped, have only 1 real fiscal year plus 1 genuinely-unavailable prior year,
+        which still clears `COUNT(*) >= 2` and correctly matches too) without reintroducing the
+        GLNG-shaped false-match risk, since `rn <= 3` still caps how far back the window can
+        reach - a symbol only shows `COUNT(*) < 3` here because it truly has fewer than 3
+        (post-placeholder-exclusion) rows in the table, never because real older history was
+        excluded by the window. Net effect on the gate's total match set: 639 -> 646 (+7),
+        with both directions of the underlying bug corrected. Label-only.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
-                WITH recent AS (
-                    SELECT symbol, operating_cash_flow, capex,
-                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                WITH ranked AS (
+                    SELECT symbol, capex, operating_cash_flow, fiscal_year, data_unavailable,
+                           MAX(fiscal_year) FILTER (WHERE data_unavailable = FALSE)
+                               OVER (PARTITION BY symbol) AS max_real_fy
                     FROM annual_cash_flow
                     WHERE fiscal_year > 0
+                ),
+                filtered AS (
+                    SELECT * FROM ranked
+                    WHERE NOT (data_unavailable AND fiscal_year = max_real_fy + 1)
+                ),
+                recent AS (
+                    SELECT symbol, operating_cash_flow, capex,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM filtered
                 )
                 SELECT symbol FROM recent
                 WHERE rn <= 3
                 GROUP BY symbol
-                HAVING COUNT(capex) = 0 AND COUNT(operating_cash_flow) > 0 AND COUNT(*) = 3
+                HAVING COUNT(capex) = 0 AND COUNT(operating_cash_flow) > 0 AND COUNT(*) >= 2
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
