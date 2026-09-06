@@ -57,6 +57,14 @@ jobs:
   bootstrap-backend:
     name: "0. Bootstrap Terraform Backend / Create S3 State Bucket & DynamoDB Lock Table"
     runs-on: ubuntu-latest
+    # BUG FOUND (2026-09-06 real-money-readiness audit): this workflow triggers on
+    # workflow_run `types: [completed]`, which fires on the CI workflow finishing with ANY
+    # conclusion, not just success - nothing here (or in any downstream job) checked
+    # github.event.workflow_run.conclusion, so a RED CI run would still kick off this entire
+    # deploy pipeline. Explicitly requiring success here (workflow_dispatch runs have no
+    # workflow_run context at all, so they're unaffected by this check) and letting it
+    # cascade via `needs` is more robust than repeating the check on every downstream job.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     # Note: Inherits permissions from workflow-level definition (id-token: write, contents: read)
     # Explicit job-level permissions override workflow-level - only include if different
     outputs:
@@ -950,9 +958,20 @@ jobs:
           fi
 
       - name: Terraform Apply
+        # BUG FOUND (2026-09-06 real-money-readiness audit): this condition never checked
+        # github.event_name, so `github.event.inputs.skip_terraform != 'true'` was also true
+        # on an automatic workflow_run trigger (CI completing, success OR failure) - inputs
+        # only exist for workflow_dispatch, so the comparison is against an undefined value
+        # there. That silently contradicted this workflow's own top-of-file comment
+        # ("Terraform apply is MANUAL ONLY (workflow_dispatch) to require review") - any CI
+        # completion that detected a terraform diff would auto-apply to production with zero
+        # review. Only harmless today because the "Configure AWS credentials" OIDC step
+        # currently fails first (separate, tracked issue) - fixing this now rather than
+        # relying on that being permanent.
         if: |
           steps.tf_plan.outputs.has_changes == 'true' &&
-          github.event.inputs.skip_terraform != 'true'
+          github.event.inputs.skip_terraform != 'true' &&
+          github.event_name == 'workflow_dispatch'
         run: |
           # aws_lambda_provisioned_concurrency_config occasionally fails with
           # "Requested Provisioned Concurrency should not be greater than the
@@ -1380,6 +1399,7 @@ jobs:
     needs: terraform
     if: |
       always() &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
       (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
       github.event.inputs.skip_code != 'true'
     runs-on: ubuntu-latest
@@ -1482,6 +1502,7 @@ jobs:
     needs: terraform
     if: |
       always() &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
       (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
       github.event.inputs.skip_image != 'true'
     runs-on: ubuntu-latest
@@ -1549,6 +1570,7 @@ jobs:
     needs: terraform
     if: |
       always() &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
       (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
       github.event.inputs.skip_code != 'true'
     runs-on: ubuntu-latest
@@ -1633,6 +1655,7 @@ jobs:
     needs: terraform
     if: |
       always() &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
       (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
       github.event.inputs.skip_code != 'true'
     runs-on: ubuntu-latest
@@ -1695,6 +1718,7 @@ jobs:
     needs: terraform
     if: |
       always() &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
       (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
       github.event.inputs.skip_code != 'true'
     runs-on: ubuntu-latest
