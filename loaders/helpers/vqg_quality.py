@@ -1420,7 +1420,34 @@ class QualityMetricsMixin(SymbolGateMixin):
                     )
                     has_real_dividend_history = cur.fetchone() is not None
                 if has_real_dividend_history:
-                    sgr_reason = "missing_sec_data"
+                    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit):
+                    # annual_cash_flow.dividends_paid is unpopulated for many real payers
+                    # (live-confirmed SPG/RS/CNK - see value_metrics.dividend_yield's own TIER 4
+                    # fallback docstring, same root cause) - this used to give up entirely and
+                    # blame "missing_sec_data" the instant has_real_dividend_history confirmed a
+                    # real payer, never trying the same dividend_data.dividend_per_share TTM
+                    # recovery TIER 4 already uses. Mirrors that fallback exactly: trailing
+                    # ~370-day per-share sum x shares_outstanding = a real, if approximate,
+                    # dollar dividends_paid figure - same recency window, same "a confirmed real
+                    # payer deserves a real attempt before falling back to the generic label"
+                    # reasoning.
+                    if shares_outstanding is not None and shares_outstanding > 0:
+                        with _owner().DatabaseContext("read") as cur:
+                            cur.execute(
+                                """
+                                SELECT SUM(dividend_per_share) FROM dividend_data
+                                WHERE symbol = %s AND data_unavailable = FALSE
+                                  AND dividend_per_share IS NOT NULL
+                                  AND ex_dividend_date > CURRENT_DATE - INTERVAL '370 days'
+                                """,
+                                (symbol,),
+                            )
+                            ttm_row = cur.fetchone()
+                            ttm_dividend_per_share = ttm_row[0] if ttm_row else None
+                        if ttm_dividend_per_share is not None and ttm_dividend_per_share > 0:
+                            sgr_dividends_paid = float(ttm_dividend_per_share) * shares_outstanding
+                    if sgr_dividends_paid is None:
+                        sgr_reason = "missing_sec_data"
                 else:
                     sgr_dividends_paid = 0.0
 
