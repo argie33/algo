@@ -1720,6 +1720,25 @@ class QualityMetricsMixin(SymbolGateMixin):
                         symbol in self._get_no_recent_stockholders_equity_symbols()
                         or symbol in self._get_never_tagged_stockholders_equity_symbols()
                     )
+                    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" follow-
+                    # up): a real, reported $0.00 total_assets/stockholders_equity (a blank-
+                    # check/shell company pre-merger, e.g. OBX) makes every ratio in the `all(
+                    # ... is None)` check above genuinely undefined (division by zero), tripping
+                    # this same blanket early return - but neither branch above catches it since
+                    # both only check `is None`, not "real zero". Same "treat a real zero the
+                    # same as absent for ratio-denominator purposes" precedent already used
+                    # throughout this codebase (e.g. _get_no_recent_revenue_symbols' 2026-08-19
+                    # fix). Live-confirmed OBX: real total_assets=$0.00/stockholders_equity=
+                    # $0.00 (2026 anchor row, not data_unavailable) - every quality_metrics ratio
+                    # correctly came back None, but the row-level reason defaulted to generic
+                    # "missing_sec_data" instead of this real, knowable cause.
+                    else "no_recent_balance_sheet_data_reported"
+                    if total_assets is not None
+                    and total_assets <= 0
+                    and (
+                        symbol in self._get_no_recent_total_assets_symbols()
+                        or symbol in self._get_never_tagged_total_assets_symbols()
+                    )
                     else None
                 )
                 return self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
@@ -2108,7 +2127,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     or symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
                     else "no_recent_total_assets_reported"
-                    if total_assets is None
+                    if (total_assets is None or total_assets <= 0)
                     and (
                         symbol in self._get_no_recent_total_assets_symbols()
                         or symbol in self._get_never_tagged_total_assets_symbols()
@@ -2170,7 +2189,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if operating_cash_flow is None
                     and symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
                     else "no_recent_total_assets_reported"
-                    if total_assets is None
+                    if (total_assets is None or total_assets <= 0)
                     and (
                         symbol in self._get_no_recent_total_assets_symbols()
                         or symbol in self._get_never_tagged_total_assets_symbols()
@@ -2236,7 +2255,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
                     else "no_recent_total_assets_reported"
-                    if total_assets is None
+                    if (total_assets is None or total_assets <= 0)
                     and (
                         symbol in self._get_no_recent_total_assets_symbols()
                         or symbol in self._get_never_tagged_total_assets_symbols()
@@ -2290,7 +2309,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "implausible_ratio"
                     if "roa" in implausible_ratio_metrics
                     else "no_recent_total_assets_reported"
-                    if total_assets is None
+                    if (total_assets is None or total_assets <= 0)
                     and (
                         symbol in self._get_no_recent_total_assets_symbols()
                         or symbol in self._get_never_tagged_total_assets_symbols()
@@ -2455,7 +2474,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "implausible_ratio"
                     if "debt_to_assets" in implausible_ratio_metrics
                     else "no_recent_total_assets_reported"
-                    if total_assets is None
+                    if (total_assets is None or total_assets <= 0)
                     and (
                         symbol in self._get_no_recent_total_assets_symbols()
                         or symbol in self._get_never_tagged_total_assets_symbols()
@@ -2948,6 +2967,50 @@ class QualityMetricsMixin(SymbolGateMixin):
                     _reason_key = f"{_field}_unavailable_reason"
                     if metrics.get(_field) is None and metrics.get(_reason_key) == "stockholders_equity_not_reported":
                         metrics[_reason_key] = "etf_trust_no_gaap_financials"
+
+            # Same recategorization pattern as the ETF-trust block above, for registered
+            # investment companies (closed-end funds/investment trusts - same root fact
+            # already established for fcf_margin/fcf_yield/accruals_ratio/ocf_to_net_income
+            # elsewhere in this file: a "Statement of Changes in Net Assets" has no
+            # stockholders_equity/total_debt concepts to tag at all). ADDED 2026-09-05 (goal:
+            # "SEC/XBRL missing data to zero" follow-up): roic_pct/debt_to_equity's own ternary
+            # chains never reach a specific reason for a RIC either - live-confirmed GGN (GAMCO
+            # Global Gold, Natural Resources & Income Trust): roe computes a real value (its
+            # denominator, stockholders_equity, IS available), but roic_pct/debt_to_equity
+            # (which also need debt_for_roic, structurally absent) fell all the way through to
+            # generic "missing_sec_data" - broader than the ETF-trust block's single
+            # "stockholders_equity_not_reported" check, reusing the royalty-trust block's wider
+            # source-reason set (which already includes "missing_sec_data", mirroring the
+            # royalty-trust block's own _trust_source_reasons above - NOT reused directly since
+            # that name is only defined inside the royalty-trust `if`, a scope this RIC check
+            # doesn't share) since a RIC can hit any of several different missing-denominator
+            # reasons depending on which concept it happens to lack first.
+            if symbol in self._get_registered_investment_company_symbols():
+                # Not reusing _etf_trust_recategorize_fields above - that name is only defined
+                # inside the ETF-trust `if`, a scope this RIC check doesn't share (a RIC that
+                # isn't ALSO an etf_symbols-registered ticker, GGN's case, would otherwise hit
+                # an UnboundLocalError here).
+                _ric_recategorize_fields = (
+                    "operating_profitability",
+                    "roe",
+                    "debt_to_equity",
+                    "roic_pct",
+                    "roce_pct",
+                    "sustainable_growth_rate",
+                )
+                _ric_source_reasons = {
+                    "missing_sec_data",
+                    "total_debt_not_itemized",
+                    "no_recent_cash_reported",
+                    "interest_expense_not_itemized",
+                    "stockholders_equity_not_reported",
+                    "operating_income_not_itemized",
+                    "total_liabilities_not_reported",
+                }
+                for _field in _ric_recategorize_fields:
+                    _reason_key = f"{_field}_unavailable_reason"
+                    if metrics.get(_field) is None and metrics.get(_reason_key) in _ric_source_reasons:
+                        metrics[_reason_key] = "registered_investment_company_no_xbrl"
 
             if stale_fallback_metrics:
                 # One or more fields above came from a prior fiscal year (up to 6 years
