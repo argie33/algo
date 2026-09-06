@@ -84,6 +84,12 @@ class FillAndAccountValidationMixin:
                         f"API contract violated - check Alpaca API response structure."
                     )
                 symbol = order["symbol"]
+                # order_manager.send_bracket_order() submits every live entry with
+                # client_order_id=idempotency_key (see executor.py's call site) - Alpaca
+                # echoes it back on every order object, and algo_trades.idempotency_key is
+                # the same deterministic value, so this is the one broker-side field that
+                # unambiguously identifies which trade row an order belongs to.
+                order_client_order_id = order.get("client_order_id")
                 alpaca_filled_qty = float(order["filled_qty"])
                 order_status = order["status"]
 
@@ -118,17 +124,46 @@ class FillAndAccountValidationMixin:
                 # TradeStatus.all_open() so every live status is covered.
                 open_trade_statuses = TradeStatus.all_open()
                 status_placeholders = ", ".join(["%s"] * len(open_trade_statuses))
-                cur.execute(
-                    f"""
-                    SELECT trade_id, entry_quantity, status
-                    FROM algo_trades
-                    WHERE symbol = %s AND status IN ({status_placeholders})
-                    ORDER BY trade_date DESC LIMIT 1
-                """,
-                    (symbol, *open_trade_statuses),
-                )
+                # REAL-MONEY-READINESS FIX (2026-09-06): this used to match `WHERE symbol = %s
+                # ... ORDER BY trade_date DESC LIMIT 1` with no order-id binding at all - for a
+                # pyramided position (2+ open algo_trades rows for the same symbol, a real
+                # supported case - see position_sizer.py's own pyramided-position handling),
+                # EVERY closed buy order for that symbol in this loop would resolve to the same
+                # single "most recent" trade row, since the query result doesn't depend on which
+                # order is being checked. An older pyramid leg's own fill-quantity correction
+                # would misattribute onto the newer leg's trade_id (or vice versa), corrupting
+                # entry_quantity for the wrong trade. Bind to algo_trades.idempotency_key (the
+                # same value sent to Alpaca as client_order_id at submission - see
+                # order_client_order_id's own comment above) first, since that's unambiguous -
+                # one order can only belong to one trade; fall back to the old symbol-only match
+                # only when the broker didn't echo a client_order_id (shouldn't happen for an
+                # order this system submitted, but keeps this from regressing to "silently
+                # skipped" if it ever does) or there's genuinely just one open trade for the
+                # symbol.
+                db_row = None
+                if order_client_order_id:
+                    cur.execute(
+                        f"""
+                        SELECT trade_id, entry_quantity, status
+                        FROM algo_trades
+                        WHERE idempotency_key = %s AND status IN ({status_placeholders})
+                    """,
+                        (order_client_order_id, *open_trade_statuses),
+                    )
+                    db_row = cur.fetchone()
 
-                db_row = cur.fetchone()
+                if db_row is None:
+                    cur.execute(
+                        f"""
+                        SELECT trade_id, entry_quantity, status
+                        FROM algo_trades
+                        WHERE symbol = %s AND status IN ({status_placeholders})
+                        ORDER BY trade_date DESC LIMIT 1
+                    """,
+                        (symbol, *open_trade_statuses),
+                    )
+                    db_row = cur.fetchone()
+
                 if db_row is None:
                     continue
 

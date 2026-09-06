@@ -622,6 +622,25 @@ class EntryHandler:
             # every trade). Added to ON CONFLICT UPDATE too, matching entry_price's own
             # treatment - it's derived from entry_price/shares/portfolio_value at write time,
             # so it should stay in sync if a retry updates entry_price for the same trade.
+            # REAL-MONEY-READINESS FIX (2026-09-06): TradeInsertionRequest.alpaca_order_id was
+            # populated on every request (executor_entry_handler.py's own _record_entry_phase,
+            # from the actual submitted/verified Alpaca order id) but this INSERT's column list
+            # never included it at all - identical bug shape to the position_size_pct gap fixed
+            # above (a value computed and set on the request object, silently dropped by the
+            # write path). Live-confirmed: 100% of algo_trades rows had alpaca_order_id NULL.
+            # This wasn't just a cosmetic gap: phase6_exit_execution.py's trailing-stop-raise
+            # path (`SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s`) always got
+            # NULL back, so `sync_bracket_stop_loss(None, ...)` always took its "no live Alpaca
+            # order to sync (paper/local mode)" branch and returned success=True/synced=False -
+            # a real "trail the stop" recommendation would update our own DB's belief
+            # (algo_positions.current_stop_price) while NEVER pushing the tightened price to the
+            # broker's resting bracket stop-loss leg, in live "auto" mode exactly as much as
+            # paper mode. The August 2026-08-24 "fail closed" fix for this exact gap (see this
+            # file's own comment on that date) could never actually engage, because the id it
+            # needed was never persisted in the first place. Added to ON CONFLICT UPDATE too,
+            # matching position_size_pct/entry_price's own treatment - a retry that gets back a
+            # different/now-known order id (e.g. paper "" -> a real Alpaca id after a mode
+            # change) should stay in sync.
             cur.execute(
                 """
                 INSERT INTO algo_trades (
@@ -629,13 +648,15 @@ class EntryHandler:
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
                     signal_quality_score, trend_template_score, base_type, base_quality, stage_phase,
                     rs_percentile, market_exposure_at_entry, exposure_tier_at_entry, stop_reasoning, advanced_components,
-                    status, sector, industry, execution_mode, idempotency_key, position_id, position_size_pct
+                    status, sector, industry, execution_mode, idempotency_key, position_id, position_size_pct,
+                    alpaca_order_id
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
@@ -649,6 +670,7 @@ class EntryHandler:
                     execution_mode = EXCLUDED.execution_mode,
                     status = EXCLUDED.status,
                     position_size_pct = EXCLUDED.position_size_pct,
+                    alpaca_order_id = EXCLUDED.alpaca_order_id,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -681,6 +703,7 @@ class EntryHandler:
                     request.idempotency_key,
                     request.position_id,
                     request.position_size_pct,
+                    request.alpaca_order_id or None,
                 ),
             )
             logger.info(

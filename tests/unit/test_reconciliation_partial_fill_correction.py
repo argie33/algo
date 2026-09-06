@@ -152,6 +152,64 @@ def test_partial_exit_sell_order_does_not_corrupt_entry_quantity():
     assert not any("UPDATE algo_trades" in c.args[0] for c in cur.execute.call_args_list)
 
 
+def test_pyramided_position_fill_correction_binds_to_the_right_trade_via_client_order_id():
+    """REAL-MONEY-READINESS FIX regression (2026-09-06): with 2+ open algo_trades rows for
+    the same symbol (a pyramided position - a real supported case, see position_sizer.py),
+    the old `WHERE symbol = %s ... ORDER BY trade_date DESC LIMIT 1` query resolved to the
+    SAME "most recent" trade_id regardless of which order in the closed-orders list was
+    being checked - an older pyramid leg's own fill-quantity correction would misattribute
+    onto the newer leg's trade_id. The fix must bind by algo_trades.idempotency_key (the
+    same value order_manager.send_bracket_order() submits to Alpaca as client_order_id) so
+    each order corrects only its own trade."""
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = [
+        {"symbol": "AAPL", "client_order_id": "idem-old-leg", "filled_qty": "48", "status": "filled", "side": "buy"}
+    ]
+    cur = MagicMock()
+    # The client_order_id-bound query finds the OLDER pyramid leg (trade-100, entry_quantity=50
+    # in DB vs Alpaca's actual 48) - if the fix regressed to symbol-only matching, this would
+    # instead find/correct the NEWER leg (trade-200) since that's what "ORDER BY trade_date
+    # DESC LIMIT 1" would return.
+    cur.fetchone.return_value = ("trade-100", 50, "open")
+
+    with patch("algo.infrastructure.reconciliation_fill_and_account.notify"):
+        result = reconciliation.check_partial_fills(cur)
+
+    assert result["mismatches"] == 1
+    assert result["details"][0]["trade_id"] == "trade-100"
+
+    lookup_calls = [c for c in cur.execute.call_args_list if "SELECT trade_id" in c.args[0]]
+    assert len(lookup_calls) == 1, (
+        "should resolve on the first (idempotency_key-bound) lookup, no symbol fallback needed"
+    )
+    assert "idempotency_key = %s" in lookup_calls[0].args[0]
+    assert lookup_calls[0].args[1][0] == "idem-old-leg"
+
+    update_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
+    assert len(update_calls) == 1
+    assert update_calls[0].args[1] == (48, "trade-100")
+
+
+def test_missing_client_order_id_falls_back_to_symbol_match():
+    """Orders with no client_order_id echoed back (shouldn't happen for anything this
+    system submitted, but must not be silently skipped) must still fall back to the old
+    symbol-only match."""
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = [
+        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled", "side": "buy"}
+    ]
+    cur = MagicMock()
+    cur.fetchone.return_value = ("trade-123", 100, "open")
+
+    with patch("algo.infrastructure.reconciliation_fill_and_account.notify"):
+        result = reconciliation.check_partial_fills(cur)
+
+    assert result["mismatches"] == 1
+    lookup_calls = [c for c in cur.execute.call_args_list if "SELECT trade_id" in c.args[0]]
+    assert len(lookup_calls) == 1
+    assert "WHERE symbol = %s" in lookup_calls[0].args[0]
+
+
 def test_lookup_query_covers_pending_and_paper_pending_statuses():
     """CRITICAL FIX regression: the DB lookup previously hardcoded
     ('open','filled','partially_filled','active'), omitting 'pending'/'paper_pending' - the
