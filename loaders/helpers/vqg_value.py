@@ -390,6 +390,18 @@ class ValueMetricsMixin(SymbolGateMixin):
                 if symbol in self._get_registered_investment_company_symbols()
                 else "etf_trust_no_gaap_financials"
                 if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                # follow-up to the quality_metrics blank-check broad-loop fix): a pre-merger
+                # blank-check SPAC (SIC 6770) has no real operating business - trust-account
+                # interest income only, no capex/FCF concept to tag - same structural fact as
+                # the RIC/ETF-trust/royalty-trust checks just above, fourth member of this "no
+                # real cash-flow-statement concepts" family. Live-confirmed 16 active blank-
+                # check symbols stuck on "capex_never_tagged_in_recent_filings" and 8 more on
+                # "missing_sec_data" for fcf_yield alone (symbols with SOME other real value
+                # computed, e.g. pe_ratio from trust interest income, so they never reached the
+                # whole-row all_valuation_metrics_null fallback fixed earlier this session).
+                else "no_revenue_reported"
+                if symbol in self._get_blank_check_symbols()
                 # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
                 # follow-up to the has_unsupported_currency_only_fact fix and its sec_
                 # valuations.dcf_fcf/quality_metrics.free_cash_flow sibling recategorizations):
