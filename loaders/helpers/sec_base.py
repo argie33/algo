@@ -554,13 +554,26 @@ class SecEdgarStatementLoader(SecLoaderBase):
         loader run, not per-row - feeds the capex-derivation fallback in transform() below
         (Capex ~= delta Net PP&E + Depreciation) for filers who stop tagging a discrete
         capex concept in recent years (see that fallback's own comment for the live VSAT
-        evidence)."""
+        evidence).
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same bug class fixed
+        across vqg_symbol_gates.py/load_value_quality_growth_metrics.py/vqg_quality.py/
+        load_enhanced_quality_growth_metrics.py this session): a `data_unavailable = TRUE` row
+        can carry a leftover non-NULL ppe_net value (never nulled when flagged unavailable -
+        2,352 such rows confirmed live, mostly the "not yet filed next fiscal year" placeholder
+        pattern), which this bulk fetch was including as if real. Since the derived-capex
+        fallback uses whichever fiscal_year the caller's row happens to be, a disclaimed year's
+        stray ppe_net could feed a fabricated capex figure. `data_unavailable = FALSE` added.
+        """
         cached: dict[str, dict[int, float]] | None = getattr(self, "_ppe_net_by_symbol_year", None)
         if cached is None:
             from utils.db.context import DatabaseContext
 
             with DatabaseContext("read") as cur:
-                cur.execute("SELECT symbol, fiscal_year, ppe_net FROM annual_balance_sheet WHERE ppe_net IS NOT NULL")
+                cur.execute(
+                    "SELECT symbol, fiscal_year, ppe_net FROM annual_balance_sheet "
+                    "WHERE ppe_net IS NOT NULL AND data_unavailable = FALSE"
+                )
                 cached = {}
                 for symbol, fiscal_year, ppe_net in cur.fetchall():
                     cached.setdefault(symbol, {})[fiscal_year] = float(ppe_net)
@@ -569,7 +582,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
     def _get_depreciation_expense_by_symbol_year(self) -> dict[str, dict[int, float]]:
         """Bulk-fetch annual_income_statement.depreciation_expense keyed by (symbol,
-        fiscal_year), once per loader run - see _get_ppe_net_by_symbol_year's docstring."""
+        fiscal_year), once per loader run - see _get_ppe_net_by_symbol_year's docstring
+        (same 2026-09-05 fix: 260 disclaimed rows confirmed live with a stray
+        depreciation_expense value, now excluded)."""
         cached: dict[str, dict[int, float]] | None = getattr(self, "_depreciation_expense_by_symbol_year", None)
         if cached is None:
             from utils.db.context import DatabaseContext
@@ -577,7 +592,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
             with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT symbol, fiscal_year, depreciation_expense FROM annual_income_statement "
-                    "WHERE depreciation_expense IS NOT NULL"
+                    "WHERE depreciation_expense IS NOT NULL AND data_unavailable = FALSE"
                 )
                 cached = {}
                 for symbol, fiscal_year, depreciation_expense in cur.fetchall():
