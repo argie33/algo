@@ -224,31 +224,9 @@ class Orchestrator:
 
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
         db_execution_mode = self.config.get("execution_mode")
-
-        # Configuration precedence: env var > database > default
-        # Warn if they mismatch (indicates deployment configuration drift), but don't crash
-        # Crashing on mismatch can cause cascading failures if database gets out of sync
-        if env_execution_mode:
-            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: {env_execution_mode}")
-            self.execution_mode = env_execution_mode
-            if db_execution_mode and env_execution_mode != db_execution_mode.lower():
-                logger.warning(
-                    f"[STARTUP] execution_mode mismatch: "
-                    f"env var '{env_execution_mode}' != database '{db_execution_mode}'. "
-                    f"Using env var (has precedence). "
-                    f"Recommend setting database to match to avoid confusion."
-                )
-        elif db_execution_mode:
-            self.execution_mode = db_execution_mode
-            logger.info(
-                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}"
-            )
-        else:
-            # Only fallback to paper if database also doesn't have it set
-            self.execution_mode = "paper"
-            logger.info(
-                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}"
-            )
+        # Recorded here (self.alerts isn't constructed yet) and sent once it is, a few lines
+        # down - see _resolve_execution_mode's docstring for why this needs a real alert.
+        self._execution_mode_mismatch_alert = self._resolve_execution_mode(env_execution_mode, db_execution_mode)
 
         # CRITICAL: Validate execution_mode is one of the supported values
         valid_execution_modes = {"paper", "dry", "review", "auto"}
@@ -315,6 +293,14 @@ class Orchestrator:
                 f"Configure ALERT_EMAIL_TO + ALERT_SMTP_* or ALERTS_SNS_TOPIC."
             ) from e
 
+        if self._execution_mode_mismatch_alert:
+            try:
+                self.alerts.send_position_alert(
+                    "ORCHESTRATOR", "EXECUTION_MODE_MISMATCH", self._execution_mode_mismatch_alert
+                )
+            except Exception as alert_err:
+                logger.error(f"[STARTUP] Failed to send execution_mode mismatch alert (non-blocking): {alert_err}")
+
         self.db_monitor = DatabaseHealthMonitor(self.alerts)
         self.halt_manager = HaltFlagManager(self.alerts, self.log_phase_result)
 
@@ -323,6 +309,52 @@ class Orchestrator:
         # unavailable. Credential validation happens when AlpacaSyncManager is instantiated in
         # Phase 4, failing the reconciliation phase but not blocking data pipelines.
         logger.info("[STARTUP] Orchestrator ready. Alpaca credentials will be validated in Phase 4.")
+
+    def _resolve_execution_mode(self, env_execution_mode: str, db_execution_mode: str | None) -> str | None:
+        """Set self.execution_mode per env var > database > default precedence.
+
+        Returns a mismatch message if env_execution_mode and db_execution_mode disagree
+        (caller sends it as a real alert once self.alerts exists), else None.
+
+        Warn (and alert) on mismatch rather than crash here - crashing on mismatch can cause
+        cascading failures if database gets out of sync. The separate, stricter
+        _validate_startup_configuration() check (called later, from run()) DOES fail fast on
+        any mismatch before any phase executes - this is not a replacement for that, it's an
+        earlier signal for the case where run() hasn't been called yet, or crashes silently.
+
+        SAFETY (2026-09-06, real-money-readiness audit): a mismatch here used to only get a
+        logger.warning - but the dashboard/API (lambda/api/routes/algo_handlers/config.py)
+        reads execution_mode ONLY from the database row, with zero visibility into this env
+        var. If the two ever disagree, the dashboard shows the WRONG mode indefinitely (not
+        just until a restart) - an operator could see "paper" while the orchestrator process
+        is actually running "auto". A log line nobody may ever read isn't an acceptable
+        control for that gap, so the caller now also sends a real alert.
+        """
+        if env_execution_mode:
+            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: {env_execution_mode}")
+            self.execution_mode = env_execution_mode
+            if db_execution_mode and env_execution_mode != db_execution_mode.lower():
+                mismatch_msg = (
+                    f"execution_mode mismatch: env var '{env_execution_mode}' != database "
+                    f"'{db_execution_mode}'. Using env var (has precedence), but the dashboard "
+                    f"reads only the database value and will show the WRONG mode until this is "
+                    f"reconciled. Set the database to match to avoid confusion."
+                )
+                logger.warning(f"[STARTUP] {mismatch_msg}")
+                return mismatch_msg
+            return None
+        if db_execution_mode:
+            self.execution_mode = db_execution_mode
+            logger.info(
+                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}"
+            )
+            return None
+        # Only fallback to paper if database also doesn't have it set
+        self.execution_mode = "paper"
+        logger.info(
+            f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}"
+        )
+        return None
 
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
