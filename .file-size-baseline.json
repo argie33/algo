@@ -494,7 +494,7 @@
   "loaders/load_company_info_sec.py": 1036,
   "loaders/load_company_profile.py": 548,
   "loaders/load_current_reports_8k.py": 507,
-  "loaders/load_dividend_data.py": 866,
+  "loaders/load_dividend_data.py": 937,
   "loaders/load_earnings_calendar.py": 148,
   "loaders/load_earnings_calendar_sec.py": 330,
   "loaders/load_earnings_metrics.py": 165,
