@@ -647,6 +647,7 @@ class MarketConstituentsLoader(OptimalLoader):
                   AND NOT EXISTS (
                       SELECT 1 FROM annual_income_statement ais
                       WHERE ais.symbol = sy.symbol AND ais.revenue IS NOT NULL AND ais.revenue > 0
+                        AND ais.data_unavailable IS NOT TRUE
                   )
                 """
             )
