@@ -300,6 +300,33 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # granularity gap for those two specifically, correctly left as missing_sec_data,
         # not something this concept addition can fix.
         "PaymentsToAcquireCommercialRealEstate",
+        # FIXED 2026-09-06 (goal: "capex_never_tagged_in_recent_filings" sweep across the
+        # active universe, ~60 symbols live-checked across SIC 1040/2834/2836/6199/6282/
+        # 6311/6331/6798 and BDC clusters): MRP (Millrose Properties, Inc., CIK 2017206) -
+        # a land-banking REIT spun off from Lennar in Feb 2025 whose entire business model
+        # is acquiring and optioning land to homebuilders - reports NEITHER
+        # "PaymentsToAcquireRealEstate" nor any other RealEstate/Capital/PP&E-family
+        # concept above at all. Live-confirmed via real companyfacts JSON: real, single-
+        # year (only FY2025 exists post-spinoff) value of $858,938,000 under this concept,
+        # plausible against MRP's own reported $9.258B total assets / $5.856B stockholders'
+        # equity for the same fiscal year (accn 0002017206-26-000002) - the direct cash
+        # equivalent of capex for a land-acquisition-as-core-business REIT, not an
+        # investment-securities purchase. Standard (not filer-specific) us-gaap concept, so
+        # likely generalizes to other land-banking-model filers even though only MRP was
+        # live-confirmed this session (same "standard concept, single filer verified"
+        # precedent as PaymentsToAcquireWaterAndWasteWaterSystems/CWT above). Everything
+        # else checked this session in the same reason bucket (mortgage REITs like AGNC/
+        # RITM/MFA/TWO/BXMT/PMT/IVR/EARN/MITT/RWT/RC, BDCs like MAIN/FSK/OBDC/TSLX/GSBD/
+        # HRZN/PSBD/SAR, asset managers APO/ARES/KKR, insurers MFC/VOYA/BHF/WTM, and
+        # pharma/biotech RIGL/VKTX/RPRX/XERS/GALT/AVIR/FENC/STRO/AVXL/etc.) only reports
+        # investment-securities/loan/notes-receivable purchase concepts (e.g.
+        # "PaymentsToAcquireInvestments", "PaymentsToAcquireAvailableForSaleSecuritiesDebt",
+        # "PaymentsToAcquireMortgageBackedSecuritiesMBSCategorizedAsAvailableForSale") -
+        # confirmed genuine, not a bug: these filers' investing activities are portfolio
+        # securities/loan turnover, a fundamentally different economic activity from
+        # capital expenditure, and adding them here would misrepresent free_cash_flow for
+        # these business models. Not added.
+        "PaymentsToAcquireLand",
         # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurers (SIC
         # 6311/6321/6331/6351/6361/6399) hold investment real estate as part of their
         # portfolio, tagged under these two insurer-specific concepts rather than any

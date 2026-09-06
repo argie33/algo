@@ -1154,6 +1154,11 @@ _CASHFLOW_FIELD_MAPPING = {
     # sec_statements.py's get_cash_flow() comment for the live DLR/REG evidence: a standard
     # (not filer-specific) real-estate-development-spend concept, never fetched at all.
     "payments_to_develop_real_estate_assets": "capex",
+    # FIXED 2026-09-06 (capex_never_tagged_in_recent_filings sweep) - see
+    # sec_cash_flow.py's get_cash_flow() comment for the live MRP (Millrose Properties)
+    # evidence: a land-banking REIT's direct capex-equivalent concept, never fetched at
+    # all. Same "capex" target column as the other REIT concepts above.
+    "payments_to_acquire_land": "capex",
     # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurer investment-
     # real-estate capex concepts - see sec_statements.py's get_cash_flow() comment for the
     # live MET/RGA/BHF/PFG/TRV/WRB evidence.
