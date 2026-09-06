@@ -17,3 +17,10 @@ pydantic==2.8.2
 lxml==6.1.0
 openpyxl==3.1.0
 playwright==1.48.0
+# alpaca-trade-api: ONLY for algo/execution/trade_update_listener.py's Stream client
+# (real-time trade_updates websocket, 2026-09-06 real-money-readiness architecture rebuild).
+# Every other Alpaca call in this codebase uses raw `requests` against the REST API
+# directly (order_manager.py, position_order_management.py, etc.) - do not use this SDK
+# for anything else; that would create two different Alpaca client conventions to keep in
+# sync. Version pinned to match the one already used in lambda/requirements.txt.
+alpaca-trade-api==3.2.0
