@@ -1961,34 +1961,53 @@ class QualityMetricsMixin(SymbolGateMixin):
                         (symbol,),
                     )
                     fallback_fcf_rows = cur.fetchall()
-                    if not fallback_fcf_rows:
-                        cur.execute(
-                            """
-                            SELECT free_cash_flow, revenue
-                            FROM annual_cash_flow acf
-                            JOIN annual_income_statement ais
-                              ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
-                            WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
-                              AND acf.data_unavailable IS NOT TRUE AND ais.data_unavailable IS NOT TRUE
-                            ORDER BY acf.fiscal_year DESC
-                            """,
-                            (symbol,),
+
+                    # row[0]/row[1] are raw Decimal; must cast to float before arithmetic here -
+                    # `Decimal * float` raises TypeError, which propagates through this
+                    # function's outer try/except and wipes out EVERY quality_metrics field for
+                    # the symbol, not just fcf_margin.
+                    def _plausible_fcf_row(row: tuple[Any, Any]) -> bool:
+                        return (
+                            row[1] is not None
+                            and float(row[1]) > 0
+                            and abs(float(row[0]) / float(row[1]) * 100.0) <= 1000
                         )
-                        fallback_fcf_rows = cur.fetchall()
-                # row[0]/row[1] are raw Decimal; must cast to float before arithmetic here -
-                # `Decimal * float` raises TypeError, which propagates through this function's
-                # outer try/except and wipes out EVERY quality_metrics field for the symbol, not
-                # just fcf_margin.
-                fallback_fcf_row = next(
-                    (
-                        row
-                        for row in fallback_fcf_rows
-                        if row[1] is not None
-                        and float(row[1]) > 0
-                        and abs(float(row[0]) / float(row[1]) * 100.0) <= 1000
-                    ),
-                    fallback_fcf_rows[0] if fallback_fcf_rows else None,
-                )
+
+                    fallback_fcf_row = next((row for row in fallback_fcf_rows if _plausible_fcf_row(row)), None)
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL implausible values to zero" sweep):
+                    # previously only widened to the full-history query when the 3-year window
+                    # returned ZERO rows - a window that returns SOME rows, none of them
+                    # plausible (live-confirmed ALT: 2025/2023 both near-zero-revenue clinical-
+                    # stage artifacts), never got a chance to see its own genuinely plausible
+                    # older years (ALT 2010: FCF -$15.2M/revenue $21.0M, -72.6% margin, real and
+                    # representative) - the `next(..., fallback_fcf_rows[0])` default just
+                    # accepted the nearest IMPLAUSIBLE row instead, which then failed the
+                    # |margin|>1000 check below anyway and reported implausible_ratio despite a
+                    # real usable year existing further back. Only queries again when the
+                    # 3-year window didn't already yield a plausible candidate - the common case
+                    # (a plausible recent year) never pays for the extra round-trip.
+                    if fallback_fcf_row is None:
+                        cur = None
+                        with _owner().DatabaseContext("read") as cur:
+                            cur.execute(
+                                """
+                                SELECT free_cash_flow, revenue
+                                FROM annual_cash_flow acf
+                                JOIN annual_income_statement ais
+                                  ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
+                                WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
+                                  AND acf.data_unavailable IS NOT TRUE AND ais.data_unavailable IS NOT TRUE
+                                ORDER BY acf.fiscal_year DESC
+                                """,
+                                (symbol,),
+                            )
+                            full_history_rows = cur.fetchall()
+                        fallback_fcf_row = next(
+                            (row for row in full_history_rows if _plausible_fcf_row(row)),
+                            fallback_fcf_rows[0]
+                            if fallback_fcf_rows
+                            else (full_history_rows[0] if full_history_rows else None),
+                        )
                 if fallback_fcf_row:
                     fcf_margin_free_cash_flow = self._nan_to_none(
                         safe_float(fallback_fcf_row[0], f"{symbol}.free_cash_flow_fallback_year", allow_none=True)
@@ -2769,24 +2788,7 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             metrics["total_debt_unavailable_reason"] = (
                 (
-                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same RIC/
-                    # ETF-trust sibling-wiring gap already fixed for this field's own downstream
-                    # dependents (roic_pct/roce_pct/debt_to_equity all consume total_debt_ev,
-                    # recategorized to this same reason via the RIC/ETF-trust recategorize
-                    # blocks below) but never fixed for total_debt itself - live-confirmed 82
-                    # active-universe RIC symbols (GGN/BLW/BGY and siblings) report
-                    # total_debt_unavailable_reason='total_debt_not_itemized' even though the
-                    # root cause is identical: a "Statement of Changes in Net Assets" has no
-                    # debt-component concepts to tag at all, the same permanent structural
-                    # absence already correctly bucketed "Legitimate / not applicable" for the
-                    # fields built from this exact value. Checked first, same ordering as
-                    # fcf_margin_unavailable_reason above, so the more specific, correctly-
-                    # categorized reason wins over the generic never-tagged-debt-components gate.
-                    "registered_investment_company_no_xbrl"
-                    if symbol in self._get_registered_investment_company_symbols()
-                    else "etf_trust_no_gaap_financials"
-                    if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
-                    else "total_debt_not_itemized"
+                    "total_debt_not_itemized"
                     if symbol in self._get_no_recent_debt_components_symbols()
                     or symbol in self._get_never_tagged_debt_components_symbols()
                     # total_debt_ev comes from the same ev_metrics tuple as total_cash_ev/
