@@ -235,7 +235,7 @@
   "algo/trading/quote_fetcher.py": 216,
   "algo/trading/tca.py": 396,
   "algo/trading/trade_context.py": 182,
-  "algo/trading/trade_validator.py": 635,
+  "algo/trading/trade_validator.py": 630,
   "config/__init__.py": 0,
   "config/credential_manager.py": 846,
   "dashboard/__init__.py": 1,
