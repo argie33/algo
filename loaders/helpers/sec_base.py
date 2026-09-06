@@ -1693,7 +1693,7 @@ class SecFinancialsLoader(SecLoaderBase):
                 """
                 SELECT revenue, operating_income, net_income
                 FROM annual_income_statement
-                WHERE symbol = %s
+                WHERE symbol = %s AND data_unavailable = FALSE
                 ORDER BY fiscal_year DESC
                 LIMIT 1
             """,
@@ -1726,7 +1726,7 @@ class SecFinancialsLoader(SecLoaderBase):
                 SELECT total_assets, stockholders_equity, current_assets,
                        total_liabilities, current_liabilities, inventory
                 FROM annual_balance_sheet
-                WHERE symbol = %s
+                WHERE symbol = %s AND data_unavailable = FALSE
                 ORDER BY fiscal_year DESC
                 LIMIT 1
             """,
@@ -1763,7 +1763,7 @@ class SecFinancialsLoader(SecLoaderBase):
                 f"""
                 SELECT revenue, operating_income, net_income, earnings_per_share
                 FROM annual_income_statement
-                WHERE symbol = %s
+                WHERE symbol = %s AND data_unavailable = FALSE
                 ORDER BY fiscal_year DESC
                 LIMIT {years}
             """,
