@@ -658,7 +658,9 @@ class ValueQualityGrowthMetricsLoader(
             margin_volatility, margin_volatility_unavailable_reason = self._compute_margin_volatility(income_rows)
             quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics, margin_volatility)
             if margin_volatility is None and isinstance(quality_dict, dict):
-                quality_dict["margin_volatility_unavailable_reason"] = margin_volatility_unavailable_reason
+                quality_dict["margin_volatility_unavailable_reason"] = self._recategorize_margin_volatility_reason(
+                    symbol, margin_volatility_unavailable_reason
+                )
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
             # Forward EPS/revenue growth estimates + estimate-revision trend, from
@@ -1194,6 +1196,41 @@ class ValueQualityGrowthMetricsLoader(
         mean = sum(margins) / len(margins)
         variance = sum((m - mean) ** 2 for m in margins) / len(margins)
         return float(sqrt(variance)), None
+
+    def _recategorize_margin_volatility_reason(self, symbol: str, reason: str | None) -> str | None:
+        """Recategorize margin_volatility's own "implausible_ratio"/"insufficient_history"
+        reason (from _compute_margin_volatility's 3-usable-year requirement, computed by this
+        module rather than inside _compute_quality_metrics - see that call site's own comment)
+        for physical/commodity/currency trusts, closed-end funds (RICs), and pre-merger SPAC
+        shells - the exact same "Statement of Assets and Liabilities"/"Statement of Changes in
+        Net Assets"/"trust-account-only" structural fact _compute_quality_metrics already
+        recategorizes for every other quality_metrics field via
+        _get_etf_trust_no_stockholders_equity_symbols/_get_registered_investment_company_
+        symbols/_get_blank_check_symbols, but unreachable there since margin_volatility's
+        reason vocabulary never matches _etf_trust_broad_source_reasons/_ric_source_reasons/
+        _blank_check_source_reasons (all built around "*_not_reported"/"*_not_itemized"-style
+        names, not "implausible_ratio").
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, implausible-value
+        continuation): live-confirmed via FXF/FXY (Invesco CurrencyShares trusts, both in
+        the ETF-trust gate): revenue is $0 for most fiscal years but real/tiny ($318,783/
+        $458,644) for 2-3 others, and one older year's tiny-revenue-vs-loss ratio trips the
+        |margin|>1000 guard - fewer than 3 usable years survive AND at least one was
+        implausible, so "implausible_ratio" fires even though a currency trust has no
+        "margin" concept to be volatile in the first place. Left unchanged for a real
+        operating company (a genuinely near-zero-revenue business's margin swings are
+        meaningful, not noise - see IMDX/ORGN/AUUD/CDZIP, correctly left as
+        "implausible_ratio").
+        """
+        if reason not in ("implausible_ratio", "insufficient_history"):
+            return reason
+        if symbol in self._get_etf_trust_no_stockholders_equity_symbols():
+            return "etf_trust_no_gaap_financials"
+        if symbol in self._get_registered_investment_company_symbols():
+            return "registered_investment_company_no_xbrl"
+        if symbol in self._get_blank_check_symbols():
+            return "no_revenue_reported"
+        return reason
 
     def _find_plausible_cross_year_ratio(
         self, symbol: str, numerator_field: str, denominator_field: str, *, as_percentage: bool = True

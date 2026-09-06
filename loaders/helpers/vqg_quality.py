@@ -1202,6 +1202,19 @@ class QualityMetricsMixin(SymbolGateMixin):
             # Absolute balance sheet values from sec_valuations
             if total_debt_ev is not None and abs(total_debt_ev) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 metrics["total_debt"] = float(total_debt_ev)
+            elif (
+                symbol in self._get_never_tagged_debt_components_symbols()
+                and symbol in self._get_never_tagged_interest_expense_symbols()
+            ):
+                # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): debt_for_roic
+                # just below already coerces to 0.0 for this exact double-confirmed-debt-free
+                # population (see its own comment) so debt_to_equity/roic_pct/roce_pct compute
+                # real values - but the raw total_debt metric itself was never given the same
+                # treatment, so it stayed "total_debt_not_itemized" (Missing SEC/XBRL data) even
+                # for a symbol whose absence of debt is confirmed, not unknown. A confirmed zero
+                # is a real value, not missing data - same "genuinely absent, not missing"
+                # philosophy already applied to capex for this population's siblings.
+                metrics["total_debt"] = 0.0
             else:
                 failed_metrics.append("total_debt")
 
