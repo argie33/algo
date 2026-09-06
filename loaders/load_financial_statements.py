@@ -833,6 +833,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         "convertible_debt_current",
         "convertible_debt_noncurrent",
         "other_long_term_debt",
+        # FIXED 2026-09-05 (same continuation): SCM (Stellus Capital, a BDC) real secured
+        # term-debt concept - see sec_statements.py's get_balance_sheet() comment on
+        # "SecuredLongTermDebt" for the live evidence.
+        "secured_long_term_debt",
     }
 )
 
@@ -1059,6 +1063,10 @@ _BALANCE_FIELD_MAPPING = {
     # evidence ($117.9M FY2025/$96.8M FY2026). Fallback-only, single-figure convention as
     # notes_payable/subordinated_debt above.
     "other_long_term_debt": "long_term_debt",
+    # FIXED 2026-09-05 (same sweep): SCM (Stellus Capital, a BDC) real secured term-debt -
+    # see sec_statements.py's get_balance_sheet() comment on "SecuredLongTermDebt" for the
+    # live evidence ($299M FY2025). Fallback-only, single-figure convention as above.
+    "secured_long_term_debt": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's

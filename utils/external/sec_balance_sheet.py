@@ -473,6 +473,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # concept already fetched above for this filer (no overwrite-collision risk).
         # Single-figure fallback, same convention as NotesPayable/SeniorNotes.
         "OtherLongTermDebt",
+        # FIXED 2026-09-05 (same continuation): SCM (Stellus Capital Investment Corp, a BDC)
+        # tags a real, large secured term-debt tranche under this concept - live-confirmed
+        # $299M FY2025/$325M FY2024, a DIFFERENT and much larger real instrument than its
+        # own "NotesPayable" tag ($122.67M FY2025, its revolving credit facility) - both
+        # genuinely outstanding simultaneously (same "two real instruments, no summing
+        # mechanism" limitation already accepted for IBOC/HBT's SubordinatedDebt +
+        # JuniorSubordinatedDebenture pair above). Single-symbol-verified (not found on
+        # GAIN/MAIN/CSWC/NMFC/BCSF/ICMB/RWAY/SAR/NCDL, the other BDCs checked the same
+        # session) - fallback-only, same convention as every concept above.
+        "SecuredLongTermDebt",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with
