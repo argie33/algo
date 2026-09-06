@@ -56,6 +56,39 @@ class TestInstitutionalHoldings13FFpiTranslatedNameAliases:
         )
         assert ticker == "PAC"
 
+    def test_grupo_aeroportuario_cen_adr_resolves_via_alias(self):
+        ticker = InstitutionalHoldings13FLoader._resolve_crosswalk_ticker(
+            raw_ticker="G7A",
+            resolved_name="GRUPO AEROPORTUARIO CEN-ADR",
+            symbols={"OMAB"},
+            local_names={"OMAB": "Central North Airport Group"},
+            name_index=_NoneEntityNameIndex(),
+        )
+        assert ticker == "OMAB"
+
+    def test_bbva_argentina_adr_resolves_via_raw_ticker_alias_alone(self):
+        # Unlike BCH/PAC/OMAB above, BBAR's OpenFIGI resolved_name shares real tokens
+        # (BBVA/ARGENTINA/SA) with the local entity_name, so no companion
+        # _VERIFIED_BRAND_NAME_ALIASES entry is needed - the raw-ticker alias alone suffices.
+        ticker = InstitutionalHoldings13FLoader._resolve_crosswalk_ticker(
+            raw_ticker="BFP",
+            resolved_name="BBVA ARGENTINA SA-ADR",
+            symbols={"BBAR"},
+            local_names={"BBAR": "Banco BBVA Argentina S.A."},
+            name_index=_NoneEntityNameIndex(),
+        )
+        assert ticker == "BBAR"
+
+    def test_saneamento_basico_adr_resolves_via_raw_ticker_alias_alone(self):
+        ticker = InstitutionalHoldings13FLoader._resolve_crosswalk_ticker(
+            raw_ticker="SAJA",
+            resolved_name="CIA SANEAMENTO BASICO DE-ADR",
+            symbols={"SBS"},
+            local_names={"SBS": "COMPANHIA DE SANEAMENTO BASICO DO ESTADO DE SAO PAULO-SABESP"},
+            name_index=_NoneEntityNameIndex(),
+        )
+        assert ticker == "SBS"
+
     def test_unrelated_raw_ticker_and_name_still_fails(self):
         # Guard against the alias dict being too permissive - a genuinely unresolvable
         # (raw_ticker, resolved_name) pair not in the verified alias set must still return
