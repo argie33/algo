@@ -2221,6 +2221,18 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # correctly-categorized ("Legitimate / not applicable") reason wins.
                     else "registered_investment_company_no_xbrl"
                     if symbol in self._get_registered_investment_company_symbols()
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): fcf_yield's
+                    # own reason chain (vqg_value.py) already checks
+                    # _get_etf_trust_no_stockholders_equity_symbols() alongside the RIC gate;
+                    # fcf_margin's sibling chain here never did, despite ETF/commodity/currency
+                    # trusts (FXY, AAAU, GLDM, GBTC, ETHE, BITB/BITW, CANE/CORN/SOYB/WEAT/TAGS/
+                    # USCI, ...) filing no cash-flow statement at all for the identical reason a
+                    # RIC doesn't. Live-confirmed 32 universe symbols mislabeled
+                    # capex_never_tagged_in_recent_filings/no_recent_free_cash_flow_reported/
+                    # no_revenue_reported instead of this correctly-categorized
+                    # ("Legitimate / not applicable") reason.
+                    else "etf_trust_no_gaap_financials"
+                    if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
                     # ADDED 2026-09-05: fcf_yield's own reason chain already checks this gate;
                     # fcf_margin's sibling chain here never did (AIG-verified: real OCF every
                     # year, capex-shaped concept stops after FY2023, not PPE-delta-recoverable
@@ -2626,6 +2638,9 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # See fcf_margin_unavailable_reason above for why this check comes first.
                     "registered_investment_company_no_xbrl"
                     if free_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
+                    # FIXED 2026-09-06: same fcf_margin sibling-wiring gap, ETF-trust side.
+                    else "etf_trust_no_gaap_financials"
+                    if free_cash_flow is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
                     # ADDED 2026-09-05: same sibling-wiring gap as fcf_margin above.
                     else "capex_never_tagged_in_recent_filings"
                     if free_cash_flow is None and symbol in self._get_no_recent_capex_symbols()
@@ -2660,6 +2675,10 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # SOR).
                     "registered_investment_company_no_xbrl"
                     if operating_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
+                    # FIXED 2026-09-06: same fcf_margin sibling-wiring gap, ETF-trust side -
+                    # ETF/commodity/currency trusts file no cash-flow statement, same as a RIC.
+                    else "etf_trust_no_gaap_financials"
+                    if operating_cash_flow is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
                     else "no_recent_operating_cash_flow_reported"
                     if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
                     # Label-only, no value recomputed.
@@ -2687,6 +2706,9 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # See fcf_margin_unavailable_reason above for why this check comes first.
                     "registered_investment_company_no_xbrl"
                     if symbol in self._get_registered_investment_company_symbols()
+                    # FIXED 2026-09-06: same fcf_margin sibling-wiring gap, ETF-trust side.
+                    else "etf_trust_no_gaap_financials"
+                    if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
                     # ADDED 2026-09-05: same sibling-wiring gap as fcf_margin above.
                     else "capex_never_tagged_in_recent_filings"
                     if symbol in self._get_no_recent_capex_symbols()
@@ -2706,10 +2728,17 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             metrics["operating_cash_flow_unavailable_reason"] = (
                 (
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
+                    # fcf_margin/ocf_to_net_income sibling-wiring gap - this chain never checked
+                    # RIC/ETF-trust at all (both file no cash-flow statement whatsoever).
+                    "registered_investment_company_no_xbrl"
+                    if symbol in self._get_registered_investment_company_symbols()
+                    else "etf_trust_no_gaap_financials"
+                    if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
                     # Only covers the unambiguous "genuinely no OCF in the 3 most recent fiscal
                     # years" case - the rest have OCF in an off-anchor year (see
                     # _get_operating_cash_flow_available_elsewhere_symbols() below).
-                    "no_recent_operating_cash_flow_reported"
+                    else "no_recent_operating_cash_flow_reported"
                     if symbol in self._get_no_recent_operating_cash_flow_symbols()
                     # Label-only, no value recomputed.
                     else "operating_cash_flow_absent_from_anchor_year"
