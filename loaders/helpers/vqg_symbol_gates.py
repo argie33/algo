@@ -1261,6 +1261,38 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_never_tagged_operating_cash_flow_symbols(self) -> frozenset[str]:
+        """Full-history sibling of _get_no_recent_operating_cash_flow_symbols() above, same
+        pattern as _get_never_tagged_free_cash_flow_symbols() below - a symbol too recently
+        IPO'd/listed to have accumulated the 3 consecutive real fiscal years that gate's window
+        requires, but with real annual_cash_flow history that never once carries a real
+        operating_cash_flow value.
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): unlike free_cash_flow,
+        which already got this full-history counterpart on 2026-09-03,
+        operating_cash_flow_unavailable_reason/accruals_ratio_unavailable_reason/
+        ocf_to_net_income_unavailable_reason only ever checked the windowed gate - the same
+        "sibling-wiring gap" bug class this codebase's own memory documents (a fix landing for
+        one field's reason chain but not being mirrored into a structurally identical sibling
+        field). Live-verified 10 additional active-universe accruals_ratio missing_sec_data rows
+        recovered. Cached for the life of this loader instance; this query runs once per
+        pipeline run, not once per symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_cash_flow
+                WHERE fiscal_year > 0
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(*) FILTER (
+                       WHERE (CASE WHEN data_unavailable THEN NULL ELSE operating_cash_flow END) IS NOT NULL
+                   ) = 0
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_no_recent_free_cash_flow_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported free_cash_flow in any of their 3 most recent fiscal
         years (in a row not itself flagged data_unavailable) - a genuine structural gap, not a

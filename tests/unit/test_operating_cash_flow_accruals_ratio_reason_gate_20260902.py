@@ -10,6 +10,8 @@ anchor-row-selection question deliberately NOT chased (it would change computed 
 cross-year mixing, not just relabel). This test covers only the label-only, unambiguous slice.
 """
 
+from unittest.mock import patch
+
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
 
 
@@ -91,6 +93,21 @@ class TestOperatingCashFlowAccrualsRatioReasonGate:
         assert metrics["accruals_ratio_unavailable_reason"] == "missing_sec_data"
         assert metrics["ocf_to_net_income"] is None
         assert metrics["ocf_to_net_income_unavailable_reason"] == "missing_sec_data"
+
+    def test_never_tagged_only_symbol_also_gets_specific_reason(self, monkeypatch):
+        """FIXED 2026-09-06: the windowed gate alone missed recent IPOs/SPAC-mergers with fewer
+        than 3 real fiscal years but genuinely never-tagged OCF - _get_never_tagged_operating_
+        cash_flow_symbols() (full-history) now OR's in alongside the windowed gate, same pattern
+        free_cash_flow's own sibling pair already used."""
+        loader = _make_loader(monkeypatch, no_recent_ocf_symbols=frozenset())
+        row = _quality_row(operating_cash_flow=None)
+
+        with patch.object(loader, "_get_never_tagged_operating_cash_flow_symbols", return_value=frozenset({"NEWIPO"})):
+            metrics = loader._compute_quality_metrics("NEWIPO", row, ev_metrics=None)
+
+        assert metrics["operating_cash_flow_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
+        assert metrics["accruals_ratio_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
+        assert metrics["ocf_to_net_income_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
 
     def test_real_ocf_still_computes_normally(self, monkeypatch):
         loader = _make_loader(monkeypatch)

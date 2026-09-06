@@ -2266,8 +2266,16 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # same priority as fcf_margin/fcf_yield's identical RIC check elsewhere.
                     else "registered_investment_company_no_xbrl"
                     if accruals_ratio is None and symbol in self._get_registered_investment_company_symbols()
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): OR in the
+                    # full-history sibling gate - see _get_never_tagged_operating_cash_flow_symbols()'s
+                    # docstring for why this was a real, unmirrored gap versus free_cash_flow's
+                    # own identical pair of gates.
                     else "no_recent_operating_cash_flow_reported"
-                    if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    if operating_cash_flow is None
+                    and (
+                        symbol in self._get_no_recent_operating_cash_flow_symbols()
+                        or symbol in self._get_never_tagged_operating_cash_flow_symbols()
+                    )
                     # Label-only: operating_cash_flow is None because the anchor year's own
                     # cash-flow row is unavailable, not because the symbol lacks real OCF.
                     else "operating_cash_flow_absent_from_anchor_year"
@@ -2788,8 +2796,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # ETF/commodity/currency trusts file no cash-flow statement, same as a RIC.
                     else "etf_trust_no_gaap_financials"
                     if operating_cash_flow is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    # FIXED 2026-09-06: OR in the full-history sibling gate, same fix as
+                    # accruals_ratio_unavailable_reason above.
                     else "no_recent_operating_cash_flow_reported"
-                    if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    if operating_cash_flow is None
+                    and (
+                        symbol in self._get_no_recent_operating_cash_flow_symbols()
+                        or symbol in self._get_never_tagged_operating_cash_flow_symbols()
+                    )
                     # Label-only, no value recomputed.
                     else "operating_cash_flow_absent_from_anchor_year"
                     if operating_cash_flow is None
@@ -2844,11 +2858,13 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if symbol in self._get_registered_investment_company_symbols()
                     else "etf_trust_no_gaap_financials"
                     if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
-                    # Only covers the unambiguous "genuinely no OCF in the 3 most recent fiscal
-                    # years" case - the rest have OCF in an off-anchor year (see
+                    # FIXED 2026-09-06: OR in the full-history sibling gate (recent IPOs/SPAC-
+                    # mergers too thin for the windowed gate's 3-year requirement but genuinely
+                    # never tagging OCF) - the rest still have OCF in an off-anchor year (see
                     # _get_operating_cash_flow_available_elsewhere_symbols() below).
                     else "no_recent_operating_cash_flow_reported"
                     if symbol in self._get_no_recent_operating_cash_flow_symbols()
+                    or symbol in self._get_never_tagged_operating_cash_flow_symbols()
                     # Label-only, no value recomputed.
                     else "operating_cash_flow_absent_from_anchor_year"
                     if symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
