@@ -49,7 +49,7 @@
   "algo/infrastructure/config/sql_intervals.py": 117,
   "algo/infrastructure/config/timeout_config.py": 288,
   "algo/infrastructure/config/trading_config.py": 159,
-  "algo/infrastructure/config_schema.py": 417,
+  "algo/infrastructure/config_schema.py": 427,
   "algo/infrastructure/constants.py": 224,
   "algo/infrastructure/market_calendar.py": 328,
   "algo/infrastructure/market_events.py": 850,
