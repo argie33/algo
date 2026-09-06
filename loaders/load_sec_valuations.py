@@ -1234,6 +1234,7 @@ class SecValuationsLoader(
             self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
 
             return [valuation_row]
 
@@ -1418,6 +1419,38 @@ class SecValuationsLoader(
             )
             if cur.fetchone() is not None:
                 valuation_row["dcf_fcf_unavailable_reason"] = "capex_never_tagged_in_recent_filings"
+
+    def _recategorize_blank_check_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with "no_revenue_reported"
+        ("Legitimate / not applicable") for a pre-merger SPAC shell. Mutates `valuation_row` in
+        place.
+
+        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up to
+        _recategorize_blank_check_all_valuation_metrics_null_reason and
+        _recategorize_capex_never_tagged_dcf_fcf_reason above): a blank-check company has no
+        real operating business before its merger - trust-account interest income only, no
+        product/service revenue, and typically too few real fiscal years on file yet to clear
+        the capex-never-tagged gate's own >=2-real-year floor - so a recently-listed SPAC still
+        fell through both of those checks straight to the generic "missing_cash_flow_data".
+        Live-confirmed 11 active-universe symbols (XFLH/PTOR/ALDF/GIX/GIW/NWAX/WENC/QETAR/
+        QUMSR/FSHP/FSHPR) hitting this exact gap - same root fact and same "no_revenue_reported"
+        reason the whole-row all_valuation_metrics_null fallback already uses for this identical
+        population, just never checked for dcf_fcf specifically since it's a narrower field-
+        level reason than the whole-row fallback (a SPAC with SOME valuation metrics computed
+        but dcf_fcf specifically null wouldn't hit that whole-row check at all). Checked last
+        (after RIC/currency/royalty-trust/capex) so a more specific real cause above always
+        wins - only overrides the exact generic reason this fix targets, same guard discipline
+        as every sibling recategorize_*_dcf_fcf_reason function in this file.
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM company_info_sec WHERE symbol = %s AND sic_description = 'Blank Checks'",
+                (symbol,),
+            )
+            if cur.fetchone() is not None:
+                valuation_row["dcf_fcf_unavailable_reason"] = "no_revenue_reported"
 
     def _compute_valuations(
         self,

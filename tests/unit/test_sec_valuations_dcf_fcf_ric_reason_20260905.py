@@ -89,6 +89,7 @@ def _run(
     ric_query_result: tuple[Any, ...] | None,
     currency_query_result: tuple[Any, ...] | None = None,
     capex_query_result: tuple[Any, ...] | None = None,
+    blank_check_query_result: tuple[Any, ...] | None = None,
 ) -> dict[str, Any]:
     loader = _make_loader()
     # ADDED 2026-09-06 (sibling fix: _recategorize_unsupported_currency_dcf_fcf_reason): its
@@ -102,11 +103,16 @@ def _run(
     # the royalty-trust check - pure membership, no query slot): its own fetchone() slot only
     # gets consumed when neither the RIC nor currency check already overrode the reason, same
     # short-circuit discipline.
-    extra_fetchone2 = (
-        [] if (ric_query_result is not None or currency_query_result is not None) else [capex_query_result]
-    )
+    still_generic = ric_query_result is None and currency_query_result is None
+    extra_fetchone2 = [] if not still_generic else [capex_query_result]
+    # ADDED 2026-09-06 (sibling fix: _recategorize_blank_check_dcf_fcf_reason, after the capex
+    # check): its own fetchone() slot only gets consumed when none of RIC/currency/capex above
+    # already overrode the reason, same short-circuit discipline.
+    still_generic = still_generic and capex_query_result is None
+    extra_fetchone3 = [] if not still_generic else [blank_check_query_result]
     fake_cursor = _FakeCursor(
-        _INCOME_ROWS, [*_BASE_DOWNSTREAM_FETCHONE, ric_query_result, *extra_fetchone, *extra_fetchone2]
+        _INCOME_ROWS,
+        [*_BASE_DOWNSTREAM_FETCHONE, ric_query_result, *extra_fetchone, *extra_fetchone2, *extra_fetchone3],
     )
     fake_ctx = MagicMock()
     fake_ctx.__enter__ = MagicMock(return_value=fake_cursor)
