@@ -78,7 +78,12 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Filter Thresholds",
     ),
     "max_portfolio_beta": (
-        "2.0",
+        # Tightened 2.0->1.5 (2026-09-06 finance-best-practices review, see
+        # config_schema.py's matching entry for full reasoning): 2.0+ is an aggressive/
+        # leveraged-mandate convention, 1.2-1.5 is standard for a moderate-risk active
+        # strategy - this cap is a backstop (the 4.75% position-size cap already makes a
+        # genuine 2.0 hard to reach), so tightening costs little while matching intent.
+        "1.5",
         "float",
         "Block a new entry if it would push the position-value-weighted portfolio beta above this",
         "Filter Thresholds",

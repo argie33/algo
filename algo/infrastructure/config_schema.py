@@ -68,7 +68,17 @@ VALIDATION_SCHEMA = {
     # a new number. Non-critical/fail-open (see pretrade_checks.py's docstring) since
     # stability_metrics.beta coverage, like price-history-based correlation above, is still
     # filling in for some symbols.
-    "max_portfolio_beta": ("float", 1.0, 5.0, False, 2.0),
+    # DEFAULT TIGHTENED 1.5 (was 2.0, 2026-09-06 real-money-readiness finance-best-practices
+    # review): 2.0 was borrowed from var.py's pre-existing WARNING-only convention without an
+    # independent gate-appropriate decision. Institutional convention for a "moderate risk"
+    # active equity strategy typically targets portfolio beta 1.2-1.5; 2.0+ is the range
+    # associated with explicitly aggressive/leveraged mandates. This cap doesn't operate
+    # alone - the 4.75% max_position_size_pct cap already makes a genuine 2.0 portfolio beta
+    # very hard to reach in practice, so this functions as an outer backstop, not the primary
+    # control - tightening it to 1.5 costs little in practice while better matching a
+    # moderate-risk posture. Live algo_config has no override row for this key in local dev
+    # (runs on this code default) - re-verify production algo_config before going live.
+    "max_portfolio_beta": ("float", 1.0, 5.0, False, 1.5),
     # Top-5 concentration cap (2026-08-25): algo/risk/var.py's concentration_report() already
     # documents "Concentration > 30% in top 5 holdings -> WARNING" as this system's own
     # convention, same report-only gap as beta_exposure() above - a portfolio can satisfy
