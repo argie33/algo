@@ -150,9 +150,18 @@ class IncomeStatementContextMixin:
             # the live-confirmed AADX evidence this was silently losing both to this
             # exact early return.
             total_cash, total_debt = self._get_total_cash_and_debt(cur, symbol)
-            return [
-                self._unavailable_marker(symbol, "no_income_statement", total_cash=total_cash, total_debt=total_debt)
-            ]
+            # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): an ETF
+            # (stock_symbols.etf = 'true') genuinely has zero annual_income_statement rows -
+            # it files N-1A/N-CSR under the Investment Company Act, not a 10-K, so there is no
+            # SEC "income statement" concept to extract at all. Same "Legitimate / not
+            # applicable" business-model fact as reit_special_entity/etf_trust_no_gaap_
+            # financials elsewhere in this codebase, not a missing-SEC-data gap. Live-confirmed
+            # SPY (SPDR S&P 500 ETF Trust): zero rows in both annual_income_statement and
+            # sec_valuations itself.
+            cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
+            etf_row = cur.fetchone()
+            reason = "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "no_income_statement"
+            return [self._unavailable_marker(symbol, reason, total_cash=total_cash, total_debt=total_debt)]
 
         # len() guard: pre-existing tests mock income_rows as plain 10-element
         # tuples (this method's own pre-2026-08-19 shape) - default to False

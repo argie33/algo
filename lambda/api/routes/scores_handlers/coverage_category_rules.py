@@ -663,6 +663,12 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "negative_forward_eps",
             "reit_special_entity",
             # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, "implausible values" follow-up):
+            # an ETF (stock_symbols.etf = 'true') files N-1A/N-CSR under the Investment
+            # Company Act, not a 10-K, so it has zero annual_income_statement rows - the same
+            # real business-model fact as reit_special_entity just above, not an extraction
+            # gap. Live-confirmed SPY/QQQ/IWM (the universe's only active etf='true' symbols).
+            "etf_no_sec_filings",
+            # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, "implausible values" follow-up):
             # a real, reported $0.00 total_assets/stockholders_equity (a blank-check/shell
             # company pre-merger, e.g. OBX) - a known business fact, not an extraction gap.
             # Distinct from "no_recent_balance_sheet_data_reported" just below (which stays in
