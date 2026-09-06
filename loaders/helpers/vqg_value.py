@@ -296,6 +296,30 @@ class ValueMetricsMixin(SymbolGateMixin):
         # no-debt-itemized/negative-EV cause above still wins.
         elif row_dict.get("reason") == "shares_outstanding_scale_mismatch":
             ev_ebitda_reason = "shares_outstanding_scale_mismatch"
+        # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up, "implausible
+        # values" sweep, same bug class already fixed today for pe_ratio/pb_ratio/ps_ratio/
+        # ev_revenue): load_sec_valuations.py's own ev_ebitda computation silently rejects
+        # any ratio outside 0..10000 (sec_valuations_yield_dcf.py's `if 0 < ev_ebitda <=
+        # 10000`), but this reason chain never re-derived that bound - a real, positive
+        # ebitda combined with a real, positive computed_ev can still fall outside 10000
+        # (a near-zero-EBITDA blowup, same root shape as ps_ratio's near-zero-revenue-per-
+        # share case) and fell through to generic "missing_sec_data" instead of
+        # "implausible_ratio". Live-confirmed EFTY (implied ev_ebitda~11,973), AAOI
+        # (~29,878), MHH (~55,880) - all 3 of the universe's remaining active
+        # ev_ebitda "missing_sec_data" symbols besides HRI (separately fixed as a real
+        # EBITDA-value bug) - SPY's ETF gap can't be fixed here at all: it has no
+        # sec_valuations row, so it never reaches this per-symbol chain in the first place
+        # (caught by load_value_quality_growth_metrics.py's earlier whole-row unavailable-
+        # marker default instead) - confirmed live and via a failing test before removing
+        # a same-shaped etf_symbols branch that would otherwise be dead code here.
+        elif (
+            ebitda_raw is not None
+            and ebitda_raw > 0
+            and _computed_ev_for_reason is not None
+            and _computed_ev_for_reason > 0
+            and not (0 < (_computed_ev_for_reason / ebitda_raw) <= 10000)
+        ):
+            ev_ebitda_reason = "implausible_ratio"
         else:
             ev_ebitda_reason = "missing_sec_data"
 
@@ -427,6 +451,17 @@ class ValueMetricsMixin(SymbolGateMixin):
         # straight quarters within the trailing-370-day window) against a $1.22 price implies a
         # ~2705% yield - real data, correctly rejected, mislabeled all the same.
         dividend_yield_implausible_from_ttm_dividend_data = False
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" follow-up): tracks
+        # whether this tier's own 370-day window found ANY real payment at all, regardless of
+        # magnitude - distinct from "found one but it was implausible" above. A symbol whose
+        # most recent real payment falls between 371 days and 2 years ago (has_dividend_history
+        # below confirms it, but this tier's tighter window doesn't) previously fell straight
+        # through to the generic "missing_sec_data" - real data exists, a current yield just
+        # can't be computed with confidence from a stale payment, the same "real fact, not an
+        # extraction gap" class as a confirmed non-payer. Live-confirmed NHP: 46 real dividend_
+        # data rows on file, most recent 2025-02-14 (~568 days before this fix - within the
+        # 2-year non-payer check but outside the 370-day TTM window).
+        dividend_yield_no_ttm_payment = False
         if dividend_yield is None and current_price is not None and current_price > 0:
             try:
                 with _owner().DatabaseContext("read") as cur:
@@ -455,6 +490,8 @@ class ValueMetricsMixin(SymbolGateMixin):
                                 f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback yield "
                                 f"out of bounds ({candidate:.2%}), leaving NULL"
                             )
+                    else:
+                        dividend_yield_no_ttm_payment = True
             except Exception as e:
                 logger.debug(f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback failed: {e}")
 
@@ -483,9 +520,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                     )
                     has_dividend_history = cur.fetchone() is not None
 
+                # A real payment inside the 2-year window but outside the 370-day TTM window -
+                # genuine recent data, just too stale to compute a confident current yield from,
+                # not a missing SEC concept. "Legitimate / not applicable", same as
+                # non_dividend_paying_stock just below.
+                if has_dividend_history and dividend_yield_no_ttm_payment:
+                    dividend_yield_reason = "dividend_lapsed_beyond_ttm_window"
                 # Confirmed non-payers get dividend_yield=0.0 (semantically correct), not NULL,
                 # with the reason tracked for transparency.
-                if not has_dividend_history:
+                elif not has_dividend_history:
                     dividend_yield = 0.0
                     dividend_yield_reason = "non_dividend_paying_stock"
                 else:
@@ -862,6 +905,13 @@ class ValueMetricsMixin(SymbolGateMixin):
                     if _ps_implausible_ratio
                     # ev_revenue is one of the fields _sanity_check_market_cap nulls on a shares-
                     # outstanding scale mismatch; placed last so a real revenue-shaped cause wins.
+                    # NOTE: an etf_symbols fallback here (mirroring total_debt/total_cash's fix
+                    # in vqg_quality.py) was considered and dropped - SPY (the only active
+                    # symbol hitting this reason) has no sec_valuations row at all, so it never
+                    # reaches this per-symbol chain in the first place (caught by
+                    # load_value_quality_growth_metrics.py's earlier whole-row unavailable-
+                    # marker default instead); confirmed via a failing test before removing what
+                    # would otherwise be dead code.
                     else "shares_outstanding_scale_mismatch"
                     if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
                     else "missing_sec_data"
