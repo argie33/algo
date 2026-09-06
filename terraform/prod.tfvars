@@ -86,6 +86,27 @@ enable_stop_loss_guardian = false
 # flip to true only with an explicit go-ahead to deploy it, then `terraform apply`.
 enable_intraday_risk_monitor = false
 
+# Consolidated 5-minute risk monitor (modules/services/unified-risk-monitor.tf) - replaces
+# the 4 mechanisms above/below (stop-loss-guardian, intraday-risk-monitor, and eventually
+# circuit-breaker.tf/execution-monitor.tf's separate Lambdas) with one check that, unlike
+# intraday-risk-monitor's alert-only stance, actually acts (automated halt, then automated
+# reduce/flatten if a breach persists past the halt - see algo/risk/unified_risk_monitor.py's
+# docstring). Deployed disabled first: soak in paper mode with the old mechanisms running in
+# shadow for direct comparison before enabling, and do not delete the old resources until
+# that soak is clean (see the rollout plan in memory/ for this real-money-readiness
+# architecture rebuild, 2026-09-06).
+enable_unified_risk_monitor = false
+
+# Always-on Alpaca trade_updates websocket listener (modules/loaders/trade-update-
+# listener.tf) - event-driven order/fill state to replace pure REST polling for latency
+# (never for correctness - REST reconciliation keeps running unchanged as the safety net,
+# see algo/execution/trade_update_listener.py's docstring). NEW infrastructure pattern for
+# this repo (an always-on aws_ecs_service, not scheduled Lambda/batch ECS) and a new
+# ongoing 24/7 Fargate cost. Deploy only after unified_risk_monitor above has already
+# soaked cleanly per the rollout plan (2026-09-06 real-money-readiness architecture
+# rebuild) - deliberately left false here.
+enable_trade_update_listener = false
+
 # Evening orchestrator disabled in favor of morning-only in production
 # Rationale: Paper trading doesn't need evening prep. Real trading: evaluate daily at 9:30 AM only.
 
