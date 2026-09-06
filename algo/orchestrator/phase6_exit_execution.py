@@ -1127,6 +1127,33 @@ def run(
                             with DatabaseContext("write") as cur:
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
+                                    # BROKER SYNC (real-money-readiness audit, found 2026-09-06,
+                                    # same bug class as the sibling RAISE_STOP path below): this
+                                    # write used to only ever update our own DB's belief about the
+                                    # stop. The bracket order's stop-loss leg placed once at entry
+                                    # kept resting at the broker at its ORIGINAL, wider price
+                                    # forever - nothing pushed an exposure-driven tighten back to
+                                    # Alpaca, so a fast adverse move between orchestrator runs could
+                                    # blow through the stop we thought we'd tightened with nothing
+                                    # live at the exchange to catch it. Fail closed exactly like
+                                    # RAISE_STOP: don't record the tighten if we can't confirm the
+                                    # broker matches.
+                                    cur.execute(
+                                        "SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s",
+                                        (action.get("trade_id"),),
+                                    )
+                                    order_id_row = cur.fetchone()
+                                    alpaca_order_id = order_id_row[0] if order_id_row else None
+                                    if trade_executor is None:
+                                        raise RuntimeError(
+                                            "[PHASE 6] trade_executor unavailable - cannot sync tightened stop to broker"
+                                        )
+                                    sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
+                                        alpaca_order_id, action["new_stop"]
+                                    )
+                                    if not sync_result.get("success"):
+                                        raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
+
                                     # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
                                     # Phase 3 computes new trailing stops using current_stop_price and recommends updates to that column
                                     # Phase 6 was updating stop_loss_price (wrong column), so trailing stops never increased

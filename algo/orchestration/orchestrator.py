@@ -1667,14 +1667,40 @@ class Orchestrator:
         Removes all the complex grace period / hung task detection logic.
         """
         self.log_phase_start(1, "DATA FRESHNESS CHECK")
-        result = run_phase1(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.alerts,
-            self.verbose,
-            self.log_phase_result,
-        )
+        try:
+            result = run_phase1(
+                self.config,
+                self.run_date,
+                self.dry_run,
+                self.alerts,
+                self.verbose,
+                self.log_phase_result,
+            )
+        except Exception as e:
+            # CRITICAL FIX (real-money-readiness audit, found 2026-09-06): an unhandled
+            # exception here (e.g. psycopg2.OperationalError, or any bug inside
+            # phase1_data_freshness.py/phase1_price_freshness.py/phase1_table_freshness.py)
+            # used to propagate straight up to phase_executor.py's generic Exception catch,
+            # which sets PhaseResult(status="error", halted=False) - never reaching any of
+            # the degraded/halted/ok branches below that are the ONLY places this method
+            # calls set_halt_flag(). Since phases 3/4/5/6/7/8/9 are all always_run=True and
+            # Phase 5's exposure constraints don't depend on Phase 1, a Phase 1 crash left
+            # the global halt flag completely untouched - Phase 8 would check
+            # check_halt_flag(), see it False, and place real entry orders on data Phase 1
+            # never actually validated. Mirrors the "halted" branch's own set_halt_flag
+            # pattern: a crash is at least as dangerous as an explicit "halted" verdict, so
+            # it must halt at least as hard, not silently skip the safety mechanism entirely.
+            halt_reason = f"Phase 1 crashed: {type(e).__name__}: {e}"
+            logger.error(f"[PHASE 1] {halt_reason}", exc_info=True)
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase1_data_freshness")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set after Phase 1 crashed. "
+                    "This is a critical safety failure - data freshness is unverified but we can't "
+                    "stop trading. Orchestrator MUST fail. Check database connectivity (RDS and "
+                    "DynamoDB) and AWS credentials."
+                ) from e
+            raise
         # Store result for Phase 5 to check degradation status
         self._phase1_result = result
 
