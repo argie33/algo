@@ -391,8 +391,24 @@ class ValueMetricsMixin(SymbolGateMixin):
         # DCF fcf negative/None from a balance-sheet debt swing) - the fcf_yield-based guess
         # below stays only as a fallback for rows load_sec_valuations.py hasn't reprocessed yet.
         dcf_fcf_reason = row_dict.get("dcf_fcf_unavailable_reason")
+        # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): dcf_fcf_reason is
+        # preferred as "ground truth" above (see test_dcf_fcf_ground_truth_reason_preferred_
+        # over_fcf_yield_20260905.py - its generic "missing_cash_flow_data" is still correctly
+        # preferred over a wrong fcf_yield-based guess when fcf_yield is a real, sign-mismatched
+        # value). But when fcf_yield is itself None, fcf_yield_reason_str carries a real,
+        # specific cause (e.g. "registered_investment_company_no_xbrl",
+        # "no_recent_free_cash_flow_reported") computed independently just above - letting the
+        # generic ground-truth fallback win over THAT unconditionally blocked it from ever
+        # surfacing. Live-confirmed on CURX/SLS/BTX/CEV and 300+ more universe symbols
+        # (2026-09-06 DB scan): all had a specific fcf_yield reason available but were stuck on
+        # the generic label solely because dcf_fcf_reason happened to equal it too.
+        _specific_dcf_fcf_reason = (
+            fcf_yield_reason_str
+            if dcf_fcf_reason == "missing_cash_flow_data" and fcf_yield_reason_str
+            else dcf_fcf_reason
+        )
         intrinsic_value_reason = (
-            (dcf_fcf_reason or intrinsic_value_reason_from_fcf_yield(fcf_yield, fcf_yield_reason_str))
+            (_specific_dcf_fcf_reason or intrinsic_value_reason_from_fcf_yield(fcf_yield, fcf_yield_reason_str))
             if intrinsic_value_per_share is None
             else None
         )
