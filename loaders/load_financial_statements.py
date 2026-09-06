@@ -753,6 +753,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # has been the shared "balance-sheet fallback-only fields" bucket since the JPM
         # entry above; both annual/quarterly balance configs reference it directly.
         "stockholders_equity_including_portion_attributable_to_noncontrolling_interest",
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep): MembersEquity
+        # sibling of the entry above - see sec_balance_sheet.py's get_balance_sheet() comment
+        # for the live evidence (ARXS).
+        "limited_liability_company_llc_members_equity_including_portion_attributable_to_noncontrolling_interest",
         # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): CAT/SLB-style and
         # XOM-style fallbacks - see sec_statements.py's get_balance_sheet() comment for the
         # live evidence (CAT FY2025 $30.696B, SLB FY2025 $9.742B, XOM FY2025 $34.241B, none
@@ -939,6 +943,13 @@ _BALANCE_FIELD_MAPPING = {
     # parent-only concept is absent entirely.
     "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
     "partners_capital": "stockholders_equity",
+    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep): mirrors
+    # "stockholders_equity_including_portion_attributable_to_noncontrolling_interest"
+    # above, for the MembersEquity family - see sec_balance_sheet.py's get_balance_sheet()
+    # comment on the matching concept-list entry for the live evidence (ARXS). Fallback-only
+    # (listed BEFORE "members_equity" below so the direct legal-structure analogue always
+    # wins when both are present for the same fiscal year).
+    "limited_liability_company_llc_members_equity_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" audit): LLC-
     # structured domestic filers (APGE/ARXS/ITG live-confirmed) tag "MembersEquity"
     # instead of any StockholdersEquity/PartnersCapital concept - see sec_statements.py's
@@ -1163,6 +1174,11 @@ _CASHFLOW_FIELD_MAPPING = {
     "payments_to_acquire_and_develop_real_estate": "capex",
     "payments_to_acquire_real_estate": "capex",
     "payments_for_capital_improvements": "capex",
+    # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep, scored-symbol
+    # follow-up beyond the earlier REIT capex sweep) - see sec_cash_flow.py's get_cash_flow()
+    # comment for the live SKT (Tanger Inc) evidence: a standard REIT property-improvement
+    # capex concept, never fetched at all.
+    "real_estate_improvements": "capex",
     # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification of
     # the 2026-08-24 fix's "pending separate verification" exclusion) - see sec_statements.py's
     # get_cash_flow() comment for the live SLG (SL Green) evidence: 8 straight years of real,

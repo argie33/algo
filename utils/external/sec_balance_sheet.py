@@ -128,6 +128,29 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # fallback-only for the same defensive reason as the concept above).
         "PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest",
         "PartnersCapital",
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, same session
+        # this file's own balance_sheet_identity check flagged 887 symbol/years - ARXS,
+        # ironically the very symbol this file's MembersEquity comment below cites as its
+        # original evidence, was one of them): the "IncludingPortionAttributableTo
+        # NoncontrollingInterest" fallback pattern already applied to StockholdersEquity/
+        # PartnersCapital two entries below was never mirrored for MembersEquity - live-
+        # confirmed via ARXS's own real companyfacts JSON (CIK 0002093536): its most recent
+        # 10-Q (filed 2026-07-30, period end 2026-06-30) tags plain MembersEquity=$0 while
+        # LimitedLiabilityCompanyLlcMembersEquityIncludingPortionAttributableToNoncontrolling
+        # Interest=$4,467,558,000 for the SAME period - exactly matching Assets($7,006,652,000)
+        # - Liabilities($2,539,094,000). Fallback-only (listed before "MembersEquity", same
+        # last-listed-wins convention as StockholdersEquityIncludingPortionAttributableTo
+        # NoncontrollingInterest above): fills only an LLC filer with zero real MembersEquity
+        # facts for any period at all, never overwrites a present MembersEquity value - so
+        # this does NOT by itself resolve ARXS's specific $0-vs-$4.47B period (that $0 is a
+        # present, non-null fact under the winning concept name, ambiguous between a genuine
+        # Up-C-style near-zero-parent-equity structure - see this file's own
+        # balance_sheet_identity docstring on PROK/ATTO/FAC/LTGO/SCTX for that already-accepted
+        # pattern - and an isolated filer tagging error; not enough evidence from one symbol to
+        # override the general "parent-only figure wins when both present" precedent). Closes
+        # the same class of gap ADM/AAON already got for StockholdersEquity for any OTHER LLC
+        # filer that never tags plain MembersEquity at all.
+        "LimitedLiabilityCompanyLlcMembersEquityIncludingPortionAttributableToNoncontrollingInterest",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" audit):
         # LLC-structured domestic filers (not FPIs) tag "MembersEquity" instead of any
         # StockholdersEquity/PartnersCapital concept - live-confirmed via real SEC
