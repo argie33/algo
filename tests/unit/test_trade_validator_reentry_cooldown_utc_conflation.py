@@ -17,13 +17,17 @@ from algo.trading.trade_validator import TradeValidator
 from utils.infrastructure import EASTERN_TZ
 
 
-def _make_validator(min_days=8, max_reentries=3):
+def _make_validator(min_days=8, max_reentries=3, wash_sale_cooldown_days=None):
     config = {
         "t1_target_r_multiple": 2.0,
         "t2_target_r_multiple": 3.0,
         "t3_target_r_multiple": 4.0,
         "max_reentries_per_name": max_reentries,
         "min_days_before_reentry_same_symbol": min_days,
+        # Same as min_days by default (not the real 31-day production default) so this
+        # test's ET-vs-UTC scenario isn't also incidentally exercising the separate
+        # wash-sale-cooldown feature - that has its own dedicated test module.
+        "wash_sale_cooldown_days": wash_sale_cooldown_days if wash_sale_cooldown_days is not None else min_days,
     }
     return TradeValidator(config)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date as _date
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
@@ -79,6 +79,13 @@ class TradeValidator:
         if "min_days_before_reentry_same_symbol" not in config or config["min_days_before_reentry_same_symbol"] is None:
             raise ValueError("CRITICAL: min_days_before_reentry_same_symbol config missing or None.")
         self.min_days_before_reentry_same_symbol = int(config["min_days_before_reentry_same_symbol"])
+
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): see check_reentry_rules' own comment -
+        # a separate, longer cooldown that only applies on top of the reset period above when
+        # the prior exit was a LOSS (wash-sale rule), not a blanket replacement for it.
+        if "wash_sale_cooldown_days" not in config or config["wash_sale_cooldown_days"] is None:
+            raise ValueError("CRITICAL: wash_sale_cooldown_days config missing or None.")
+        self.wash_sale_cooldown_days = int(config["wash_sale_cooldown_days"])
 
     def validate_entry_preconditions(
         self,
@@ -531,25 +538,30 @@ class TradeValidator:
         return False, None, 0
 
     def check_reentry_rules(self, cur: Any, symbol: str) -> tuple[bool, str | None, int]:
-        from algo.infrastructure.config.sql_intervals import get_interval_sql
-
-        interval_sql = get_interval_sql("30d")
-        # Find most recent CLOSED trade in the last 30 days
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): lookback window widened from a fixed
+        # 30 days to max(30, wash_sale_cooldown_days) - a straight 30-day window could miss a
+        # loss-exit sitting right at day 30/31, which is exactly the case the wash-sale check
+        # below needs to see in order to enforce the longer cooldown. Parameterized (not the
+        # sql_intervals.py fixed-key helper this used before) since the window is now a
+        # runtime-configurable value, not one of that module's fixed registered keys.
+        lookback_days = max(30, self.wash_sale_cooldown_days)
+        lookback_date = datetime.now(EASTERN_TZ).date() - timedelta(days=lookback_days)
+        # Find most recent CLOSED trade within the lookback window
         cur.execute(
-            f"""
+            """
             SELECT trade_id, exit_date, exit_reason, profit_loss_pct, reentry_count
             FROM algo_trades
             WHERE symbol = %s AND status = %s
-              AND exit_date >= CURRENT_DATE - {interval_sql}
+              AND exit_date >= %s
             ORDER BY exit_date DESC NULLS LAST, id DESC
             LIMIT 1
             """,
-            (symbol, TradeStatus.CLOSED.value),
+            (symbol, TradeStatus.CLOSED.value, lookback_date),
         )
         prior = cur.fetchone()
         reentry_count = 0
         if prior:
-            _prior_trade_id, exit_date, exit_reason, _exit_pnl, prior_reentry = prior
+            _prior_trade_id, exit_date, exit_reason, exit_pnl, prior_reentry = prior
 
             # If reentry_count is NULL, treat as 0 (no prior re-entries)
             prior_reentry = prior_reentry if prior_reentry is not None else 0
@@ -582,10 +594,28 @@ class TradeValidator:
                     # min_days_before_reentry_same_symbol actually requires. Use the same
                     # EASTERN_TZ convention as the rest of this file for internal consistency.
                     days_since_exit = (datetime.now(EASTERN_TZ).date() - exit_d).days
-                    if days_since_exit < self.min_days_before_reentry_same_symbol:
+
+                    # REAL-MONEY-READINESS FIX (2026-09-06 audit): min_days_before_reentry_
+                    # same_symbol alone is a pure flip-flop-prevention reset period with no
+                    # tax awareness - re-entering the same symbol 6-29 days after a LOSS-
+                    # driven stop-out (which the base 5-day reset already permits) triggers
+                    # the IRS wash-sale rule (30-day window before/after a loss sale),
+                    # disallowing that loss for tax purposes in a taxable account. Wash sale
+                    # only applies to LOSSES, not gains - a profitable stop-out (e.g. a
+                    # trailing stop) has no tax concern here and only waits the shorter base
+                    # reset period. required_cooldown_days is the base reset UNLESS this was
+                    # a loss, in which case it's whichever is longer.
+                    is_loss_exit = exit_pnl is not None and float(exit_pnl) < 0
+                    required_cooldown_days = self.min_days_before_reentry_same_symbol
+                    cooldown_reason = "reset period"
+                    if is_loss_exit and self.wash_sale_cooldown_days > required_cooldown_days:
+                        required_cooldown_days = self.wash_sale_cooldown_days
+                        cooldown_reason = "wash-sale cooldown - prior exit was a loss"
+
+                    if days_since_exit < required_cooldown_days:
                         return (
                             False,
-                            f"{symbol}: only {days_since_exit}d since stop-out; require {self.min_days_before_reentry_same_symbol}d before re-entry (reset period)",
+                            f"{symbol}: only {days_since_exit}d since stop-out; require {required_cooldown_days}d before re-entry ({cooldown_reason})",
                             0,
                         )
                 reentry_count = prior_reentry_count + 1

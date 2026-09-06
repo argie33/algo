@@ -27,6 +27,7 @@ def _make_validator():
         "t3_target_r_multiple": 4.0,
         "max_reentries_per_name": 3,
         "min_days_before_reentry_same_symbol": 8,
+        "wash_sale_cooldown_days": 31,
     }
     return TradeValidator(config)
 

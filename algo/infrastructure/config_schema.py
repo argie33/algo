@@ -200,6 +200,7 @@ VALIDATION_SCHEMA = {
     "position_halt_flag_count": ("int", 1, 100, False, 2),
     "max_reentries_per_name": ("int", 0, 100, False, 2),
     "min_days_before_reentry_same_symbol": ("int", 0, 100, False, 5),
+    "wash_sale_cooldown_days": ("int", 0, 100, False, 31),
     "reentry_cooldown_minutes": ("int", 0, 1440, False, 30),
     # Economic Calendar
     "halt_entries_before_major_release_minutes": ("int", 0, 1440, False, 60),

@@ -208,6 +208,22 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Days to wait before re-entering symbol",
         "Position Monitoring",
     ),
+    # REAL-MONEY-READINESS FINDING (2026-09-06 audit): min_days_before_reentry_same_symbol
+    # above is a pure flip-flop-prevention reset period (5 days) with no tax awareness at
+    # all - a stop-out at a LOSS followed by a re-entry into the same symbol 6-29 days later
+    # (which the 5-day reset already permits) systematically triggers the IRS wash-sale rule
+    # (30-day window before/after a loss sale), disallowing that loss for tax purposes in a
+    # taxable account. Wash sale only applies to LOSSES, not gains, so this is a SEPARATE,
+    # longer cooldown applied only on top of the existing reset period when the prior
+    # stop-out/time-exit closed at a loss (see trade_validator.py's check_reentry_rules) -
+    # a profitable stop-out (e.g. a trailing stop) still only waits the shorter 5-day reset.
+    # 31 = the IRS's 30-calendar-day window + 1 day buffer.
+    "wash_sale_cooldown_days": (
+        "31",
+        "int",
+        "Days to wait before re-entering a symbol after a LOSS exit (IRS wash-sale rule: 30-day window + 1 day buffer). Only applies to loss exits, not profitable ones.",
+        "Position Monitoring",
+    ),
     "reentry_cooldown_minutes": (
         "30",
         "int",
