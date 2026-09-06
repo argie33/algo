@@ -2838,6 +2838,36 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if metrics.get(_field) is None and metrics.get(_reason_key) in _trust_source_reasons:
                         metrics[_reason_key] = "reit_special_entity"
 
+            # Same recategorization pattern as the royalty-trust block above, for physical
+            # commodity/currency/crypto trusts (see _get_etf_trust_no_stockholders_equity_
+            # symbols' own docstring - GLDM/USO/UNG/FXA/GBTC-class tickers). ADDED 2026-09-05
+            # (goal: "SEC/XBRL missing data to zero" sweep, follow-up to the same day's
+            # etf_trust_no_gaap_financials fix): that fix only wired the ETF-trust gate into
+            # this function's single "ALL metrics null" early return - live-confirmed via a
+            # scoped rerun of the 43 real etf_symbols matching this gate that most (38/43)
+            # never hit that early return at all (some other field, e.g. current_ratio,
+            # legitimately computes for a Statement-of-Assets-and-Liabilities filer even
+            # without stockholders_equity) and fell through to this function's normal per-field
+            # `stockholders_equity_not_reported` ternary branches instead (roe/roa/debt_to_
+            # equity/roic_pct/roce_pct/sustainable_growth_rate all check that reason before ever
+            # reaching the ETF-specific gate) - the exact same "fix wired into only one of
+            # several call sites" bug class as the royalty-trust block's own reason set.
+            # roa is excluded: it never reaches stockholders_equity_not_reported (gated on
+            # total_assets instead, which these trusts DO report).
+            if symbol in self._get_etf_trust_no_stockholders_equity_symbols():
+                _etf_trust_recategorize_fields = (
+                    "operating_profitability",
+                    "roe",
+                    "debt_to_equity",
+                    "roic_pct",
+                    "roce_pct",
+                    "sustainable_growth_rate",
+                )
+                for _field in _etf_trust_recategorize_fields:
+                    _reason_key = f"{_field}_unavailable_reason"
+                    if metrics.get(_field) is None and metrics.get(_reason_key) == "stockholders_equity_not_reported":
+                        metrics[_reason_key] = "etf_trust_no_gaap_financials"
+
             if stale_fallback_metrics:
                 # One or more fields above came from a prior fiscal year (up to 6 years
                 # back) via the cross-year "implausible anchor" rescue, not this symbol's
