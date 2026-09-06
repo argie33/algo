@@ -1023,14 +1023,29 @@ class QualityMetricsMixin(SymbolGateMixin):
                 failed_metrics.append("debt_to_equity")
 
             # FCF to Net Income = Free Cash Flow / Net Income
+            # Same >1000 near-zero-denominator bound as debt_to_assets/current_ratio/quick_ratio/
+            # debt_to_equity above - a near-zero net_income explodes this ratio the same way a
+            # near-zero equity/assets base explodes theirs, and this field was missing the guard
+            # every sibling ratio in this function already has.
             if free_cash_flow is not None and net_income is not None and net_income != 0:
-                metrics["fcf_to_net_income"] = float(free_cash_flow / net_income)
+                computed_fcf_to_net_income = free_cash_flow / net_income
+                if abs(computed_fcf_to_net_income) > 1000:
+                    failed_metrics.append("fcf_to_net_income")
+                    implausible_ratio_metrics.append("fcf_to_net_income")
+                else:
+                    metrics["fcf_to_net_income"] = float(computed_fcf_to_net_income)
             else:
                 failed_metrics.append("fcf_to_net_income")
 
             # OCF to Net Income = Operating Cash Flow / Net Income
+            # Same >1000 near-zero-denominator bound as fcf_to_net_income above.
             if operating_cash_flow is not None and net_income is not None and net_income != 0:
-                metrics["ocf_to_net_income"] = float(operating_cash_flow / net_income)
+                computed_ocf_to_net_income = operating_cash_flow / net_income
+                if abs(computed_ocf_to_net_income) > 1000:
+                    failed_metrics.append("ocf_to_net_income")
+                    implausible_ratio_metrics.append("ocf_to_net_income")
+                else:
+                    metrics["ocf_to_net_income"] = float(computed_ocf_to_net_income)
             else:
                 failed_metrics.append("ocf_to_net_income")
 
@@ -2635,8 +2650,10 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             metrics["fcf_to_net_income_unavailable_reason"] = (
                 (
+                    "implausible_ratio"
+                    if "fcf_to_net_income" in implausible_ratio_metrics
                     # See fcf_margin_unavailable_reason above for why this check comes first.
-                    "registered_investment_company_no_xbrl"
+                    else "registered_investment_company_no_xbrl"
                     if free_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
                     # FIXED 2026-09-06: same fcf_margin sibling-wiring gap, ETF-trust side.
                     else "etf_trust_no_gaap_financials"
@@ -2670,10 +2687,12 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             metrics["ocf_to_net_income_unavailable_reason"] = (
                 (
+                    "implausible_ratio"
+                    if "ocf_to_net_income" in implausible_ratio_metrics
                     # Same RIC gap as accruals_ratio_unavailable_reason above. Live-confirmed
                     # 14 universe symbols (IGI/TY/ASA/GAM/GGN/GGT/GLU/PIM/PMM/GNT/HQH/PPT/NXP/
                     # SOR).
-                    "registered_investment_company_no_xbrl"
+                    else "registered_investment_company_no_xbrl"
                     if operating_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
                     # FIXED 2026-09-06: same fcf_margin sibling-wiring gap, ETF-trust side -
                     # ETF/commodity/currency trusts file no cash-flow statement, same as a RIC.
