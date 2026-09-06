@@ -1092,6 +1092,17 @@ class QualityMetricsMixin(SymbolGateMixin):
                     or symbol in self._get_never_tagged_net_income_symbols()
                 ):
                     payout_ratio_reason = "net_income_not_reported"
+                # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                # follow-up to total_debt_unavailable_reason's own etf_symbols check above): an
+                # ETF/UIT (SPY/IGV/BKDV live-confirmed) has no "net_income" concept at all - it
+                # distributes fund income, it doesn't report corporate earnings - so its real
+                # dividend payments (has_real_dividend_history below would otherwise be True)
+                # were mislabeled "missing_sec_data" instead of the already-correct
+                # etf_trust_no_gaap_financials. Same "etf_symbols membership alone is
+                # sufficient" rationale as that total_debt fix - an ETF's absence of a
+                # net_income concept doesn't depend on listing age.
+                elif symbol in self._get_etf_symbols():
+                    payout_ratio_reason = "etf_trust_no_gaap_financials"
                 else:
                     # Same "ever, not recently" distinction as dividend_yield_reason above - a
                     # symbol that discontinued its dividend years ago has real history on file
@@ -2543,6 +2554,18 @@ class QualityMetricsMixin(SymbolGateMixin):
                 (
                     "implausible_ratio"
                     if "interest_coverage" in implausible_ratio_metrics
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): interest
+                    # coverage is mathematically undefined - not missing - for a symbol
+                    # double-confirmed structurally debt-free (never tagged ANY debt component
+                    # across full balance-sheet history AND never reports nonzero
+                    # interest_expense - the same evidentiary bar total_debt's own zero-coercion
+                    # just above uses). Unlike total_debt (a real 0), operating_income/0 has no
+                    # meaningful value, so this gets its own "Legitimate / not applicable" reason
+                    # instead of a coerced number - same "mathematically undefined for real
+                    # business reasons, not a data gap" class as no_revenue_reported/
+                    # unprofitable_stock/negative_enterprise_value.
+                    else "no_debt_no_interest_expense"
+                    if no_recent_interest_expense and symbol in self._get_never_tagged_debt_components_symbols()
                     else "interest_expense_not_itemized"
                     if no_recent_interest_expense
                     else "reit_special_entity"

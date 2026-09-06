@@ -668,6 +668,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # ebitda_margin/ev_revenue/ps_ratio/asset_turnover) for gaps that no re-fetch or
             # extraction fix could ever close, since there is no revenue fact to find.
             "no_revenue_reported",
+            # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep):
+            # interest_coverage's own reason from load_value_quality_growth_metrics.py's
+            # vqg_quality.py for a symbol double-confirmed structurally debt-free (never
+            # tagged ANY debt component AND never reports nonzero interest_expense) - operating
+            # income / $0 interest expense is mathematically undefined, not missing data, same
+            # "Legitimate / not applicable" class as no_revenue_reported/unprofitable_stock/
+            # negative_enterprise_value just above.
+            "no_debt_no_interest_expense",
             # ADDED 2026-08-29 (goal session: signal_quality_scores bare_reason_tables
             # addition): the backfill marker [[signal_quality_scores_historical_reason_backfill_20260829]]
             # applied to 53,567 pre-2026-08-29 rows that predate this table's reason-tracking
