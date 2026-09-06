@@ -31,6 +31,33 @@ validator = AlpacaResponseValidator()
 _LIVE_LEG_STATUSES = {"new", "accepted", "held", "pending_new", "accepted_for_bidding"}
 
 
+def _notify_bracket_validation_failure(symbol: str, error_msg: str) -> None:
+    """Alert a human when send_bracket_order() refuses to submit a real order due to
+    corrupted/missing price data (invalid entry_price/shares/stop_loss_price/take_profit_price).
+
+    SAFETY (2026-09-06, real-money-readiness audit): these validation failures previously only
+    called logger.critical() - a real signal was silently discarded with no trade attempted and
+    no human notified, distinguishable from a normal policy-based decline only by digging
+    through application logs after the fact. This is send_bracket_order()'s actual real-money
+    broker-submission path (only reachable in execution_mode="auto" - paper/dry/review never
+    call it), and the stop_loss_price case specifically means Phase 8 was about to create a
+    naked (unprotected) position - exactly the class of event this codebase already alerts on
+    everywhere else (missing stop-loss legs, halts, circuit breakers). Best-effort: must never
+    block or fail order submission itself.
+    """
+    try:
+        from algo.reporting.notifications import notify
+
+        notify(
+            "critical",
+            "BRACKET_ORDER_VALIDATION_FAILED",
+            error_msg,
+            symbol=symbol,
+        )
+    except Exception as notify_err:
+        logger.error(f"[SEND_ORDER] {symbol}: Failed to send validation-failure alert (non-blocking): {notify_err}")
+
+
 def _find_live_stop_loss_leg(legs: list[Any]) -> dict[str, Any] | None:
     """Find the resting stop-loss leg (if any) in a bracket order's `legs` array.
 
@@ -274,6 +301,7 @@ class OrderManager(StopLossRepairMixin):
                     f"Refusing to submit a real order with corrupted data."
                 )
                 logger.critical(error_msg)
+                _notify_bracket_validation_failure(symbol, error_msg)
                 return {"success": False, "message": error_msg}
 
         # CRITICAL: Fail-fast if stop loss is missing or invalid - no fallback to naked positions
@@ -291,6 +319,7 @@ class OrderManager(StopLossRepairMixin):
                 f"Check Phase 8 entry validation - stop price calculation must succeed before order submission."
             )
             logger.critical(error_msg)
+            _notify_bracket_validation_failure(symbol, error_msg)
             return {"success": False, "message": error_msg}
 
         # BUG FOUND 2026-08-11: take_profit_price was never validated at all. A NaN
@@ -311,6 +340,7 @@ class OrderManager(StopLossRepairMixin):
                 f"than {max_abs_price:,.0f}, or None to auto-calculate from the 1.5R fallback."
             )
             logger.critical(error_msg)
+            _notify_bracket_validation_failure(symbol, error_msg)
             return {"success": False, "message": error_msg}
 
         stop_desc = f"${stop_loss_price:.2f}"
