@@ -18,6 +18,8 @@ DCF_NET_BORROWING_MIN_RETAINED_FRACTION class constant and _compute_dcf_intrinsi
 import logging
 from typing import TYPE_CHECKING, Any
 
+from utils.db.context import DatabaseContext
+
 logger = logging.getLogger(__name__)
 
 
@@ -341,7 +343,31 @@ class SecValuationYieldDcfMixin:
         # computed value needs no reason.
         if result["intrinsic_value_per_share"] is None:
             if dcf_fcf_base is None:
-                result["dcf_fcf_unavailable_reason"] = "missing_cash_flow_data"
+                # FIXED 2026-09-05 (goal session: "implausible values" sweep): a REIT (SIC
+                # 6798) or insurance carrier (SIC 6311/6321/6331/6351/6361/6399) structurally
+                # never tags a meaningful capex figure the way an operating company does -
+                # same real business-model fact already recognized for quality_metrics' own
+                # "reit_special_entity" label throughout vqg_quality.py (see sec_base.py's
+                # _get_reit_symbols/_get_insurance_symbols for the identical SIC-code
+                # rationale) - this DCF ground-truth reason never checked for it, so these
+                # fell to the generic "missing_cash_flow_data" instead of the same
+                # "Legitimate / not applicable" label the rest of the codebase already gives
+                # this exact entity-type fact. Queried directly here (not via
+                # sec_base.py's bulk-cached helpers) since SecValuationsLoader doesn't mix in
+                # that class - this branch is only reached for the rare missing-fcf-base
+                # case, not once per symbol.
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT sic_code FROM company_info_sec WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    sic_row = cur.fetchone()
+                sic_code = sic_row[0] if sic_row else None
+                result["dcf_fcf_unavailable_reason"] = (
+                    "reit_special_entity"
+                    if sic_code in (6798, 6311, 6321, 6331, 6351, 6361, 6399)
+                    else "missing_cash_flow_data"
+                )
             elif dcf_fcf_base <= 0:
                 result["dcf_fcf_unavailable_reason"] = "negative_free_cash_flow"
             else:
