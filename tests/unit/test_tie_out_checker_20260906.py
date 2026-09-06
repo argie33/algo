@@ -210,10 +210,118 @@ class TestEpsReconciliation:
         assert checker.results == []
 
 
-class TestRunAggregatesAllThreeChecks:
-    def test_run_calls_all_three_checks(self) -> None:
-        cur = _mock_cursor([[], [], []])
+class TestGrossProfitIdentity:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADGP",
+                        "fiscal_year": 2025,
+                        "revenue": 1_000_000_000.0,
+                        "cost_of_revenue": 600_000_000.0,
+                        "gross_profit": 100_000_000.0,  # implied 400M vs tagged 100M
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_gross_profit_identity(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "gross_profit_identity"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODGP",
+                        "fiscal_year": 2025,
+                        "revenue": 1_000_000_000.0,
+                        "cost_of_revenue": 600_000_000.0,
+                        "gross_profit": 400_000_000.0,  # exact tie-out
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_gross_profit_identity(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_gross_profit_identity(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_gross_profit_identity(cur)  # must not raise
+        assert checker.results == []
+
+
+class TestPretaxToNetIncome:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADTAX",
+                        "fiscal_year": 2025,
+                        "pretax_income": 1_000_000_000.0,
+                        "income_tax_expense": 200_000_000.0,
+                        "net_income": 2_000_000_000.0,  # implied 800M vs tagged 2B
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_pretax_to_net_income(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "pretax_to_net_income"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODTAX",
+                        "fiscal_year": 2025,
+                        "pretax_income": 1_000_000_000.0,
+                        "income_tax_expense": 200_000_000.0,
+                        "net_income": 800_000_000.0,  # exact tie-out
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_pretax_to_net_income(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_pretax_to_net_income(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_pretax_to_net_income(cur)  # must not raise
+        assert checker.results == []
+
+
+class TestRunAggregatesAllChecks:
+    def test_run_calls_all_five_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 3
+        assert cur.execute.call_count == 5

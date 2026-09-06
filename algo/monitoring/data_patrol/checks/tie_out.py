@@ -31,10 +31,41 @@ fix (see audit_unavailable_reasons.py's 2026-09-02 comment) - a stale FY2015 XBR
 quirk that's already been superseded by a clean FY2020+ history re-flags every year forever,
 which is noise, not signal: nothing downstream (scoring, position sizing) ever reads a non-
 latest fiscal year, so a tie-out failure only on an old year is not an active data-integrity
-risk. Both checks below now use `DISTINCT ON (symbol) ORDER BY fiscal_year DESC` to check only
+risk. Every check below uses `DISTINCT ON (symbol) ORDER BY fiscal_year DESC` to check only
 each symbol's latest real (non-data_unavailable, values-present) row, matching that same
 convention. Full-history detail is not lost - it's still queryable directly, just not what
 reaches the WARN-severity alert.
+
+Round 2 (added 2026-09-06, same-day follow-up goal session "figure out all the tie-out gaps"):
+added gross_profit_identity and pretax_to_net_income. Both immediately flagged what looks like
+a genuine, systemic magnitude bug rather than noise - large well-covered names with no reason
+to have bad data (ABBV/GILD/AMGN/ABT all show a tagged gross_profit far too low for a pharma
+company's ~70% gross margin; ORCL/MCD/PYPL/PSX all show net_income exceeding what
+pretax_income - income_tax_expense implies, which is only possible with unusual items this
+schema doesn't itemize, or a same-row vintage mismatch between fields). This smells like the
+same class of bug as the SEC/XBRL campaign's "wrong-context value" findings (a dimensioned/
+non-default XBRL fact winning over the true consolidated total) - see
+sec_xbrl_stray_value_cascade_index_20260906 in memory for that pattern's precedent. NOT yet
+root-caused (that's a separate, likely large investigation into sec_base.py's gross_profit/
+pretax_income/income_tax_expense concept-priority chains, out of scope for this checker-
+building session) - flagging both as WARN here is exactly the mechanism to surface it for that
+follow-up, not a claim that the root cause is already found.
+
+Segment-sum-to-consolidated (revenue rolled up from sec_segment_info's operating segments vs.
+annual_income_statement.revenue) was investigated and deliberately NOT added: spot-checking it
+against the live DB showed 100x-1,400x magnitude errors concentrated in foreign filers (AKO.A/
+AKO.B/KWM/LGPS/MRM/LFS/LRE/PDC/PAYP) - sec_segment_info's segment_revenue appears to not go
+through the same USD-normalization step annual_income_statement.revenue does, so summing the
+two is comparing different currencies for any non-USD-functional-currency filer. This needs an
+FX-normalization fix in the segment loader first, not a tolerance tweak - a distinct, larger
+piece of work than any check added here.
+
+Income-statement chain (revenue - total operating expenses ~= operating_income) was also
+considered and NOT added: there is no single "total operating expenses" column in
+annual_income_statement to subtract - it would require assembling cost_of_revenue + opex
+sub-line-items whose completeness varies by filer (R&D/SG&A tagged inconsistently), and
+gross_profit_identity above already covers the cleanest slice of this chain (revenue vs.
+cost_of_revenue) without that assembly problem.
 """
 
 import logging
@@ -54,6 +85,18 @@ _CASHFLOW_TOLERANCE_FLOOR = 1_000_000.0  # never flag a sub-$1M residual (roundi
 # on top of per-share rounding to 2 decimals compounding across large share counts.
 _EPS_TOLERANCE_PCT = 0.15
 _EPS_TOLERANCE_FLOOR = 500_000.0  # never flag a sub-$500K residual (rounding/immateriality)
+# revenue - cost_of_revenue == gross_profit is a strict GAAP definitional identity (gross_profit
+# IS that subtraction, not an independently-reported line most filers choose to tag separately)
+# - tight tolerance is appropriate, unlike the other checks here which cross real independent
+# facts subject to legitimate measurement differences.
+_GROSS_PROFIT_TOLERANCE_PCT = 0.02
+_GROSS_PROFIT_TOLERANCE_FLOOR = 250_000.0
+# pretax_income - income_tax_expense == net_income ignores noncontrolling-interest carve-outs
+# and discontinued-operations adjustments (neither tracked as separate columns here) - looser
+# than gross profit's tolerance but tighter than EPS's, since this skips the extra share-count
+# rounding EPS reconciliation compounds.
+_PRETAX_NET_INCOME_TOLERANCE_PCT = 0.10
+_PRETAX_NET_INCOME_TOLERANCE_FLOOR = 500_000.0
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -72,6 +115,8 @@ class TieOutChecker(BaseCheck):
         self.check_balance_sheet_identity(cur)
         self.check_cashflow_reconciliation(cur)
         self.check_eps_reconciliation(cur)
+        self.check_gross_profit_identity(cur)
+        self.check_pretax_to_net_income(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -264,3 +309,119 @@ class TieOutChecker(BaseCheck):
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] eps_reconciliation failed: {e}", exc_info=True)
+
+    def check_gross_profit_identity(self, cur: Any) -> None:
+        """revenue - cost_of_revenue ~= gross_profit.
+
+        Only checks symbols where all three fields are independently tagged in the same
+        filing - not derived from each other by load_financial_statements.py (a filer that
+        never tags one of the three isn't in scope for this identity, same treatment as
+        balance_sheet_identity's derived-liabilities note above).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.revenue, i.cost_of_revenue, i.gross_profit
+                FROM annual_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.revenue IS NOT NULL
+                  AND i.cost_of_revenue IS NOT NULL
+                  AND i.gross_profit IS NOT NULL
+                  AND i.revenue != 0
+                ORDER BY i.symbol, i.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                revenue, cost_of_revenue, gross_profit = (
+                    float(row["revenue"]),
+                    float(row["cost_of_revenue"]),
+                    float(row["gross_profit"]),
+                )
+                implied_gross_profit = revenue - cost_of_revenue
+                residual = implied_gross_profit - gross_profit
+                tolerance = max(_GROSS_PROFIT_TOLERANCE_FLOOR, abs(revenue) * _GROSS_PROFIT_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "revenue": revenue,
+                            "cost_of_revenue": cost_of_revenue,
+                            "gross_profit": gross_profit,
+                            "implied_gross_profit": implied_gross_profit,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "gross_profit_identity",
+                    WARN,
+                    "annual_income_statement",
+                    f"{len(flagged)} symbol(s) fail revenue - cost_of_revenue ~= gross_profit "
+                    f"beyond max(${_GROSS_PROFIT_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_GROSS_PROFIT_TOLERANCE_PCT:.0%} of revenue)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] gross_profit_identity failed: {e}", exc_info=True)
+
+    def check_pretax_to_net_income(self, cur: Any) -> None:
+        """pretax_income - income_tax_expense ~= net_income.
+
+        Not itemized here (see _PRETAX_NET_INCOME_TOLERANCE_PCT comment): noncontrolling-
+        interest carve-outs, discontinued-operations adjustments.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.pretax_income, i.income_tax_expense, i.net_income
+                FROM annual_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.pretax_income IS NOT NULL
+                  AND i.income_tax_expense IS NOT NULL
+                  AND i.net_income IS NOT NULL
+                  AND i.net_income != 0
+                ORDER BY i.symbol, i.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                pretax_income, income_tax_expense, net_income = (
+                    float(row["pretax_income"]),
+                    float(row["income_tax_expense"]),
+                    float(row["net_income"]),
+                )
+                implied_net_income = pretax_income - income_tax_expense
+                residual = implied_net_income - net_income
+                tolerance = max(_PRETAX_NET_INCOME_TOLERANCE_FLOOR, abs(net_income) * _PRETAX_NET_INCOME_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "pretax_income": pretax_income,
+                            "income_tax_expense": income_tax_expense,
+                            "net_income": net_income,
+                            "implied_net_income": implied_net_income,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "pretax_to_net_income",
+                    WARN,
+                    "annual_income_statement",
+                    f"{len(flagged)} symbol(s) fail pretax_income - income_tax_expense ~= "
+                    f"net_income beyond max(${_PRETAX_NET_INCOME_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_PRETAX_NET_INCOME_TOLERANCE_PCT:.0%} of net_income)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] pretax_to_net_income failed: {e}", exc_info=True)
