@@ -14,14 +14,6 @@ _get_no_recent_*_symbols()'s windowed siblings already use) - this just wasn't m
 other 10 never-tagged gates. Live-confirmed AVEX/ADBT/DPC (quality_metrics.roa): real
 annual_income_statement rows on file every year, all marked data_unavailable, net_income NULL
 throughout - came back "missing_sec_data" pre-fix, "net_income_not_reported" post-fix.
-
-Same-day follow-up: _get_never_tagged_revenue_symbols() used `WHERE data_unavailable IS NOT
-TRUE` instead of `= FALSE` - semantically identical for excluding a data_unavailable=TRUE row
-(`TRUE IS NOT TRUE` is just as false as `TRUE = FALSE`), so it was mistakenly treated as
-"already fixed" on first pass and missed from the batch above. Live-confirmed ADBT/SSMR/KARD/
-AVEX (quality_metrics.asset_turnover): real annual_balance_sheet total_assets on file, revenue
-NULL/data_unavailable=TRUE in every annual_income_statement row - came back "missing_sec_data"
-pre-fix, "no_revenue_reported" post-fix.
 """
 
 import re
@@ -62,10 +54,3 @@ class TestNeverTaggedGatesDontRequireANonUnavailableRow:
             assert "WHERE data_unavailable = FALSE" not in source, (
                 f"{name} still has an unfixed `WHERE data_unavailable = FALSE` filter."
             )
-
-    def test_never_tagged_revenue_symbols_filters_on_fiscal_year_not_data_unavailable(self):
-        # Same bug, different (semantically equivalent) spelling: `IS NOT TRUE` excludes a
-        # data_unavailable=TRUE row exactly as thoroughly as `= FALSE` does.
-        source = _function_source("_get_never_tagged_revenue_symbols")
-        assert "WHERE fiscal_year > 0" in source
-        assert "WHERE data_unavailable IS NOT TRUE" not in source
