@@ -603,17 +603,27 @@ class PreTradeChecks:
         if missing:
             return True, None
 
-        existing_value = sum(Decimal(str(qty)) * Decimal(str(price)) for _, qty, price in open_positions)
         existing_weighted_beta = sum(
             Decimal(str(qty)) * Decimal(str(price)) * Decimal(str(beta_by_symbol[pos_symbol]))
             for pos_symbol, qty, price in open_positions
         )
-        total_value = existing_value + position_value
-        if total_value <= 0:
+        # BUG FOUND (2026-09-06 real-money-readiness dig): this used to normalize by
+        # `existing_value + position_value` (sum of INVESTED position dollar values only,
+        # excluding cash) - silently ignoring the `portfolio_value` parameter this method
+        # accepts. That doesn't match var.py's beta_exposure(), which this check's own
+        # docstring claims to reuse the "2.0 convention" from - beta_exposure() weights each
+        # position by value/TOTAL-ACCOUNT-VALUE (this module's own header comment: "portfolio_
+        # value passed in is TOTAL account equity ... cash + open positions"), same denominator
+        # _check_top5_concentration already uses. With meaningful uninvested cash, the old
+        # formula could compute a portfolio_beta_after roughly 1/invested-fraction times LARGER
+        # than what var.py would ever report for the same book, needlessly blocking entries
+        # that could never actually breach the real 2.0 threshold this check is supposed to
+        # enforce. Fixed to use portfolio_value, matching var.py's beta_exposure() exactly.
+        if portfolio_value <= 0:
             return True, None
 
         portfolio_beta_after = float(
-            (existing_weighted_beta + position_value * Decimal(str(candidate_beta))) / total_value
+            (existing_weighted_beta + position_value * Decimal(str(candidate_beta))) / portfolio_value
         )
 
         try:
