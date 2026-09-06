@@ -7,6 +7,22 @@ file.
 time (not imported by name here) because several existing tests patch
 `loaders.load_prices.DatabaseContext` expecting that to affect these functions - a plain import
 here would silently stop seeing those patches.
+
+FIXED 2026-09-06 (live-caught running the local pipeline scheduler): `import loaders.load_prices
+as _lp` at MODULE level here, combined with load_prices.py importing FROM this module at ITS OWN
+module level, is a real circular import that only surfaces when load_prices.py is executed as a
+script (`python loaders/load_prices.py` - exactly how the scheduler and every documented `Run:`
+instruction invoke it): Python gives the same file two different module identities depending on
+how it's reached (`__main__` when run directly vs `loaders.load_prices` when imported), so the
+`import loaders.load_prices as _lp` here starts a SECOND, fresh top-level execution of
+load_prices.py mid-way through the first one, which re-imports this file while it's still
+partially initialized and fails on `_invalidate_phase1_cache` not being defined yet. Never
+caught by pytest (which always imports normally, never as `__main__`) - this decomposition was
+new as of 2026-09-05 and had no direct-script-invocation test coverage. Fixed by moving the
+import into each function that uses `_lp`, right before first use - deferring it to call time
+(well after both modules have finished their own top-level execution) fixes the circular import
+while preserving the exact same "access via module object, not by name" test-patching behavior
+the paragraph above describes.
 """
 
 import logging
@@ -17,7 +33,6 @@ from typing import Any
 
 import psycopg2
 
-import loaders.load_prices as _lp
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
 
@@ -178,6 +193,8 @@ def derive_aggregate_prices(asset_class: str) -> None:
     last successful derivation auto-backfills. An empty target table backfills from
     the entire daily history. Daily marker rows (NULL close) are excluded.
     """
+    import loaders.load_prices as _lp
+
     if asset_class == "etf":
         daily_table = "etf_price_daily"
         targets = (("etf_price_weekly", "week", 28), ("etf_price_monthly", "month", 92))
@@ -274,6 +291,8 @@ def log_loader_execution(
 ) -> None:
     """Log loader execution to data_loader_runs table for monitoring."""
     from datetime import datetime
+
+    import loaders.load_prices as _lp
 
     try:
         with _lp.DatabaseContext("write") as cur:  # type: ignore[attr-defined]
