@@ -292,6 +292,12 @@ def _categorize_reason(reason: str) -> str:
     # fact as the other Insufficient history members, just phrased per-period.
     if "insufficient_price_history" in reason:
         return "Insufficient history"
+    # ADDED 2026-09-06: stability_metrics' whole-row `reason` is a ";"-joined "vol_30d:
+    # insufficient_returns (N/30 required)" list - `base` comes out "vol_30d", unmatched, even
+    # though the same sub-reason IS mapped alone in per-column *_unavailable_reason fields.
+    # Live-confirmed 64 active rows stuck in "Other (errors / excluded)" for this alone.
+    if "insufficient_returns" in reason:
+        return "Insufficient history"
     # ADDED 2026-08-20: loaders/helpers/sec_base.py builds this reason dynamically as
     # f"no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity" (6 period x
     # statement_type combinations) for REITs/SPAC-shells/other entities SEC EDGAR
