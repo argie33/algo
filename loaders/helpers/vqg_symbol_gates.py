@@ -538,15 +538,31 @@ class SymbolGateMixin:
         reason string rather than inventing a new one - it's the identical underlying fact,
         just a broader detection window. Cached for the life of this loader instance; this
         query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep): `WHERE data_unavailable
+        IS NOT TRUE` excludes a data_unavailable=TRUE row exactly as thoroughly as the `=
+        FALSE` this file's other never-tagged gates were fixed away from (`TRUE IS NOT TRUE` is
+        just as false as `TRUE = FALSE`) - a symbol whose entire annual_income_statement history
+        is marked unavailable was invisible to this gate too. Switched to `fiscal_year > 0`
+        (same fix as those siblings) and, since that now lets a data_unavailable row's revenue
+        column into the FILTER, sanitized it to NULL the same way this file's other windowed
+        gates already do for their own fields - a stray leftover non-NULL value on an otherwise-
+        unavailable row must not count as "reported". Live-confirmed ADBT/SSMR/KARD/AVEX
+        (quality_metrics.asset_turnover): real total_assets on file, revenue NULL/
+        data_unavailable=TRUE in every annual_income_statement row - came back "missing_sec_data"
+        pre-fix, "no_revenue_reported" post-fix.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 SELECT symbol FROM annual_income_statement
-                WHERE data_unavailable IS NOT TRUE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE revenue IS NOT NULL AND revenue != 0) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE (CASE WHEN data_unavailable THEN NULL ELSE revenue END) IS NOT NULL
+                         AND (CASE WHEN data_unavailable THEN NULL ELSE revenue END) != 0
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
