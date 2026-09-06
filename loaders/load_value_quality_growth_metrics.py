@@ -543,8 +543,20 @@ class ValueQualityGrowthMetricsLoader(
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
                     LEFT JOIN (
+                        -- FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep):
+                        -- reason = 'shares_outstanding_scale_mismatch' means
+                        -- sec_valuations_checks.py already determined this row's raw
+                        -- shares_outstanding is mis-scaled (SEC-derived market cap disagreed
+                        -- with yfinance by >10x) and nulled every OTHER field that depends on
+                        -- it - but never nulled the raw shares_outstanding column itself, so
+                        -- this separate direct read picked it up anyway. Live-confirmed 14
+                        -- universe symbols (PMI/SELX/AGH/AKTX/UHAL/...) feeding a wrong
+                        -- cash_per_share/sustainable_growth_rate from it (PMI/SELX landing at
+                        -- -712%/-645% sustainable_growth_rate). Same guard load_short_interest_
+                        -- finra.py's own shares_outstanding fallback already uses.
                         SELECT DISTINCT ON (symbol) symbol, shares_outstanding
                         FROM sec_valuations
+                        WHERE reason IS NULL OR reason != 'shares_outstanding_scale_mismatch'
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.fiscal_year > 0
