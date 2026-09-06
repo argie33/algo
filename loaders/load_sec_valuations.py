@@ -826,6 +826,38 @@ class SecValuationsLoader(
         Returns:
             List with single valuation dict or data_unavailable marker
         """
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"): entity types that
+        # structurally cannot file 10-K/10-Q (CEF/BDC/ETF/post-2024 banks) have no annual
+        # financial statements data at all - return early with categorized unavailable reason
+        # instead of trying to extract valuations from non-existent income statements.
+        # Direct query check (not via mixin) since SecValuationsLoader doesn't inherit
+        # vqg_symbol_gates mixin.
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM stock_symbols s WHERE s.symbol = %s AND s.active = TRUE
+                  AND (
+                    s.symbol IN (SELECT symbol FROM etf_symbols)
+                    OR s.symbol IN (
+                      SELECT symbol FROM company_profile
+                      WHERE entity_type IN ('fund', 'cef', 'bdc', 'trust')
+                    )
+                    OR s.symbol IN (
+                      SELECT symbol FROM company_info_sec
+                      WHERE entity_type = 'other' AND sic_code IS NULL
+                    )
+                  )
+                """,
+                (symbol,),
+            )
+            if cur.fetchone():
+                return [
+                    self._unavailable_marker(
+                        symbol,
+                        "entity_type_structurally_exempt_10k_filing",
+                    )
+                ]
+
         try:
             # Fetch latest financial data for symbol
             with DatabaseContext("read") as cur:
