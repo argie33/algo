@@ -121,7 +121,23 @@ class QualityMetricsMixin(SymbolGateMixin):
         _compute_margin_volatility) from multi-year income_rows this function doesn't have.
         """
         if not quality_row:
-            return self._unavailable_marker("quality_metrics", symbol)
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): this early
+            # return fires whenever the symbol has ZERO annual_balance_sheet rows at all
+            # (the query feeding `quality_row` is a LEFT JOIN off that table) - live-
+            # confirmed SPY (listed 1993, 8,458 real trading days, ZERO annual_balance_sheet
+            # rows ever, since ETFs file N-1A/N-CSR under the Investment Company Act, never a
+            # 10-K) was falling through to the generic "missing_sec_data" default for its
+            # ENTIRE quality_metrics row (every one of its ~45 *_unavailable_reason columns),
+            # mislabeling a real, permanent business-model fact as an actionable SEC/XBRL
+            # data gap. `_get_etf_symbols()` was added 2026-09-05 for exactly this SPY/IGV/
+            # BKDV shape, but only wired into the per-field total_debt/total_cash reason
+            # chains further down this function - unreachable from this earlier return, so it
+            # never actually fixed SPY. Reuses "etf_no_sec_filings" (already correctly mapped
+            # to "Legitimate / not applicable") - the identical underlying fact
+            # sec_valuations_income_context.py's own ETF carve-out already uses for the same
+            # "no 10-K, no SEC financial statements at all" case.
+            reason = "etf_no_sec_filings" if symbol in self._get_etf_symbols() else None
+            return self._unavailable_marker("quality_metrics", symbol, reason=reason)
 
         if not isinstance(quality_row, (tuple, list)):
             logger.error(

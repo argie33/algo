@@ -98,7 +98,15 @@ class GrowthMetricsMixin(SymbolGateMixin):
         only book_value_growth's BVPS computation - every other field is unaffected by its absence.
         """
         if not income_rows:
-            return self._unavailable_marker("growth_metrics", symbol)
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, growth_metrics
+            # sibling of the identical vqg_quality.py._compute_quality_metrics fix): an ETF
+            # (SPY/QQQ/IWM - files N-1A/N-CSR, never a 10-K) has ZERO annual_income_statement
+            # rows, so this early return was mislabeling its entire growth_metrics row as the
+            # generic "missing_sec_data" instead of the permanent business-model fact
+            # "etf_no_sec_filings" already used for the identical case elsewhere (see that
+            # method's own comment).
+            reason = "etf_no_sec_filings" if symbol in self._get_etf_symbols() else None
+            return self._unavailable_marker("growth_metrics", symbol, reason=reason)
 
         metrics: dict[str, Any] = {
             "symbol": symbol,
