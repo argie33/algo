@@ -200,6 +200,29 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 }
             return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "stop_loss_guardian"})}
 
+        # `mode: "intraday_risk_monitor"` - same "reuse the already-deployed Lambda on a
+        # tighter schedule" pattern as stop_loss_guardian above, for
+        # algo/risk/intraday_risk_monitor.py's live beta/concentration re-check (see that
+        # module's docstring for the real-money-readiness finding this closes). Alert-only:
+        # never touches order/position state, never raises trading to a halt itself.
+        if event.get("mode") == "intraday_risk_monitor":
+            from algo.infrastructure import get_config
+            from algo.risk.intraday_risk_monitor import check_intraday_risk
+
+            try:
+                result = check_intraday_risk(get_config())
+                logger.info(f"[INTRADAY_RISK_MONITOR] result={result}")
+            except Exception as monitor_err:
+                logger.critical(
+                    f"[INTRADAY_RISK_MONITOR CRITICAL] Check failed unexpectedly: {monitor_err}",
+                    exc_info=True,
+                )
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({"status": "error", "message": str(monitor_err)}),
+                }
+            return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "intraday_risk_monitor"})}
+
         # FIXED Issue #1: Parse event execution_mode BEFORE validation
         # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
         event_execution_mode = event.get("execution_mode", "").strip().lower()

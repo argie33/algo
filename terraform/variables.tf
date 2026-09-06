@@ -646,6 +646,12 @@ variable "enable_stop_loss_guardian" {
   default     = false
 }
 
+variable "enable_intraday_risk_monitor" {
+  description = "Enable the high-frequency intraday beta/concentration risk re-check schedule (modules/services/intraday-risk-monitor.tf) - a real, ongoing AWS Scheduler invocation cost, needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
+  type        = bool
+  default     = false
+}
+
 variable "enable_morning_orchestrator" {
   description = "Enable 2x daily orchestrator execution (morning 9:30 AM ET + evening 5:30 PM ET)"
   type        = bool

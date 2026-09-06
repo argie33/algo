@@ -75,7 +75,16 @@ enable_premarket_orchestrator = false                       # Disabled: no marke
 # here: this is a real, ongoing AWS Scheduler cost and a live-account behavior change, not
 # just a code readiness question - flip to true only with an explicit go-ahead to deploy it,
 # then `terraform apply`.
-enable_stop_loss_guardian     = false
+enable_stop_loss_guardian = false
+
+# High-frequency intraday beta/concentration risk re-check (modules/services/intraday-
+# risk-monitor.tf, alert-only - see that file's header and algo/risk/intraday_risk_
+# monitor.py's docstring). Closes the real-money-readiness gap where an EXISTING position
+# can drift past the portfolio-beta or top-5-concentration cap purely from price movement
+# and nothing notices until Phase 9's once-daily risk report. Deliberately left false here
+# for the same reason as enable_stop_loss_guardian above: real, ongoing AWS Scheduler cost -
+# flip to true only with an explicit go-ahead to deploy it, then `terraform apply`.
+enable_intraday_risk_monitor = false
 
 # Evening orchestrator disabled in favor of morning-only in production
 # Rationale: Paper trading doesn't need evening prep. Real trading: evaluate daily at 9:30 AM only.

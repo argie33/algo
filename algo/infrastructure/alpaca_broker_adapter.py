@@ -291,6 +291,73 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 ) from e
             raise ValueError(f"Could not fetch Alpaca account: {e}") from e
 
+    def fetch_positions(self) -> list[dict[str, Any]]:
+        """Fetch live open positions directly from Alpaca's /v2/positions REST API.
+
+        Unlike algo_positions.current_price/quantity (only refreshed by Phase 3's daily
+        price_daily-based update - see phase3_position_monitor.py - meaning intraday it can
+        be hours stale), this hits the broker directly and returns Alpaca's own server-side
+        computed market_value/current_price for each open position at request time. Added
+        for algo/risk/intraday_risk_monitor.py, which needs a live (not once-a-day) view of
+        position values to re-check portfolio beta/concentration between full orchestrator
+        runs - the same "don't trust a stale snapshot" discipline fetch_account() already
+        applies to cash/equity.
+
+        Returns a list of {"symbol": str, "qty": float, "market_value": float,
+        "current_price": float}. Raises ValueError on any fetch/parse failure or a
+        non-finite value - same fail-fast discipline as fetch_account(), since a corrupted
+        response silently treated as "no positions" would let a live-risk check declare a
+        levered book as beta=0/concentration=0%.
+        """
+        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
+            raise RuntimeError("CRITICAL: Alpaca API credentials not available. Cannot fetch live positions.")
+        try:
+            resp = self._request_with_retry(
+                "get",
+                f"{self.alpaca_sync.alpaca_base_url}/v2/positions",
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
+                },
+                timeout=self._get_api_timeout(),
+            )
+            if resp.status_code != 200:
+                raise ValueError(f"Alpaca /v2/positions returned HTTP {resp.status_code}: {resp.text[:500]}")
+            data = resp.json()
+            if not isinstance(data, list):
+                raise ValueError(f"Alpaca /v2/positions returned non-list: {type(data).__name__}")
+
+            positions: list[dict[str, Any]] = []
+            for raw in data:
+                symbol = raw.get("symbol")
+                qty_val = raw.get("qty")
+                market_value_val = raw.get("market_value")
+                current_price_val = raw.get("current_price")
+                if not symbol or qty_val is None or market_value_val is None or current_price_val is None:
+                    raise ValueError(
+                        f"Alpaca /v2/positions entry missing required field(s): {raw}. "
+                        "Cannot compute live exposure without qty/market_value/current_price."
+                    )
+                qty_f, mv_f, price_f = float(qty_val), float(market_value_val), float(current_price_val)
+                if not (math.isfinite(qty_f) and math.isfinite(mv_f) and math.isfinite(price_f)):
+                    raise ValueError(
+                        f"Alpaca /v2/positions returned non-finite value for {symbol}: "
+                        f"qty={qty_val!r} market_value={market_value_val!r} current_price={current_price_val!r}"
+                    )
+                positions.append({"symbol": symbol, "qty": qty_f, "market_value": mv_f, "current_price": price_f})
+            return positions
+        except (
+            requests.RequestException,
+            requests.Timeout,
+            ValueError,
+            KeyError,
+            AttributeError,
+            json.JSONDecodeError,
+        ) as e:
+            if "401" in str(e) or "403" in str(e):
+                raise ValueError(f"CRITICAL: Alpaca API authentication failed fetching positions: {e}") from e
+            raise ValueError(f"Could not fetch Alpaca positions: {e}") from e
+
     def sync_positions(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database via AlpacaSyncManager.
 
