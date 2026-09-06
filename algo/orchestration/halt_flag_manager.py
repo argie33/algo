@@ -1173,7 +1173,13 @@ class HaltFlagManager:
             logger.warning(f"[PROACTIVE_CLEAR] RDS proactive clear failed: {e}")
             return False
 
-    def clear_halt_flag(self, reason: str = "") -> bool:
+    def clear_halt_flag(
+        self,
+        reason: str = "",
+        *,
+        allowed_triggers: frozenset[str | None] | None = None,
+        force: bool = False,
+    ) -> bool:
         """Clear halt flag in DynamoDB or RDS. Returns True if successfully cleared.
 
         ISSUE #8 FIX: When Phase 1 verifies data is fresh, explicitly clear the
@@ -1190,10 +1196,31 @@ class HaltFlagManager:
         backends are now retried, but if BOTH fail this method RAISES - trading must
         not proceed with unknown/unmanageable halt status.
 
+        SAFETY (2026-09-06, real-money-readiness audit): origin-checking used to live
+        entirely in each CALLER (e.g. orchestrator.py's phase_1_data_freshness calling
+        get_halt_triggered_by() and only invoking this method when it recognized the
+        active halt as its own) - the primitive itself was unconditional, so any
+        future/careless caller could silently wipe a halt set by an unrelated phase
+        (Phase 9's reconciliation-governance halt is the dangerous concrete case - see
+        halt_flag_cleared_by_unrelated_phase_fix_20260810) just by calling
+        clear_halt_flag() without separately replicating that check. Origin
+        verification is now REQUIRED here at the primitive so it can't be bypassed by
+        omission: pass `allowed_triggers` (the set of triggered_by values - include
+        None for "no halt currently active" - this call is safe to clear) or
+        `force=True` for a genuine manual override (mirrors set_halt_flag's existing
+        force= parameter). Callers that already do their own pre-check (orchestrator.py)
+        should still pass the matching `allowed_triggers` here too - defense in depth,
+        not a replacement for that check's own control flow/logging.
+
         Args:
             reason: Optional explanation for why halt was cleared
+            allowed_triggers: origins whose halt this call may clear (None = no halt
+                active). Required unless force=True.
+            force: bypass the origin check entirely (manual operator override only).
 
-        Returns: True if successfully cleared via DynamoDB or RDS.
+        Returns: True if successfully cleared via DynamoDB or RDS. False (without
+            raising) if the active halt's origin isn't in allowed_triggers - refusing
+            to clear is always the safe direction.
 
         Raises: RuntimeError if both DynamoDB and RDS fail (safety-critical, no fallback left).
 
@@ -1201,6 +1228,23 @@ class HaltFlagManager:
         LOCAL_MODE connects to the same shared production DB, so halt flag updates
         must persist. If you want to skip safety checks, use dry_run=True instead.
         """
+        if not force:
+            if allowed_triggers is None:
+                raise TypeError(
+                    "clear_halt_flag() requires allowed_triggers=... (the origins this call may "
+                    "clear, include None for 'no halt active') or force=True (explicit manual "
+                    "override) - a bare call with neither is exactly the unconditional-clear-any-"
+                    "origin bug this check exists to prevent."
+                )
+            current_trigger = self.get_halt_triggered_by()
+            if current_trigger not in allowed_triggers:
+                logger.warning(
+                    f"[HALT_FLAG] Refusing to clear: active halt was triggered_by={current_trigger!r}, "
+                    f"not in allowed_triggers={sorted(str(t) for t in allowed_triggers)}. Pass "
+                    "force=True for an explicit manual override."
+                )
+                return False
+
         max_retries = 2
         last_error = None
 

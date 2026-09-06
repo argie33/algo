@@ -1725,8 +1725,11 @@ class Orchestrator:
             current_trigger = self.halt_manager.get_halt_triggered_by()
             if current_trigger is None or current_trigger == "phase1_data_freshness":
                 # If this fails (both DynamoDB and RDS unavailable), clear_halt_flag() raises RuntimeError
+                # allowed_triggers repeats this same check inside clear_halt_flag() itself - defense
+                # in depth, not redundant with the pre-check above (see that method's docstring).
                 self.halt_manager.clear_halt_flag(
-                    f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
+                    f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}",
+                    allowed_triggers=frozenset({None, "phase1_data_freshness"}),
                 )
             else:
                 logger.warning(
@@ -1769,7 +1772,10 @@ class Orchestrator:
             current_trigger = self.halt_manager.get_halt_triggered_by()
             if current_trigger == "phase2_circuit_breaker":
                 logger.info("[PHASE 2] Circuit breaker checks now clear - clearing the halt flag it previously set.")
-                self.halt_manager.clear_halt_flag("Phase 2 circuit breaker checks are clear")
+                self.halt_manager.clear_halt_flag(
+                    "Phase 2 circuit breaker checks are clear",
+                    allowed_triggers=frozenset({"phase2_circuit_breaker"}),
+                )
         return not result.halted
 
     def phase_3_position_monitor(self) -> bool:

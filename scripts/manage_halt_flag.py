@@ -76,7 +76,10 @@ def main() -> int:
                 file=sys.stderr,
             )
         print(f"Clearing halt flag: {args.clear}")
-        halt_manager.clear_halt_flag(f"Manually cleared: {args.clear}")
+        # force=True: a human operator's explicit --clear must always take effect regardless of
+        # which phase set the active halt - that's the whole point of a manual override tool.
+        # clear_halt_flag() otherwise requires allowed_triggers=... (see its docstring).
+        halt_manager.clear_halt_flag(f"Manually cleared: {args.clear}", force=True)
         print("Halt flag cleared. Trading may resume on the next orchestrator run.")
         return 0
 
