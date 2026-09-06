@@ -3115,6 +3115,16 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # this was a half-wired fix, not a deliberate omission. Live-confirmed 7
                     # active-universe RIC symbols stuck on the generic reason.
                     "interest_coverage",
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): total_cash/cash_per_share are also RIC-structural gaps (no
+                    # cash concept distinct from portfolio holdings in a Statement of Changes
+                    # in Net Assets) but were never added to this loop either, unlike the
+                    # sibling royalty-trust block above (which already includes "total_cash"/
+                    # "cash_per_share"). Live-confirmed 6 active-universe RIC symbols (BGR,
+                    # BHV, BKT, BMN, BTT, IIM) stuck on "missing_sec_data"/"no_recent_cash_
+                    # reported" - both already listed in _ric_source_reasons below.
+                    "total_cash",
+                    "cash_per_share",
                 )
                 _ric_source_reasons = {
                     "missing_sec_data",
