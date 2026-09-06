@@ -2057,11 +2057,24 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
 
         # PE Ratio = Price ÷ TTM EPS (bound to MIN_PLAUSIBLE_PE_RATIO..10000 - see
         # MIN_PLAUSIBLE_PB_RATIO's docstring for the VCIG-driven lower-bound addition)
+        #
+        # ADDED same day (goal session: "implausible values" sweep, follow-up): the 10000
+        # ceiling doesn't catch every near-zero-EPS blowup - ICUI live-confirmed (FY2025
+        # annual EPS $0.03, TTM-from-4-real-quarters EPS ~$1.20): pe_ratio=5586 (current_
+        # price $167.58 / $0.03) sails under the 10000 ceiling and both the ratio-only sanity
+        # check (_sanity_check_pe_ratio) and this bound accepted it as "plausible", yet the
+        # true trailing-4-quarter PE is ~140 - the exact same "measurement-window mismatch,
+        # not a scale bug" case that check's own quarterly-EPS rescue already handles for the
+        # DIFFERENT failure mode (ratio disagreement with yfinance), just never wired here for
+        # this one (yfinance had no PE coverage for ICUI, so that check never even ran). A
+        # near-zero EPS base is unreliable regardless of what magnitude PE it happens to
+        # produce - same $0.10-floor convention as growth_metrics' own realized eps_growth_1y
+        # and the same-day forward_eps_growth immaterial-base fix (migration 1259).
         if ttm_eps and ttm_eps > 0:
             pe = current_price / ttm_eps
-            if pe <= 10000 and pe >= self.MIN_PLAUSIBLE_PE_RATIO:  # Reasonable PE bounds
+            if pe <= 10000 and pe >= self.MIN_PLAUSIBLE_PE_RATIO and ttm_eps >= 0.10:
                 result["pe_ratio"] = round(pe, 2)
-            elif pe > 10000:
+            elif pe > 10000 or ttm_eps < 0.10:
                 # FIXED 2026-09-05 (goal session: "implausible values" sweep) - same
                 # missing-cross-year-fallback gap as ps_ratio just above and fcf_margin
                 # (loaders/helpers/vqg_quality.py): the anchor year's ttm_eps can be a real but
@@ -2081,7 +2094,14 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
                     )
                     older_eps_rows = cur.fetchall()
                 for (older_eps,) in older_eps_rows:
-                    candidate_pe = current_price / float(older_eps)
+                    older_eps_f = float(older_eps)
+                    # Require the fallback year's own EPS to clear the same immaterial-base
+                    # floor - the query above includes the anchor year itself (fiscal_year
+                    # DESC, no offset), so without this an immaterial anchor EPS would just
+                    # re-select itself on the first loop iteration.
+                    if older_eps_f < 0.10:
+                        continue
+                    candidate_pe = current_price / older_eps_f
                     if self.MIN_PLAUSIBLE_PE_RATIO <= candidate_pe <= 10000:
                         fallback_pe = candidate_pe
                         break

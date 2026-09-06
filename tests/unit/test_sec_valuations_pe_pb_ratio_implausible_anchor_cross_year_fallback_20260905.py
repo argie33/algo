@@ -93,6 +93,55 @@ class TestPeRatioImplausibleAnchorCrossYearFallback:
 
         assert result["pe_ratio"] is None
 
+    def test_immaterial_eps_under_10000_ceiling_still_falls_back(self, monkeypatch):
+        # Same day, same sweep, follow-up: the 10000 ceiling alone doesn't catch every
+        # near-zero-EPS blowup. Live-confirmed via ICUI: current_price=167.58, anchor
+        # ttm_eps=0.03 -> pe=5586 (UNDER 10000, so the original bound accepted it outright).
+        # An older year has eps=1.20 -> pe=139.65, plausible - matches the real trailing-
+        # 4-quarter EPS ICUI actually has on file.
+        loader = _make_loader(monkeypatch, [(Decimal("1.20"),)])
+
+        result = loader._compute_valuations(
+            symbol="ICUI",
+            current_price=167.58,
+            shares_out=1_000_000.0,
+            ttm_eps=0.03,
+            ttm_revenue=None,
+            book_value=None,
+            ocf=None,
+            capex=None,
+            prior_year_eps=None,
+            dividends_paid=None,
+            total_debt=None,
+            total_cash=None,
+            ebitda=None,
+        )
+
+        assert result["pe_ratio"] == round(167.58 / 1.20, 2)
+
+    def test_immaterial_eps_fallback_skips_another_immaterial_year(self, monkeypatch):
+        # The fallback query includes the anchor year itself (no offset) - an immaterial
+        # anchor EPS must not just re-select itself as its own "fallback".
+        loader = _make_loader(monkeypatch, [(Decimal("0.03"),), (Decimal("2.00"),)])
+
+        result = loader._compute_valuations(
+            symbol="ICUI",
+            current_price=167.58,
+            shares_out=1_000_000.0,
+            ttm_eps=0.03,
+            ttm_revenue=None,
+            book_value=None,
+            ocf=None,
+            capex=None,
+            prior_year_eps=None,
+            dividends_paid=None,
+            total_debt=None,
+            total_cash=None,
+            ebitda=None,
+        )
+
+        assert result["pe_ratio"] == round(167.58 / 2.00, 2)
+
 
 class TestPbRatioImplausibleAnchorCrossYearFallback:
     def test_implausible_anchor_falls_back_to_plausible_older_year(self, monkeypatch):
