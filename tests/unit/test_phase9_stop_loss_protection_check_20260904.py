@@ -3,21 +3,28 @@
 real-money-readiness push, and updated 2026-09-05 to auto-repair a missing leg instead
 of only alerting a human.
 
-FINDING: entry bracket orders are submitted with time_in_force=day
-(order_manager.py's _build_bracket_order_payload) on a strategy that holds positions
-many days. Whether Alpaca expires the OCO stop-loss/take-profit legs at end-of-day once
-live is undocumented either way - but the only existing code that would ever notice a
-missing leg (OrderManager.sync_bracket_stop_loss) only runs REACTIVELY, when
-position_monitor recommends RAISE_STOP. A flat or drawing-down position - exactly when
-protection matters most - had no trigger that would ever re-check it. This step closes
-that gap by proactively verifying every open position's bracket order every
-reconciliation cycle, using the read-only OrderManager.check_stop_loss_leg_live (never
+FINDING (2026-09-04): the only existing code that would ever notice a missing leg
+(OrderManager.sync_bracket_stop_loss) only ran REACTIVELY, when position_monitor
+recommends RAISE_STOP. A flat or drawing-down position - exactly when protection
+matters most - had no trigger that would ever re-check it. This step closes that gap
+by proactively verifying every open position's bracket order every reconciliation
+cycle, using the read-only OrderManager.check_stop_loss_leg_live (never
 sync_bracket_stop_loss, which would replace/cancel-recreate the leg on every check).
 
 UPDATED 2026-09-05: a real-money go-live decision (nobody reliably watches alerts in
 real time) means a detected gap is now auto-repaired via
 OrderManager.submit_standalone_protective_stop, with the alert reserved for the case
 where auto-repair itself fails.
+
+UPDATED 2026-09-06: entry bracket orders were submitted with time_in_force=day on a
+strategy that holds positions up to 20 days, so the OCO stop-loss/take-profit legs
+expired at every market close - the root cause this whole proactive-check-and-repair
+mechanism existed to paper over. Fixed at the source in
+order_manager.py's _build_bracket_order_payload (now time_in_force=gtc, which Alpaca
+supports at the bracket level and keeps legs resting on the broker's own book across
+multiple days). This step and its auto-repair stay in place as a backstop for other
+failure modes (fill/cancel races, broker-side leg rejection) - they're just no longer
+compensating for a guaranteed daily expiry.
 """
 
 from unittest.mock import MagicMock, patch

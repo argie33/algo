@@ -139,12 +139,30 @@ class OrderManager(StopLossRepairMixin):
         # marketable-limit path - see its docstring.)
 
         # CRITICAL: Always build a bracket order - stop loss protection is mandatory
+        #
+        # time_in_force="gtc" (changed from "day" 2026-09-06, real-money-readiness audit):
+        # this strategy holds positions up to max_hold_days=20 (trading_config.py), not
+        # intraday - a "day" TIF bracket's stop_loss/take_profit legs expire at every
+        # single market close, which is exactly why order_manager_stop_repair.py had to
+        # exist (resubmitting a standalone GTC stop after the original one already lapsed
+        # unprotected for part of a day). Alpaca supports "gtc" as the bracket-level TIF
+        # (legs then rest GTC too, auto-cancelled by Alpaca after 90 days - comfortably
+        # longer than max_hold_days), which keeps the stop live on the broker's own book
+        # continuously instead of needing a same-day resubmission every night. The one
+        # risk this could introduce - an unfilled GTC entry leg resting for days at a
+        # stale limit price - is independently covered by PositionOrderManagementMixin.
+        # check_stale_orders (phase3_position_monitor.py), which auto-cancels any
+        # algo_trades row still "pending" past stale_order_auto_cancel_minutes (default
+        # 120) regardless of the broker-side TIF. The standalone stop-repair path in
+        # order_manager_stop_repair.py stays in place as a backstop for other failure
+        # modes (fill/cancel races, broker-side leg rejection) - it's just no longer
+        # compensating for a self-inflicted daily expiry.
         order_data: dict[str, Any] = {
             "symbol": symbol,
             "qty": shares,
             "side": "buy",
             "type": "limit",
-            "time_in_force": "day",
+            "time_in_force": "gtc",
             "limit_price": _quantize_price(entry_price),
             "extended_hours": False,
             "order_class": "bracket",
