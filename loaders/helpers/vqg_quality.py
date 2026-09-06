@@ -1110,6 +1110,17 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # net_income concept doesn't depend on listing age.
                 elif symbol in self._get_etf_symbols():
                     payout_ratio_reason = "etf_trust_no_gaap_financials"
+                # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): sibling gate
+                # to the sustainable_growth_rate/net_margin/roa/roe/ebitda_margin reason chains
+                # elsewhere in this file (see _get_net_income_available_elsewhere_symbols()'s
+                # docstring) - net_income is None here because the anchor fiscal year's own
+                # income-statement row is unavailable, not because the symbol lacks real
+                # net_income data. This chain fell straight through to the generic
+                # has_real_dividend_history check below instead, mislabeling every affected
+                # dividend payer "missing_sec_data" (Missing SEC/XBRL data) instead of the more
+                # precise, already-established "net_income_absent_from_anchor_year" label.
+                elif net_income is None and symbol in self._get_net_income_available_elsewhere_symbols():
+                    payout_ratio_reason = "net_income_absent_from_anchor_year"
                 else:
                     # Same "ever, not recently" distinction as dividend_yield_reason above - a
                     # symbol that discontinued its dividend years ago has real history on file
