@@ -983,6 +983,7 @@ class SecValuationsLoader(
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio, yf_market_cap_is_live)
             self._recategorize_ric_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
 
             return [valuation_row]
 
@@ -1080,6 +1081,36 @@ class SecValuationsLoader(
             )
             if cur.fetchone() is not None:
                 valuation_row["dcf_fcf_unavailable_reason"] = "unsupported_currency_no_fx_rate"
+
+    # Oil royalty trusts (SIC 6792) file a "Statement of Distributable Income" with no
+    # conventional cash-flow-statement concepts to tag at all - same structural shape as a RIC
+    # above, just a different, much smaller (6-symbol) entity class with its own SIC code
+    # rather than ValueQualityGrowthMetricsLoader's entity_type='other'/sic_code IS NULL RIC
+    # gate. Hardcoded rather than a SIC-code DB query since there are only 6 and the SIC-6792
+    # universe is exactly this list (live-confirmed via company_info_sec, 2026-09-06) - no
+    # false-positive risk from a broader SIC scan.
+    _ROYALTY_TRUST_SYMBOLS_FOR_DCF = frozenset({"NRT", "MTR", "CRT", "PBT", "SBR", "SJT"})
+
+    def _recategorize_royalty_trust_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with "reit_special_entity" for an oil
+        royalty trust. Mutates `valuation_row` in place.
+
+        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
+        scan follow-up): same root fact as _recategorize_ric_dcf_fcf_reason above (no
+        conventional cash-flow-statement concepts to tag), already established for
+        quality_metrics.fcf_margin/value_metrics.fcf_yield's royalty-trust blocks in
+        loaders/helpers/vqg_quality.py and vqg_value.py - this dcf_fcf ground-truth reason
+        never checked it either. Live-confirmed all 6 active royalty-trust symbols (NRT, MTR,
+        CRT, PBT, SBR, SJT) stuck on the generic "missing_cash_flow_data". Reuses
+        "reit_special_entity" (not a new label) - same "Legitimate / not applicable" bucket
+        already used for this exact business-model fact throughout the codebase (see
+        sec_valuations_yield_dcf.py's own REIT/insurance SIC-code branch, which sits alongside
+        this same reason string for the identical entity-type rationale).
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        if symbol in self._ROYALTY_TRUST_SYMBOLS_FOR_DCF:
+            valuation_row["dcf_fcf_unavailable_reason"] = "reit_special_entity"
 
     def _compute_valuations(
         self,
