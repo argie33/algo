@@ -56,16 +56,17 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "income_statement_revenue_and_eps_null",
             "all_valuation_metrics_null",
             "no_income_statement",
-            "finra_data_unavailable",
-            # ADDED 2026-09-03 (positioning_metrics short_interest_pct reason-propagation
-            # fix): load_short_interest_finra.py's own sibling reason to
-            # finra_data_unavailable directly above - same function, same "genuinely no
-            # usable FINRA settlement row" fact, just the transient-API-failure branch
-            # instead of the no-report-this-period branch. Was reachable but unmapped
-            # (would have fallen to "Other (errors / excluded)") the moment
-            # load_positioning_metrics.py started propagating short_interest_finra.reason
-            # instead of collapsing everything to the generic missing_finra_data below.
-            "finra_api_unreachable",
+            # MOVED 2026-09-06 (goal: "get Missing SEC/XBRL to zero the right way" sweep):
+            # finra_data_unavailable/finra_api_unreachable/missing_finra_data relocated to
+            # "Ownership data unresolved" below - FINRA short-interest settlement data is a
+            # wholly separate feed from SEC EDGAR/XBRL (load_short_interest_finra.py never
+            # touches SEC filings at all), so bucketing it here inflated the "Missing SEC/XBRL
+            # data" headline with rows that no XBRL fix could ever close, and undercounted
+            # "Ownership data unresolved" (which already holds the same-shape 13F/insider
+            # external-feed gaps). See "Ownership data unresolved"'s 2026-09-06 comment for
+            # the new location. This mapping shift alone moves 345 rows off the SEC/XBRL
+            # headline (live-counted via /api/scores/coverage same day) without touching any
+            # underlying data.
             # ADDED 2026-08-20 (goal session: coverage-categorization audit): these three
             # (load_sec_valuations.py, load_value_quality_growth_metrics.py) mean the
             # filer's own SEC filing section is incomplete/inconsistent (not merely
@@ -243,8 +244,8 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # doesn't cover this issue" absence as finra_data_unavailable two lines above,
             # not an error - 585 of 712 live "Other" rows (82%) were this single reason,
             # making the "how much is a genuine unexplained error" signal in that bucket
-            # far noisier than the real number.
-            "missing_finra_data",
+            # far noisier than the real number. MOVED 2026-09-06 to "Ownership data
+            # unresolved" along with its two siblings - see that bucket's comment.
             # ADDED 2026-08-20: utils/external/sec_xbrl_segments.py - the SEC companyfacts
             # API structurally never returns per-segment revenue at all (a permanent API
             # limitation, not a per-filer gap); kept here rather than "Legitimate / not
@@ -449,6 +450,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
     (
         "Ownership data unresolved",
         {
+            # MOVED 2026-09-06 (goal: "get Missing SEC/XBRL to zero the right way" sweep,
+            # relocated from "Missing SEC/XBRL data" above): FINRA short-interest settlement
+            # data (load_short_interest_finra.py) is a wholly separate feed from SEC EDGAR/
+            # XBRL - it was miscategorized as an "XBRL" gap even though no SEC filing fix
+            # could ever close it. Same class of external-feed gap as the 13F/insider-
+            # transaction reasons already in this bucket.
+            "finra_data_unavailable",
+            "finra_api_unreachable",
+            "missing_finra_data",
             "no_resolved_13f_holdings",
             # ADDED 2026-09-02 (same sweep, static grep of load_institutional_holdings_13f.py):
             # fetch_incremental()'s own "no row (or a row with institutional_ownership_pct
