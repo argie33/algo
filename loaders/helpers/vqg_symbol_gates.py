@@ -154,8 +154,9 @@ class SymbolGateMixin:
 
     @_cached_symbols
     def _get_never_tagged_pretax_income_symbols(self) -> frozenset[str]:
-        """Symbols that have NOT reported pretax_income in any of their 3 most recent
-        fiscal years, REGARDLESS of whether they tag income_tax_expense.
+        """Symbols with at least one real (non-data_unavailable) annual_income_statement row,
+        none of which ever carry a real pretax_income value, REGARDLESS of whether they tag
+        income_tax_expense.
 
         Distinct from _get_no_tax_concept_symbols() above, which requires BOTH concepts
         absent (the fully tax-exempt case: 0% rate, no approximation needed). This
@@ -183,21 +184,25 @@ class SymbolGateMixin:
         _get_unclassified_balance_sheet_symbols above): sanitize pretax_income to NULL when its
         row is `data_unavailable` so a leftover stray value can't count as "reported". Live-
         verified 6 additional symbols recovered, zero lost.
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): despite this function's
+        name, the query was actually the WINDOWED (exactly-3-real-years) shape, not a true
+        full-history check - every other `_get_never_tagged_*_symbols` sibling in this file
+        uses `COUNT(*) >= 1` (see e.g. `_get_never_tagged_operating_cash_flow_symbols` above).
+        This is the sole call site (roic_pct's own effective_tax_rate derivation), so relaxing
+        it to genuine full-history carries no risk of an unrelated caller's correctness
+        depending on the 3-year window. Live-verified 3 additional active-universe roic_pct
+        rows recovered (recent IPOs/SPAC-mergers with fewer than 3 real fiscal years but
+        genuinely never-tagged pretax_income).
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
-                WITH recent AS (
-                    SELECT symbol,
-                           CASE WHEN data_unavailable THEN NULL ELSE pretax_income END AS pretax_income,
-                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
-                    FROM annual_income_statement
-                    WHERE fiscal_year > 0
-                )
-                SELECT symbol FROM recent
-                WHERE rn <= 3
+                SELECT symbol FROM annual_income_statement
+                WHERE fiscal_year > 0
                 GROUP BY symbol
-                HAVING COUNT(pretax_income) = 0 AND COUNT(*) = 3
+                HAVING COUNT(*) >= 1
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE pretax_income END) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
