@@ -552,8 +552,14 @@ class ValueQualityGrowthMetricsLoader(
                         -- this separate direct read picked it up anyway. Live-confirmed 14
                         -- universe symbols (PMI/SELX/AGH/AKTX/UHAL/...) feeding a wrong
                         -- cash_per_share/sustainable_growth_rate from it (PMI/SELX landing at
-                        -- -712%/-645% sustainable_growth_rate). Same guard load_short_interest_
-                        -- finra.py's own shares_outstanding fallback already uses.
+                        -- roughly -712 and -645 sustainable_growth_rate, both wildly
+                        -- implausible). Same guard load_short_interest_finra.py's own
+                        -- shares_outstanding fallback already uses. CAUTION: a raw percent
+                        -- character anywhere in this SQL text, even inside a comment, breaks
+                        -- psycopg2's placeholder substitution here - live-broke this exact
+                        -- query 2026-09-06 (complete fetch_incremental failure across the
+                        -- whole universe, IndexError from tuple index out of range) - spell
+                        -- out percentages in words in any cur.execute() SQL string in this file.
                         SELECT DISTINCT ON (symbol) symbol, shares_outstanding
                         FROM sec_valuations
                         WHERE reason IS NULL OR reason != 'shares_outstanding_scale_mismatch'
