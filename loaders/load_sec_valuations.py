@@ -1233,6 +1233,7 @@ class SecValuationsLoader(
             self._recategorize_ric_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
 
             return [valuation_row]
 
@@ -1360,6 +1361,63 @@ class SecValuationsLoader(
             return
         if symbol in self._ROYALTY_TRUST_SYMBOLS_FOR_DCF:
             valuation_row["dcf_fcf_unavailable_reason"] = "reit_special_entity"
+
+    def _recategorize_capex_never_tagged_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with "capex_never_tagged_in_recent_filings"
+        for a filer with real, recent operating cash flow but capex never itemized in its 3 most
+        recent real fiscal years. Mutates `valuation_row` in place.
+
+        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, dcf_fcf missing_cash_flow_
+        data investigation): this file's own fcf_base/avg_fcf_fallback computation
+        (sec_valuations_yield_dcf.py) requires a real (non-None) capex figure - genuinely absent
+        for a large slice of filers who simply never re-tag it (live-confirmed CWH/Camping World:
+        real, growing OCF every year, real "PaymentsToAcquireProductiveAssets" capex through
+        FY2022, then NOTHING under any capex-shaped concept in its companyfacts JSON since -
+        not a currency/entity-type structural fact, an ordinary filing-presentation gap). Same
+        root cause already given its own specific reason for quality_metrics.fcf_margin/
+        value_metrics.fcf_yield via _get_no_recent_capex_symbols() in vqg_quality.py/vqg_value.py
+        (live-confirmed 198 of that gate's own affected rows share this exact profile) - this
+        dcf_fcf ground-truth reason never checked it either, so 177 of 210 (84%) of the current
+        "missing_cash_flow_data" population were this exact, already-labeled-elsewhere case
+        instead of a true undiagnosed gap. Small inline query (this mixin has no access to
+        ValueQualityGrowthMetricsLoader's cached gate, different class hierarchy - same
+        convention as _recategorize_ric_dcf_fcf_reason above). Still "Missing SEC/XBRL data" -
+        this doesn't change the headline category, only gives an honest, specific, already-
+        established label instead of the uninformative generic one, matching this file's own
+        precedent (RIC/currency/royalty-trust recategorizations just above all keep their
+        original category too, e.g. RIC's target `registered_investment_company_no_xbrl` is
+        also "Missing SEC/XBRL data").
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH ranked AS (
+                    SELECT symbol, capex, operating_cash_flow, fiscal_year, data_unavailable,
+                           MAX(fiscal_year) FILTER (WHERE data_unavailable = FALSE)
+                               OVER (PARTITION BY symbol) AS max_real_fy
+                    FROM annual_cash_flow
+                    WHERE symbol = %s AND fiscal_year > 0
+                ),
+                filtered AS (
+                    SELECT * FROM ranked
+                    WHERE NOT (data_unavailable AND fiscal_year = max_real_fy + 1)
+                ),
+                recent AS (
+                    SELECT operating_cash_flow, capex,
+                           ROW_NUMBER() OVER (ORDER BY fiscal_year DESC) AS rn
+                    FROM filtered
+                )
+                SELECT 1 FROM recent
+                WHERE rn <= 3
+                GROUP BY 1
+                HAVING COUNT(capex) = 0 AND COUNT(operating_cash_flow) > 0 AND COUNT(*) >= 2
+                """,
+                (symbol,),
+            )
+            if cur.fetchone() is not None:
+                valuation_row["dcf_fcf_unavailable_reason"] = "capex_never_tagged_in_recent_filings"
 
     def _compute_valuations(
         self,

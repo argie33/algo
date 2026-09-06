@@ -79,11 +79,15 @@ _INCOME_ROWS = [
 ]
 
 
-def _run(symbol: str) -> dict[str, Any]:
+def _run(symbol: str, capex_query_result: tuple[Any, ...] | None = None) -> dict[str, Any]:
     loader = _make_loader()
     # RIC-check query (None: doesn't match), unsupported-currency-check query (None: doesn't
-    # match) - the royalty-trust check after them is pure symbol membership, no query.
-    fake_cursor = _FakeCursor(_INCOME_ROWS, [*_BASE_DOWNSTREAM_FETCHONE, None, None])
+    # match) - the royalty-trust check after them is pure symbol membership, no query. The
+    # capex-never-tagged check after THAT (2026-09-06 sibling fix) only consumes its own
+    # fetchone() slot when the royalty-trust check didn't already override the reason (e.g. for
+    # NRT, which short-circuits before reaching it).
+    extra_fetchone = [] if symbol == "NRT" else [capex_query_result]
+    fake_cursor = _FakeCursor(_INCOME_ROWS, [*_BASE_DOWNSTREAM_FETCHONE, None, None, *extra_fetchone])
     fake_ctx = MagicMock()
     fake_ctx.__enter__ = MagicMock(return_value=fake_cursor)
     fake_ctx.__exit__ = MagicMock(return_value=False)
