@@ -800,8 +800,8 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # structurally unable to file traditional 10-K/10-Q filings due to entity type
             # (CEF/BDC/ETF/post-2024 banks), so it has no annual financial statements data -
             # same permanent-exemption class as registered_investment_company_no_annual_report and
-            # etf_trust_no_gaap_financials above (existing entity-type exemptions), just a
-            # catch-all reason for metrics that haven't yet wired per-entity-type checks.
+            # etf_trust_no_gaap_financials above (the existing entity-type exemptions), just a
+            # catch-all reason for any metric that hasn't yet wired per-entity-type checks.
             # Consolidated entity-type gate (_get_structural_entity_type_exemptions in
             # vqg_symbol_gates.py) enables this for all metrics uniformly.
             "entity_type_structurally_exempt_10k_filing",
