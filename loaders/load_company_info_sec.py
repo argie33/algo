@@ -389,7 +389,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 elif is_foreign_private_issuer:
                     shares_outstanding_unavailable_reason = "fpi_shares_excluded_domestic_only"
                 elif not has_annual_report_filing:
-                    shares_outstanding_unavailable_reason = "no_annual_report_filing"
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): a closed-
+                    # end fund/investment trust (entity_type='other'/'investment', no SIC code -
+                    # the same discriminator _get_registered_investment_company_symbols() uses
+                    # elsewhere in this codebase, e.g. vqg_symbol_gates.py) never files a 10-K/
+                    # 20-F at all (only fund-specific forms), which is exactly what
+                    # has_annual_report_filing=False already means - see this loader's own
+                    # docstring above. Live-confirmed 30+ real Gabelli/Invesco/Franklin/Eaton
+                    # Vance/Royce/Tri-Continental-class trusts (GDV/HQH/IIM/BGY/VCV/VMO/VVR/VKQ
+                    # and siblings) hitting this exact shape - the generic "no_annual_report_
+                    # filing" ("Missing SEC/XBRL data") mislabeled a permanent structural fact
+                    # already correctly bucketed as "Legitimate / not applicable" for the
+                    # equivalent dividend/cash-flow gaps this same population has elsewhere
+                    # (registered_investment_company_no_xbrl). A genuine gap (a real operating
+                    # company simply too new to have filed a 10-K yet, e.g. XPRO/REF/LYNX in the
+                    # same live population) always carries a real SIC code, so it's unaffected.
+                    shares_outstanding_unavailable_reason = (
+                        "registered_investment_company_no_annual_report"
+                        if entity_type in ("other", "investment") and sic_code is None
+                        else "no_annual_report_filing"
+                    )
                 else:
                     shares_outstanding_unavailable_reason = "shares_outstanding_not_in_xbrl_or_filing_text"
 

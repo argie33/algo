@@ -769,6 +769,22 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # dividend/distribution concepts (N-2 prospectus fee-table data only), a permanent
             # structural absence, not a loader gap. See load_dividend_data.py's fetch_incremental.
             "registered_investment_company_no_xbrl",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): closed-end funds/
+            # investment trusts (the same Gabelli/Invesco/Franklin/Eaton Vance/Royce/Tri-
+            # Continental-class population as registered_investment_company_no_xbrl above -
+            # GDV/GGZ/HQH/HQL/IIM/BGY/VCV/VMO/VVR/VKQ and 30+ live-confirmed siblings) don't just
+            # lack GAAP dividend/cash-flow concepts, they never file a 10-K/10-K-A/20-F/20-F-A at
+            # all (only fund-specific forms - N-Q/NPORT-P/40-17G) - the same permanent structural
+            # fact load_company_info_sec.py's has_annual_report_filing already exists to detect
+            # (see its own docstring: "closed-end funds file neither"), but that loader's
+            # shares_outstanding_unavailable_reason mislabeled it as the generic
+            # "no_annual_report_filing" (Missing SEC/XBRL data) instead of this permanent-
+            # exemption bucket. See load_company_info_sec.py's fetch_incremental for the
+            # entity_type='other'/'investment' + sic_code IS NULL reclassification (same
+            # discriminator _get_registered_investment_company_symbols() uses elsewhere, minus
+            # its annual_balance_sheet-history requirement - these CEFs have zero rows there by
+            # definition, since they never file the 10-K that table's loader parses).
+            "registered_investment_company_no_annual_report",
             # ADDED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" sweep): physical
             # commodity/currency/crypto trusts (GLD, SLV, IAU, GBTC, ETHE, the FXA-class
             # currency trusts, etc.) file a "Statement of Assets and Liabilities" with no GAAP

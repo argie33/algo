@@ -26,12 +26,12 @@ def _loader() -> CompanyInfoSECLoader:
     return loader
 
 
-def _submissions(forms: list[str]) -> dict:
+def _submissions(forms: list[str], sic: str | None = "3674", entity_type: str = "operating") -> dict:
     return {
         "name": "Test Co",
-        "sic": "3674",
-        "sicDescription": "SEMICONDUCTORS & RELATED DEVICES",
-        "entityType": "operating",
+        "sic": sic,
+        "sicDescription": "SEMICONDUCTORS & RELATED DEVICES" if sic == "3674" else None,
+        "entityType": entity_type,
         "filings": {"recent": {"form": forms}},
     }
 
@@ -61,17 +61,42 @@ class TestSharesOutstandingUnavailableReason:
         assert result["shares_outstanding"] is None
         assert result["shares_outstanding_unavailable_reason"] == "fpi_shares_excluded_domestic_only"
 
-    def test_no_annual_report_filing_gets_cef_reason(self):
-        """A closed-end fund shape: never files 10-K/20-F at all (only fund-specific
-        forms), so no dei/us-gaap shares fact can exist and the CEF-specific bucket must
-        fire instead of the generic fallback."""
+    def test_no_annual_report_filing_gets_registered_investment_company_reason(self):
+        """A real closed-end-fund/investment-trust shape (entity_type='other', no SIC code -
+        the same discriminator _get_registered_investment_company_symbols() uses elsewhere,
+        e.g. vqg_symbol_gates.py): never files 10-K/20-F at all (only fund-specific forms), so
+        no dei/us-gaap shares fact can exist. FIXED 2026-09-06 (goal: "SEC/XBRL missing data to
+        zero" sweep): this used to fall to the generic "no_annual_report_filing" ("Missing
+        SEC/XBRL data") - live-confirmed 30+ real Gabelli/Invesco/Franklin-class trusts hitting
+        this exact shape, a permanent structural fact that belongs in "Legitimate / not
+        applicable" alongside this same population's registered_investment_company_no_xbrl
+        (dividend/cash-flow gaps)."""
         loader = _loader()
         loader.sec_client.symbol_to_cik.return_value = "0000914208"
-        loader.sec_client.get_submissions.return_value = _submissions(["N-CSR", "NPORT-P"])
+        loader.sec_client.get_submissions.return_value = _submissions(
+            ["N-CSR", "NPORT-P"], sic=None, entity_type="other"
+        )
         loader.sec_client.get_company_facts.return_value = {"facts": {"dei": {}, "us-gaap": {}}}
         loader.sec_client.get_filing_plaintext.return_value = ""
 
         result = loader.fetch_incremental("BGT", None)[0]
+
+        assert result["shares_outstanding"] is None
+        assert result["shares_outstanding_unavailable_reason"] == "registered_investment_company_no_annual_report"
+
+    def test_no_annual_report_filing_keeps_generic_reason_for_real_operating_company(self):
+        """A genuinely new/recently-registered real operating company (has a real SIC code,
+        entity_type='operating') that simply hasn't filed a 10-K yet must keep the generic
+        "no_annual_report_filing" reason - the registered_investment_company_no_annual_report
+        reclassification above must not sweep in a real gap just because has_annual_report_
+        filing is also False for this population."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "0001900000"
+        loader.sec_client.get_submissions.return_value = _submissions(["S-1"])
+        loader.sec_client.get_company_facts.return_value = {"facts": {"dei": {}, "us-gaap": {}}}
+        loader.sec_client.get_filing_plaintext.return_value = ""
+
+        result = loader.fetch_incremental("NEWCO", None)[0]
 
         assert result["shares_outstanding"] is None
         assert result["shares_outstanding_unavailable_reason"] == "no_annual_report_filing"
