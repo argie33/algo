@@ -3017,6 +3017,25 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "ebitda",
                     "ebitda_margin",
                     "operating_margin",
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up to the sibling RIC-loop fix above): these 8 fields share the
+                    # identical "falls back to a reason already in _trust_source_reasons"
+                    # shape as the fields already listed above, mirroring the RIC
+                    # recategorization loop's own extension just above this block. Guarded the
+                    # same way (only fires when the field is still None AND its reason matches),
+                    # so this is a no-op for any of these that already resolve via a different
+                    # path (e.g. current_ratio/quick_ratio/gross_margin's own
+                    # unclassified_balance_sheet check, referenced in this block's header
+                    # comment) - purely additive coverage for whichever royalty-trust symbols
+                    # don't take that other path.
+                    "payout_ratio",
+                    "gross_profitability",
+                    "asset_turnover",
+                    "roa",
+                    "net_margin",
+                    "current_ratio",
+                    "quick_ratio",
+                    "gross_margin",
                 )
                 _trust_source_reasons = {
                     "missing_sec_data",

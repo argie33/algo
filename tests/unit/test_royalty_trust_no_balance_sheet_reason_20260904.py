@@ -112,3 +112,15 @@ class TestRoyaltyTrustNoBalanceSheetReason:
 
         assert metrics["total_debt"] == 5_000_000.0
         assert metrics.get("total_debt_unavailable_reason") is None
+
+    def test_trust_symbol_gets_reit_special_entity_for_asset_turnover(self, monkeypatch):
+        # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up):
+        # asset_turnover (revenue/total_assets) was never added to _trust_recategorize_fields
+        # despite this fixture's revenue=None already producing a "missing_sec_data"-shaped
+        # fallback that fits _trust_source_reasons - same half-wired-fix pattern as the RIC
+        # recategorization loop's own sibling fix.
+        loader = _make_loader(monkeypatch)
+        metrics = loader._compute_quality_metrics("PBT", _quality_row(), ev_metrics=(None, None, None, None))
+
+        assert metrics["asset_turnover"] is None
+        assert metrics["asset_turnover_unavailable_reason"] == "reit_special_entity"
