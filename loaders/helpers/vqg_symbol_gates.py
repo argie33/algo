@@ -1275,6 +1275,31 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_unsupported_currency_ocf_symbols(self) -> frozenset[str]:
+        """Symbols whose annual_cash_flow row was tagged "unsupported_currency_no_fx_rate" by
+        load_financial_statements.py's has_unsupported_currency_only_fact fix (see
+        utils/external/sec_statements_shared.py's docstring) - a foreign private issuer that
+        tags operating_cash_flow only under a hyperinflationary/unsupported local currency
+        (e.g. ARS - GGAL/BBAR/BSAC/SUPV/TEO/TKC/TGS/TV and more, live-confirmed via real SEC
+        companyfacts) has a real, non-fabricatable ocf=None, not a genuine loader gap.
+
+        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up to
+        the has_unsupported_currency_only_fact fix and its sec_valuations.dcf_fcf sibling
+        recategorization, load_sec_valuations.py's _recategorize_unsupported_currency_dcf_fcf_
+        reason): that fix was never wired into quality_metrics/value_metrics' own free_cash_
+        flow/operating_cash_flow-derived reason chains, unlike RIC/registered-investment-
+        company (which already gets this exact treatment) - same reason-string-doesn't-match-
+        real-cause bug class as this sweep's other fixes. Reuses annual_cash_flow.reason
+        (already populated by load_financial_statements.py's own fix once that table is
+        reloaded) instead of a fresh live SEC API call, same cheap-reuse discipline as the
+        sec_valuations sibling. Cached for the life of this loader instance; this query runs
+        once per pipeline run, not once per symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute("SELECT DISTINCT symbol FROM annual_cash_flow WHERE reason = 'unsupported_currency_no_fx_rate'")
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_never_tagged_free_cash_flow_symbols(self) -> frozenset[str]:
         """Symbols with at least one real (non-data_unavailable) annual_cash_flow row, none of
         which ever carry a real free_cash_flow value - a broader, full-history sibling of

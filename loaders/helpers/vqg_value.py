@@ -390,6 +390,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                 if symbol in self._get_registered_investment_company_symbols()
                 else "etf_trust_no_gaap_financials"
                 if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                # follow-up to the has_unsupported_currency_only_fact fix and its sec_
+                # valuations.dcf_fcf/quality_metrics.free_cash_flow sibling recategorizations):
+                # a foreign private issuer whose annual_cash_flow row was already tagged
+                # "unsupported_currency_no_fx_rate" has a real, non-fabricatable ocf=None, not
+                # a genuine loader gap - checked before the generic fallbacks below, same
+                # priority as the RIC/ETF-trust/royalty-trust checks just above.
+                else "unsupported_currency_no_fx_rate"
+                if symbol in self._get_unsupported_currency_ocf_symbols()
                 else "no_recent_free_cash_flow_reported"
                 if symbol in self._get_no_recent_free_cash_flow_symbols()
                 or symbol in self._get_never_tagged_free_cash_flow_symbols()

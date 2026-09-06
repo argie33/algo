@@ -3140,6 +3140,35 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if metrics.get(_field) is None and metrics.get(_reason_key) in _ric_source_reasons:
                         metrics[_reason_key] = "registered_investment_company_no_xbrl"
 
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up
+            # to the has_unsupported_currency_only_fact fix and its sec_valuations.dcf_fcf
+            # sibling recategorization): a foreign private issuer whose annual_cash_flow row
+            # was already tagged "unsupported_currency_no_fx_rate" (real OCF, only tagged under
+            # a hyperinflationary/unsupported currency like ARS) has a real, non-fabricatable
+            # ocf=None cascading into every cash-flow-derived field below - same recategorize-
+            # loop pattern as the RIC/royalty-trust blocks above, never wired for this cause.
+            if symbol in self._get_unsupported_currency_ocf_symbols():
+                _unsupported_currency_recategorize_fields = (
+                    "free_cash_flow",
+                    "operating_cash_flow",
+                    "fcf_to_net_income",
+                    "ocf_to_net_income",
+                    "fcf_margin",
+                    "accruals_ratio",
+                )
+                _unsupported_currency_source_reasons = {
+                    "missing_sec_data",
+                    "no_recent_free_cash_flow_reported",
+                    "no_recent_operating_cash_flow_reported",
+                    "free_cash_flow_absent_from_anchor_year",
+                    "operating_cash_flow_absent_from_anchor_year",
+                    "capex_never_tagged_in_recent_filings",
+                }
+                for _field in _unsupported_currency_recategorize_fields:
+                    _reason_key = f"{_field}_unavailable_reason"
+                    if metrics.get(_field) is None and metrics.get(_reason_key) in _unsupported_currency_source_reasons:
+                        metrics[_reason_key] = "unsupported_currency_no_fx_rate"
+
             if stale_fallback_metrics:
                 # One or more fields above came from a prior fiscal year (up to 6 years
                 # back) via the cross-year "implausible anchor" rescue, not this symbol's
