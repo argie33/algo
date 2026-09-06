@@ -7,6 +7,7 @@ from .price_sanity import PriceSanityChecker
 from .quality import QualityChecker
 from .specialized import SpecializedChecker
 from .staleness import StalenessChecker
+from .tie_out import TieOutChecker
 
 __all__ = [
     "AlignmentChecker",
@@ -15,4 +16,5 @@ __all__ = [
     "QualityChecker",
     "SpecializedChecker",
     "StalenessChecker",
+    "TieOutChecker",
 ]

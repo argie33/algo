@@ -122,6 +122,7 @@ class DataPatrol:
             QualityChecker,
             SpecializedChecker,
             StalenessChecker,
+            TieOutChecker,
         )
         from .config import CRIT, ERROR
 
@@ -138,6 +139,7 @@ class DataPatrol:
                 PriceSanityChecker(self.config),
                 AlignmentChecker(self.config),
                 SpecializedChecker(self.config),
+                TieOutChecker(self.config),
             ]
 
             for checker in checkers:
