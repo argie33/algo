@@ -506,7 +506,7 @@ class ValueQualityGrowthMetricsLoader(
                         FROM sec_valuations
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
-                    WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
+                    WHERE abs.symbol = %s AND abs.fiscal_year > 0
                     -- Freshness (within MAX_FISCAL_YEAR_AGE_YEARS) is the PRIMARY sort key; the
                     -- revenue/matched-income preference is only a tiebreak within the fresh tier
                     -- and, separately, within the stale-fallback tier - a fresh but revenue-poor
