@@ -291,7 +291,22 @@ class SecValuationYieldDcfMixin:
         # deliberately left on the latest year only (it's meant to reflect current cash
         # generation, not a smoothed figure).
         fcf_base = ocf - capex - sbc if ocf is not None and capex is not None else None
-        if (fcf_base is None or fcf_base <= 0) and avg_fcf_fallback is not None and avg_fcf_fallback > 0:
+        if fcf_base is None and avg_fcf_fallback is not None:
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): this used to only
+            # substitute avg_fcf_fallback when it was positive, so a symbol whose LATEST year
+            # can't be computed at all (capex not yet tagged) but whose real multi-year average
+            # is negative fell through with dcf_fcf_base left None entirely - mislabeled
+            # "missing_cash_flow_data" (Missing SEC/XBRL data) even though real cash-flow data
+            # was there and genuinely says this company burns cash, which is
+            # "negative_free_cash_flow" (Legitimate / not applicable), a completely different
+            # claim. Live-confirmed AQB/APMD/OGEN and ~130+ more universe symbols: real OCF/capex
+            # on file for 2+ of the last 3 years, all negative, latest year's capex just not
+            # re-tagged yet - previously reported as a data gap that doesn't exist. Only applies
+            # when fcf_base is None (no usable single-year figure at all); a real, already-
+            # computed non-positive fcf_base still only gets rescued by a POSITIVE average (the
+            # original 2026-08-18 behavior, preserved below) - this branch never touches that case.
+            fcf_base = avg_fcf_fallback
+        elif fcf_base is not None and fcf_base <= 0 and avg_fcf_fallback is not None and avg_fcf_fallback > 0:
             fcf_base = avg_fcf_fallback
         # net_borrowing (see this parameter's own docstring above): DCF-only additive
         # correction toward a true FCFE, never applied to fcf_yield above. Bounded to
