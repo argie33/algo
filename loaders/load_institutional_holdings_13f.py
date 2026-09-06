@@ -179,6 +179,20 @@ _VERIFIED_RAW_TICKER_ALIASES: dict[tuple[str, str], str] = {
     # only token that would disambiguate toward PUK (Prudential Financial has no ADR - it's
     # already a US domestic filer), which a token-overlap index doesn't weigh specially.
     ("PUKN", "PRUDENTIAL PLC-ADR"): "PUK",
+    # FIXED 2026-09-06 (same sweep): Bank of Chile (our tracked "BCH", local entity_name
+    # "BANK OF CHILE") - live-verified via SEC 13F full-text search (5,994 hits) that
+    # institutions genuinely hold this CUSIP. OpenFIGI's raw ticker "G4RA" is unrecognized,
+    # and its resolved_name "BANCO DE CHILE-ADR" (the company's own Spanish legal name) shares
+    # zero real tokens with our English "BANK OF CHILE" local name - a translation mismatch,
+    # not an ambiguity tie, but the same "unrecognized raw ticker + name-index can't bridge
+    # the gap" failure mode as every other alias here.
+    ("G4RA", "BANCO DE CHILE-ADR"): "BCH",
+    # FIXED 2026-09-06 (same sweep): Grupo Aeroportuario del Pacifico (our tracked "PAC",
+    # local entity_name "Pacific Airport Group" - an English translation of the Spanish legal
+    # name) - live-verified via SEC 13F full-text search (430 hits). OpenFIGI's raw ticker
+    # "G9N" is unrecognized, and its resolved_name "GRUPO AEROPORTUARIO PAC-ADR" shares zero
+    # real tokens with our English local name, same translation-mismatch class as BCH above.
+    ("G9N", "GRUPO AEROPORTUARIO PAC-ADR"): "PAC",
 }
 
 

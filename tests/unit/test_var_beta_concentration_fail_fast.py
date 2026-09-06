@@ -103,3 +103,68 @@ class TestConcentrationReportFailFast:
 
         with pytest.raises(RuntimeError, match="top_5_concentration_pct"):
             var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+
+class TestAlertThresholdsUseConfigNotHardcodedLiterals:
+    """Regression for the 2026-09-06 cross-layer risk threshold consistency audit:
+    generate_daily_risk_report()'s beta/concentration/VaR alert thresholds used to be
+    hardcoded literals (2.0, 30, 2.0) even though pretrade_checks.py and
+    unified_risk_monitor.py/intraday_risk_monitor.py already enforce the exact same limits
+    from algo_config (max_portfolio_beta/max_top5_concentration_pct/max_simulated_var_pct).
+    If an admin ever changed one of those config values, the enforcement layers picked it
+    up immediately but this report kept alerting against the stale default - a real drift
+    between what's enforced and what's reported as breached.
+    """
+
+    def test_beta_alert_uses_configured_threshold_not_hardcoded_2_0(self):
+        # Config threshold tightened to 1.0 - a beta of 1.5 (below the old hardcoded 2.0,
+        # above the new configured 1.0) must alert under the new threshold.
+        var_calculator = ValueAtRisk(
+            {
+                "var_percentile": 5,
+                "cvar_percentile": 5,
+                "stressed_var_percentile": 10,
+                "max_simulated_var_pct": 2.0,
+                "max_top5_concentration_pct": 30.0,
+                "max_portfolio_beta": 1.0,
+            }
+        )
+        mock_cur = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        _stub_out_everything_except(
+            var_calculator, beta_exposure=lambda report_date=None: {"portfolio_beta": 1.5, "data_unavailable": False}
+        )
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            result = var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+        assert any("Beta Risk" in a for a in result["alerts"])
+        assert any("1.0" in a for a in result["alerts"])
+
+    def test_concentration_alert_uses_configured_threshold_not_hardcoded_30(self):
+        # Config threshold tightened to 15% - a concentration of 20% (below the old
+        # hardcoded 30%, above the new configured 15%) must alert under the new threshold.
+        var_calculator = ValueAtRisk(
+            {
+                "var_percentile": 5,
+                "cvar_percentile": 5,
+                "stressed_var_percentile": 10,
+                "max_simulated_var_pct": 2.0,
+                "max_top5_concentration_pct": 15.0,
+                "max_portfolio_beta": 2.0,
+            }
+        )
+        mock_cur = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        _stub_out_everything_except(
+            var_calculator,
+            concentration_report=lambda report_date=None: {"top_5_concentration_pct": 20.0, "data_unavailable": False},
+        )
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            result = var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+        assert any("Concentration Risk" in a for a in result["alerts"])
+        assert any("15.0" in a for a in result["alerts"])
