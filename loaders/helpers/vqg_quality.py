@@ -700,13 +700,34 @@ class QualityMetricsMixin(SymbolGateMixin):
             if gross_profit_used is not None and gross_profit_revenue is not None and gross_profit_revenue != 0:
                 # Bound the ratio - a real but implausibly tiny revenue relative to gross_profit
                 # (e.g. a mis-scaled/mis-tagged SEC fact) explodes this into nonsense.
+                #
+                # FIXED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" / implausible-
+                # values audit): unlike EBITDA margin or ROE/ROA (which can legitimately exceed
+                # 100% - the shared |ratio|>1000 bound below is correct for those), gross margin
+                # is capped at 100% by definition (gross_profit = revenue - cost_of_revenue, and
+                # cost_of_revenue is never negative for a real filer) - the old 1000% bound let
+                # values like 138.5% straight through unflagged. Live-confirmed via SAN/BBVA/GFR
+                # (foreign banks): quality_metrics.gross_margin stored 138.54/140.53/107.29 with
+                # gross_margin_unavailable_reason=NULL, feeding directly into Quality scoring.
+                # Root cause there is a real, current concept mismatch (GrossProfit is a broad
+                # IFRS bank "total operating income" concept, but the interest_revenue_expense
+                # fallback-only concept mapped to our "revenue" column is a much narrower net-
+                # interest-income figure for these filers - see _REVENUE_FALLBACK_ONLY_FIELDS'
+                # comment on interest_revenue_expense) rather than a stale/mis-tagged value, so
+                # there's no better concept to substitute - flagging it as implausible (same
+                # governance as every other implausible-ratio rejection in this file) is the
+                # correct outcome, not a false positive: 105% buffer allows for the rare
+                # legitimate edge case (a vendor-rebate credit or other negative-COGS item
+                # pushing slightly over 100%) without accepting a genuinely impossible value.
                 computed_gross_margin = (gross_profit_used / gross_profit_revenue) * 100
-                if abs(computed_gross_margin) > 1000:
+                if computed_gross_margin > 105 or computed_gross_margin < -1000:
                     # Same cross-year fallback as operating_margin/net_margin/interest_coverage
                     # above - search for an older fiscal year with a plausible same-year
-                    # (gross_profit, revenue) pair.
+                    # (gross_profit, revenue) pair. The shared helper's own |ratio|<=1000 bound
+                    # is too loose for gross_margin specifically (see above) - re-validate its
+                    # candidate against the same >105% ceiling before accepting it.
                     gross_margin_fallback = self._find_plausible_cross_year_ratio(symbol, "gross_profit", "revenue")
-                    if gross_margin_fallback is not None:
+                    if gross_margin_fallback is not None and gross_margin_fallback <= 105:
                         metrics["gross_margin"] = gross_margin_fallback
                         stale_fallback_metrics.append("gross_margin")
                     else:
