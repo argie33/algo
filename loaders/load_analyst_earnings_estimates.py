@@ -140,7 +140,13 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
                 "date": today,
                 "forward_eps": forward_eps,
                 "forward_eps_growth_current_fy": growth_estimates.get("forward_eps_growth_current_fy"),
+                "forward_eps_growth_current_fy_prior_year_eps": growth_estimates.get(
+                    "forward_eps_growth_current_fy_prior_year_eps"
+                ),
                 "forward_eps_growth_next_fy": growth_estimates.get("forward_eps_growth_next_fy"),
+                "forward_eps_growth_next_fy_prior_year_eps": growth_estimates.get(
+                    "forward_eps_growth_next_fy_prior_year_eps"
+                ),
                 "forward_revenue_growth_next_fy": growth_estimates.get("forward_revenue_growth_next_fy"),
                 "eps_estimate_revision_90d_pct": growth_estimates.get("eps_estimate_revision_90d_pct"),
                 "data_unavailable": False,

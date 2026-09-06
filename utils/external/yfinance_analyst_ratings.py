@@ -573,6 +573,15 @@ def fetch_forward_growth_estimates(symbol: str) -> dict[str, float | None] | Non
         "forward_eps_growth_next_fy": None,
         "forward_revenue_growth_next_fy": None,
         "eps_estimate_revision_90d_pct": None,
+        # ADDED 2026-09-05 (goal session: "missing SEC/XBRL data"/implausible-values sweep):
+        # preserves the 'growth' column's own denominator (Ticker.earnings_estimate's
+        # 'yearAgoEps') so a near-zero prior-year base that mathematically blows up the
+        # growth ratio (live-confirmed via PII: yearAgoEps=-0.01, growth=314.694) can be
+        # told apart from a genuinely enormous, real growth ratio downstream - see migration
+        # 1259's own header for the full evidence. Without this, that distinction is
+        # impossible after the fact since only the already-computed ratio was ever stored.
+        "forward_eps_growth_current_fy_prior_year_eps": None,
+        "forward_eps_growth_next_fy_prior_year_eps": None,
     }
     any_coverage = False
 
@@ -583,12 +592,19 @@ def fetch_forward_growth_estimates(symbol: str) -> dict[str, float | None] | Non
             raise
         eps_df = None
     if eps_df is not None and not eps_df.empty and "growth" in eps_df.columns:
-        for period, key in (("0y", "forward_eps_growth_current_fy"), ("+1y", "forward_eps_growth_next_fy")):
+        for period, key, prior_key in (
+            ("0y", "forward_eps_growth_current_fy", "forward_eps_growth_current_fy_prior_year_eps"),
+            ("+1y", "forward_eps_growth_next_fy", "forward_eps_growth_next_fy_prior_year_eps"),
+        ):
             if period in eps_df.index:
                 val = _safe_float_cell(eps_df.loc[period, "growth"])
                 if val is not None:
                     result[key] = val
                     any_coverage = True
+                if "yearAgoEps" in eps_df.columns:
+                    prior = _safe_float_cell(eps_df.loc[period, "yearAgoEps"])
+                    if prior is not None:
+                        result[prior_key] = prior
 
     try:
         rev_df = _fetch_with_circuit_breaker(symbol, "revenue_estimate")

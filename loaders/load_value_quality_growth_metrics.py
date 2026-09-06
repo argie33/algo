@@ -806,6 +806,15 @@ class ValueQualityGrowthMetricsLoader(
             "forward_revenue_growth_next_fy",
             "eps_estimate_revision_90d_pct",
         )
+        # ADDED 2026-09-05 (goal session: "missing SEC/XBRL data"/implausible-values sweep):
+        # the prior-year EPS each EPS growth ratio was actually computed from (see migration
+        # 1259's own header) - lets the near-zero-base check below distinguish a
+        # mathematically-blown-up ratio from a genuinely enormous real one. No equivalent
+        # column exists for forward_revenue_growth_next_fy - not in scope for this fix.
+        _prior_year_eps_fields = {
+            "forward_eps_growth_current_fy": "forward_eps_growth_current_fy_prior_year_eps",
+            "forward_eps_growth_next_fy": "forward_eps_growth_next_fy_prior_year_eps",
+        }
         # forward_eps_growth_current_fy/next_fy/forward_revenue_growth_next_fy are stored as raw
         # FRACTIONS (0.18 = 18%, see load_stock_scores.py's _get_growth_metrics for the
         # fraction->percentage-point conversion at scoring time); eps_estimate_revision_90d_pct
@@ -816,15 +825,21 @@ class ValueQualityGrowthMetricsLoader(
             "forward_eps_growth_next_fy",
             "forward_revenue_growth_next_fy",
         }
+        # Same $0.10 immaterial-base floor as growth_metrics' own realized eps_growth_1y (see
+        # vqg_growth.py's _compute_period_growth min_abs_target=0.10 call) - a prior-year EPS
+        # this close to zero makes any growth RATIO numerically unstable regardless of how
+        # real/well-covered the underlying estimates are.
+        _immaterial_eps_base_floor = 0.10
         result: dict[str, Any] = {}
         for field in fields:
             result[field] = None
             result[f"{field}_unavailable_reason"] = "no_analyst_estimates"
+        select_cols = [*fields, *_prior_year_eps_fields.values()]
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
                     f"""
-                    SELECT {", ".join(fields)} FROM analyst_earnings_estimates
+                    SELECT {", ".join(select_cols)} FROM analyst_earnings_estimates
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY date DESC LIMIT 1
                     """,
@@ -832,7 +847,9 @@ class ValueQualityGrowthMetricsLoader(
                 )
                 row = cur.fetchone()
                 if row:
-                    for field, val in zip(fields, row, strict=True):
+                    values = dict(zip(select_cols, row, strict=True))
+                    for field in fields:
+                        val = values[field]
                         parsed = safe_float(val, f"{symbol}.{field}", allow_none=True)
                         if parsed is None:
                             # A real row was found but this field is NULL, distinct from no
@@ -848,7 +865,17 @@ class ValueQualityGrowthMetricsLoader(
                             result[field] = parsed
                             result[f"{field}_unavailable_reason"] = None
                         else:
-                            result[f"{field}_unavailable_reason"] = "garbage_metric_value_implausible_ratio"
+                            prior_col = _prior_year_eps_fields.get(field)
+                            prior_eps = (
+                                safe_float(values[prior_col], f"{symbol}.{prior_col}", allow_none=True)
+                                if prior_col
+                                else None
+                            )
+                            result[f"{field}_unavailable_reason"] = (
+                                "immaterial_prior_year_base"
+                                if prior_eps is not None and abs(prior_eps) < _immaterial_eps_base_floor
+                                else "garbage_metric_value_implausible_ratio"
+                            )
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to fetch analyst forward growth estimates: {type(e).__name__}")
         return result

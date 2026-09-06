@@ -33,13 +33,15 @@ def _make_loader() -> ValueQualityGrowthMetricsLoader:
 
 class _RowExistsPartialCursor:
     """A real analyst_earnings_estimates row exists, but forward_eps_growth_current_fy is
-    NULL while the other 3 fields are real values - mirrors the live AFRM/DB/VOD/etc shape."""
+    NULL while the other 3 fields are real values - mirrors the live AFRM/DB/VOD/etc shape.
+
+    Row shape (2026-09-05): 4 value fields + 2 prior_year_eps columns (see migration 1259)."""
 
     def execute(self, query, params=None):
         pass
 
     def fetchone(self):
-        return (None, 0.0521, 0.0813, -1.2)
+        return (None, 0.0521, 0.0813, -1.2, None, 1.5)
 
     def fetchall(self):
         return []
