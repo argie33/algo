@@ -693,6 +693,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "negative_free_cash_flow",
             "negative_book_value",
             "negative_earnings_growth",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): peg_ratio's own
+            # reason function (vqg_shared.py's peg_ratio_reason_from_eps_history) now mirrors
+            # _compute_peg_ratio()'s low-base-year rejection (a real, positive prior_year_eps
+            # that's a one-off litigation/impairment trough relative to the filer's own EPS
+            # history - same GILD/AA-shaped bug the value side already fixed, see
+            # peg_ratio_low_base_effect in memory) - the data IS real, the ratio is just not
+            # meaningful off that anchor year, same "not applicable" class as
+            # negative_earnings_growth just above.
+            "peg_ratio_low_base_effect",
             "negative_invested_capital",
             "growth_undefined_sign_change",
             # MOVED 2026-09-06 (goal: "SEC/XBRL missing data to zero" audit): the six

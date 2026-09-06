@@ -33,7 +33,9 @@ def get_loader_timestamp() -> str:
     return _LOADER_RUN_TIMESTAMP
 
 
-def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
+def peg_ratio_reason_from_eps_history(
+    eps_rows: list[tuple[Any, Any]], other_positive_eps: list[float] | None = None
+) -> str:
     """Given the two most recent (fiscal_year, earnings_per_share) rows (newest first, both
     non-NULL EPS), decide why peg_ratio is unavailable when pe_ratio IS present.
 
@@ -46,6 +48,9 @@ def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
     Args:
         eps_rows: 0-2 (fiscal_year, earnings_per_share) tuples, already filtered to non-NULL
             EPS and ordered fiscal_year DESC (i.e. exactly what the caller's DB query returns).
+        other_positive_eps: every OTHER real, positive fiscal-year EPS on file for this symbol
+            (excluding prior_eps_for_growth itself) - only needed to replicate
+            _compute_peg_ratio()'s own low-base-year rejection (see ADDED 2026-09-06 below).
     """
     if len(eps_rows) < 2:
         return "insufficient_history"
@@ -54,6 +59,28 @@ def peg_ratio_reason_from_eps_history(eps_rows: list[tuple[Any, Any]]) -> str:
         return "negative_earnings_growth"
     if ttm_eps_for_growth is not None and ttm_eps_for_growth <= prior_eps_for_growth:
         return "negative_earnings_growth"
+    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, gap found while
+    # cross-checking sec_valuations_ratios.py's _compute_peg_ratio against this function): a
+    # prior session (see peg_ratio_low_base_effect in memory) fixed the VALUE side of the
+    # GILD/AA-shaped bug (a real but anomalously low prior_year_eps - a one-off
+    # litigation/impairment trough year - deflates peg_ratio toward zero via an artificially
+    # huge growth_rate) by having _compute_peg_ratio return None instead of the wrong 0.01, but
+    # never gave this reason function the matching label - every affected symbol still fell
+    # through this function's own growth checks (which see the same "positive growth" data)
+    # straight to the generic "missing_sec_data" (Missing SEC/XBRL data) instead of the correct
+    # "peg_ratio_low_base_effect" (Legitimate / not applicable - the DATA is real, the ratio is
+    # just not meaningful off that anchor year). Mirrors _compute_peg_ratio's exact math
+    # (growth_rate > 300 pre-filter, median of >=2 other real positive EPS years, prior_year_eps
+    # < 25% of that median) so this can only fire on the identical population the real
+    # computation rejects.
+    if other_positive_eps and ttm_eps_for_growth is not None:
+        growth_rate = ((ttm_eps_for_growth - prior_eps_for_growth) / abs(prior_eps_for_growth)) * 100
+        if growth_rate > 300 and len(other_positive_eps) >= 2:
+            sorted_eps = sorted(other_positive_eps)
+            mid = len(sorted_eps) // 2
+            median_eps = sorted_eps[mid] if len(sorted_eps) % 2 else (sorted_eps[mid - 1] + sorted_eps[mid]) / 2
+            if median_eps > 0 and prior_eps_for_growth < 0.25 * median_eps:
+                return "peg_ratio_low_base_effect"
     return "missing_sec_data"
 
 

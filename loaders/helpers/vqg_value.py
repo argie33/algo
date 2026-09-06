@@ -775,7 +775,36 @@ class ValueMetricsMixin(SymbolGateMixin):
                     (symbol,),
                 )
                 eps_rows = cur.fetchall()
-            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows)
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): only pay for this
+            # second query on the rare symbols with explosive apparent growth - same cheap-
+            # pre-filter discipline sec_valuations_ratios.py's own _compute_peg_ratio uses
+            # before it does the identical query to detect a low-base trough year. See
+            # peg_ratio_reason_from_eps_history()'s own docstring for why this is needed at
+            # all: without it, the low-base-effect rejection this mirrors falls through to
+            # "missing_sec_data" instead of "peg_ratio_low_base_effect".
+            other_positive_eps: list[float] | None = None
+            if len(eps_rows) >= 2:
+                ttm_eps_for_growth, prior_eps_for_growth = eps_rows[0][1], eps_rows[1][1]
+                if (
+                    prior_eps_for_growth is not None
+                    and prior_eps_for_growth > 0
+                    and ttm_eps_for_growth is not None
+                    and ((ttm_eps_for_growth - prior_eps_for_growth) / abs(prior_eps_for_growth)) * 100 > 300
+                ):
+                    with _owner().DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT earnings_per_share FROM annual_income_statement
+                            WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                              AND earnings_per_share > 0 AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        other_positive_eps = [
+                            float(r[0]) for r in cur.fetchall() if float(r[0]) != prior_eps_for_growth
+                        ]
+            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows, other_positive_eps)
         else:
             peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else None
 
