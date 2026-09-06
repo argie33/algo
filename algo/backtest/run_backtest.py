@@ -334,8 +334,31 @@ def run_backtest(  # noqa: C901
     strategy_name: str = "composite_score_signals",
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     rank_by: str = "signal_quality_score",
+    base_risk_pct: float | None = None,
 ) -> dict[str, Any]:
     """Run backtest and return results dict.
+
+    SIZING MODEL - fixed-fraction-of-portfolio vs. risk-based (real-money-readiness audit,
+    2026-09-05): by default (base_risk_pct=None), every entry is sized as a flat
+    `position_size_pct` of current total_value regardless of stop distance - this is NOT what
+    live position_sizer.py does (risk_dollars = portfolio_value * base_risk_pct, shares =
+    risk_dollars / (entry - stop)), and the two can diverge by several-fold on any trade whose
+    stop distance differs meaningfully from the "implied" distance the flat fraction happens to
+    assume. Live also applies several further multipliers this backtest does NOT simulate at
+    all (drawdown-tier reduction, market-exposure regime, VIX-caution, per-symbol data-maturity
+    discount) - even with base_risk_pct set, this remains an approximation of live sizing, not
+    full parity; treat a Sharpe/return comparison between the two modes as directionally
+    informative about the sizing-model divergence's exact magnitude, not as proof either mode's
+    absolute performance figures are what a live account would have realized.
+
+    Passing base_risk_pct (e.g. 0.75, matching live's AlgoConfig default) switches to
+    risk-based sizing: shares = floor((total_value * base_risk_pct / 100) / risk_per_share),
+    where risk_per_share = entry_price - (entry_price * (1 - stop_loss_pct/100)) - the same
+    stop distance this backtest already uses for its own stop-loss exit, so the risk-per-share
+    denominator is internally consistent with what actually triggers an exit here.
+    position_size_pct still applies as the maximum position size cap either way (mirroring
+    live's max_position_size_pct role) - risk-based sizing can only shrink a position relative
+    to that cap, never grow it past the cap.
 
     KNOWN SIMPLIFICATION - no intraday data: _get_prices_batch() only fetches `close` from
     price_daily, so a stop-loss or profit-target exit is priced as if filled at exactly the
@@ -522,7 +545,18 @@ def run_backtest(  # noqa: C901
                 # Buys pay the slippage haircut too (see DEFAULT_SLIPPAGE_BPS/docstring) - sized
                 # and costed against the actual fill price, not the pre-slippage signal price.
                 entry_price = entry_price * (1 + slippage_bps / 10_000)
-                position_dollars = min(capital, total_value * position_size_pct / 100)
+                # position_size_pct is always the CAP - see run_backtest's own "SIZING MODEL"
+                # docstring section. Risk-based sizing (base_risk_pct set) can only shrink the
+                # position relative to this cap, matching live position_sizer.py's own
+                # cap-then-clamp ordering, never grow past it.
+                cap_dollars = min(capital, total_value * position_size_pct / 100)
+                if base_risk_pct is not None:
+                    risk_per_share = entry_price * (stop_loss_pct / 100)
+                    risk_dollars = total_value * base_risk_pct / 100
+                    risk_based_dollars = (risk_dollars / risk_per_share) * entry_price if risk_per_share > 0 else 0
+                    position_dollars = min(cap_dollars, risk_based_dollars)
+                else:
+                    position_dollars = cap_dollars
                 shares = int(position_dollars / entry_price)
 
                 if shares < 1:
@@ -726,6 +760,7 @@ def run_backtest(  # noqa: C901
             "max_hold_days": max_hold_days,
             "max_positions": max_positions,
             "position_size_pct": position_size_pct,
+            "base_risk_pct": base_risk_pct,
         },
         "trades": completed_trades,
         "equity_curve": equity_curve,
@@ -908,6 +943,20 @@ def main() -> int:
         default=DEFAULT_SLIPPAGE_BPS,
         help="Per-side slippage/spread haircut in basis points applied to every fill (default: 5.0)",
     )
+    parser.add_argument(
+        "--base-risk-pct",
+        type=float,
+        default=None,
+        help=(
+            "Enable risk-based position sizing (matching live position_sizer.py's "
+            "risk_dollars=portfolio_value*base_risk_pct/(entry-stop) formula) instead of the "
+            "default flat %%-of-portfolio sizing. Live's AlgoConfig default is 0.75. "
+            "--position-size still applies as the maximum position size cap either way. "
+            "Still an approximation, not full live parity - see run_backtest()'s 'SIZING "
+            "MODEL' docstring section for what remains unsimulated (drawdown-tier reduction, "
+            "market-exposure regime, VIX-caution, per-symbol data-maturity discount)."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print results without saving to DB")
     parser.add_argument(
         "--rank-by",
@@ -945,6 +994,7 @@ def main() -> int:
         strategy_name=args.strategy,
         slippage_bps=args.slippage_bps,
         rank_by=args.rank_by,
+        base_risk_pct=args.base_risk_pct,
     )
 
     if not results:
