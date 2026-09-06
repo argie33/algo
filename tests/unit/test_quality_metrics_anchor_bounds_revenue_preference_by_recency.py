@@ -19,6 +19,11 @@ Fixed by making "is this fiscal year within the staleness window" the PRIMARY so
 the existing revenue/matched-income preference applied only as a tiebreak within the fresh
 tier and, separately, within the stale tier (preserved unchanged as a fallback for genuinely-
 stale filers with no fresh balance sheet at all).
+
+UPDATED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep): a `CASE WHEN
+abs.data_unavailable THEN 1 ELSE 0 END` sort key was added AHEAD of this recency tiering (see
+that fix's own comment in the loader) so a real balance-sheet row always wins over a disclaimed
+one regardless of freshness. This test now skips past that leading key to find the tiering CASE.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -60,7 +65,9 @@ def test_primary_row_query_bounds_revenue_and_usability_tiers_by_recency(monkeyp
 
     primary_query = next(q for q in cursor.queries if "FROM annual_balance_sheet abs" in q)
     order_by_clause = primary_query.split("ORDER BY", 1)[1]
-    first_case = order_by_clause.split("(CASE", 2)[1]  # the tiering CASE, not the FCF one
+    # (CASE #1 = the leading data_unavailable priority key, #2 = the tiering CASE we want,
+    # #3 = the FCF one) - grab the body between occurrences 2 and 3.
+    first_case = order_by_clause.split("(CASE", 3)[2]
 
     fresh_bound = "EXTRACT(YEAR FROM CURRENT_DATE)::int -"
     revenue_pos = first_case.find("ais.revenue IS NOT NULL")

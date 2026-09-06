@@ -462,42 +462,83 @@ class ValueQualityGrowthMetricsLoader(
                 # fallback tier. The FCF/recency tiebreak (secondary CASE below) is similarly bounded
                 # to MAX_FISCAL_YEAR_AGE_YEARS so preferring an audited-FCF year never trades away a
                 # fresh, complete balance sheet for one with ancient FCF data.
+                #
+                # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep): a
+                # `data_unavailable = TRUE` annual_balance_sheet row can carry a leftover non-NULL
+                # value in its data columns (never nulled when the row was flagged unavailable -
+                # 3,282 such rows confirmed live), and since `abs.fiscal_year > 0` (not `= FALSE`)
+                # already includes these rows for label-only gates elsewhere, the freshness-first
+                # ORDER BY could pick one of these DISCLAIMED rows as the anchor purely for being
+                # the most recent fiscal_year - live-confirmed 27 universe symbols this way, e.g.
+                # XRTX's picked stockholders_equity was $2.08M from a disclaimed 2025 row instead
+                # of the real $13.17M from 2021, SIM's picked a disclaimed $59.2B 2024 balance
+                # sheet over the real $49.8B 2023 one. This fed WRONG COMPUTED VALUES (ROE/
+                # debt_to_equity/asset_turnover/etc), not just a wrong reason label - a more severe
+                # instance of the same bug class fixed across vqg_symbol_gates.py's gates this
+                # session. Fix: `data_unavailable` is now the FIRST sort key (a real row always
+                # wins over an unavailable one, at any freshness), the raw abs.* fields are
+                # sanitized to NULL when their own row is unavailable (defense in depth for the
+                # no-real-row-exists fallback case, where a stray value could otherwise still leak
+                # through), and every prior_year_* subquery now filters `data_unavailable = FALSE`
+                # (same stray-value risk, live-confirmed 408-3,768 exposed rows per table). Live-
+                # reverified: symbols with NO real row anywhere (e.g. TV/SUPV) still correctly fall
+                # back to the unavailable row so per-field gates keep seeing them.
                 cur.execute(
                     """
-                    SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
+                    SELECT CASE WHEN abs.data_unavailable THEN NULL ELSE abs.stockholders_equity END,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.total_liabilities END,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.total_assets END,
                            ais.net_income, ais.revenue, ais.operating_income,
-                           abs.current_assets, abs.current_liabilities, abs.fiscal_year,
-                           abs.inventory, ais.interest_expense, sv.shares_outstanding,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.current_assets END,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.current_liabilities END,
+                           abs.fiscal_year,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.inventory END,
+                           ais.interest_expense, sv.shares_outstanding,
                            ais.cost_of_revenue, acf.operating_cash_flow, acf.free_cash_flow,
                            acf.dividends_paid, ais.earnings_per_share,
                            (SELECT earnings_per_share FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_eps,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_eps,
                            (SELECT revenue FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue,
-                           ais.gross_profit, abs.long_term_debt, abs.cash_and_equivalents,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_revenue,
+                           ais.gross_profit,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.long_term_debt END,
+                           CASE WHEN abs.data_unavailable THEN NULL ELSE abs.cash_and_equivalents END,
                            ais.income_tax_expense, ais.pretax_income,
                            (SELECT net_income FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_net_income,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_net_income,
                            (SELECT operating_income FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_operating_income,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_operating_income,
                            (SELECT operating_cash_flow FROM annual_cash_flow
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_operating_cash_flow,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_operating_cash_flow,
                            (SELECT free_cash_flow FROM annual_cash_flow
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_free_cash_flow,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_free_cash_flow,
                            (SELECT cost_of_revenue FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_cost_of_revenue,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_cost_of_revenue,
                            (SELECT total_assets FROM annual_balance_sheet
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_total_assets,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_total_assets,
                            (SELECT stockholders_equity FROM annual_balance_sheet
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_stockholders_equity,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_stockholders_equity,
                            (SELECT pretax_income FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_pretax_income,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_pretax_income,
                            (SELECT interest_expense FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_interest_expense,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_interest_expense,
                            (SELECT gross_profit FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_gross_profit,
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_gross_profit,
                            (SELECT dividends_paid FROM annual_cash_flow
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_dividends_paid
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
+                              AND data_unavailable = FALSE) as prior_year_dividends_paid
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -507,11 +548,14 @@ class ValueQualityGrowthMetricsLoader(
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.fiscal_year > 0
-                    -- Freshness (within MAX_FISCAL_YEAR_AGE_YEARS) is the PRIMARY sort key; the
+                    -- A real (non-data_unavailable) balance-sheet row is ALWAYS preferred over an
+                    -- unavailable one, regardless of freshness - see FIXED 2026-09-05 comment above.
+                    -- Freshness (within MAX_FISCAL_YEAR_AGE_YEARS) is the next sort key; the
                     -- revenue/matched-income preference is only a tiebreak within the fresh tier
                     -- and, separately, within the stale-fallback tier - a fresh but revenue-poor
                     -- balance sheet must never lose to an older year just for having revenue.
-                    ORDER BY (CASE
+                    ORDER BY (CASE WHEN abs.data_unavailable THEN 1 ELSE 0 END),
+                             (CASE
                                    WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
                                         AND ais.revenue IS NOT NULL THEN 0
                                    WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
