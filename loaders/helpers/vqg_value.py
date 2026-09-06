@@ -298,6 +298,17 @@ class ValueMetricsMixin(SymbolGateMixin):
             ev_ebitda_reason = "unprofitable_stock"
         elif ebitda_raw is None:
             ev_ebitda_reason = "ebitda_not_extracted"
+        # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
+        # scan): a registered investment company (see _get_registered_investment_company_
+        # symbols()' docstring) has no debt concept to tag at all, same structural fact already
+        # recategorized for quality_metrics.total_debt/roic_pct/roce_pct/debt_to_equity - this
+        # chain reused the "total_debt_not_itemized" branch below (same root gate,
+        # _get_no_recent_debt_components_symbols()) without ever checking RIC first. Live-
+        # confirmed CEV (a real ebitda>0 but no debt concept RIC) was falling to the generic
+        # "total_debt_not_itemized" ("Missing SEC/XBRL data") instead of
+        # "registered_investment_company_no_xbrl" ("Legitimate / not applicable").
+        elif symbol in self._get_registered_investment_company_symbols():
+            ev_ebitda_reason = "registered_investment_company_no_xbrl"
         # ebitda>0 present, enterprise_value missing or out of bounds: enterprise_value =
         # market_cap + total_debt - total_cash, so it fails whenever total_debt can't be
         # itemized - reuse the same gate quality_metrics.total_debt already uses.
