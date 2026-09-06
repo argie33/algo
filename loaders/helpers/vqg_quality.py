@@ -3232,6 +3232,58 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if metrics.get(_field) is None and metrics.get(_reason_key) in _ric_source_reasons:
                         metrics[_reason_key] = "registered_investment_company_no_xbrl"
 
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up):
+            # a pre-merger blank-check SPAC (SIC 6770) already gets "no_revenue_reported"
+            # ("Legitimate / not applicable") directly wired into gross_profitability/
+            # operating_margin/gross_margin/ebitda_margin/roic_pct/roce_pct's own ternary chains
+            # above (see _get_blank_check_symbols()'s docstring) - but the debt/interest/cash-
+            # flow-derived fields below never got the same check, despite a blank-check shell
+            # having the identical "no real operating business, only trust-account interest
+            # income" structural fact: no debt to itemize, no interest expense beyond trust
+            # administration, no meaningful operating/free cash flow. Same half-wired-fix
+            # pattern as the RIC/royalty-trust/ETF-trust broad loops above/below - reusing this
+            # loop's exact mechanism and the identical 7-reason fallback set, targeting the
+            # already-correctly-bucketed "no_revenue_reported" reason instead of a new label.
+            if symbol in self._get_blank_check_symbols():
+                _blank_check_recategorize_fields = (
+                    "interest_coverage",
+                    "debt_to_assets",
+                    "debt_to_equity",
+                    "asset_turnover",
+                    "roa",
+                    "net_margin",
+                    "current_ratio",
+                    "quick_ratio",
+                    "ebitda",
+                    "total_debt",
+                    "total_cash",
+                    "cash_per_share",
+                    "payout_ratio",
+                    "accruals_ratio",
+                    "fcf_margin",
+                    "fcf_to_net_income",
+                    "ocf_to_net_income",
+                    "free_cash_flow",
+                    "operating_cash_flow",
+                )
+                # Same 7-reason fallback set as _ric_source_reasons above - kept as its own
+                # local rather than reused directly, since that name only exists inside the
+                # sibling RIC `if` block above (a blank-check symbol that isn't ALSO RIC-shaped,
+                # the normal case, would otherwise hit an UnboundLocalError here).
+                _blank_check_source_reasons = {
+                    "missing_sec_data",
+                    "total_debt_not_itemized",
+                    "no_recent_cash_reported",
+                    "interest_expense_not_itemized",
+                    "stockholders_equity_not_reported",
+                    "operating_income_not_itemized",
+                    "total_liabilities_not_reported",
+                }
+                for _field in _blank_check_recategorize_fields:
+                    _reason_key = f"{_field}_unavailable_reason"
+                    if metrics.get(_field) is None and metrics.get(_reason_key) in _blank_check_source_reasons:
+                        metrics[_reason_key] = "no_revenue_reported"
+
             # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up
             # to the has_unsupported_currency_only_fact fix and its sec_valuations.dcf_fcf
             # sibling recategorization): a foreign private issuer whose annual_cash_flow row
