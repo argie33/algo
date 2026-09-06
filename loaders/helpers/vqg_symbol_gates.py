@@ -753,7 +753,9 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE total_assets IS NOT NULL AND total_assets > 0) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE data_unavailable IS NOT TRUE AND total_assets IS NOT NULL AND total_assets > 0
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -807,7 +809,9 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE current_assets IS NOT NULL AND current_assets > 0) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE data_unavailable IS NOT TRUE AND current_assets IS NOT NULL AND current_assets > 0
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -854,7 +858,9 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE current_liabilities IS NOT NULL AND current_liabilities > 0) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE data_unavailable IS NOT TRUE AND current_liabilities IS NOT NULL AND current_liabilities > 0
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -977,7 +983,8 @@ class SymbolGateMixin:
                 SELECT symbol FROM annual_income_statement
                 WHERE fiscal_year > 0
                 GROUP BY symbol
-                HAVING COUNT(*) >= 1 AND COUNT(net_income) = 0
+                HAVING COUNT(*) >= 1
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE net_income END) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -1157,7 +1164,8 @@ class SymbolGateMixin:
                 SELECT symbol FROM annual_balance_sheet
                 WHERE fiscal_year > 0
                 GROUP BY symbol
-                HAVING COUNT(*) >= 1 AND COUNT(total_liabilities) = 0
+                HAVING COUNT(*) >= 1
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE total_liabilities END) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -1698,7 +1706,8 @@ class SymbolGateMixin:
                 SELECT symbol FROM annual_balance_sheet
                 WHERE fiscal_year > 0
                 GROUP BY symbol
-                HAVING COUNT(*) >= 1 AND COUNT(stockholders_equity) = 0
+                HAVING COUNT(*) >= 1
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE stockholders_equity END) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
