@@ -536,3 +536,69 @@ def test_annual_total_summing_two_distinct_quarters_is_not_dropped() -> None:
     assert len(records) == 2
     per_share = sorted(float(r["dividend_per_share"]) for r in records)
     assert per_share == pytest.approx([0.55, 1.10])
+
+
+def test_fiscal_ytd_cumulative_series_decomposed_into_incremental_deltas() -> None:
+    """Live bug, confirmed 2026-09-05 via ICMB (Investcorp Credit Management BDC, a June
+    fiscal-year-end BDC): real CommonStockDividendsPerShareDeclared facts for FY2025 are
+    (2025-01-01..2025-03-31, val=0.12), (2025-01-01..2025-06-30, val=0.24),
+    (2025-01-01..2025-09-30, val=0.38), (2025-01-01..2025-12-31, val=0.52) - each a
+    fiscal-year-TO-DATE cumulative total, not four independent full-size dividends. Before
+    this fix, all 4 raw values were stored as if each were its own distinct quarterly
+    dividend, summing to 1.26 for a trailing-12-month yield calculation that should only
+    total the real 0.52 actually paid that year (~2.4x overcount) - the exact mechanism
+    behind ICMB's real implausible dividend_yield. Must decompose into the true
+    incremental per-period deltas: 0.12, 0.12, 0.14, 0.14."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [
+                            {"val": 0.12, "filed": "2025-05-14", "start": "2025-01-01", "end": "2025-03-31"},
+                            {"val": 0.24, "filed": "2025-08-13", "start": "2025-01-01", "end": "2025-06-30"},
+                            {"val": 0.38, "filed": "2025-11-12", "start": "2025-01-01", "end": "2025-09-30"},
+                            {"val": 0.52, "filed": "2026-03-31", "start": "2025-01-01", "end": "2025-12-31"},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 4
+    per_share = sorted(float(r["dividend_per_share"]) for r in records)
+    assert per_share == pytest.approx([0.12, 0.12, 0.14, 0.14])
+    assert sum(per_share) == pytest.approx(0.52)
+
+
+def test_fiscal_ytd_series_with_a_decrease_is_left_untouched() -> None:
+    """Control for the fix above: a same-start-date series that DECREASES anywhere is a
+    value restatement/correction, not a clean cumulative progression - must be left
+    entirely untouched (raw values kept as-is) rather than guessed at."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [
+                            {"val": 0.30, "filed": "2025-05-14", "start": "2025-01-01", "end": "2025-03-31"},
+                            {"val": 0.20, "filed": "2025-08-13", "start": "2025-01-01", "end": "2025-06-30"},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 2
+    per_share = sorted(float(r["dividend_per_share"]) for r in records)
+    assert per_share == pytest.approx([0.20, 0.30])

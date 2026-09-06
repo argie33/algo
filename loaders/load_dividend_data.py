@@ -164,6 +164,65 @@ class DividendDataLoader(SecLoaderBase):
         self.sec_client = SecEdgarClient()
 
     @staticmethod
+    def _decompose_fiscal_ytd_cumulative_series(facts_by_end_date: dict[str, dict[str, Any]]) -> None:
+        """Mutates facts_by_end_date IN PLACE: converts a same-start-date, monotonically
+        non-decreasing series of fiscal-year-to-date cumulative facts into their true
+        incremental per-period deltas.
+
+        Live-confirmed via ICMB (a BDC with a June fiscal year-end): its real
+        CommonStockDividendsPerShareDeclared facts for FY2025 are
+        (2025-01-01..2025-03-31, val=0.12), (2025-01-01..2025-06-30, val=0.24),
+        (2025-01-01..2025-09-30, val=0.38), (2025-01-01..2025-12-31, val=0.52) - each a
+        fiscal-year-TO-DATE cumulative total (Q2 alone = 0.24-0.12 = 0.12, Q3 alone =
+        0.38-0.24 = 0.14, Q4 alone = 0.52-0.38 = 0.14), not four independent full-size
+        dividends. Without this fix, all 4 raw cumulative values would be stored as if
+        each were its own distinct quarterly dividend - summing to 1.26 for a trailing-
+        12-month yield calculation that should only total the real 0.52 actually paid
+        that fiscal year (a ~2.4x overcount), the exact mechanism behind ICMB's real
+        implausible dividend_yield.
+
+        Only fires on a genuine monotonically-non-decreasing same-start-date series (the
+        structural signature of a real FYTD cumulative sequence, distinguishing it from a
+        single restated/corrected re-filing of the identical period, which
+        _cumulative_restatement_end_dates already handles via its own exact end-date
+        key). A same-start-date series that decreases anywhere is left untouched entirely
+        (a value restatement/correction this transform can't safely reason about) rather
+        than guessed at.
+        """
+        by_start: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+        for end_str, fact in facts_by_end_date.items():
+            start = fact.get("start")
+            if not start or fact.get("val") is None:
+                continue
+            by_start.setdefault(start, []).append((end_str, fact))
+
+        for group in by_start.values():
+            if len(group) < 2:
+                continue
+            group.sort(key=lambda pair: pair[0])  # ISO end-date strings sort chronologically
+            values = [fact["val"] for _, fact in group]
+            if any(values[i] > values[i + 1] for i in range(len(values) - 1)):
+                continue  # not a clean cumulative progression - leave every fact untouched
+
+            previous_end = group[0][1]["start"]
+            previous_val = 0.0
+            for end_str, fact in group:
+                val = fact["val"]
+                # round() avoids float-subtraction artifacts (e.g. 0.24 - 0.12 =
+                # 0.11999999999999998 in raw IEEE-754) - matches this table's own
+                # DECIMAL(10,4) dividend_per_share column precision.
+                delta = round(val - previous_val, 4)
+                if delta > 0:
+                    fact["start"] = previous_end
+                    fact["val"] = delta
+                # delta == 0 (no incremental payment this period, e.g. a restatement that
+                # exactly repeats the prior cumulative total): leave the fact's raw value
+                # as-is so _cumulative_restatement_end_dates' own exact-value containment
+                # check can still see and drop it as a duplicate of the shorter period.
+                previous_end = end_str
+                previous_val = val
+
+    @staticmethod
     def _cumulative_restatement_end_dates(facts_by_end_date: dict[str, dict[str, Any]]) -> set[str]:
         """End-date keys of facts that are a cumulative (YTD) restatement of an already-
         counted shorter period, not a distinct additional dividend - see
@@ -325,8 +384,20 @@ class DividendDataLoader(SecLoaderBase):
         # history too - FY2021's annual fact (2021-01-01..2021-12-31, val=0.55) and the Q2
         # 2021 quarterly fact (2021-04-01..2021-06-30, val=0.55) are the same single real
         # dividend (TaskUs paid exactly once that year), not two. See
-        # _drop_cumulative_restatements's own docstring for the fix itself (split out here,
-        # pushed this function's own cyclomatic complexity over ruff's C901 limit).
+        # _cumulative_restatement_end_dates's own docstring for the fix itself (split out
+        # here, pushed this function's own cyclomatic complexity over ruff's C901 limit).
+        #
+        # FIXED 2026-09-05 (same investigation, ICMB follow-up): TASK's shape is the
+        # degenerate (zero-growth) case of a broader pattern - a filer whose cumulative
+        # FYTD facts genuinely GROW each quarter (ICMB: 0.12/0.24/0.38/0.52, a real BDC
+        # distribution schedule) was untouched by the exact-value check above, since every
+        # value differs. _decompose_fiscal_ytd_cumulative_series runs FIRST to convert that
+        # kind of series into true incremental per-period deltas (mutating values in
+        # place) - see its own docstring for the full evidence. Order matters: after this
+        # runs, a genuine zero-growth period (TASK's H1 fact) still has its original raw
+        # value, so the exact-value containment check immediately below still catches it.
+        self._decompose_fiscal_ytd_cumulative_series(earliest_fact_by_period)
+
         for end_str in self._cumulative_restatement_end_dates(earliest_fact_by_period):
             del earliest_fact_by_period[end_str]
 
