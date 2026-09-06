@@ -530,7 +530,20 @@ def verify_loader_status_completion_integrity(cur: Any, log_phase_result_fn: Cal
                         error_msg,
                     )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_check_err:
-        logger.warning(f"[PHASE 1] Could not validate loader status accuracy (database error): {status_check_err}")
+        # FAIL-CLOSED (2026-09-06, real-money-readiness audit): this used to log a warning and
+        # return None ("no integrity problem found, continue") on a DB error - reintroducing
+        # exactly the "just logging" gap this function's own CRITICAL FIX 2026-08-02 docstring
+        # says was already fixed for the main comparison logic. A DB error here means we cannot
+        # rule out the "100% complete but 1 symbol loaded" corruption this check exists to catch
+        # (Session 344) - halt instead of silently trusting an unverified completion_pct.
+        error_msg = (
+            f"[PHASE 1 CRITICAL] Could not verify data_loader_status.completion_pct integrity "
+            f"(database error: {status_check_err}). Cannot rule out a false '100% complete' "
+            "reading - halting rather than proceeding on an unverified assumption."
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "data_loader_status", "halt", error_msg)
+        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": error_msg}, True, error_msg)
 
     return None
 

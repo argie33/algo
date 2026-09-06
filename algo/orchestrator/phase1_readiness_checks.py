@@ -302,15 +302,23 @@ def validate_portfolio_symbol_prices(
                 logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices (latest available)")
                 phase_data["portfolio_symbols"] = len(portfolio_symbols)
                 phase_data["portfolio_price_coverage"] = "complete"
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as portfolio_check_err:
-        # If portfolio symbol check fails, log but don't halt (it's supplementary)
-        logger.warning(
-            f"[PHASE 1] Portfolio symbol price validation failed (DB error): {portfolio_check_err}. Continuing."
+    except (psycopg2.DatabaseError, psycopg2.OperationalError, KeyError, ValueError, TypeError) as portfolio_check_err:
+        # FAIL-CLOSED (2026-09-06, real-money-readiness audit): this used to log a warning and
+        # return None ("no problem found, continue") on ANY error here - the exact failure mode
+        # this check exists to prevent. If we can't verify portfolio symbols have usable prices
+        # (a transient DB error is exactly when that's least certain), silently proceeding is
+        # indistinguishable from the missing_prices branch above except that nobody notices until
+        # Phase 6 halts mid-run trying to exit a position with no price data - the original
+        # "5 errors" pattern this check was built to catch early. Halt instead; a genuinely
+        # transient DB blip surfaces as a halt Phase 1 will clear itself once the DB recovers.
+        error_msg = (
+            f"[PHASE 1 CRITICAL] Could not validate portfolio symbol price coverage "
+            f"({type(portfolio_check_err).__name__}: {portfolio_check_err}). Cannot verify Phase 6 "
+            "exit execution has usable prices for every open position - halting rather than "
+            "proceeding on an unverified assumption."
         )
-    except (KeyError, ValueError, TypeError) as portfolio_check_err:
-        # Data structure error - log but don't halt
-        logger.warning(
-            f"[PHASE 1] Portfolio symbol price validation failed (data error): {portfolio_check_err}. Continuing."
-        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "portfolio_price_coverage", "halt", error_msg)
+        return PhaseResult(1, "portfolio_price_coverage", "halted", phase_data, True, error_msg)
 
     return None
