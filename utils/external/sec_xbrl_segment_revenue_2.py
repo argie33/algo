@@ -302,13 +302,32 @@ def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str,
         if count_by_end:
             break
 
-    if not count_by_end:
-        return None
-    max_end = max(count_by_end)
-    if count_by_end[max_end] != 1:
-        return None
+    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): requiring an explicit
+    # plain NumberOfReportableSegments/NumberOfOperatingSegments=1 tag before even attempting
+    # to find a consolidated revenue fact was too strict - this function is only ever called
+    # (see extract_segment_revenue_from_xbrl_xml above) after the caller has ALREADY confirmed
+    # zero segment-axis-dimensioned contexts exist anywhere in the entire filing, which is
+    # itself sufficient evidence of a single reportable segment (a real multi-segment filer
+    # MUST tag some dimensional fact for its ASC 280 segment footnote). Many smaller/older
+    # filers simply never tag the redundant count concept at all despite genuinely having one
+    # segment - live-confirmed via SEC's own companyconcept API: Abeona Therapeutics (ABEO,
+    # CIK 0000318306) tags NumberOfReportableSegments=1 in its 10-Qs but NOT in its FY2025
+    # 10-K (the annual filing this loader actually processes), despite that same 10-K having
+    # real, positive revenue ($5.82M) and zero segment-dimensioned contexts - was falling
+    # through to the generic "no_segment_dimension_contexts_in_xbrl_xml" ("Missing SEC/XBRL
+    # data") instead of correctly extracting its trivial single-segment revenue. When the
+    # count concept genuinely IS tagged and says something other than 1, still bail out (a
+    # real signal that this parser missed a genuine multi-segment structure, not a case to
+    # guess through).
+    if count_by_end:
+        max_end = max(count_by_end)
+        if count_by_end[max_end] != 1:
+            return None
+    else:
+        max_end = None
 
     for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+        candidates: list[tuple[str, str | None, float]] = []
         for elem in root.iter():
             if _local_name(elem.tag) != concept:
                 continue
@@ -316,23 +335,33 @@ def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str,
             if not info:
                 continue
             has_dims, start_str, end_str = info
-            if has_dims or end_str != max_end or elem.text is None:
+            if has_dims or not end_str or elem.text is None:
+                continue
+            if max_end is not None and end_str != max_end:
                 continue
             try:
                 revenue = float(elem.text.strip())
             except ValueError:
                 continue
-            duration_days = 0
-            if start_str:
-                try:
-                    duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
-                except ValueError:
-                    duration_days = 0
-            logger.info(
-                f"[{symbol}] Single reportable segment (count=1) - using consolidated "
-                f"{concept} as the sole segment's revenue."
-            )
-            return concept, revenue, end_str, duration_days
+            candidates.append((end_str, start_str, revenue))
+        if not candidates:
+            continue
+        # No segment-count tag to anchor on (max_end is None) - pick this concept's own latest
+        # reported period rather than an arbitrary match, same "most recent real value" choice
+        # the segment-count-anchored path gets for free via max_end's equality filter above.
+        end_str, start_str, revenue = max(candidates, key=lambda c: c[0])
+        duration_days = 0
+        if start_str:
+            try:
+                duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+            except ValueError:
+                duration_days = 0
+        logger.info(
+            f"[{symbol}] Single reportable segment "
+            f"({'count=1' if max_end is not None else 'zero dimensional segment contexts, no count tag'}) "
+            f"- using consolidated {concept} as the sole segment's revenue."
+        )
+        return concept, revenue, end_str, duration_days
     return None
 
 
