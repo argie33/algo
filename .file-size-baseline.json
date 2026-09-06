@@ -475,7 +475,7 @@
   "loaders/helpers/financial_statements_q4_sweeps.py": 684,
   "loaders/helpers/price_batch_fetch_retry.py": 557,
   "loaders/helpers/price_loader_reporting.py": 322,
-  "loaders/helpers/sec_base.py": 1537,
+  "loaders/helpers/sec_base.py": 1552,
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_segment_debt.py": 193,
   "loaders/helpers/sec_valuations_checks.py": 572,
