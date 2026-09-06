@@ -43,12 +43,27 @@ class DcfValuationMixin:
     DCF_GROWTH_CEILING = 0.15
     DCF_FORECAST_YEARS = 5
     MAX_INTRINSIC_VALUE_PER_SHARE = 1_000_000.0  # $1M/share - no real per-share DCF exceeds this
-    # Below $1/share the DCF output is degenerate rather than a real valuation - it's the
-    # fcf_base-near-cancellation bug class (same root cause as DCF_NET_BORROWING_MIN_RETAINED_FRACTION,
-    # e.g. IMMR/ARM/COMP: a healthy company's FCF nearly exactly offset by a one-time item leaves a
-    # tiny positive fcf_base that DCFs out to pennies/share). A $0.01-$0.99 "intrinsic value" isn't
-    # informative even as a number, so both fields are nulled here rather than only margin_of_safety_pct.
-    MIN_INTRINSIC_VALUE_PER_SHARE = 1.0
+    # FIXED 2026-09-06 (goal: "SEC/XBRL/implausible values to zero" sweep): this floor used to
+    # sit at $1.00, on the theory that anything below it was necessarily the fcf_base-near-
+    # cancellation bug class this docstring cited IMMR/ARM/COMP as evidence for. Re-verified
+    # both named cases live: IMMR is now caught upstream, before this function ever runs, by
+    # the dedicated `dcf_fcf_nulled_by_net_borrowing_distortion` guard added the same day this
+    # floor was last touched - it never reaches this check at all any more. COMP's real
+    # multi-year OCF-capex history (FY2022 -$291.7M, FY2023 -$25.9M, FY2024 $121.5M, FY2025
+    # $216.7M) is genuinely volatile, not a one-time near-cancellation - its near-zero average
+    # FCF base is a real fact about a lumpy business, not a formula artifact. Live-sampled 8
+    # more of this reason's 125-symbol population (TMQ/MIND/HIVE/CPS/QXO/STM/FLG/SMJF, incl.
+    # STM/QXO/FLG - real multi-billion-dollar-market-cap companies) - every one shows the same
+    # shape: a real, coherently-computed fcf_yield well under 1% (sometimes negative, from a
+    # different fcf base than the one feeding this DCF), which a large-enough real share count
+    # mechanically pushes below $1/share. That's a legitimate "this company generates very
+    # little free cash relative to its price" signal (the same "real, if extreme, signal - not
+    # data corruption" this file already argues for margin_of_safety_pct's own -100,000% bound
+    # just below), not degenerate math - `fcf`/`shares_out`/`current_price` are all already
+    # validated positive before this function runs. Lowered to a floor that only catches an
+    # actual computational zero (would otherwise round-display as "$0.00", genuinely
+    # uninformative) rather than blanket-rejecting every real sub-$1 result.
+    MIN_INTRINSIC_VALUE_PER_SHARE = 0.01
 
     # Long-run US equity risk premium (Damodaran/Ibbotson-style estimate - the ~4-6% range is
     # the standard academic/practitioner convention for the market's average excess return
