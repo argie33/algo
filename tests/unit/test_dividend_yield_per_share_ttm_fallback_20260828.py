@@ -95,8 +95,15 @@ class TestDividendYieldPerShareTtmFallback:
 
     def test_out_of_bounds_yield_left_null(self):
         # A nonsensical trailing sum (e.g. stock-split artifact) must not produce a >100% yield.
-        # dividend_yield falls through to the existing has_dividend_history classification
-        # (which, under this test's routing cursor, finds no matching row either).
+        #
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): this used to
+        # assert the fall-through to has_dividend_history's generic classification - but a real,
+        # positive TTM dividend sum that's simply too large to be a genuine yield is the same
+        # "real value, deliberately rejected as implausible" case TIER 3's own
+        # dividend_yield_implausible_from_cash_flow flag already gets "implausible_ratio" for,
+        # just via a different tier. Live-confirmed CVKD: real $16.50/share quarterly payments
+        # against a $1.22 price implies a ~2705% yield - real data, correctly rejected, must not
+        # be mislabeled as a plain missing-data/non-payer case.
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(ttm_dividends=500.0)
@@ -105,5 +112,5 @@ class TestDividendYieldPerShareTtmFallback:
                 _FakeSecValRow({"pe_ratio": 27.0, "dividend_yield": None, "market_cap": None, "current_price": 164.0}),
             )
 
-        assert metrics["dividend_yield"] == 0.0
-        assert metrics["dividend_yield_unavailable_reason"] == "non_dividend_paying_stock"
+        assert metrics["dividend_yield"] is None
+        assert metrics["dividend_yield_unavailable_reason"] == "implausible_ratio"

@@ -415,6 +415,18 @@ class ValueMetricsMixin(SymbolGateMixin):
         # bound as TIER 3 (share-count/market-cap scale errors aren't a risk here since this
         # tier never divides by market_cap, but a bad per-share figure or stock split artifact
         # could still produce nonsense).
+        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit, same gap class
+        # as TIER 3's own implausible-ratio wiring just above - added the same day that fix was
+        # made, just never mirrored here since this tier predates it by over a week): an
+        # out-of-bounds candidate here used to just log-and-discard, exactly like TIER 3 before
+        # its fix - so a real, positive dividend_per_share/current_price combination that's
+        # simply too large to be a genuine yield (a stale/pre-split per-share figure against a
+        # since-changed price, or a preferred/unit security's real payout dwarfing a common-
+        # equivalent price) fell through to the generic "missing_sec_data" instead of
+        # "implausible_ratio". Live-confirmed CVKD: real $16.50/share quarterly payments (4
+        # straight quarters within the trailing-370-day window) against a $1.22 price implies a
+        # ~2705% yield - real data, correctly rejected, mislabeled all the same.
+        dividend_yield_implausible_from_ttm_dividend_data = False
         if dividend_yield is None and current_price is not None and current_price > 0:
             try:
                 with _owner().DatabaseContext("read") as cur:
@@ -438,6 +450,7 @@ class ValueMetricsMixin(SymbolGateMixin):
                                 f"TTM/current_price yield: {dividend_yield:.2%}"
                             )
                         else:
+                            dividend_yield_implausible_from_ttm_dividend_data = True
                             logger.debug(
                                 f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback yield "
                                 f"out of bounds ({candidate:.2%}), leaving NULL"
@@ -449,7 +462,7 @@ class ValueMetricsMixin(SymbolGateMixin):
         # If dividend_yield is None, check if stock is a known dividend payer
         dividend_yield_reason = None
         if dividend_yield is None:
-            if dividend_yield_implausible_from_cash_flow:
+            if dividend_yield_implausible_from_cash_flow or dividend_yield_implausible_from_ttm_dividend_data:
                 dividend_yield_reason = "implausible_ratio"
             else:
                 # Must filter data_unavailable=FALSE: load_dividend_data.py writes an explicit
