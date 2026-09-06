@@ -326,7 +326,31 @@ class SecValuationYieldDcfMixin:
             # uses for `fcf <= 0`) rather than anchor a multi-year perpetuity on a near-zero,
             # one-time-financing-event-distorted base. A genuine negative flip is unaffected
             # (falls through to the else branch unchanged, still caught by that same gate).
-            if fcf_base > 0 and 0 < candidate_fcf_base < self.DCF_NET_BORROWING_MIN_RETAINED_FRACTION * fcf_base:
+            #
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, pushback-round
+            # deep-dive into implausible_dcf_result): this guard only ever fired for
+            # fcf_base > 0 (a real positive FCF nearly cancelled DOWN to near-zero) - the
+            # mirror case, a real NEGATIVE fcf_base (genuine operating cash-flow deficit)
+            # pushed to a tiny POSITIVE candidate by a large net_borrowing, fell straight
+            # through unguarded to `dcf_fcf_base = candidate_fcf_base` on the else branch.
+            # Live-caught via ARM/LYG/ING (all large, real, well-known companies - not junk
+            # data): ARM's real fcf_base is deeply negative (fcf_yield -3% on a $269B market
+            # cap implies roughly -$8B), but net_borrowing pushed the DCF's own candidate to
+            # +$47M - 0.0006 of the deficit's own magnitude, i.e. "we borrowed just barely
+            # enough to look FCF-positive this instant", not a sustainable per-share cash
+            # generation figure a 5-year perpetuity DCF should be anchored on. LYG/ING (both
+            # banks, which routinely carry large real net-borrowing as ordinary business, not
+            # a one-time event) show the identical shape - a systemic risk this guard's
+            # one-sided check was blind to for the entire financials sector. Same
+            # MIN_RETAINED_FRACTION threshold, applied symmetrically against abs(fcf_base) so
+            # it's meaningful for a negative base too.
+            candidate_too_thin_from_positive_base = (
+                fcf_base > 0 and 0 < candidate_fcf_base < self.DCF_NET_BORROWING_MIN_RETAINED_FRACTION * fcf_base
+            )
+            candidate_too_thin_from_negative_base = (
+                fcf_base < 0 and 0 < candidate_fcf_base < self.DCF_NET_BORROWING_MIN_RETAINED_FRACTION * abs(fcf_base)
+            )
+            if candidate_too_thin_from_positive_base or candidate_too_thin_from_negative_base:
                 dcf_fcf_base = None
                 dcf_fcf_nulled_by_net_borrowing = True
             else:

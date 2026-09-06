@@ -483,7 +483,7 @@
   "loaders/helpers/sec_valuations_income_context.py": 503,
   "loaders/helpers/sec_valuations_ratios.py": 314,
   "loaders/helpers/sec_valuations_shares.py": 525,
-  "loaders/helpers/sec_valuations_yield_dcf.py": 446,
+  "loaders/helpers/sec_valuations_yield_dcf.py": 445,
   "loaders/helpers/vqg_growth.py": 366,
   "loaders/helpers/vqg_quality.py": 3144,
   "loaders/helpers/vqg_shared.py": 130,
