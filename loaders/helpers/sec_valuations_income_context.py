@@ -125,7 +125,8 @@ class IncomeStatementContextMixin:
                 ais.shares_outstanding_basic,
                 ais.income_tax_expense,
                 cis.is_foreign_private_issuer,
-                cis.sic_code
+                cis.sic_code,
+                ais.interest_expense
             FROM annual_income_statement ais
             LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
             WHERE ais.symbol = %s AND ais.data_unavailable IS NOT TRUE
@@ -165,6 +166,23 @@ class IncomeStatementContextMixin:
         # just the current interim year). See the capex-fallback comment below and
         # in sec_base.py's free_cash_flow computation for the full rationale.
         sic_code = income_rows[0][11] if len(income_rows[0]) > 11 else None
+        # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up, "implausible
+        # values" sweep): the pretax_income-as-operating_income fallback just below was
+        # applying unconditionally to ANY symbol lacking a tagged operating_income, not just
+        # the financial-services companies (banks/insurers) its own comment describes -
+        # pretax_income is AFTER interest expense, so using it bare as a proxy for
+        # operating_income (which is BEFORE interest) silently and massively understated
+        # EBITDA for any real industrial/leveraged filer with material interest_expense.
+        # Live-confirmed HRI (Herc Holdings, equipment rental, NOT a financial company):
+        # FY2025 pretax_income=$1M, interest_expense=$416M - the bare fallback produced
+        # ebitda=$1M (matching sec_valuations' stored value exactly) for a company with
+        # $4.4B market cap, a wrong-by-2-orders-of-magnitude EV/EBITDA input. Adding back
+        # interest_expense when available is the mathematically correct general fix (works
+        # for any company type) and is a no-op for genuine financial companies, which
+        # typically don't tag a separate interest_expense concept at all (interest is netted
+        # into revenue, not reported as a standalone expense line) - so this fix doesn't
+        # change the JPM/BAC/PNC-class behavior the fallback was originally built for.
+        interest_expense_val = income_rows[0][12] if len(income_rows[0]) > 12 else None
 
         (
             ttm_fiscal_year,
@@ -267,8 +285,11 @@ class IncomeStatementContextMixin:
         # operating_income). Live-confirmed: JPMorgan FY2024 pretax_income=75.08B, uses this
         # fallback to compute EBITDA for EV/EBITDA ratio.
         if operating_income is None and pretax_income is not None:
-            operating_income = pretax_income
-            logger.debug(f"[{symbol}] Using pretax_income as operating_income fallback (financial services company)")
+            operating_income = pretax_income + (interest_expense_val or 0)
+            logger.debug(
+                f"[{symbol}] Using pretax_income + interest_expense as operating_income fallback"
+                " (financial services company, or a leveraged filer needing the interest addback)"
+            )
         elif operating_income is None and income_tax_expense is not None and _ttm_net_income is not None:
             # Fallback #2: Compute operating_income from net_income + taxes if available
             # Some insurance/financial companies report net_income and taxes but not pretax_income
