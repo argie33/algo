@@ -18,6 +18,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
+    _nullify_gross_profit_when_cost_of_revenue_mismatches,
 )
 from utils.external.sec_statements_aggregate import _aggregate_concepts
 
@@ -730,6 +731,7 @@ def get_income_statement(
     _fill_pretax_income_from_domestic_foreign_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
+    _nullify_gross_profit_when_cost_of_revenue_mismatches(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows
