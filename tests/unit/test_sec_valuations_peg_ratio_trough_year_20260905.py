@@ -51,7 +51,11 @@ class _FakeDatabaseContext:
 
 
 def _make_loader(monkeypatch, history_rows):
-    import loaders.load_sec_valuations as mod
+    # PEG ratio computation (with this fallback query) lives in
+    # loaders.helpers.sec_valuations_ratios (SecValuationRatiosMixin, extracted from
+    # load_sec_valuations.py 2026-09-05, file-size ratchet decomposition) - DatabaseContext
+    # must be patched where it's actually imported/used, not in load_sec_valuations itself.
+    import loaders.helpers.sec_valuations_ratios as mod
 
     monkeypatch.setattr(mod, "DatabaseContext", _FakeDatabaseContext(history_rows))
     return SecValuationsLoader.__new__(SecValuationsLoader)
