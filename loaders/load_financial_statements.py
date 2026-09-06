@@ -2951,6 +2951,24 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # First fill the zero-risk diluted_eps fallback - no cross-check needed, it's already a
         # real reported XBRL value under a different concept.
         needs_division: list[dict[str, Any]] = []
+        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation, Visa
+        # investigation): a filer whose EPS/weighted-average-share concepts are tagged
+        # EXCLUSIVELY with a required dimension (live-confirmed via Visa's real SEC data:
+        # its 2025 10-K's own R-file plainly shows "us-gaap:EarningsPerShareBasic"/
+        # "WeightedAverageNumberOfSharesOutstandingBasic" with real values on the primary
+        # income statement, but all three concepts 404 on SEC's own live companyconcept
+        # API and are entirely absent from companyfacts - the same aggregation gap this
+        # loader's own get_income_statement() draws from) has NONE of shares_outstanding_
+        # diluted/basic/dei on this row at all, so the existing needs_division gate above
+        # never even considers it - despite company_info_sec.shares_outstanding having a
+        # real, independently-extracted value (Visa: 1,687,629,770, via that loader's own
+        # dei:EntityCommonStockSharesOutstanding/filing-text fallback chain, a completely
+        # separate, non-dimensional extraction path). Tracked separately from
+        # needs_division since there is no per-row share count to corroborate the
+        # company_info_sec reference AGAINST here (the whole point is none exists) - the
+        # reference is used directly, trusting its own already-applied plausibility floor
+        # (MIN_PLAUSIBLE_SHARES_OUTSTANDING, load_sec_valuations.py) rather than guessed.
+        needs_reference_only_division: list[dict[str, Any]] = []
         for row in transformed:
             if row.get("earnings_per_share") is not None:
                 continue
@@ -2978,16 +2996,50 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 or row.get("shares_outstanding_dei")
             )
             if shares is None or shares <= 0:
+                # FIXED 2026-09-05 (same Visa investigation, caught by this file's own
+                # regression suite before shipping): shares is None here for TWO very
+                # different reasons that look identical at this point in the pipeline -
+                # (a) genuinely never tagged (Visa's real case), or (b) a real value WAS
+                # tagged but _reject_implausible_shares_outstanding (which runs before
+                # this method - see this function's own docstring) already nulled it for
+                # being a scale-corrupted VALE-style outlier. Using company_info_sec
+                # directly is only safe for (a) - for (b), the filer's own reporting for
+                # this exact fiscal year is already known-unreliable, so silently
+                # substituting a different source's share count would defeat the
+                # rejection that just ran. Skip whenever this exact row+field pair is in
+                # _explicit_null_rejections (case (b)); a bare `shares is None` case that
+                # was never even in the raw fetch (case (a)) never appears there.
+                pk_cols = list(self._bulk_insert_mgr.primary_key)
+                pk_key = tuple(row.get(pk) for pk in pk_cols)
+                was_rejected = any(
+                    tuple(pk_values.get(pk) for pk in pk_cols) == pk_key
+                    and field in ("shares_outstanding_basic", "shares_outstanding_diluted")
+                    for pk_values, field in self._explicit_null_rejections
+                )
+                # A field that's present but non-positive (e.g. an explicit 0, not simply
+                # absent) is itself a known-bad reported value, the same "don't trust this
+                # filing's own share count, but don't just substitute a different source
+                # either" situation as an explicit rejection above - not the "never tagged
+                # at all" case company_info_sec is meant to fill in for.
+                _share_field_values = (
+                    row.get(f)
+                    for f in ("shares_outstanding_diluted", "shares_outstanding_basic", "shares_outstanding_dei")
+                )
+                any_field_reported_non_positive = any(v is not None and v <= 0 for v in _share_field_values)
+                if not was_rejected and not any_field_reported_non_positive:
+                    needs_reference_only_division.append(row)
                 continue
             needs_division.append(row)
 
-        if not needs_division:
+        if not needs_division and not needs_reference_only_division:
             return
 
         # Only issue the company_info_sec round-trip when at least one row actually needs it -
         # same "skip the query in the common healthy case" pattern the downgrade-guard lookup
         # above already uses.
-        symbols_needing_division = sorted({str(row["symbol"]) for row in needs_division if row.get("symbol")})
+        symbols_needing_division = sorted(
+            {str(row["symbol"]) for row in (*needs_division, *needs_reference_only_division) if row.get("symbol")}
+        )
         reference_shares: dict[str, float] = {}
         if symbols_needing_division:
             with DatabaseContext("read") as cur:
@@ -3031,6 +3083,13 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 if ratio > 20 or ratio < 1 / 20:
                     continue
             row["earnings_per_share"] = float(net_income) / float(shares)
+
+        for row in needs_reference_only_division:
+            symbol = str(row.get("symbol") or "")
+            reference = reference_shares.get(symbol)
+            if not reference:
+                continue
+            row["earnings_per_share"] = float(row["net_income"]) / reference
 
     def _reject_implausible_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Reject earnings_per_share/diluted_eps values that are confidently wrong due to

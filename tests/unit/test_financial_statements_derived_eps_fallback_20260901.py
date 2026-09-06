@@ -27,6 +27,8 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from loaders.load_financial_statements import ConsolidatedFinancialStatementsLoader
 
 
@@ -222,3 +224,62 @@ class TestDerivedEpsShareOutstandingDeiFallback:
         rows = [_row(symbol="ATHS", shares_outstanding_dei=Decimal("203805"))]
         result = _transform(loader, rows, company_info_sec_rows=None)
         assert result[0]["earnings_per_share"] is None
+
+
+class TestDerivedEpsCompanyInfoSecOnlyFallback:
+    """Regression tests for the 2026-09-05 fix (goal session: "missing SEC/XBRL data"
+    continuation, Visa investigation): a filer whose EPS AND weighted-average-share
+    concepts are tagged EXCLUSIVELY with a required dimension (live-confirmed via Visa's
+    real SEC data: its 2025 10-K's own R-file plainly shows "us-gaap:EarningsPerShareBasic"/
+    "WeightedAverageNumberOfSharesOutstandingBasic" with real values on the primary income
+    statement, but all three concepts 404 on SEC's own live companyconcept API and are
+    entirely absent from companyfacts) has NONE of shares_outstanding_diluted/basic/dei on
+    the row at all - the three existing tiers above never even consider it. When
+    company_info_sec.shares_outstanding has a real, independently-extracted value (a
+    completely separate, non-dimensional extraction path), it's now used directly as the
+    last-resort divisor (Visa: derives ~$11.89 for FY2025 against a real reported ~$11.99 -
+    the small gap is expected, since company_info_sec's value is a point-in-time snapshot,
+    not the period's true weighted average).
+    """
+
+    def test_derives_using_company_info_sec_when_no_per_row_share_field_exists_at_all(self) -> None:
+        loader = _make_loader()
+        rows = [_row(symbol="V", net_income=Decimal("20058000000"))]
+        result = _transform(loader, rows, company_info_sec_rows=[("V", 1_687_629_770.0)])
+        assert result[0]["earnings_per_share"] == pytest.approx(11.885308233215156)
+
+    def test_stays_none_when_no_company_info_sec_reference_exists_either(self) -> None:
+        loader = _make_loader()
+        rows = [_row(symbol="V", net_income=Decimal("20058000000"))]
+        result = _transform(loader, rows, company_info_sec_rows=None)
+        assert result[0]["earnings_per_share"] is None
+
+    def test_does_not_use_company_info_sec_when_shares_field_was_rejected_not_absent(self) -> None:
+        """VALE-shaped case, but exercised through the FULL transform() pipeline so
+        _reject_implausible_shares_outstanding runs first and nulls the scale-corrupted
+        value before _fill_derived_eps ever sees it - both land on shares=None by the time
+        this method runs, but only the genuinely-never-tagged case (Visa) should trigger
+        the company_info_sec-only fallback. A rejected value must stay None, not silently
+        get a different source substituted in."""
+        loader = _make_loader()
+        rows = [_row(symbol="ACME", shares_outstanding_basic=Decimal("5062148"))]
+        result = _transform(loader, rows, company_info_sec_rows=[("ACME", 5_212_406_000.0)])
+        assert result[0]["earnings_per_share"] is None
+
+    def test_does_not_use_company_info_sec_when_a_share_field_was_reported_as_zero(self) -> None:
+        """A field that's present but explicitly zero is a known-bad reported value (the
+        filer's own data), not "never tagged" - must not fall through to company_info_sec
+        either, matching test_stays_none_when_shares_present_but_zero's existing intent."""
+        loader = _make_loader()
+        rows = [_row(symbol="ACME", shares_outstanding_basic=Decimal("0"))]
+        result = _transform(loader, rows, company_info_sec_rows=[("ACME", 19_500_000.0)])
+        assert result[0]["earnings_per_share"] is None
+
+    def test_never_used_when_a_real_per_row_share_field_exists(self) -> None:
+        """Control: this tier must only ever fire when NONE of the three per-row fields are
+        present - a real per-row value always goes through the existing corroborated
+        derivation path instead, unchanged."""
+        loader = _make_loader()
+        rows = [_row(shares_outstanding_diluted=Decimal("20000000"))]
+        result = _transform(loader, rows, company_info_sec_rows=[("ACME", 19_500_000.0)])
+        assert result[0]["earnings_per_share"] == Decimal("2")
