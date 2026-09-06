@@ -1764,9 +1764,19 @@ class SecValuationsLoader(
         # PE/PB/PS/PEG ratios extracted verbatim to SecValuationRatiosMixin (2026-09-05,
         # file-size ratchet decomposition) - see each method's own docstring for the full
         # per-ratio rationale/history, all preserved there unchanged.
+        # ADDED 2026-09-06 (goal: "implausible values" audit, sibling of entity_shares_out_for_fcf
+        # above): book_value/ttm_revenue are entity-wide for the same reason ocf/capex are (SEC
+        # collapses balance-sheet/income-statement concepts to one value per CIK+period,
+        # duplicated onto every dual-class sibling ticker) - pairing them with class-specific
+        # shares_out understates book/revenue-per-share by the same ratio fcf_yield was
+        # overstated by. Live-confirmed HVT.A pb_ratio=0.11 vs HVT's 1.39 (12.6x) before this
+        # fix. entity_shares_out_for_fcf already resolves to shares_out itself when no
+        # entity-wide figure is available (see its own docstring/assignment), so this is a
+        # strict improvement, never a regression, for every non-dual-class symbol too.
+        pb_ps_shares_out = entity_shares_out_for_fcf if entity_shares_out_for_fcf else shares_out
         result["pe_ratio"] = self._compute_pe_ratio(symbol, current_price, ttm_eps)
-        result["pb_ratio"] = self._compute_pb_ratio(symbol, current_price, book_value, shares_out)
-        result["ps_ratio"] = self._compute_ps_ratio(symbol, current_price, ttm_revenue, shares_out)
+        result["pb_ratio"] = self._compute_pb_ratio(symbol, current_price, book_value, pb_ps_shares_out)
+        result["ps_ratio"] = self._compute_ps_ratio(symbol, current_price, ttm_revenue, pb_ps_shares_out)
         result["peg_ratio"] = self._compute_peg_ratio(symbol, result["pe_ratio"], prior_year_eps, ttm_eps)
 
         # fcf_yield/dividend_yield/net_payout_yield/enterprise_value/ev_ebitda/ev_revenue/
