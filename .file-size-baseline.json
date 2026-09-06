@@ -490,7 +490,7 @@
   "loaders/helpers/sec_valuations_shares.py": 525,
   "loaders/helpers/sec_valuations_yield_dcf.py": 460,
   "loaders/helpers/vqg_growth.py": 366,
-  "loaders/helpers/vqg_quality.py": 3440,
+  "loaders/helpers/vqg_quality.py": 3441,
   "loaders/helpers/vqg_shared.py": 130,
   "loaders/helpers/vqg_symbol_gates.py": 1888,
   "loaders/helpers/vqg_value.py": 1085,
