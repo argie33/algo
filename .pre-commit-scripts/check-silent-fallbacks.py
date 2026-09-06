@@ -469,8 +469,13 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             # +135/+138 - still outside the 120-line window, so its `PhaseResult | None` signature
             # never got checked and both legitimate None returns were flagged as silent fallbacks.
             # Same root cause as the earlier widening, just a longer function.
+            # Widened 200 -> 260 (2026-09-06, SEC/XBRL missing-data sweep): same root cause a
+            # third time - loaders/load_company_info_sec.py's `_fetch_shares_outstanding_from_
+            # filing_text` (already documented `-> int | None`) grew to 254 lines between its
+            # `def` and its conservative-reject `return None` after adding a new dual-class
+            # elimination branch, again just outside the prior window.
             func_def_line = None
-            for search_line in range(line_num - 1, max(0, line_num - 200), -1):
+            for search_line in range(line_num - 1, max(0, line_num - 260), -1):
                 if lines[search_line].strip().startswith("def "):
                     func_def_line = search_line
                     break

@@ -812,6 +812,46 @@ class CompanyInfoSECLoader(SecLoaderBase):
         letter_match = self._CLASS_LETTER_FROM_MEMBER_RE.search(member_match.group(1))
         return letter_match.group(1).upper() if letter_match else None
 
+    def _context_is_generic_common_class(self, filing_text: str, context_id: str) -> bool:
+        """True only when this context is safely treated as "the plain default common
+        class, no special designation" - i.e. safe to assign to a bare ticker with no
+        determinable class letter of its own.
+
+        CRITICAL DISTINCTION (live-caught 2026-09-06, UHAL/AMERCO): `_class_letter_for_context`
+        returning None means only "couldn't extract a single letter from the member name" -
+        that is NOT the same fact as "this is the default class". UHAL's real filing tags its
+        Series A (the actual UHAL common) as `us-gaap:CommonClassAMember` (a real letter, "A")
+        and its Series N Non-Voting (UHAL.B's real class) as `us-gaap:NonvotingCommonStockMember`
+        - no letter, but absolutely NOT the default/bare-ticker class; treating "no letter" as
+        "must be the bare ticker's own value" assigned UHAL.B's real value to UHAL instead,
+        silently corrupting shares_outstanding (and everything downstream: market_cap, every
+        per-share ratio) for a real, actively-traded security. GTN/HVT/WSO, by contrast, tag
+        their true default class as the literal standard `us-gaap:CommonStockMember` - genuinely
+        safe, since that member name has no special-class semantics of its own.
+
+        Only trusts two shapes: no ClassOfStockAxis dimension present on this context at all
+        (single-class filers, the common case), or a member whose name - ignoring any
+        filer-specific namespace prefix - is EXACTLY "CommonStockMember" (the one standard
+        us-gaap tag that means "plain common stock, no special designation" by construction).
+        Any other named member (NonvotingCommonStockMember, PreferredStockMember, a
+        filer-custom "ClassOneMember"/"ClassUndefinedMember", etc.) is a real, specific
+        classification that merely doesn't fit the "Class{LETTER}" shape - not proof it's the
+        default - and is deliberately NOT trusted here, even though the letter-extraction regex
+        also returns None for it. When this returns False for the only non-lettered candidate,
+        the caller correctly falls through to the conservative reject rather than guessing.
+        """
+        context_re = re.compile(
+            self._CONTEXT_BLOCK_RE_TEMPLATE.format(re.escape(context_id)), re.IGNORECASE | re.DOTALL
+        )
+        context_match = context_re.search(filing_text)
+        if not context_match:
+            return True
+        member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
+        if not member_match:
+            return True
+        member_name = member_match.group(1).rsplit(":", 1)[-1]
+        return member_name.lower() == "commonstockmember"
+
     def _fetch_shares_outstanding_from_filing_text(
         self, symbol: str, cik: str, submissions: dict[str, Any]
     ) -> int | None:
@@ -910,6 +950,23 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # one plausible value's resolved class letter matches this symbol's own, known class
         # letter - any ambiguity (0 or 2+ matches, or no determinable target letter) falls
         # through to the existing conservative reject unchanged.
+        # REVERTED 2026-09-06 (same-day follow-up, live-caught real corruption): this branch
+        # briefly also tried "target letter known, explicit dimensional search found ZERO
+        # matches, exactly one undimensioned candidate exists -> assume that's the target's
+        # own untagged value" (motivated by FWONA/Liberty Media, whose own "Series A" context
+        # really does tag as bare "...CommonClassMember" with no letter). Removed after
+        # live-confirmed unsafe on MKC/MKC.V: MKC (bare, target_letter=None) and MKC.V (dot
+        # suffix, target_letter="V") both independently resolved to the SAME single generic
+        # "CommonStockMember" value (14,851,729) via their own separate branches - McCormick's
+        # real "Voting Common Stock" (MKC.V) is a distinct, much smaller class in reality, not
+        # identical to MKC's own common share count, so at least one of those two assignments
+        # was silently wrong. A target letter that finds zero explicit matches is not reliable
+        # evidence that the untagged candidate is specifically THAT letter's class - it could
+        # equally mean the target class is tagged with a different non-letter-shaped member
+        # name that just happens not to be the generic default either (the same ambiguity the
+        # conservative reject below already exists to avoid guessing through). Only the
+        # bare-ticker case below (target_letter is None entirely, never claiming a specific
+        # known letter) stays trusted - see its own comment for why that shape is safe.
         target_letter = self._target_class_letter(symbol)
         if target_letter and len(plausible) > 1:
             dimensional_matches = [
@@ -924,6 +981,50 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 logger.info(
                     f"[{symbol}] Recovered shares_outstanding={result:,.0f} for class '{target_letter}' via "
                     f"StatementClassOfStockAxis dimensional match (accession {accession})"
+                )
+                return result
+
+        # `tickers` needed both by the undimensioned-elimination fallback just below (to
+        # confirm this really is a multi-class CIK before trusting an elimination guess) and
+        # by the final conservative-reject guard further down - computed once, here, rather
+        # than duplicated at both sites.
+        raw_tickers = submissions.get("tickers") or []
+        common_tickers = [
+            t
+            for t in raw_tickers
+            if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
+            and t not in self._NON_COMMON_SECURITY_TICKERS
+            and not self._is_spac_unit_warrant_right_ticker(t, raw_tickers)
+        ]
+        multi_ticker_cik = len(common_tickers) > 1
+
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the branch above
+        # only fires for a symbol whose OWN class letter is determinable (_target_class_letter
+        # needs a dot-suffix or an explicit "Class X" in security_name). The BARE/default-class
+        # ticker of a dual-class pair has neither - live-confirmed AGM/GTN/HVT/WSO all fall
+        # through to the reject below with a real, extractable value sitting unused in the
+        # filing text, while their dot-suffixed siblings (AGM.A/GTN.A/HVT.A/WSO.B) already
+        # resolve cleanly via the branch above. The default class's own cover-page fact
+        # structurally carries NO StatementClassOfStockAxis dimension at all (only the special
+        # class gets tagged with one) - `_class_letter_for_context` already returns None for
+        # exactly this case (see its own docstring). So the safe, symmetric counterpart to
+        # "match my own letter" is "take the one value with NO letter at all" - only trusted
+        # when exactly one such undimensioned candidate exists (0 or 2+ falls through to the
+        # existing reject unchanged, same conservatism as the branch above) and only for a
+        # confirmed multi-ticker CIK (a single-class filer has no dimension to eliminate
+        # against in the first place; it already succeeds via plain max() below).
+        if target_letter is None and multi_ticker_cik and len(plausible) > 1:
+            undimensioned = [
+                v
+                for v, ctx in values_with_context
+                if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                and (ctx is None or self._context_is_generic_common_class(text, ctx))
+            ]
+            if len(undimensioned) == 1:
+                result = int(undimensioned[0])
+                logger.info(
+                    f"[{symbol}] Recovered shares_outstanding={result:,.0f} for the default/"
+                    f"undesignated class via StatementClassOfStockAxis elimination (accession {accession})"
                 )
                 return result
 
@@ -956,15 +1057,8 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # filing text itself has multiple plausible values (an untracked closely-held class),
         # so max() stays correct there. Kept the dot-suffix check as a defensive OR in case
         # `tickers` is ever missing/malformed in a submissions payload.
-        raw_tickers = submissions.get("tickers") or []
-        common_tickers = [
-            t
-            for t in raw_tickers
-            if not self._PREFERRED_TICKER_SUFFIX_RE.search(t)
-            and t not in self._NON_COMMON_SECURITY_TICKERS
-            and not self._is_spac_unit_warrant_right_ticker(t, raw_tickers)
-        ]
-        multi_ticker_cik = len(common_tickers) > 1
+        # (raw_tickers/common_tickers/multi_ticker_cik now computed once, further up, for the
+        # undimensioned-elimination fallback to use too - see that block's own comment.)
         if len(plausible) > 1 and (multi_ticker_cik or "." in symbol):
             logger.warning(
                 f"[{symbol}] {len(plausible)} plausible shares_outstanding values found in "
