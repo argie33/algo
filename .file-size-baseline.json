@@ -666,7 +666,6 @@
   "utils/external/sec_statements_unit_context.py": 301,
   "utils/external/sec_ticker_cache.py": 387,
   "utils/external/sec_xbrl_segment_revenue.py": 549,
-  "utils/external/sec_xbrl_segment_revenue_single.py": 364,
   "utils/external/sec_xbrl_segments.py": 1197,
   "utils/external/yfinance_analyst_ratings.py": 765,
   "utils/external/yfinance_circuit_breaker.py": 374,
