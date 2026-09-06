@@ -13,8 +13,8 @@ from algo.exceptions import ValidationError
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.orchestrator.type_converters import ensure_float, ensure_int
-from algo.reporting import AlertManager
-from algo.trading.exceptions import DatabaseError
+from algo.reporting import AlertManager, notify
+from algo.trading.exceptions import DatabaseError, NotificationError
 from utils.db.advisory_locks import (
     ALGO_POSITIONS_LOCK_ID,
     acquire_advisory_lock,
@@ -232,10 +232,29 @@ def run(
         try:
             with DatabaseContext("write") as cur:
                 time_threshold = "0 minutes" if execution_mode_check != "auto" else "5 minutes"
+                # CRITICAL FIX (real-money-readiness audit, found 2026-09-06): this DELETE
+                # used to match ANY orphaned trade (position_id IS NULL) regardless of
+                # alpaca_order_id. executor_entry_handler.py persists alpaca_order_id on the
+                # algo_trades row at INSERT time (before the position row is created) - so a
+                # row with position_id IS NULL but alpaca_order_id IS NOT NULL means a REAL
+                # broker order was actually submitted/filled and the crash happened between
+                # that fill and the position-row insert, not before order submission at all.
+                # Deleting that row permanently erased the only DB trace of a real, live,
+                # broker-side position (including the alpaca_order_id needed to find and
+                # manage it) after just 5 minutes in auto mode - the position would then sit
+                # unmanaged (no algo-side stop-loss/exit coverage) with no record pointing to
+                # it, discoverable only via AlpacaSyncManager's untracked-position alert on
+                # its NEXT run (not immediate). Scope automatic deletion to the genuinely
+                # harmless case (no real order was ever placed - paper mode, or a crash
+                # before submission); a row that DID get a real broker order is alerted for
+                # manual review instead of silently destroyed, mirroring
+                # alpaca_sync_manager.py's own "alert, don't auto-close" pattern for the
+                # broker-position-missing-from-DB direction of this same class of gap.
                 cur.execute(
                     f"""
                     DELETE FROM algo_trades
                     WHERE position_id IS NULL
+                    AND alpaca_order_id IS NULL
                     AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
                     AND updated_at < now() - interval '{time_threshold}'
                     """
@@ -243,9 +262,48 @@ def run(
                 orphaned_count = cur.rowcount
                 if orphaned_count > 0:
                     logger.warning(
-                        f"[PHASE 6] Cleaned up {orphaned_count} orphaned trade(s) in 'filled' status with NULL position_id. "
-                        f"These likely resulted from race condition during order entry. Check logs for Phase 8 errors."
+                        f"[PHASE 6] Cleaned up {orphaned_count} orphaned trade(s) in 'filled' status with NULL position_id "
+                        f"and no broker order attached. These likely resulted from a race condition during order entry "
+                        f"before any Alpaca order was submitted. Check logs for Phase 8 errors."
                     )
+
+                cur.execute(
+                    f"""
+                    SELECT trade_id, symbol, alpaca_order_id, updated_at FROM algo_trades
+                    WHERE position_id IS NULL
+                    AND alpaca_order_id IS NOT NULL
+                    AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
+                    AND updated_at < now() - interval '{time_threshold}'
+                    """
+                )
+                orphaned_with_broker_order = list(cur.fetchall())
+                if len(orphaned_with_broker_order) > 0:
+                    details = ", ".join(
+                        f"{row[1]} (trade {row[0]}, order {row[2]})" for row in orphaned_with_broker_order
+                    )
+                    logger.critical(
+                        f"[PHASE 6 CRITICAL] {len(orphaned_with_broker_order)} orphaned trade(s) have a REAL Alpaca "
+                        f"order attached but no position row - NOT deleting (would erase the only trace of a real "
+                        f"broker-side fill). Manual reconciliation required: {details}"
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title="Orphaned trade(s) with real broker order - manual reconciliation required",
+                            message=(
+                                f"{len(orphaned_with_broker_order)} algo_trades row(s) have position_id NULL but a "
+                                f"real alpaca_order_id set - a broker order was likely submitted/filled but the "
+                                f"position row was never created (crash between fill and position insert). These "
+                                f"positions may have no algo-managed stop-loss. Not auto-deleted. Review: {details}"
+                            ),
+                            strict=True,
+                        )
+                    except NotificationError as notify_err:
+                        raise RuntimeError(
+                            f"CRITICAL: Failed to alert on orphaned trade(s) with real broker orders: {notify_err}. "
+                            f"Operator was NOT notified of {len(orphaned_with_broker_order)} potentially unmanaged "
+                            f"positions."
+                        ) from notify_err
         except Exception as e:
             # CRITICAL FIX: If orphaned trade cleanup fails (permissions, connection, etc.),
             # Phase 6 must halt rather than continue. Orphaned trades will cause subsequent Phase 6 runs to fail.

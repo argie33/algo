@@ -649,14 +649,14 @@ class EntryHandler:
                     signal_quality_score, trend_template_score, base_type, base_quality, stage_phase,
                     rs_percentile, market_exposure_at_entry, exposure_tier_at_entry, stop_reasoning, advanced_components,
                     status, sector, industry, execution_mode, idempotency_key, position_id, position_size_pct,
-                    alpaca_order_id
+                    alpaca_order_id, rejection_reason
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s,
-                    %s
+                    %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
@@ -671,6 +671,7 @@ class EntryHandler:
                     status = EXCLUDED.status,
                     position_size_pct = EXCLUDED.position_size_pct,
                     alpaca_order_id = EXCLUDED.alpaca_order_id,
+                    rejection_reason = EXCLUDED.rejection_reason,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -704,6 +705,13 @@ class EntryHandler:
                     request.position_id,
                     request.position_size_pct,
                     request.alpaca_order_id or None,
+                    # CRITICAL FIX (real-money-readiness audit, found 2026-09-06): this column
+                    # has a real migrated schema (migration 029) and request.rejection_reason
+                    # is already populated with Alpaca's actual rejection error above - it was
+                    # simply never threaded into this INSERT/ON CONFLICT UPDATE, so it was NULL
+                    # for every row regardless of whether the order was actually rejected. Same
+                    # bug shape as the previously-fixed position_size_pct/alpaca_order_id gaps.
+                    request.rejection_reason,
                 ),
             )
             logger.info(
