@@ -1741,6 +1741,29 @@ class Orchestrator:
                     "This is a critical safety failure - data may be stale but we can't stop trading. "
                     "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
                 )
+        elif result.status == "halted":
+            # CRITICAL FIX (found 2026-09-06 pre-real-money audit): this branch was missing
+            # entirely - "degraded" set the flag, "ok" cleared it, but Phase 1's actual most
+            # common failure mode (stale RUNNING loaders, dependency-freshness validation
+            # errors, stale price_daily/table data, failed readiness checks - see
+            # phase1_data_freshness.py/phase1_price_freshness.py/phase1_readiness_checks.py/
+            # phase1_table_freshness.py, all of which construct PhaseResult(status="halted")
+            # for these cases) fell through both branches and left the global halt flag
+            # completely untouched. Phase 8 checks only this global flag
+            # (phase8_entry_execution.py's check_halt_flag()), and the phase-dependency graph
+            # gives it no other path back to Phase 1's result - so a Phase 1 "halted" verdict
+            # was entirely invisible to entry execution, which could place orders using data
+            # Phase 1 had explicitly determined was too stale/unavailable to trade on. Mirrors
+            # Phase 2's and Phase 9's identical set_halt_flag-on-halted pattern below.
+            halt_reason = f"Phase 1 halted: {result.error}"
+            logger.info(f"[PHASE 1] Setting halt flag due to halted status: {halt_reason}")
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase1_data_freshness")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set despite halted data status. "
+                    "This is a critical safety failure - data is unusable but we can't stop trading. "
+                    "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
+                )
         elif result.status == "ok":
             # BUG FOUND 2026-08-10 (live-reproduced): this used to unconditionally clear
             # the halt flag whenever Phase 1's OWN freshness check passed, regardless of

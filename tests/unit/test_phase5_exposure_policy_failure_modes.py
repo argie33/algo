@@ -118,7 +118,11 @@ class TestPhase5MarketDataUnavailable:
         result = self._run_with_read_market_regime_raising(MarketDataUnavailableError("no snapshot for date"))
 
         assert result.halted is True
-        assert result.status == "error"
+        # "halted" not "error" (2026-09-06 fix): phase_executor.py's cascade-skip logic only
+        # recognizes a dependency as "expectedly halted" via a literal status=="halted" match -
+        # with status="error", Phase 7/8 (both always_run, both depending on Phase 5) got a hard
+        # dependency failure instead of the intended graceful "run with conservative defaults".
+        assert result.status == "halted"
         constraints = result.data["constraints"]
         assert constraints["halt_new_entries"] is True
         assert constraints["risk_multiplier"] == 0.0

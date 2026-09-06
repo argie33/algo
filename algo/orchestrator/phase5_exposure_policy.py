@@ -360,13 +360,22 @@ def run(
         log_phase_result_fn(
             5,
             "exposure_policy",
-            "error",
+            "halted",
             f"Market regime unavailable, halting entries: {str(e)[:80]}",
         )
         return PhaseResult(
             5,
             "exposure_policy",
-            "error",
+            # "halted" not "error" (fixed 2026-09-06 pre-real-money audit): this is a genuine,
+            # by-design halt (constraints below already zero out entries), not a crash - but
+            # phase_executor.py's cascade-skip logic only recognizes a dependency as "expectedly
+            # halted" via a literal status=="halted" match. With status="error" here, Phase 7/8
+            # (both always_run, both depending on Phase 5) got a hard dependency failure instead
+            # of the intended graceful "run with conservative defaults" behavior, and the
+            # dashboard rendered this exact routine halt in the same red "error" styling as an
+            # actual crash - the "cry wolf" alert-fatigue pattern this file's own comments
+            # describe fixing for a different phase. Matches Phase 1/2/9's halted-status convention.
+            "halted",
             {"constraints": fail_halt_constraints, "actions": [], **_health_panel_fields(fail_halt_constraints)},
             True,  # CRITICAL: Market data missing = halt orchestrator
             str(e),
@@ -396,13 +405,15 @@ def run(
         log_phase_result_fn(
             5,
             "exposure_policy",
-            "error",
+            "halted",
             f"Exposure policy error - halting entries: {str(e)[:80]}",
         )
         return PhaseResult(
             5,
             "exposure_policy",
-            "error",
+            # "halted" not "error" - see the matching comment on the MarketDataUnavailableError
+            # branch above for why (2026-09-06 pre-real-money audit fix).
+            "halted",
             {"constraints": fail_halt_constraints, "actions": [], **_health_panel_fields(fail_halt_constraints)},
             True,  # CRITICAL: Exposure policy error = halt orchestrator
             str(e),
