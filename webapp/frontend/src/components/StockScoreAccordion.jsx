@@ -498,7 +498,8 @@ function FactorCard({ factor, stock, sectorAvg, marketAvg }) {
 // never to re-store a duplicate literal - the pillar-level % stays single-sourced in each
 // SCHEMA array above, exactly as it always has.
 function _parsePctWeight(weight) {
-  const m = typeof weight === "string" ? weight.match(/(\d+(?:\.\d+)?)%/) : null;
+  const m =
+    typeof weight === "string" ? weight.match(/(\d+(?:\.\d+)?)%/) : null;
   return m ? parseFloat(m[1]) : null;
 }
 
@@ -612,7 +613,13 @@ function InputRow({ row }) {
 // pillarWeight: this factor's own share of composite_score (PILLAR_COMPOSITE_WEIGHTS[key]),
 //   e.g. 0.20 for Quality - omitted for Positioning/Size, which are informational-only tabs
 //   with no composite_score contribution at all, so no "% of composite" badge is shown there.
-function InputsCard({ title, stock, schema, inputsKey = null, pillarWeight = null }) {
+function InputsCard({
+  title,
+  stock,
+  schema,
+  inputsKey = null,
+  pillarWeight = null,
+}) {
   const inputsObj = inputsKey ? stock?.[inputsKey] : stock;
 
   // DIAGNOSTIC: Log if inputsObj is missing (helps debug "No data" issues)
@@ -738,10 +745,10 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           (e.g. Quality, Value)
         </div>
         <div style={{ marginBottom: "4px" }}>
-          • <strong>Outlined tag</strong> = that input's effective share of
-          the full composite score (factor weight × its weight within the
-          factor) - Positioning and Size don't feed the composite, so they
-          have no outlined tag
+          • <strong>Outlined tag</strong> = that input's effective share of the
+          full composite score (factor weight × its weight within the factor) -
+          Positioning and Size don't feed the composite, so they have no
+          outlined tag
         </div>
         <div style={{ marginBottom: "4px" }}>
           • <strong style={{ color: "var(--success)" }}>Value</strong> = data

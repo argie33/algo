@@ -1119,7 +1119,9 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
     ],
     [
       "Institutional Holders",
-      p.institutional_holders_count != null ? p.institutional_holders_count : "—",
+      p.institutional_holders_count != null
+        ? p.institutional_holders_count
+        : "—",
     ],
   ];
 

@@ -89,7 +89,8 @@ function mergeCoverageChunks(chunks) {
 async function fetchScoresCoverageChunked() {
   const metaResp = await api.get(COVERAGE_URL, { params: { meta: "1" } });
   const { groups = [] } = extractData(metaResp).data || {};
-  if (groups.length === 0) return { statusCode: 200, summary: null, factors: [] };
+  if (groups.length === 0)
+    return { statusCode: 200, summary: null, factors: [] };
 
   const chunks = new Array(groups.length);
   let next = 0;
@@ -101,13 +102,19 @@ async function fetchScoresCoverageChunked() {
         const resp = await api.get(COVERAGE_URL, { params: { group } });
         chunks[i] = extractData(resp).data;
       } catch (err) {
-        console.warn(`[ScoresDataCoverage] group "${group}" failed:`, err.message);
+        console.warn(
+          `[ScoresDataCoverage] group "${group}" failed:`,
+          err.message
+        );
         chunks[i] = null;
       }
     }
   };
   await Promise.all(
-    Array.from({ length: Math.min(COVERAGE_FETCH_CONCURRENCY, groups.length) }, worker)
+    Array.from(
+      { length: Math.min(COVERAGE_FETCH_CONCURRENCY, groups.length) },
+      worker
+    )
   );
 
   return { statusCode: 200, ...mergeCoverageChunks(chunks) };
@@ -272,7 +279,14 @@ export default function ScoresDataCoverage({ active }) {
     const unscoredGapTotal = factors
       .filter((f) => !isScored(f))
       .reduce((s, f) => s + nonLegitCount(f), 0);
-    return { over50, over20, gapTotal, topCause, unscoredGapTotal, unscoredOver50 };
+    return {
+      over50,
+      over20,
+      gapTotal,
+      topCause,
+      unscoredGapTotal,
+      unscoredOver50,
+    };
   }, [summary, factors, scoredCategoryTotals]);
 
   const rows = useMemo(() => {
@@ -410,8 +424,8 @@ export default function ScoresDataCoverage({ active }) {
                 <div className="card-title">Top Causes of Missing Data</div>
                 <div className="card-sub">
                   Total symbol-factor gaps attributed to each root cause, summed
-                  across scored factors only (excludes display-only/unscored fields
-                  - see the "not scored" badge below)
+                  across scored factors only (excludes display-only/unscored
+                  fields - see the "not scored" badge below)
                 </div>
               </div>
             </div>
@@ -762,7 +776,10 @@ export default function ScoresDataCoverage({ active }) {
                                 }}
                               >
                                 {catOrder
-                                  .filter((cat) => cat !== "Legitimate / not applicable")
+                                  .filter(
+                                    (cat) =>
+                                      cat !== "Legitimate / not applicable"
+                                  )
                                   .map((cat) => {
                                     const v = f.categories?.[cat];
                                     if (!v) return null;
@@ -780,7 +797,9 @@ export default function ScoresDataCoverage({ active }) {
                               </div>
                             ) : (
                               <span className="t-2xs faint">
-                                {(f.categories?.["Legitimate / not applicable"] ?? 0) > 0
+                                {(f.categories?.[
+                                  "Legitimate / not applicable"
+                                ] ?? 0) > 0
                                   ? "N/A only (see expand)"
                                   : "—"}
                               </span>
@@ -909,18 +928,17 @@ export default function ScoresDataCoverage({ active }) {
             applicable" cases (the underlying data is known and real, e.g. a
             company's actual negative EPS, but the ratio itself doesn't exist
             for that company - same idea as a stock having no dividend yield
-            because it pays no dividend). Those aren't a gap in what we know,
-            so they no longer count toward this number or the reason
-            composition bar — expand a row to see them itemized in the full
-            reasons list, each with its own share of the table. Tables have
-            slightly different populations, so this is coverage within each
-            factor's own table, not always the full universe; rows with no
-            denominator (market-wide tables) show a raw row count instead. A
-            "not scored" badge means the field is computed and shown
-            elsewhere (e.g. the Deep Value page) but the live composite scoring
-            formula doesn't read it — closing that gap can't move a stock's
-            score. The Sources column reads each table's own{" "}
-            <code className="mono t-2xs">data_source</code>
+            because it pays no dividend). Those aren't a gap in what we know, so
+            they no longer count toward this number or the reason composition
+            bar — expand a row to see them itemized in the full reasons list,
+            each with its own share of the table. Tables have slightly different
+            populations, so this is coverage within each factor's own table, not
+            always the full universe; rows with no denominator (market-wide
+            tables) show a raw row count instead. A "not scored" badge means the
+            field is computed and shown elsewhere (e.g. the Deep Value page) but
+            the live composite scoring formula doesn't read it — closing that
+            gap can't move a stock's score. The Sources column reads each
+            table's own <code className="mono t-2xs">data_source</code>
             {" / "}
             <code className="mono t-2xs">source_tracking</code> column where
             present — "Not tracked" means the table doesn't record per-row

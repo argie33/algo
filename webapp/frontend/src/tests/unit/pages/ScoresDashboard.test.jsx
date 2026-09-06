@@ -288,7 +288,9 @@ describe("ScoresDashboard Page", () => {
 
   it("filters out nano-caps when a Min Market Cap floor is selected", async () => {
     const mockApi = await import("../../../services/api");
-    mockApi.api.get.mockResolvedValue({ data: { items: [...mockStocks, nanoStock] } });
+    mockApi.api.get.mockResolvedValue({
+      data: { items: [...mockStocks, nanoStock] },
+    });
 
     renderScoresDashboard();
     await waitFor(() => {

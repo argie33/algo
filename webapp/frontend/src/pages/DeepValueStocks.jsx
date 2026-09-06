@@ -90,7 +90,8 @@ const DeepValueStocksContent = () => {
         // doesn't fit a comparable-across-symbols score breakdown. Shown display-only
         // alongside margin_of_safety_pct above, not used in generational_score.
         intrinsic_value_per_share: num(s.intrinsic_value_per_share),
-        intrinsic_value_unavailable_reason: s.intrinsic_value_unavailable_reason ?? null,
+        intrinsic_value_unavailable_reason:
+          s.intrinsic_value_unavailable_reason ?? null,
         revenue_growth_3y_pct: num(s.revenue_growth_3y_pct),
         eps_growth_3y_pct: num(s.eps_growth_3y_pct),
         revenue_growth_yoy_pct: num(s.revenue_growth_yoy_pct),

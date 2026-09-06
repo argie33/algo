@@ -106,7 +106,6 @@ const REGIME_COLOR = {
   correction: C.danger,
 };
 
-
 const TOOLTIP_STYLE = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
@@ -1017,7 +1016,8 @@ function ExposureFactors({ markets }) {
               style={{
                 marginTop: "var(--space-2)",
                 paddingTop: "var(--space-2)",
-                borderTop: "1px solid var(--border-subtle, rgba(128,128,128,0.2))",
+                borderTop:
+                  "1px solid var(--border-subtle, rgba(128,128,128,0.2))",
               }}
             >
               <span className="eyebrow">Vol-Managed Scaling</span>
@@ -1043,8 +1043,10 @@ function ExposureFactors({ markets }) {
           const sahm = macroWatch.sahm_rule || {};
           const yc = macroWatch.yield_curve || {};
           const infl = macroWatch.inflation_expectations || {};
-          const t2 = yc.t10y2y && typeof yc.t10y2y === "object" ? yc.t10y2y.value : null;
-          const t3 = yc.t10y3m && typeof yc.t10y3m === "object" ? yc.t10y3m.value : null;
+          const t2 =
+            yc.t10y2y && typeof yc.t10y2y === "object" ? yc.t10y2y.value : null;
+          const t3 =
+            yc.t10y3m && typeof yc.t10y3m === "object" ? yc.t10y3m.value : null;
           const ycParts = [];
           if (typeof t2 === "number") ycParts.push(`2s10s ${num(t2, 2)}`);
           if (typeof t3 === "number") ycParts.push(`3m10y ${num(t3, 2)}`);
@@ -1053,7 +1055,8 @@ function ExposureFactors({ markets }) {
               style={{
                 marginTop: "var(--space-2)",
                 paddingTop: "var(--space-2)",
-                borderTop: "1px solid var(--border-subtle, rgba(128,128,128,0.2))",
+                borderTop:
+                  "1px solid var(--border-subtle, rgba(128,128,128,0.2))",
               }}
             >
               <div className="flex items-center justify-between">
@@ -1078,7 +1081,8 @@ function ExposureFactors({ markets }) {
                     : "⚠ unavailable"}
                 </span>
                 <span>
-                  Yield Curve: {ycParts.length ? ycParts.join(" · ") : "⚠ unavailable"}
+                  Yield Curve:{" "}
+                  {ycParts.length ? ycParts.join(" · ") : "⚠ unavailable"}
                 </span>
                 <span>
                   Inflation Exp:{" "}
@@ -1099,7 +1103,8 @@ function CapitalRoutingCard({ markets }) {
   // GLD/IEF/DBC/cash leftover-capital router - see algo/risk/capital_routing.py's module
   // docstring for the full design (routes the (100 - exposure_pct)% NOT going into stocks,
   // each leg judged on its own trend, inverse-vol sized, MOVE-index veto on IEF).
-  const cr = markets && typeof markets === "object" ? markets.capital_routing : null;
+  const cr =
+    markets && typeof markets === "object" ? markets.capital_routing : null;
 
   if (!cr || cr.data_unavailable) {
     return (
@@ -1199,9 +1204,11 @@ function MarketPulse({ markets }) {
   // 2026-08-23 pillar redesign: selling_pressure moved from a top-level "distribution_days"
   // factor into Pillar 2 (Independent Risk Layers)'s components; put_call_ratio moved into
   // Pillar 3 (Breadth & Sentiment)'s sentiment sub-score components.
-  const ddRegime = factors.pillar_risk?.components?.selling_pressure?.regime || "—";
+  const ddRegime =
+    factors.pillar_risk?.components?.selling_pressure?.regime || "—";
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
-  const pcRatio = factors.pillar_confirm?.components?.sentiment?.put_call_ratio?.value;
+  const pcRatio =
+    factors.pillar_confirm?.components?.sentiment?.put_call_ratio?.value;
   const pcSignal =
     pcRatio == null
       ? "—"
@@ -1447,7 +1454,8 @@ function BreadthCard({ markets }) {
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   // 2026-08-23 pillar redesign: breadth/ad_line moved into Pillar 3 (Breadth & Sentiment)'s
   // participation sub-score components (see algo/risk/market_exposure.py module docstring).
-  const participation = factors?.pillar_confirm?.components?.participation || {};
+  const participation =
+    factors?.pillar_confirm?.components?.participation || {};
   const breadth =
     participation?.breadth && typeof participation.breadth === "object"
       ? participation.breadth
@@ -1566,7 +1574,8 @@ function NewHighsLowsCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   // 2026-08-23 pillar redesign: new_highs_lows moved into Pillar 3's participation sub-score.
-  const nhnl = factors.pillar_confirm?.components?.participation?.new_highs_lows || {};
+  const nhnl =
+    factors.pillar_confirm?.components?.participation?.new_highs_lows || {};
   const data = [
     { name: "New Highs", value: nhnl?.new_highs ?? null, fill: C.success },
     {
