@@ -112,7 +112,11 @@ class TestRevenuePrefersPopulatedFiscalYear:
         # growth-rate leg, since FY2025 was itself consumed as the ttm_eps substitute) before
         # the shared downstream calls below - see load_sec_valuations.py's
         # eps_substituted_from_row1 branch.
-        fetchone_results = [None, *_DOWNSTREAM_FETCHONE]
+        fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
+            None,
+            *_DOWNSTREAM_FETCHONE,
+        ]
 
         result = _run_fetch_incremental("CRAI", income_rows, fetchone_results)
 
@@ -128,7 +132,9 @@ class TestRevenuePrefersPopulatedFiscalYear:
             (2025, None, -8_000_000.0, -0.8, None, None, None, None, 10_000_000.0, None),
         ]
 
-        result = _run_fetch_incremental("NOREV", income_rows, _DOWNSTREAM_FETCHONE)
+        result = _run_fetch_incremental(
+            "NOREV", income_rows, [None, *_DOWNSTREAM_FETCHONE]
+        )  # leading None: entity_type exemption gate check (138006446) - not exempt
 
         row = result[0]
         assert row.get("ps_ratio") is None
@@ -141,7 +147,9 @@ class TestRevenuePrefersPopulatedFiscalYear:
             (2025, 999_999_999.0, 9_000_000.0, 0.9, 14_000_000.0, 11_000_000.0, None, None, 10_000_000.0, None),
         ]
 
-        result = _run_fetch_incremental("REALREV", income_rows, _DOWNSTREAM_FETCHONE)
+        result = _run_fetch_incremental(
+            "REALREV", income_rows, [None, *_DOWNSTREAM_FETCHONE]
+        )  # leading None: entity_type exemption gate check (138006446) - not exempt
 
         row = result[0]
         assert row["ps_ratio"] == round(50.0 / (100_000_000.0 / 10_000_000.0), 2)

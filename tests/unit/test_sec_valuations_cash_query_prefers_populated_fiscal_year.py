@@ -97,6 +97,7 @@ def _run_fetch_incremental(
 class TestCashQueryPrefersPopulatedFiscalYear:
     def test_cash_query_orders_by_cash_populated_before_fiscal_year(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (50.0,),  # price_daily.close
             (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents

@@ -87,7 +87,9 @@ _FETCHONE_BASE = [
 class TestDualClassNoSeparatorTickerSharesFallback:
     def test_no_separator_dual_class_falls_back_to_live_yfinance(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             *_FETCHONE_BASE,
+            None,  # separate-class entity-wide-shares sibling lookup (466a485d6) - no sibling row
             (25.50,),  # price_daily.close
             (300_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
@@ -117,6 +119,7 @@ class TestDualClassNoSeparatorTickerSharesFallback:
         of one company) - guards against ever widening the curated list to a blind heuristic.
         The live yfinance dual-class fallback must never even be attempted for it."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (10_000_000.0, None, None, None),  # debt_row
             None,  # dot-based sibling check - no match

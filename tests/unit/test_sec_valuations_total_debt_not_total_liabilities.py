@@ -101,6 +101,7 @@ class TestTotalDebtNotTotalLiabilities:
         # price, balance_row (stockholders_equity). [cash_rows is a fetchall(), not a fetchone() -
         # see _FakeCursor].
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt - real debt
@@ -145,6 +146,7 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt
@@ -183,6 +185,7 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (None, None, None, None),  # debt_row: nothing reported
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -219,6 +222,7 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (None, 0.0, None, None),  # debt_row: only short_term_debt reported, and it's 0
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

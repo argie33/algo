@@ -45,6 +45,7 @@ class _FakeCursor:
 # plus the RIC-check slot (None - doesn't match) and the currency-check slot (None - doesn't
 # match) before falling through to the royalty-trust check, which needs no query slot.
 _BASE_DOWNSTREAM_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     None,

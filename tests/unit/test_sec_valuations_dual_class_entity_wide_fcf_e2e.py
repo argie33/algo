@@ -74,6 +74,7 @@ class TestDualClassEntityWideFcfEndToEnd:
             (2025, 400_000_000_000.0, 90_000_000_000.0, 54.0, None, None, None, None, 700_000_000.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000_000.0,),  # cash_and_equivalents
             (10_000_000_000.0, None, None, None),  # debt_row
             (1,),  # dual-class sibling check - found

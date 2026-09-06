@@ -86,6 +86,7 @@ _ONC_SHAPED_INCOME_ROWS = [
 class TestYfinanceMarketCapSanityCheck:
     def test_large_mismatch_nulls_shares_dependent_fields_not_pe_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -126,6 +127,7 @@ class TestYfinanceMarketCapSanityCheck:
         """When yfinance_snapshot has nothing for this symbol, the sanity check must be a
         no-op - never treat missing comparison data as a reason to null anything."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -150,6 +152,7 @@ class TestYfinanceMarketCapSanityCheck:
         """A real, modest disagreement (well under the 10x threshold) must not trigger the
         override - only a large-magnitude scale mismatch should."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

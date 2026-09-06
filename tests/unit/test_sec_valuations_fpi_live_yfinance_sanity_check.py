@@ -90,6 +90,7 @@ _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS = [
 class TestFpiLiveYfinanceSanityCheck:
     def test_fpi_uses_live_fetch_not_stale_table(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             (376.86,),  # price_daily.close
@@ -123,6 +124,7 @@ class TestFpiLiveYfinanceSanityCheck:
 
     def test_fpi_live_fetch_failure_falls_back_to_stale_table_without_crashing(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             (376.86,),
@@ -156,6 +158,7 @@ class TestFpiLiveYfinanceSanityCheck:
             (2024, 1_500_000_000.0, 227_000_000.0, 2.7, None, None, None, None, 1_417_803_727.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

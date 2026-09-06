@@ -72,6 +72,7 @@ def _run_fetch_incremental(
 # (stability_metrics), risk_free_rate (economic_data DGS10 - added 2026-08-20 for the CAPM
 # discount rate, see load_sec_valuations.py's _get_risk_free_rate).
 _DOWNSTREAM_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     None,  # has_dual_class_sibling check (2026-08-21) - no matching row

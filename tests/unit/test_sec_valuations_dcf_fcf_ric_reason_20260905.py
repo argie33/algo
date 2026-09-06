@@ -51,6 +51,7 @@ class _FakeCursor:
 # test_sec_valuations_ebitda_pretax_fallback_interest_addback_20260905.py, plus one more slot at
 # the end for this fix's new RIC-check query.
 _BASE_DOWNSTREAM_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     None,

@@ -76,6 +76,7 @@ class TestSharesScaleCrossCheckLoweredTo2x:
             (2025, 500_000_000.0, 50_000_000.0, 0.39, None, None, None, None, 126_795_491.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (10_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match
@@ -105,6 +106,7 @@ class TestSharesScaleCrossCheckLoweredTo2x:
             (2025, 100_000_000.0, 10_000_000.0, 1.0, None, None, None, None, 10_000_000.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match
@@ -134,6 +136,7 @@ class TestSharesScaleCrossCheckLoweredTo2x:
             (2025, 100_000_000.0, 10_000_000.0, 0.05, None, None, None, None, 20_000_000.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match

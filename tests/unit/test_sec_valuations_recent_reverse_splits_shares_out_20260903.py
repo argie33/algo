@@ -73,6 +73,7 @@ _PPCB_SHAPED_INCOME_ROWS = [
 class TestRecentReverseSplitsSharesOut:
     def test_ppcb_shares_out_divided_by_reverse_split_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (500_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row
@@ -100,6 +101,7 @@ class TestRecentReverseSplitsSharesOut:
         """The override must only apply to registered symbols - a similarly-shaped domestic
         filer with the same real share count must be untouched."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),
             (500_000.0, None, None, None),
             None,

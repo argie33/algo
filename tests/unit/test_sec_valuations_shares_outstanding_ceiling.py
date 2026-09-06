@@ -75,6 +75,7 @@ class TestSharesOutstandingCeiling:
         # (MOVED 2026-08-19 to compute before the shares_outstanding gate) are queried first,
         # unconditionally, regardless of how shares_out resolves.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (None,),  # cash_and_equivalents
             (None, None, None, None),  # debt_row
             None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a tuple - "SELECT 1 FROM ..." returns None when no row matches)
@@ -98,6 +99,7 @@ class TestSharesOutstandingCeiling:
             (2026, 1_000_000_000.0, 100_000_000.0, 2.0, None, None, None, None, None, None),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a tuple - "SELECT 1 FROM ..." returns None when no row matches)

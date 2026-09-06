@@ -84,6 +84,7 @@ _BKNG_EPS_SHAPED_INCOME_ROWS = [
 class TestBkngStockSplitResolvesPeRatio:
     def test_pre_split_eps_adjusted_produces_plausible_pe_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row

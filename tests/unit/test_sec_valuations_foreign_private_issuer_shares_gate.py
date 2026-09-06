@@ -84,6 +84,7 @@ class TestForeignPrivateIssuerSharesGate:
             (2024, 88_268_000_000.0, 35_301_100_000.0, 1.36, None, None, None, None, None, None, True),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (None,),  # older-fiscal-year shares_outstanding_basic fallback - also gated off
             (None,),  # company_info_sec fallback (already independently guarded, empty)
             (None,),  # shares_outstanding_diluted fallback - also gated off
@@ -120,6 +121,7 @@ class TestForeignPrivateIssuerSharesGate:
             (2024, 88_268_000_000.0, 35_301_100_000.0, 1.36, None, None, None, None, None, None, True),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000_000.0,),  # cash_and_equivalents (unconditional, fetched before shares_out gate)
             (970_500_000.0, None, None, None),  # debt_row (unconditional, same)
             # company_info_sec and shares_outstanding_dei fallbacks are now BOTH gated on
@@ -163,6 +165,7 @@ class TestForeignPrivateIssuerSharesGate:
             (2024, 88_268_000_000.0, 35_301_100_000.0, 1.36, None, None, None, None, None, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000_000.0,),  # cash_and_equivalents
             (970_500_000.0, None, None, None),  # debt_row
             None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a tuple - "SELECT 1 FROM ..." returns None when no row matches)
@@ -195,6 +198,7 @@ class TestForeignPrivateIssuerSharesGate:
             (2024, 1_000_000_000.0, 100_000_000.0, 2.0, None, None, None, None, None, None, None),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # dual-class sibling check (2026-08-21) - no sibling found (bare None, not a tuple - "SELECT 1 FROM ..." returns None when no row matches)

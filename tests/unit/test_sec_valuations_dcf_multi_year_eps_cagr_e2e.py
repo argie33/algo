@@ -122,6 +122,7 @@ class TestMultiYearEpsCagrEndToEnd:
             ),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (68_111_000.0,),  # cash_row2 (cash_and_equivalents)
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling - no matching row
@@ -201,6 +202,7 @@ class TestMultiYearEpsCagrEndToEnd:
             ),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (68_111_000.0,),
             (20_000_000.0, 5_000_000.0, None, None),
             None,

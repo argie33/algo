@@ -92,6 +92,7 @@ class TestDeiSharesOutstandingStalenessRejected:
             (2024, 738_169_736_000.0, 61_254_079_000.0, 33.01, None, None, None, None, None, None, True, 6022),
         ]
         fetchone_results: list[tuple[Any, ...] | None] = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             (2.23,),  # price_daily.close
@@ -135,6 +136,7 @@ class TestDeiSharesOutstandingStalenessRejected:
             (2024, 10_000_000.0, None, None, None, None, None, None, None, None, False, 7372),
         ]
         fetchone_results: list[tuple[Any, ...] | None] = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (500_000.0, None, None, None),  # debt_row
             None,  # dual-class sibling check -> not dual class
@@ -173,6 +175,7 @@ class TestDeiSharesOutstandingStalenessRejected:
             (2024, 10_000_000.0, None, None, None, None, None, None, None, None, False, 7372),
         ]
         fetchone_results: list[tuple[Any, ...] | None] = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (500_000.0, None, None, None),  # debt_row
             None,  # dual-class sibling check -> not dual class

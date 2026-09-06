@@ -84,6 +84,7 @@ _LARK_SHAPED_INCOME_ROWS = [
 class TestSharesOutstandingScaleCrossCheck:
     def test_thousandfold_mismatch_prefers_company_info_sec(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -116,6 +117,7 @@ class TestSharesOutstandingScaleCrossCheck:
         """When company_info_sec has nothing to cross-check against, the originally-resolved
         value must be used as-is - the cross-check must never fabricate a rejection."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -143,6 +145,7 @@ class TestSharesOutstandingScaleCrossCheck:
             (2025, 100_000_000.0, 10_000_000.0, 1.0, None, None, None, None, 10_000_000.0, None),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

@@ -87,6 +87,7 @@ class TestBookValueQueryPrefersPopulatedFiscalYear:
         # assertion target) had already executed. Inserting has_dual_class_sibling's result
         # without fixing the stale order shifted that checkpoint out of reach entirely.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

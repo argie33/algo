@@ -70,6 +70,7 @@ _ONC_EPS_SHAPED_INCOME_ROWS = [
 class TestYfinancePeRatioSanityCheck:
     def test_large_mismatch_nulls_pe_and_peg_ratio_not_market_cap(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -104,6 +105,7 @@ class TestYfinancePeRatioSanityCheck:
 
     def test_no_yfinance_pe_ratio_leaves_result_untouched(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -126,6 +128,7 @@ class TestYfinancePeRatioSanityCheck:
 
     def test_agreeing_pe_ratios_within_10x_not_touched(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

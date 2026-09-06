@@ -109,7 +109,11 @@ class TestEpsPrefersPopulatedFiscalYear:
         ]
         # The substitution fires (income_rows[1] consumed as ttm_eps), so prior_year_eps is
         # re-fetched from a genuinely older year - mock it as None (no 3rd year in this fixture).
-        fetchone_results = [None, *_DOWNSTREAM_FETCHONE]
+        fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
+            None,
+            *_DOWNSTREAM_FETCHONE,
+        ]
 
         result = _run_fetch_incremental("HG", income_rows, fetchone_results)
 
@@ -126,7 +130,9 @@ class TestEpsPrefersPopulatedFiscalYear:
             (2025, 90_000_000.0, -8_000_000.0, None, None, None, None, None, 10_000_000.0, None),
         ]
 
-        result = _run_fetch_incremental("NOEPS", income_rows, _DOWNSTREAM_FETCHONE)
+        result = _run_fetch_incremental(
+            "NOEPS", income_rows, [None, *_DOWNSTREAM_FETCHONE]
+        )  # leading None: entity_type exemption gate check (138006446) - not exempt
 
         row = result[0]
         assert row.get("pe_ratio") is None
@@ -139,7 +145,9 @@ class TestEpsPrefersPopulatedFiscalYear:
             (2025, 90_000_000.0, 9_000_000.0, 0.9, 14_000_000.0, 11_000_000.0, None, None, 10_000_000.0, None),
         ]
 
-        result = _run_fetch_incremental("REALEPS", income_rows, _DOWNSTREAM_FETCHONE)
+        result = _run_fetch_incremental(
+            "REALEPS", income_rows, [None, *_DOWNSTREAM_FETCHONE]
+        )  # leading None: entity_type exemption gate check (138006446) - not exempt
 
         row = result[0]
         assert row["pe_ratio"] == round(35.26 / 1.0, 2)
@@ -153,7 +161,11 @@ class TestEpsPrefersPopulatedFiscalYear:
             (2025, 2_905_524_000.0, 840_029_000.0, 5.75, None, 824_905_000.0, None, None, 100_364_000.0, None),
         ]
         # A genuinely older year (FY2024) with its own real EPS - the re-fetch query result.
-        fetchone_results = [(2024, 3.81), *_DOWNSTREAM_FETCHONE]
+        fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
+            (2024, 3.81),
+            *_DOWNSTREAM_FETCHONE,
+        ]
 
         result = _run_fetch_incremental("HG2", income_rows, fetchone_results)
 

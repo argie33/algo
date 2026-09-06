@@ -88,6 +88,7 @@ class TestStaleDeiSharesOutstandingRecencyBound:
         filer fixture: this tier is gated off entirely for FPI as of the same-day
         is_foreign_private_issuer fix (see module docstring), so it can only still fire here."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row
@@ -120,6 +121,7 @@ class TestStaleDeiSharesOutstandingRecencyBound:
         company_info_sec are both gated off for FPI) - when that also fails, the result must
         be an honest unavailable marker, not a wrong market_cap built from a stale value."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),
             (5_000_000.0, None, None, None),
         ]

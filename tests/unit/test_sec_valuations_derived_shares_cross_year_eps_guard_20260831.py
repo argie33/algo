@@ -82,6 +82,7 @@ _UROY_SHAPED_INCOME_ROWS = [
 # company_info_sec fallback, shares_outstanding_diluted fallback, shares_outstanding_dei
 # fallback - every tier fed nothing so only the derived-tier's own behavior is under test.
 _ALL_EMPTY_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     None,  # prior-year-EPS-style lookup
     (None,),  # cash_and_equivalents
     (None,),  # debt_row
@@ -116,6 +117,7 @@ class TestDerivedSharesCrossYearEpsGuard:
         # happens when len(income_rows) > 1), so this fixture's sequence is shorter than the
         # 2-row UROY-shaped fixture above.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (None,),  # cash_and_equivalents
             (None,),  # debt_row
             None,  # has_dual_class_sibling check - no matching row

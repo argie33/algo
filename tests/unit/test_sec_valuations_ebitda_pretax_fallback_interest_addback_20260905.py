@@ -62,6 +62,7 @@ def _run_fetch_incremental(
 # Same downstream fetchone() sequence as the sibling
 # test_sec_valuations_ebitda_prefers_populated_fiscal_year.py file.
 _DOWNSTREAM_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     None,

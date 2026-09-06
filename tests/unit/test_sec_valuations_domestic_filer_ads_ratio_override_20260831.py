@@ -69,6 +69,7 @@ _AMRN_SHAPED_INCOME_ROWS = [
 class TestDomesticFilerAdsRatioOverride:
     def test_amrn_shares_out_divided_by_ads_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row
@@ -96,6 +97,7 @@ class TestDomesticFilerAdsRatioOverride:
         """The override must only apply to symbols explicitly in the allowlist - a
         similarly-shaped domestic filer with the same real share count must be untouched."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),
             (5_000_000.0, None, None, None),
             None,

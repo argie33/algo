@@ -84,6 +84,7 @@ _DOMESTIC_INCOME_ROWS = [
 ]
 
 _BASE_FETCHONE_RESULTS = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (5_000_000.0,),  # cash_and_equivalents
     (1_000_000.0, None, None, None),  # debt_row
     None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -125,6 +126,7 @@ class TestDomesticLargeCapLiveYfinanceFallback:
             (2024, 15_000_000.0, 2_270_000.0, 0.27, None, None, None, None, 5_000_000.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,

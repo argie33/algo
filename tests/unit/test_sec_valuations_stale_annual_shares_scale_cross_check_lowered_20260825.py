@@ -72,6 +72,7 @@ class TestStaleAnnualSharesLoweredThreshold:
             (2025, 10_000_000.0, -5_000_000.0, -46.80, None, None, None, None, 106_902.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match (WHLR is single-class)
@@ -101,6 +102,7 @@ class TestStaleAnnualSharesLoweredThreshold:
             (2025, 10_000_000.0, 1_000_000.0, 1.0, None, None, None, None, 1_000_000.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match

@@ -101,6 +101,7 @@ class TestExcludesDataUnavailableRows:
         # test_sec_valuations_book_value_query_prefers_populated_fiscal_year.py's matching fix
         # comment for why the old order only happened to work before.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
