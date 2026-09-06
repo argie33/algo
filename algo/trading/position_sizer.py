@@ -1219,6 +1219,84 @@ class PositionSizer:
                         ),
                     }
 
+        # OPTIONAL market-impact/participation-rate cap (added 2026-09-06, real-money-
+        # readiness audit finding: every cap above sizes off portfolio_value alone - none of
+        # them reference the STOCK's OWN trading volume, so a position sized well within every
+        # portfolio-pct/absolute-dollar ceiling could still be a large, market-moving fraction
+        # of a thinly-traded name's actual daily turnover. LiquidityChecks.run_all (algo/risk/
+        # liquidity_checks.py) is a fixed-floor pass/fail gate on ADV (does this SYMBOL clear a
+        # minimum bar at all) - it does not scale with how large the CANDIDATE POSITION itself
+        # is, so a big-enough account can clear that floor by a wide margin while still sizing
+        # a single trade as a large percentage of the stock's own 20-day average dollar volume,
+        # risking real execution slippage and multi-day unwind risk on exit. Deliberately
+        # OPT-IN (skipped entirely when unset, same convention as absolute_max_dollars_per_trade
+        # just above) rather than a hardcoded guess - the right participation-rate ceiling is a
+        # strategy/product decision (typical institutional practice caps at low single-digit
+        # percent of ADV), not something a code-correctness pass should invent. Set
+        # max_pct_of_adv_dollars in algo_config to activate. Only enforced when signal_date is
+        # available (the historical ADV window is computed as-of that date, matching
+        # liquidity_checks.py's own windowing) - Phase 8's preliminary concentration-prefilter
+        # sizing pass doesn't pass signal_date and is skipped here, same as it already skips
+        # LiquidityChecks entirely at that stage; the real, order-submitting sizing call always
+        # passes signal_date and gets the real cap.
+        max_pct_of_adv_val = self.config.get("max_pct_of_adv_dollars")
+        if max_pct_of_adv_val is not None and signal_date is not None:
+            try:
+                max_pct_of_adv = Decimal(str(max_pct_of_adv_val)) / Decimal(100)
+            except (ValueError, TypeError, decimal.InvalidOperation) as e:
+                raise ValueError(
+                    f"CRITICAL: max_pct_of_adv_dollars config has invalid value '{max_pct_of_adv_val}': {e}"
+                ) from None
+            if max_pct_of_adv <= 0:
+                raise ValueError(
+                    f"CRITICAL: max_pct_of_adv_dollars must be positive, got {max_pct_of_adv_val}. "
+                    f"Set a real percentage or remove the config key entirely to disable this check."
+                )
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT AVG(volume * close) AS avg_dollar_vol
+                    FROM (
+                        SELECT volume, close FROM price_daily
+                        WHERE symbol = %s
+                          AND date >= %s
+                          AND date < %s
+                        ORDER BY date DESC
+                        LIMIT 20
+                    ) recent
+                    """,
+                    (symbol, signal_date - timedelta(days=25), signal_date),
+                )
+                adv_row = cur.fetchone()
+            if adv_row is not None and adv_row[0] is not None:
+                avg_dollar_vol = Decimal(str(adv_row[0]))
+                max_adv_position_value = avg_dollar_vol * max_pct_of_adv
+                if position_value > max_adv_position_value:
+                    shares = int(
+                        (max_adv_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN)
+                    )
+                    position_value = Decimal(shares) * Decimal(str(entry_price))
+                    risk_dollars = risk_per_share * Decimal(shares)
+                    if shares < 1:
+                        return {
+                            "shares": 0,
+                            "position_size_pct": 0,
+                            "risk_dollars": 0,
+                            "status": "no_room",
+                            "reason": (
+                                f"{symbol}: even 1 share would exceed max_pct_of_adv_dollars "
+                                f"({max_pct_of_adv * 100:.1f}% of ${avg_dollar_vol:,.0f} 20-day "
+                                f"avg dollar volume) - too thin to size a position at all"
+                            ),
+                        }
+            # A missing/NULL ADV reading here (adv_row is None or avg_dollar_vol is NULL) is
+            # NOT the same "block as a safety measure" case LiquidityChecks.run_all uses for
+            # its own pass/fail gate - that gate's entire job is verifying tradability, so
+            # missing data there must fail closed. This cap only refines a position that
+            # ALREADY passed that gate (or is a candidate LiquidityChecks hasn't run against
+            # yet in the prefilter pass) - silently skipping the refinement on missing data
+            # leaves the position sized by every OTHER real cap above, not unsized/unguarded.
+
         if pv_dec <= 0:
             raise ValueError(
                 f"CRITICAL: Portfolio value invalid ({pv_dec}) - cannot calculate position sizing. "
