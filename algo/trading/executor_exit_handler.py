@@ -204,7 +204,9 @@ class ExitHandler:
         def _raise_stop(cursor: PsycopgCursor[Any]) -> dict[str, Any]:
             # Validate position has existing stop price (cannot raise NULL stop)
             cursor.execute(
-                """SELECT p.current_stop_price, t.alpaca_order_id, p.quantity FROM algo_positions p
+                """SELECT p.current_stop_price, t.alpaca_order_id, p.quantity,
+                          p.standalone_stop_order_id, p.position_id
+                   FROM algo_positions p
                    JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                    WHERE t.trade_id = %s
                      AND p.status = %s
@@ -248,7 +250,40 @@ class ExitHandler:
             # don't tell our own system it is. Also passes the CURRENT quantity - if a partial
             # exit happened since this leg was last touched, this opportunistically corrects
             # its size too (see sync_bracket_stop_loss's new_qty docstring).
-            sync_result = self.context._sync_bracket_stop_loss(existing_stop[1], new_stop_price, existing_stop[2])
+            #
+            # REAL-MONEY-READINESS FIX (2026-09-05 audit): once Phase 9 auto-repairs a
+            # position onto a STANDALONE stop (the original bracket's stop-loss leg is gone,
+            # cancelled), t.alpaca_order_id above no longer has any live stop-loss leg to
+            # resize - sync_bracket_stop_loss would just fail every time. Before this fix,
+            # every future trailing-stop improvement (breakeven move, chandelier trail) for
+            # such a position was a permanent silent no-op forever after its first Phase 9
+            # repair: DB writes below never happen because sync_result.success is always
+            # False, so current_stop_price never advances and the broker-side stop never
+            # trails - capital-protection degradation via a code path fixing an unrelated
+            # gap. Route to sync_standalone_stop instead when a standalone stop is on file.
+            standalone_stop_order_id, position_id = existing_stop[3], existing_stop[4]
+            if standalone_stop_order_id:
+                sync_result = self.context._sync_standalone_stop(
+                    standalone_stop_order_id, new_stop_price, existing_stop[2]
+                )
+                new_order_id = sync_result.get("new_order_id")
+                if (
+                    sync_result.get("success")
+                    and sync_result.get("synced")
+                    and new_order_id
+                    and new_order_id != standalone_stop_order_id
+                ):
+                    # Alpaca implements order replacement as cancel-and-recreate - the new
+                    # id MUST be re-persisted or the next liveness check looks up a now-
+                    # terminal order id, believes protection is gone, and triggers a
+                    # duplicate standalone-stop submission (same caveat
+                    # resize_standalone_stop_after_partial_exit already documents).
+                    cursor.execute(
+                        "UPDATE algo_positions SET standalone_stop_order_id = %s WHERE position_id = %s",
+                        (new_order_id, position_id),
+                    )
+            else:
+                sync_result = self.context._sync_bracket_stop_loss(existing_stop[1], new_stop_price, existing_stop[2])
             if not sync_result.get("success"):
                 return {
                     "success": False,
@@ -920,7 +955,18 @@ class ExitHandler:
                 f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
                 f"Cannot compute R-multiple with invalid stop price. This indicates corrupted position data."
             )
-        r_multiple = float((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share)
+        # REAL-MONEY-READINESS FIX (2026-09-05 audit): the multi-leg cumulative path a few
+        # lines below (_compute_cumulative_pnl) quantizes its r_multiple to Decimal("0.01")
+        # before converting to float; this single-leg path didn't, producing float
+        # binary-representation noise (e.g. 2.6666666666666665) in the same
+        # algo_trades.exit_r_multiple column depending on whether a trade had one exit leg
+        # or several - cosmetic only (never fed back into sizing/risk math), but a
+        # needless two-different-precision-conventions inconsistency in the same column.
+        r_multiple = float(
+            ((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
+                Decimal("0.01"), ROUND_HALF_UP
+            )
+        )
         pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
         pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP))
         pnl_pct = float(

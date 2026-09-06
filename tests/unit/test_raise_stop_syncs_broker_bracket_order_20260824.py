@@ -32,9 +32,9 @@ def _make_context(sync_result):
     return context
 
 
-def _make_cursor(existing_stop_price, alpaca_order_id, quantity=10.0, rowcount=1):
+def _make_cursor(existing_stop_price, alpaca_order_id, quantity=10.0, rowcount=1, standalone_stop_order_id=None):
     cur = MagicMock()
-    cur.fetchone.return_value = (existing_stop_price, alpaca_order_id, quantity)
+    cur.fetchone.return_value = (existing_stop_price, alpaca_order_id, quantity, standalone_stop_order_id, "pos-1")
     cur.rowcount = rowcount
     return cur
 
