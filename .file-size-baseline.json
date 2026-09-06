@@ -185,7 +185,7 @@
   "algo/risk/circuit_breaker.py": 334,
   "algo/risk/circuit_breaker_alerting.py": 64,
   "algo/risk/circuit_breaker_market_conditions.py": 450,
-  "algo/risk/circuit_breaker_portfolio_risk.py": 611,
+  "algo/risk/circuit_breaker_portfolio_risk.py": 623,
   "algo/risk/circuit_breaker_trade_sector.py": 491,
   "algo/risk/earnings_blackout.py": 258,
   "algo/risk/exposure_policy.py": 628,
