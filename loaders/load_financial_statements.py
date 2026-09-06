@@ -837,6 +837,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # term-debt concept - see sec_statements.py's get_balance_sheet() comment on
         # "SecuredLongTermDebt" for the live evidence.
         "secured_long_term_debt",
+        # FIXED 2026-09-05 (same continuation): KBDC (Kayne Anderson BDC) real fair-value
+        # credit-facility concept - see sec_statements.py's get_balance_sheet() comment on
+        # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
+        # magnitude cross-check.
+        "line_of_credit_facility_fair_value_of_amount_outstanding",
     }
 )
 
@@ -1067,6 +1072,12 @@ _BALANCE_FIELD_MAPPING = {
     # see sec_statements.py's get_balance_sheet() comment on "SecuredLongTermDebt" for the
     # live evidence ($299M FY2025). Fallback-only, single-figure convention as above.
     "secured_long_term_debt": "long_term_debt",
+    # FIXED 2026-09-05 (same sweep): KBDC (Kayne Anderson BDC) real fair-value credit-
+    # facility balance - see sec_statements.py's get_balance_sheet() comment on
+    # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
+    # magnitude cross-check against implied total liabilities (96% match). Fallback-only,
+    # single-figure convention as above.
+    "line_of_credit_facility_fair_value_of_amount_outstanding": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's

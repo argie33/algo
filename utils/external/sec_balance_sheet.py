@@ -439,6 +439,29 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # single-figure-not-perfect-sum convention as NotesPayable/SeniorNotes above.
         "SubordinatedDebt",
         "JuniorSubordinatedDebentureOwedToUnconsolidatedSubsidiaryTrust",
+        # FIXED 2026-09-05 (goal session, same continuation as the debt-concept block
+        # below): KBDC (Kayne Anderson BDC) has a real, current annual_balance_sheet row
+        # every fiscal year (2022-2025: real total_assets $1.19B-$2.29B, real
+        # stockholders_equity/NAV $592M-$1.11B, data_unavailable=FALSE) but long_term_debt
+        # was NULL in every one - it never tags any of LongTermDebt/NotesPayable/
+        # SecuredDebt/DebtInstrumentCarryingAmount, only
+        # "LineOfCreditFacilityFairValueOfAmountOutstanding" (a fair-value, not
+        # carrying-value, disclosure concept - unusual, but consistent with a BDC's
+        # NAV-based balance sheet already carrying its investments AND liabilities at fair
+        # value under ASC 946/825). Cross-validated via magnitude, not just presence:
+        # FY2025 total_assets - stockholders_equity implies ~$1.177B total liabilities;
+        # this concept's FY2025 value is $1.130B - a 96% match, confirming it's
+        # (approximately) KBDC's entire real debt load, not a partial sub-figure.
+        # Single-symbol-verified (not found on PFLT/PNNT/GAIN/MAIN/CSWC/NMFC/GSBD/BCSF/
+        # NCDL, the other BDCs checked the same session). Listed BEFORE "LineOfCredit"
+        # (deliberately, unlike every other addition this session which is appended after
+        # its neighbors) so this far-more-complete fair-value figure wins this loader's
+        # "first-populated-wins" fallback precedence for KBDC specifically - KBDC also
+        # tags a much smaller "LineOfCredit" fact ($135M FY2025) that would otherwise
+        # silently win and understate real debt by ~88%; no other filer in this session's
+        # sample tags both concepts, so this reordering has no effect on DGICA/DGICB or
+        # any other "LineOfCredit"-only filer.
+        "LineOfCreditFacilityFairValueOfAmountOutstanding",
         # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" sweep, total_debt_not_itemized
         # investigation): Donegal Group (DGICA/DGICB, CIK 0000800457) - a small insurance
         # holding company - tags its only real debt instrument, a $35,000,000 revolving

@@ -16,6 +16,15 @@ Live-confirmed via real SEC companyfacts JSON:
   "NotesPayable" tag ($122.67M FY2025, its revolving credit facility), both genuinely
   outstanding simultaneously. Single-symbol-verified (not found on GAIN/MAIN/CSWC/NMFC/BCSF/
   ICMB/RWAY/SAR/NCDL, the other BDCs checked the same session).
+- KBDC (Kayne Anderson BDC) has a real, current annual_balance_sheet row every fiscal year
+  (2022-2025, data_unavailable=FALSE) but long_term_debt was NULL - it only tags
+  "LineOfCreditFacilityFairValueOfAmountOutstanding" (a fair-value disclosure, not a
+  carrying-value concept), never any standard debt concept. Cross-validated via magnitude:
+  FY2025 total_assets - stockholders_equity implies ~$1.177B total liabilities; this
+  concept's FY2025 value is $1.130B, a 96% match. KBDC also tags a much smaller "LineOfCredit"
+  fact ($135M FY2025) - the new concept is listed BEFORE "LineOfCredit" in the fetch order so
+  it wins this loader's "first-populated-wins" fallback precedence (KBDC-specific reordering;
+  verified DGICA, the only other "LineOfCredit"-only filer checked, is unaffected).
 
 All fallback-only (utils/external/sec_balance_sheet.py's get_balance_sheet() comment has the
 full live evidence) - must never win over a real value the standard debt concepts already found.
@@ -41,6 +50,8 @@ class TestAchvBenfConvertibleAndOtherLongTermDebtConceptsFixed:
             "convertible_debt_noncurrent": "long_term_debt",
             "other_long_term_debt": "long_term_debt",
             "secured_long_term_debt": "long_term_debt",
+            "line_of_credit_facility_fair_value_of_amount_outstanding": "long_term_debt",
+            "line_of_credit": "long_term_debt",
             "data_unavailable": "data_unavailable",
             "reason": "reason",
         }
@@ -51,6 +62,8 @@ class TestAchvBenfConvertibleAndOtherLongTermDebtConceptsFixed:
                 "convertible_debt_noncurrent",
                 "other_long_term_debt",
                 "secured_long_term_debt",
+                "line_of_credit_facility_fair_value_of_amount_outstanding",
+                "line_of_credit",
             }
         )
         loader._reit_only_fallback_fields = frozenset()
@@ -64,12 +77,14 @@ class TestAchvBenfConvertibleAndOtherLongTermDebtConceptsFixed:
         assert _BALANCE_FIELD_MAPPING["convertible_debt_noncurrent"] == "long_term_debt"
         assert _BALANCE_FIELD_MAPPING["other_long_term_debt"] == "long_term_debt"
         assert _BALANCE_FIELD_MAPPING["secured_long_term_debt"] == "long_term_debt"
+        assert _BALANCE_FIELD_MAPPING["line_of_credit_facility_fair_value_of_amount_outstanding"] == "long_term_debt"
         for field in (
             "convertible_debt",
             "convertible_debt_current",
             "convertible_debt_noncurrent",
             "other_long_term_debt",
             "secured_long_term_debt",
+            "line_of_credit_facility_fair_value_of_amount_outstanding",
         ):
             assert field in _DEBT_FALLBACK_ONLY_FIELDS
 
@@ -110,6 +125,44 @@ class TestAchvBenfConvertibleAndOtherLongTermDebtConceptsFixed:
         transformed = loader.transform([row])
 
         assert transformed[0]["long_term_debt"] == 299_000_000.0
+
+    def test_kbdc_style_fair_value_credit_facility_recovered(self) -> None:
+        loader = self._make_loader()
+        row = {
+            "symbol": "KBDC",
+            "fiscal_year": 2025,
+            "line_of_credit_facility_fair_value_of_amount_outstanding": 1_130_000_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 1_130_000_000.0
+
+    def test_kbdc_style_fair_value_wins_over_smaller_line_of_credit_fact(self) -> None:
+        """KBDC tags BOTH concepts for the same fiscal year - the far more complete
+        fair-value figure ($1.13B, 96% cross-validated against implied total liabilities)
+        must win over the much smaller line_of_credit fact ($135M), per this loader's
+        first-populated-wins fallback precedence and the concept ordering in
+        sec_balance_sheet.py (fair-value concept listed before "LineOfCredit")."""
+        loader = self._make_loader()
+        row = {
+            "symbol": "KBDC",
+            "fiscal_year": 2025,
+            "line_of_credit_facility_fair_value_of_amount_outstanding": 1_130_000_000.0,
+            "line_of_credit": 135_000_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 1_130_000_000.0
+
+    def test_dgica_style_line_of_credit_only_unaffected_by_kbdc_reordering(self) -> None:
+        loader = self._make_loader()
+        row = {"symbol": "DGICA", "fiscal_year": 2025, "line_of_credit": 35_000_000.0}
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 35_000_000.0
 
     def test_never_overwrites_a_real_long_term_debt_value(self) -> None:
         loader = self._make_loader()
