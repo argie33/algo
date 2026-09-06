@@ -429,10 +429,22 @@ class CircuitBreakerPortfolioRiskMixin:
                 "reason": f"{missing_stops_count} positions missing current stops - fail-closed halt",
             }
 
+        # FIX 2026-09-05 (real-money-readiness audit): was `p.quantity` (a position-level
+        # total) multiplied into EVERY fanned-out row of the JOIN and `COUNT(*)` (counting
+        # trade rows, not positions) - for a pyramided position (trade_ids_arr has 2+ open
+        # trades, a real, supported case per position_sync.py's own LINKED_TRADE_STATUSES
+        # handling), each constituent trade's row repeated the SAME full position quantity
+        # instead of that trade's own share count, inflating total_open_risk, AND inflated
+        # position_count above the real distinct-position count - which then falsely tripped
+        # the orphaned-trade_ids_arr fail-closed halt below. Same bug class and identical fix
+        # already landed in algo/trading/position_sizer.py's own aggregate-risk query
+        # (2026-08-31) - t.quantity is the correct per-trade figure (actively decremented on
+        # partial exits) and COUNT(DISTINCT p.id) restores "one open position = one count"
+        # regardless of how many trades fan out per position.
         cur.execute(
             """
-            SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)),
-                   COUNT(*) as position_count
+            SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * t.quantity)),
+                   COUNT(DISTINCT p.id) as position_count
             FROM algo_positions p
             JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
             WHERE p.status = %s
