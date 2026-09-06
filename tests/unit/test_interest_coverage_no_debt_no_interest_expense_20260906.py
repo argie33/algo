@@ -88,6 +88,24 @@ class TestInterestCoverageNoDebtNoInterestExpense:
         assert metrics["interest_coverage"] is None
         assert metrics["interest_coverage_unavailable_reason"] == "interest_expense_not_itemized"
 
+    def test_lease_only_liability_symbol_also_gets_legitimate_reason(self, monkeypatch):
+        """Broader borrowed-debt-only gate (2026-09-06 follow-up): a symbol with real
+        operating/finance lease liabilities but zero borrowed debt (AMBA/Ambarella shape) is
+        NOT in the strict all-four-components gate (it fails the lease-liability=0 requirement)
+        but IS in the narrower borrowed-debt-only gate, and should still get the legitimate
+        reason rather than falling through to the generic "interest_expense_not_itemized"."""
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(interest_expense=None)
+        with (
+            patch.object(loader, "_get_never_tagged_interest_expense_symbols", return_value=frozenset({"LEASEONLY1"})),
+            patch.object(loader, "_get_never_tagged_debt_components_symbols", return_value=frozenset()),
+            patch.object(loader, "_get_never_tagged_borrowed_debt_symbols", return_value=frozenset({"LEASEONLY1"})),
+        ):
+            metrics = loader._compute_quality_metrics("LEASEONLY1", row, ev_metrics=None)
+
+        assert metrics["interest_coverage"] is None
+        assert metrics["interest_coverage_unavailable_reason"] == "no_debt_no_interest_expense"
+
     def test_real_interest_expense_still_computes_normally(self, monkeypatch):
         loader = _make_loader(monkeypatch)
         row = _quality_row(operating_income=100_000_000.0, interest_expense=10_000_000.0)

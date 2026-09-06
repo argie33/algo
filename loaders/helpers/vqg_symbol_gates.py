@@ -396,6 +396,43 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_never_tagged_borrowed_debt_symbols(self) -> frozenset[str]:
+        """Narrower sibling of _get_never_tagged_debt_components_symbols() above, for
+        interest_coverage specifically: requires only long_term_debt/short_term_debt (real
+        borrowed debt) to be absent across full history, deliberately NOT also requiring
+        operating_lease_liability/finance_lease_liability to be zero.
+
+        FIX 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, follow-up to
+        no_debt_no_interest_expense above): live-confirmed via AMBA's (Ambarella) real
+        companyfacts JSON that a company with only office/lab operating leases and zero
+        borrowed debt anywhere in its filing history (no LongTermDebt/ShortTermBorrowings/
+        NotesPayable/DebtInstrumentCarryingAmount/etc. - the ~25-concept fallback chain in
+        sec_balance_sheet.py) never tags ANY InterestExpense* concept either - not because the
+        data is missing, but because operating leases don't generate a separately-disclosed
+        "interest expense" GAAP fact the way borrowed debt does (unlike finance leases, which
+        sometimes split interest from ROU amortization). The stricter debt-components gate
+        above wrongly excluded these symbols (317 active-universe rows recovered, live-checked
+        against quality_metrics.interest_coverage_unavailable_reason='interest_expense_not_itemized')
+        because it also demanded zero lease liability, which has nothing to do with whether
+        interest expense on BORROWED debt would exist to report. Only used for
+        interest_coverage's own reason below - the broader all-four-components gate stays as
+        the bar for total_debt/debt_to_equity/roce_pct/roic_pct, where a real lease liability
+        legitimately does contribute to those metrics' math.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM annual_balance_sheet
+                WHERE fiscal_year > 0
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END) = 0
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END) = 0
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_no_recent_revenue_symbols(self) -> frozenset[str]:
         """Symbols that have NOT reported revenue in any of their 3 most recent fiscal years -
         i.e. structurally pre-revenue, not a loader gap.

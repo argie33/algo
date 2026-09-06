@@ -2565,7 +2565,18 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # business reasons, not a data gap" class as no_revenue_reported/
                     # unprofitable_stock/negative_enterprise_value.
                     else "no_debt_no_interest_expense"
-                    if no_recent_interest_expense and symbol in self._get_never_tagged_debt_components_symbols()
+                    if no_recent_interest_expense
+                    and (
+                        symbol in self._get_never_tagged_debt_components_symbols()
+                        # FIXED 2026-09-06 (same sweep, see
+                        # _get_never_tagged_borrowed_debt_symbols()'s docstring): a company with
+                        # only operating/finance lease liabilities and zero borrowed debt never
+                        # tags an InterestExpense concept either - lease liabilities don't
+                        # generate a separately-disclosed interest fact the way borrowed debt
+                        # does, so the stricter all-four-components gate above was wrongly
+                        # excluding these from the "Legitimate / not applicable" reason.
+                        or symbol in self._get_never_tagged_borrowed_debt_symbols()
+                    )
                     else "interest_expense_not_itemized"
                     if no_recent_interest_expense
                     else "reit_special_entity"
