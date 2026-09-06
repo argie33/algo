@@ -292,6 +292,24 @@ def _categorize_reason(reason: str) -> str:
     # fact as the other Insufficient history members, just phrased per-period.
     if "insufficient_price_history" in reason:
         return "Insufficient history"
+    # ADDED 2026-09-06: same file's per-period sentence form ("Insufficient price history:
+    # {n} days (need at least {m} for {period} momentum)") - same fact as the snake_case
+    # sibling above, just phrased as a sentence. 39 active rows.
+    if reason.startswith("Insufficient price history:"):
+        return "Insufficient history"
+    # ADDED 2026-09-06: load_positioning_metrics.py's whole-row reason when BOTH the FINRA
+    # short-interest feed and the SEC 13F institutional-ownership feed came up empty
+    # (f"short_interest:{source};institutional:{source}", sources are only ever "finra"/
+    # "unavailable" and "sec_13f"/"unavailable" - this literal only fires when both read
+    # "unavailable"). Same external-data-source-absent fact as missing_finra_data already in
+    # "Missing SEC/XBRL data" below. 64 active rows (2-source and 3-source-with-insider forms).
+    if reason.startswith("short_interest:") and "institutional:" in reason:
+        return "Missing SEC/XBRL data"
+    # ADDED 2026-09-06: load_risk_metrics_daily.py's per-period extreme-return rejection
+    # (f"momentum_{period}:extreme_return_overflow(ret_pct={pct})") - same "computed but
+    # rejected as implausible" fact as extreme_beta already mapped below, just per-period.
+    if "extreme_return_overflow" in reason:
+        return "Implausible / rejected value"
     # ADDED 2026-09-06: stability_metrics' whole-row `reason` is a ";"-joined "vol_30d:
     # insufficient_returns (N/30 required)" list - `base` comes out "vol_30d", unmatched, even
     # though the same sub-reason IS mapped alone in per-column *_unavailable_reason fields.
