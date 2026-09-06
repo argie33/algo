@@ -2039,6 +2039,7 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
             "forward_pe": None,
             "intrinsic_value_per_share": None,
             "margin_of_safety_pct": None,
+            "dcf_fcf_unavailable_reason": None,
         }
 
         if current_price <= 0:
@@ -2417,6 +2418,19 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
             risk_free_rate,
             equity_risk_premium,
         )
+        # Ground-truth reason for WHY the DCF's own fcf input was unusable, recorded here where
+        # dcf_fcf_base's real value is known - see migration 1258's docstring for the full
+        # rationale (fcf_yield's own FCF base never receives the net-borrowing adjustment
+        # dcf_fcf_base does, so it can have the opposite sign and mislead a downstream reason
+        # guess). Only meaningful when intrinsic_value_per_share came back NULL; a real
+        # computed value needs no reason.
+        if result["intrinsic_value_per_share"] is None:
+            if dcf_fcf_base is None:
+                result["dcf_fcf_unavailable_reason"] = "missing_cash_flow_data"
+            elif dcf_fcf_base <= 0:
+                result["dcf_fcf_unavailable_reason"] = "negative_free_cash_flow"
+            else:
+                result["dcf_fcf_unavailable_reason"] = "implausible_dcf_result"
 
         # Forward PE Ratio removed: Requires external analyst data.
         # Removed per GOVERNANCE.md: no external fallbacks for financial metrics.

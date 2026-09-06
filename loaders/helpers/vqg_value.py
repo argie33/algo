@@ -320,11 +320,16 @@ class ValueMetricsMixin(SymbolGateMixin):
             else None
         )
 
-        # intrinsic_value_per_share reason: sec_valuations doesn't persist raw OCF/CapEx, only
-        # the fcf_yield ratio derived from them - reuse it as the same "is FCF usable" signal
-        # load_sec_valuations.py's DCF itself gates on.
+        # intrinsic_value_per_share reason: prefer sec_valuations.dcf_fcf_unavailable_reason
+        # (migration 1258) - the DCF's own ground-truth fcf sign, recorded where it's actually
+        # known - over the fcf_yield-based guess below. fcf_yield's own FCF base never receives
+        # the DCF-only net-borrowing adjustment dcf_fcf_base does, so the two can have opposite
+        # signs (live-confirmed via APTV/AER/ASB and 14 other symbols: fcf_yield positive, real
+        # DCF fcf negative/None from a balance-sheet debt swing) - the fcf_yield-based guess
+        # below stays only as a fallback for rows load_sec_valuations.py hasn't reprocessed yet.
+        dcf_fcf_reason = row_dict.get("dcf_fcf_unavailable_reason")
         intrinsic_value_reason = (
-            intrinsic_value_reason_from_fcf_yield(fcf_yield, fcf_yield_reason_str)
+            (dcf_fcf_reason or intrinsic_value_reason_from_fcf_yield(fcf_yield, fcf_yield_reason_str))
             if intrinsic_value_per_share is None
             else None
         )
@@ -332,7 +337,7 @@ class ValueMetricsMixin(SymbolGateMixin):
             # load_sec_valuations.py's _compute_dcf_intrinsic_value computes intrinsic_per_share
             # and margin_of_safety_pct together as a pair - the ONLY way to get a real
             # intrinsic_per_share alongside a None margin_of_safety_pct is its explicit
-            # `-1000 <= margin_of_safety_pct <= 1000` bounds rejection (implausible DCF result),
+            # `-100_000 <= margin_of_safety_pct <= 1000` bounds rejection (implausible DCF result),
             # not a missing-data case - 100% precise, not a probabilistic gate.
             margin_of_safety_reason = (
                 intrinsic_value_reason if intrinsic_value_per_share is None else "implausible_dcf_result"
