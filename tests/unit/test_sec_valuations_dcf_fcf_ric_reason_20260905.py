@@ -85,9 +85,18 @@ _INCOME_ROWS = [
 ]
 
 
-def _run(ric_query_result: tuple[Any, ...] | None) -> dict[str, Any]:
+def _run(
+    ric_query_result: tuple[Any, ...] | None, currency_query_result: tuple[Any, ...] | None = None
+) -> dict[str, Any]:
     loader = _make_loader()
-    fake_cursor = _FakeCursor(_INCOME_ROWS, [*_BASE_DOWNSTREAM_FETCHONE, ric_query_result])
+    # ADDED 2026-09-06 (sibling fix: _recategorize_unsupported_currency_dcf_fcf_reason): its
+    # own fetchone() slot only gets consumed when the RIC check above did NOT already
+    # override the reason - _recategorize_unsupported_currency_dcf_fcf_reason's own guard
+    # returns early (no query at all) once dcf_fcf_unavailable_reason is no longer the
+    # generic "missing_cash_flow_data", same short-circuit discipline as the RIC check has
+    # for the reasons checked before it.
+    extra_fetchone = [] if ric_query_result is not None else [currency_query_result]
+    fake_cursor = _FakeCursor(_INCOME_ROWS, [*_BASE_DOWNSTREAM_FETCHONE, ric_query_result, *extra_fetchone])
     fake_ctx = MagicMock()
     fake_ctx.__enter__ = MagicMock(return_value=fake_cursor)
     fake_ctx.__exit__ = MagicMock(return_value=False)
@@ -123,7 +132,17 @@ class TestSecValuationsDcfFcfRicReason:
         assert row["dcf_fcf_unavailable_reason"] == "registered_investment_company_no_xbrl"
 
     def test_non_ric_symbol_keeps_generic_reason(self) -> None:
-        result = _run(ric_query_result=None)  # RIC-check query finds no match
+        result = _run(ric_query_result=None, currency_query_result=None)  # neither check matches
 
         row = result[0]
         assert row["dcf_fcf_unavailable_reason"] == "missing_cash_flow_data"
+
+    def test_unsupported_currency_symbol_reports_specific_reason(self) -> None:
+        """Companion to the RIC case above (2026-09-06 sibling fix): a foreign private issuer
+        whose annual_cash_flow row was already tagged 'unsupported_currency_no_fx_rate' by
+        load_financial_statements.py's own fix gets that same specific reason here too,
+        instead of the generic fallback - checked only after the RIC case doesn't match."""
+        result = _run(ric_query_result=None, currency_query_result=(1,))
+
+        row = result[0]
+        assert row["dcf_fcf_unavailable_reason"] == "unsupported_currency_no_fx_rate"

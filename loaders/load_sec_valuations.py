@@ -982,6 +982,7 @@ class SecValuationsLoader(
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap, yf_market_cap_is_live)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio, yf_market_cap_is_live)
             self._recategorize_ric_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
 
             return [valuation_row]
 
@@ -1040,6 +1041,45 @@ class SecValuationsLoader(
             )
             if cur.fetchone() is not None:
                 valuation_row["dcf_fcf_unavailable_reason"] = "registered_investment_company_no_xbrl"
+
+    def _recategorize_unsupported_currency_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with "unsupported_currency_no_fx_rate"
+        for a foreign private issuer whose annual_cash_flow row was already tagged that way.
+        Mutates `valuation_row` in place.
+
+        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up to
+        the has_unsupported_currency_only_fact fix in load_financial_statements.py /
+        utils/external/sec_statements_shared.py): a foreign private issuer that tags
+        operating_cash_flow only under a hyperinflationary/unsupported local currency (e.g.
+        ARS - GGAL/BBAR/CRESY/LOMA/IRS and more, live-confirmed via real SEC companyfacts) has
+        a real, non-fabricatable ocf=None, so dcf_fcf_base comes back None here too and
+        _compute_yield_and_dcf_fields's generic "missing_cash_flow_data" fallback fires - same
+        reason-string-doesn't-match-real-cause bug class as the RIC recategorization above,
+        just for a different root cause. Reuses annual_cash_flow.reason (already populated by
+        load_financial_statements.py's own fix once that table is reloaded) instead of a fresh
+        live SEC API call - this mixin has no SecEdgarClient instance to reuse a cache from
+        (unlike load_financial_statements.py, which calls get_company_facts() during the same
+        extraction pass), so a DB lookup against the sibling table's own already-computed
+        reason is far cheaper than a second live fetch per symbol. Only overrides the generic
+        fallback reason, never a real computed value or a more specific reason
+        (negative_free_cash_flow/implausible_dcf_result/registered_investment_company_no_xbrl
+        above, which is checked first and returns early if it already matched).
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM annual_cash_flow f
+                WHERE f.symbol = %s AND f.reason = 'unsupported_currency_no_fx_rate'
+                ORDER BY f.fiscal_year DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            if cur.fetchone() is not None:
+                valuation_row["dcf_fcf_unavailable_reason"] = "unsupported_currency_no_fx_rate"
 
     def _compute_valuations(
         self,
