@@ -662,6 +662,13 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # 1,560 rows, including real large-caps like MRNA/RBLX/RIVN/RKLB/WBD/BNTX).
             "negative_forward_eps",
             "reit_special_entity",
+            # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, "implausible values" follow-up):
+            # a real, reported $0.00 total_assets/stockholders_equity (a blank-check/shell
+            # company pre-merger, e.g. OBX) - a known business fact, not an extraction gap.
+            # Distinct from "no_recent_balance_sheet_data_reported" just below (which stays in
+            # "Missing SEC/XBRL data" - a genuine "never tagged" gap for most of its
+            # population).
+            "zero_total_assets_reported_shell_entity",
             # ADDED 2026-09-04 (goal: "under 6k the right way" sweep): load_value_quality_
             # growth_metrics.py's preferred_or_debt_security_no_common_equity_ratio -
             # AFGB/DTB/DUKB/BHFAL/KMPB/DCBG/MNSBP and siblings are preferred-stock/subordinated-

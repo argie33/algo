@@ -1720,19 +1720,22 @@ class QualityMetricsMixin(SymbolGateMixin):
                         symbol in self._get_no_recent_stockholders_equity_symbols()
                         or symbol in self._get_never_tagged_stockholders_equity_symbols()
                     )
-                    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" follow-
-                    # up): a real, reported $0.00 total_assets/stockholders_equity (a blank-
-                    # check/shell company pre-merger, e.g. OBX) makes every ratio in the `all(
-                    # ... is None)` check above genuinely undefined (division by zero), tripping
-                    # this same blanket early return - but neither branch above catches it since
-                    # both only check `is None`, not "real zero". Same "treat a real zero the
-                    # same as absent for ratio-denominator purposes" precedent already used
-                    # throughout this codebase (e.g. _get_no_recent_revenue_symbols' 2026-08-19
-                    # fix). Live-confirmed OBX: real total_assets=$0.00/stockholders_equity=
-                    # $0.00 (2026 anchor row, not data_unavailable) - every quality_metrics ratio
-                    # correctly came back None, but the row-level reason defaulted to generic
-                    # "missing_sec_data" instead of this real, knowable cause.
-                    else "no_recent_balance_sheet_data_reported"
+                    # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): a
+                    # real, reported $0.00 total_assets/stockholders_equity (a blank-check/
+                    # shell company pre-merger, e.g. OBX) makes every ratio in the `all( ...
+                    # is None)` check above genuinely undefined (division by zero), tripping
+                    # this same blanket early return - but neither branch above catches it
+                    # since both only check `is None`, not "real zero". Distinct reason string
+                    # from "no_recent_balance_sheet_data_reported" just above (a genuine "never
+                    # tagged, real extraction gap" fact for most of its population) - a real
+                    # reported zero is a known business fact (pre-merger shell, no assets yet),
+                    # same "Legitimate / not applicable" class as reit_special_entity/
+                    # non_dividend_paying_stock, not a data gap. Live-confirmed OBX: real
+                    # total_assets=$0.00/stockholders_equity=$0.00 (2026 anchor row, not
+                    # data_unavailable) - every quality_metrics ratio correctly came back None,
+                    # but the row-level reason defaulted to generic "missing_sec_data" instead
+                    # of this real, knowable cause.
+                    else "zero_total_assets_reported_shell_entity"
                     if total_assets is not None
                     and total_assets <= 0
                     and (
