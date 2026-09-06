@@ -619,8 +619,21 @@ class PreTradeChecks:
         # than what var.py would ever report for the same book, needlessly blocking entries
         # that could never actually breach the real 2.0 threshold this check is supposed to
         # enforce. Fixed to use portfolio_value, matching var.py's beta_exposure() exactly.
+        #
+        # BUG FOUND (2026-09-06 adversarial review, separate from the fix above): a
+        # non-positive portfolio_value here used to silently PASS the candidate (return
+        # True, None) instead of blocking - every other consumer of a non-positive equity
+        # reading in this codebase (var.py, intraday_risk_monitor.py) treats it as a
+        # data-integrity emergency and raises, since "portfolio value is zero/negative"
+        # means the denominator is unusable, not that beta is somehow safe. Silently
+        # passing here let a candidate bypass this risk cap at exactly the moment the
+        # account's own equity data is least trustworthy. Fixed to fail closed.
         if portfolio_value <= 0:
-            return True, None
+            raise RuntimeError(
+                f"[PRETRADE_CHECKS CRITICAL] Non-positive portfolio_value ({portfolio_value}) with "
+                f"{len(open_positions)} open position(s) - cannot compute portfolio beta against an "
+                f"invalid denominator. Failing closed rather than silently passing this risk check."
+            )
 
         portfolio_beta_after = float(
             (existing_weighted_beta + position_value * Decimal(str(candidate_beta))) / portfolio_value
@@ -669,8 +682,19 @@ class PreTradeChecks:
         ]
         position_values.append(position_value)
 
+        # BUG FOUND (2026-09-06 adversarial review): same fail-open bug as
+        # _check_portfolio_beta's identical guard - a non-positive portfolio_value used to
+        # silently pass the candidate instead of blocking, contradicting this method's own
+        # docstring ("the old fail-open behavior here was pure bug, not a considered
+        # tradeoff") which already established that stance for missing-data cases. Fixed
+        # to fail closed, matching every other non-positive-equity consumer in this codebase.
         if portfolio_value <= 0:
-            return True, None
+            raise RuntimeError(
+                f"[PRETRADE_CHECKS CRITICAL] Non-positive portfolio_value ({portfolio_value}) with "
+                f"{len(position_values) - 1} other open position(s) - cannot compute top-5 "
+                f"concentration against an invalid denominator. Failing closed rather than "
+                f"silently passing this risk check."
+            )
 
         top5_value = sum(sorted(position_values, reverse=True)[:5])
         top5_pct = float(top5_value / portfolio_value * 100)
@@ -730,12 +754,24 @@ class PreTradeChecks:
         )
         open_positions = [r for r in cur.fetchall() if r[1] is not None and r[2] is not None]
 
-        existing_value = sum(
-            (Decimal(str(qty)) * Decimal(str(price)) for _, qty, price in open_positions), start=Decimal(0)
-        )
-        total_value = existing_value + position_value
-        if total_value <= 0:
-            return True, None
+        # BUG FOUND (2026-09-06 adversarial review): this used to normalize weights by
+        # `existing_value + position_value` (sum of INVESTED position dollar values only,
+        # excluding cash) - the identical bug already found and fixed in
+        # _check_portfolio_beta on 2026-09-06 (see that method's own comment for the full
+        # rationale), never applied to this sibling check despite otherwise explicitly
+        # mirroring its pattern (see this method's own docstring). portfolio_value is TOTAL
+        # account equity (cash + open positions, this module's own header comment) - the
+        # correct denominator, matching var.py's beta_exposure()/concentration_report() and
+        # _check_top5_concentration. With meaningful idle cash, the old formula overstated
+        # simulated VaR relative to the true total-portfolio VaR (fail-safe direction - too
+        # conservative, not too permissive - but still a real, fixable calculation bug that
+        # could needlessly block entries that couldn't actually breach the real threshold).
+        if portfolio_value <= 0:
+            raise RuntimeError(
+                f"[PRETRADE_CHECKS CRITICAL] Non-positive portfolio_value ({portfolio_value}) with "
+                f"{len(open_positions)} open position(s) - cannot compute simulated VaR against an "
+                f"invalid denominator. Failing closed rather than silently passing this risk check."
+            )
 
         all_symbols = [symbol, *(p[0] for p in open_positions)]
         cur.execute(
@@ -761,9 +797,9 @@ class PreTradeChecks:
         if len(common_dates) - 1 < _SIMULATED_VAR_MIN_OVERLAP_DAYS:
             return True, None
 
-        weight_by_symbol = {symbol: position_value / total_value}
+        weight_by_symbol = {symbol: position_value / portfolio_value}
         for open_symbol, qty, price in open_positions:
-            weight_by_symbol[open_symbol] = (Decimal(str(qty)) * Decimal(str(price))) / total_value
+            weight_by_symbol[open_symbol] = (Decimal(str(qty)) * Decimal(str(price))) / portfolio_value
 
         simulated_returns: list[float] = []
         for i in range(1, len(common_dates)):

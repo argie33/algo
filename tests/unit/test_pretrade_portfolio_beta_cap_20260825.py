@@ -66,6 +66,25 @@ class TestPortfolioBetaCheck:
         assert ok is True
         assert reason is None
 
+    def test_zero_portfolio_value_with_open_positions_fails_closed(self):
+        # UPDATED 2026-09-06 (adversarial review): a non-positive portfolio_value used to
+        # silently PASS the candidate (return True, None) instead of blocking - the one
+        # inconsistency with every other non-positive-equity consumer in this codebase
+        # (var.py, intraday_risk_monitor.py, _check_top5_concentration). Fixed to fail
+        # closed. Requires an existing open position so the check doesn't short-circuit
+        # via the earlier "no open positions" fast path before ever reaching this guard.
+        checks = PreTradeChecks(config=_config())
+        cur = _FakeCursor(
+            candidate_beta_row=(1.5,),
+            open_positions_rows=[("HELD", 10, 100.0)],
+            open_betas_rows=[("HELD", 1.0)],
+        )
+        try:
+            checks._check_portfolio_beta("NEWSYM", Decimal("1000"), Decimal("0"), cur)
+            raise AssertionError("expected RuntimeError")
+        except RuntimeError:
+            pass
+
     def test_missing_beta_for_open_position_fails_open(self):
         checks = PreTradeChecks(config=_config())
         cur = _FakeCursor(

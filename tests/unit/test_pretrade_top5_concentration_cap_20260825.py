@@ -62,12 +62,19 @@ class TestTop5ConcentrationCheck:
         assert ok is True
         assert reason is None
 
-    def test_zero_portfolio_value_fails_open(self):
+    def test_zero_portfolio_value_fails_closed(self):
+        # UPDATED 2026-09-06 (adversarial review): this used to fail OPEN (silently pass
+        # the candidate) on a non-positive portfolio_value - the one inconsistency with
+        # every other non-positive-equity consumer in this codebase (var.py,
+        # intraday_risk_monitor.py, _check_portfolio_beta), which all raise rather than
+        # compute against an invalid denominator. Fixed to fail closed.
         checks = PreTradeChecks(config=_config())
         cur = _FakeCursor(position_rows=[])
-        ok, reason = checks._check_top5_concentration("NEWSYM", Decimal("1000"), Decimal("0"), cur)
-        assert ok is True
-        assert reason is None
+        try:
+            checks._check_top5_concentration("NEWSYM", Decimal("1000"), Decimal("0"), cur)
+            raise AssertionError("expected RuntimeError")
+        except RuntimeError:
+            pass
 
     def test_missing_config_key_raises(self):
         checks = PreTradeChecks(config={})

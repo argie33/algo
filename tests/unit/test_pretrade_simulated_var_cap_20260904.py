@@ -77,6 +77,33 @@ class TestSimulatedVarCheck:
 
     def test_no_open_positions_high_volatility_candidate_blocked(self):
         # 61 days -> 60 return periods, all at a flat -5% daily return: 95% VaR = 5% > 2% cap.
+        # UPDATED 2026-09-06 (adversarial review fix: weights now normalize by TOTAL
+        # portfolio_value, not invested-only value - matching _check_portfolio_beta's
+        # already-fixed pattern and var.py's beta_exposure()). With zero existing
+        # positions, portfolio_value must equal position_value for the candidate to be
+        # the account's entire book (fully invested, no idle cash) - this is what "no
+        # open positions, high volatility candidate" is actually testing; a candidate
+        # that's only a fraction of total equity should NOT be blocked at full weight.
+        dates = _dates(61)
+        prices = _prices_from_daily_return(-0.05, 61)
+        cur = _FakeCursor(
+            open_positions_rows=[],
+            price_daily_rows=_price_rows("NEWSYM", dates, prices),
+        )
+        checks = PreTradeChecks(config=_config(max_simulated_var_pct=2.0))
+        ok, reason = checks._check_portfolio_simulated_var("NEWSYM", Decimal("10000"), Decimal("10000"), cur)
+        assert ok is False
+        assert reason is not None
+        assert "2.00" in reason
+        assert "5.00" in reason
+
+    def test_candidate_is_fraction_of_total_equity_not_overweighted(self):
+        # Regression for the 2026-09-06 fix itself: a $10,000 candidate in a $100,000
+        # TOTAL portfolio (i.e. $90,000 idle cash, zero other positions) is only a 10%
+        # weight - even a severe -5%/day candidate diluted to 10% weight must NOT breach
+        # a 2% cap (weighted daily return = 0.1 * -0.05 = -0.5%, nowhere near 2%). The
+        # pre-fix bug normalized by invested-only value (here, just the candidate itself),
+        # which would have wrongly treated this as a 100%-weighted, blocked candidate.
         dates = _dates(61)
         prices = _prices_from_daily_return(-0.05, 61)
         cur = _FakeCursor(
@@ -85,10 +112,8 @@ class TestSimulatedVarCheck:
         )
         checks = PreTradeChecks(config=_config(max_simulated_var_pct=2.0))
         ok, reason = checks._check_portfolio_simulated_var("NEWSYM", Decimal("10000"), Decimal("100000"), cur)
-        assert ok is False
-        assert reason is not None
-        assert "2.00" in reason
-        assert "5.00" in reason
+        assert ok is True
+        assert reason is None
 
     def test_existing_book_and_candidate_blended_weight(self):
         # Existing $50,000 in HELD (flat 0% daily return), candidate $50,000 at -4% daily
