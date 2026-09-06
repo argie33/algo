@@ -82,6 +82,26 @@ const grade = (v) => {
   return "F";
 };
 
+// Percentile-based cutoff (top `pct` fraction of `items` by composite_score), replacing
+// the fixed composite >= 80 threshold used for "A-grade" - CHANGED 2026-09-06 (goal
+// session: user reported the scores page results "don't make sense"). Fixed 80 predates
+// the 2026-08-28/09-01 Value-pillar redesign that structurally lowered the whole composite
+// distribution (live-verified: max composite fell 82.7 -> 79.6, avg 52.4 -> 44.8 between
+// 2026-08-27 and 2026-09-06), so >= 80 had been permanently unreachable - the leaderboard
+// below showed "No A-grade names" every single day for the full week since 2026-09-01.
+// Percentile-based can't go permanently empty just because the underlying pillar math
+// shifted. See lambda/api/routes/scores_handlers/stock_scores_helpers.py's
+// _compute_stock_scores_summary for the matching backend-side change.
+function percentileCutoff(items, pct) {
+  const scores = (items || [])
+    .map((s) => s.composite_score)
+    .filter((v) => v != null)
+    .map(Number)
+    .sort((a, b) => b - a);
+  if (!scores.length) return 80;
+  return scores[Math.max(0, Math.ceil(scores.length * pct) - 1)];
+}
+
 const SORT_FIELDS = [
   { value: "composite_score", label: "Composite" },
   { value: "momentum_score", label: "Momentum" },
@@ -237,14 +257,14 @@ function ScoresDashboardPage() {
   const pageRows = filtered.slice(pageStart, pageEnd);
 
   const stats = useMemo(() => {
-    if (!items) return { total: 0, top: 0, avg: 0, gradeA: 0 };
-    const top = items.filter((s) => Number(s.composite_score) >= 80).length;
+    if (!items) return { total: 0, top: 0, avg: 0, gradeA: 0, aCutoff: 80 };
+    const aCutoff = percentileCutoff(items, 0.1);
+    const top = items.filter((s) => Number(s.composite_score) >= aCutoff).length;
     const valid = items.filter((s) => s.composite_score != null);
     const avg = valid.length
       ? valid.reduce((s, x) => s + Number(x.composite_score), 0) / valid.length
       : 0;
-    const gradeA = items.filter((s) => Number(s.composite_score) >= 80).length;
-    return { total: items.length, top, avg, gradeA };
+    return { total: items.length, top, avg, gradeA: top, aCutoff };
   }, [items]);
 
   const marketAvgs = useMemo(() => {
@@ -503,7 +523,7 @@ function ScoresDashboardPage() {
         tabs={[
           { value: "rankings", label: "Rankings" },
           { value: "movers", label: "Top Movers" },
-          { value: "leaderboard", label: "A-Grade ≥ 80" },
+          { value: "leaderboard", label: "A-Grade (top 10%)" },
           { value: "heatmap", label: "Factor Heatmap" },
           { value: "distribution", label: "Distributions" },
           { value: "correlation", label: "Correlations" },
@@ -1158,7 +1178,8 @@ function MoverCard({ title, rows, field, tone, onClick, fmt }) {
 // ─── tab: leaderboard ≥ 80 ────────────────────────────────────────────────
 function LeaderboardTab({ items, sectorFilter, onClick }) {
   const [activeSec, setActiveSec] = useState(sectorFilter || "");
-  const eligible = items.filter((s) => Number(s.composite_score) >= 80);
+  const aCutoff = percentileCutoff(items, 0.1);
+  const eligible = items.filter((s) => Number(s.composite_score) >= aCutoff);
   const sectors = Array.from(
     new Set(eligible.map((s) => s.sector).filter(Boolean))
   ).sort();
@@ -1172,7 +1193,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
         <div className="card-body">
           <Empty
             title="No A-grade names"
-            desc="No symbols currently rank ≥ 80 on composite."
+            desc={`No symbols currently rank ≥ ${aCutoff.toFixed(1)} on composite (top 10%).`}
           />
         </div>
       </div>
@@ -1185,7 +1206,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
         <div className="card-head">
           <div>
             <div className="card-title">
-              A-Grade Leaderboard (Composite ≥ 80)
+              A-Grade Leaderboard (Composite ≥ {aCutoff.toFixed(1)}, top 10%)
             </div>
             <div className="card-sub">
               {eligible.length} qualifying names · click chip to filter by

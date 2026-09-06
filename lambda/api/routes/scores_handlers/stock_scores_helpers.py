@@ -749,7 +749,21 @@ def _log_stock_scores_price_quality(items: list[dict[str, Any]]) -> None:
 def _compute_stock_scores_summary(items: list[dict[str, Any]]) -> tuple[float | None, dict[str, int]]:
     """Compute average composite score and grade distribution (A/B/C/D) over ALL scores
     (not just this page) - the dashboard summary line needs these metrics for the full
-    universe. Standard grading: A=80+, B=70-79, C=60-69, D=<60.
+    universe.
+
+    Grading is PERCENTILE-based (top 10%=A, next 20%=B, next 30%=C, bottom 40%=D), not
+    fixed absolute cutoffs (80/70/60) - CHANGED 2026-09-06 (goal session: user reported the
+    scores page "doesn't make sense"). The fixed cutoffs predate the 2026-08-28/09-01
+    Value-pillar redesign (loaders/stock_scores/value_score.py: fixed curves -> cross-
+    sectional percentile ranking, unprofitable-company P/E floored to 0 rather than skipped)
+    which structurally lowered the whole composite distribution - live-verified via
+    stock_scores_history: avg composite 52.4 -> 44.8 and max composite 82.7 -> 79.6 between
+    2026-08-27 and 2026-09-06, so the A>=80 bucket had been silently EMPTY (0 of ~4,900
+    symbols) for the full week since 2026-09-01, and the frontend's "A-Grade Leaderboard"
+    feature was permanently showing empty. Percentile-based buckets can't go permanently
+    empty just because the underlying pillar math shifted - matches this same repo's own
+    "cross-sectional percentile beats fixed absolute curve" finding for Value's PE/PB/PS,
+    applied here to the letter-grade layer for the same reason.
     """
     avg_composite: float | None = None
     grades_summary: dict[str, int] = {}
@@ -764,15 +778,20 @@ def _compute_stock_scores_summary(items: list[dict[str, Any]]) -> tuple[float | 
         if composite_scores:
             avg_composite = sum(composite_scores) / len(composite_scores)
 
-        # Count grade distribution (A/B/C/D) from composite scores
-        for item in items:
-            comp_score = item.get("composite_score")
-            if comp_score is not None:
-                if comp_score >= 80:
+            # Percentile cut points computed from THIS call's own score distribution (the
+            # caller passes the full filtered universe, not a small page - see call site).
+            ranked = sorted(composite_scores, reverse=True)
+            n = len(ranked)
+            a_cutoff = ranked[max(0, int(n * 0.10) - 1)]
+            b_cutoff = ranked[max(0, int(n * 0.30) - 1)]
+            c_cutoff = ranked[max(0, int(n * 0.60) - 1)]
+
+            for comp_score in composite_scores:
+                if comp_score >= a_cutoff:
                     grades_summary["a"] = grades_summary.get("a", 0) + 1
-                elif comp_score >= 70:
+                elif comp_score >= b_cutoff:
                     grades_summary["b"] = grades_summary.get("b", 0) + 1
-                elif comp_score >= 60:
+                elif comp_score >= c_cutoff:
                     grades_summary["c"] = grades_summary.get("c", 0) + 1
                 else:
                     grades_summary["d"] = grades_summary.get("d", 0) + 1
