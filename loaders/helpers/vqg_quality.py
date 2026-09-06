@@ -2769,7 +2769,24 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             metrics["total_debt_unavailable_reason"] = (
                 (
-                    "total_debt_not_itemized"
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same RIC/
+                    # ETF-trust sibling-wiring gap already fixed for this field's own downstream
+                    # dependents (roic_pct/roce_pct/debt_to_equity all consume total_debt_ev,
+                    # recategorized to this same reason via the RIC/ETF-trust recategorize
+                    # blocks below) but never fixed for total_debt itself - live-confirmed 82
+                    # active-universe RIC symbols (GGN/BLW/BGY and siblings) report
+                    # total_debt_unavailable_reason='total_debt_not_itemized' even though the
+                    # root cause is identical: a "Statement of Changes in Net Assets" has no
+                    # debt-component concepts to tag at all, the same permanent structural
+                    # absence already correctly bucketed "Legitimate / not applicable" for the
+                    # fields built from this exact value. Checked first, same ordering as
+                    # fcf_margin_unavailable_reason above, so the more specific, correctly-
+                    # categorized reason wins over the generic never-tagged-debt-components gate.
+                    "registered_investment_company_no_xbrl"
+                    if symbol in self._get_registered_investment_company_symbols()
+                    else "etf_trust_no_gaap_financials"
+                    if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    else "total_debt_not_itemized"
                     if symbol in self._get_no_recent_debt_components_symbols()
                     or symbol in self._get_never_tagged_debt_components_symbols()
                     # total_debt_ev comes from the same ev_metrics tuple as total_cash_ev/
