@@ -2153,6 +2153,15 @@ class QualityMetricsMixin(SymbolGateMixin):
                 (
                     "implausible_ratio"
                     if "accruals_ratio" in implausible_ratio_metrics
+                    # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up): a
+                    # registered investment company files a "Statement of Changes in Net
+                    # Assets" instead of a conventional cash-flow statement, leaving it with
+                    # ZERO fiscal_year>0 annual_cash_flow rows - too sparse to match
+                    # _get_no_recent_operating_cash_flow_symbols()'s own pattern. Live-confirmed
+                    # GGN (GAMCO Global Gold, Natural Resources & Income Trust). Checked first,
+                    # same priority as fcf_margin/fcf_yield's identical RIC check elsewhere.
+                    else "registered_investment_company_no_xbrl"
+                    if accruals_ratio is None and symbol in self._get_registered_investment_company_symbols()
                     else "no_recent_operating_cash_flow_reported"
                     if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
                     # Label-only: operating_cash_flow is None because the anchor year's own
@@ -2624,7 +2633,12 @@ class QualityMetricsMixin(SymbolGateMixin):
             )
             metrics["ocf_to_net_income_unavailable_reason"] = (
                 (
-                    "no_recent_operating_cash_flow_reported"
+                    # Same RIC gap as accruals_ratio_unavailable_reason above. Live-confirmed
+                    # 14 universe symbols (IGI/TY/ASA/GAM/GGN/GGT/GLU/PIM/PMM/GNT/HQH/PPT/NXP/
+                    # SOR).
+                    "registered_investment_company_no_xbrl"
+                    if operating_cash_flow is None and symbol in self._get_registered_investment_company_symbols()
+                    else "no_recent_operating_cash_flow_reported"
                     if operating_cash_flow is None and symbol in self._get_no_recent_operating_cash_flow_symbols()
                     # Label-only, no value recomputed.
                     else "operating_cash_flow_absent_from_anchor_year"
