@@ -48,6 +48,9 @@ from decimal import Decimal
 from typing import Any, cast
 from xml.etree import ElementTree as ET
 
+from utils.external.fx_rates import MAJOR_CURRENCIES
+from utils.external.sec_custom_xbrl_concepts import _fx_rate_cache, _parse_unit_currencies
+
 logger = logging.getLogger(__name__)
 
 # Standard us-gaap axes used for ASC 280 segment reporting. Axis *names* are
@@ -850,6 +853,7 @@ class XBRLSegmentParser:
         segment reported a -$2.66B OperatingIncomeLoss in FY2023).
         """
         values: dict[str, float] = {}
+        unit_currencies = _parse_unit_currencies(root)
         for concept in concept_local_names:
             facts: list[tuple[str, float, bool]] = []
             for elem in root.iter():
@@ -878,9 +882,22 @@ class XBRLSegmentParser:
                 if value is None:
                     continue
                 try:
-                    facts.append((member, float(value.strip()), is_boilerplate))
+                    fvalue = float(value.strip())
                 except ValueError:
                     continue
+                # Same FX-normalization as the revenue path above (see
+                # extract_segment_revenue_from_xbrl_xml's 2026-09-06 comment) - operating_income
+                # and assets share this one extraction function, so the same wrong-magnitude
+                # local-currency bug applied to both, not just revenue.
+                currency = unit_currencies.get(elem.get("unitRef") or "")
+                if currency and currency != "USD":
+                    if currency not in MAJOR_CURRENCIES:
+                        continue
+                    fx_rate = _fx_rate_cache.get_usd_rate(currency, end_str)
+                    if fx_rate is None or fx_rate == 0:
+                        continue
+                    fvalue = fvalue / fx_rate
+                facts.append((member, fvalue, is_boilerplate))
             if facts:
                 values = XBRLSegmentParser._dedupe_member_facts(facts, symbol, concept)
                 break
@@ -959,6 +976,31 @@ class XBRLSegmentParser:
         axis_priority = [axis for axis in _SEGMENT_AXIS_LOCAL_NAMES if axis in available_axes]
         axis_to_use = axis_priority[0]
 
+        # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep, segment-sum-to-
+        # consolidated FX gap - see this file's module docstring on the previously-rejected
+        # "Segment-sum-to-consolidated" tie-out check for the live evidence: AKO.A/AKO.B/KWM/
+        # LGPS/MRM/LFS/LRE/PDC/PAYP-style foreign filers showed 100x-1,400x magnitude errors
+        # because segment revenue is tagged in the filer's local reporting currency with no
+        # normalization step here, unlike annual_income_statement.revenue (which DOES convert -
+        # see sec_statements_entry_resolution.py's _aggregate_concepts_apply_entry_value). This
+        # was silently storing wrong-magnitude local-currency values as if they were USD, not
+        # just under-reporting - a real "no confidently-wrong data" violation, not merely a
+        # missing-data gap. Live-verified against AKO.A's real FY2025 20-F (CIK 0000925261,
+        # accession 0001104659-26-038506): Brazil segment revenue was $976,907,746,000 (raw CLP
+        # stored as if USD) before this fix, $1,085,525,417 (a plausible real figure) after -
+        # Chile/Argentina/Paraguay corrected the same way, summing to ~$3.7B total, consistent
+        # with Andina's real known consolidated scale. Resolves each matched fact's own unitRef
+        # to a currency and converts via the same real historical-ECB-rate FxRateCache the
+        # income/balance-sheet extractors use (never a guessed rate); a non-major, non-USD
+        # currency (e.g. KRW/JPY-scale mismatches, or a lookup failure) rejects the fact entirely
+        # rather than storing an unconverted or fabricated value - same fail-closed discipline as
+        # every other currency guard in this codebase. Scoped to this direct-axis-facts path and
+        # its sibling _extract_segment_member_values (operating_income/assets, same bug) - the
+        # cross-tab/component-sum/Ares-style fallback paths below are predominantly US filers
+        # already reporting in USD and are left untouched rather than risk a wider, less-tested
+        # change.
+        unit_currencies = _parse_unit_currencies(root)
+
         candidate_facts: list[tuple[str, str, int, float, bool]] = []
         # (member, end_date, duration_days, revenue, is_boilerplate_paired)
         matched_concept = None
@@ -982,6 +1024,14 @@ class XBRLSegmentParser:
                         revenue = float(value.strip())
                     except ValueError:
                         continue
+                    currency = unit_currencies.get(elem.get("unitRef") or "")
+                    if currency and currency != "USD":
+                        if currency not in MAJOR_CURRENCIES or not end_str:
+                            continue
+                        fx_rate = _fx_rate_cache.get_usd_rate(currency, end_str)
+                        if fx_rate is None or fx_rate == 0:
+                            continue
+                        revenue = revenue / fx_rate
                     duration_days = 0
                     if start_str and end_str:
                         try:
