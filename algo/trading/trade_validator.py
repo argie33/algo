@@ -570,8 +570,20 @@ class TradeValidator:
             # This allows re-entry instead of blocking with an error
             is_stop_out = False
             if exit_reason is not None:
-                # Only enforce re-entry rules if prior trade was a stop-out
+                # Only enforce flip-flop/max-reentries rules if prior trade was a stop-out
                 is_stop_out = "STOP" in exit_reason.upper() or "TIME" in exit_reason.upper()
+
+            # REAL-MONEY-READINESS FIX (2026-09-06 audit, round 2): the wash-sale cooldown
+            # below was previously nested inside `if is_stop_out:`, so any loss exit whose
+            # exit_reason didn't contain "STOP"/"TIME" - e.g. "RS line broke below 50-DMA
+            # (loser: ...)", "TD Combo 13-count exhaustion", "First Red Day", "Climax run
+            # exhaustion" - bypassed the wash-sale check entirely and allowed same-day
+            # re-entry into a symbol just sold at a loss, squarely inside the IRS 30-day
+            # wash-sale window. Wash-sale exposure depends only on whether the prior exit
+            # was a LOSS, not on how it was labeled, so it must be evaluated independent of
+            # is_stop_out. is_stop_out still gates the separate flip-flop/max-reentries
+            # concern (repeated stop-out churn on the same name).
+            is_loss_exit = exit_pnl is not None and float(exit_pnl) < 0
 
             if is_stop_out:
                 prior_reentry_count = int(prior_reentry)
@@ -581,43 +593,38 @@ class TradeValidator:
                         f"{symbol}: {prior_reentry_count} prior re-entries within 30 days >= {self.max_reentries_per_name} max",
                         0,
                     )
-
-                # Enforce minimum days between stop-out and re-entry (using validated instance variable)
-                if exit_date:
-                    exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
-                    # CRITICAL FIX: this compared exit_d (an ET trading date - see signal_date/
-                    # entry_date defaults above, both datetime.now(EASTERN_TZ).date(), the
-                    # convention this whole file uses) against a UTC calendar date. Between
-                    # ~7pm-midnight ET, UTC's date has already rolled to the next day while the
-                    # ET trading date hasn't, so days_since_exit read one day too HIGH - an
-                    # evening/afterhours run could let a re-entry through one day earlier than
-                    # min_days_before_reentry_same_symbol actually requires. Use the same
-                    # EASTERN_TZ convention as the rest of this file for internal consistency.
-                    days_since_exit = (datetime.now(EASTERN_TZ).date() - exit_d).days
-
-                    # REAL-MONEY-READINESS FIX (2026-09-06 audit): min_days_before_reentry_
-                    # same_symbol alone is a pure flip-flop-prevention reset period with no
-                    # tax awareness - re-entering the same symbol 6-29 days after a LOSS-
-                    # driven stop-out (which the base 5-day reset already permits) triggers
-                    # the IRS wash-sale rule (30-day window before/after a loss sale),
-                    # disallowing that loss for tax purposes in a taxable account. Wash sale
-                    # only applies to LOSSES, not gains - a profitable stop-out (e.g. a
-                    # trailing stop) has no tax concern here and only waits the shorter base
-                    # reset period. required_cooldown_days is the base reset UNLESS this was
-                    # a loss, in which case it's whichever is longer.
-                    is_loss_exit = exit_pnl is not None and float(exit_pnl) < 0
-                    required_cooldown_days = self.min_days_before_reentry_same_symbol
-                    cooldown_reason = "reset period"
-                    if is_loss_exit and self.wash_sale_cooldown_days > required_cooldown_days:
-                        required_cooldown_days = self.wash_sale_cooldown_days
-                        cooldown_reason = "wash-sale cooldown - prior exit was a loss"
-
-                    if days_since_exit < required_cooldown_days:
-                        return (
-                            False,
-                            f"{symbol}: only {days_since_exit}d since stop-out; require {required_cooldown_days}d before re-entry ({cooldown_reason})",
-                            0,
-                        )
                 reentry_count = prior_reentry_count + 1
+
+            # Enforce minimum days between exit and re-entry (using validated instance variable)
+            if exit_date:
+                exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
+                # CRITICAL FIX: this compared exit_d (an ET trading date - see signal_date/
+                # entry_date defaults above, both datetime.now(EASTERN_TZ).date(), the
+                # convention this whole file uses) against a UTC calendar date. Between
+                # ~7pm-midnight ET, UTC's date has already rolled to the next day while the
+                # ET trading date hasn't, so days_since_exit read one day too HIGH - an
+                # evening/afterhours run could let a re-entry through one day earlier than
+                # min_days_before_reentry_same_symbol actually requires. Use the same
+                # EASTERN_TZ convention as the rest of this file for internal consistency.
+                days_since_exit = (datetime.now(EASTERN_TZ).date() - exit_d).days
+
+                # min_days_before_reentry_same_symbol is a pure flip-flop-prevention reset
+                # period and only applies after a stop-out. Wash-sale exposure applies to
+                # ANY loss exit regardless of label. required_cooldown_days is whichever
+                # requirement (if any) is active and longer.
+                required_cooldown_days = 0
+                cooldown_reason = "reset period"
+                if is_stop_out:
+                    required_cooldown_days = self.min_days_before_reentry_same_symbol
+                if is_loss_exit and self.wash_sale_cooldown_days > required_cooldown_days:
+                    required_cooldown_days = self.wash_sale_cooldown_days
+                    cooldown_reason = "wash-sale cooldown - prior exit was a loss"
+
+                if required_cooldown_days > 0 and days_since_exit < required_cooldown_days:
+                    return (
+                        False,
+                        f"{symbol}: only {days_since_exit}d since exit; require {required_cooldown_days}d before re-entry ({cooldown_reason})",
+                        0,
+                    )
 
         return True, None, reentry_count

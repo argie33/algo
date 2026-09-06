@@ -1400,17 +1400,26 @@ class OrderManager(StopLossRepairMixin):
             "message": f"Order filled: {order_id}",
         }
 
-    def _try_close_position_fallback(self, symbol: str) -> dict[str, Any] | None:
-        """Close a position via Alpaca's /v2/positions/{symbol} DELETE endpoint.
+    def _try_close_position_fallback(self, symbol: str, qty: float) -> dict[str, Any] | None:
+        """Close (a portion of) a position via Alpaca's /v2/positions/{symbol} DELETE endpoint.
 
         Used by send_market_exit's 403 "insufficient qty" handling when all shares are held
         by open orders (e.g. an existing bracket) - the close-position endpoint bypasses that
         hold. Returns a result dict on any definitive outcome (filled, pending-fill, or a
         response missing a required field), or None if the endpoint itself returned a non-2xx
         status - the caller falls through to its normal retry/last_error handling in that case.
+
+        REAL-MONEY-READINESS FIX (2026-09-06 audit): this previously called DELETE with no
+        `qty` param, which closes the ENTIRE position at Alpaca regardless of how many shares
+        send_market_exit was actually asked to sell. A routine partial exit (e.g. a T1 scale-
+        out selling 30% while the bracket keeps protecting the rest) always hits this fallback,
+        since the resting bracket holds 100% of shares for orders - so every partial exit was
+        silently becoming a full liquidation. Passing `qty` restricts the close to the amount
+        actually requested.
         """
         close_resp = requests.delete(
             f"{self.alpaca_base_url}/v2/positions/{symbol}",
+            params={"qty": str(qty)},
             headers={
                 "APCA-API-KEY-ID": self.alpaca_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
@@ -1524,7 +1533,7 @@ class OrderManager(StopLossRepairMixin):
                         f"[SEND_EXIT] {symbol}: All {held} shares locked by open orders. "
                         f"Using close-position endpoint to override existing bracket."
                     )
-                    fallback_result = self._try_close_position_fallback(symbol)
+                    fallback_result = self._try_close_position_fallback(symbol, shares)
                     if fallback_result is not None:
                         return ("return", fallback_result)
         except (ValueError, TypeError, json.JSONDecodeError) as e:

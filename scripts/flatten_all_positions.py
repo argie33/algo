@@ -47,19 +47,19 @@ def _noop_log_phase_result(*args: object, **kwargs: object) -> None:
     pass
 
 
-def _fetch_open_trades() -> list[tuple[int, str]]:
-    """(trade_id, symbol) for every non-terminal trade - same status set exit_engine.py's
-    own core exit-candidate query uses (TradeStatus.all_open()), so this sees exactly the
-    same positions the normal automated exit path would eventually act on.
+def _fetch_open_trades() -> list[tuple[int, str, str]]:
+    """(trade_id, symbol, status) for every non-terminal trade - same status set
+    exit_engine.py's own core exit-candidate query uses (TradeStatus.all_open()), so this
+    sees exactly the same positions the normal automated exit path would eventually act on.
     """
     open_statuses = TradeStatus.all_open()
     placeholders = ", ".join(["%s"] * len(open_statuses))
     with DatabaseContext("read") as cur:
         cur.execute(
-            f"SELECT trade_id, symbol FROM algo_trades WHERE status IN ({placeholders}) ORDER BY trade_date ASC",
+            f"SELECT trade_id, symbol, status FROM algo_trades WHERE status IN ({placeholders}) ORDER BY trade_date ASC",
             open_statuses,
         )
-        return [(row[0], row[1]) for row in cur.fetchall()]
+        return [(row[0], row[1], row[2]) for row in cur.fetchall()]
 
 
 def main() -> int:
@@ -78,8 +78,8 @@ def main() -> int:
 
     if args.status:
         print(f"Open positions: {len(open_trades)}")
-        for trade_id, symbol in open_trades:
-            print(f"  trade_id={trade_id} symbol={symbol}")
+        for trade_id, symbol, status in open_trades:
+            print(f"  trade_id={trade_id} symbol={symbol} status={status}")
         return 0
 
     if not open_trades:
@@ -108,7 +108,29 @@ def main() -> int:
     closed: list[str] = []
     failed: list[tuple[str, str]] = []
 
-    for trade_id, symbol in open_trades:
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): trades in PENDING/OPEN status have been
+    # submitted to Alpaca (or queued to be) but have NOT filled yet - there is no position
+    # for exit_trade() to close, so routing them through the fill-based exit path always
+    # failed with "Position quantity unavailable" and the resting entry order at the broker
+    # was left completely untouched. Minutes later that order could fill, creating a brand
+    # new, unprotected position (no bracket attached, since Phase 8 already ran) after the
+    # operator believed the account was flat. These must be cancelled at the broker instead.
+    unfilled_statuses = {TradeStatus.PENDING.value, TradeStatus.OPEN.value}
+    unfilled_trades = [(tid, sym) for tid, sym, status in open_trades if status in unfilled_statuses]
+    filled_trades = [(tid, sym) for tid, sym, status in open_trades if status not in unfilled_statuses]
+
+    for trade_id, symbol in unfilled_trades:
+        cancel_result = executor.order_manager.cancel_all_open_orders_for_symbol(symbol)
+        if cancel_result.get("success"):
+            closed.append(symbol)
+            print(f"  CANCELLED unfilled order(s) for {symbol} (trade_id={trade_id}): {cancel_result.get('message')}")
+        else:
+            failed.append((symbol, str(cancel_result.get("message"))))
+            print(
+                f"  FAILED to cancel unfilled order for {symbol} (trade_id={trade_id}): {cancel_result.get('message')}"
+            )
+
+    for trade_id, symbol in filled_trades:
         try:
             quote = fetch_live_quote(symbol, execution_mode, log_prefix="FLATTEN_ALL")
         except Exception as e:

@@ -46,6 +46,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_premarket" {
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+
     input = jsonencode({
       source         = "eventbridge-scheduler"
       run_date       = "now"
@@ -85,6 +97,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
     # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
+
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
 
     input = jsonencode({
       source         = "eventbridge-scheduler"
@@ -126,6 +150,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+
     input = jsonencode({
       source         = "eventbridge-scheduler"
       run_date       = "now"
@@ -166,6 +202,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
     # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
+
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
 
     input = jsonencode({
       source         = "eventbridge-scheduler"
@@ -209,6 +257,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
     # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
+
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
 
     input = jsonencode({
       source         = "eventbridge-scheduler"
@@ -262,6 +322,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_morning" {
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+
     input = jsonencode({
       source         = "eventbridge-scheduler"
       run_date       = "now"
@@ -301,6 +373,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_afternoon" {
     # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
+
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
 
     input = jsonencode({
       source         = "eventbridge-scheduler"
@@ -342,6 +426,18 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_preclose" {
     # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
     arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
+
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): EventBridge Scheduler's default retry
+    # policy (up to 185 attempts over 24h) would re-invoke this Lambda repeatedly on a
+    # transient invocation failure (throttle/infra blip) rather than the orchestrator's own
+    # halt logic deciding not to run. The DynamoDB concurrency lock and market-hours guard
+    # already prevent a retry from causing a double-run in practice, but there is no reason
+    # to rely on those as the only backstop against a retry storm - disable scheduler-level
+    # retries explicitly so a failed invocation stays failed (visible in alarms) instead of
+    # being silently re-attempted.
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
 
     input = jsonencode({
       source         = "eventbridge-scheduler"

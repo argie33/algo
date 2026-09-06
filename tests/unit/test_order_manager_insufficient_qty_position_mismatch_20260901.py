@@ -115,6 +115,31 @@ class TestHandleInsufficientQtyLockedByOrders:
         # Only the initial failed POST - no further POST retries once the DELETE fallback succeeds.
         assert mock_post.call_count == 1
 
+    def test_partial_exit_close_position_fallback_only_closes_requested_qty(self):
+        """REAL-MONEY-READINESS FIX (2026-09-06 audit): the close-position DELETE call
+        previously carried no qty param, so this fallback closed the ENTIRE position at
+        Alpaca regardless of how many shares send_market_exit was actually asked to sell.
+        A routine partial exit (e.g. a T1 scale-out selling 30 of 100 shares while the
+        bracket keeps protecting the rest) always hits this fallback, since the resting
+        bracket holds 100% of shares for orders - so every partial exit was silently
+        becoming a full liquidation. The DELETE call must be scoped to the requested qty."""
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        first_403 = _resp(403, json_data={"available": "0", "held_for_orders": "100"})
+        close_position_resp = _resp(
+            200,
+            json_data={"id": "close-order-456", "filled_avg_price": "9.95"},
+        )
+
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=first_403),
+            patch("algo.trading.order_manager.requests.delete", return_value=close_position_resp) as mock_delete,
+        ):
+            result = manager.send_market_exit("AAPL", shares=30, execution_mode="auto")
+
+        assert result["success"] is True
+        delete_kwargs = mock_delete.call_args.kwargs
+        assert delete_kwargs["params"]["qty"] == "30"
+
 
 class TestHandleInsufficientQtyFailsSafe:
     """Neither case applies, or the retry itself never succeeds: must fail without ever

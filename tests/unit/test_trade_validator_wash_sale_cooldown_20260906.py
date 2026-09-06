@@ -120,3 +120,33 @@ class TestWashSaleCooldown:
         is_valid, _message, _ = validator.check_reentry_rules(cur, "AAPL")
 
         assert is_valid is False
+
+    def test_loss_exit_with_non_stop_time_reason_still_blocked_by_wash_sale(self):
+        """Round-2 gap found 2026-09-06: the wash-sale check was nested inside
+        `if is_stop_out` (exit_reason containing "STOP" or "TIME"), so a loss exit labeled
+        with any other reason string - RS-line breakdown, TD Combo/Sequential exhaustion,
+        First Red Day, climax exhaustion, all genuine loss-exit paths in
+        exit_position_context.py - bypassed the wash-sale cooldown entirely and allowed
+        same-day re-entry inside the IRS 30-day window. Wash-sale exposure depends only on
+        whether the prior exit was a loss, not on how it was labeled."""
+        validator = _make_validator(min_days=5, wash_sale_cooldown_days=31)
+        cur = _cursor_with_prior_exit(
+            days_ago=15, profit_loss_pct=-4.2, exit_reason="RS line broke below 50-DMA (loser: R=0.3)"
+        )
+
+        is_valid, message, _ = validator.check_reentry_rules(cur, "AAPL")
+
+        assert is_valid is False
+        assert message is not None
+        assert "wash-sale" in message.lower()
+
+    def test_profitable_exit_with_non_stop_time_reason_not_blocked(self):
+        """Symmetric check: a non-STOP/TIME-labeled exit that was profitable must not be
+        blocked by either the flip-flop reset (never applied - not a stop_out) or wash-sale
+        (not a loss)."""
+        validator = _make_validator(min_days=5, wash_sale_cooldown_days=31)
+        cur = _cursor_with_prior_exit(days_ago=1, profit_loss_pct=2.5, exit_reason="Climax run exhaustion")
+
+        is_valid, _message, _ = validator.check_reentry_rules(cur, "AAPL")
+
+        assert is_valid is True
