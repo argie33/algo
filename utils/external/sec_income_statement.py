@@ -180,6 +180,28 @@ _INCOME_IFRS_ALIASES = [
     # FY2024. target_key matches the us-gaap concept's existing column so no field_mapping
     # changes are needed (same convention as every other alias in this list).
     ("FinanceCosts", "interest_expense"),
+    # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data" sweep, interest_expense_not_itemized
+    # investigation): Brookfield Corporation (BN, CIK 0001001085) tags the plain ifrs-full:
+    # "InterestExpense" concept directly - live-confirmed real, large, growing values ($4.854B
+    # FY2018 -> $10.702B FY2022) consistent with BN's real scale as a holding company with massive
+    # non-recourse subsidiary debt (real estate/infrastructure/renewable power). Listed AFTER
+    # FinanceCosts so the narrower, more precise tag wins on overwrite for any filer reporting
+    # both (same last-listed-wins convention as the rest of this list) - unlike FinanceCosts
+    # (deliberately unmapped for interest_coverage above, too broad), plain "InterestExpense" is
+    # IFRS's own dedicated interest-expense element, not a broader finance-costs aggregate.
+    # Deliberately did NOT add the narrower-sounding "InterestExpenseOnBorrowings" sibling
+    # concept: live-checked on the SAME BN filing, it's only $527M-$742M/year (2022-2025) -
+    # 15x SMALLER than BN's own plain InterestExpense for the same fiscal years - proving it's
+    # a narrow sub-component (e.g. parent-level corporate borrowings only), not BN's real total
+    # consolidated interest expense. No independent value exists to validate
+    # InterestExpenseOnBorrowings against (same problem already correctly identified and
+    # rejected for ARW's InterestIncomeExpenseNet - see
+    # arw_interest_expense_net_concept_candidate_not_fixed_20260903 in memory), so it stays
+    # unmapped rather than risk silently understating interest_expense for filers where it's a
+    # narrow sub-line. Also checked and confirmed absent (safe no-op) for Equinor (EQNR),
+    # Cemex (CX), Canada Goose (GOOS), Ferrovial, Docebo, Global-E, and Huize - this alias only
+    # ever fires for a filer that tags the exact standard concept.
+    ("InterestExpense", "interest_expense"),
 ]
 
 _INCOME_DEI_ALIASES = [
