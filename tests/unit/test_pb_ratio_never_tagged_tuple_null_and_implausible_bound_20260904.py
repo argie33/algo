@@ -120,6 +120,36 @@ class TestPbRatioImplausibleBound:
         assert metrics["pb_ratio"] is None
         assert metrics["pb_ratio_unavailable_reason"] == "implausible_ratio"
 
+    def test_real_book_value_per_share_below_floor_reports_implausible_ratio(self):
+        """FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" audit, same fix as
+        ps_ratio's identical gap). load_sec_valuations.py's own pb computation rejects a real
+        book-value-per-share below $0.10 even when the implied pb itself lands inside
+        0.05..1000 - this reason chain never re-derived that floor, only the implied-pb
+        bounds, so a real bvps just under $0.10 with a normal price fell through to
+        "missing_sec_data" instead of "implausible_ratio".
+        """
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            # bvps = 5M / 100M shares = $0.05 (< $0.10 floor), price $5 -> pb = 100, well
+            # within 0.05..1000 - the bare bounds check alone would miss this.
+            mock_db_ctx.return_value.__enter__.return_value = _EquityQueryCursor(equity_row=(5_000_000.0,))
+            metrics = loader._build_value_metrics(
+                "THINEQUITYCO",
+                _FakeSecValRow(
+                    {
+                        "pe_ratio": 10.0,
+                        "peg_ratio": 1.0,
+                        "pb_ratio": None,
+                        "current_price": 5.0,
+                        "market_cap": 5e8,
+                        "shares_outstanding": 100_000_000.0,
+                    }
+                ),
+            )
+
+        assert metrics["pb_ratio"] is None
+        assert metrics["pb_ratio_unavailable_reason"] == "implausible_ratio"
+
     def test_real_book_value_in_bounds_keeps_generic_reason_without_shares_outstanding(self):
         # Same as test_pb_ratio_never_tagged_equity_reason_20260902.py's AMBIGCO case: no
         # shares_outstanding on the sec_valuations row means the implausible-ratio recompute

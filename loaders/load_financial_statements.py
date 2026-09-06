@@ -2968,6 +2968,28 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # company_info_sec reference AGAINST here (the whole point is none exists) - the
         # reference is used directly, trusting its own already-applied plausibility floor
         # (MIN_PLAUSIBLE_SHARES_OUTSTANDING, load_sec_valuations.py) rather than guessed.
+        #
+        # KNOWN LIMITATION (found 2026-09-05, same investigation, verified against Visa's
+        # own real numbers before shipping): company_info_sec.shares_outstanding is a
+        # SINGLE current snapshot, not a per-fiscal-year history - every fiscal year for a
+        # symbol that reaches this tier divides by the exact same share count. This is
+        # fine for a single-year consumer (pe_ratio's TTM EPS), but for a MULTI-YEAR
+        # consumer (growth_metrics' eps_growth_1y/3y/5y, which compares two derived years
+        # against each other), the constant divisor cancels out of the ratio entirely -
+        # the resulting "EPS growth rate" becomes mathematically identical to net_income
+        # growth, silently losing any real EPS growth contributed by share buybacks
+        # (or diluted by issuance). Live-quantified via Visa (an active repurchaser):
+        # real FY25-vs-FY24 basic EPS growth was +4.93% ($10.22 vs $9.74, both real
+        # reported values) - derived-from-this-tier growth using the same net_income
+        # figures would only show +1.62%, roughly 1/3 of the real rate. Not fabricated or
+        # wrong-signed, just a real, quantifiable floor on precision for any buyback-
+        # active symbol in this tier's population - the true fix (recovering the exact
+        # per-year reported EPS) requires parsing each fiscal year's raw XBRL instance
+        # document for a StatementClassOfStockAxis-dimensioned EarningsPerShareBasic fact
+        # (confirmed technically feasible via Visa's real filing - see this session's
+        # notes - but needs the same per-symbol dimensional-member verification the
+        # sec_xbrl_segments.py segment-revenue fixes already do one company at a time,
+        # not a blanket rule), deliberately not attempted here.
         needs_reference_only_division: list[dict[str, Any]] = []
         for row in transformed:
             if row.get("earnings_per_share") is not None:

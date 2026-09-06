@@ -558,7 +558,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                 _current_price = row_dict.get("current_price")
                 if _current_price is not None and float(_current_price) > 0:
                     _implied_pe = float(_current_price) / float(latest_eps)
-                    if _implied_pe > 10000 or _implied_pe < 0.05:
+                    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit,
+                    # same fix as ps_ratio's identical gap just below): this only re-checked
+                    # the implied-pe bounds, missing load_sec_valuations.py's OTHER real
+                    # rejection criterion (ttm_eps < 0.10) - a tiny EPS combined with an
+                    # equally tiny price can produce an implied_pe that lands comfortably
+                    # inside 0.05..10000 even though the real computation rejected it via the
+                    # EPS floor, so this fell through to "missing_sec_data" instead of
+                    # "implausible_ratio".
+                    if _implied_pe > 10000 or _implied_pe < 0.05 or float(latest_eps) < 0.10:
                         _pe_implausible_from_eps = True
             pe_ratio_reason = (
                 "implausible_ratio"
@@ -633,6 +641,19 @@ class ValueMetricsMixin(SymbolGateMixin):
             # not equity_row, to catch this "never tagged" case.
             _pb_shares_out = safe_float(row_dict.get("shares_outstanding"), f"{symbol}.pb_reason_shares_outstanding")
             _pb_current_price = safe_float(row_dict.get("current_price"), f"{symbol}.pb_reason_current_price")
+            # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit, same fix
+            # as pe_ratio/ps_ratio's identical gap above/below): a real book-value-per-share
+            # below $0.10 (MIN_PLAUSIBLE_PB_RATIO's sibling floor, load_sec_valuations.py's
+            # own pb computation) can still imply a pb comfortably inside 0.05..1000 - the
+            # bare implied-pb bounds check below misses that floor and falls through to
+            # "missing_sec_data" instead of "implausible_ratio".
+            _pb_bvps_below_floor = (
+                latest_book_value is not None
+                and latest_book_value > 0
+                and _pb_shares_out is not None
+                and _pb_shares_out > 0
+                and (float(latest_book_value) / _pb_shares_out) < 0.10
+            )
             pb_ratio_reason = (
                 "negative_book_value"
                 if latest_book_value is not None and latest_book_value <= 0
@@ -647,11 +668,14 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # rather than a generic extraction gap.
                 else "implausible_ratio"
                 if (
-                    latest_book_value > 0
-                    and _pb_shares_out is not None
-                    and _pb_current_price is not None
-                    and _pb_shares_out > 0
-                    and not (0.05 <= (_pb_current_price / (float(latest_book_value) / _pb_shares_out)) <= 1000)
+                    _pb_bvps_below_floor
+                    or (
+                        latest_book_value > 0
+                        and _pb_shares_out is not None
+                        and _pb_current_price is not None
+                        and _pb_shares_out > 0
+                        and not (0.05 <= (_pb_current_price / (float(latest_book_value) / _pb_shares_out)) <= 1000)
+                    )
                 )
                 # _sanity_check_market_cap (load_sec_valuations.py) nulls pb/ps/market_cap/
                 # fcf_yield/ev_ebitda/ev_revenue/intrinsic_value/margin_of_safety together on a
@@ -710,9 +734,27 @@ class ValueMetricsMixin(SymbolGateMixin):
                 and _ps_shares_out is not None
                 and _ps_current_price is not None
                 and _ps_shares_out > 0
-                and not (0.05 <= (_ps_current_price / (_ps_latest_revenue / _ps_shares_out)) <= 10000)
             ):
-                _ps_implausible_ratio = True
+                # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit):
+                # this used to only re-check the implied-ps bounds (0.05..10000), missing
+                # load_sec_valuations.py's OTHER real rejection criterion added the same
+                # session (e27a2d96f) - a real revenue-per-share below $0.10 (MIN_PLAUSIBLE_
+                # PS_RATIO's sibling floor, same rationale as pe_ratio's EPS floor above).
+                # A tiny per-share revenue combined with a normal share count/price commonly
+                # yields an implied ps comfortably inside 0.05..10000 (e.g. rps=$0.02 against
+                # an $8.82 price implies ps=431, well within bounds) even though
+                # load_sec_valuations.py itself rejected it via the rps<0.10 floor - so this
+                # cascade fell through to the generic "missing_sec_data" label instead of
+                # "implausible_ratio". Live-confirmed ABSI (Absci Corp): FY2025 revenue=
+                # $2.8M/136.8M shares = $0.0205/share, real and used elsewhere (ev_revenue=
+                # 425.28 on the same row), yet ps_ratio_unavailable_reason came back
+                # "missing_sec_data". A live DB scan found 132 of 133 universe ps_ratio
+                # "missing_sec_data" symbols have real, positive revenue on file - this exact
+                # unmirrored floor, not a genuine data gap.
+                _ps_rps = _ps_latest_revenue / _ps_shares_out
+                _ps_implied = _ps_current_price / _ps_rps if _ps_rps > 0 else None
+                if _ps_rps < 0.10 or _ps_implied is None or not (0.05 <= _ps_implied <= 10000):
+                    _ps_implausible_ratio = True
 
         # Fetch held_percent fields from positioning_metrics (FIXED 2026-08-18)
         held_percent_institutions, held_percent_institutions_reason = self._fetch_positioning_metrics(symbol)

@@ -126,6 +126,40 @@ class TestPsRatioImplausibleBound:
         assert metrics["ps_ratio"] is None
         assert metrics["ps_ratio_unavailable_reason"] == "missing_sec_data"
 
+    def test_real_tiny_revenue_per_share_below_floor_reports_implausible_ratio(self):
+        """FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" audit). The bound check
+        above only re-derived load_sec_valuations.py's implied-ps ceiling/floor (0.05..10000),
+        never its OTHER real rejection criterion added the same session (e27a2d96f): a real
+        revenue-per-share below $0.10. A tiny rps combined with a normal share count/price
+        commonly lands the implied ps comfortably inside 0.05..10000 even though the real
+        computation rejected it via the rps floor - live-confirmed ABSI (Absci Corp): FY2025
+        revenue=$2.8M / 136.8M shares = $0.0205/share (real, used elsewhere - ev_revenue=425.28
+        on the same row), price=$8.82 implies ps~430 (well within bounds), yet
+        ps_ratio_unavailable_reason came back "missing_sec_data". A live DB scan found 132 of
+        133 universe ps_ratio "missing_sec_data" symbols have real, positive revenue on file -
+        this exact unmirrored floor, not a genuine data gap.
+        """
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _RevenueQueryCursor(revenue_row=(2_800_000.0,))
+            metrics = loader._build_value_metrics(
+                "ABSI",
+                _FakeSecValRow(
+                    {
+                        "pe_ratio": None,
+                        "peg_ratio": None,
+                        "pb_ratio": 6.37,
+                        "ps_ratio": None,
+                        "current_price": 8.82,
+                        "market_cap": 1_206_372_125.70,
+                        "shares_outstanding": 136_776_885.0,
+                    }
+                ),
+            )
+
+        assert metrics["ps_ratio"] is None
+        assert metrics["ps_ratio_unavailable_reason"] == "implausible_ratio"
+
     def test_no_shares_outstanding_keeps_generic_reason(self):
         # No shares_outstanding on the sec_valuations row means the implausible-ratio recompute
         # can't run, so this must still fall through to the generic reason, unchanged.
