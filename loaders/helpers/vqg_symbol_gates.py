@@ -258,7 +258,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_income_statement
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE interest_expense IS NOT NULL AND interest_expense != 0) = 0
@@ -334,7 +334,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(long_term_debt) = 0 AND COUNT(short_term_debt) = 0
@@ -677,7 +677,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE total_assets IS NOT NULL AND total_assets > 0) = 0
@@ -731,7 +731,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE current_assets IS NOT NULL AND current_assets > 0) = 0
@@ -778,7 +778,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE current_liabilities IS NOT NULL AND current_liabilities > 0) = 0
@@ -831,7 +831,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE cash_and_equivalents IS NOT NULL AND cash_and_equivalents > 0) = 0
@@ -899,7 +899,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_income_statement
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1 AND COUNT(net_income) = 0
                 """
@@ -1021,7 +1021,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_income_statement
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE operating_income IS NOT NULL) = 0
@@ -1077,7 +1077,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1 AND COUNT(total_liabilities) = 0
                 """
@@ -1211,7 +1211,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_cash_flow
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
                    AND COUNT(*) FILTER (WHERE free_cash_flow IS NOT NULL) = 0
@@ -1538,7 +1538,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 SELECT symbol FROM annual_balance_sheet
-                WHERE data_unavailable = FALSE
+                WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1 AND COUNT(stockholders_equity) = 0
                 """

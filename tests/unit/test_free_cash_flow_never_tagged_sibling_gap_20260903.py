@@ -50,4 +50,8 @@ def test_never_tagged_free_cash_flow_symbols_queries_annual_cash_flow(monkeypatc
     assert result == frozenset({"NEWIPO"})
     assert "annual_cash_flow" in captured["sql"]
     assert "free_cash_flow" in captured["sql"]
-    assert "data_unavailable = FALSE" in captured["sql"]
+    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): `fiscal_year > 0`
+    # replaces `data_unavailable = FALSE` so a symbol whose entire fiscal-year history is marked
+    # unavailable isn't invisible to this gate - see
+    # test_never_tagged_gates_all_unavailable_history_20260905.py for the full rationale.
+    assert "fiscal_year > 0" in captured["sql"]
