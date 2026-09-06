@@ -165,6 +165,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # function on a much tighter schedule to run ONLY that one check - no phases, no order
         # entry/exit logic touched. See stop-loss-guardian.tf (not yet enabled - see its own
         # comment) for the schedule this dispatches from.
+        #
+        # 2026-09-06: this dispatch has no full Phase 9 reconciliation ahead of it (unlike the
+        # normal in-orchestrator call, which always runs after one), so `sync_positions_first`
+        # is required here - without it, a position that legitimately closed since the last
+        # full orchestrator run reads stale status='open' for hours and produces false
+        # "AUTO-REPAIR FAILED" CRITICAL alerts on this schedule's every-15-minutes cadence. See
+        # _verify_open_position_stop_loss_protection_step's own comment on this parameter.
         if event.get("mode") == "stop_loss_guardian":
             from algo.infrastructure import get_config
             from algo.orchestrator.phase9_reconciliation import (
@@ -175,7 +182,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 logger.info(f"[STOP_LOSS_GUARDIAN] phase_result: args={args} kwargs={kwargs}")
 
             try:
-                _verify_open_position_stop_loss_protection_step(_log_guardian_result, get_config())
+                _verify_open_position_stop_loss_protection_step(
+                    _log_guardian_result, get_config(), sync_positions_first=True
+                )
             except Exception as guardian_err:
                 # _verify_open_position_stop_loss_protection_step already catches and alerts
                 # (notify()) on its own internal failures - this outer catch only ensures a

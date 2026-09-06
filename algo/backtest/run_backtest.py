@@ -402,10 +402,15 @@ def run_backtest(  # noqa: C901
     field, which is now informational only). This models the modal real-world lag between a
     signal firing and live Phase 8 actually executing it (see module docstring). Still a
     simplification - real entries land anywhere from same-day to 3+ days out - but strictly
-    more realistic than assuming the fill happens the instant the breakout is detected. Exit
-    timing (SELL signal / stop / target / max-hold detection-and-action) is UNCHANGED same-day -
-    only entries were shown to have this lag pattern in the live evidence gathered so far; a
-    symmetric look at exit lag was not done and may be a worthwhile future check.
+    more realistic than assuming the fill happens the instant the breakout is detected.
+
+    EXIT LAG MODELING (fixed 2026-09-06): the symmetric look at exit lag flagged here as a
+    future check was done. SELL-signal exits had the identical zero-lag bug (exiting at the
+    exact signal day's own close) - now fixed the same way as entries: yesterday's SELL
+    signal, filled at today's price. Price-triggered exits (profit target/stop loss/max
+    hold) are unaffected by design - those are level-based and continuously monitored in
+    live exit_engine.py, not gated on the once-daily signal batch the way BUY/SELL signals
+    are, so same-day detection-and-action remains correct for them.
     """
     # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
     if initial_capital is None or initial_capital <= 0:
@@ -451,8 +456,18 @@ def run_backtest(  # noqa: C901
                     f"Cannot calculate P&L without current prices. Check price_daily table."
                 )
 
-        # Check exits first (SELL signals, profit target, stop loss, max hold)
-        sell_signals = _get_daily_sell_signals(sim_date)
+        # EXIT LAG MODELING (fixed 2026-09-06, real-money-readiness dig - this previously
+        # exited on the exact signal day's own close, zero lag, the SAME bug class the
+        # 2026-08-27 entry-lag fix addressed for BUY signals - see this function's own
+        # docstring, which explicitly flagged this asymmetry as never having been checked).
+        # SELL signals come from the same once-daily buy_sell_daily batch as BUY signals and
+        # have the same real-world lag before live Phase 8/6 execution can react to them -
+        # checking YESTERDAY's sell signal and exiting at TODAY's price is symmetric with the
+        # entry-lag model below. Price-triggered exits (profit target/stop loss/max hold) are
+        # deliberately NOT lagged here - those are level-based and continuously monitored in
+        # live exit_engine.py, not gated on the once-daily signal batch the way BUY/SELL
+        # signals are, so same-day detection-and-action remains correct for them.
+        sell_signals = _get_daily_sell_signals(prev_sim_date) if prev_sim_date is not None else set()
 
         for symbol in list(positions.keys()):
             pos = positions[symbol]

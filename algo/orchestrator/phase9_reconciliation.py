@@ -1226,7 +1226,9 @@ def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None
             logger.warning(f"[PHASE 9] Failed to log orphan cleanup warning: {log_err}")
 
 
-def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callable[..., Any], config: Any) -> None:
+def _verify_open_position_stop_loss_protection_step(
+    log_phase_result_fn: Callable[..., Any], config: Any, sync_positions_first: bool = False
+) -> None:
     """Verify every open position still has a live stop-loss leg resting at the broker,
     and auto-repair one that doesn't rather than only alerting a human to do it.
 
@@ -1268,6 +1270,35 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
             return
 
         order_mgr = OrderManager(sync_mgr.alpaca_key, sync_mgr.alpaca_secret, sync_mgr.alpaca_base_url)
+
+        # GUARDIAN-MODE FIX (2026-09-06): the normal Phase 9 call path only reaches here
+        # AFTER _run_reconciliation_step has already synced algo_positions from live broker
+        # fills this cycle (see this file's 2026-09-05 ordering-fix comment above the call
+        # site) - a position that legitimately closed reads status='closed' by the time this
+        # runs. The standalone stop-loss-guardian Lambda dispatch (lambda_function.py's
+        # `mode: "stop_loss_guardian"`) calls straight into this function with NO
+        # reconciliation step at all, so between full orchestrator runs algo_positions can
+        # sit stale for hours - a position stopped out/take-profited since the last full run
+        # still reads status='open' here, has no live stop leg (the bracket that protected it
+        # already filled), and would otherwise be treated as a genuine protection gap: either
+        # a false "AUTO-REPAIR FAILED - investigate immediately" CRITICAL alert (Alpaca
+        # rejects the repair stop for a symbol this long-only account no longer holds) or, on
+        # a partial-close, a repair sized off the stale pre-close quantity. Both are exactly
+        # the false-alarm bug class the 2026-09-05 ordering fix closed for the main flow -
+        # reusing the narrow position-only sync (not the full DailyReconciliation, which also
+        # writes a portfolio snapshot/P&L validation this high-frequency schedule must not
+        # duplicate) closes the same gap here.
+        if sync_positions_first:
+            try:
+                with DatabaseContext("write") as sync_cur:
+                    sync_result = sync_mgr.sync_alpaca_positions(sync_cur)
+                logger.info(f"[STOP_LOSS_GUARDIAN] Pre-check position sync: {sync_result.get('message')}")
+            except Exception as sync_err:
+                logger.critical(
+                    f"[STOP_LOSS_GUARDIAN CRITICAL] Position sync before stop-loss check failed, "
+                    f"algo_positions may be stale - proceeding with existing DB state: {sync_err}",
+                    exc_info=True,
+                )
 
         with DatabaseContext("read") as cur:
             cur.execute(
