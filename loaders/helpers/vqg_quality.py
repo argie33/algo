@@ -1745,6 +1745,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                 row_level_reason = (
                     "etf_trust_no_gaap_financials"
                     if stockholders_equity is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+                    # this session's FPI-unsupported-currency cash-flow-side fix): a foreign
+                    # private issuer that tags Assets/Equity only under an unsupported currency
+                    # (e.g. ARS) has a real, non-fabricatable stockholders_equity=None, not a
+                    # genuine loader gap - checked before the generic fallback below, same
+                    # priority as the ETF-trust check just above.
+                    else "unsupported_currency_no_fx_rate"
+                    if stockholders_equity is None and symbol in self._get_unsupported_currency_balance_sheet_symbols()
                     else "no_recent_balance_sheet_data_reported"
                     if stockholders_equity is None
                     and (

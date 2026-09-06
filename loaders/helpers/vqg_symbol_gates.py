@@ -1300,6 +1300,32 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_unsupported_currency_balance_sheet_symbols(self) -> frozenset[str]:
+        """Symbols whose annual_balance_sheet row was tagged "unsupported_currency_no_fx_rate"
+        by load_financial_statements.py's has_unsupported_currency_only_fact fix - a foreign
+        private issuer that tags Assets/Equity only under a hyperinflationary/unsupported
+        local currency (e.g. ARS - GGAL/BBAR/BSAC/SUPV/TEO/TKC/TGS/TV and more, live-confirmed
+        via real SEC companyfacts) has a real, non-fabricatable stockholders_equity/total_
+        assets=None, not a genuine loader gap.
+
+        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+        _get_unsupported_currency_ocf_symbols() above): the same FPI-currency root cause
+        affects all 3 statement types (see has_unsupported_currency_only_fact's docstring),
+        but only the cash-flow side was wired into quality_metrics' per-field reason chains -
+        the row-level "all ratios None" early return (`_compute_quality_metrics`'s
+        "no_recent_balance_sheet_data_reported" branch) never checked it either. Live-
+        confirmed all 8 known FPI-ARS symbols (GGAL/BBAR/BSAC/SUPV/TEO/TKC/TGS/TV) currently
+        hit that generic row-level reason for every ratio. Reuses annual_balance_sheet.reason
+        the same cheap way, no extra live SEC API calls. Cached for the life of this loader
+        instance; this query runs once per pipeline run, not once per symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                "SELECT DISTINCT symbol FROM annual_balance_sheet WHERE reason = 'unsupported_currency_no_fx_rate'"
+            )
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_never_tagged_free_cash_flow_symbols(self) -> frozenset[str]:
         """Symbols with at least one real (non-data_unavailable) annual_cash_flow row, none of
         which ever carry a real free_cash_flow value - a broader, full-history sibling of
