@@ -63,11 +63,18 @@ class EarningsMetricsLoader(OptimalLoader):
         today = date.today()
 
         with DatabaseContext("read") as cur:
+            # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same bug class
+            # fixed across the annual_* tables this session): a `data_unavailable = TRUE`
+            # quarterly row can carry a leftover non-NULL earnings_per_share (never nulled when
+            # flagged unavailable) - live-confirmed 277 symbols with a disclaimed-but-populated
+            # quarter inside their own trailing-4 window, e.g. AMX has 4+ consecutive disclaimed
+            # quarters (EPS $6.35-$8.00) that were the ENTIRE trailing-4 EPS-consistency input.
+            # `data_unavailable IS NOT TRUE` excludes them.
             cur.execute(
                 """
                 SELECT fiscal_year, fiscal_quarter, earnings_per_share
                 FROM quarterly_income_statement
-                WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                WHERE symbol = %s AND earnings_per_share IS NOT NULL AND data_unavailable IS NOT TRUE
                 ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
                 LIMIT 4
                 """,

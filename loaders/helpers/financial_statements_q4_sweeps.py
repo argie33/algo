@@ -12,6 +12,20 @@ a plain module-level import here would silently stop seeing those patches, AND
 module-level `import loaders.load_financial_statements` here would deadlock as a circular
 import (confirmed live 2026-09-05: this exact ImportError broke financial_statements'
 entire loader run). `_database_context()` below defers the import to call time instead.
+
+FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same bug class fixed across
+annual_*/quarterly_* tables this session): every FY-minus-9mo derivation UPDATE below (and the
+Q4 balance-sheet copy, and the net_income/shares EPS derivation) now additionally requires
+`data_unavailable = FALSE` on every joined source row (a/q1/q2/q3, or the row's own q4x for the
+EPS derivation) - previously only an `IS NOT NULL` guard existed, which a disclaimed row's
+leftover stray non-NULL value (never nulled when flagged unavailable) could satisfy, silently
+persisting a fabricated derived value into the database via `data_source = 'derived_*'`. Unlike
+the read-only anchor-query bugs fixed elsewhere this session, this one WRITES the corrupted
+value, so it's the highest-severity instance of this bug class found. Live-confirmed exploitable
+today: 5 depreciation_expense / 25 amortization_expense / 1 research_development_expense rows
+(quarterly_income_statement remaining-fields loop), 1 revenue/net_income row, 4 EPS-derivation
+rows where the Q4 row itself was disclaimed - small counts today, but this sweep runs on every
+future financial_statements load, so the exposure grows as more disclaimed rows accumulate.
 """
 
 import logging
@@ -75,6 +89,10 @@ class Q4DerivationSweepMixin:
                            AND q1.operating_cash_flow IS NOT NULL
                            AND q2.operating_cash_flow IS NOT NULL
                            AND q3.operating_cash_flow IS NOT NULL
+                           AND a.data_unavailable = FALSE
+                           AND q1.data_unavailable = FALSE
+                           AND q2.data_unavailable = FALSE
+                           AND q3.data_unavailable = FALSE
                        ) AS derived
                  WHERE q4.id = derived.id
                 """
@@ -145,6 +163,10 @@ class Q4DerivationSweepMixin:
                                AND q1.{field} IS NOT NULL
                                AND q2.{field} IS NOT NULL
                                AND q3.{field} IS NOT NULL
+                                   AND a.data_unavailable = FALSE
+                                   AND q1.data_unavailable = FALSE
+                                   AND q2.data_unavailable = FALSE
+                                   AND q3.data_unavailable = FALSE
                            ) AS derived
                      WHERE q4.id = derived.id
                     """
@@ -213,6 +235,7 @@ class Q4DerivationSweepMixin:
                    AND q4.fiscal_quarter = 4
                    AND (q4.total_assets IS NULL OR q4.data_unavailable = TRUE)
                    AND a.total_assets IS NOT NULL
+                   AND a.data_unavailable = FALSE
                 """
             )
             if cur.rowcount:
@@ -285,6 +308,10 @@ class Q4DerivationSweepMixin:
                            AND q1.revenue IS NOT NULL AND q2.revenue IS NOT NULL AND q3.revenue IS NOT NULL
                            AND q1.net_income IS NOT NULL AND q2.net_income IS NOT NULL AND q3.net_income IS NOT NULL
                            AND (a.revenue - (q1.revenue + q2.revenue + q3.revenue)) >= 0
+                           AND a.data_unavailable = FALSE
+                           AND q1.data_unavailable = FALSE
+                           AND q2.data_unavailable = FALSE
+                           AND q3.data_unavailable = FALSE
                        ) AS derived
                  WHERE q4.id = derived.id
                 """
@@ -361,6 +388,10 @@ class Q4DerivationSweepMixin:
                                AND q2.{field} IS NOT NULL
                                AND q3.{field} IS NOT NULL
                                {floor_clause}
+                                   AND a.data_unavailable = FALSE
+                                   AND q1.data_unavailable = FALSE
+                                   AND q2.data_unavailable = FALSE
+                                   AND q3.data_unavailable = FALSE
                            ) AS derived
                      WHERE q4.id = derived.id
                     """
@@ -433,6 +464,7 @@ class Q4DerivationSweepMixin:
                             ON cis.symbol = q4x.symbol AND cis.shares_outstanding > 0
                          WHERE q4x.earnings_per_share IS NULL
                            AND q4x.net_income IS NOT NULL
+                           AND q4x.data_unavailable = FALSE
                            AND COALESCE(
                                    q4x.shares_outstanding_diluted, q4x.shares_outstanding_basic, q4x.shares_outstanding_dei
                                ) IS NOT NULL
@@ -501,6 +533,10 @@ class Q4DerivationSweepMixin:
                            AND q2.interest_expense IS NOT NULL
                            AND q3.interest_expense IS NOT NULL
                            AND (a.interest_expense - (q1.interest_expense + q2.interest_expense + q3.interest_expense)) >= 0
+                           AND a.data_unavailable = FALSE
+                           AND q1.data_unavailable = FALSE
+                           AND q2.data_unavailable = FALSE
+                           AND q3.data_unavailable = FALSE
                        ) AS derived
                  WHERE q4.id = derived.id
                 """
@@ -550,6 +586,10 @@ class Q4DerivationSweepMixin:
                            AND q1.pretax_income IS NOT NULL
                            AND q2.pretax_income IS NOT NULL
                            AND q3.pretax_income IS NOT NULL
+                           AND a.data_unavailable = FALSE
+                           AND q1.data_unavailable = FALSE
+                           AND q2.data_unavailable = FALSE
+                           AND q3.data_unavailable = FALSE
                        ) AS derived
                  WHERE q4.id = derived.id
                 """
@@ -582,6 +622,10 @@ class Q4DerivationSweepMixin:
                            AND q1.income_tax_expense IS NOT NULL
                            AND q2.income_tax_expense IS NOT NULL
                            AND q3.income_tax_expense IS NOT NULL
+                           AND a.data_unavailable = FALSE
+                           AND q1.data_unavailable = FALSE
+                           AND q2.data_unavailable = FALSE
+                           AND q3.data_unavailable = FALSE
                        ) AS derived
                  WHERE q4.id = derived.id
                 """

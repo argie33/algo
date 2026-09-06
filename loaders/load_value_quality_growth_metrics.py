@@ -929,11 +929,19 @@ class ValueQualityGrowthMetricsLoader(
         metrics: dict[str, Any] = {}
         try:
             with DatabaseContext("read") as cur:
+                # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same bug class
+                # fixed across the annual_* tables this session): had NO data_unavailable filter
+                # at all, so a disclaimed quarterly row's leftover stray non-NULL values fed
+                # consecutive_positive_quarters/earnings_growth_4q_avg/quarterly_growth_momentum/
+                # eps_growth_stability/earnings_surprise_avg/earnings_beat_rate directly.
+                # Live-confirmed 279 symbols affected - e.g. AMX had 5 consecutive disclaimed
+                # quarters (net_income $19-24B, revenue $232-244B, EPS $6.3-8.0) inside its own
+                # top-8 window, feeding these metrics entirely from disclaimed data.
                 cur.execute(
                     """
                     SELECT fiscal_year, fiscal_quarter, net_income, revenue, earnings_per_share
                     FROM quarterly_income_statement
-                    WHERE symbol = %s
+                    WHERE symbol = %s AND data_unavailable IS NOT TRUE
                     ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
                     LIMIT 8
                     """,
