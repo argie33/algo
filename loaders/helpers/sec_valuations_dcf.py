@@ -19,26 +19,140 @@ class DcfValuationMixin:
     """
 
     # Type-only declarations (no values) so mypy resolves the `self.X` reads below - the real
-    # values are class constants/instance attributes defined on SecValuationsLoader, the only
-    # class this mixin is ever combined with.
-    DCF_DEFAULT_RISK_FREE_RATE: float
-    DCF_EQUITY_RISK_PREMIUM: float
-    DCF_DEFAULT_BETA: float
-    DCF_BLUME_ADJUSTMENT_WEIGHT: float
-    DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED: float
-    DCF_TERMINAL_GROWTH_RATE: float
-    DCF_MIN_DISCOUNT_TERMINAL_SPREAD: float
-    DCF_MAX_DISCOUNT_RATE: float
-    DCF_VIX_LOOKBACK_YEARS: int
-    DCF_MIN_EQUITY_RISK_PREMIUM: float
-    DCF_MAX_EQUITY_RISK_PREMIUM: float
-    DCF_GROWTH_FLOOR: float
-    DCF_GROWTH_CEILING: float
-    DCF_FORECAST_YEARS: int
-    MIN_INTRINSIC_VALUE_PER_SHARE: float
-    MAX_INTRINSIC_VALUE_PER_SHARE: float
+    # values are the class constants just below (moved here verbatim from
+    # SecValuationsLoader itself 2026-09-05, file-size ratchet decomposition - same class
+    # either way via Python's MRO, so `self.DCF_X` reads on SecValuationsLoader and on
+    # SecValuationYieldDcfMixin, which declares its own subset of these same names for mypy,
+    # are unaffected) and the two cache instance attributes, still defined on
+    # SecValuationsLoader itself (see that class's own comment on them).
     _risk_free_rate_cache: float | None
     _equity_risk_premium_cache: float | None
+
+    # DCF constants (migration 1208, Value factor goal 2026-08-17)
+    #
+    # FIXED 2026-08-20 (goal: finance-accuracy audit): DCF_DISCOUNT_RATE used to be a single
+    # flat 10%/yr applied to every company in the universe regardless of risk - a mega-cap
+    # utility and a small-cap biotech got the exact same cost of capital. That's not
+    # industry-standard DCF practice: the discount rate for an equity-cash-flow DCF should be
+    # a risk-adjusted cost of equity (CAPM: risk-free rate + beta x equity risk premium), not
+    # one guessed constant for the whole universe. Replaced with a live, per-symbol CAPM rate -
+    # see _compute_discount_rate() below. DCF_DISCOUNT_RATE itself is gone; DCF_EQUITY_RISK_
+    # PREMIUM/DCF_DEFAULT_RISK_FREE_RATE/DCF_BLUME_ADJUSTMENT_WEIGHT/DCF_DEFAULT_BETA replace it.
+    DCF_TERMINAL_GROWTH_RATE = 0.025
+    DCF_GROWTH_FLOOR = -0.10
+    DCF_GROWTH_CEILING = 0.15
+    DCF_FORECAST_YEARS = 5
+    MAX_INTRINSIC_VALUE_PER_SHARE = 1_000_000.0  # $1M/share - no real per-share DCF exceeds this
+    # Below $1/share the DCF output is degenerate rather than a real valuation - it's the
+    # fcf_base-near-cancellation bug class (same root cause as DCF_NET_BORROWING_MIN_RETAINED_FRACTION,
+    # e.g. IMMR/ARM/COMP: a healthy company's FCF nearly exactly offset by a one-time item leaves a
+    # tiny positive fcf_base that DCFs out to pennies/share). A $0.01-$0.99 "intrinsic value" isn't
+    # informative even as a number, so both fields are nulled here rather than only margin_of_safety_pct.
+    MIN_INTRINSIC_VALUE_PER_SHARE = 1.0
+
+    # Long-run US equity risk premium (Damodaran/Ibbotson-style estimate - the ~4-6% range is
+    # the standard academic/practitioner convention for the market's average excess return
+    # over Treasuries; 5.0% sits at the middle of that range). Used as the fallback/test
+    # default when _get_equity_risk_premium() below can't produce a live reading - see that
+    # method's docstring for why this is no longer the value live runs actually use.
+    DCF_EQUITY_RISK_PREMIUM = 0.05
+    # FIXED 2026-08-25 (goal: DCF audit follow-up - dynamic ERP, previously deferred as "a
+    # much bigger data undertaking" in dcf_growth_rate_fade_landed_20260825/
+    # dual_class_dcf_entity_fcf_shares_mismatch_fixed_20260825): a proper Damodaran-style
+    # *implied* ERP (solving for the discount rate that equates the S&P 500's current level to
+    # its expected cash flows) needs index-level dividend/buyback yield and a forward earnings
+    # growth estimate - live-checked economic_data's full series inventory and neither exists
+    # anywhere in this pipeline (only raw SP500 index level and DGS-series Treasury yields are
+    # fetched), so that route is still genuinely out of reach without a new data source.
+    # VIXCLS (CBOE VIX close), however, IS already in economic_data (26 years, 2000-present)
+    # and is itself a forward-looking, options-implied measure of the market's expected risk
+    # (Whaley's "investor fear gauge") - unlike a trailing-realized-return premium (rejected:
+    # backward-looking, would make the DCF noisier without being more accurate), VIX already
+    # prices in forward risk the same way implied ERP is supposed to, just via a different
+    # market (options, not equities). Scaling the static 5.0% anchor by current VIX / its own
+    # long-run average gives a genuinely dynamic, live, forward-looking ERP without requiring
+    # data this pipeline doesn't have - same spirit as _get_risk_free_rate's live DGS10 feed,
+    # applied to the other CAPM input that was still a hardcoded constant.
+    #
+    # Bounds keep the result within Damodaran's own published yearly implied-ERP history
+    # (his S&P 500 implied ERP series has run roughly 2%-8% since 1960, only approaching the
+    # top of that band in acute crises like 2008) - an unclamped VIX ratio could otherwise push
+    # the multiplier far outside that real historical range during a 2020-COVID-style vol
+    # spike (VIXCLS peaked at 82.69 in this DB's own history) or an unusually complacent
+    # stretch (VIXCLS low of 9.14), neither of which real implied ERP ever actually reached.
+    DCF_MIN_EQUITY_RISK_PREMIUM = 0.03
+    DCF_MAX_EQUITY_RISK_PREMIUM = 0.08
+    # Long-run VIX average lookback - the full ~26-year history on file (not just a recent
+    # window) so a multi-year low- or high-vol REGIME doesn't get compared only against
+    # itself (e.g. averaging only the last 3 calm years would understate how elevated "normal"
+    # VIX really is over a full cycle, permanently inflating the dynamic ERP relative to that
+    # regime). economic_data's VIXCLS starts 2000-01-03, so this comfortably covers the whole
+    # series without hardcoding a start date.
+    DCF_VIX_LOOKBACK_YEARS = 25
+
+    # Sanity bound on _get_net_borrowing_for_dcf's result relative to the DCF's own fcf_base
+    # (OCF - CapEx - SBC) - live-caught (500-symbol universe spot-check, same day, before
+    # committing) BWXT: a real, small ($50-500M/yr OCF) industrial company whose
+    # operating_lease_liability data jumps to an implausible $44B in one fiscal year (almost
+    # certainly a pre-existing XBRL extraction bug elsewhere in this pipeline - annual_balance_
+    # sheet already carries this bad figure into total_debt/enterprise_value/ev_ebitda today,
+    # independent of this fix - not something this net-borrowing feature caused, but something
+    # it would otherwise blindly amplify into an even more absurd DCF result). A company's real
+    # net borrowing in a single year, however large, is essentially never dozens-to-hundreds of
+    # times its own operating cash flow scale (BWXT's $24B swing was ~50x its most recent real
+    # annual OCF) - genuine large financing events (AMZN's real $72B swing, live-confirmed
+    # plausible against Amazon's own ~$100-160B OCF scale) stay within a much smaller multiple.
+    # 10x is generous enough to avoid rejecting a real large one-time raise for a company with a
+    # temporarily weak FCF year, while still catching an order-of-magnitude data-quality outlier
+    # like BWXT's.
+    DCF_NET_BORROWING_MAX_FCF_MULTIPLE = 10.0
+    # FIXED 2026-09-04 (goal: SEC/XBRL "implausible values" audit, live-confirmed via IMMR):
+    # the 10x ceiling above only guards against net_borrowing being implausibly LARGE relative
+    # to fcf_base - it says nothing about net_borrowing nearly CANCELLING fcf_base out. IMMR's
+    # real FY2026 fcf_base ($32.102M, OCF-CapEx-SBC, genuinely healthy - fcf_yield=12.92%) and
+    # net_borrowing (-$32.098M, a single large debt-repayment year, well within the 10x bound)
+    # combine to a dcf_fcf_base of ~$4,000 - still technically positive, so it slips past the
+    # DCF's own `fcf <= 0` null-out gate, but that near-zero base then compounds through all
+    # DCF_FORECAST_YEARS plus the terminal value, producing an intrinsic_value_per_share that
+    # rounds to $0.00 - a misleading "worthless" signal for a real, cash-generative company,
+    # not an honest "no DCF available" result. A full sign-flip to negative was already handled
+    # (fcf<=0 gate nulls it, see test_net_borrowing_pushing_fcf_negative_leaves_dcf_none_
+    # not_a_crash) - this catches the same "one-time financing event shouldn't anchor a
+    # multi-year perpetuity" problem one step earlier, before it degenerates into a near-zero
+    # (rather than negative) base. 0.15 is conservative: every symbol checked in the live
+    # $0.00-$0.30/share tier that wasn't near-total cancellation retained >=60% of fcf_base.
+    DCF_NET_BORROWING_MIN_RETAINED_FRACTION = 0.15
+    # Fallback risk-free rate (approx. long-run average 10Y Treasury yield) - used only as a
+    # test/caller default and on the rare day economic_data has no recent DGS10 reading. Live
+    # runs use the actual current 10Y yield via _get_risk_free_rate() below, not this constant.
+    DCF_DEFAULT_RISK_FREE_RATE = 0.045
+    # Blume adjustment (Bloomberg/Merrill Lynch convention): shrinks a raw regression beta
+    # 2/3 of the way toward the market average of 1.0. Individual-stock raw betas are noisy
+    # (small sample, name-specific events) - shrinking toward 1.0 is the standard industry
+    # correction rather than trusting a raw estimate (or a whole-universe flat rate) outright.
+    DCF_BLUME_ADJUSTMENT_WEIGHT = 2.0 / 3.0
+    # Assumed market-average risk when a symbol has no computed beta (stability_metrics.beta
+    # NULL - e.g. insufficient price history). Beta=1.0 is the standard "unknown risk, assume
+    # average" convention, not a guess biased toward either overvaluing or undervaluing.
+    DCF_DEFAULT_BETA = 1.0
+    # Cost of equity must exceed the risk-free rate by at least this much - equities are
+    # inherently riskier than Treasuries, so CAPM should never produce a discount rate at or
+    # below the risk-free rate even for a very low/negative-beta name.
+    DCF_MIN_EQUITY_RISK_PREMIUM_APPLIED = 0.01
+    # Sanity ceiling on the resulting discount rate - prevents degenerate terminal-value math
+    # (or a silently absurd near-zero intrinsic value) on an extreme/noisy beta outlier.
+    DCF_MAX_DISCOUNT_RATE = 0.25
+    # Minimum spread the discount rate must keep above DCF_TERMINAL_GROWTH_RATE (2.5%). Gordon
+    # Growth's terminal_value = fcf * (1+g) / (discount_rate - g) is a genuine singularity as
+    # discount_rate approaches g: it blows up to an absurd multiple just below the singularity,
+    # goes negative at/below it, and produces a negative intrinsic_per_share that the plausibility
+    # guard then silently swallows as None. This isn't theoretical - this system's own DGS10
+    # history includes a 0.52% reading (2020 COVID-era), and rfr+MIN_EQUITY_RISK_PREMIUM_APPLIED
+    # alone doesn't keep the rate away from g in that regime (a low-beta name could land at ~2.2%,
+    # under the 2.5% terminal growth rate). A 3pp floor above g keeps the terminal multiple
+    # bounded to a sane range in any real-world rate environment while still leaving genuine
+    # risk-based discount-rate differences visible above the floor.
+    DCF_MIN_DISCOUNT_TERMINAL_SPREAD = 0.03
 
     def _compute_discount_rate(
         self,
