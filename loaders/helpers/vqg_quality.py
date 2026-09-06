@@ -2674,6 +2674,20 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if ev_metrics is None
                     else sec_valuations_reason
                     if sec_valuations_reason
+                    # ADDED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up):
+                    # etf_symbols tickers with ZERO annual_balance_sheet rows ever (SPY/IGV/
+                    # BKDV live-confirmed) fall through every check above - they have no
+                    # sec_valuations row's own reason to inherit AND no real balance-sheet
+                    # history to even attempt the debt-components gate against. Unlike
+                    # _get_etf_trust_no_stockholders_equity_symbols() (which requires real
+                    # balance-sheet history to distinguish "weird trust filing shape" from
+                    # "too new to have filed yet"), an ETF's total_debt/total_cash absence
+                    # doesn't depend on listing age at all - a UIT/index-tracking ETF never
+                    # files an operating-company-style GAAP balance sheet regardless of how
+                    # long it's been trading (SPY: listed 1993, zero balance-sheet rows,
+                    # obviously not "too new"). etf_symbols membership alone is sufficient.
+                    else "etf_trust_no_gaap_financials"
+                    if symbol in self._get_etf_symbols()
                     else "missing_sec_data"
                 )
                 if "total_debt" in failed_metrics
@@ -2695,6 +2709,11 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if sec_valuations_reason
                     else "no_recent_cash_reported"
                     if no_recent_cash_concept
+                    # Same etf_symbols fallback as total_debt_unavailable_reason above - same
+                    # root fact (no GAAP balance sheet at all), same 3 live-confirmed symbols
+                    # (SPY/IGV/BKDV).
+                    else "etf_trust_no_gaap_financials"
+                    if symbol in self._get_etf_symbols()
                     else "missing_sec_data"
                 )
                 if "total_cash" in failed_metrics

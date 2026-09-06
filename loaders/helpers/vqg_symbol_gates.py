@@ -1263,6 +1263,29 @@ class SymbolGateMixin:
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
+    def _get_etf_symbols(self) -> frozenset[str]:
+        """Bare `etf_symbols` membership, no balance-sheet-history precondition.
+
+        ADDED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up, capex-gate fix
+        session): total_debt_unavailable_reason/total_cash_unavailable_reason needed an
+        ETF/trust fallback distinct from _get_etf_trust_no_stockholders_equity_symbols()
+        below - that gate deliberately REQUIRES real annual_balance_sheet history first, to
+        avoid mislabeling an ETF that's simply too new to have filed anything yet as
+        structurally exempt. But total_debt/total_cash's absence for a UIT/index-tracking
+        ETF isn't a function of listing age at all - unlike an operating company (which will
+        eventually file a real 10-K balance sheet once it matures), an ETF never files one,
+        no matter how long it's been trading. Live-confirmed: SPY (listed 1993, 8,458 real
+        trading days, ZERO annual_balance_sheet rows ever) and IGV/BKDV (5 years and ~1.75
+        years listed respectively, also zero rows) all hit the exact same "missing_sec_data"
+        mislabeling for total_debt/total_cash - age doesn't distinguish them, filer TYPE
+        does. Cached for the life of this loader instance; this query runs once per pipeline
+        run, not once per symbol.
+        """
+        with _database_context()("read") as cur:
+            cur.execute("SELECT symbol FROM etf_symbols")
+            return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
     def _get_etf_trust_no_stockholders_equity_symbols(self) -> frozenset[str]:
         """`etf_symbols`-registered tickers with real annual_balance_sheet history (proving
         they're an established filer, not just too new for data) that have never once tagged a
