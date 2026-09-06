@@ -842,6 +842,27 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # so this never mixes fiscal years.
                 roic_operating_income = roic_pretax_income + roic_interest_expense
 
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the never-tagged-
+            # pretax-income derivation just below (in the effective_tax_rate branches) used to
+            # only handle the case where the derived base (net_income + tax_expense) came out
+            # POSITIVE - a loss-making filer with this exact profile (REITs aside, live-confirmed
+            # CVNA/TRDA/FATE and 16 more of 19 universe rows) got NEITHER a computed roic_pct NOR
+            # the correct "unprofitable_stock" reason, silently falling to the generic
+            # "missing_sec_data" catch-all instead, since roic_pretax_income stayed None and the
+            # roic_pct_unprofitable check just below never saw it. Deriving roic_pretax_income
+            # itself here - unconditional of sign - lets that check correctly classify a
+            # negative/zero derived base, and the existing effective_tax_rate branch below
+            # handles the positive case with the identical formula a since-removed dedicated
+            # branch used to compute separately.
+            if (
+                roic_pretax_income is None
+                and roic_tax_expense is not None
+                and roic_tax_expense != 0
+                and roic_net_income is not None
+                and symbol in self._get_never_tagged_pretax_income_symbols()
+            ):
+                roic_pretax_income = roic_net_income + roic_tax_expense
+
             # No hardcoded tax-rate assumption - only real SEC-reported IncomeTaxExpenseBenefit/
             # pretax_income concepts are used (a fabricated 0.21/0.25 fallback was rejected).
             # Bounded to [-60%, 60%]: an implausible rate (near-zero pretax income swamped by an
@@ -872,27 +893,13 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # NCI/discontinued-ops noise) - effective_tax_rate = tax/pretax is exact algebra
                 # when tax is EXACTLY 0: 0/x = 0 for any nonzero x.
                 effective_tax_rate = 0.0
-            elif (
-                roic_pretax_income is None
-                and roic_tax_expense is not None
-                and roic_tax_expense != 0
-                and roic_net_income is not None
-                and (roic_net_income + roic_tax_expense) > 0
-                and symbol in self._get_never_tagged_pretax_income_symbols()
-            ):
-                # See _get_never_tagged_pretax_income_symbols - REITs/mortgage trusts never tag
-                # a distinct pretax_income concept but do report a real, usually small,
-                # income_tax_expense. The general net_income+tax_expense approximation for
-                # pretax_income is rejected elsewhere (NCI/discontinued-ops noise), but scoped
-                # narrowly here (confirmed-absent concept, same-fiscal-year net_income, same
-                # [-0.60, 0.60] bound as every other branch) it's safe: when tax is this small
-                # relative to net_income, even a materially wrong pretax base yields only a
-                # small implied rate.
-                candidate_rate = roic_tax_expense / (roic_net_income + roic_tax_expense)
-                if -0.60 <= candidate_rate <= 0.60:
-                    effective_tax_rate = candidate_rate
-                else:
-                    implausible_ratio_metrics.append("roic_pct")
+            # The never-tagged-pretax-income REIT/mortgage-trust case (net_income+tax_expense
+            # approximation) is now handled uniformly above by deriving roic_pretax_income
+            # itself before this if/elif chain runs - a positive derived value reaches the
+            # first branch above with the identical candidate_rate formula this elif used to
+            # compute separately; a non-positive one is correctly caught by
+            # roic_pct_unprofitable instead. See this function's own comment just above the
+            # roic_pretax_income derivation for the fix history.
 
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
             # Use total_debt_ev (from sec_valuations, 81% available) as primary source

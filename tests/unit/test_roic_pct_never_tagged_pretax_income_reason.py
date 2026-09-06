@@ -159,3 +159,28 @@ class TestRoicPctNeverTaggedPretaxIncomeReason:
 
         assert metrics["roic_pct"] is None
         assert metrics["roic_pct_unavailable_reason"] == "implausible_ratio"
+
+    def test_never_tagged_pretax_loss_making_symbol_gets_unprofitable_reason(self, monkeypatch):
+        """FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the derivation above
+        only ever handled a POSITIVE derived pretax base (net_income + income_tax_expense) - a
+        loss-making filer with this exact never-tagged-pretax-income profile (TRDA/CVNA/FATE
+        live-confirmed, 19 universe rows) got neither a computed roic_pct nor the correct
+        "unprofitable_stock" reason, silently falling to "missing_sec_data" instead, since
+        roic_pretax_income was never actually set (only effective_tax_rate was, and only in the
+        positive branch). roic_pretax_income is now derived unconditionally of sign so the
+        existing roic_pct_unprofitable check can correctly classify this case."""
+        loader = _make_loader(monkeypatch, never_tagged_pretax_income_symbols=frozenset({"TRDASHAPE"}))
+        row = _quality_row(
+            stockholders_equity=500_000_000.0,
+            long_term_debt=None,
+            cash_and_equivalents=200_000_000.0,
+            operating_income=-157_898_000.0,
+            income_tax_expense=924_000.0,
+            pretax_income=None,
+            net_income=-143_750_000.0,
+        )
+
+        metrics = loader._compute_quality_metrics("TRDASHAPE", row, ev_metrics=None)
+
+        assert metrics["roic_pct"] is None
+        assert metrics["roic_pct_unavailable_reason"] == "unprofitable_stock"
