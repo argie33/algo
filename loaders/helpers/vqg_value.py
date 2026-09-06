@@ -64,6 +64,7 @@ class ValueMetricsMixin(SymbolGateMixin):
         MIN_PLAUSIBLE_FORWARD_PE_RATIO: float
         MAX_PLAUSIBLE_FORWARD_PE_RATIO: float
         MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO: float
+        _ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS: frozenset[str]
 
         def _unavailable_marker(self, table: str, symbol: str, reason: str | None = None) -> dict[str, Any]: ...
 
@@ -374,7 +375,18 @@ class ValueMetricsMixin(SymbolGateMixin):
         # sibling.
         fcf_yield_reason_str = (
             (
-                "registered_investment_company_no_xbrl"
+                # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive
+                # RIC-gap scan): royalty trusts (_ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS - NRT/
+                # MTR/CRT/PBT/SBR/SJT) are the third member of this "no real cash-flow-statement
+                # concepts" family alongside RIC/ETF-trust, and already get this exact
+                # "reit_special_entity" recategorization in quality_metrics' fcf_margin sibling
+                # chain (vqg_quality.py's royalty-trust block) - but this value_metrics chain
+                # never checked it at all, unlike the RIC/ETF-trust checks just below (added
+                # 2026-09-05). Live-confirmed all 6 active royalty-trust symbols stuck on
+                # "missing_sec_data"/"no_recent_free_cash_flow_reported" for fcf_yield.
+                "reit_special_entity"
+                if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS
+                else "registered_investment_company_no_xbrl"
                 if symbol in self._get_registered_investment_company_symbols()
                 else "etf_trust_no_gaap_financials"
                 if symbol in self._get_etf_trust_no_stockholders_equity_symbols()

@@ -121,3 +121,25 @@ class TestFcfYieldTrustReasonWired:
 
         assert result["fcf_yield_unavailable_reason"] != "etf_trust_no_gaap_financials"
         assert result["fcf_yield_unavailable_reason"] != "registered_investment_company_no_xbrl"
+
+    def test_royalty_trust_symbol_gets_reit_special_entity_reason(self, monkeypatch):
+        # FIXED 2026-09-06 (same-day follow-up, comprehensive RIC-gap scan): royalty trusts
+        # (_ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS - NRT/MTR/CRT/PBT/SBR/SJT) are the third
+        # member of this "no real cash-flow-statement concepts" family, already recategorized
+        # in quality_metrics' fcf_margin sibling chain, but never checked here.
+        result = _run(
+            monkeypatch,
+            "NRT",
+            pe_ratio=None,
+            pb_ratio=2.0,
+            ps_ratio=None,
+            fcf_yield=None,
+            intrinsic_value_per_share=None,
+            margin_of_safety_pct=None,
+            enterprise_value=1_000_000_000.0,
+            market_cap=1_100_000_000.0,
+        )
+
+        assert result["fcf_yield_unavailable_reason"] == "reit_special_entity"
+        assert result["intrinsic_value_unavailable_reason"] == "reit_special_entity"
+        assert result["margin_of_safety_unavailable_reason"] == "reit_special_entity"
