@@ -545,6 +545,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # artifact, not a real valuation), rejected the same way implausible_ratio/
             # extreme_beta are rather than persisting a single extreme outlier value.
             "implausibly_low_forward_pe",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, live-confirmed
+            # CASH/TRN and 170 of 384 universe dcf_fcf_unavailable_reason='missing_cash_flow_data'
+            # rows): sec_valuations_yield_dcf.py's ground-truth reason for when fcf_base was real
+            # (proven by the symbol's own non-NULL fcf_yield, computed from that same fcf_base)
+            # but the DCF-only net-borrowing near-cancellation guard nulled dcf_fcf_base anyway -
+            # a deliberate "don't anchor a perpetuity on a distorted near-zero base" rejection,
+            # the same "computed but rejected as implausible" class as implausible_dcf_result
+            # above, not a genuine SEC/XBRL data gap. See that reason's own write-site comment.
+            "dcf_fcf_nulled_by_net_borrowing_distortion",
         },
     ),
     (

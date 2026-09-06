@@ -301,6 +301,17 @@ class SecValuationYieldDcfMixin:
         # unadjusted) rather than corrupting the DCF with what's almost certainly bad
         # upstream balance-sheet data, not a genuine financing event.
         dcf_fcf_base = fcf_base
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): distinguishes "fcf_base
+        # itself was never computable" from "fcf_base was real but the net-borrowing distortion
+        # check below nulled dcf_fcf_base anyway" - live-confirmed CASH/TRN and 170 of 384
+        # universe-wide dcf_fcf_unavailable_reason='missing_cash_flow_data' rows have a real,
+        # positive fcf_base (proven by their own real, non-NULL fcf_yield, which is computed from
+        # the SAME fcf_base before any net-borrowing adjustment) - the cash-flow data was never
+        # missing at all, only the DCF-specific near-cancellation guard two lines below rejected
+        # it. The reason block further down used to test only `dcf_fcf_base is None`, which can't
+        # tell these two causes apart, so it mislabeled every one of these 170 as a genuine SEC/
+        # XBRL data gap instead of the deliberate methodology choice it actually is.
+        dcf_fcf_nulled_by_net_borrowing = False
         if (
             fcf_base is not None
             and net_borrowing is not None
@@ -317,6 +328,7 @@ class SecValuationYieldDcfMixin:
             # (falls through to the else branch unchanged, still caught by that same gate).
             if fcf_base > 0 and 0 < candidate_fcf_base < self.DCF_NET_BORROWING_MIN_RETAINED_FRACTION * fcf_base:
                 dcf_fcf_base = None
+                dcf_fcf_nulled_by_net_borrowing = True
             else:
                 dcf_fcf_base = candidate_fcf_base
         eps_growth_pct = None
@@ -342,7 +354,14 @@ class SecValuationYieldDcfMixin:
         # guess). Only meaningful when intrinsic_value_per_share came back NULL; a real
         # computed value needs no reason.
         if result["intrinsic_value_per_share"] is None:
-            if dcf_fcf_base is None:
+            if dcf_fcf_base is None and dcf_fcf_nulled_by_net_borrowing:
+                # ADDED 2026-09-06 (see dcf_fcf_nulled_by_net_borrowing's own comment above):
+                # fcf_base was real here - this isn't a data gap, it's the DCF deliberately
+                # declining to anchor a perpetuity on a base a one-time financing event nearly
+                # cancelled out. Same "computed but rejected as implausible" class as
+                # implausible_dcf_result below, not "Missing SEC/XBRL data".
+                result["dcf_fcf_unavailable_reason"] = "dcf_fcf_nulled_by_net_borrowing_distortion"
+            elif dcf_fcf_base is None:
                 # FIXED 2026-09-05 (goal session: "implausible values" sweep): a REIT (SIC
                 # 6798) or insurance carrier (SIC 6311/6321/6331/6351/6361/6399) structurally
                 # never tags a meaningful capex figure the way an operating company does -
