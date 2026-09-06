@@ -744,6 +744,17 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # pe still null for some other reason" case below.
                 else "eps_absent_from_anchor_year"
                 if symbol in self._get_eps_absent_from_anchor_year_symbols()
+                # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): registered
+                # investment companies (closed-end funds, commodity trusts) file no 10-K/10-Q
+                # and have no EPS by their fund/trust structure - same "no GAAP earnings_per_share
+                # concept" fact as blank-check SPACs. Missing RIC gate lets these fall through to
+                # generic "missing_sec_data" instead of correct "Legitimate / not applicable"
+                # categorization. Live-confirmed via CEF symbols in value_metrics with 71 cases
+                # of pe_ratio missing_sec_data where RIC check would resolve to
+                # registered_investment_company_no_xbrl. Checked BEFORE generic fallback, same
+                # priority pattern as fcf_yield and other value_metrics fields.
+                else "registered_investment_company_no_xbrl"
+                if symbol in self._get_registered_investment_company_symbols()
                 else "missing_sec_data"
             )
 
@@ -843,6 +854,12 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # gate above (e.g. genuine negative_book_value) always wins.
                 else "shares_outstanding_scale_mismatch"
                 if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
+                # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                # follow-up to pe_ratio missing RIC gate fix): RICs file no 10-K/10-Q and have
+                # no balance-sheet StockholdersEquity concept by their structure - same gate
+                # pattern as pe_ratio. Checked BEFORE generic fallback.
+                else "registered_investment_company_no_xbrl"
+                if symbol in self._get_registered_investment_company_symbols()
                 else "missing_sec_data"
             )
 
@@ -966,6 +983,12 @@ class ValueMetricsMixin(SymbolGateMixin):
                     if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
                     else "implausible_ratio"
                     if _ps_implausible_ratio
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up to pe_ratio/pb_ratio missing RIC gate fixes): RICs file no 10-K/10-Q
+                    # and have no revenue reporting obligation - same structural gap. Checked BEFORE
+                    # generic fallback.
+                    else "registered_investment_company_no_xbrl"
+                    if symbol in self._get_registered_investment_company_symbols()
                     else "missing_sec_data"
                 )
                 if ps is None
