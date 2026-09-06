@@ -993,7 +993,21 @@ class ValueAtRisk:
                 "alerts": alerts,
             }
 
-            # Alert if VaR > 2%
+            # BUG FOUND (2026-09-06 adversarial review - cross-layer risk threshold
+            # consistency audit): these three alert thresholds were hardcoded literals
+            # (2.0, 30, 2.0) even though the exact same limits are live, config-driven
+            # values (max_simulated_var_pct/max_top5_concentration_pct/max_portfolio_beta)
+            # already enforced by pretrade_checks.py and unified_risk_monitor.py/
+            # intraday_risk_monitor.py. If an admin ever tightens or loosens any of these
+            # in algo_config, the pretrade gate and intraday monitor immediately enforce
+            # the new value, but this report kept alerting only against the stale
+            # hardcoded default - a real drift between what's enforced and what's
+            # reported as breached. Fixed to read the same config keys - looked up lazily
+            # inside each metric's own `if` block (not unconditionally up front) so a
+            # legitimate no-open-positions report (var_metrics/concentration/beta all
+            # empty, nothing to alert on) doesn't spuriously require unrelated config keys.
+
+            # Alert if VaR exceeds the configured max_simulated_var_pct
             if var_metrics:
                 if "var_pct" not in var_metrics:
                     raise RuntimeError(
@@ -1002,12 +1016,16 @@ class ValueAtRisk:
                         f"Available keys: {list(var_metrics.keys())}"
                     )
                 var_pct = float(var_metrics["var_pct"])
-                if var_pct > 2.0:
-                    msg = f"VaR Risk: Portfolio VaR is {var_pct:.2f}% (>2% threshold)"
+                try:
+                    max_simulated_var_pct = float(self.config["max_simulated_var_pct"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+                if var_pct > max_simulated_var_pct:
+                    msg = f"VaR Risk: Portfolio VaR is {var_pct:.2f}% (>{max_simulated_var_pct:.2f}% threshold)"
                     alerts.append(msg)
                     logger.warning(msg)
 
-            # Alert if concentration > 30%
+            # Alert if concentration exceeds the configured max_top5_concentration_pct
             if concentration:
                 if "top_5_concentration_pct" not in concentration:
                     raise RuntimeError(
@@ -1016,12 +1034,16 @@ class ValueAtRisk:
                         f"Available keys: {list(concentration.keys())}"
                     )
                 conc_pct = float(concentration["top_5_concentration_pct"])
-                if conc_pct > 30:
-                    msg = f"Concentration Risk: Top 5 holdings are {conc_pct:.1f}% (>30%)"
+                try:
+                    max_top5_concentration_pct = float(self.config["max_top5_concentration_pct"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+                if conc_pct > max_top5_concentration_pct:
+                    msg = f"Concentration Risk: Top 5 holdings are {conc_pct:.1f}% (>{max_top5_concentration_pct:.1f}%)"
                     alerts.append(msg)
                     logger.warning(msg)
 
-            # Alert if beta > 2.0
+            # Alert if beta exceeds the configured max_portfolio_beta
             if beta:
                 if "portfolio_beta" not in beta:
                     raise RuntimeError(
@@ -1030,8 +1052,12 @@ class ValueAtRisk:
                         f"Available keys: {list(beta.keys())}"
                     )
                 portfolio_beta = float(beta["portfolio_beta"])
-                if portfolio_beta > 2.0:
-                    msg = f"Beta Risk: Portfolio beta {portfolio_beta:.1f} (>2.0x market risk)"
+                try:
+                    max_portfolio_beta = float(self.config["max_portfolio_beta"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+                if portfolio_beta > max_portfolio_beta:
+                    msg = f"Beta Risk: Portfolio beta {portfolio_beta:.1f} (>{max_portfolio_beta:.1f}x market risk)"
                     alerts.append(msg)
                     logger.warning(msg)
 

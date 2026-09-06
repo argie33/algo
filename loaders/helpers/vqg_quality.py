@@ -470,7 +470,7 @@ class QualityMetricsMixin(SymbolGateMixin):
             no_operating_income_concept = (
                 operating_income_for_margin is None and symbol in self._get_no_tax_concept_symbols()
             )
-            if operating_income_for_margin is not None and operating_income_for_margin != 0:
+            if operating_income_for_margin is not None:
                 operating_margin_denominator_field = None
                 if revenue is not None and revenue > 0:
                     computed_operating_margin = (operating_income_for_margin / revenue) * 100
@@ -511,7 +511,7 @@ class QualityMetricsMixin(SymbolGateMixin):
 
             # Net Margin = Net Income / Revenue
             # Fallback for banks (NULL revenue): use Net Income / Total Assets instead
-            if net_income is not None and net_income != 0:
+            if net_income is not None:
                 net_margin_denominator_field = None
                 if revenue is not None and revenue > 0:
                     computed_net_margin = (net_income / revenue) * 100

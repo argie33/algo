@@ -189,6 +189,70 @@ def _fill_pretax_income_from_results_of_operations_when_validated(rows: list[dic
             row["pretax_income"] = candidate
 
 
+def _fill_pretax_income_from_domestic_foreign_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: pretax_income = IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic
+    + ...Foreign, validated against the independently-known net_income + income_tax_expense
+    identity for that same fiscal year before being trusted - same validation discipline as
+    _fill_pretax_income_from_results_of_operations_when_validated above.
+
+    ADDED 2026-09-06 (goal session: tie-out-checker follow-up on the pretax_to_net_income
+    magnitude-bug lead flagged by algo/monitoring/data_patrol/checks/tie_out.py's Round 2
+    docstring). Live-confirmed via real SEC companyfacts JSON: ORCL/MCD/PYPL/PSX all tag a
+    real Domestic/Foreign pretax-income split (ASC 740-10-50-11's required disclosure) but
+    either stopped tagging the combined "...MinorityInterestAnd..."/"...ExtraordinaryItems..."
+    total this file's concepts list otherwise relies on (ORCL/MCD - zero entries for the
+    combined concept in recent years), or simply have no populated recent entry for it (PYPL/
+    PSX - the concept exists in their taxonomy but carries no values for the years checked).
+    Domestic alone (this file used to map it straight to "pretax_income" via
+    load_financial_statements.py's field_mapping, unconditionally, with no validation at all)
+    silently understated these global companies' real pretax income by their entire
+    foreign-sourced share: ORCL FY2025 Domestic=$4.376B/Foreign=$9.784B, sum=$14.160B exactly
+    equals net_income($12.443B)+income_tax_expense($1.717B) - the stale Domestic-only value
+    ($4.376B) was less than a third of the real total. PYPL FY2024 Domestic=$946M/
+    Foreign=$4.383B, sum=$5.329B exactly equals net_income($4.147B)+income_tax_expense($1.182B).
+
+    Deliberately validated (not a blind sum) so a filer whose Domestic concept means something
+    narrower than ASC 740's standard split - the same genuine per-filer-ambiguity risk
+    _fill_pretax_income_from_results_of_operations_when_validated's own docstring documents for
+    ResultsOfOperationsIncomeBeforeIncomeTaxes - isn't trusted on the strength of a
+    plausible-looking sum alone. A domestic-only filer with no real Foreign concept at all
+    (CNX/RRC - genuinely US-only E&P operations) still validates correctly: `foreign` is None,
+    defaults to 0, and Domestic alone already matches net_income+income_tax_expense exactly (see
+    get_income_statement()'s own concept-list comment on IncomeLossFromContinuingOperations
+    BeforeIncomeTaxesDomestic for the live-verified CNX figures) - no regression for that
+    population. Never overwrites a real "pretax_income" value already resolved from the primary
+    concepts above. Mutates rows in place; always strips both raw keys (even on a rejected
+    match) so a domestic-only filer doesn't leak an unmapped-field warning downstream, and so a
+    filer whose domestic+foreign sum does NOT validate gets pretax_income left NULL rather than
+    silently keeping the old unconditionally-trusted Domestic-only value - the same
+    "don't guess when unvalidated" outcome CNX's own sibling concept
+    (ResultsOfOperationsIncomeBeforeIncomeTaxes) already gets above.
+    """
+    for row in rows:
+        domestic = row.pop("income_loss_from_continuing_operations_before_income_taxes_domestic", None)
+        foreign = row.pop("income_loss_from_continuing_operations_before_income_taxes_foreign", None)
+        if row.get("pretax_income") is not None or domestic is None:
+            continue
+        net_income = row.get("net_income_loss")
+        # "income_tax_expense" (the combined-key _fill_income_tax_expense_from_current_
+        # deferred_split above writes) only exists at this pre-transform() stage for a filer
+        # that tags BOTH CurrentIncomeTaxExpenseBenefit and DeferredIncomeTaxExpenseBenefit -
+        # PSX (one of the 4 live-confirmed symbols this function targets) tags neither, only
+        # the plain "IncomeTaxExpenseBenefit" total (raw key "income_tax_expense_benefit",
+        # not yet merged into "income_tax_expense" - that merge is field_mapping's job,
+        # downstream in load_financial_statements.py's transform(), too late for this
+        # validation). Falling back to the raw key here is safe: it's the same real SEC total
+        # either way, just read before vs. after the eventual DB-column merge.
+        tax = row.get("income_tax_expense")
+        if tax is None:
+            tax = row.get("income_tax_expense_benefit")
+        if net_income is None or tax is None:
+            continue
+        candidate = domestic + (foreign or 0)
+        if candidate == net_income + tax:
+            row["pretax_income"] = candidate
+
+
 def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = Revenues - CostsAndExpenses, for single-step-format
     filers that report both totals but never tag OperatingIncomeLoss at all.

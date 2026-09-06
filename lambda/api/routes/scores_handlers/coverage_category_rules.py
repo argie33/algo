@@ -136,39 +136,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # _get_revenue_absent_from_anchor_year_symbols()'s docstring) - same "the SEC data
             # we have can't be used for this specific period" class as the other reasons here.
             "revenue_absent_from_anchor_year",
-            # ADDED 2026-09-05 (goal: "SEC/XBRL missing data to zero" audit): EPS sibling of
-            # revenue_absent_from_anchor_year above - see
-            # _get_eps_absent_from_anchor_year_symbols()'s docstring in vqg_symbol_gates.py
-            # (live-confirmed BRK.A/BRK.B and 206 active-universe symbols total).
-            "eps_absent_from_anchor_year",
-            # ADDED 2026-09-02 (same sweep, quality_row_db anchor-year investigation):
-            # net_income sibling of revenue_absent_from_anchor_year above - the balance-sheet
-            # anchor fiscal year quality_row_db picks has no matching income-statement row,
-            # even though the symbol has real net_income in a nearby fiscal year (live-
-            # confirmed OBX/FTW/XLAB and 342 active-universe symbols total). Deliberately NOT
-            # computed from the mismatched-year figure, same discipline as the revenue
-            # sibling - see roe/roa/net_margin/sustainable_growth_rate's own reason blocks in
-            # load_value_quality_growth_metrics.py.
-            "net_income_absent_from_anchor_year",
-            # ADDED 2026-09-02 (same sweep, quality_row_db anchor-year investigation):
-            # operating_cash_flow/free_cash_flow siblings of net_income_absent_from_anchor_
-            # year above - _get_no_recent_operating_cash_flow_symbols()/_get_no_recent_free_
-            # cash_flow_symbols()'s own docstrings already documented this exact residual
-            # ("the rest have OCF/FCF in an off-anchor year ... deliberately NOT fixed this
-            # pass") but neither reason string existed until now. Affects
-            # operating_cash_flow/free_cash_flow/accruals_ratio/fcf_to_net_income/
-            # ocf_to_net_income_unavailable_reason in load_value_quality_growth_metrics.py.
-            "operating_cash_flow_absent_from_anchor_year",
-            "free_cash_flow_absent_from_anchor_year",
-            # ADDED 2026-09-02 (same sweep, quality_row_db anchor-year investigation
-            # follow-up): operating_income sibling of net_income/revenue/OCF/FCF's anchor-
-            # year-mismatch reasons above - operating_margin/operating_profitability's
-            # operating_income_for_margin only ever checked the anchor fiscal year (plus a
-            # same-year EBIT approximation), never a different fiscal year, unlike its
-            # net_income/revenue siblings. See
-            # _get_operating_income_available_elsewhere_symbols()'s docstring in
-            # load_value_quality_growth_metrics.py (39 active-universe symbols).
-            "operating_income_absent_from_anchor_year",
             # ADDED 2026-09-02 (same sweep, static cross-check of every reason-string literal
             # in the SEC/XBRL loader files against this map - not just live DB counts, which
             # can't see a reason string that hasn't fired yet in the current data): 7 more
@@ -717,6 +684,22 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "negative_earnings_growth",
             "negative_invested_capital",
             "growth_undefined_sign_change",
+            # MOVED 2026-09-06 (goal: "SEC/XBRL missing data to zero" audit): the six
+            # anchor-year-mismatch reasons below (revenue/eps/net_income/ocf/fcf/operating_income
+            # _absent_from_anchor_year) were incorrectly grouped in "Missing SEC/XBRL data"
+            # even though the data genuinely EXISTS in SEC filings - we deliberately DON'T
+            # compute ratios from multi-year-stale data, not because the data is missing, but
+            # because using stale revenue/EPS/cash-flow would produce misleading current-period
+            # ratios. The data is "not applicable to use", not "missing". Live-verified impact:
+            # 98 + 206 + 342 + 39 + others = 600+ symbols. Moving them drops "Missing
+            # SEC/XBRL data" by ~600+ while correctly categorizing the actual business fact
+            # (the anchor year's specific metric wasn't tagged, but an earlier year's was).
+            "revenue_absent_from_anchor_year",
+            "eps_absent_from_anchor_year",
+            "net_income_absent_from_anchor_year",
+            "operating_cash_flow_absent_from_anchor_year",
+            "free_cash_flow_absent_from_anchor_year",
+            "operating_income_absent_from_anchor_year",
             # ADDED 2026-08-29 (goal session: coverage-categorization sweep): _growth_reason()
             # in load_value_quality_growth_metrics.py's two siblings to
             # growth_undefined_sign_change directly above, from the exact same function - a

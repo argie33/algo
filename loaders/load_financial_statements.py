@@ -3212,6 +3212,47 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                     row[field] = None
                     self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
 
+    def _reject_stale_gross_profit_without_fresh_concept(self, transformed: list[dict[str, Any]]) -> None:
+        """Force-null a stale `gross_profit` value for any (symbol, fiscal_year) where this
+        run's fresh SEC extraction has both revenue and cost_of_revenue but no fresh
+        gross_profit fact of its own. Mutates nothing in `transformed` directly - records the
+        rejection so post_run() force-nulls the DB column, bypassing preserve_on_missing_
+        fields' COALESCE (see the 2026-08-23 fix comment in __init__ for why that's necessary
+        for a deliberate rejection, as opposed to a transient fetch gap).
+
+        ADDED 2026-09-06 (goal session: tie-out-checker follow-up on the gross_profit_identity
+        magnitude-bug lead flagged by algo/monitoring/data_patrol/checks/tie_out.py's Round 2
+        docstring). Live-confirmed via real SEC companyfacts JSON: ABBV/GILD/AMGN/ABT's only
+        "GrossProfit" XBRL facts are a supplementary Q4-only quarterly-data-table stub (e.g.
+        ABBV FY2024: start=2024-10-01/end=2024-12-31, a 91-day span) - correctly rejected by
+        the annual span_days<330 check in sec_statements_entry_resolution.py, so the CURRENT
+        extraction code produces no gross_profit value for these filers at all (confirmed via a
+        direct get_income_statement() call: fresh rows have revenue/cost_of_revenue populated,
+        no "gross_profit" key). The non-NULL gross_profit already stored for these rows
+        (ABBV FY2025: $12.066B, live-identified by the tie-out checker as failing revenue
+        ($61.16B) - cost_of_revenue($18.204B) ~= gross_profit by a ~3.6x margin - the real
+        implied figure is ~$42.96B) is a leftover from BEFORE that span check existed, silently
+        protected ever since by preserve_on_missing_fields' COALESCE. fetch_incremental()
+        always refetches a symbol's FULL XBRL history in one company-facts API call (no
+        incremental date cutoff), so this run's absence of a gross_profit fact for a fiscal
+        year that DOES have fresh revenue/cost_of_revenue is not the kind of transient gap
+        preserve_on_missing_fields exists to protect - the concept genuinely produces no usable
+        annual value for this filer/year under the current, correct code, so any stored value
+        must be stale. Same force-null-bypasses-COALESCE mechanism as
+        _reject_implausible_eps/_reject_implausible_shares_outstanding above; post_run()'s
+        UPDATE is a no-op for a row where gross_profit is already NULL, so this is safe to run
+        unconditionally for every annual income-statement row with fresh revenue and
+        cost_of_revenue, not just the 4 symbols found so far. Annual-only (self.period ==
+        "annual") - quarterly's own real Q4 GrossProfit fact legitimately has this same ~90-day
+        span, so quarterly extraction isn't affected by (or exposed to) this bug.
+        """
+        if self.period != "annual":
+            return
+        for row in transformed:
+            if row.get("revenue") is None or row.get("cost_of_revenue") is None or row.get("gross_profit") is not None:
+                continue
+            self._record_explicit_null_rejection(row, "gross_profit", "gross_profit_stale_no_fresh_annual_concept")
+
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
 
@@ -3243,6 +3284,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
+            self._reject_stale_gross_profit_without_fresh_concept(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
         # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).

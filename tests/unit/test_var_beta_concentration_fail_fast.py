@@ -23,7 +23,21 @@ from algo.risk.var import ValueAtRisk
 
 @pytest.fixture
 def var_calculator():
-    return ValueAtRisk({"var_percentile": 5, "cvar_percentile": 5, "stressed_var_percentile": 10})
+    # max_simulated_var_pct/max_top5_concentration_pct/max_portfolio_beta added 2026-09-06:
+    # generate_daily_risk_report()'s alert thresholds now read these config-driven values
+    # (fixed cross-layer drift vs. pretrade_checks.py/unified_risk_monitor.py, which already
+    # enforced them) instead of hardcoded literals - required whenever the corresponding
+    # metric dict is non-empty.
+    return ValueAtRisk(
+        {
+            "var_percentile": 5,
+            "cvar_percentile": 5,
+            "stressed_var_percentile": 10,
+            "max_simulated_var_pct": 2.0,
+            "max_top5_concentration_pct": 30.0,
+            "max_portfolio_beta": 2.0,
+        }
+    )
 
 
 def _stub_out_everything_except(var_calculator, **overrides):

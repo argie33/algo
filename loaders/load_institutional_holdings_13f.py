@@ -165,6 +165,20 @@ _VERIFIED_RAW_TICKER_ALIASES: dict[tuple[str, str], str] = {
     ("MCX", "MCCORMICK & CO-NON VTG SHRS"): "MKC",
     # CUSIP 29081P303 - see Embotelladora Andina note above.
     ("AKOB", "EMBOTELLADORA ANDINA-ADR B"): "AKO.B",
+    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, ownership-data
+    # investigation): Prudential plc (UK insurer, our tracked "PUK", CUSIP 74435K204,
+    # local entity_name "PRUDENTIAL PLC") - live-verified via SEC's real 13F full-text search
+    # (878 hits) and a real infoTable.xml filing (accession 0001085146-25-003989) that
+    # institutions genuinely do report holding this CUSIP, tagged nameOfIssuer="PRUDENTIAL
+    # PLC". OpenFIGI's raw ticker "PUKN" is not a real tracked symbol (confirmed absent from
+    # stock_symbols entirely), so resolution falls to EntityNameIndex.find("PRUDENTIAL
+    # PLC-ADR") - which ties between our tracked PUK ("PRUDENTIAL PLC") and PRU ("PRUDENTIAL
+    # FINANCIAL INC", a completely different, larger US company) on the shared "PRUDENTIAL"
+    # token, same ambiguity-guard shape as BIO-RAD's dual-class collision above, just a
+    # cross-company name collision instead of a same-company dual-class one. "-ADR" is the
+    # only token that would disambiguate toward PUK (Prudential Financial has no ADR - it's
+    # already a US domestic filer), which a token-overlap index doesn't weigh specially.
+    ("PUKN", "PRUDENTIAL PLC-ADR"): "PUK",
 }
 
 

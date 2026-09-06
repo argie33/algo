@@ -57,6 +57,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
+    _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
 )
 from utils.external.sec_statements_aggregate import _aggregate_concepts, _to_snake
@@ -84,6 +85,7 @@ __all__ = [
     "_fill_long_term_debt_from_noncurrent_current_split",
     "_fill_long_term_debt_from_segment_dimensional_facts",
     "_fill_operating_income_from_revenue_minus_costs_and_expenses",
+    "_fill_pretax_income_from_domestic_foreign_split",
     "_fill_pretax_income_from_results_of_operations_when_validated",
     "_fx_rate_cache",
     "_to_snake",

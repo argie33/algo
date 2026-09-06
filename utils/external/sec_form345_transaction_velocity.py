@@ -183,6 +183,11 @@ class Form345TransactionVelocityAggregator:
 
         Uses streaming download for large files (500MB+) to avoid memory exhaustion
         and handle slow network connections.
+
+        BUGFIX 2026-09-06: Socket timeout on streaming read. The timeout= parameter
+        on session.get() only covers the initial connection; a stalled server can hang
+        iter_content indefinitely. Setting socket timeout enforces deadline on every
+        recv() call, including during streaming chunk reads.
         """
         for prefix in URL_PATH_PREFIXES:
             url = f"https://www.sec.gov/files/{prefix}/data/insider-transactions-data-sets/{quarter}_form345.zip"
@@ -204,14 +209,19 @@ class Form345TransactionVelocityAggregator:
 
             # Read streamed content in chunks to avoid memory exhaustion
             try:
+                # Set socket timeout on the underlying connection to enforce
+                # deadline on chunk reads, not just the initial request
+                if hasattr(resp.raw, "_connection") and hasattr(resp.raw._connection, "sock"):
+                    resp.raw._connection.sock.settimeout(REQUEST_TIMEOUT_SECONDS)
+
                 zip_bytes = b""
-                for chunk in resp.iter_content(chunk_size=8192):
+                for chunk in resp.iter_content(chunk_size=8192, decode_unicode=False):
                     if chunk:
                         zip_bytes += chunk
                 logger.info(f"[FORM345_VELOCITY] Downloaded {quarter} ({len(zip_bytes)} bytes)")
                 return zip_bytes
-            except Exception as e:
-                logger.warning(f"[FORM345_VELOCITY] Error reading {quarter} stream: {e}")
+            except (TimeoutError, requests.Timeout, requests.ConnectionError, Exception) as e:
+                logger.warning(f"[FORM345_VELOCITY] Timeout/error reading {quarter} stream: {type(e).__name__}: {e}")
                 continue
 
         return None

@@ -16,6 +16,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
+    _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
 )
 from utils.external.sec_statements_aggregate import _aggregate_concepts
@@ -655,18 +656,39 @@ def get_income_statement(
         # FIXED 2026-08-17 (goal: "no SEC data" audit, CNX live-confirmed): neither variant
         # above exists at all for some filers (CNX Resources - E&P, SIC 1311 - has zero
         # entries for either, confirmed via real companyfacts JSON) - they tag
-        # "...BeforeIncomeTaxesDomestic" instead. Listed FIRST (not last) because, unlike the
-        # two concepts above, "Domestic" only covers US operations for a genuinely
-        # multinational filer - for a filer that also reports one of the fuller concepts
-        # above, that more complete figure must win on overwrite. Live-verified for CNX
-        # FY2023: this concept's value ($2,222,925,000) exactly equals net_income
-        # ($1,720,716,000) + income_tax_expense ($502,209,000) already in our DB for that
-        # year - confirming it IS the real total pretax income for this filer, not a partial
-        # figure. (A sibling concept, "ResultsOfOperationsIncomeBeforeIncomeTaxes", was
+        # "...BeforeIncomeTaxesDomestic" instead. Live-verified for CNX FY2023: this concept's
+        # value ($2,222,925,000) exactly equals net_income ($1,720,716,000) + income_tax_expense
+        # ($502,209,000) already in our DB for that year - confirming it IS the real total
+        # pretax income for this filer, not a partial figure.
+        #
+        # CORRECTED 2026-09-06 (tie-out-checker follow-up, ORCL/MCD/PYPL/PSX live-confirmed):
+        # this concept is NO LONGER mapped directly to "pretax_income" via field_mapping (it
+        # used to be, on the assumption below that a fuller concept - if the filer has one -
+        # would always win the overwrite). That assumption was live-disproven: ORCL/MCD/PYPL/
+        # PSX all tag a real Domestic AND Foreign split but have NO populated combined-concept
+        # entry for the years checked, so "Domestic" alone silently won the DB column,
+        # understating true pretax income by the entire foreign-sourced share (ORCL FY2025:
+        # stored $4.376B vs. real $14.160B - barely 31% of the true total). Domestic is now
+        # consumed only by _fill_pretax_income_from_domestic_foreign_split below (in
+        # sec_income_statement_fallbacks.py), which sums it with the new Foreign concept just
+        # above and validates the total against net_income+income_tax_expense before trusting
+        # it - CNX's domestic-only case (no real Foreign concept at all) still validates
+        # correctly via that same function, so this fix is additive, not a regression for it.
+        # (A sibling concept, "ResultsOfOperationsIncomeBeforeIncomeTaxes", was
         # checked and rejected - CNX FY2023 value $2,317,918,000 does NOT match, it's the
         # ASC 932 oil-and-gas-producing-activities supplementary disclosure, not consolidated
         # pretax income - do not add it here.)
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+        # ADDED 2026-09-06 (tie-out-checker follow-up, ORCL/MCD/PYPL/PSX live-confirmed - see
+        # _fill_pretax_income_from_domestic_foreign_split's docstring in
+        # sec_income_statement_fallbacks.py for the full evidence): "Domestic" above is only
+        # ONE half of ASC 740-10-50-11's required domestic/foreign pretax-income split for a
+        # genuinely multinational filer - this concept is the other half, never fetched before
+        # this fix. Kept OUT of field_mapping deliberately (unlike Domestic historically was) -
+        # _fill_pretax_income_from_domestic_foreign_split below consumes both raw keys directly
+        # and validates their sum against net_income+income_tax_expense before ever writing
+        # "pretax_income", rather than letting either half reach the DB unvalidated on its own.
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
         # FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction, pretax_income
@@ -694,6 +716,7 @@ def get_income_statement(
     )
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
+    _fill_pretax_income_from_domestic_foreign_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     if period == "annual":
