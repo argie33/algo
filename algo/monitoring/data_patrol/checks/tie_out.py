@@ -108,6 +108,20 @@ _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in th
 # this measurement mismatch, not a real reconciliation failure.
 _DEPOSITORY_INSTITUTION_SIC_CODES = (6020, 6021, 6022, 6029, 6035, 6036, 6712)
 
+# Security/commodity exchanges, clearinghouses, and broker-dealers hold huge gross customer
+# margin/settlement/segregated cash balances that flow through financing/operating activities
+# in ways that don't relate to their OWN retained cash the way an industrial filer's would -
+# same class of measurement mismatch as depository institutions above, just a different SIC
+# family. Live-confirmed 2026-09-06 via SEC's own companyconcept API: CME Group's real, SEC-
+# tagged NetCashProvidedByUsedInFinancingActivities for FY2025 genuinely is $56.5099B (not an
+# extraction bug) - a derivatives clearinghouse's daily performance-bond/settlement cash
+# movements dwarf its own retained cash position. IBKR/FUTU (SIC 6211, broker-dealers) and
+# ICE/SNEX (SIC 6200, exchange/broker) showed the identical shape in this same checker's
+# cashflow_reconciliation run. Scoped to cashflow_reconciliation only (not the other 4 identity
+# checks) - a broker-dealer/exchange's balance-sheet/EPS/gross-profit/pretax identities aren't
+# known to have this same structural exception.
+_FINANCIAL_INTERMEDIARY_SIC_CODES = (6200, 6211, 6221)
+
 
 class TieOutChecker(BaseCheck):
     def run(self, cur: Any) -> list[CheckResult]:
@@ -196,7 +210,9 @@ class TieOutChecker(BaseCheck):
     def check_cashflow_reconciliation(self, cur: Any) -> None:
         """prior_year cash_and_equivalents + OCF + ICF + FCF ~= current_year cash_and_equivalents.
 
-        Excludes depository institutions - see _DEPOSITORY_INSTITUTION_SIC_CODES comment above.
+        Excludes depository institutions and financial intermediaries (exchanges/clearinghouses/
+        broker-dealers) - see _DEPOSITORY_INSTITUTION_SIC_CODES and
+        _FINANCIAL_INTERMEDIARY_SIC_CODES comments above.
         """
         try:
             cur.execute(
@@ -230,7 +246,7 @@ class TieOutChecker(BaseCheck):
                     WHERE ci.symbol = cf.symbol AND ci.sic_code = ANY(%s)
                 )
                 """,
-                (list(_DEPOSITORY_INSTITUTION_SIC_CODES),),
+                (list(_DEPOSITORY_INSTITUTION_SIC_CODES + _FINANCIAL_INTERMEDIARY_SIC_CODES),),
             )
             flagged = []
             for row in cur.fetchall():
