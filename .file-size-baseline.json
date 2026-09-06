@@ -115,7 +115,7 @@
   "algo/orchestrator/phase8_preentry_health_check.py": 231,
   "algo/orchestrator/phase9_reconciliation.py": 1766,
   "algo/orchestrator/phase9_reporting.py": 515,
-  "algo/orchestrator/phase9_stop_loss_repair.py": 177,
+  "algo/orchestrator/phase9_stop_loss_repair.py": 190,
   "algo/orchestrator/phase_data_contract.py": 423,
   "algo/orchestrator/phase_error_handling.py": 124,
   "algo/orchestrator/phase_executor.py": 554,
